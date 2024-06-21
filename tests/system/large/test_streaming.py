@@ -27,6 +27,7 @@ def test_streaming_to_bigtable():
         sql,
         "streaming-testing-instance",
         "table-testing",
+        service_account="streaming-testing@bigframes-load-testing.iam.gserviceaccount.com",
         app_profile=None,
         truncate=True,
         overwrite=True,
@@ -57,6 +58,7 @@ def test_streaming_to_pubsub():
     query_job = bigframes.streaming.to_pubsub(
         sql,
         "penguins",
+        "streaming-testing@bigframes-load-testing.iam.gserviceaccount.com",
         job_id=None,
         job_id_prefix=job_id_prefix,
     )

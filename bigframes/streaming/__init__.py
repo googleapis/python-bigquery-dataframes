@@ -15,7 +15,7 @@
 """Module for bigquery continuous queries"""
 
 import json
-from typing import List, Optional
+from typing import Optional
 
 from google.cloud import bigquery
 
@@ -26,6 +26,7 @@ def to_bigtable(
     query: str,
     instance: str,
     table: str,
+    service_account: Optional[str] = None,
     session: Optional[bigframes.Session] = None,
     app_profile: Optional[str] = None,
     truncate: bool = False,
@@ -53,6 +54,11 @@ def to_bigtable(
             The name of the bigtable instance to export to.
         table (str):
             The name of the bigtable table to export to.
+        service_account (str):
+            Full name of the service account to run the continuous query.
+            Example: accountname@projectname.gserviceaccounts.com
+            If not provided, the user account will be used, but this
+            limits the lifetime of the continuous query.
         session (bigframes.Session, default None):
             The session object to use for the query. This determines
             the project id and location of the query. If None, will
@@ -94,7 +100,6 @@ def to_bigtable(
     if session is None:
         session = bigframes.get_global_session()
     bq_client = session.bqclient
-    service_account = create_service_account(session, ["bigtable.user"])
 
     # build export string from parameters
     project = bq_client.project
@@ -129,13 +134,14 @@ def to_bigtable(
         {
             "query": {
                 "continuous": True,
-                "connectionProperties": {
-                    "key": "service_account",
-                    "value": service_account,
-                },
             }
         }
     )
+    if service_account is not None:
+        job_config_filled["query"]["connectionProperties"] = {
+            "key": "service_account",
+            "value": service_account,
+        }
 
     # begin the query job
     query_job = bq_client.query(
@@ -154,6 +160,7 @@ def to_bigtable(
 def to_pubsub(
     query: str,
     topic: str,
+    service_account: str,
     session: Optional[bigframes.Session] = None,
     job_id: Optional[str] = None,
     job_id_prefix: Optional[str] = None,
@@ -177,6 +184,9 @@ def to_pubsub(
         topic (str):
             The name of the pubsub topic to export to.
             For example: "taxi-rides"
+        service_account (str):
+            Full name of the service account to run the continuous query.
+            Example: accountname@projectname.gserviceaccounts.com
         session (bigframes.Session, default None):
             The session object to use for the query. This determines
             the project id and location of the query. If None, will
@@ -201,10 +211,6 @@ def to_pubsub(
     if session is None:
         session = bigframes.get_global_session()
     bq_client = session.bqclient
-
-    service_account = create_service_account(
-        session, ["pubsub.publisher", "pubsub.viewer"]
-    )
 
     # build export string from parameters
     sql = (
@@ -243,28 +249,3 @@ def to_pubsub(
 
     # return the query job to the user for lifetime management
     return query_job
-
-
-def create_service_account(session: bigframes.Session, roles: List[str]) -> str:
-    # create service account
-    bq_connection_manager = session.bqconnectionmanager
-    connection_name = session._bq_connection
-    connection_name = bigframes.clients.resolve_full_bq_connection_name(
-        connection_name,
-        default_project=session._project,
-        default_location=session._location,
-    )
-    connection_name_parts = connection_name.split(".")
-    if len(connection_name_parts) != 3:
-        raise ValueError(
-            f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {connection_name}."
-        )
-    service_account = bq_connection_manager._get_service_account_if_connection_exists(
-        connection_name_parts[0],
-        connection_name_parts[1],
-        connection_name_parts[2],
-    )
-    project = session.bqclient.project
-    for role in roles:
-        bq_connection_manager._ensure_iam_binding(project, service_account, role)
-    return service_account
