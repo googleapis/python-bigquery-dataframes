@@ -25,9 +25,9 @@ def test_streaming_to_bigtable():
         FROM birds.penguins"""
     query_job = bigframes.streaming.to_bigtable(
         sql,
-        "streaming-testing-instance",
-        "table-testing",
-        service_account="streaming-testing@bigframes-load-testing.iam.gserviceaccount.com",
+        instance="streaming-testing-instance",
+        table="table-testing",
+        service_account="streaming@henryjsolberg-prod.iam.gserviceaccount.com",
         app_profile=None,
         truncate=True,
         overwrite=True,
@@ -57,8 +57,8 @@ def test_streaming_to_pubsub():
         FROM birds.penguins"""
     query_job = bigframes.streaming.to_pubsub(
         sql,
-        "penguins",
-        "streaming-testing@bigframes-load-testing.iam.gserviceaccount.com",
+        topic="penguins",
+        service_account="streaming@henryjsolberg-prod.iam.gserviceaccount.com",
         job_id=None,
         job_id_prefix=job_id_prefix,
     )

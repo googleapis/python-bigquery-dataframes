@@ -16,6 +16,7 @@
 
 import json
 from typing import Optional
+import warnings
 
 from google.cloud import bigquery
 
@@ -24,6 +25,7 @@ import bigframes
 
 def to_bigtable(
     query: str,
+    *,
     instance: str,
     table: str,
     service_account: Optional[str] = None,
@@ -96,6 +98,12 @@ def to_bigtable(
             For example, the job can be cancelled or its error status
             can be examined.
     """
+    warnings.warn(
+        "The bigframes.streaming module is a preview feature, and subject to change.",
+        stacklevel=1,
+        category=bigframes.exceptions.PreviewWarning,
+    )
+
     # get default client if not passed
     if session is None:
         session = bigframes.get_global_session()
@@ -138,6 +146,7 @@ def to_bigtable(
             "value": service_account,
         }
     job_config_filled = job_config.from_api_repr(job_config_dict)
+    job_config_filled.labels = {"bigframes-api": "streaming.to_bigtable"}
 
     # begin the query job
     query_job = bq_client.query(
@@ -155,6 +164,7 @@ def to_bigtable(
 
 def to_pubsub(
     query: str,
+    *,
     topic: str,
     service_account: str,
     session: Optional[bigframes.Session] = None,
@@ -203,6 +213,12 @@ def to_pubsub(
             For example, the job can be cancelled or its error status
             can be examined.
     """
+    warnings.warn(
+        "The bigframes.streaming module is a preview feature, and subject to change.",
+        stacklevel=1,
+        category=bigframes.exceptions.PreviewWarning,
+    )
+
     # get default client if not passed
     if session is None:
         session = bigframes.get_global_session()
@@ -232,6 +248,7 @@ def to_pubsub(
             }
         }
     )
+    job_config_filled.labels = {"bigframes-api": "streaming.to_pubsub"}
 
     # begin the query job
     query_job = bq_client.query(
