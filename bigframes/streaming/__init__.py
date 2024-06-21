@@ -130,18 +130,14 @@ def to_bigtable(
 
     # override continuous http parameter
     job_config = bigquery.job.QueryJobConfig()
-    job_config_filled = job_config.from_api_repr(
-        {
-            "query": {
-                "continuous": True,
-            }
-        }
-    )
+
+    job_config_dict: dict = {"query": {"continuous": True}}
     if service_account is not None:
-        job_config_filled["query"]["connectionProperties"] = {
+        job_config_dict["query"]["connectionProperties"] = {
             "key": "service_account",
             "value": service_account,
         }
+    job_config_filled = job_config.from_api_repr(job_config_dict)
 
     # begin the query job
     query_job = bq_client.query(
