@@ -21,7 +21,6 @@ import itertools
 import os
 import re
 import textwrap
-import types
 import typing
 from typing import Dict, Iterable, Mapping, Optional, Tuple, Union
 
@@ -32,6 +31,8 @@ import google.cloud.bigquery.table
 
 import bigframes
 from bigframes.core import log_adapter
+import bigframes.core.compile
+import bigframes.core.compile.googlesql
 import bigframes.core.compile.googlesql as googlesql
 import bigframes.core.sql
 import bigframes.formatting_helpers as formatting_helpers
@@ -162,48 +163,6 @@ def set_table_expiration(
     table = bqclient.get_table(table_ref)
     table.expires = expiration
     bqclient.update_table(table, ["expires"])
-
-
-# BigQuery REST API returns types in Legacy SQL format
-# https://cloud.google.com/bigquery/docs/data-types but we use Standard SQL
-# names
-# https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types
-BQ_STANDARD_TYPES = types.MappingProxyType(
-    {
-        "BOOLEAN": "BOOL",
-        "INTEGER": "INT64",
-        "FLOAT": "FLOAT64",
-    }
-)
-
-
-def bq_field_to_type_sql(field: bigquery.SchemaField):
-    if field.mode == "REPEATED":
-        nested_type = bq_field_to_type_sql(
-            bigquery.SchemaField(
-                field.name, field.field_type, mode="NULLABLE", fields=field.fields
-            )
-        )
-        return f"ARRAY<{nested_type}>"
-
-    if field.field_type == "RECORD":
-        nested_fields_sql = ", ".join(
-            bq_field_to_sql(child_field) for child_field in field.fields
-        )
-        return f"STRUCT<{nested_fields_sql}>"
-
-    type_ = field.field_type
-    return BQ_STANDARD_TYPES.get(type_, type_)
-
-
-def bq_field_to_sql(field: bigquery.SchemaField):
-    name = field.name
-    type_ = bq_field_to_type_sql(field)
-    return f"`{name}` {type_}"
-
-
-def bq_schema_to_sql(schema: Iterable[bigquery.SchemaField]):
-    return ", ".join(bq_field_to_sql(field) for field in schema)
 
 
 def format_option(key: str, value: Union[bool, str]) -> str:
@@ -401,16 +360,24 @@ def to_query(
     time_travel_timestamp: Optional[datetime.datetime] = None,
 ) -> str:
     """Compile query_or_table with conditions(filters, wildcards) to query."""
-    sub_query = (
-        f"({query_or_table})" if is_query(query_or_table) else f"`{query_or_table}`"
-    )
+    qualifier: Optional[str] = None
+    if is_query(query_or_table):
+        sub_query = f"({query_or_table})"
+    else:  # direct table ref
+        sub_query = bigframes.core.compile.googlesql.identifier(query_or_table)
+        # Need qualifier to disambiguate table and column with same name
+        qualifier = sub_query
 
     # TODO(b/338111344): Generate an index based on DefaultIndexKind if we
     # don't have index columns specified.
     if columns:
         # We only reduce the selection if columns is set, but we always
         # want to make sure index_cols is also included.
-        select_clause = "SELECT " + ", ".join(f"`{column}`" for column in columns)
+        prefix = qualifier + "." if (qualifier is not None) else ""
+        select_clause = "SELECT " + ", ".join(
+            f"{prefix}{bigframes.core.compile.googlesql.identifier(column)}"
+            for column in columns
+        )
     else:
         select_clause = "SELECT *"
 
