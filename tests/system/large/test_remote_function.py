@@ -1860,3 +1860,83 @@ def test_remote_function_gcf_memory_unsupported(session, memory_mib):
         @session.remote_function(reuse=False, cloud_function_memory_mib=memory_mib)
         def square(x: int) -> int:
             return x * x
+
+
+def test_remote_function_gcf_oom_prevented_with_more_memory(session):
+    # This test fails without the explicitly set high memory to run the udf code
+    try:
+
+        @session.remote_function(
+            packages=["argostranslate", "google-cloud-storage"],
+            cloud_function_memory_mib=2048,
+        )
+        def translate_to_english(review: str, language: str) -> str:
+            import json
+            import tempfile
+
+            import argostranslate.package
+            import argostranslate.translate
+            import google.cloud.storage
+
+            # Load pretrained models from GCS.
+            storage_client = google.cloud.storage.Client()
+
+            tmpdir = tempfile.TemporaryDirectory()
+            index_path = f"{tmpdir.name}/index.json"
+            with open(index_path, "wb") as index_file:
+                storage_client.download_blob_to_file(
+                    "gs://bigframes-samples/argos-translate/index.json", index_file
+                )
+
+            with open(index_path, "r") as index_file:
+                index = json.load(index_file)
+
+            from_code = language
+            to_code = "en"
+
+            package_to_install = next(
+                filter(
+                    lambda x: x["from_code"] == from_code and x["to_code"] == to_code,
+                    index,
+                )
+            )
+
+            package_gcs = package_to_install["gcs_link"][0]
+            package_filename = package_gcs.split("/")[-1]
+            package_path = f"{tmpdir.name}/{package_filename}"
+
+            with open(package_path, "wb") as package_file:
+                storage_client.download_blob_to_file(package_gcs, package_file)
+
+            # Translate using the model file.
+            argostranslate.package.install_from_path(package_path)
+            return argostranslate.translate.translate(review, from_code, to_code)
+
+        # Now run the remote function on bigframes dataframe
+        pd_df = pandas.DataFrame(
+            [
+                ["Das ist ein großartiger Film!", "de"],
+                ["¡Esta es una película genial!", "es"],
+            ]
+            * 5,
+            columns=["review_text", "review_language"],
+        )
+        bf_df = session.read_pandas(pd_df)
+
+        pd_result = pandas.Series(
+            ["This is a great movie!", "This is a great movie!"] * 5
+        )
+        bf_result = (
+            bf_df["review_text"]
+            .combine(bf_df["review_language"], translate_to_english)
+            .to_pandas()
+        )
+
+        pandas.testing.assert_series_equal(
+            bf_result, pd_result, check_dtype=False, check_index_type=False
+        )
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, translate_to_english
+        )
