@@ -182,11 +182,11 @@ class ColumnTransformer(
             transformer_0._output_names = self._output_names
             return transformer_0
 
-        if isinstance(column_0, Iterable):
+        if not isinstance(column_0, str):
             return self
         columns = [column_0]
         for _, transformer, column in transformers[1:]:
-            if isinstance(column, Iterable):
+            if not isinstance(column, str):
                 return self
             # all transformers are the same
             if transformer != transformer_0:
