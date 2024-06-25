@@ -28,7 +28,7 @@ def to_bigtable(
     *,
     instance: str,
     table: str,
-    service_account: Optional[str] = None,
+    service_account_email: Optional[str] = None,
     session: Optional[bigframes.Session] = None,
     app_profile: Optional[str] = None,
     truncate: bool = False,
@@ -56,7 +56,7 @@ def to_bigtable(
             The name of the bigtable instance to export to.
         table (str):
             The name of the bigtable table to export to.
-        service_account (str):
+        service_account_email (str):
             Full name of the service account to run the continuous query.
             Example: accountname@projectname.gserviceaccounts.com
             If not provided, the user account will be used, but this
@@ -140,10 +140,10 @@ def to_bigtable(
     job_config = bigquery.job.QueryJobConfig()
 
     job_config_dict: dict = {"query": {"continuous": True}}
-    if service_account is not None:
+    if service_account_email is not None:
         job_config_dict["query"]["connectionProperties"] = {
             "key": "service_account",
-            "value": service_account,
+            "value": service_account_email,
         }
     job_config_filled = job_config.from_api_repr(job_config_dict)
     job_config_filled.labels = {"bigframes-api": "streaming_to_bigtable"}
@@ -166,7 +166,7 @@ def to_pubsub(
     query: str,
     *,
     topic: str,
-    service_account: str,
+    service_account_email: str,
     session: Optional[bigframes.Session] = None,
     job_id: Optional[str] = None,
     job_id_prefix: Optional[str] = None,
@@ -190,7 +190,7 @@ def to_pubsub(
         topic (str):
             The name of the pubsub topic to export to.
             For example: "taxi-rides"
-        service_account (str):
+        service_account_email (str):
             Full name of the service account to run the continuous query.
             Example: accountname@projectname.gserviceaccounts.com
         session (bigframes.Session, default None):
@@ -243,7 +243,7 @@ def to_pubsub(
                 "continuous": True,
                 "connectionProperties": {
                     "key": "service_account",
-                    "value": service_account,
+                    "value": service_account_email,
                 },
             }
         }
