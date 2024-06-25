@@ -252,7 +252,7 @@ def is_comparable(type: ExpressionType) -> bool:
     return (type is not None) and is_orderable(type)
 
 
-_ORDERABLE_SIMPLE_TYPES = set(mapping.dtype for mapping in SIMPLE_TYPES)
+_ORDERABLE_SIMPLE_TYPES = set(mapping.dtype for mapping in SIMPLE_TYPES if mapping.orderable)
 
 
 def is_orderable(type: ExpressionType) -> bool:
