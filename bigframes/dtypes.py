@@ -260,7 +260,7 @@ def is_orderable(type: ExpressionType) -> bool:
     return type in _ORDERABLE_SIMPLE_TYPES
 
 
-_CLUSTERABLE_SIMPLE_TYPES = set(mapping.dtype for mapping in SIMPLE_TYPES)
+_CLUSTERABLE_SIMPLE_TYPES = set(mapping.dtype for mapping in SIMPLE_TYPES if mapping.clusterable)
 
 
 def is_clusterable(type: ExpressionType) -> bool:
