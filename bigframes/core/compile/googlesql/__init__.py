@@ -17,14 +17,17 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/query-syntax"""
 
 from __future__ import annotations
 
+from bigframes.core.compile.googlesql.datatype import DataType
 from bigframes.core.compile.googlesql.expression import (
     _escape_chars,
     AliasExpression,
     ColumnExpression,
     CTEExpression,
+    identifier,
     StarExpression,
     TableExpression,
 )
+from bigframes.core.compile.googlesql.function import Cast
 from bigframes.core.compile.googlesql.query import (
     AsAlias,
     FromClause,
@@ -38,10 +41,13 @@ from bigframes.core.compile.googlesql.query import (
 
 __all__ = [
     "_escape_chars",
+    "identifier",
     "AliasExpression",
     "AsAlias",
+    "Cast",
     "ColumnExpression",
     "CTEExpression",
+    "DataType",
     "FromClause",
     "FromItem",
     "NonRecursiveCTE",
@@ -50,5 +56,6 @@ __all__ = [
     "SelectAll",
     "SelectExpression",
     "StarExpression",
+    "StringType",
     "TableExpression",
 ]

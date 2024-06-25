@@ -27,7 +27,7 @@ import pandas
 import pyarrow as pa
 import pyarrow.feather as pa_feather
 
-import bigframes.core.compile as compiling
+import bigframes.core.compile
 import bigframes.core.expression as ex
 import bigframes.core.guid
 import bigframes.core.join_def as join_def
@@ -142,12 +142,7 @@ class ArrayValue:
 
     @functools.cached_property
     def _compiled_schema(self) -> schemata.ArraySchema:
-        compiled = self._compile_unordered()
-        items = tuple(
-            schemata.SchemaItem(id, compiled.get_column_type(id))
-            for id in compiled.column_ids
-        )
-        return schemata.ArraySchema(items)
+        return bigframes.core.compile.test_only_ibis_inferred_schema(self.node)
 
     def as_cached(
         self: ArrayValue,
@@ -169,20 +164,10 @@ class ArrayValue:
 
     def _try_evaluate_local(self):
         """Use only for unit testing paths - not fully featured. Will throw exception if fails."""
-        import ibis
-
-        return ibis.pandas.connect({}).execute(
-            self._compile_ordered()._to_ibis_expr(ordering_mode="unordered")
-        )
+        return bigframes.core.compile.test_only_try_evaluate(self.node)
 
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
         return self.schema.get_type(key)
-
-    def _compile_ordered(self) -> compiling.OrderedIR:
-        return compiling.compile_ordered_ir(self.node)
-
-    def _compile_unordered(self) -> compiling.UnorderedIR:
-        return compiling.compile_unordered_ir(self.node)
 
     def row_count(self) -> ArrayValue:
         """Get number of rows in ArrayValue as a single-entry ArrayValue."""
@@ -520,11 +505,11 @@ class ArrayValue:
         join_type: join_def.JoinType,
         mappings: typing.Tuple[join_def.JoinColumnMapping, ...],
     ) -> typing.Optional[ArrayValue]:
-        left_side = bigframes.core.rewrite.SquashedSelect.from_node(self.node)
-        right_side = bigframes.core.rewrite.SquashedSelect.from_node(other.node)
-        result = left_side.maybe_merge(right_side, join_type, mappings)
+        result = bigframes.core.rewrite.join_as_projection(
+            self.node, other.node, mappings, join_type
+        )
         if result is not None:
-            return ArrayValue(result.expand())
+            return ArrayValue(result)
         return None
 
     def explode(self, column_ids: typing.Sequence[str]) -> ArrayValue:
@@ -543,7 +528,3 @@ class ArrayValue:
             The row numbers of result is non-deterministic, avoid to use.
         """
         return ArrayValue(nodes.RandomSampleNode(self.node, fraction))
-
-    def merge_projections(self) -> ArrayValue:
-        new_node = bigframes.core.rewrite.maybe_squash_projection(self.node)
-        return ArrayValue(new_node)

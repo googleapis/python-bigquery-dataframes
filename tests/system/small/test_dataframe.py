@@ -3020,6 +3020,29 @@ def test_loc_select_with_column_condition(scalars_df_index, scalars_pandas_df_in
     )
 
 
+def test_loc_select_with_column_condition_bf_series(
+    scalars_df_index, scalars_pandas_df_index
+):
+    # (b/347072677) GEOGRAPH type doesn't support DISTINCT op
+    columns = [
+        item for item in scalars_pandas_df_index.columns if item != "geography_col"
+    ]
+    scalars_df_index = scalars_df_index[columns]
+    scalars_pandas_df_index = scalars_pandas_df_index[columns]
+
+    size_half = len(scalars_pandas_df_index) / 2
+    bf_result = scalars_df_index.loc[
+        :, scalars_df_index.nunique() > size_half
+    ].to_pandas()
+    pd_result = scalars_pandas_df_index.loc[
+        :, scalars_pandas_df_index.nunique() > size_half
+    ]
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_loc_single_index_with_duplicate(scalars_df_index, scalars_pandas_df_index):
     scalars_df_index = scalars_df_index.set_index("string_col", drop=False)
     scalars_pandas_df_index = scalars_pandas_df_index.set_index(
@@ -4303,6 +4326,18 @@ def test_df_cached(scalars_df_index):
 
     df_cached_copy = df.cache()
     pandas.testing.assert_frame_equal(df.to_pandas(), df_cached_copy.to_pandas())
+
+
+def test_df_cache_with_implicit_join(scalars_df_index):
+    """expectation is that cache will be used, but no explicit join will be performed"""
+    df = scalars_df_index[["int64_col", "int64_too"]].sort_index().reset_index() + 3
+    df.cache()
+    bf_result = df + (df * 2)
+    sql = bf_result.sql
+
+    # Very crude asserts, want sql to not use join and not use base table, only reference cached table
+    assert "JOIN" not in sql
+    assert "bigframes_testing" not in sql
 
 
 def test_df_dot_inline(session):
