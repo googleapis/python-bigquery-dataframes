@@ -2019,6 +2019,21 @@ def test_series_peek_force(scalars_dfs):
     )
 
 
+@skip_legacy_pandas
+def test_series_peek_force_float(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    cumsum_df = scalars_df[["int64_col", "float64_col"]].cumsum()
+    df_filtered = cumsum_df[cumsum_df.float64_col > 0]["float64_col"]
+    peek_result = df_filtered.peek(n=3, force=True)
+    pd_cumsum_df = scalars_pandas_df[["int64_col", "float64_col"]].cumsum()
+    pd_result = pd_cumsum_df[pd_cumsum_df.float64_col > 0]["float64_col"]
+    pd.testing.assert_series_equal(
+        peek_result,
+        pd_result.reindex_like(peek_result),
+    )
+
+
 def test_shift(scalars_df_index, scalars_pandas_df_index):
     col_name = "int64_col"
     bf_result = scalars_df_index[col_name].shift().to_pandas()
