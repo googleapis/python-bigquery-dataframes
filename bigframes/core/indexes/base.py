@@ -30,7 +30,7 @@ import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
-from bigframes.core.validate import requires_strict_ordering
+from bigframes.core.validate import enforce_ordered, requires_strict_ordering
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
@@ -432,9 +432,9 @@ class Index(vendored_pandas_index.Index):
         result = block_ops.dropna(self._block, self._block.index_columns, how=how)
         return Index(result)
 
-    # TODO: keep="all" does not require ordering
-    @requires_strict_ordering()
     def drop_duplicates(self, *, keep: str = "first") -> Index:
+        if keep is not False:
+            enforce_ordered(self, "duplicated")
         block = block_ops.drop_duplicates(self._block, self._block.index_columns, keep)
         return Index(block)
 

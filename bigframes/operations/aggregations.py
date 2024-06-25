@@ -42,6 +42,11 @@ class WindowOp:
     def can_order_by(self):
         return False
 
+    @property
+    def order_independent(self):
+        """Whether the output of the operator depends on the ordering of input rows. Navigation functions are a notable case."""
+        return False
+
     @abc.abstractmethod
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         ...
@@ -77,6 +82,11 @@ class AggregateOp(WindowOp):
     @abc.abstractmethod
     def arguments(self) -> int:
         ...
+
+    @property
+    def order_independent(self):
+        # Almost all aggregation functions are order independent, excepting array and string agg
+        return not self.can_order_by
 
 
 @dataclasses.dataclass(frozen=True)

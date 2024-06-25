@@ -61,7 +61,7 @@ import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
-from bigframes.core.validate import requires_strict_ordering
+from bigframes.core.validate import enforce_ordered, requires_strict_ordering
 import bigframes.core.window
 import bigframes.core.window_spec as window_spec
 import bigframes.dtypes
@@ -1304,8 +1304,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
         return maybe_result.set_axis(self._block.column_labels, axis=1, copy=False)
 
-    # enforce keep == all
-    @requires_strict_ordering()
     def nlargest(
         self,
         n: int,
@@ -1314,11 +1312,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         if keep not in ("first", "last", "all"):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
+        if keep != "all":
+            enforce_ordered(self, "nlargest")
         column_ids = self._sql_names(columns)
         return DataFrame(block_ops.nlargest(self._block, n, column_ids, keep=keep))
 
-    # enforce keep == all
-    @requires_strict_ordering()
     def nsmallest(
         self,
         n: int,
@@ -1327,6 +1325,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         if keep not in ("first", "last", "all"):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
+        if keep != "all":
+            enforce_ordered(self, "nlargest")
         column_ids = self._sql_names(columns)
         return DataFrame(block_ops.nsmallest(self._block, n, column_ids, keep=keep))
 
@@ -3487,6 +3487,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         keep: str = "first",
     ) -> DataFrame:
+        if keep is not False:
+            enforce_ordered(self, "drop_duplicates")
         if subset is None:
             column_ids = self._block.value_columns
         elif utils.is_list_like(subset):
@@ -3500,6 +3502,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def duplicated(self, subset=None, keep: str = "first") -> bigframes.series.Series:
+        if keep is not False:
+            enforce_ordered(self, "duplicated")
         if subset is None:
             column_ids = self._block.value_columns
         else:

@@ -64,6 +64,28 @@ def test_unordered_mode_read_gbq(unordered_session):
 
 
 @pytest.mark.parametrize(
+    ("keep"),
+    [
+        pytest.param(
+            "first",
+            marks=pytest.mark.xfail(raises=bigframes.exceptions.OrderRequiredError),
+        ),
+        pytest.param(
+            False,
+        ),
+    ],
+)
+def test_unordered_drop_duplicates(unordered_session, keep):
+    pd_df = pd.DataFrame({"a": [1, 1, 3], "b": [4, 4, 6]}, dtype=pd.Int64Dtype())
+    bf_df = bpd.DataFrame(pd_df, session=unordered_session)
+
+    bf_result = bf_df.drop_duplicates(keep=keep)
+    pd_result = pd_df.drop_duplicates(keep=keep)
+
+    assert_pandas_df_equal(bf_result.to_pandas(), pd_result, ignore_order=True)
+
+
+@pytest.mark.parametrize(
     ("function"),
     [
         pytest.param(

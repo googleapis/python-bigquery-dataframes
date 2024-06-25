@@ -43,7 +43,7 @@ import bigframes.core.indexes as indexes
 import bigframes.core.ordering as order
 import bigframes.core.scalar as scalars
 import bigframes.core.utils as utils
-from bigframes.core.validate import requires_strict_ordering
+from bigframes.core.validate import enforce_ordered, requires_strict_ordering
 import bigframes.core.window
 import bigframes.core.window_spec
 import bigframes.dataframe
@@ -642,18 +642,20 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def tail(self, n: int = 5) -> Series:
         return typing.cast(Series, self.iloc[-n:])
 
-    @requires_strict_ordering(where={"keep": ["first", "last"]})
     def nlargest(self, n: int = 5, keep: str = "first") -> Series:
         if keep not in ("first", "last", "all"):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
+        if keep != "all":
+            enforce_ordered(self, "nlargest")
         return Series(
             block_ops.nlargest(self._block, n, [self._value_column], keep=keep)
         )
 
-    @requires_strict_ordering(where={"keep": ["first", "last"]})
     def nsmallest(self, n: int = 5, keep: str = "first") -> Series:
         if keep not in ("first", "last", "all"):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
+        if keep != "all":
+            enforce_ordered(self, "nsmallest")
         return Series(
             block_ops.nsmallest(self._block, n, [self._value_column], keep=keep)
         )
@@ -1571,6 +1573,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self.reindex(other.index, validate=validate)
 
     def drop_duplicates(self, *, keep: str = "first") -> Series:
+        if keep is not False:
+            enforce_ordered(self, "drop_duplicates")
         block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)
         return Series(block)
 
@@ -1578,8 +1582,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def unique(self) -> Series:
         return self.drop_duplicates()
 
-    @requires_strict_ordering(where={"keep": ["first", "last"]})
     def duplicated(self, keep: str = "first") -> Series:
+        if keep is not False:
+            enforce_ordered(self, "duplicated")
         block, indicator = block_ops.indicate_duplicates(
             self._block, (self._value_column,), keep
         )
