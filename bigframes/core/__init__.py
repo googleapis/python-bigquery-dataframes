@@ -346,7 +346,7 @@ class ArrayValue:
         """
         # TODO: Support non-deterministic windowing
         if window_spec.row_bounded or not op.order_independent:
-            if not not self.session._strictly_ordered:
+            if not self.session._strictly_ordered:
                 raise ValueError(
                     "Order-dependent windowed ops not supported in unordered mode"
                 )
