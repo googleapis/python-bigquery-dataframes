@@ -1874,15 +1874,16 @@ class Session(
             )
         compiled_value = self._compile_ordered(array_value)
 
+        offset_col_name = bigframes.core.guid.generate_guid("bigframes_offsets")
         ibis_expr = compiled_value._to_ibis_expr(
-            ordering_mode="offset_col", order_col_name="bigframes_offsets"
+            ordering_mode="offset_col", order_col_name=offset_col_name
         )
         tmp_table = self._ibis_to_temp_table(
-            ibis_expr, cluster_cols=["bigframes_offsets"], api_name="cached"
+            ibis_expr, cluster_cols=[offset_col_name], api_name="cached"
         )
         cached_replacement = array_value.as_cached(
             cache_table=self.bqclient.get_table(tmp_table),
-            ordering=order.ExpressionOrdering.from_offset_col("bigframes_offsets"),
+            ordering=order.ExpressionOrdering.from_offset_col(offset_col_name),
         ).node
         self._cached_executions[array_value.node] = cached_replacement
 
