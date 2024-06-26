@@ -638,6 +638,12 @@ def from_glob_path(path):
     )
 
 
+def read_gbq_object_table(table):
+    return global_session.with_default_session(
+        bigframes.session.Session.read_gbq_object_table, table
+    )
+
+
 def remote_function(
     input_types: List[type],
     output_type: type,
@@ -756,7 +762,7 @@ __all___ = [
     "read_gbq",
     "read_gbq_function",
     "read_gbq_model",
-    "read_pandas",
+    "read_gbq_object_table" "read_pandas",
     "read_pickle",
     "remote_function",
     "to_datetime",

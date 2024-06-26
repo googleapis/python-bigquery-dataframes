@@ -2038,6 +2038,10 @@ class Session(
         self._master_object_table = table
         return self.read_gbq(table)["uri"].to_frame()
 
+    def read_gbq_object_table(self, table):
+        self._master_object_table = table
+        return self.read_gbq(table)["uri"].to_frame()
+
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
     return Session(context)
