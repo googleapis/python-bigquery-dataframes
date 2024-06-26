@@ -27,7 +27,7 @@ import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
-import bigframes.core.validate as validations
+import bigframes.core.validations as validations
 import bigframes.core.window as windows
 import bigframes.core.window_spec as window_specs
 import bigframes.dataframe as df

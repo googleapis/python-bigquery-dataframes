@@ -61,7 +61,7 @@ import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
-import bigframes.core.validate as validations
+import bigframes.core.validations as validations
 import bigframes.core.window
 import bigframes.core.window_spec as window_spec
 import bigframes.dtypes

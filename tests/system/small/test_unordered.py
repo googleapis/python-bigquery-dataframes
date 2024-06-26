@@ -91,21 +91,22 @@ def test_unordered_drop_duplicates(unordered_session, keep):
         pytest.param(
             lambda x: x.cumsum(),
             id="cumsum",
-            marks=pytest.mark.xfail(raises=bigframes.exceptions.OrderRequiredError),
         ),
         pytest.param(
             lambda x: x.idxmin(),
             id="idxmin",
-            marks=pytest.mark.xfail(raises=bigframes.exceptions.OrderRequiredError),
         ),
         pytest.param(
             lambda x: x.a.iloc[1::2],
             id="series_iloc",
-            marks=pytest.mark.xfail(raises=bigframes.exceptions.OrderRequiredError),
         ),
     ],
 )
 def test_unordered_mode_blocks_windowing(unordered_session, function):
     pd_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}, dtype=pd.Int64Dtype())
     df = bpd.DataFrame(pd_df, session=unordered_session)
-    function(df)
+    with pytest.raises(
+        bigframes.exceptions.OrderRequiredError,
+        match=r"Op.*not supported when strict ordering is disabled",
+    ):
+        function(df)

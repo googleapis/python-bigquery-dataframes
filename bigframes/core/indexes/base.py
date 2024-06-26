@@ -30,7 +30,7 @@ import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
-import bigframes.core.validate as validations
+import bigframes.core.validations as validations
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
