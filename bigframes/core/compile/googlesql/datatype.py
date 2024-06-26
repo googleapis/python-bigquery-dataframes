@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,4 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "1.10.0"
+import enum
+
+"""This module represents all GoogleSQL for BigQuery data types:
+https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types"""
+
+
+class DataType(enum.Enum):
+    STRING = 1
+    FLOAT64 = 2
