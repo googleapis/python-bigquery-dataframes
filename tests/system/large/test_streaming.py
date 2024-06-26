@@ -22,7 +22,7 @@ def test_streaming_to_bigtable():
     job_id_prefix = "test_streaming_"
     sql = """SELECT
         body_mass_g, island as rowkey
-        FROM birds.penguins"""
+        FROM birds.penguins_bigtable_streaming"""
     query_job = bigframes.streaming.to_bigtable(
         sql,
         instance="streaming-testing-instance",
@@ -54,7 +54,7 @@ def test_streaming_to_pubsub():
     job_id_prefix = "test_streaming_pubsub_"
     sql = """SELECT
         island
-        FROM birds.penguins"""
+        FROM birds.penguins_pubsub_streaming"""
     query_job = bigframes.streaming.to_pubsub(
         sql,
         topic="penguins",
