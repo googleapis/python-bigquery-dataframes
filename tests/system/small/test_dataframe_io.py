@@ -132,6 +132,32 @@ def test_sql_executes_and_includes_named_multiindex(
     )
 
 
+def test_to_arrow(scalars_df_default_index, scalars_pandas_df_default_index):
+    """Verify to_arrow() APIs returns the expected data."""
+    expected = pa.Table.from_pandas(
+        scalars_pandas_df_default_index.drop(columns=["geography_col"])
+        # TODO(tswast): Add option for to_arrow() to include unnamed indexes.
+    ).drop_columns(["__index_level_0__"])
+    actual = scalars_df_default_index.drop(columns=["geography_col"]).to_arrow()
+
+    # Make string_col match type. Otherwise, one might use
+    # LargeStringArray and one might use StringArray.
+    expected = expected.set_column(
+        expected.column_names.index("string_col"),
+        pa.field("string_col", pa.string()),
+        expected["string_col"].cast(pa.string()),
+    )
+    actual = expected.set_column(
+        actual.column_names.index("string_col"),
+        pa.field("string_col", pa.string()),
+        actual["string_col"].cast(pa.string()),
+    )
+
+    for column in actual.column_names:
+        assert actual[column].equals(expected[column])
+    assert actual.equals(expected)
+
+
 def test_to_pandas_w_correct_dtypes(scalars_df_default_index):
     """Verify to_pandas() APIs returns the expected dtypes."""
     actual = scalars_df_default_index.to_pandas().dtypes
