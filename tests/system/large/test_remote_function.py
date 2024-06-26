@@ -1874,9 +1874,9 @@ def test_remote_function_gcf_oom_prevented_with_more_memory(session):
             import json
             import tempfile
 
-            import argostranslate.package
-            import argostranslate.translate
-            import google.cloud.storage
+            import argostranslate.package  # type: ignore
+            import argostranslate.translate  # type: ignore
+            import google.cloud.storage  # type: ignore
 
             # Load pretrained models from GCS.
             storage_client = google.cloud.storage.Client()
