@@ -59,7 +59,6 @@ def session_aware_cache_plan(
             caching_target, caching_target_refs = cur_node, cur_node_refs
             schema = cur_node.schema
             # Cluster cols only consider the target object and not other sesssion objects
-            # Note, this
             clusterable_cols = set(
                 itertools.chain.from_iterable(
                     map(
