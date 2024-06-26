@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-def test_create_polars_df():
+def test_create_polars_df() -> None:
     # [START bigquery_dataframes_to_polars]
     import polars
 
