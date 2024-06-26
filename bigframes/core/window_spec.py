@@ -155,5 +155,10 @@ class WindowSpec:
 
     @property
     def row_bounded(self):
-        # relevant for determining if window requires total ordering for determinism.
+        """
+        Whether the window is bounded by row offsets.
+
+        This is relevant for determining whether the window requires a total order
+        to calculate deterministically.
+        """
         return isinstance(self.bounds, RowsWindowBounds)
