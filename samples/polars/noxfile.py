@@ -79,10 +79,10 @@ def get_pytest_env_vars() -> Dict[str, str]:
     # Override the GCLOUD_PROJECT and the alias.
     env_key = TEST_CONFIG["gcloud_project_env"]
     # This should error out if not set.
-    ret["GOOGLE_CLOUD_PROJECT"] = os.environ[env_key]  # type: ignore
+    ret["GOOGLE_CLOUD_PROJECT"] = os.environ[env_key]
 
     # Apply user supplied envs.
-    ret.update(TEST_CONFIG["envs"])  # type: ignore
+    ret.update(TEST_CONFIG["envs"])
     return ret
 
 
@@ -93,7 +93,7 @@ ALL_VERSIONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
 # Any default versions that should be ignored.
 IGNORED_VERSIONS = TEST_CONFIG["ignored_versions"]
 
-TESTED_VERSIONS = sorted([v for v in ALL_VERSIONS if v not in IGNORED_VERSIONS])  # type: ignore
+TESTED_VERSIONS = sorted([v for v in ALL_VERSIONS if v not in IGNORED_VERSIONS])
 
 INSTALL_LIBRARY_FROM_SOURCE = os.environ.get("INSTALL_LIBRARY_FROM_SOURCE", False) in (
     "True",
@@ -184,7 +184,7 @@ PYTEST_COMMON_ARGS = ["--junitxml=sponge_log.xml"]
 
 
 def _session_tests(
-    session: nox.sessions.Session, post_install: Callable = None  # type: ignore
+    session: nox.sessions.Session, post_install: Callable = None
 ) -> None:
     # check for presence of tests
     test_list = glob.glob("**/*_test.py", recursive=True) + glob.glob(
@@ -220,7 +220,7 @@ def _session_tests(
     if INSTALL_LIBRARY_FROM_SOURCE:
         session.install("-e", _get_repo_root())
 
-    if post_install:  # type: ignore
+    if post_install:
         post_install(session)
 
     if "pytest-parallel" in packages:
@@ -288,5 +288,5 @@ def readmegen(session: nox.sessions.Session, path: str) -> None:
 
     in_file = os.path.join(dir_, "README.rst.in")
     session.run(
-        "python", _get_repo_root() + "/scripts/readme-gen/readme_gen.py", in_file  # type: ignore
+        "python", _get_repo_root() + "/scripts/readme-gen/readme_gen.py", in_file
     )
