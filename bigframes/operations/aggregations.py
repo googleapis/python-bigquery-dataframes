@@ -44,7 +44,11 @@ class WindowOp:
 
     @property
     def order_independent(self):
-        """Whether the output of the operator depends on the ordering of input rows. Navigation functions are a notable case."""
+        """
+        True if the output of the operator does not depend on the ordering of input rows.
+
+        Navigation functions are a notable case that are not order independent.
+        """
         return False
 
     @abc.abstractmethod
@@ -85,7 +89,11 @@ class AggregateOp(WindowOp):
 
     @property
     def order_independent(self):
-        # Almost all aggregation functions are order independent, excepting array and string agg
+        """
+        True if results don't depend on the order of the input.
+
+        Almost all aggregation functions are order independent, excepting ``array_agg`` and ``string_agg``.
+        """
         return not self.can_order_by
 
 
@@ -304,6 +312,10 @@ class CutOp(UnaryWindowOp):
             )
             return pd.ArrowDtype(pa_type)
 
+    @property
+    def order_independent(self):
+        return True
+
 
 @dataclasses.dataclass(frozen=True)
 class QcutOp(UnaryWindowOp):
@@ -321,6 +333,10 @@ class QcutOp(UnaryWindowOp):
         return signatures.FixedOutputType(
             dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
         ).output_type(input_types[0])
+
+    @property
+    def order_independent(self):
+        return True
 
 
 @dataclasses.dataclass(frozen=True)
@@ -359,6 +375,10 @@ class RankOp(UnaryWindowOp):
             dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
         ).output_type(input_types[0])
 
+    @property
+    def order_independent(self):
+        return True
+
 
 @dataclasses.dataclass(frozen=True)
 class DenseRankOp(UnaryWindowOp):
@@ -370,6 +390,10 @@ class DenseRankOp(UnaryWindowOp):
         return signatures.FixedOutputType(
             dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
         ).output_type(input_types[0])
+
+    @property
+    def order_independent(self):
+        return True
 
 
 @dataclasses.dataclass(frozen=True)
