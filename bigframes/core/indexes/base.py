@@ -30,7 +30,7 @@ import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
-from bigframes.core.validate import enforce_ordered, requires_strict_ordering
+import bigframes.core.validate as validations
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
@@ -184,7 +184,7 @@ class Index(vendored_pandas_index.Index):
         return self.shape[0] == 0
 
     @property
-    @requires_strict_ordering()
+    @validations.requires_strict_ordering()
     def is_monotonic_increasing(self) -> bool:
         """
         Return a boolean if the values are equal or increasing.
@@ -198,7 +198,7 @@ class Index(vendored_pandas_index.Index):
         )
 
     @property
-    @requires_strict_ordering()
+    @validations.requires_strict_ordering()
     def is_monotonic_decreasing(self) -> bool:
         """
         Return a boolean if the values are equal or decreasing.
@@ -348,7 +348,7 @@ class Index(vendored_pandas_index.Index):
     def min(self) -> typing.Any:
         return self._apply_aggregation(agg_ops.min_op)
 
-    @requires_strict_ordering()
+    @validations.requires_strict_ordering()
     def argmax(self) -> int:
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
@@ -361,7 +361,7 @@ class Index(vendored_pandas_index.Index):
 
         return typing.cast(int, series.Series(block.select_column(row_nums)).iloc[0])
 
-    @requires_strict_ordering()
+    @validations.requires_strict_ordering()
     def argmin(self) -> int:
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
@@ -434,7 +434,7 @@ class Index(vendored_pandas_index.Index):
 
     def drop_duplicates(self, *, keep: str = "first") -> Index:
         if keep is not False:
-            enforce_ordered(self, "duplicated")
+            validations.enforce_ordered(self, "drop_duplicates")
         block = block_ops.drop_duplicates(self._block, self._block.index_columns, keep)
         return Index(block)
 
