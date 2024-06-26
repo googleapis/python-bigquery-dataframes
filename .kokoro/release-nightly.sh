@@ -90,26 +90,33 @@ cp $VERSION_WHEEL $LATEST_WHEEL
 cp dist/bigframes-*.tar.gz dist/bigframes-latest.tar.gz
 
 if ! [ ${DRY_RUN} ]; then
-for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
-                    gs://dl-platform-colab/bigframes/ \
-                    gs://bigframes-wheels/;
-    do
-      gsutil cp -v dist/* ${gcs_path}
-      gsutil cp -v LICENSE ${gcs_path}
-      gsutil -m cp -r -v "notebooks/" ${gcs_path}notebooks/
+# for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
+#                     gs://dl-platform-colab/bigframes/ \
+#                     gs://bigframes-wheels/;
+#     do
+#       gsutil cp -v dist/* ${gcs_path}
+#       gsutil cp -v LICENSE ${gcs_path}
+#       gsutil -m cp -r -v "notebooks/" ${gcs_path}notebooks/
 
-    done
+#     done
 
-    # publish API coverage information to BigQuery
-    # Note: only the kokoro service account has permission to write to this
-    # table, if you want to test this step, point it to a table you have
-    # write access to
-    COVERAGE_TABLE=bigframes-metrics.coverage_report.bigframes_coverage_nightly
-    python3.10 scripts/publish_api_coverage.py \
+#     # publish API coverage information to BigQuery
+#     # Note: only the kokoro service account has permission to write to this
+#     # table, if you want to test this step, point it to a table you have
+#     # write access to
+#     COVERAGE_TABLE=bigframes-metrics.coverage_report.bigframes_coverage_nightly
+#     python3.10 scripts/publish_api_coverage.py \
+#       bigquery \
+#       --bigframes_version=$BIGFRAMES_VERSION \
+#       --release_version=$RELEASE_VERSION \
+#       --bigquery_table=$COVERAGE_TABLE
+BENCHMARK_TABLE = bigframes-metrics.benchmark_report.bigframes_benchmark_nightly
+python 3.10 script/publish_benchmark_result.py \
       bigquery \
       --bigframes_version=$BIGFRAMES_VERSION \
       --release_version=$RELEASE_VERSION \
       --bigquery_table=$COVERAGE_TABLE
+
 fi
 
 # Undo the file changes, in case this script is running on a
