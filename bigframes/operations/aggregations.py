@@ -487,7 +487,6 @@ first_op = FirstOp()
 
 
 # TODO: Alternative names and lookup from numpy function objects
-# Add size_op separately to avoid Mypy type inference errors.
 _AGGREGATIONS_LOOKUP: typing.Dict[
     str, typing.Union[UnaryAggregateOp, NullaryAggregateOp]
 ] = {
@@ -509,7 +508,10 @@ _AGGREGATIONS_LOOKUP: typing.Dict[
         ApproxQuartilesOp(2),
         ApproxQuartilesOp(3),
     ]
-    + [size_op]
+    + [
+        # Add size_op separately to avoid Mypy type inference errors.
+        size_op,
+    ]
 }
 
 

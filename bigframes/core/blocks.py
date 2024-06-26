@@ -1039,7 +1039,7 @@ class Block:
             ]
             # TODO: may need add NullaryAggregation in main_aggregation
             # when agg add support for axis=1, needed for agg("size", axis=1)
-            assert isinstance(operation, agg_ops.UnaryAggregateOp)
+            assert isinstance(operation, agg_ops.UnaryAggregateOp), f"Expected a unary operation, but got {operation}. Please report this error and how you got here to the BigQuery DataFrames team (bit.ly/bigframes-feedback)."
             main_aggregation = (
                 ex.UnaryAggregation(operation, ex.free_var(value_col_id)),
                 value_col_id,
