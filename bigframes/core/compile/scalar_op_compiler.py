@@ -895,11 +895,12 @@ def array_to_string_op_impl(x: ibis_types.Value, op: ops.ArrayToStringOp):
 
 
 # JSON Ops
-@scalar_op_compiler.register_unary_op(ops.JSONSet, pass_op=True)
-def json_set_op_impl(x: ibis_types.Value, op: ops.JSONSet):
+@scalar_op_compiler.register_binary_op(ops.JSONSet, pass_op=True)
+def json_set_op_impl(x: ibis_types.Value, y: ibis_types.Value, op: ops.JSONSet):
     return vendored_ibis_ops.JSONSet(
         x,
-        json_path_value_pairs=op.json_path_value_pairs,
+        json_value=y,
+        json_path=op.json_path,
     ).to_expr()
 
 

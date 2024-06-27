@@ -15,6 +15,7 @@
 import json
 
 import pandas as pd
+import pytest
 
 import bigframes.bigquery as bbq
 import bigframes.pandas as bpd
@@ -27,16 +28,17 @@ def _get_series_from_json(json_data):
     return bpd.read_gbq(sql)["data"]
 
 
-def test_json_set():
-    init_json = [
-        {"a": 1},
-    ]
-    s = _get_series_from_json(init_json)
-    actual = bbq.json_set(s, json_path_value_pairs=[("$.a", 10)])
+@pytest.mark.parametrize(
+    ("json_path", "expected_json"),
+    [
+        pytest.param("$.a", [{"a": 10}], id="simple"),
+        pytest.param("$.a.b.c", [{"a": {"b": {"c": 10, "d": []}}}], id="nested"),
+    ],
+)
+def test_json_set_at_json_path(json_path, expected_json):
+    s = _get_series_from_json([{"a": {"b": {"c": "tester", "d": []}}}])
+    actual = bbq.json_set(s, json_path_value_pairs=[(json_path, 10)])
 
-    expected_json = [
-        {"a": 10},
-    ]
     expected = _get_series_from_json(expected_json)
     pd.testing.assert_series_equal(
         actual.to_pandas(),
@@ -44,16 +46,19 @@ def test_json_set():
     )
 
 
-def test_json_set_w_nested_json():
-    init_json = [
-        {"a": {"b": {"c": "tester", "d": []}}},
-    ]
-    s = _get_series_from_json(init_json)
-    actual = bbq.json_set(s, json_path_value_pairs=[("$.a.b.c", "user")])
+@pytest.mark.parametrize(
+    ("json_value", "expected_json"),
+    [
+        pytest.param(10, [{"a": {"b": 10}}, {"a": {"b": 10}}], id="int"),
+        pytest.param(0.333, [{"a": {"b": 0.333}}, {"a": {"b": 0.333}}], id="float"),
+        pytest.param("eng", [{"a": {"b": "eng"}}, {"a": {"b": "eng"}}], id="string"),
+        pytest.param([1, 1], [{"a": {"b": 1}}, {"a": {"b": 1}}], id="series"),
+    ],
+)
+def test_json_set_at_json_value_type(json_value, expected_json):
+    s = _get_series_from_json([{"a": {"b": "dev"}}, {"a": {"b": [1, 2]}}])
+    actual = bbq.json_set(s, json_path_value_pairs=[("$.a.b", json_value)])
 
-    expected_json = [
-        {"a": {"b": {"c": "user", "d": []}}},
-    ]
     expected = _get_series_from_json(expected_json)
     pd.testing.assert_series_equal(
         actual.to_pandas(),
@@ -61,20 +66,21 @@ def test_json_set_w_nested_json():
     )
 
 
-def test_json_set_w_ordered_pairs():
-    init_json: object = [
-        {"a": {"b": {"c": {}}}},
-    ]
-    s = _get_series_from_json(init_json)
-    actual = bbq.json_set(
-        s, json_path_value_pairs=[("$.a.b.e", "user"), ("$.a.b.e", "dev")]
-    )
-
-    expected_json: object = [
-        {"a": {"b": {"c": {}, "e": "dev"}}},
-    ]
-    expected = _get_series_from_json(expected_json)
-    pd.testing.assert_series_equal(
-        actual.to_pandas(),
-        expected.to_pandas(),
-    )
+@pytest.mark.parametrize(
+    ("json_path_value_pairs"),
+    [
+        pytest.param(
+            [("$.a", 1), ("$.b", 2)],
+            id="two_pairs",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+        pytest.param(
+            [("$.a", 1, 100)],
+            id="invalid_pair",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+    ],
+)
+def test_json_set_w_invalid_param(json_path_value_pairs):
+    s = _get_series_from_json([{"a": {"b": {"c": {}, "e": "dev"}}}])
+    bbq.json_set(s, json_path_value_pairs=json_path_value_pairs)

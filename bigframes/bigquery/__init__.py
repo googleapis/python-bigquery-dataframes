@@ -177,8 +177,11 @@ def json_set(
         >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.read_gbq("SELECT JSON '{\\\"a\\\": 1}' AS data")["data"]
-        >>> bbq.json_set(s, json_path_value_pairs=[("$.a", 100), ("$.b", "hi")])
-            0    {"a":100,"b":"hi"}
+        >>> bbq.json_set(s, json_path_value_pairs=[("$.a", 100)])
+            0    {"a":100}
+            Name: data, dtype: string
+        >>> bbq.json_set(s, json_path_value_pairs=[("$.b", "hi")])
+            0    {"a":1,"b":"hi"}
             Name: data, dtype: string
 
     Args:
@@ -193,19 +196,23 @@ def json_set(
     """
     # SQLGlot parser does not support the "create_if_missing => true" syntax, so
     # create_if_missing is not currently implemented.
-    json_path_value_tuples = []
-    for json_path_value_pair in json_path_value_pairs:
-        if len(json_path_value_pair) != 2:
-            raise ValueError(
-                "Incorrect format: Expected (<json_path>, <json_value>), but found: "
-                + f"{json_path_value_pair}"
-            )
-        json_path_value_tuples.append(tuple(json_path_value_pair))
 
-    return series._apply_unary_op(
-        ops.JSONSet(
-            json_path_value_pairs=tuple(json_path_value_tuples),
+    # Currently limited to single JSON path/value pairs (binary operations only).
+    if len(json_path_value_pairs) != 1:
+        raise ValueError(
+            "Expected exactly one JSON path and value pair but found "
+            + f"{len(json_path_value_pairs)} pairs."
         )
+
+    if len(json_path_value_pairs[0]) != 2:
+        raise ValueError(
+            "Incorrect format: Expected (<json_path>, <json_value>), but found: "
+            + f"{json_path_value_pairs[0]}"
+        )
+
+    json_path, json_value = json_path_value_pairs[0]
+    return series._apply_binary_op(
+        json_value, ops.JSONSet(json_path=json_path), alignment="left"
     )
 
 

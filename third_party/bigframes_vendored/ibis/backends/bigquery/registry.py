@@ -60,10 +60,9 @@ def _array_aggregate(translator, op: vendored_ibis_ops.ArrayAggregate):
 
 def _json_set(translator, op: vendored_ibis_ops.JSONSet):
     arg = translator.translate(op.arg)
-    json_path_value_pairs_list = [
-        translator.translate(item) for pair in op.json_path_value_pairs for item in pair
-    ]
-    return f"JSON_SET(PARSE_JSON({arg}), {', '.join(json_path_value_pairs_list)})"
+    json_value = translator.translate(op.json_value)
+    json_path = translator.translate(op.json_path)
+    return f"JSON_SET(PARSE_JSON({arg}), {json_path}, {json_value})"
 
 
 patched_ops = {

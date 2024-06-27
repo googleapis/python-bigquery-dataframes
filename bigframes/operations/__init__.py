@@ -602,19 +602,6 @@ class ArrayToStringOp(UnaryOp):
         return dtypes.STRING_DTYPE
 
 
-## JSON Ops
-@dataclasses.dataclass(frozen=True)
-class JSONSet(UnaryOp):
-    name: typing.ClassVar[str] = "json_set"
-    json_path_value_pairs: typing.Tuple[typing.Tuple[str, typing.Any], ...]
-
-    def output_type(self, *input_types):
-        input_type = input_types[0]
-        if not dtypes.is_json_like(input_type):
-            raise TypeError("Input type must be an JSON or JSON-formatted string type.")
-        return input_type
-
-
 # Binary Ops
 fillna_op = create_binary_op(name="fillna", type_signature=op_typing.COERCE)
 maximum_op = create_binary_op(name="maximum", type_signature=op_typing.COERCE)
@@ -718,6 +705,19 @@ class StrConcatOp(BinaryOp):
 
 
 strconcat_op = StrConcatOp()
+
+
+## JSON Ops
+@dataclasses.dataclass(frozen=True)
+class JSONSet(BinaryOp):
+    name: typing.ClassVar[str] = "json_set"
+    json_path: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError("Input type must be an JSON or JSON-formatted string type.")
+        return input_type
 
 
 # Ternary Ops
