@@ -1200,6 +1200,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Returns:
             pyarrow.Table: A pyarrow Table with all rows and columns of this DataFrame.
         """
+        warnings.warn(
+            "to_arrow is in preview. Types and unnamed / duplicate name columns may change in future.",
+            category=bigframes.exceptions.PreviewWarning,
+        )
+
         self._optimize_query_complexity()
         pa_table, query_job = self._block.to_arrow(
             ordered=ordered if ordered is not None else self._session._strictly_ordered,

@@ -136,23 +136,58 @@ def test_to_arrow(scalars_df_default_index, scalars_pandas_df_default_index):
     """Verify to_arrow() APIs returns the expected data."""
     expected = pa.Table.from_pandas(
         scalars_pandas_df_default_index.drop(columns=["geography_col"])
-        # TODO(tswast): Add option for to_arrow() to include unnamed indexes.
-    ).drop_columns(["__index_level_0__"])
-    actual = scalars_df_default_index.drop(columns=["geography_col"]).to_arrow()
+    )
 
-    # Make string_col match type. Otherwise, one might use
-    # LargeStringArray and one might use StringArray.
+    with pytest.warns(
+        bigframes.exceptions.PreviewWarning,
+        match="to_arrow",
+    ):
+        actual = scalars_df_default_index.drop(columns=["geography_col"]).to_arrow()
+
+    # Make string_col match type. Otherwise, pa.Table.from_pandas uses
+    # LargeStringArray. LargeStringArray is unnecessary because our strings are
+    # less than 2 GB.
     expected = expected.set_column(
         expected.column_names.index("string_col"),
         pa.field("string_col", pa.string()),
         expected["string_col"].cast(pa.string()),
     )
-    actual = expected.set_column(
-        actual.column_names.index("string_col"),
-        pa.field("string_col", pa.string()),
-        actual["string_col"].cast(pa.string()),
+
+    # Note: the final .equals assertion covers all these checks, but these
+    # finer-grained assertions are easier to debug.
+    assert actual.column_names == expected.column_names
+    for column in actual.column_names:
+        assert actual[column].equals(expected[column])
+    assert actual.equals(expected)
+
+
+def test_to_arrow_multiindex(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_multiindex = scalars_df_index.set_index(["string_col", "int64_col"])
+    scalars_pandas_df_multiindex = scalars_pandas_df_index.set_index(
+        ["string_col", "int64_col"]
+    )
+    expected = pa.Table.from_pandas(
+        scalars_pandas_df_multiindex.drop(columns=["geography_col"])
     )
 
+    with pytest.warns(
+        bigframes.exceptions.PreviewWarning,
+        match="to_arrow",
+    ):
+        actual = scalars_df_multiindex.drop(columns=["geography_col"]).to_arrow()
+
+    # Make string_col match type. Otherwise, pa.Table.from_pandas uses
+    # LargeStringArray. LargeStringArray is unnecessary because our strings are
+    # less than 2 GB.
+    expected = expected.set_column(
+        expected.column_names.index("string_col"),
+        pa.field("string_col", pa.string()),
+        expected["string_col"].cast(pa.string()),
+    )
+
+    # Note: the final .equals assertion covers all these checks, but these
+    # finer-grained assertions are easier to debug.
+    assert actual.column_names == expected.column_names
     for column in actual.column_names:
         assert actual[column].equals(expected[column])
     assert actual.equals(expected)
