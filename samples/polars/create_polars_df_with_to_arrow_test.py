@@ -36,4 +36,5 @@ def test_create_polars_df() -> None:
     polars_df = polars.from_arrow(arrow_table)
     # [END bigquery_dataframes_to_polars]
 
-    assert polars_df is not None
+    assert polars_df.shape == bf_df.shape
+    assert polars_df["number"].sum() == bf_df["number"].sum()
