@@ -680,7 +680,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if keep not in ("first", "last", "all"):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
         if keep != "all":
-            validations.enforce_ordered(self, "nlargest")
+            validations.enforce_ordered(self, "nlargest(keep != 'all')")
         return Series(
             block_ops.nlargest(self._block, n, [self._value_column], keep=keep)
         )
@@ -689,7 +689,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if keep not in ("first", "last", "all"):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")
         if keep != "all":
-            validations.enforce_ordered(self, "nsmallest")
+            validations.enforce_ordered(self, "nsmallest(keep != 'all')")
         return Series(
             block_ops.nsmallest(self._block, n, [self._value_column], keep=keep)
         )
@@ -1609,7 +1609,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def drop_duplicates(self, *, keep: str = "first") -> Series:
         if keep is not False:
-            validations.enforce_ordered(self, "drop_duplicates")
+            validations.enforce_ordered(self, "drop_duplicates(keep != False)")
         block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)
         return Series(block)
 
@@ -1619,7 +1619,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def duplicated(self, keep: str = "first") -> Series:
         if keep is not False:
-            validations.enforce_ordered(self, "duplicated")
+            validations.enforce_ordered(self, "duplicated(keep != False)")
         block, indicator = block_ops.indicate_duplicates(
             self._block, (self._value_column,), keep
         )

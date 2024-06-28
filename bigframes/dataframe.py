@@ -3488,7 +3488,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         keep: str = "first",
     ) -> DataFrame:
         if keep is not False:
-            validations.enforce_ordered(self, "drop_duplicates")
+            validations.enforce_ordered(self, "drop_duplicates(keep != False)")
         if subset is None:
             column_ids = self._block.value_columns
         elif utils.is_list_like(subset):
@@ -3503,7 +3503,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def duplicated(self, subset=None, keep: str = "first") -> bigframes.series.Series:
         if keep is not False:
-            validations.enforce_ordered(self, "duplicated")
+            validations.enforce_ordered(self, "duplicated(keep != False)")
         if subset is None:
             column_ids = self._block.value_columns
         else:
