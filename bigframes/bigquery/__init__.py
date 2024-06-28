@@ -197,23 +197,18 @@ def json_set(
     # SQLGlot parser does not support the "create_if_missing => true" syntax, so
     # create_if_missing is not currently implemented.
 
-    # Currently limited to single JSON path/value pairs (binary operations only).
-    if len(json_path_value_pairs) != 1:
-        raise ValueError(
-            "Expected exactly one JSON path and value pair but found "
-            + f"{len(json_path_value_pairs)} pairs."
-        )
+    for json_path_value_pair in json_path_value_pairs:
+        if len(json_path_value_pair) != 2:
+            raise ValueError(
+                "Incorrect format: Expected (<json_path>, <json_value>), but found: "
+                + f"{json_path_value_pair}"
+            )
 
-    if len(json_path_value_pairs[0]) != 2:
-        raise ValueError(
-            "Incorrect format: Expected (<json_path>, <json_value>), but found: "
-            + f"{json_path_value_pairs[0]}"
+        json_path, json_value = json_path_value_pair
+        series = series._apply_binary_op(
+            json_value, ops.JSONSet(json_path=json_path), alignment="left"
         )
-
-    json_path, json_value = json_path_value_pairs[0]
-    return series._apply_binary_op(
-        json_value, ops.JSONSet(json_path=json_path), alignment="left"
-    )
+    return series
 
 
 def vector_search(

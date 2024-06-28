@@ -897,11 +897,21 @@ def array_to_string_op_impl(x: ibis_types.Value, op: ops.ArrayToStringOp):
 # JSON Ops
 @scalar_op_compiler.register_binary_op(ops.JSONSet, pass_op=True)
 def json_set_op_impl(x: ibis_types.Value, y: ibis_types.Value, op: ops.JSONSet):
-    return vendored_ibis_ops.JSONSet(
-        x,
-        json_value=y,
-        json_path=op.json_path,
-    ).to_expr()
+    if x.type().is_json():
+        return json_set(
+            json_obj=x,
+            json_path=op.json_path,
+            json_value=y,
+        ).to_expr()
+    else:
+        # Enabling JSON type eliminates the need for less efficient string conversions.
+        return vendored_ibis_ops.ToJsonString(
+            json_set(
+                json_obj=parse_json(x),
+                json_path=op.json_path,
+                json_value=y,
+            )
+        ).to_expr()
 
 
 ### Binary Ops
@@ -1479,3 +1489,15 @@ def float_floor(a: float) -> float:
 def float_ceil(a: float) -> float:
     """Convert string to timestamp."""
     return 0  # pragma: NO COVER
+
+
+@ibis.udf.scalar.builtin(name="parse_json")
+def parse_json(a: str) -> ibis_dtypes.JSON:
+    """Converts a JSON-formatted STRING value to a JSON value."""
+
+
+@ibis.udf.scalar.builtin(name="json_set")
+def json_set(
+    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str, json_value
+) -> ibis_dtypes.JSON:
+    """Produces a new SQL JSON value with the specified JSON data inserted or replaced."""

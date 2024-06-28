@@ -58,13 +58,6 @@ def _array_aggregate(translator, op: vendored_ibis_ops.ArrayAggregate):
     return f"ARRAY_AGG({arg} IGNORE NULLS {order_by_sql})"
 
 
-def _json_set(translator, op: vendored_ibis_ops.JSONSet):
-    arg = translator.translate(op.arg)
-    json_value = translator.translate(op.json_value)
-    json_path = translator.translate(op.json_path)
-    return f"JSON_SET(PARSE_JSON({arg}), {json_path}, {json_value})"
-
-
 patched_ops = {
     vendored_ibis_ops.ApproximateMultiQuantile: _approx_quantiles,  # type:ignore
     vendored_ibis_ops.FirstNonNullValue: _first_non_null_value,  # type:ignore
@@ -74,7 +67,6 @@ patched_ops = {
     vendored_ibis_ops.SafeCastToDatetime: _safe_cast_to_datetime,  # type:ignore
     ibis_reductions.Quantile: _quantile,  # type:ignore
     vendored_ibis_ops.ArrayAggregate: _array_aggregate,  # type:ignore
-    vendored_ibis_ops.JSONSet: _json_set,  # type:ignore
 }
 
 OPERATION_REGISTRY.update(patched_ops)

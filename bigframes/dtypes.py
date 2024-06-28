@@ -245,6 +245,12 @@ def is_json_like(type: ExpressionType) -> bool:
     return type == STRING_DTYPE
 
 
+def is_json_encoding_type(type: ExpressionType) -> bool:
+    # Types can be converted into JSON.
+    # https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#json_encodings
+    return type != GEO_DTYPE
+
+
 def is_numeric(type: ExpressionType) -> bool:
     return type in NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
 
