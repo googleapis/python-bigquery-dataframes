@@ -14,6 +14,7 @@
 
 import json
 
+import geopandas as gpd  # type: ignore
 import pandas as pd
 import pytest
 
@@ -23,9 +24,13 @@ import bigframes.pandas as bpd
 
 def _get_series_from_json(json_data):
     sql = " UNION ALL ".join(
-        [f"SELECT JSON '{json.dumps(data)}' AS data" for data in json_data]
+        [
+            f"SELECT {id} AS id, JSON '{json.dumps(data)}' AS data"
+            for id, data in enumerate(json_data)
+        ]
     )
-    return bpd.read_gbq(sql)["data"]
+    df = bpd.read_gbq(sql).set_index("id").sort_index()
+    return df["data"]
 
 
 @pytest.mark.parametrize(
@@ -52,7 +57,7 @@ def test_json_set_at_json_path(json_path, expected_json):
         pytest.param(10, [{"a": {"b": 10}}, {"a": {"b": 10}}], id="int"),
         pytest.param(0.333, [{"a": {"b": 0.333}}, {"a": {"b": 0.333}}], id="float"),
         pytest.param("eng", [{"a": {"b": "eng"}}, {"a": {"b": "eng"}}], id="string"),
-        pytest.param([1, 1], [{"a": {"b": 1}}, {"a": {"b": 1}}], id="series"),
+        pytest.param([1, 2], [{"a": {"b": 1}}, {"a": {"b": 2}}], id="series"),
     ],
 )
 def test_json_set_at_json_value_type(json_value, expected_json):
@@ -66,21 +71,49 @@ def test_json_set_at_json_value_type(json_value, expected_json):
     )
 
 
+def test_json_set_w_more_pairs():
+    s = _get_series_from_json([{"a": 2}, {"b": 5}, {"c": 1}])
+    actual = bbq.json_set(
+        s, json_path_value_pairs=[("$.a", 1), ("$.b", 2), ("$.a", [3, 4, 5])]
+    )
+    expected = _get_series_from_json(
+        [{"a": 3, "b": 2}, {"a": 4, "b": 2}, {"a": 5, "b": 2, "c": 1}]
+    )
+    pd.testing.assert_series_equal(
+        actual.to_pandas(),
+        expected.to_pandas(),
+    )
+
+
 @pytest.mark.parametrize(
-    ("json_path_value_pairs"),
+    ("series", "json_path_value_pairs"),
     [
         pytest.param(
-            [("$.a", 1), ("$.b", 2)],
-            id="two_pairs",
+            _get_series_from_json([{"a": 10}]),
+            [("$.a", 1, 100)],
+            id="invalid_json_path_value_pairs",
             marks=pytest.mark.xfail(raises=ValueError),
         ),
         pytest.param(
-            [("$.a", 1, 100)],
-            id="invalid_pair",
-            marks=pytest.mark.xfail(raises=ValueError),
+            _get_series_from_json([{"a": 10}]),
+            [
+                (
+                    "$.a",
+                    bpd.read_pandas(
+                        gpd.GeoSeries.from_wkt(["POINT (1 2)", "POINT (2 1)"])
+                    ),
+                )
+            ],
+            id="invalid_json_value_type",
+            marks=pytest.mark.xfail(raises=TypeError),
+        ),
+        pytest.param(
+            bpd.Series([1, 2]),
+            [("$.a", 1)],
+            id="invalid_series_type",
+            marks=pytest.mark.xfail(raises=TypeError),
         ),
     ],
 )
-def test_json_set_w_invalid_param(json_path_value_pairs):
-    s = _get_series_from_json([{"a": {"b": {"c": {}, "e": "dev"}}}])
-    bbq.json_set(s, json_path_value_pairs=json_path_value_pairs)
+def test_json_set_w_invalid(series, json_path_value_pairs):
+    bbq.json_set(series, json_path_value_pairs=json_path_value_pairs)
