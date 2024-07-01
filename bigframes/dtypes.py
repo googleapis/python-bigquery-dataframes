@@ -446,8 +446,7 @@ def convert_schema_field(
         if is_repeated:
             pa_type = pa.list_(bigframes_dtype_to_arrow_dtype(singular_type))
             return field.name, pd.ArrowDtype(pa_type)
-        else:
-            return field.name, singular_type
+        return field.name, singular_type
     else:
         raise ValueError(f"Cannot handle type: {field.field_type}")
 
@@ -478,10 +477,9 @@ def convert_to_schema_field(
             return google.cloud.bigquery.SchemaField(
                 name, "RECORD", fields=inner_fields
             )
-    else:
-        raise ValueError(
-            f"No arrow conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
-        )
+    raise ValueError(
+        f"No arrow conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
+    )
 
 
 def bf_type_from_type_kind(
