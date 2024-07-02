@@ -18,7 +18,7 @@ https://scikit-learn.org/stable/modules/classes.html#module-sklearn.model_select
 
 
 import typing
-from typing import List, Union
+from typing import cast, List, Union
 
 from bigframes.ml import utils
 import bigframes.pandas as bpd
@@ -98,8 +98,12 @@ def train_test_split(
             train_dfs.append(train)
             test_dfs.append(test)
 
-        train_df = bpd.concat(train_dfs).drop(columns="bigframes_stratify_col")
-        test_df = bpd.concat(test_dfs).drop(columns="bigframes_stratify_col")
+        train_df = cast(
+            bpd.DataFrame, bpd.concat(train_dfs).drop(columns="bigframes_stratify_col")
+        )
+        test_df = cast(
+            bpd.DataFrame, bpd.concat(test_dfs).drop(columns="bigframes_stratify_col")
+        )
         return [train_df, test_df]
 
     if stratify is None:
