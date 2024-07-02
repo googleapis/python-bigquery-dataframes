@@ -464,8 +464,10 @@ def convert_to_schema_field(
             inner_type = arrow_dtype_to_bigframes_dtype(
                 bigframes_dtype.pyarrow_dtype.value_type
             )
-            field_type = convert_to_schema_field(name, inner_type).field_type
-            return google.cloud.bigquery.SchemaField(name, field_type, mode="REPEATED")
+            inner_field = convert_to_schema_field(name, inner_type)
+            return google.cloud.bigquery.SchemaField(
+                name, inner_field.field_type, mode="REPEATED", fields=inner_field.fields
+            )
         if pa.types.is_struct(bigframes_dtype.pyarrow_dtype):
             inner_fields: list[pa.Field] = []
             struct_type = typing.cast(pa.StructType, bigframes_dtype.pyarrow_dtype)
