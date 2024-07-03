@@ -18,7 +18,7 @@ scikit-learn's preprocessing module: https://scikit-learn.org/stable/modules/imp
 from __future__ import annotations
 
 import typing
-from typing import Iterable, List, Literal, Optional, Tuple, Union
+from typing import List, Literal, Optional, Union
 
 import bigframes_vendored.sklearn.impute._base
 
@@ -49,9 +49,8 @@ class SimpleImputer(
 
     def _compile_to_sql(
         self,
-        columns: Iterable[str],
-        X=None,
-    ) -> List[Tuple[str, str]]:
+        X: bpd.DataFrame,
+    ) -> List[str]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
@@ -63,13 +62,10 @@ class SimpleImputer(
 
         Returns: a list of tuples of (sql_expression, output_name)"""
         return [
-            (
-                self._base_sql_generator.ml_imputer(
-                    column, self.strategy, f"imputer_{column}"
-                ),
-                f"imputer_{column}",
+            self._base_sql_generator.ml_imputer(
+                column, self.strategy, f"imputer_{column}"
             )
-            for column in columns
+            for column in X.columns
         ]
 
     @classmethod
@@ -92,17 +88,14 @@ class SimpleImputer(
     ) -> SimpleImputer:
         (X,) = utils.convert_to_dataframe(X)
 
-        compiled_transforms = self._compile_to_sql(X.columns.tolist(), X)
-        transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
-
+        transform_sqls = self._compile_to_sql(X)
         self._bqml_model = self._bqml_model_factory.create_model(
             X,
             options={"model_type": "transform_only"},
             transforms=transform_sqls,
         )
 
-        # The schema of TRANSFORM output is not available in the model API, so save it during fitting
-        self._output_names = [name for _, name in compiled_transforms]
+        self._extract_output_names()
         return self
 
     def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:

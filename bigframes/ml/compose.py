@@ -201,9 +201,8 @@ class ColumnTransformer(
 
     def _compile_to_sql(
         self,
-        columns: List[str],
         X: bpd.DataFrame,
-    ) -> List[Tuple[str, str]]:
+    ) -> List[str]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
@@ -219,7 +218,7 @@ class ColumnTransformer(
         for _, transformer, target_columns in self.transformers:
             if isinstance(target_columns, str):
                 target_columns = [target_columns]
-            result += transformer._compile_to_sql(target_columns, X=X)
+            result += transformer._compile_to_sql(X)
         return result
 
     def fit(
@@ -229,17 +228,14 @@ class ColumnTransformer(
     ) -> ColumnTransformer:
         (X,) = utils.convert_to_dataframe(X)
 
-        compiled_transforms = self._compile_to_sql(X.columns.tolist(), X)
-        transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
-
+        transform_sqls = self._compile_to_sql(X)
         self._bqml_model = self._bqml_model_factory.create_model(
             X,
             options={"model_type": "transform_only"},
             transforms=transform_sqls,
         )
 
-        # The schema of TRANSFORM output is not available in the model API, so save it during fitting
-        self._output_names = [name for _, name in compiled_transforms]
+        self._extract_output_names()
         return self
 
     def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
