@@ -1929,7 +1929,7 @@ def test_remote_function_named_perists_w_session_cleanup():
         session.bqclient.get_routine(foo.bigframes_remote_function) is not None
 
         # the deletion of cloud function happens in a non-blocking way, ensure
-        # that it exists in active state
+        # that it was not deleted and still exists in active state
         gcf = session.cloudfunctionsclient.get_function(
             name=foo.bigframes_cloud_function
         )

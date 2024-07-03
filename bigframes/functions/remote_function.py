@@ -99,8 +99,17 @@ def _clean_up_session_artifacts(
     with _session_artifacts_lock:
         if session_id in _temp_session_artifacts:
             for bqrf_routine, gcf_path in _temp_session_artifacts[session_id].items():
-                bqclient.delete_routine(bqrf_routine)
-                gcfclient.delete_function(name=gcf_path)
+                # Let's accept the possibility that the remote function may have
+                # been deleted directly by the user
+                bqclient.delete_routine(bqrf_routine, not_found_ok=True)
+
+                # Let's accept the possibility that the cloud function may have
+                # been deleted directly by the user
+                try:
+                    gcfclient.delete_function(name=gcf_path)
+                except google.api_core.exceptions.NotFound:
+                    pass
+
             _temp_session_artifacts.pop(session_id)
 
 
