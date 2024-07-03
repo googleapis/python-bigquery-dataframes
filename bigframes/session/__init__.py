@@ -95,8 +95,7 @@ import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.formatting_helpers as formatting_helpers
-from bigframes.functions.remote_function import read_gbq_function as bigframes_rgf
-from bigframes.functions.remote_function import remote_function as bigframes_rf
+import bigframes.functions.remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session.clients
@@ -383,7 +382,7 @@ class Session(
         # Stable hash needed to use in expression tree
         return hash(str(self._anonymous_dataset))
 
-    def close(self):
+    def _clean_up_tables(self):
         """Delete tables that were created with this session's session_id."""
         client = self.bqclient
         project_id = self._anonymous_dataset.project
@@ -392,6 +391,13 @@ class Session(
         for table_id in self._table_ids:
             full_id = ".".join([project_id, dataset_id, table_id])
             client.delete_table(full_id, not_found_ok=True)
+
+    def close(self):
+        """Delete resources that were created with this session's session_id."""
+        self._clean_up_tables()
+        bigframes_rf._clean_up_session_artifacts(
+            self.bqclient, self.cloudfunctionsclient, self.session_id
+        )
 
     def read_gbq(
         self,
@@ -1689,7 +1695,7 @@ class Session(
 
             `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
         """
-        return bigframes_rf(
+        return bigframes_rf.remote_function(
             input_types,
             output_type,
             session=self,
@@ -1769,7 +1775,7 @@ class Session(
             not including the `bigframes_cloud_function` property.
         """
 
-        return bigframes_rgf(
+        return bigframes_rf.read_gbq_function(
             function_name=function_name,
             session=self,
         )

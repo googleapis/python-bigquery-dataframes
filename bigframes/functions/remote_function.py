@@ -24,9 +24,11 @@ import shutil
 import string
 import sys
 import tempfile
+import threading
 from typing import (
     Any,
     cast,
+    Dict,
     List,
     Mapping,
     NamedTuple,
@@ -71,6 +73,36 @@ logger = logging.getLogger(__name__)
 # https://docs.python.org/3/library/pickle.html#data-stream-format
 _pickle_protocol_version = 4
 
+# Module level mapping of session-id to remote function artifacts
+_temp_session_artifacts: Dict[str, Dict[str, str]] = {}
+_session_artifacts_lock = threading.Lock()
+
+
+def _update_session_artifacts(session_id: str, bqrf_routine: str, gcf_path: str):
+    """Update remote function artifacts for a session id."""
+    global _temp_session_artifacts, _session_artifacts_lock
+
+    with _session_artifacts_lock:
+        if session_id not in _temp_session_artifacts:
+            _temp_session_artifacts[session_id] = {}
+        _temp_session_artifacts[session_id][bqrf_routine] = gcf_path
+
+
+def _clean_up_session_artifacts(
+    bqclient: bigquery.Client,
+    gcfclient: functions_v2.FunctionServiceClient,
+    session_id: str,
+):
+    """Delete remote function artifacts for a session id."""
+    global _temp_session_artifacts, _session_artifacts_lock
+
+    with _session_artifacts_lock:
+        if session_id in _temp_session_artifacts:
+            for bqrf_routine, gcf_path in _temp_session_artifacts[session_id].items():
+                bqclient.delete_routine(bqrf_routine)
+                gcfclient.delete_function(name=gcf_path)
+            _temp_session_artifacts.pop(session_id)
+
 
 def get_remote_function_locations(bq_location):
     """Get BQ location and cloud functions region given a BQ client."""
@@ -102,7 +134,9 @@ def _get_hash(def_, package_requirements=None):
     return hashlib.md5(def_repr).hexdigest()
 
 
-def _get_updated_package_requirements(package_requirements, is_row_processor):
+def _get_updated_package_requirements(
+    package_requirements=None, is_row_processor=False
+):
     requirements = [f"cloudpickle=={cloudpickle.__version__}"]
     if is_row_processor:
         # bigframes remote function will send an entire row of data as json,
@@ -130,28 +164,17 @@ class IbisSignature(NamedTuple):
     output_type: IbisDataType
 
 
-def get_cloud_function_name(
-    def_, uniq_suffix=None, package_requirements=None, is_row_processor=False
-):
+def get_cloud_function_name(function_hash, uniq_suffix=None):
     "Get a name for the cloud function for the given user defined function."
-
-    # Augment user package requirements with any internal package
-    # requirements
-    package_requirements = _get_updated_package_requirements(
-        package_requirements, is_row_processor
-    )
-
-    cf_name = _get_hash(def_, package_requirements)
-    cf_name = f"bigframes-{cf_name}"  # for identification
+    cf_name = f"bigframes-{function_hash}"  # for identification
     if uniq_suffix:
         cf_name = f"{cf_name}-{uniq_suffix}"
-    return cf_name, package_requirements
+    return cf_name
 
 
-def get_remote_function_name(def_, uniq_suffix=None, package_requirements=None):
+def get_remote_function_name(function_hash, uniq_suffix=None):
     "Get a name for the BQ remote function for the given user defined function."
-    bq_rf_name = _get_hash(def_, package_requirements)
-    bq_rf_name = f"bigframes_{bq_rf_name}"  # for identification
+    bq_rf_name = f"bigframes_{function_hash}"  # for identification
     if uniq_suffix:
         bq_rf_name = f"{bq_rf_name}_{uniq_suffix}"
     return bq_rf_name
@@ -271,6 +294,10 @@ class RemoteFunctionClient:
         return self._cloud_functions_client.function_path(
             self._gcp_project_id, self._cloud_function_region, name
         )
+
+    def get_remote_function_fully_qualilfied_name(self, name):
+        "Get the fully qualilfied name for a BQ remote function."
+        return f"{self._gcp_project_id}.{self._bq_dataset}.{name}"
 
     def get_cloud_function_endpoint(self, name):
         """Get the http endpoint of a cloud function if it exists."""
@@ -462,6 +489,21 @@ class RemoteFunctionClient:
         )
         return endpoint
 
+    def _record_session_artifacts(
+        self, remote_function_name: str, cloud_function_name: str
+    ):
+        remote_function_full_name = self.get_remote_function_fully_qualilfied_name(
+            remote_function_name
+        )
+        cloud_function_full_name = self.get_cloud_function_fully_qualified_name(
+            cloud_function_name
+        )
+        _update_session_artifacts(
+            self._session.session_id,
+            remote_function_full_name,
+            cloud_function_full_name,
+        )
+
     def provision_bq_remote_function(
         self,
         def_,
@@ -487,12 +529,19 @@ class RemoteFunctionClient:
                 random.choices(string.ascii_lowercase + string.digits, k=8)
             )
 
+        # Augment user package requirements with any internal package
+        # requirements
+        package_requirements = _get_updated_package_requirements(
+            package_requirements, is_row_processor
+        )
+
+        # Compute a unique hash representing the user code
+        function_hash = _get_hash(def_, package_requirements)
+
         # Derive the name of the cloud function underlying the intended BQ
         # remote function, also collect updated package requirements as
         # determined in the name resolution
-        cloud_function_name, package_requirements = get_cloud_function_name(
-            def_, uniq_suffix, package_requirements, is_row_processor
-        )
+        cloud_function_name = get_cloud_function_name(function_hash, uniq_suffix)
         cf_endpoint = self.get_cloud_function_endpoint(cloud_function_name)
 
         # Create the cloud function if it does not exist
@@ -515,9 +564,7 @@ class RemoteFunctionClient:
         # Derive the name of the remote function
         remote_function_name = name
         if not remote_function_name:
-            remote_function_name = get_remote_function_name(
-                def_, uniq_suffix, package_requirements
-            )
+            remote_function_name = get_remote_function_name(function_hash, uniq_suffix)
         rf_endpoint, rf_conn = self.get_remote_function_specs(remote_function_name)
 
         # Create the BQ remote function in following circumstances:
@@ -540,6 +587,18 @@ class RemoteFunctionClient:
                 remote_function_name,
                 max_batching_rows,
             )
+
+            # Update module level mapping of session id to the cloud artifacts
+            # created. This would be used to clean up any resources for a
+            # session. Note that we need to do this only for the case where an
+            # explicit name was not provided by the user and we used an internal
+            # name. For the cases where the user provided an explicit name, we
+            # are assuming that the user wants to persist them with that name
+            # and would directly manage their lifecycle.
+            if not name:
+                self._record_session_artifacts(
+                    remote_function_name, cloud_function_name
+                )
         else:
             logger.info(f"Remote function {remote_function_name} already exists.")
 
@@ -926,7 +985,7 @@ def remote_function(
             " For more details see https://cloud.google.com/functions/docs/securing/cmek#before_you_begin"
         )
 
-    bq_connection_manager = None if session is None else session.bqconnectionmanager
+    bq_connection_manager = session.bqconnectionmanager
 
     def wrapper(func):
         nonlocal input_types, output_type
@@ -1054,7 +1113,9 @@ def remote_function(
         func.bigframes_cloud_function = (
             remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
         )
-        func.bigframes_remote_function = str(dataset_ref.routine(rf_name))  # type: ignore
+        func.bigframes_remote_function = (
+            remote_function_client.get_remote_function_fully_qualilfied_name(rf_name)
+        )
 
         func.output_dtype = (
             bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
