@@ -1,30 +1,14 @@
-#todo: copyright cop pas
-# base: sql templates
-# use recursive schema for creating exploded column names, sparated by dots. howver, maybe join
-# called by part of series.apply, function applying cellwise to rows
-
-# use read_gqb on data coming from Tim
-
 from google.cloud.bigquery.schema import SchemaField
 from google.cloud.bigquery_storage_v1 import types
-from dataclasses import dataclass
-from collections import namedtuple
-import pyarrow
-from abc import ABCMeta, abstractmethod, ABC
-from typing import List, Iterable
-from copy import deepcopy
+
 from bigframes.functions.nested_utils import MemberSelector
 
+# We introduce using MemberSelector to avoid having to remember hard coded strings and make things IDE-able.
 
-TableDescription = namedtuple("TableDescription", ["parent", "project", "dataset", "table", "table_fq", "table_full"])
-
-
-class TFDataFormat(MemberSelector):
-    T_ARROW = types.DataFormat.ARROW
-    T_AVRO = types.DataFormat.AVRO
-
-        
 class BQSchemaLayout(MemberSelector):
+    """
+    Unpacks a BigQuery schema into a nested structure.
+    """
     # fm = (f)ield(m)ode
     T_fm_record: str = "RECORD"
     T_fm_repeated: str = "REPEATED"
@@ -37,26 +21,33 @@ class BQSchemaLayout(MemberSelector):
     T_fields: str = "fields"
     T_field_type: str = "field_type"
     T_type: str = "type"
-    
-    def __init__(self, schema: List[SchemaField], data_format: TFDataFormat | None = None):
+
+    def __init__(self, schema: list[SchemaField], data_format: types.DataFormat|None = None):
         """
         :param Union[List[SchemaField], DSchemaTable] schema: The schema, result of calling BQTools.table_schema, of a BQ table
         """
         self.bq_schema = schema
-        self.data_format = data_format if data_format is not None else TFDataFormat.T_ARROW
+        self.data_format = data_format if data_format is not None else types.DataFormat.ARROW
         # these need to be reset:
         self._visited = {}
         self._map_to_list = {}
         self._map_to_type = {}
+
+    @property
+    def map_to_list(self) -> dict:
+        return self._map_to_list
+
+    @property
+    def map_to_type(self) -> dict:
+        return self._map_to_type
 
     def _reset(self) -> None:
         self._visited = {}
         self._map_to_list = {}
         self._map_to_type = {}
         return
-                
-    def _unroll_schema(self, current_field: SchemaField, current_hierarchy: List[str],
-                       sep: str) -> None:
+
+    def _unroll_schema(self, current_field: SchemaField, current_hierarchy: list[str], sep: str) -> None:
         field_name = current_field.name
         fields = current_field.fields
         if not self._visited.get(field_name, False):
@@ -66,18 +57,11 @@ class BQSchemaLayout(MemberSelector):
             self._map_to_type[col_name_nested] = current_field.field_type
             self._map_to_list[col_name_nested] = hierarchy
 
-            if fields: # no record but a primitive -> end of recursion! 
+            if fields: # no record but a primitive -> end of recursion!
                 for field_value in fields:
                     self._unroll_schema(field_value, hierarchy, sep=sep)
 
-    @property
-    def map_to_list(self) -> dict:
-        return self._map_to_list
 
-    @property
-    def map_to_type(self) -> dict:
-        return self._map_to_type
-    
     def determine_layout(self, struc_separator: str):
         """
         :param result_shape: Determines output shape: just sequence, or stack features up to level x (reverse from deepest level of nesting):
@@ -86,8 +70,8 @@ class BQSchemaLayout(MemberSelector):
         :return:
         """
         self._reset()
-        _schema = [entry for idx, entry in enumerate(self.bq_schema)]
+        schema = [entry for idx, entry in enumerate(self.bq_schema)]
         current_hierarchy = []
-        for field_idx, field_value in enumerate(_schema):
+        for _, field_value in enumerate(schema):
             self._unroll_schema(field_value, current_hierarchy, sep=struc_separator)
         return

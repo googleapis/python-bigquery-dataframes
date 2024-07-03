@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from google.cloud import bigquery
-from bigframes.functions.nested import BQSchemaLayout, SchemaField
-from bigframes.functions.NestedContextManager import NestedDataFrame, set_project
-from google.cloud.bigquery_storage_v1 import types as gtypes
-#import pytest
-from typing import List
-import bigframes.pandas as bfpd
+#from google.cloud import bigquery
+#from bigframes.functions.nested import BQSchemaLayout, SchemaField
 
-from bigframes.dataframe import DataFrame
-from bigframes.series import Series
+#from google.cloud.bigquery_storage_v1 import types as gtypes
+#import pytest
+#from typing import List
+
+import bigframes.pandas as bfpd
+from bigframes.core.schema_tracking import set_project
+from bigframes.core.nodes import NestedDataContextManager
+
 
 
 # start context manager (cm) in pandas/__init__.py
@@ -29,29 +30,29 @@ from bigframes.series import Series
 # cm constructur get schema by: dataframe._cashed [replaces block by cached version, one to one bq table to dataframe]
 #   and get block with _block.expr
 
-def table_schema(table_name_full: str) -> List[SchemaField]:
-    project = table_name_full.split(".")[0]
-    client = bigquery.Client(project=project, location="EU")
-    query_job = client.get_table(table_name_full)
-    return query_job.schema
+# def table_schema(table_name_full: str) -> List[SchemaField]:
+#     project = table_name_full.split(".")[0]
+#     client = bigquery.Client(project=project, location="EU")
+#     query_job = client.get_table(table_name_full)
+#     return query_job.schema
 
 
-def test_unroll_schema():  #table_name_full: pytest.CaptureFixture[str]
-    schema = table_schema("gmbigframes.nested.tiny") # "vf-de-aib-prd-cmr-chn-lab.staging.scs_mini")
-    bqs = BQSchemaLayout(schema)
-    bqs.determine_layout() # TODO: add prefix get_ or determine_
-    return bqs
-    #assert isinstance(schema, List[SchemaField])
+# def test_unroll_schema():  #table_name_full: pytest.CaptureFixture[str]
+#     schema = table_schema("gmbigframes.nested.tiny") # "vf-de-aib-prd-cmr-chn-lab.staging.scs_mini")
+#     bqs = BQSchemaLayout(schema)
+#     bqs.determine_layout() # TODO: add prefix get_ or determine_
+#     return bqs
+#     #assert isinstance(schema, List[SchemaField])
 
-def test_nested_cm():
-    bfpd.options.bigquery.project = "gmbigframes"
-    bfpd.options.bigquery.location = "EU"
+# def test_nested_cm():
+#     bfpd.options.bigquery.project = "gmbigframes"
+#     bfpd.options.bigquery.location = "EU"
 
 
-def fct_cm(cm: NestedDataFrame):
-    cm._current_data = bfpd.read_gbq(f"SELECT * FROM {table}"),
-    testdf.apply(cm._current_data),
-    bfpd.get_dummies(cm._current_data)   
+# def fct_cm(cm: NestedDataFrame):
+#     cm._current_data = bfpd.read_gbq(f"SELECT * FROM {table}"),
+#     testdf.apply(cm._current_data),
+#     bfpd.get_dummies(cm._current_data)   
 
 
 if __name__ == "__main__":
@@ -63,12 +64,11 @@ if __name__ == "__main__":
     #testdf = DataFrame({"a": [1]}, index=None)
 
     #ncm_t = NestedDataFrame(testdf)
-    ncm =  NestedDataFrame(table)
-    
+    #ncm =  NestedDataFrame(table)
     #testsq = Series()
 
-    with ncm:
-        ncm |= bfpd.get_dummies(ncm.data)
+    with NestedDataContextManager:
+        df = bfpd.read_gbq(f"SELECT * FROM {table} limit 10")
         #ncm |=  ncm.data, {"columns": []} | n_get_dummies
     pass
 

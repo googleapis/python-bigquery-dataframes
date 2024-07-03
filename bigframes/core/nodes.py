@@ -20,8 +20,8 @@ import datetime
 import functools
 import itertools
 import typing
-from typing import Callable, Tuple
-
+from typing import Tuple
+from collections.abc import Callable  # to be prefered over typing.Callable since python 3.9.2
 import google.cloud.bigquery as bq
 
 import bigframes.core.expression as ex
@@ -33,14 +33,17 @@ import bigframes.core.window_spec as window
 import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
 
+from bigframes.core.schema_tracking import NestedDataContextManager
+
 if typing.TYPE_CHECKING:
     import bigframes.core.ordering as orderings
     import bigframes.session
 
+# (abeschorner) MVP nested data: Define one schema tracking context singleton so the context is known to actions performed on nested data
+# [as discussed with Tim Sweena, 2024/07/01]
 
 # A fixed number of variable to assume for overhead on some operations
 OVERHEAD_VARIABLES = 5
-
 
 @dataclass(frozen=True)
 class BigFrameNode:
@@ -49,6 +52,9 @@ class BigFrameNode:
 
     All subclasses must be hashable so as to be usable as caching key.
     """
+    def __init__(self):
+        if NestedDataContextManager.active:
+            NestedDataContextManager.add_source(self)
 
     @property
     def deterministic(self) -> bool:

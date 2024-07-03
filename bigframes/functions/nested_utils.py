@@ -12,29 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABCMeta, abstractmethod, ABC
-from typing import List
+from abc import ABCMeta
 
-
+s
 class MemberSelector(metaclass=ABCMeta):
     """
     Small helper class allowing class variables to relief the user from remembering strings or alike. See example below
     """
-
     # T_ for Type.... change on class level if necessary!
     _prefix: str = "T_"
 
     @classmethod
-    def methods(cls, prefix: str | None=None) -> list:
+    def methods(cls, prefix: str|None=None) -> list:
         pref = prefix if prefix is not None else cls._prefix
         return [cls.__dict__[member] for member in cls.__dict__ if member.startswith(pref)]
 
     @classmethod
-    def identifiers(cls, prefix: str | None=None) -> list:
+    def identifiers(cls, prefix: str|None=None) -> list:
         pref = prefix if prefix is not None else cls._prefix
         return [c for c in dir(cls) if c.startswith(pref)]
     
     @classmethod
-    def methods_except(cls, exceptions: List[str], prefix: str | None=None) -> list:
+    def methods_except(cls, exceptions: list[str], prefix: str|None=None) -> list:
         pref = prefix if prefix is not None else cls._prefix
         return [m for m in cls.methods() if m not in exceptions]
