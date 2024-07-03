@@ -676,19 +676,6 @@ class PolynomialFeatures(
             transforms=transform_sqls,
         )
 
-        # TODO(garrettwu): generalize the approach to other transformers
-        output_names = []
-        for transform_col in self._bqml_model._model._properties["transformColumns"]:
-            transform_col_dict = cast(dict, transform_col)
-            # pass the columns that are not transformed
-            if "transformSql" not in transform_col_dict:
-                continue
-            transform_sql: str = transform_col_dict["transformSql"]
-            if not transform_sql.startswith("ML."):
-                continue
-
-            output_names.append(transform_col_dict["name"])
-
         self._extract_output_names()
 
         return self
