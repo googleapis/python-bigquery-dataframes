@@ -18,7 +18,7 @@ scikit-learn's preprocessing module: https://scikit-learn.org/stable/modules/pre
 from __future__ import annotations
 
 import typing
-from typing import cast, List, Literal, Optional, Union
+from typing import cast, Iterable, List, Literal, Optional, Union
 
 import bigframes_vendored.sklearn.preprocessing._data
 import bigframes_vendored.sklearn.preprocessing._discretization
@@ -46,19 +46,24 @@ class StandardScaler(
     def _keys(self):
         return (self._bqml_model,)
 
-    def _compile_to_sql(self, X: bpd.DataFrame) -> List[str]:
+    def _compile_to_sql(
+        self, X: bpd.DataFrame, columns: Optional[Iterable[str]] = None
+    ) -> List[str]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
         Args:
             X: DataFrame to transform.
+            columns: transform columns. If None, transform all columns in X.
 
         Returns: a list of tuples sql_expr."""
+        if columns is None:
+            columns = X.columns
         return [
             self._base_sql_generator.ml_standard_scaler(
                 column, f"standard_scaled_{column}"
             )
-            for column in X.columns
+            for column in columns
         ]
 
     @classmethod
@@ -118,22 +123,24 @@ class MaxAbsScaler(
     def _keys(self):
         return (self._bqml_model,)
 
-    def _compile_to_sql(self, X: bpd.DataFrame) -> List[str]:
+    def _compile_to_sql(
+        self, X: bpd.DataFrame, columns: Optional[Iterable[str]] = None
+    ) -> List[str]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
         Args:
-            columns:
-                a list of column names to transform.
-            X (default None):
-                Ignored.
+            X: DataFrame to transform.
+            columns: transform columns. If None, transform all columns in X.
 
-        Returns: a list of tuples of sql_expr."""
+        Returns: a list of tuples sql_expr."""
+        if columns is None:
+            columns = X.columns
         return [
             self._base_sql_generator.ml_max_abs_scaler(
                 column, f"max_abs_scaled_{column}"
             )
-            for column in X.columns
+            for column in columns
         ]
 
     @classmethod
@@ -193,22 +200,24 @@ class MinMaxScaler(
     def _keys(self):
         return (self._bqml_model,)
 
-    def _compile_to_sql(self, X: bpd.DataFrame) -> List[str]:
+    def _compile_to_sql(
+        self, X: bpd.DataFrame, columns: Optional[Iterable[str]] = None
+    ) -> List[str]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
         Args:
-            columns:
-                a list of column names to transform.
-            X (default None):
-                Ignored.
+            X: DataFrame to transform.
+            columns: transform columns. If None, transform all columns in X.
 
-        Returns: a list of tuples of (sql_expression, output_name)"""
+        Returns: a list of tuples sql_expr."""
+        if columns is None:
+            columns = X.columns
         return [
             self._base_sql_generator.ml_min_max_scaler(
                 column, f"min_max_scaled_{column}"
             )
-            for column in X.columns
+            for column in columns
         ]
 
     @classmethod
@@ -281,22 +290,21 @@ class KBinsDiscretizer(
         return (self._bqml_model, self.n_bins, self.strategy)
 
     def _compile_to_sql(
-        self,
-        X: bpd.DataFrame,
+        self, X: bpd.DataFrame, columns: Optional[Iterable[str]] = None
     ) -> List[str]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
         Args:
-            columns:
-                a list of column names to transform
-            X:
-                The Dataframe with training data.
+            X: DataFrame to transform.
+            columns: transform columns. If None, transform all columns in X.
 
-        Returns: a list of tuples of (sql_expression, output_name)"""
+        Returns: a list of tuples sql_expr."""
+        if columns is None:
+            columns = X.columns
         array_split_points = {}
         if self.strategy == "uniform":
-            for column in X.columns:
+            for column in columns:
                 min_value = X[column].min()
                 max_value = X[column].max()
                 bin_size = (max_value - min_value) / self.n_bins
@@ -308,7 +316,7 @@ class KBinsDiscretizer(
                 self._base_sql_generator.ml_bucketize(
                     column, array_split_points[column], f"kbinsdiscretizer_{column}"
                 )
-                for column in X.columns
+                for column in columns
             ]
 
         elif self.strategy == "quantile":
@@ -317,7 +325,7 @@ class KBinsDiscretizer(
                 self._base_sql_generator.ml_quantile_bucketize(
                     column, self.n_bins, f"kbinsdiscretizer_{column}"
                 )
-                for column in X.columns
+                for column in columns
             ]
 
         else:
@@ -409,18 +417,19 @@ class OneHotEncoder(
     def _keys(self):
         return (self._bqml_model, self.drop, self.min_frequency, self.max_categories)
 
-    def _compile_to_sql(self, X: bpd.DataFrame) -> List[str]:
+    def _compile_to_sql(
+        self, X: bpd.DataFrame, columns: Optional[Iterable[str]] = None
+    ) -> List[str]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
         Args:
-            columns:
-                a list of column names to transform.
-            X (default None):
-                Ignored.
+            X: DataFrame to transform.
+            columns: transform columns. If None, transform all columns in X.
 
-        Returns: a list of tuples of (sql_expression, output_name)"""
-
+        Returns: a list of tuples sql_expr."""
+        if columns is None:
+            columns = X.columns
         drop = self.drop if self.drop is not None else "none"
         # minus one here since BQML's inplimentation always includes index 0, and top_k is on top of that.
         top_k = (
@@ -437,7 +446,7 @@ class OneHotEncoder(
             self._base_sql_generator.ml_one_hot_encoder(
                 column, drop, top_k, frequency_threshold, f"onehotencoded_{column}"
             )
-            for column in X.columns
+            for column in columns
         ]
 
     @classmethod
@@ -522,17 +531,19 @@ class LabelEncoder(
     def _keys(self):
         return (self._bqml_model, self.min_frequency, self.max_categories)
 
-    def _compile_to_sql(self, X: bpd.DataFrame) -> List[str]:
+    def _compile_to_sql(
+        self, X: bpd.DataFrame, columns: Optional[Iterable[str]] = None
+    ) -> List[str]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
         Args:
-            columns:
-                a list of column names to transform.
-            X (default None):
-                Ignored.
+            X: DataFrame to transform.
+            columns: transform columns. If None, transform all columns in X.
 
-        Returns: a list of tuples of (sql_expression, output_name)"""
+        Returns: a list of tuples sql_expr."""
+        if columns is None:
+            columns = X.columns
 
         # minus one here since BQML's inplimentation always includes index 0, and top_k is on top of that.
         top_k = (
@@ -549,7 +560,7 @@ class LabelEncoder(
             self._base_sql_generator.ml_label_encoder(
                 column, top_k, frequency_threshold, f"labelencoded_{column}"
             )
-            for column in X.columns
+            for column in columns
         ]
 
     @classmethod
@@ -617,21 +628,23 @@ class PolynomialFeatures(
     def _keys(self):
         return (self._bqml_model, self.degree)
 
-    def _compile_to_sql(self, X: bpd.DataFrame) -> List[str]:
+    def _compile_to_sql(
+        self, X: bpd.DataFrame, columns: Optional[Iterable[str]] = None
+    ) -> List[str]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
         Args:
-            columns:
-                a list of column names to transform.
-            X (default None):
-                Ignored.
+            X: DataFrame to transform.
+            columns: transform columns. If None, transform all columns in X.
 
-        Returns: a list of tuples of (sql_expression, output_name)"""
+        Returns: a list of tuples sql_expr."""
+        if columns is None:
+            columns = X.columns
         output_name = "poly_feat"
         return [
             self._base_sql_generator.ml_polynomial_expand(
-                X.columns, self.degree, output_name
+                columns, self.degree, output_name
             )
         ]
 

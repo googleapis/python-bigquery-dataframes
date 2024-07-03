@@ -18,7 +18,7 @@ scikit-learn's preprocessing module: https://scikit-learn.org/stable/modules/imp
 from __future__ import annotations
 
 import typing
-from typing import List, Literal, Optional, Union
+from typing import Iterable, List, Literal, Optional, Union
 
 import bigframes_vendored.sklearn.impute._base
 
@@ -50,22 +50,23 @@ class SimpleImputer(
     def _compile_to_sql(
         self,
         X: bpd.DataFrame,
+        columns: Optional[Iterable[str]] = None,
     ) -> List[str]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
         Args:
-            columns:
-                A list of column names to transform.
-            X:
-                The Dataframe with training data.
+            X: DataFrame to transform.
+            columns: transform columns. If None, transform all columns in X.
 
-        Returns: a list of tuples of (sql_expression, output_name)"""
+        Returns: a list of tuples sql_expr."""
+        if columns is None:
+            columns = X.columns
         return [
             self._base_sql_generator.ml_imputer(
                 column, self.strategy, f"imputer_{column}"
             )
-            for column in X.columns
+            for column in columns
         ]
 
     @classmethod

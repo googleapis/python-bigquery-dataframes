@@ -207,18 +207,14 @@ class ColumnTransformer(
         a BQML TRANSFORM clause
 
         Args:
-            columns (List[str]):
-                a list of column names to transform
-            X (bpd.DataFrame):
-                The Dataframe with training data.
+            X: DataFrame to transform.
 
-        Returns:
-            a list of tuples of (sql_expression, output_name)"""
+        Returns: a list of tuples sql_expr."""
         result = []
         for _, transformer, target_columns in self.transformers:
             if isinstance(target_columns, str):
                 target_columns = [target_columns]
-            result += transformer._compile_to_sql(X)
+            result += transformer._compile_to_sql(X, target_columns)
         return result
 
     def fit(
