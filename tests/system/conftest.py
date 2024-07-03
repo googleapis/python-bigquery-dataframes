@@ -141,20 +141,15 @@ def session() -> Generator[bigframes.Session, None, None]:
 
 @pytest.fixture(scope="session")
 def unordered_session() -> Generator[bigframes.Session, None, None]:
-    context = bigframes.BigQueryOptions(
-        location="US",
-    )
+    context = bigframes.BigQueryOptions(location="US", _strictly_ordered=False)
     session = bigframes.Session(context=context)
-    session._strictly_ordered = False
     yield session
     session.close()  # close generated session at cleanup type
 
 
 @pytest.fixture(scope="session")
 def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, None]:
-    context = bigframes.BigQueryOptions(
-        location=tokyo_location,
-    )
+    context = bigframes.BigQueryOptions(location=tokyo_location)
     session = bigframes.Session(context=context)
     yield session
     session.close()  # close generated session at cleanup type

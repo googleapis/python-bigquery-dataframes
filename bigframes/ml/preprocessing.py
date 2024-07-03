@@ -18,12 +18,13 @@ scikit-learn's preprocessing module: https://scikit-learn.org/stable/modules/pre
 from __future__ import annotations
 
 import typing
-from typing import Any, cast, List, Literal, Optional, Tuple, Union
+from typing import cast, Iterable, List, Literal, Optional, Tuple, Union
 
 import bigframes_vendored.sklearn.preprocessing._data
 import bigframes_vendored.sklearn.preprocessing._discretization
 import bigframes_vendored.sklearn.preprocessing._encoder
 import bigframes_vendored.sklearn.preprocessing._label
+import bigframes_vendored.sklearn.preprocessing._polynomial
 
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
@@ -42,11 +43,10 @@ class StandardScaler(
         self._bqml_model_factory = globals.bqml_model_factory()
         self._base_sql_generator = globals.base_sql_generator()
 
-    # TODO(garrettwu): implement __hash__
-    def __eq__(self, other: Any) -> bool:
-        return type(other) is StandardScaler and self._bqml_model == other._bqml_model
+    def _keys(self):
+        return (self._bqml_model,)
 
-    def _compile_to_sql(self, columns: List[str], X=None) -> List[Tuple[str, str]]:
+    def _compile_to_sql(self, columns: Iterable[str], X=None) -> List[Tuple[str, str]]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
@@ -124,11 +124,10 @@ class MaxAbsScaler(
         self._bqml_model_factory = globals.bqml_model_factory()
         self._base_sql_generator = globals.base_sql_generator()
 
-    # TODO(garrettwu): implement __hash__
-    def __eq__(self, other: Any) -> bool:
-        return type(other) is MaxAbsScaler and self._bqml_model == other._bqml_model
+    def _keys(self):
+        return (self._bqml_model,)
 
-    def _compile_to_sql(self, columns: List[str], X=None) -> List[Tuple[str, str]]:
+    def _compile_to_sql(self, columns: Iterable[str], X=None) -> List[Tuple[str, str]]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
@@ -206,11 +205,10 @@ class MinMaxScaler(
         self._bqml_model_factory = globals.bqml_model_factory()
         self._base_sql_generator = globals.base_sql_generator()
 
-    # TODO(garrettwu): implement __hash__
-    def __eq__(self, other: Any) -> bool:
-        return type(other) is MinMaxScaler and self._bqml_model == other._bqml_model
+    def _keys(self):
+        return (self._bqml_model,)
 
-    def _compile_to_sql(self, columns: List[str], X=None) -> List[Tuple[str, str]]:
+    def _compile_to_sql(self, columns: Iterable[str], X=None) -> List[Tuple[str, str]]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
@@ -300,18 +298,12 @@ class KBinsDiscretizer(
         self._bqml_model_factory = globals.bqml_model_factory()
         self._base_sql_generator = globals.base_sql_generator()
 
-    # TODO(garrettwu): implement __hash__
-    def __eq__(self, other: Any) -> bool:
-        return (
-            type(other) is KBinsDiscretizer
-            and self.n_bins == other.n_bins
-            and self.strategy == other.strategy
-            and self._bqml_model == other._bqml_model
-        )
+    def _keys(self):
+        return (self._bqml_model, self.n_bins, self.strategy)
 
     def _compile_to_sql(
         self,
-        columns: List[str],
+        columns: Iterable[str],
         X: bpd.DataFrame,
     ) -> List[Tuple[str, str]]:
         """Compile this transformer to a list of SQL expressions that can be included in
@@ -445,17 +437,10 @@ class OneHotEncoder(
         self._bqml_model_factory = globals.bqml_model_factory()
         self._base_sql_generator = globals.base_sql_generator()
 
-    # TODO(garrettwu): implement __hash__
-    def __eq__(self, other: Any) -> bool:
-        return (
-            type(other) is OneHotEncoder
-            and self._bqml_model == other._bqml_model
-            and self.drop == other.drop
-            and self.min_frequency == other.min_frequency
-            and self.max_categories == other.max_categories
-        )
+    def _keys(self):
+        return (self._bqml_model, self.drop, self.min_frequency, self.max_categories)
 
-    def _compile_to_sql(self, columns: List[str], X=None) -> List[Tuple[str, str]]:
+    def _compile_to_sql(self, columns: Iterable[str], X=None) -> List[Tuple[str, str]]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
@@ -571,16 +556,10 @@ class LabelEncoder(
         self._bqml_model_factory = globals.bqml_model_factory()
         self._base_sql_generator = globals.base_sql_generator()
 
-    # TODO(garrettwu): implement __hash__
-    def __eq__(self, other: Any) -> bool:
-        return (
-            type(other) is LabelEncoder
-            and self._bqml_model == other._bqml_model
-            and self.min_frequency == other.min_frequency
-            and self.max_categories == other.max_categories
-        )
+    def _keys(self):
+        return (self._bqml_model, self.min_frequency, self.max_categories)
 
-    def _compile_to_sql(self, columns: List[str], X=None) -> List[Tuple[str, str]]:
+    def _compile_to_sql(self, columns: Iterable[str], X=None) -> List[Tuple[str, str]]:
         """Compile this transformer to a list of SQL expressions that can be included in
         a BQML TRANSFORM clause
 
@@ -661,6 +640,107 @@ class LabelEncoder(
         )
 
 
+@log_adapter.class_logger
+class PolynomialFeatures(
+    base.Transformer,
+    bigframes_vendored.sklearn.preprocessing._polynomial.PolynomialFeatures,
+):
+    __doc__ = (
+        bigframes_vendored.sklearn.preprocessing._polynomial.PolynomialFeatures.__doc__
+    )
+
+    def __init__(self, degree: int = 2):
+        if degree not in range(1, 5):
+            raise ValueError(f"degree has to be [1, 4], input is {degree}.")
+        self.degree = degree
+        self._bqml_model: Optional[core.BqmlModel] = None
+        self._bqml_model_factory = globals.bqml_model_factory()
+        self._base_sql_generator = globals.base_sql_generator()
+
+    def _keys(self):
+        return (self._bqml_model, self.degree)
+
+    def _compile_to_sql(self, columns: Iterable[str], X=None) -> List[Tuple[str, str]]:
+        """Compile this transformer to a list of SQL expressions that can be included in
+        a BQML TRANSFORM clause
+
+        Args:
+            columns:
+                a list of column names to transform.
+            X (default None):
+                Ignored.
+
+        Returns: a list of tuples of (sql_expression, output_name)"""
+        output_name = "poly_feat"
+        return [
+            (
+                self._base_sql_generator.ml_polynomial_expand(
+                    columns, self.degree, output_name
+                ),
+                output_name,
+            )
+        ]
+
+    @classmethod
+    def _parse_from_sql(cls, sql: str) -> tuple[PolynomialFeatures, tuple[str, ...]]:
+        """Parse SQL to tuple(PolynomialFeatures, column_labels).
+
+        Args:
+            sql: SQL string of format "ML.POLYNOMIAL_EXPAND(STRUCT(col_label0, col_label1, ...), degree)"
+
+        Returns:
+            tuple(MaxAbsScaler, column_label)"""
+        col_labels = sql[sql.find("STRUCT(") + 7 : sql.find(")")].split(",")
+        col_labels = [label.strip() for label in col_labels]
+        degree = int(sql[sql.rfind(",") + 1 : sql.rfind(")")])
+        return cls(degree), tuple(col_labels)
+
+    def fit(
+        self,
+        X: Union[bpd.DataFrame, bpd.Series],
+        y=None,  # ignored
+    ) -> PolynomialFeatures:
+        (X,) = utils.convert_to_dataframe(X)
+
+        compiled_transforms = self._compile_to_sql(X.columns.tolist())
+        transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
+
+        self._bqml_model = self._bqml_model_factory.create_model(
+            X,
+            options={"model_type": "transform_only"},
+            transforms=transform_sqls,
+        )
+
+        # TODO(garrettwu): generalize the approach to other transformers
+        output_names = []
+        for transform_col in self._bqml_model._model._properties["transformColumns"]:
+            transform_col_dict = cast(dict, transform_col)
+            # pass the columns that are not transformed
+            if "transformSql" not in transform_col_dict:
+                continue
+            transform_sql: str = transform_col_dict["transformSql"]
+            if not transform_sql.startswith("ML."):
+                continue
+
+            output_names.append(transform_col_dict["name"])
+
+        self._output_names = output_names
+
+        return self
+
+    def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+        if not self._bqml_model:
+            raise RuntimeError("Must be fitted before transform")
+
+        (X,) = utils.convert_to_dataframe(X)
+
+        df = self._bqml_model.transform(X)
+        return typing.cast(
+            bpd.DataFrame,
+            df[self._output_names],
+        )
+
+
 PreprocessingType = Union[
     OneHotEncoder,
     StandardScaler,
@@ -668,4 +748,5 @@ PreprocessingType = Union[
     MinMaxScaler,
     KBinsDiscretizer,
     LabelEncoder,
+    PolynomialFeatures,
 ]

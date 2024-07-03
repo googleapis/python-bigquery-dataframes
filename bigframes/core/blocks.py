@@ -40,6 +40,7 @@ import bigframes._config.sampling_options as sampling_options
 import bigframes.constants
 import bigframes.constants as constants
 import bigframes.core as core
+import bigframes.core.compile.googlesql as googlesql
 import bigframes.core.expression as ex
 import bigframes.core.expression as scalars
 import bigframes.core.guid as guid
@@ -212,7 +213,7 @@ class Block:
             except Exception:
                 pass
 
-        iter, _ = self.session._execute(row_count_expr, sorted=False)
+        iter, _ = self.session._execute(row_count_expr, ordered=False)
         row_count = next(iter)[0]
         return (row_count, len(self.value_columns))
 
@@ -469,6 +470,36 @@ class Block:
                 f"This error should only occur while testing. Ibis schema: {ibis_schema} does not match actual schema: {actual_schema}"
             )
 
+    def to_arrow(
+        self,
+        *,
+        ordered: bool = True,
+    ) -> Tuple[pa.Table, bigquery.QueryJob]:
+        """Run query and download results as a pyarrow Table."""
+        # pa.Table.from_pandas puts index columns last, so update the expression to match.
+        expr = self.expr.select_columns(
+            list(self.value_columns) + list(self.index_columns)
+        )
+
+        _, query_job = self.session._query_to_destination(
+            self.session._to_sql(expr, ordered=ordered),
+            list(self.index_columns),
+            api_name="cached",
+            do_clustering=False,
+        )
+        results_iterator = query_job.result()
+        pa_table = results_iterator.to_arrow()
+
+        pa_index_labels = []
+        for index_level, index_label in enumerate(self._index_labels):
+            if isinstance(index_label, str):
+                pa_index_labels.append(index_label)
+            else:
+                pa_index_labels.append(f"__index_level_{index_level}__")
+
+        pa_table = pa_table.rename_columns(list(self.column_labels) + pa_index_labels)
+        return pa_table, query_job
+
     def to_pandas(
         self,
         max_download_size: Optional[int] = None,
@@ -521,7 +552,7 @@ class Block:
         dtypes = dict(zip(self.index_columns, self.index.dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
         _, query_job = self.session._query_to_destination(
-            self.session._to_sql(self.expr, sorted=True),
+            self.session._to_sql(self.expr, ordered=self.session._strictly_ordered),
             list(self.index_columns),
             api_name="cached",
             do_clustering=False,
@@ -556,7 +587,7 @@ class Block:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
         _, query_job = self.session._query_to_destination(
-            self.session._to_sql(self.expr, sorted=materialize_options.ordered),
+            self.session._to_sql(self.expr, ordered=materialize_options.ordered),
             list(self.index_columns),
             api_name="cached",
             do_clustering=False,
@@ -997,7 +1028,7 @@ class Block:
 
     def aggregate_all_and_stack(
         self,
-        operation: agg_ops.UnaryAggregateOp,
+        operation: typing.Union[agg_ops.UnaryAggregateOp, agg_ops.NullaryAggregateOp],
         *,
         axis: int | str = 0,
         value_col_id: str = "values",
@@ -1006,7 +1037,12 @@ class Block:
         axis_n = utils.get_axis_number(axis)
         if axis_n == 0:
             aggregations = [
-                (ex.UnaryAggregation(operation, ex.free_var(col_id)), col_id)
+                (
+                    ex.UnaryAggregation(operation, ex.free_var(col_id))
+                    if isinstance(operation, agg_ops.UnaryAggregateOp)
+                    else ex.NullaryAggregation(operation),
+                    col_id,
+                )
                 for col_id in self.value_columns
             ]
             index_id = guid.generate_guid()
@@ -1035,6 +1071,11 @@ class Block:
                 (ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.free_var(col_id)), col_id)
                 for col_id in [*self.index_columns]
             ]
+            # TODO: may need add NullaryAggregation in main_aggregation
+            # when agg add support for axis=1, needed for agg("size", axis=1)
+            assert isinstance(
+                operation, agg_ops.UnaryAggregateOp
+            ), f"Expected a unary operation, but got {operation}. Please report this error and how you got here to the BigQuery DataFrames team (bit.ly/bigframes-feedback)."
             main_aggregation = (
                 ex.UnaryAggregation(operation, ex.free_var(value_col_id)),
                 value_col_id,
@@ -1128,7 +1169,11 @@ class Block:
     def aggregate(
         self,
         by_column_ids: typing.Sequence[str] = (),
-        aggregations: typing.Sequence[typing.Tuple[str, agg_ops.UnaryAggregateOp]] = (),
+        aggregations: typing.Sequence[
+            typing.Tuple[
+                str, typing.Union[agg_ops.UnaryAggregateOp, agg_ops.NullaryAggregateOp]
+            ]
+        ] = (),
         *,
         dropna: bool = True,
     ) -> typing.Tuple[Block, typing.Sequence[str]]:
@@ -1142,7 +1187,9 @@ class Block:
         """
         agg_specs = [
             (
-                ex.UnaryAggregation(operation, ex.free_var(input_id)),
+                ex.UnaryAggregation(operation, ex.free_var(input_id))
+                if isinstance(operation, agg_ops.UnaryAggregateOp)
+                else ex.NullaryAggregation(operation),
                 guid.generate_guid(),
             )
             for input_id, operation in aggregations
@@ -1178,18 +1225,32 @@ class Block:
             output_col_ids,
         )
 
-    def get_stat(self, column_id: str, stat: agg_ops.UnaryAggregateOp):
+    def get_stat(
+        self,
+        column_id: str,
+        stat: typing.Union[agg_ops.UnaryAggregateOp, agg_ops.NullaryAggregateOp],
+    ):
         """Gets aggregates immediately, and caches it"""
         if stat.name in self._stats_cache[column_id]:
             return self._stats_cache[column_id][stat.name]
 
         # TODO: Convert nonstandard stats into standard stats where possible (popvar, etc.)
         # if getting a standard stat, just go get the rest of them
-        standard_stats = self._standard_stats(column_id)
+        standard_stats = typing.cast(
+            typing.Sequence[
+                typing.Union[agg_ops.UnaryAggregateOp, agg_ops.NullaryAggregateOp]
+            ],
+            self._standard_stats(column_id),
+        )
         stats_to_fetch = standard_stats if stat in standard_stats else [stat]
 
         aggregations = [
-            (ex.UnaryAggregation(stat, ex.free_var(column_id)), stat.name)
+            (
+                ex.UnaryAggregation(stat, ex.free_var(column_id))
+                if isinstance(stat, agg_ops.UnaryAggregateOp)
+                else ex.NullaryAggregation(stat),
+                stat.name,
+            )
             for stat in stats_to_fetch
         ]
         expr = self.expr.aggregate(aggregations)
@@ -1234,13 +1295,20 @@ class Block:
     def summarize(
         self,
         column_ids: typing.Sequence[str],
-        stats: typing.Sequence[agg_ops.UnaryAggregateOp],
+        stats: typing.Sequence[
+            typing.Union[agg_ops.UnaryAggregateOp, agg_ops.NullaryAggregateOp]
+        ],
     ):
         """Get a list of stats as a deferred block object."""
         label_col_id = guid.generate_guid()
         labels = [stat.name for stat in stats]
         aggregations = [
-            (ex.UnaryAggregation(stat, ex.free_var(col_id)), f"{col_id}-{stat.name}")
+            (
+                ex.UnaryAggregation(stat, ex.free_var(col_id))
+                if isinstance(stat, agg_ops.UnaryAggregateOp)
+                else ex.NullaryAggregation(stat),
+                f"{col_id}-{stat.name}",
+            )
             for stat in stats
             for col_id in column_ids
         ]
@@ -1387,6 +1455,26 @@ class Block:
         ):
             raise ValueError("Unexpected number of value columns.")
         return expr.select_columns([*index_columns, *value_columns])
+
+    def grouped_head(
+        self,
+        by_column_ids: typing.Sequence[str],
+        value_columns: typing.Sequence[str],
+        n: int,
+    ):
+        window_spec = window_specs.cumulative_rows(grouping_keys=tuple(by_column_ids))
+
+        block, result_id = self.apply_window_op(
+            value_columns[0],
+            agg_ops.rank_op,
+            window_spec=window_spec,
+        )
+
+        cond = ops.lt_op.as_expr(result_id, ex.const(n + 1))
+        block, cond_id = block.project_expr(cond)
+        block = block.filter_by_id(cond_id)
+        if value_columns:
+            return block.select_columns(value_columns)
 
     def slice(
         self,
@@ -1720,7 +1808,7 @@ class Block:
         original_row_index = (
             original_row_index
             if original_row_index is not None
-            else self.index.to_pandas()
+            else self.index.to_pandas(ordered=True)
         )
         original_row_count = len(original_row_index)
         if original_row_count > bigframes.constants.MAX_COLUMNS:
@@ -2269,13 +2357,13 @@ class Block:
             idx_labels,
         )
 
-    def cached(self, *, optimize_offsets=False, force: bool = False) -> None:
+    def cached(self, *, force: bool = False, session_aware: bool = False) -> None:
         """Write the block to a session table."""
         # use a heuristic for whether something needs to be cached
         if (not force) and self.session._is_trivially_executable(self.expr):
             return
-        if optimize_offsets:
-            self.session._cache_with_offsets(self.expr)
+        elif session_aware:
+            self.session._cache_with_session_awareness(self.expr)
         else:
             self.session._cache_with_cluster_cols(
                 self.expr, cluster_cols=self.index_columns
@@ -2349,7 +2437,6 @@ class Block:
         # TODO(shobs): Replace direct SQL manipulation by structured expression
         # manipulation
         ordering_column_name = guid.generate_guid()
-        self.session._cache_with_offsets(self.expr)
         expr = self.expr.promote_offsets(ordering_column_name)
         expr_sql = self.session._to_sql(expr)
 
@@ -2402,7 +2489,9 @@ class Block:
         select_columns = (
             [ordering_column_name] + list(self.index_columns) + [row_json_column_name]
         )
-        select_columns_csv = sql.csv([sql.identifier(col) for col in select_columns])
+        select_columns_csv = sql.csv(
+            [googlesql.identifier(col) for col in select_columns]
+        )
         json_sql = f"""\
 With T0 AS (
 {textwrap.indent(expr_sql, "    ")}
@@ -2415,21 +2504,35 @@ T1 AS (
                "values", [{column_references_csv}],
                "indexlength", {index_columns_count},
                "dtype", {pandas_row_dtype}
-           ) AS {sql.identifier(row_json_column_name)} FROM T0
+           ) AS {googlesql.identifier(row_json_column_name)} FROM T0
 )
 SELECT {select_columns_csv} FROM T1
 """
-        ibis_table = self.session.ibis_client.sql(json_sql)
-        order_for_ibis_table = ordering.ExpressionOrdering.from_offset_col(
-            ordering_column_name
+        # The only ways this code is used is through df.apply(axis=1) cope path
+        destination, query_job = self.session._query_to_destination(
+            json_sql, index_cols=[ordering_column_name], api_name="apply"
         )
-        expr = core.ArrayValue.from_ibis(
-            self.session,
-            ibis_table,
-            [ibis_table[col] for col in select_columns if col != ordering_column_name],
-            hidden_ordering_columns=[ibis_table[ordering_column_name]],
-            ordering=order_for_ibis_table,
+        if not destination:
+            raise ValueError(f"Query job {query_job} did not produce result table")
+
+        new_schema = (
+            self.expr.schema.select([*self.index_columns])
+            .append(
+                bf_schema.SchemaItem(
+                    row_json_column_name, bigframes.dtypes.STRING_DTYPE
+                )
+            )
+            .append(
+                bf_schema.SchemaItem(ordering_column_name, bigframes.dtypes.INT_DTYPE)
+            )
         )
+
+        expr = core.ArrayValue.from_table(
+            self.session.bqclient.get_table(destination),
+            schema=new_schema,
+            session=self.session,
+            offsets_col=ordering_column_name,
+        ).drop_columns([ordering_column_name])
         block = Block(
             expr,
             index_columns=self.index_columns,
@@ -2478,7 +2581,7 @@ class BlockIndexProperties:
         """Column(s) to use as row labels."""
         return self._block._index_columns
 
-    def to_pandas(self) -> pd.Index:
+    def to_pandas(self, *, ordered: Optional[bool] = None) -> pd.Index:
         """Executes deferred operations and downloads the results."""
         if len(self.column_ids) == 0:
             raise bigframes.exceptions.NullIndexError(
@@ -2488,7 +2591,12 @@ class BlockIndexProperties:
         index_columns = list(self._block.index_columns)
         dtypes = dict(zip(index_columns, self.dtypes))
         expr = self._expr.select_columns(index_columns)
-        results, _ = self.session._execute(expr)
+        results, _ = self.session._execute(
+            expr,
+            ordered=ordered
+            if (ordered is not None)
+            else self.session._strictly_ordered,
+        )
         df = expr.session._rows_to_dataframe(results, dtypes)
         df = df.set_index(index_columns)
         index = df.index

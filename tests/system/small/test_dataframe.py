@@ -2485,12 +2485,19 @@ def test_dataframe_agg_single_string(scalars_dfs):
     )
 
 
-def test_dataframe_agg_int_single_string(scalars_dfs):
+@pytest.mark.parametrize(
+    ("agg",),
+    (
+        ("sum",),
+        ("size",),
+    ),
+)
+def test_dataframe_agg_int_single_string(scalars_dfs, agg):
     numeric_cols = ["int64_col", "int64_too", "bool_col"]
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    bf_result = scalars_df[numeric_cols].agg("sum").to_pandas()
-    pd_result = scalars_pandas_df[numeric_cols].agg("sum")
+    bf_result = scalars_df[numeric_cols].agg(agg).to_pandas()
+    pd_result = scalars_pandas_df[numeric_cols].agg(agg)
 
     assert bf_result.dtype == "Int64"
     pd.testing.assert_series_equal(
@@ -2537,6 +2544,7 @@ def test_dataframe_agg_int_multi_string(scalars_dfs):
         "sum",
         "nunique",
         "count",
+        "size",
     ]
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[numeric_cols].agg(aggregations).to_pandas()
@@ -3013,6 +3021,29 @@ def test_loc_select_with_column_condition(scalars_df_index, scalars_pandas_df_in
     bf_result = scalars_df_index.loc[:, scalars_df_index.dtypes == "Int64"].to_pandas()
     pd_result = scalars_pandas_df_index.loc[
         :, scalars_pandas_df_index.dtypes == "Int64"
+    ]
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_loc_select_with_column_condition_bf_series(
+    scalars_df_index, scalars_pandas_df_index
+):
+    # (b/347072677) GEOGRAPH type doesn't support DISTINCT op
+    columns = [
+        item for item in scalars_pandas_df_index.columns if item != "geography_col"
+    ]
+    scalars_df_index = scalars_df_index[columns]
+    scalars_pandas_df_index = scalars_pandas_df_index[columns]
+
+    size_half = len(scalars_pandas_df_index) / 2
+    bf_result = scalars_df_index.loc[
+        :, scalars_df_index.nunique() > size_half
+    ].to_pandas()
+    pd_result = scalars_pandas_df_index.loc[
+        :, scalars_pandas_df_index.nunique() > size_half
     ]
     pd.testing.assert_frame_equal(
         bf_result,
@@ -4303,6 +4334,18 @@ def test_df_cached(scalars_df_index):
 
     df_cached_copy = df.cache()
     pandas.testing.assert_frame_equal(df.to_pandas(), df_cached_copy.to_pandas())
+
+
+def test_df_cache_with_implicit_join(scalars_df_index):
+    """expectation is that cache will be used, but no explicit join will be performed"""
+    df = scalars_df_index[["int64_col", "int64_too"]].sort_index().reset_index() + 3
+    df.cache()
+    bf_result = df + (df * 2)
+    sql = bf_result.sql
+
+    # Very crude asserts, want sql to not use join and not use base table, only reference cached table
+    assert "JOIN" not in sql
+    assert "bigframes_testing" not in sql
 
 
 def test_df_dot_inline(session):

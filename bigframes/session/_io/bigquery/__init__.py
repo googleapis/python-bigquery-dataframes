@@ -32,6 +32,7 @@ import google.cloud.bigquery.table
 
 import bigframes
 from bigframes.core import log_adapter
+import bigframes.core.compile.googlesql as googlesql
 import bigframes.core.sql
 import bigframes.formatting_helpers as formatting_helpers
 
@@ -146,7 +147,9 @@ def create_temp_table(
     destination.schema = schema
     if cluster_columns:
         destination.clustering_fields = cluster_columns
-    bqclient.create_table(destination)
+    # Ok if already exists, since this will only happen from retries internal to this method
+    # as the requested table id has a random UUID4 component.
+    bqclient.create_table(destination, exists_ok=True)
     return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
 
 
@@ -478,7 +481,7 @@ def compile_filters(filters: third_party_pandas_gbq.FiltersType) -> str:
 
             operator_str = valid_operators[operator]
 
-            column_ref = bigframes.core.sql.identifier(column)
+            column_ref = googlesql.identifier(column)
             if operator_str in ["IN", "NOT IN"]:
                 value_literal = bigframes.core.sql.multi_literal(*value)
             else:

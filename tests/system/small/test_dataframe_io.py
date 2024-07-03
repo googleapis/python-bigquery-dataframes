@@ -16,6 +16,7 @@ from typing import Tuple
 
 import google.api_core.exceptions
 import pandas as pd
+import pandas.testing
 import pyarrow as pa
 import pytest
 
@@ -33,6 +34,163 @@ import bigframes
 import bigframes.dataframe
 import bigframes.features
 import bigframes.pandas as bpd
+
+
+def test_sql_executes(scalars_df_default_index, bigquery_client):
+    """Test that DataFrame.sql returns executable SQL.
+
+    DF.sql is used in public documentation such as
+    https://cloud.google.com/blog/products/data-analytics/using-bigquery-dataframes-with-carto-geospatial-tools
+    as a way to pass a DataFrame on to carto without executing the SQL
+    immediately.
+
+    Make sure that this SQL can be run outside of BigQuery DataFrames (assuming
+    similar credentials / access to the referenced tables).
+    """
+    # Do some operations to make for more complex SQL.
+    df = (
+        scalars_df_default_index.drop(columns=["geography_col"])
+        .groupby("string_col")
+        .max()
+    )
+    df.index.name = None  # Don't include unnamed indexes.
+    query = df.sql
+
+    bf_result = df.to_pandas().sort_values("rowindex").reset_index(drop=True)
+    bq_result = (
+        bigquery_client.query_and_wait(query)
+        .to_dataframe()
+        .sort_values("rowindex")
+        .reset_index(drop=True)
+    )
+    pandas.testing.assert_frame_equal(bf_result, bq_result, check_dtype=False)
+
+
+def test_sql_executes_and_includes_named_index(
+    scalars_df_default_index, bigquery_client
+):
+    """Test that DataFrame.sql returns executable SQL.
+
+    DF.sql is used in public documentation such as
+    https://cloud.google.com/blog/products/data-analytics/using-bigquery-dataframes-with-carto-geospatial-tools
+    as a way to pass a DataFrame on to carto without executing the SQL
+    immediately.
+
+    Make sure that this SQL can be run outside of BigQuery DataFrames (assuming
+    similar credentials / access to the referenced tables).
+    """
+    # Do some operations to make for more complex SQL.
+    df = (
+        scalars_df_default_index.drop(columns=["geography_col"])
+        .groupby("string_col")
+        .max()
+    )
+    query = df.sql
+
+    bf_result = df.to_pandas().sort_values("rowindex")
+    bq_result = (
+        bigquery_client.query_and_wait(query)
+        .to_dataframe()
+        .set_index("string_col")
+        .sort_values("rowindex")
+    )
+    pandas.testing.assert_frame_equal(
+        bf_result, bq_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_sql_executes_and_includes_named_multiindex(
+    scalars_df_default_index, bigquery_client
+):
+    """Test that DataFrame.sql returns executable SQL.
+
+    DF.sql is used in public documentation such as
+    https://cloud.google.com/blog/products/data-analytics/using-bigquery-dataframes-with-carto-geospatial-tools
+    as a way to pass a DataFrame on to carto without executing the SQL
+    immediately.
+
+    Make sure that this SQL can be run outside of BigQuery DataFrames (assuming
+    similar credentials / access to the referenced tables).
+    """
+    # Do some operations to make for more complex SQL.
+    df = (
+        scalars_df_default_index.drop(columns=["geography_col"])
+        .groupby(["string_col", "bool_col"])
+        .max()
+    )
+    query = df.sql
+
+    bf_result = df.to_pandas().sort_values("rowindex")
+    bq_result = (
+        bigquery_client.query_and_wait(query)
+        .to_dataframe()
+        .set_index(["string_col", "bool_col"])
+        .sort_values("rowindex")
+    )
+    pandas.testing.assert_frame_equal(
+        bf_result, bq_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_to_arrow(scalars_df_default_index, scalars_pandas_df_default_index):
+    """Verify to_arrow() APIs returns the expected data."""
+    expected = pa.Table.from_pandas(
+        scalars_pandas_df_default_index.drop(columns=["geography_col"])
+    )
+
+    with pytest.warns(
+        bigframes.exceptions.PreviewWarning,
+        match="to_arrow",
+    ):
+        actual = scalars_df_default_index.drop(columns=["geography_col"]).to_arrow()
+
+    # Make string_col match type. Otherwise, pa.Table.from_pandas uses
+    # LargeStringArray. LargeStringArray is unnecessary because our strings are
+    # less than 2 GB.
+    expected = expected.set_column(
+        expected.column_names.index("string_col"),
+        pa.field("string_col", pa.string()),
+        expected["string_col"].cast(pa.string()),
+    )
+
+    # Note: the final .equals assertion covers all these checks, but these
+    # finer-grained assertions are easier to debug.
+    assert actual.column_names == expected.column_names
+    for column in actual.column_names:
+        assert actual[column].equals(expected[column])
+    assert actual.equals(expected)
+
+
+def test_to_arrow_multiindex(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_multiindex = scalars_df_index.set_index(["string_col", "int64_col"])
+    scalars_pandas_df_multiindex = scalars_pandas_df_index.set_index(
+        ["string_col", "int64_col"]
+    )
+    expected = pa.Table.from_pandas(
+        scalars_pandas_df_multiindex.drop(columns=["geography_col"])
+    )
+
+    with pytest.warns(
+        bigframes.exceptions.PreviewWarning,
+        match="to_arrow",
+    ):
+        actual = scalars_df_multiindex.drop(columns=["geography_col"]).to_arrow()
+
+    # Make string_col match type. Otherwise, pa.Table.from_pandas uses
+    # LargeStringArray. LargeStringArray is unnecessary because our strings are
+    # less than 2 GB.
+    expected = expected.set_column(
+        expected.column_names.index("string_col"),
+        pa.field("string_col", pa.string()),
+        expected["string_col"].cast(pa.string()),
+    )
+
+    # Note: the final .equals assertion covers all these checks, but these
+    # finer-grained assertions are easier to debug.
+    assert actual.column_names == expected.column_names
+    for column in actual.column_names:
+        assert actual[column].equals(expected[column])
+    assert actual.equals(expected)
 
 
 def test_to_pandas_w_correct_dtypes(scalars_df_default_index):
