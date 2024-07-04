@@ -30,6 +30,7 @@ import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.core.indexes as bf_indexes
 import bigframes.dataframe as dataframe
+import bigframes.pandas
 import bigframes.pandas as bpd
 import bigframes.series as series
 from tests.system.utils import (
@@ -4334,6 +4335,25 @@ def test_df_cached(scalars_df_index):
 
     df_cached_copy = df.cache()
     pandas.testing.assert_frame_equal(df.to_pandas(), df_cached_copy.to_pandas())
+
+
+def test_assign_after_binop_row_joins():
+    pd_df = pd.DataFrame(
+        {
+            "idx1": [1, 1, 1, 1, 2, 2, 2, 2],
+            "idx2": [10, 10, 20, 20, 10, 10, 20, 20],
+            "metric1": [10, 14, 2, 13, 6, 2, 9, 5],
+            "metric2": [25, -3, 8, 2, -1, 0, 0, -4],
+        },
+        dtype=pd.Int64Dtype(),
+    ).set_index(["idx1", "idx2"])
+    bf_df = dataframe.DataFrame(pd_df)
+
+    # Expect implicit joiner to be used, preserving input cardinality rather than getting relational join
+    bf_df["metric_diff"] = bf_df.metric1 - bf_df.metric2
+    pd_df["metric_diff"] = pd_df.metric1 - pd_df.metric2
+
+    assert_pandas_df_equal(bf_df.to_pandas(), pd_df)
 
 
 def test_df_cache_with_implicit_join(scalars_df_index):
