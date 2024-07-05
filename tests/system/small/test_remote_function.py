@@ -89,7 +89,6 @@ def session_with_bq_connection(
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_direct_no_session_param(
     bigquery_client,
-    bigqueryconnection_client,
     cloudfunctions_client,
     resourcemanager_client,
     scalars_dfs,
@@ -100,7 +99,6 @@ def test_remote_function_direct_no_session_param(
         [int],
         int,
         bigquery_client=bigquery_client,
-        bigquery_connection_client=bigqueryconnection_client,
         cloud_functions_client=cloudfunctions_client,
         resource_manager_client=resourcemanager_client,
         dataset=dataset_id_permanent,
@@ -146,7 +144,6 @@ def test_remote_function_direct_no_session_param(
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_direct_no_session_param_location_specified(
     bigquery_client,
-    bigqueryconnection_client,
     cloudfunctions_client,
     resourcemanager_client,
     scalars_dfs,
@@ -157,7 +154,6 @@ def test_remote_function_direct_no_session_param_location_specified(
         [int],
         int,
         bigquery_client=bigquery_client,
-        bigquery_connection_client=bigqueryconnection_client,
         cloud_functions_client=cloudfunctions_client,
         resource_manager_client=resourcemanager_client,
         dataset=dataset_id_permanent,
@@ -198,7 +194,6 @@ def test_remote_function_direct_no_session_param_location_specified(
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_direct_no_session_param_location_mismatched(
     bigquery_client,
-    bigqueryconnection_client,
     cloudfunctions_client,
     resourcemanager_client,
     dataset_id_permanent,
@@ -213,7 +208,6 @@ def test_remote_function_direct_no_session_param_location_mismatched(
             [int],
             int,
             bigquery_client=bigquery_client,
-            bigquery_connection_client=bigqueryconnection_client,
             cloud_functions_client=cloudfunctions_client,
             resource_manager_client=resourcemanager_client,
             dataset=dataset_id_permanent,
@@ -230,7 +224,6 @@ def test_remote_function_direct_no_session_param_location_mismatched(
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_direct_no_session_param_location_project_specified(
     bigquery_client,
-    bigqueryconnection_client,
     cloudfunctions_client,
     resourcemanager_client,
     scalars_dfs,
@@ -241,7 +234,6 @@ def test_remote_function_direct_no_session_param_location_project_specified(
         [int],
         int,
         bigquery_client=bigquery_client,
-        bigquery_connection_client=bigqueryconnection_client,
         cloud_functions_client=cloudfunctions_client,
         resource_manager_client=resourcemanager_client,
         dataset=dataset_id_permanent,
@@ -282,7 +274,6 @@ def test_remote_function_direct_no_session_param_location_project_specified(
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_direct_no_session_param_project_mismatched(
     bigquery_client,
-    bigqueryconnection_client,
     cloudfunctions_client,
     resourcemanager_client,
     dataset_id_permanent,
@@ -299,7 +290,6 @@ def test_remote_function_direct_no_session_param_project_mismatched(
             [int],
             int,
             bigquery_client=bigquery_client,
-            bigquery_connection_client=bigqueryconnection_client,
             cloud_functions_client=cloudfunctions_client,
             resource_manager_client=resourcemanager_client,
             dataset=dataset_id_permanent,
@@ -563,7 +553,6 @@ def test_read_gbq_function_detects_invalid_function(session, dataset_id):
 def test_read_gbq_function_like_original(
     session,
     bigquery_client,
-    bigqueryconnection_client,
     cloudfunctions_client,
     resourcemanager_client,
     scalars_df_index,
@@ -574,7 +563,6 @@ def test_read_gbq_function_like_original(
         [int],
         int,
         bigquery_client=bigquery_client,
-        bigquery_connection_client=bigqueryconnection_client,
         dataset=dataset_id_permanent,
         cloud_functions_client=cloudfunctions_client,
         resource_manager_client=resourcemanager_client,
