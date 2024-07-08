@@ -1910,7 +1910,7 @@ class Session(
         )
         cached_replacement = array_value.as_cached(
             cache_table=self.bqclient.get_table(tmp_table),
-            ordering=order.ExpressionOrdering.from_offset_col(offset_column),
+            ordering=order.TotalOrdering.from_offset_col(offset_column),
         ).node
         self._cached_executions[array_value.node] = cached_replacement
 
@@ -2038,7 +2038,7 @@ class Session(
         return table.num_bytes
 
     def _rows_to_dataframe(
-        self, row_iterator: bigquery.table.RowIterator, dtypes: Dict
+        self, row_iterator: bigquery.table.RowIterator
     ) -> pandas.DataFrame:
         # Can ignore inferred datatype until dtype emulation breaks 1:1 mapping between BQ types and bigframes types
         dtypes_from_bq = bigframes.dtypes.bf_type_from_type_kind(row_iterator.schema)
