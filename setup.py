@@ -58,7 +58,7 @@ dependencies = [
     # Keep sqlglot versions in sync with ibis-framework. This avoids problems
     # where the incorrect version of sqlglot is installed, such as
     # https://github.com/googleapis/python-bigquery-dataframes/issues/315
-    "sqlglot >=23.4,<25.2",
+    "sqlglot >=23.6.3,<25.2",
     "tabulate >= 0.9",
     "ipywidgets >=7.7.1",
     "humanize >= 4.6.0",
