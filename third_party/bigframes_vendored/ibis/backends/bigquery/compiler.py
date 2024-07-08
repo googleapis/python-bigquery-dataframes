@@ -3,57 +3,33 @@
 
 from __future__ import annotations
 
-import re
-
-from ibis.backends.base.sql import compiler as sql_compiler
-import ibis.backends.bigquery.compiler
-from ibis.backends.bigquery.datatypes import BigQueryType
-import ibis.expr.datatypes as dt
-import ibis.expr.operations as ops
-
-_NAME_REGEX = re.compile(r'[^!"$()*,./;?@[\\\]^`{}~\n]+')
-_EXACT_NAME_REGEX = re.compile(f"^{_NAME_REGEX.pattern}$")
+import ibis.backends.bigquery.compiler as bq_compiler
+import sqlglot as sg
+import sqlglot.expressions as sge
 
 
-class BigQueryTableSetFormatter(sql_compiler.TableSetFormatter):
-    def _quote_identifier(self, name):
-        """Restore 6.x version of identifier quoting.
+class BigQueryCompiler(bq_compiler.BigQueryCompiler):
+    def visit_InMemoryTable(self, op, *, name, schema, data):
+        # Avoid creating temp tables for small data, which is how memtable is
+        # used in BigQuery DataFrames. Implementation from:
+        # https://github.com/ibis-project/ibis/blob/efa6fb72bf4c790450d00a926d7bd809dade5902/ibis/backends/druid/compiler.py#L95
+        tuples = data.to_frame().itertuples(index=False)
+        quoted = self.quoted
+        columns = [sg.column(col, quoted=quoted) for col in schema.names]
+        expr = sge.Values(
+            expressions=[
+                sge.Tuple(expressions=tuple(map(sge.convert, row))) for row in tuples
+            ],
+            alias=sge.TableAlias(
+                this=sg.to_identifier(name, quoted=quoted),
+                columns=columns,
+            ),
+        )
+        return sg.select(*columns).from_(expr)
 
-        7.x uses sqlglot which as of December 2023 doesn't know about the
-        extended unicode names for BigQuery yet.
-        """
-        if _EXACT_NAME_REGEX.match(name) is not None:
-            return name
-        return f"`{name}`"
-
-    def _format_in_memory_table(self, op):
-        """Restore 6.x version of InMemoryTable.
-
-        BigQuery DataFrames explicitly uses InMemoryTable only when we know
-        the data is small enough to embed in SQL.
-        """
-        schema = op.schema
-        names = schema.names
-        types = schema.types
-
-        raw_rows = []
-        for row in op.data.to_frame().itertuples(index=False):
-            raw_row = ", ".join(
-                f"{self._translate(lit)} AS {name}"
-                for lit, name in zip(
-                    map(ops.Literal, row, types), map(self._quote_identifier, names)
-                )
-            )
-            raw_rows.append(f"STRUCT({raw_row})")
-        array_type = BigQueryType.from_ibis(dt.Array(op.schema.as_struct()))
-
-        return f"UNNEST({array_type}[{', '.join(raw_rows)}])"
+    def visit_FirstNonNullValue(self, op):
+        pass
 
 
 # Override implementation.
-ibis.backends.bigquery.compiler.BigQueryTableSetFormatter._quote_identifier = (
-    BigQueryTableSetFormatter._quote_identifier
-)
-ibis.backends.bigquery.compiler.BigQueryTableSetFormatter._format_in_memory_table = (
-    BigQueryTableSetFormatter._format_in_memory_table
-)
+bq_compiler.BigQueryCompiler.visit_InMemoryTable = BigQueryCompiler.visit_InMemoryTable

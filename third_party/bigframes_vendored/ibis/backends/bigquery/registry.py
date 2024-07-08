@@ -2,7 +2,8 @@
 """Module to convert from Ibis expression to SQL string."""
 
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
-from ibis.backends.bigquery.registry import OPERATION_REGISTRY
+
+# from ibis.backends.bigquery.registry import OPERATION_REGISTRY
 import ibis.expr.operations.reductions as ibis_reductions
 
 
@@ -69,4 +70,4 @@ patched_ops = {
     vendored_ibis_ops.ArrayAggregate: _array_aggregate,  # type:ignore
 }
 
-OPERATION_REGISTRY.update(patched_ops)
+# OPERATION_REGISTRY.update(patched_ops)
