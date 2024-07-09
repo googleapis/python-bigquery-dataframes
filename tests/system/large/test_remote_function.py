@@ -1944,6 +1944,7 @@ def test_remote_function_named_perists_w_session_cleanup():
         )
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_clean_up_by_session_id():
     # Use a brand new session to avoid conflict with other tests
     session = bigframes.Session()

@@ -393,7 +393,9 @@ class Session(
             client.delete_table(full_id, not_found_ok=True)
 
     def close(self):
-        """Delete resources that were created with this session's session_id."""
+        """Delete resources that were created with this session's session_id.
+        This includes BigQuery tables, remote functions and cloud functions
+        serving the remote functions"""
         self._clean_up_tables()
         bigframes_rf._clean_up_alive_session(
             self.bqclient, self.cloudfunctionsclient, self.session_id
@@ -1619,7 +1621,13 @@ class Session(
                 Explicit name of the persisted BigQuery remote function. Use it with
                 caution, because two users working in the same project and dataset
                 could overwrite each other's remote functions if they use the same
-                persistent name.
+                persistent name. When an explicit name is provided, any session
+                specific clean up (``bigframes.session.Session.close``/
+                ``bigframes.pandas.close_session``/
+                ``bigframes.pandas.reset_session``/
+                ``bigframes.pandas.clean_up_by_session_id``) does not clean up
+                the function, and leaves it for the user to manage the function
+                and the associated cloud function directly.
             packages (str[], Optional):
                 Explicit name of the external package dependencies. Each dependency
                 is added to the `requirements.txt` as is, and can be of the form

@@ -769,8 +769,11 @@ def clean_up_by_session_id(
     location: Optional[str] = None,
     project: Optional[str] = None,
 ) -> None:
-    """Searches through table names in BigQuery and deletes tables
-    found matching the expected format.
+    """Searches through BigQuery tables and routines and deletes the ones
+    created during the session with the given session id. The match is
+    determined by having the session id present in the resource name or
+    metadata. The cloud functions serving the cleaned up routines are also
+    cleaned up.
 
     This could be useful if the session object has been lost.
     Calling `session.close()` or `bigframes.pandas.close_session()`
