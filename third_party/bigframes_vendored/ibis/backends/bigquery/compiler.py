@@ -4,11 +4,19 @@
 from __future__ import annotations
 
 import ibis.backends.bigquery.compiler as bq_compiler
+import ibis.backends.sql.compiler as sql_compiler
+import ibis.expr.operations.reductions as ibis_reductions
 import sqlglot as sg
 import sqlglot.expressions as sge
 
 
 class BigQueryCompiler(bq_compiler.BigQueryCompiler):
+    UNSUPPORTED_OPS = bq_compiler.BigQueryCompiler.UNSUPPORTED_OPS = tuple(
+        op
+        for op in bq_compiler.BigQueryCompiler.UNSUPPORTED_OPS
+        if op != ibis_reductions.Quantile
+    )
+
     def visit_InMemoryTable(self, op, *, name, schema, data):
         # Avoid creating temp tables for small data, which is how memtable is
         # used in BigQuery DataFrames. Implementation from:
@@ -47,3 +55,9 @@ bq_compiler.BigQueryCompiler.visit_LastNonNullValue = (
     BigQueryCompiler.visit_LastNonNullValue
 )
 bq_compiler.BigQueryCompiler.visit_ToJsonString = BigQueryCompiler.visit_ToJsonString
+
+# TODO(swast): sqlglot base implementation appears to work fine for the bigquery backend, at least in our windowed contexts. See: ISSUE NUMBER
+bq_compiler.BigQueryCompiler.UNSUPPORTED_OPS = BigQueryCompiler.UNSUPPORTED_OPS
+bq_compiler.BigQueryCompiler.visit_Quantile = (
+    sql_compiler.SQLGlotCompiler.visit_Quantile
+)

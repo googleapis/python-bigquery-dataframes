@@ -5,14 +5,5 @@ import ibis.expr.datatypes as dt
 from ibis.expr.operations.core import Unary
 
 
-class GenerateArray(Unary):
-    """
-    Generates an array of values, similar to ibis.range(), but with simpler and
-    more efficient SQL generation.
-    """
-
-    dtype = dt.Array(dt.int64)
-
-
 class SafeCastToDatetime(Unary):
     dtype = dt.Timestamp(timezone=None)

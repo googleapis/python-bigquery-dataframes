@@ -3,24 +3,10 @@
 
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
-# from ibis.backends.bigquery.registry import OPERATION_REGISTRY
-import ibis.expr.operations.reductions as ibis_reductions
-
-
-def _generate_array(translator, op: vendored_ibis_ops.GenerateArray):
-    arg = translator.translate(op.arg)
-    return f"GENERATE_ARRAY(0, {arg})"
-
 
 def _safe_cast_to_datetime(translator, op: vendored_ibis_ops.SafeCastToDatetime):
     arg = translator.translate(op.arg)
     return f"SAFE_CAST({arg} AS DATETIME)"
-
-
-def _quantile(translator, op: ibis_reductions.Quantile):
-    arg = translator.translate(op.arg)
-    quantile = translator.translate(op.quantile)
-    return f"PERCENTILE_CONT({arg}, {quantile})"
 
 
 def _array_aggregate(translator, op: vendored_ibis_ops.ArrayAggregate):
@@ -39,10 +25,6 @@ def _array_aggregate(translator, op: vendored_ibis_ops.ArrayAggregate):
 
 
 patched_ops = {
-    vendored_ibis_ops.GenerateArray: _generate_array,  # type:ignore
     vendored_ibis_ops.SafeCastToDatetime: _safe_cast_to_datetime,  # type:ignore
-    ibis_reductions.Quantile: _quantile,  # type:ignore
     vendored_ibis_ops.ArrayAggregate: _array_aggregate,  # type:ignore
 }
-
-# OPERATION_REGISTRY.update(patched_ops)
