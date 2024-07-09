@@ -14,7 +14,7 @@
 
 from abc import ABCMeta
 
-s
+
 class MemberSelector(metaclass=ABCMeta):
     """
     Small helper class allowing class variables to relief the user from remembering strings or alike. See example below

@@ -33,7 +33,7 @@ import bigframes.core.window_spec as window
 import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
 
-from bigframes.core.schema_tracking import NestedDataContextManager
+#from bigframes.core.schema_tracking import NestedDataContextManager
 
 if typing.TYPE_CHECKING:
     import bigframes.core.ordering as orderings

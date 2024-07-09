@@ -886,6 +886,7 @@ class Session(
             primary_key=index_cols if is_index_unique else (),
             session=self,
         )
+        #TODO: Link schema from to array_value, use its node info
 
         # ----------------------------------------------------
         # Create Default Sequential Index if still have no index

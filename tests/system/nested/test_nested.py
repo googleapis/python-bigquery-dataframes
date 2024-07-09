@@ -20,9 +20,10 @@
 #from typing import List
 
 import bigframes.pandas as bfpd
+import bigframes.core as core
 from bigframes.core.schema_tracking import set_project
-from bigframes.core.nodes import NestedDataContextManager
-
+#from bigframes.core.nodes import NestedDataContextManager
+#from bigframes.core import Session
 
 
 # start context manager (cm) in pandas/__init__.py
@@ -66,8 +67,9 @@ if __name__ == "__main__":
     #ncm_t = NestedDataFrame(testdf)
     #ncm =  NestedDataFrame(table)
     #testsq = Series()
+    #session = Session()
 
-    with NestedDataContextManager:
+    with core.NestedDataContextManager:
         df = bfpd.read_gbq(f"SELECT * FROM {table} limit 10")
         #ncm |=  ncm.data, {"columns": []} | n_get_dummies
     pass
