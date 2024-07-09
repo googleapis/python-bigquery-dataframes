@@ -218,6 +218,9 @@ def join_as_projection(
     if rewrite_common_node is not None:
         left_side = SquashedSelect.from_node_span(l_node, rewrite_common_node)
         right_side = SquashedSelect.from_node_span(r_node, rewrite_common_node)
+        if not left_side.can_merge(right_side, join_keys):
+            # Most likely because join keys didn't match
+            return None
         merged = left_side.merge(right_side, how, join_keys, mappings)
         assert (
             merged is not None
