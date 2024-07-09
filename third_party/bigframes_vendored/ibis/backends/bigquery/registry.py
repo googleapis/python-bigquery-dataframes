@@ -13,16 +13,6 @@ def _approx_quantiles(translator, op: vendored_ibis_ops.ApproximateMultiQuantile
     return f"APPROX_QUANTILES({arg}, {num_bins})"
 
 
-def _first_non_null_value(translator, op: vendored_ibis_ops.FirstNonNullValue):
-    arg = translator.translate(op.arg)
-    return f"FIRST_VALUE({arg} IGNORE NULLS)"
-
-
-def _last_non_null_value(translator, op: vendored_ibis_ops.LastNonNullValue):
-    arg = translator.translate(op.arg)
-    return f"LAST_VALUE({arg} IGNORE NULLS)"
-
-
 def _to_json_string(translator, op: vendored_ibis_ops.ToJsonString):
     arg = translator.translate(op.arg)
     return f"TO_JSON_STRING({arg})"
@@ -61,8 +51,6 @@ def _array_aggregate(translator, op: vendored_ibis_ops.ArrayAggregate):
 
 patched_ops = {
     vendored_ibis_ops.ApproximateMultiQuantile: _approx_quantiles,  # type:ignore
-    vendored_ibis_ops.FirstNonNullValue: _first_non_null_value,  # type:ignore
-    vendored_ibis_ops.LastNonNullValue: _last_non_null_value,  # type:ignore
     vendored_ibis_ops.ToJsonString: _to_json_string,  # type:ignore
     vendored_ibis_ops.GenerateArray: _generate_array,  # type:ignore
     vendored_ibis_ops.SafeCastToDatetime: _safe_cast_to_datetime,  # type:ignore

@@ -27,9 +27,19 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
         )
         return sg.select(*columns).from_(expr)
 
-    def visit_FirstNonNullValue(self, op):
-        pass
+    def visit_FirstNonNullValue(self, op, *, arg):
+        return sge.IgnoreNulls(this=sge.FirstValue(this=arg))
+
+    def visit_LastNonNullValue(self, op, *, arg):
+        return sge.IgnoreNulls(this=sge.LastValue(this=arg))
 
 
 # Override implementation.
+# We monkeypatch individual methods because the class might have already been imported in other modules.
 bq_compiler.BigQueryCompiler.visit_InMemoryTable = BigQueryCompiler.visit_InMemoryTable
+bq_compiler.BigQueryCompiler.visit_FirstNonNullValue = (
+    BigQueryCompiler.visit_FirstNonNullValue
+)
+bq_compiler.BigQueryCompiler.visit_LastNonNullValue = (
+    BigQueryCompiler.visit_LastNonNullValue
+)
