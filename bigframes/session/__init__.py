@@ -395,7 +395,7 @@ class Session(
     def close(self):
         """Delete resources that were created with this session's session_id."""
         self._clean_up_tables()
-        bigframes_rf._clean_up_session_artifacts(
+        bigframes_rf._clean_up_alive_session(
             self.bqclient, self.cloudfunctionsclient, self.session_id
         )
 

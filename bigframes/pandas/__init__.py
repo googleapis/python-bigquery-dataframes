@@ -63,6 +63,7 @@ import bigframes.core.reshape
 import bigframes.core.tools
 import bigframes.dataframe
 import bigframes.enums
+import bigframes.functions.remote_function as bigframes_rf
 import bigframes.operations as ops
 import bigframes.series
 import bigframes.session
@@ -794,7 +795,6 @@ def clean_up_by_session_id(
         None
     """
     session = get_global_session()
-    client = session.bqclient
 
     if (location is None) != (project is None):
         raise ValueError(
@@ -804,14 +804,18 @@ def clean_up_by_session_id(
         dataset = session._anonymous_dataset
     else:
         dataset = bigframes.session._io.bigquery.create_bq_dataset_reference(
-            client,
+            session.bqclient,
             location=location,
             project=project,
             api_name="clean_up_by_session_id",
         )
 
     bigframes.session._io.bigquery.delete_tables_matching_session_id(
-        client, dataset, session_id
+        session.bqclient, dataset, session_id
+    )
+
+    bigframes_rf._clean_up_by_session_id(
+        session.bqclient, session.cloudfunctionsclient, dataset, session_id
     )
 
 

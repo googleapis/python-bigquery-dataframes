@@ -34,6 +34,7 @@ from typing import (
     NamedTuple,
     Optional,
     Sequence,
+    Set,
     Tuple,
     TYPE_CHECKING,
     Union,
@@ -69,6 +70,11 @@ import bigframes.functions.remote_function_template
 
 logger = logging.getLogger(__name__)
 
+# Naming convention for the remote function artifacts
+_BIGFRAMES_REMOTE_FUNCTION_PREFIX = "bigframes"
+_BQ_FUNCTION_NAME_SEPERATOR = "_"
+_GCF_FUNCTION_NAME_SEPERATOR = "-"
+
 # Protocol version 4 is available in python version 3.4 and above
 # https://docs.python.org/3/library/pickle.html#data-stream-format
 _pickle_protocol_version = 4
@@ -78,8 +84,8 @@ _temp_session_artifacts: Dict[str, Dict[str, str]] = {}
 _session_artifacts_lock = threading.Lock()
 
 
-def _update_session_artifacts(session_id: str, bqrf_routine: str, gcf_path: str):
-    """Update remote function artifacts for a session id."""
+def _update_alive_session_artifacts(session_id: str, bqrf_routine: str, gcf_path: str):
+    """Update remote function artifacts for a session id in the current runtime."""
     global _temp_session_artifacts, _session_artifacts_lock
 
     with _session_artifacts_lock:
@@ -88,12 +94,12 @@ def _update_session_artifacts(session_id: str, bqrf_routine: str, gcf_path: str)
         _temp_session_artifacts[session_id][bqrf_routine] = gcf_path
 
 
-def _clean_up_session_artifacts(
+def _clean_up_alive_session(
     bqclient: bigquery.Client,
     gcfclient: functions_v2.FunctionServiceClient,
     session_id: str,
 ):
-    """Delete remote function artifacts for a session id."""
+    """Delete remote function artifacts for a session id in the current runtime."""
     global _temp_session_artifacts, _session_artifacts_lock
 
     with _session_artifacts_lock:
@@ -111,6 +117,70 @@ def _clean_up_session_artifacts(
                     pass
 
             _temp_session_artifacts.pop(session_id)
+
+
+def _clean_up_by_session_id(
+    bqclient: bigquery.Client,
+    gcfclient: functions_v2.FunctionServiceClient,
+    dataset: bigquery.DatasetReference,
+    session_id: str,
+):
+    """Delete remote function artifacts for a session id, where the session id
+    was not necessarily created in the current runtime. This is useful if the
+    user worked with a BigQuery DataFrames session previously and remembered the
+    session id, and now wants to clean up its temporary resources at a later
+    point in time.
+    """
+
+    # First clean up the BQ remote functions and then the underlying
+    # cloud functions, so that at no point we are left with a remote function
+    # that is pointing to a cloud function that does not exist
+
+    endpoints_to_be_deleted: Set[str] = set()
+    match_prefix = "".join(
+        [
+            _BIGFRAMES_REMOTE_FUNCTION_PREFIX,
+            _BQ_FUNCTION_NAME_SEPERATOR,
+            session_id,
+            _BQ_FUNCTION_NAME_SEPERATOR,
+        ]
+    )
+    for routine in bqclient.list_routines(dataset):
+        routine = cast(bigquery.Routine, routine)
+
+        # skip past the routines not belonging to the given session id, or
+        # non-remote-function routines
+        if (
+            routine.type_ != bigquery.RoutineType.SCALAR_FUNCTION
+            or not cast(str, routine.routine_id).startswith(match_prefix)
+            or not routine.remote_function_options
+            or not routine.remote_function_options.endpoint
+        ):
+            continue
+
+        # Let's forgive the edge case possibility that the BQ remote function
+        # may have been deleted at the same time directly by the user
+        bqclient.delete_routine(routine, not_found_ok=True)
+        endpoints_to_be_deleted.add(routine.remote_function_options.endpoint)
+
+    # Now clean up the cloud functions
+    bq_location = bqclient.get_dataset(dataset).location
+    bq_location, gcf_location = get_remote_function_locations(bq_location)
+    parent_path = gcfclient.common_location_path(
+        project=dataset.project, location=gcf_location
+    )
+    for gcf in gcfclient.list_functions(parent=parent_path):
+        # skip past the cloud functions not attached to any BQ remote function
+        # belonging to the given session id
+        if gcf.service_config.uri not in endpoints_to_be_deleted:
+            continue
+
+        # Let's forgive the edge case possibility that the cloud function
+        # may have been deleted at the same time directly by the user
+        try:
+            gcfclient.delete_function(name=gcf.name)
+        except google.api_core.exceptions.NotFound:
+            pass
 
 
 def get_remote_function_locations(bq_location):
@@ -173,20 +243,20 @@ class IbisSignature(NamedTuple):
     output_type: IbisDataType
 
 
-def get_cloud_function_name(function_hash, uniq_suffix=None):
+def get_cloud_function_name(function_hash, session_id, uniq_suffix=None):
     "Get a name for the cloud function for the given user defined function."
-    cf_name = f"bigframes-{function_hash}"  # for identification
+    parts = [_BIGFRAMES_REMOTE_FUNCTION_PREFIX, session_id, function_hash]
     if uniq_suffix:
-        cf_name = f"{cf_name}-{uniq_suffix}"
-    return cf_name
+        parts.append(uniq_suffix)
+    return _GCF_FUNCTION_NAME_SEPERATOR.join(parts)
 
 
-def get_remote_function_name(function_hash, uniq_suffix=None):
+def get_remote_function_name(function_hash, session_id, uniq_suffix=None):
     "Get a name for the BQ remote function for the given user defined function."
-    bq_rf_name = f"bigframes_{function_hash}"  # for identification
+    parts = [_BIGFRAMES_REMOTE_FUNCTION_PREFIX, session_id, function_hash]
     if uniq_suffix:
-        bq_rf_name = f"{bq_rf_name}_{uniq_suffix}"
-    return bq_rf_name
+        parts.append(uniq_suffix)
+    return _BQ_FUNCTION_NAME_SEPERATOR.join(parts)
 
 
 class RemoteFunctionClient:
@@ -507,7 +577,7 @@ class RemoteFunctionClient:
         cloud_function_full_name = self.get_cloud_function_fully_qualified_name(
             cloud_function_name
         )
-        _update_session_artifacts(
+        _update_alive_session_artifacts(
             self._session.session_id,
             remote_function_full_name,
             cloud_function_full_name,
@@ -529,15 +599,6 @@ class RemoteFunctionClient:
         cloud_function_memory_mib,
     ):
         """Provision a BigQuery remote function."""
-        # If reuse of any existing function with the same name (indicated by the
-        # same hash of its source code) is not intended, then attach a unique
-        # suffix to the intended function name to make it unique.
-        uniq_suffix = None
-        if not reuse:
-            uniq_suffix = "".join(
-                random.choices(string.ascii_lowercase + string.digits, k=8)
-            )
-
         # Augment user package requirements with any internal package
         # requirements
         package_requirements = _get_updated_package_requirements(
@@ -547,10 +608,23 @@ class RemoteFunctionClient:
         # Compute a unique hash representing the user code
         function_hash = _get_hash(def_, package_requirements)
 
+        # If reuse of any existing function with the same name (indicated by the
+        # same hash of its source code) is not intended, then attach a unique
+        # suffix to the intended function name to make it unique.
+        uniq_suffix = None
+        if not reuse:
+            # use 4 digits as a unique suffix which should suffice for
+            # uniqueness per session
+            uniq_suffix = "".join(
+                random.choices(string.ascii_lowercase + string.digits, k=4)
+            )
+
         # Derive the name of the cloud function underlying the intended BQ
         # remote function, also collect updated package requirements as
         # determined in the name resolution
-        cloud_function_name = get_cloud_function_name(function_hash, uniq_suffix)
+        cloud_function_name = get_cloud_function_name(
+            function_hash, self._session.session_id, uniq_suffix
+        )
         cf_endpoint = self.get_cloud_function_endpoint(cloud_function_name)
 
         # Create the cloud function if it does not exist
@@ -573,7 +647,9 @@ class RemoteFunctionClient:
         # Derive the name of the remote function
         remote_function_name = name
         if not remote_function_name:
-            remote_function_name = get_remote_function_name(function_hash, uniq_suffix)
+            remote_function_name = get_remote_function_name(
+                function_hash, self._session.session_id, uniq_suffix
+            )
         rf_endpoint, rf_conn = self.get_remote_function_specs(remote_function_name)
 
         # Create the BQ remote function in following circumstances:
