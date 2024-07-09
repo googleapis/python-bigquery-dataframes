@@ -7,11 +7,6 @@ import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import ibis.expr.operations.reductions as ibis_reductions
 
 
-def _to_json_string(translator, op: vendored_ibis_ops.ToJsonString):
-    arg = translator.translate(op.arg)
-    return f"TO_JSON_STRING({arg})"
-
-
 def _generate_array(translator, op: vendored_ibis_ops.GenerateArray):
     arg = translator.translate(op.arg)
     return f"GENERATE_ARRAY(0, {arg})"
@@ -44,7 +39,6 @@ def _array_aggregate(translator, op: vendored_ibis_ops.ArrayAggregate):
 
 
 patched_ops = {
-    vendored_ibis_ops.ToJsonString: _to_json_string,  # type:ignore
     vendored_ibis_ops.GenerateArray: _generate_array,  # type:ignore
     vendored_ibis_ops.SafeCastToDatetime: _safe_cast_to_datetime,  # type:ignore
     ibis_reductions.Quantile: _quantile,  # type:ignore

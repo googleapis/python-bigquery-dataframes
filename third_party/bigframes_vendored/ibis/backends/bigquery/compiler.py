@@ -33,6 +33,9 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
     def visit_LastNonNullValue(self, op, *, arg):
         return sge.IgnoreNulls(this=sge.LastValue(this=arg))
 
+    def visit_ToJsonString(self, op, *, arg):
+        return self.f.to_json_string(arg)
+
 
 # Override implementation.
 # We monkeypatch individual methods because the class might have already been imported in other modules.
@@ -43,3 +46,4 @@ bq_compiler.BigQueryCompiler.visit_FirstNonNullValue = (
 bq_compiler.BigQueryCompiler.visit_LastNonNullValue = (
     BigQueryCompiler.visit_LastNonNullValue
 )
+bq_compiler.BigQueryCompiler.visit_ToJsonString = BigQueryCompiler.visit_ToJsonString
