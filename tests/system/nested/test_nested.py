@@ -71,6 +71,8 @@ if __name__ == "__main__":
 
     with core.NestedDataContextManager:
         df = bfpd.read_gbq(f"SELECT * FROM {table} limit 10")
+        df = df.rename(columns={"out_of_contract_flag": "ooc_flag"})
+        
         #ncm |=  ncm.data, {"columns": []} | n_get_dummies
     pass
 
