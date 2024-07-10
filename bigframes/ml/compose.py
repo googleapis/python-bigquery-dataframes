@@ -209,7 +209,7 @@ class ColumnTransformer(
         Args:
             X: DataFrame to transform.
 
-        Returns: a list of tuples sql_expr."""
+        Returns: a list of sql_expr."""
         result = []
         for _, transformer, target_columns in self.transformers:
             if isinstance(target_columns, str):
