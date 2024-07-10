@@ -30,7 +30,6 @@ import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.core.indexes as bf_indexes
 import bigframes.dataframe as dataframe
-import bigframes.pandas
 import bigframes.pandas as bpd
 import bigframes.series as series
 from tests.system.utils import (
@@ -141,8 +140,6 @@ def test_df_construct_from_dict():
 
 
 def test_df_construct_inline_respects_location():
-    import bigframes.pandas as bpd
-
     # Note: This starts a thread-local session.
     with bpd.option_context("bigquery.location", "europe-west1"):
         df = bpd.DataFrame([[1, 2, 3], [4, 5, 6]])
@@ -4530,7 +4527,7 @@ def test_query_complexity_repeated_subtrees(
     bf_df = scalars_df_index
     for _ in range(5):
         pd_df = pd.concat(10 * [pd_df]).head(5)
-        bf_df = bigframes.pandas.concat(10 * [bf_df]).head(5)
+        bf_df = bpd.concat(10 * [bf_df]).head(5)
     bf_result = bf_df.to_pandas()
     pd_result = pd_df
     assert_pandas_df_equal(bf_result, pd_result)
