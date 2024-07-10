@@ -438,33 +438,28 @@ class Block:
 
     def _to_dataframe(self, result) -> pd.DataFrame:
         """Convert BigQuery data to pandas DataFrame with specific dtypes."""
-        dtypes = dict(zip(self.index_columns, self.index.dtypes))
-        dtypes.update(zip(self.value_columns, self.dtypes))
-        result_dataframe = self.session._rows_to_dataframe(result, dtypes)
+        result_dataframe = self.session._rows_to_dataframe(result)
         # Runs strict validations to ensure internal type predictions and ibis are completely in sync
         # Do not execute these validations outside of testing suite.
         if "PYTEST_CURRENT_TEST" in os.environ:
-            self._validate_result_schema(result_dataframe)
+            self._validate_result_schema(result.schema)
         return result_dataframe
 
-    def _validate_result_schema(self, result_df: pd.DataFrame):
+    def _validate_result_schema(
+        self, bq_result_schema: list[bigquery.schema.SchemaField]
+    ):
+        actual_schema = tuple(bq_result_schema)
         ibis_schema = self.expr._compiled_schema
         internal_schema = self.expr.node.schema
-        actual_schema = bf_schema.ArraySchema(
-            tuple(
-                bf_schema.SchemaItem(name, dtype)  # type: ignore
-                for name, dtype in result_df.dtypes.items()
-            )
-        )
         if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
             return
-        if internal_schema != actual_schema:
+        if internal_schema.to_bigquery() != actual_schema:
             raise ValueError(
-                f"This error should only occur while testing. BigFrames internal schema: {internal_schema} does not match actual schema: {actual_schema}"
+                f"This error should only occur while testing. BigFrames internal schema: {internal_schema.to_bigquery()} does not match actual schema: {actual_schema}"
             )
-        if ibis_schema != actual_schema:
+        if ibis_schema.to_bigquery() != actual_schema:
             raise ValueError(
-                f"This error should only occur while testing. Ibis schema: {ibis_schema} does not match actual schema: {actual_schema}"
+                f"This error should only occur while testing. Ibis schema: {ibis_schema.to_bigquery()} does not match actual schema: {actual_schema}"
             )
 
     def to_arrow(
@@ -2585,7 +2580,6 @@ class BlockIndexProperties:
             )
         # Project down to only the index column. So the query can be cached to visualize other data.
         index_columns = list(self._block.index_columns)
-        dtypes = dict(zip(index_columns, self.dtypes))
         expr = self._expr.select_columns(index_columns)
         results, _ = self.session._execute(
             expr,
@@ -2593,7 +2587,7 @@ class BlockIndexProperties:
             if (ordered is not None)
             else self.session._strictly_ordered,
         )
-        df = expr.session._rows_to_dataframe(results, dtypes)
+        df = expr.session._rows_to_dataframe(results)
         df = df.set_index(index_columns)
         index = df.index
         index.names = list(self._block._index_labels)  # type:ignore
