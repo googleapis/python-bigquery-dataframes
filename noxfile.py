@@ -16,13 +16,15 @@
 
 from __future__ import absolute_import
 
+import json
 from multiprocessing import Process
 import os
 import pathlib
 from pathlib import Path
 import re
 import shutil
-from typing import Dict, List
+import time
+from typing import Dict, List, Optional, Tuple, Union
 import warnings
 
 import nox
@@ -794,15 +796,19 @@ def notebook(session: nox.Session):
     processes = []
     for notebook, regions in notebooks_reg.items():
         for region in regions:
+            kwargs = {
+                "env": {
+                    "BIGQUERY_LOCATION": region,
+                    LOGGING_NAME_ENV_VAR: os.path.basename(notebook),
+                }
+            }
             process = Process(
-                target=session.run,
-                args=(*pytest_command, notebook),
-                kwargs={
-                    "env": {
-                        "BIGQUERY_LOCATION": region,
-                        LOGGING_NAME_ENV_VAR: os.path.basename(notebook),
-                    }
-                },
+                target=_benchmark_timing_process,
+                args=(
+                    session,
+                    (*pytest_command, notebook),
+                    kwargs,
+                ),
             )
             process.start()
             processes.append(process)
@@ -821,26 +827,91 @@ def benchmark(session: nox.Session):
     session.install("-e", ".[all]")
     base_path = os.path.join("scripts", "benchmark")
 
-    benchmark_script_list = list(Path(base_path).rglob("*.py"))
     # Run benchmarks in parallel session.run's, since each benchmark
     # takes an environment variable for performance logging
-    processes = []
-    for benchmark in benchmark_script_list:
-        process = Process(
-            target=session.run,
-            args=("python", benchmark),
-            kwargs={"env": {LOGGING_NAME_ENV_VAR: benchmark.as_posix()}},
-        )
-        process.start()
-        processes.append(process)
-
+    processes = _process_benchmark_recursively(session, Path(base_path))
     for process in processes:
         process.join()
-
-    # when the environment variable is set as it is above,
-    # notebooks output a .bytesprocessed and .slotmillis report
-    # collect those reports and print a summary
     _print_performance_report(base_path)
+
+
+def _process_benchmark_recursively(
+    session: nox.Session,
+    current_path: Path,
+    benchmark_configs: List[Tuple[Optional[str], List[str]]] = [(None, [])],
+):
+    if current_path.name == "utils":
+        return []
+
+    config_path = current_path / "config.jsonl"
+
+    if config_path.exists():
+        benchmark_configs = []
+        with open(config_path, "r") as f:
+            for line in f:
+                config = json.loads(line)
+                python_args = [
+                    f"--{key}={value}"
+                    for key, value in config.items()
+                    if key != "benchmark_suffix"
+                ]
+                suffix = (
+                    config["benchmark_suffix"]
+                    if "benchmark_suffix" in config
+                    else "_".join(f"{key}_{value}" for key, value in config.items())
+                )
+                benchmark_configs.append((suffix, python_args))
+
+    benchmark_script_list = list(current_path.glob("*.py"))
+    processes = []
+    for benchmark_config in benchmark_configs:
+        for benchmark in benchmark_script_list:
+
+            args = ["python", benchmark]
+            args.extend(benchmark_config[1])
+            print(args)
+
+            log_env_name_var = benchmark.as_posix()
+            if benchmark_config[0] is not None:
+                log_env_name_var += f"_{benchmark_config[0]}"
+
+            kwargs = {
+                "env": {
+                    LOGGING_NAME_ENV_VAR: log_env_name_var,
+                }
+            }
+
+            process = Process(
+                target=_benchmark_timing_process,
+                args=(session, args, kwargs),
+            )
+            process.start()
+            processes.append(process)
+
+    for sub_dir in [d for d in current_path.iterdir() if d.is_dir()]:
+        processes.extend(
+            _process_benchmark_recursively(session, sub_dir, benchmark_configs)
+        )
+
+    return processes
+
+
+def _benchmark_timing_process(session: nox.Session, args, kwargs):
+    print(kwargs["env"])
+    clock_time_file_path = f"{kwargs['env'][LOGGING_NAME_ENV_VAR]}.clockseconds"
+
+    start_time = time.perf_counter()
+    benchmark_proc = Process(
+        target=session.run,
+        args=args,
+        kwargs=kwargs,
+    )
+    benchmark_proc.start()
+    benchmark_proc.join()
+    end_time = time.perf_counter()
+    runtime = end_time - start_time
+    with open(clock_time_file_path, "w") as log_file:
+        log_file.write(f"{runtime}\n")
 
 
 def _print_performance_report(path: str):
@@ -852,7 +923,7 @@ def _print_performance_report(path: str):
     passed path. (*/*.bytesprocessed and */*.slotmillis)
     """
     print("---BIGQUERY USAGE REPORT---")
-    results_dict = {}
+    results_dict: Dict[Path, List[Union[int, float]]] = {}
     bytes_reports = sorted(Path(path).rglob("*.bytesprocessed"))
     for bytes_report in bytes_reports:
         with open(bytes_report, "r") as bytes_file:
@@ -872,30 +943,46 @@ def _print_performance_report(path: str):
             results_dict[filename] += [total_slot_millis]
         os.remove(millis_report)
 
+    time_reports = sorted(Path(path).rglob("*.clockseconds"))
+    for time_report in time_reports:
+        with open(time_report, "r") as time_file:
+            filename = time_report.relative_to(path).with_suffix("")
+            line = time_file.readline().strip()
+            total_seconds = float(line)
+            results_dict[filename] += [total_seconds]
+        os.remove(time_report)
+
     cumulative_queries = 0
     cumulative_bytes = 0
     cumulative_slot_millis = 0
+    cumulative_seconds = 0.0
     for name, results in results_dict.items():
-        if len(results) != 3:
+        if len(results) != 4:
             raise IOError(
                 "Mismatch in performance logging output. "
-                "Expected one .bytesprocessed and one .slotmillis "
+                "Expected one .bytesprocessed, one .slotmillis, and one clockseconds"
                 "file for each notebook."
             )
-        query_count, total_bytes, total_slot_millis = results
+        query_count = int(results[0])
+        total_bytes = int(results[1])
+        total_slot_millis = int(results[2])
+        total_seconds = results[3]
         cumulative_queries += query_count
         cumulative_bytes += total_bytes
         cumulative_slot_millis += total_slot_millis
+        cumulative_seconds += total_seconds
         print(
             f"{name} - query count: {query_count},"
             f" bytes processed sum: {total_bytes},"
-            f" slot millis sum: {total_slot_millis}"
+            f" slot millis sum: {total_slot_millis},"
+            f" execution time: {total_seconds} seconds"
         )
 
     print(
         f"---total queries: {cumulative_queries}, "
         f"total bytes: {cumulative_bytes}, "
         f"total slot millis: {cumulative_slot_millis}---"
+        f"Total execution time: {cumulative_seconds} seconds---"
     )
 
 
