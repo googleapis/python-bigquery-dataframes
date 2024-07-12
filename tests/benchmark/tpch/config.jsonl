@@ -1,0 +1,4 @@
+{"benchmark_suffix": "1g_ordered", "dataset_id": "tpch_00001g", "ordered": true}
+{"benchmark_suffix": "1g_unordered", "dataset_id": "tpch_00001g", "ordered": false}
+{"benchmark_suffix": "10g_ordered", "dataset_id": "tpch_00010g", "ordered": true}
+{"benchmark_suffix": "10g_unordered", "dataset_id": "tpch_00010g", "ordered": false}

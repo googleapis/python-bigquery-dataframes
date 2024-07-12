@@ -825,7 +825,7 @@ def notebook(session: nox.Session):
 @nox.session(python=DEFAULT_PYTHON_VERSION)
 def benchmark(session: nox.Session):
     session.install("-e", ".[all]")
-    base_path = os.path.join("scripts", "benchmark")
+    base_path = os.path.join("tests", "benchmark")
 
     # Run benchmarks in parallel session.run's, since each benchmark
     # takes an environment variable for performance logging
@@ -840,8 +840,6 @@ def _process_benchmark_recursively(
     current_path: Path,
     benchmark_configs: List[Tuple[Optional[str], List[str]]] = [(None, [])],
 ):
-    if current_path.name == "utils":
-        return []
 
     config_path = current_path / "config.jsonl"
 
@@ -864,9 +862,11 @@ def _process_benchmark_recursively(
 
     benchmark_script_list = list(current_path.glob("*.py"))
     processes = []
-    for benchmark_config in benchmark_configs:
-        for benchmark in benchmark_script_list:
+    for benchmark in benchmark_script_list:
+        if benchmark.name in ["utils.py", "__init__.py"]:
+            continue
 
+        for benchmark_config in benchmark_configs:
             args = ["python", benchmark]
             args.extend(benchmark_config[1])
             print(args)
@@ -874,12 +874,7 @@ def _process_benchmark_recursively(
             log_env_name_var = benchmark.as_posix()
             if benchmark_config[0] is not None:
                 log_env_name_var += f"_{benchmark_config[0]}"
-
-            kwargs = {
-                "env": {
-                    LOGGING_NAME_ENV_VAR: log_env_name_var,
-                }
-            }
+            kwargs = {"env": {LOGGING_NAME_ENV_VAR: log_env_name_var}}
 
             process = Process(
                 target=_benchmark_timing_process,
@@ -897,9 +892,7 @@ def _process_benchmark_recursively(
 
 
 def _benchmark_timing_process(session: nox.Session, args, kwargs):
-    print(kwargs["env"])
     clock_time_file_path = f"{kwargs['env'][LOGGING_NAME_ENV_VAR]}.clockseconds"
-
     start_time = time.perf_counter()
     benchmark_proc = Process(
         target=session.run,
