@@ -44,7 +44,6 @@ LINT_PATHS = [
     "third_party",
     "noxfile.py",
     "setup.py",
-    os.path.join("scripts", "benchmark"),
 ]
 
 DEFAULT_PYTHON_VERSION = "3.10"
@@ -869,7 +868,6 @@ def _process_benchmark_recursively(
         for benchmark_config in benchmark_configs:
             args = ["python", benchmark]
             args.extend(benchmark_config[1])
-            print(args)
 
             log_env_name_var = benchmark.as_posix()
             if benchmark_config[0] is not None:
