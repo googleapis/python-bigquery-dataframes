@@ -24,7 +24,6 @@ def q(dataset_id, session):
     )
     result = result.sort_index()
 
-    # TODO(huanc): remove peek when related issue fixed.
-    print(result.peek())
+    print(result)
 
     bpd.reset_session()
