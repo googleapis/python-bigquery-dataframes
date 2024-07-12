@@ -20,7 +20,7 @@ def q(dataset_id, session):
         * (1.0 + lineitem["L_TAX"])
     )
 
-    result = lineitem.groupby(["L_RETURNFLAG", "L_LINESTATUS"], as_index=False).agg(
+    result = lineitem.groupby(["L_RETURNFLAG", "L_LINESTATUS"]).agg(
         SUM_QTY=bpd.NamedAgg(column="L_QUANTITY", aggfunc="sum"),
         SUM_BASE_PRICE=bpd.NamedAgg(column="L_EXTENDEDPRICE", aggfunc="sum"),
         SUM_DISC_PRICE=bpd.NamedAgg(column="DISC_PRICE", aggfunc="sum"),
@@ -30,7 +30,7 @@ def q(dataset_id, session):
         AVG_DISC=bpd.NamedAgg(column="L_DISCOUNT", aggfunc="mean"),
         COUNT_ORDER=bpd.NamedAgg(column="L_QUANTITY", aggfunc="count"),
     )
-    result = result.sort_value(["L_RETURNFLAG", "L_LINESTATUS"])
+    result = result.sort_index()
 
     print(result)
 
