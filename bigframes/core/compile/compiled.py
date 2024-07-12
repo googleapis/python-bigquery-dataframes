@@ -36,7 +36,9 @@ from bigframes.core.ordering import (
     ascending_over,
     encode_order_string,
     IntegerEncoding,
+    join_orderings,
     OrderingExpression,
+    RowOrdering,
     TotalOrdering,
 )
 import bigframes.core.schema as schemata
@@ -524,7 +526,7 @@ class OrderedIR(BaseIbisIR):
         table: ibis_types.Table,
         columns: Sequence[ibis_types.Value],
         hidden_ordering_columns: Optional[Sequence[ibis_types.Value]] = None,
-        ordering: TotalOrdering = TotalOrdering(),
+        ordering: RowOrdering = RowOrdering(),
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         super().__init__(table, columns, predicates)
@@ -570,6 +572,10 @@ class OrderedIR(BaseIbisIR):
     @property
     def is_ordered_ir(self) -> bool:
         return True
+
+    @property
+    def has_total_order(self) -> bool:
+        return isinstance(self._ordering, TotalOrdering)
 
     @classmethod
     def from_pandas(
@@ -761,16 +767,13 @@ class OrderedIR(BaseIbisIR):
             ],
             table_w_unnest[unnest_offset_id],
         ]
-        ordering = TotalOrdering(
-            ordering_value_columns=tuple(
-                [
-                    *self._ordering.ordering_value_columns,
-                    ascending_over(unnest_offset_id),
-                ]
-            ),
-            total_ordering_columns=frozenset(
-                [*self._ordering.total_ordering_columns, unnest_offset_id]
-            ),
+        l_mappings = {id: id for id in self._ordering.referenced_columns}
+        r_mappings = {unnest_offset_id: unnest_offset_id}
+        ordering = join_orderings(
+            self._ordering,
+            TotalOrdering.from_offset_col(unnest_offset_id),
+            l_mappings,
+            r_mappings,
         )
 
         return OrderedIR(
@@ -1154,12 +1157,19 @@ class OrderedIR(BaseIbisIR):
                         self._ibis_bindings[expr.scalar_expression.id]
                     )
 
-        new_ordering = TotalOrdering(
-            tuple(new_exprs),
-            self._ordering.integer_encoding,
-            self._ordering.string_encoding,
-            self._ordering.total_ordering_columns,
-        )
+        if isinstance(self._ordering, TotalOrdering):
+            new_ordering: RowOrdering = TotalOrdering(
+                tuple(new_exprs),
+                self._ordering.integer_encoding,
+                self._ordering.string_encoding,
+                self._ordering.total_ordering_columns,
+            )
+        else:
+            new_ordering = RowOrdering(
+                tuple(new_exprs),
+                self._ordering.integer_encoding,
+                self._ordering.string_encoding,
+            )
         return OrderedIR(
             self._table,
             columns=self.columns,
@@ -1301,7 +1311,7 @@ class OrderedIR(BaseIbisIR):
         def __init__(
             self,
             table: ibis_types.Table,
-            ordering: TotalOrdering,
+            ordering: RowOrdering,
             columns: Collection[ibis_types.Value] = (),
             hidden_ordering_columns: Collection[ibis_types.Value] = (),
             predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
