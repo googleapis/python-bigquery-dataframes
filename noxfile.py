@@ -770,10 +770,14 @@ def notebook(session: nox.Session):
         # takes an environment variable for performance logging
         processes = []
         for notebook in notebooks:
+            kwargs = {
+                "env": {
+                    LOGGING_NAME_ENV_VAR: os.path.basename(notebook),
+                }
+            }
             process = Process(
-                target=session.run,
-                args=(*pytest_command, notebook),
-                kwargs={"env": {LOGGING_NAME_ENV_VAR: os.path.basename(notebook)}},
+                target=_benchmark_timing_process,
+                args=(session, (*pytest_command, notebook), kwargs, notebook),
             )
             process.start()
             processes.append(process)
@@ -795,10 +799,11 @@ def notebook(session: nox.Session):
     processes = []
     for notebook, regions in notebooks_reg.items():
         for region in regions:
+            notebook_benchmark_path = f"{notebook}_{region}"
             kwargs = {
                 "env": {
                     "BIGQUERY_LOCATION": region,
-                    LOGGING_NAME_ENV_VAR: os.path.basename(notebook),
+                    LOGGING_NAME_ENV_VAR: os.path.basename(notebook_benchmark_path),
                 }
             }
             process = Process(
@@ -807,6 +812,7 @@ def notebook(session: nox.Session):
                     session,
                     (*pytest_command, notebook),
                     kwargs,
+                    notebook_benchmark_path,
                 ),
             )
             process.start()
@@ -889,8 +895,10 @@ def _process_benchmark_recursively(
     return processes
 
 
-def _benchmark_timing_process(session: nox.Session, args, kwargs):
-    clock_time_file_path = f"{kwargs['env'][LOGGING_NAME_ENV_VAR]}.clockseconds"
+def _benchmark_timing_process(session: nox.Session, args, kwargs, location=None):
+    clock_time_file_path = (
+        f"{location or kwargs['env'][LOGGING_NAME_ENV_VAR]}.clockseconds"
+    )
     start_time = time.perf_counter()
     benchmark_proc = Process(
         target=session.run,
