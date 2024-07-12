@@ -862,7 +862,7 @@ def _process_benchmark_recursively(
     benchmark_script_list = list(current_path.glob("*.py"))
     processes = []
     for benchmark in benchmark_script_list:
-        if benchmark.name in ["utils.py", "__init__.py"]:
+        if benchmark.name == "utils.py":
             continue
 
         for benchmark_config in benchmark_configs:
