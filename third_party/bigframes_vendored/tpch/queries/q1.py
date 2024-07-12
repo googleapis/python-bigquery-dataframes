@@ -11,10 +11,16 @@ def q(dataset_id, session):
     cutoff_date = datetime(1998, 12, 1) - timedelta(days=3)
     lineitem = lineitem[lineitem["L_SHIPDATE"] <= cutoff_date.date()]
 
-    lineitem["DISC_PRICE"] = lineitem["L_EXTENDEDPRICE"] * (1 - lineitem["L_DISCOUNT"])
-    lineitem["CHARGE_PRICE"] = lineitem["DISC_PRICE"] * (1 + lineitem["L_TAX"])
+    lineitem["DISC_PRICE"] = lineitem["L_EXTENDEDPRICE"] * (
+        1.0 - lineitem["L_DISCOUNT"]
+    )
+    lineitem["CHARGE_PRICE"] = (
+        lineitem["L_EXTENDEDPRICE"]
+        * (1.0 - lineitem["L_DISCOUNT"])
+        * (1.0 + lineitem["L_TAX"])
+    )
 
-    result = lineitem.groupby(["L_RETURNFLAG", "L_LINESTATUS"]).agg(
+    result = lineitem.groupby(["L_RETURNFLAG", "L_LINESTATUS"], as_index=False).agg(
         SUM_QTY=bpd.NamedAgg(column="L_QUANTITY", aggfunc="sum"),
         SUM_BASE_PRICE=bpd.NamedAgg(column="L_EXTENDEDPRICE", aggfunc="sum"),
         SUM_DISC_PRICE=bpd.NamedAgg(column="DISC_PRICE", aggfunc="sum"),
@@ -24,7 +30,7 @@ def q(dataset_id, session):
         AVG_DISC=bpd.NamedAgg(column="L_DISCOUNT", aggfunc="mean"),
         COUNT_ORDER=bpd.NamedAgg(column="L_QUANTITY", aggfunc="count"),
     )
-    result = result.sort_index()
+    result = result.sort_value(["L_RETURNFLAG", "L_LINESTATUS"])
 
     print(result)
 
