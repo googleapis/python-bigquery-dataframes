@@ -305,6 +305,8 @@ class Session(
             else bigframes.enums.DefaultIndexKind.NULL
         )
 
+        self._remote_function_session = bigframes_rf._RemoteFunctionSession()
+
     @property
     def bqclient(self):
         return self._clients_provider.bqclient
@@ -397,7 +399,7 @@ class Session(
         This includes BigQuery tables, remote functions and cloud functions
         serving the remote functions"""
         self._clean_up_tables()
-        bigframes_rf._clean_up_alive_session(
+        self._remote_function_session.clean_up(
             self.bqclient, self.cloudfunctionsclient, self.session_id
         )
 
@@ -1703,7 +1705,7 @@ class Session(
 
             `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
         """
-        return bigframes_rf.remote_function(
+        return self._remote_function_session.remote_function(
             input_types,
             output_type,
             session=self,
