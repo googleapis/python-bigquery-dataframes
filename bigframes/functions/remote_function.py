@@ -1216,7 +1216,7 @@ class _RemoteFunctionSession:
 
 def remote_function(*args, **kwargs):
     remote_function_session = _RemoteFunctionSession()
-    remote_function_session.remote_function(*args, **kwargs)
+    return remote_function_session.remote_function(*args, **kwargs)
 
 
 remote_function.__doc__ = _RemoteFunctionSession.remote_function.__doc__
