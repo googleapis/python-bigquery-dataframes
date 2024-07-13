@@ -53,7 +53,6 @@ import google.api_core.exceptions
 import google.api_core.retry
 from google.cloud import (
     bigquery,
-    bigquery_connection_v1,
     functions_v2,
     resourcemanager_v3,
 )
@@ -654,9 +653,6 @@ def remote_function(
     output_type: Optional[type] = None,
     session: Optional[Session] = None,
     bigquery_client: Optional[bigquery.Client] = None,
-    bigquery_connection_client: Optional[
-        bigquery_connection_v1.ConnectionServiceClient
-    ] = None,
     cloud_functions_client: Optional[functions_v2.FunctionServiceClient] = None,
     resource_manager_client: Optional[resourcemanager_v3.ProjectsClient] = None,
     dataset: Optional[str] = None,
@@ -728,10 +724,6 @@ def remote_function(
         bigquery_client (google.cloud.bigquery.Client, Optional):
             Client to use for BigQuery operations. If this param is not provided
             then bigquery client from the session would be used.
-        bigquery_connection_client (google.cloud.bigquery_connection_v1.ConnectionServiceClient, Optional):
-            Client to use for BigQuery connection operations. If this param is
-            not provided then bigquery connection client from the session would
-            be used.
         cloud_functions_client (google.cloud.functions_v2.FunctionServiceClient, Optional):
             Client to use for cloud functions operations. If this param is not
             provided then the functions client from the session would be used.
@@ -750,8 +742,8 @@ def remote_function(
             If this param is not provided then the bigquery connection from the session
             would be used. If it is pre created in the same location as the
             `bigquery_client.location` then it would be used, otherwise it is created
-            dynamically using the `bigquery_connection_client` assuming the user has necessary
-            priviliges. The PROJECT_ID should be the same as the BigQuery connection project.
+            dynamically assuming the user has necessary priviliges. The PROJECT_ID
+            should be the same as the BigQuery connection project.
         reuse (bool, Optional):
             Reuse the remote function if is already exists.
             `True` by default, which results in reusing an existing remote
@@ -846,15 +838,6 @@ def remote_function(
     if not bigquery_client:
         raise ValueError(
             "A bigquery client must be provided, either directly or via session. "
-            f"{constants.FEEDBACK_LINK}"
-        )
-
-    # A BigQuery connection client is required to perform BQ connection operations
-    if not bigquery_connection_client:
-        bigquery_connection_client = session.bqconnectionclient
-    if not bigquery_connection_client:
-        raise ValueError(
-            "A bigquery connection client must be provided, either directly or via session. "
             f"{constants.FEEDBACK_LINK}"
         )
 
