@@ -56,13 +56,6 @@ T = typing.TypeVar("T", bound="BaseIbisIR")
 op_compiler = op_compilers.scalar_op_compiler
 
 
-# TODO(swast): remove once ibis.range is more efficient.
-# See: https://github.com/ibis-project/ibis/issues/8892
-@ibis.udf.scalar.builtin
-def generate_array(start_expression, end_expression) -> list[int]:
-    return []  # pragma: NO COVER
-
-
 class BaseIbisIR(abc.ABC):
     """Implementation detail, contains common logic between ordered and unordered IR"""
 
@@ -411,17 +404,13 @@ class UnorderedIR(BaseIbisIR):
 
         # The offset array ensures null represents empty arrays after unnesting.
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
-        offset_array = (
-            ibis.range(
-                0,
-                ibis.greatest(
-                    0,
-                    ibis.least(
-                        *[table[column_id].length() for column_id in column_ids]
-                    ),
-                ),
-            ).name(offset_array_id),
-        )
+        offset_array = ibis.range(
+            0,
+            ibis.greatest(
+                1,  # We always want at least 1 element to fill in NULLs for empty arrays.
+                ibis.least(*[table[column_id].length() for column_id in column_ids]),
+            ),
+        ).name(offset_array_id)
         table_w_offset_array = table.select(
             offset_array,
             *self._column_names,
@@ -719,17 +708,13 @@ class OrderedIR(BaseIbisIR):
         table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
 
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
-        offset_array = (
-            ibis.range(
-                0,
-                ibis.greatest(
-                    0,
-                    ibis.least(
-                        *[table[column_id].length() for column_id in column_ids]
-                    ),
-                ),
-            ).name(offset_array_id),
-        )
+        offset_array = ibis.range(
+            0,
+            ibis.greatest(
+                1,  # We always want at least 1 element to fill in NULLs for empty arrays.
+                ibis.least(*[table[column_id].length() for column_id in column_ids]),
+            ),
+        ).name(offset_array_id)
         table_w_offset_array = table.select(
             offset_array,
             *self._column_names,
