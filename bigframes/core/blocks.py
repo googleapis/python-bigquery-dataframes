@@ -498,7 +498,7 @@ class Block:
         sampling_method: Optional[str] = None,
         random_state: Optional[int] = None,
         *,
-        ordered: Optional[bool] = None,
+        ordered: bool = True,
     ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
         """Run query and download results as a pandas DataFrame."""
         if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
@@ -517,10 +517,7 @@ class Block:
 
         df, query_job = self._materialize_local(
             materialize_options=MaterializationOptions(
-                downsampling=sampling,
-                ordered=ordered
-                if ordered is not None
-                else self.session._strictly_ordered,
+                downsampling=sampling, ordered=ordered
             )
         )
         df.set_axis(self.column_labels, axis=1, copy=False)
@@ -547,7 +544,7 @@ class Block:
         dtypes = dict(zip(self.index_columns, self.index.dtypes))
         dtypes.update(zip(self.value_columns, self.dtypes))
         _, query_job = self.session._query_to_destination(
-            self.session._to_sql(self.expr, ordered=self.session._strictly_ordered),
+            self.session._to_sql(self.expr, ordered=True),
             list(self.index_columns),
             api_name="cached",
             do_clustering=False,
@@ -2593,10 +2590,7 @@ class BlockIndexProperties:
         index_columns = list(self._block.index_columns)
         expr = self._expr.select_columns(index_columns)
         results, _ = self.session._execute(
-            expr,
-            ordered=ordered
-            if (ordered is not None)
-            else self.session._strictly_ordered,
+            expr, ordered=ordered if ordered is not None else True
         )
         df = expr.session._rows_to_dataframe(results)
         df = df.set_index(index_columns)
