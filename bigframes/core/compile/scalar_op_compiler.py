@@ -832,7 +832,7 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
 @scalar_op_compiler.register_unary_op(ops.ToDatetimeOp, pass_op=True)
 def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
     if x.type() == ibis_dtypes.str:
-        return vendored_ibis_ops.SafeCastToDatetime(x).to_expr()
+        return x.try_cast(ibis_dtypes.Timestamp(None))
     else:
         # Numerical inputs.
         if op.format:

@@ -4,11 +4,6 @@
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 
 
-def _safe_cast_to_datetime(translator, op: vendored_ibis_ops.SafeCastToDatetime):
-    arg = translator.translate(op.arg)
-    return f"SAFE_CAST({arg} AS DATETIME)"
-
-
 def _array_aggregate(translator, op: vendored_ibis_ops.ArrayAggregate):
     """This method provides the same functionality as the collect() method in Ibis, with
     the added capability of ordering the results using order_by.
@@ -25,6 +20,5 @@ def _array_aggregate(translator, op: vendored_ibis_ops.ArrayAggregate):
 
 
 patched_ops = {
-    vendored_ibis_ops.SafeCastToDatetime: _safe_cast_to_datetime,  # type:ignore
     vendored_ibis_ops.ArrayAggregate: _array_aggregate,  # type:ignore
 }

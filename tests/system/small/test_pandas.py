@@ -547,6 +547,27 @@ def test_to_datetime_scalar(arg, utc, unit, format):
 
 
 @pytest.mark.parametrize(
+    ("arg", "utc", "format"),
+    [
+        ("not-a-datetime", False, None),
+        ("not-a-timestamp", True, None),
+        ("not-matching-format", False, "%Y-%m-%d"),
+    ],
+)
+def test_to_datetime_scalar_invalid(arg, utc, format):
+    bf_result = bpd.to_datetime(arg, utc=utc, format=format)
+    pd_result = pd.to_datetime(
+        arg,
+        utc=utc,
+        format=format,
+        # Convert invalid values to a NULL marker, similar to BigQuery SAFE_CAST.
+        errors="coerce",
+    )
+
+    assert bf_result == pd_result
+
+
+@pytest.mark.parametrize(
     ("arg", "utc", "unit", "format"),
     [
         ([173872738], False, None, None),

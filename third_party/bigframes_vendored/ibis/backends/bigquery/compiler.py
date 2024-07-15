@@ -30,7 +30,6 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
                 sge.DataType(
                     this=sge.DataType.Type.ARRAY,
                     expressions=[
-                        # TODO: Data types and names from schema.
                         sge.DataType(
                             this=sge.DataType.Type.STRUCT,
                             expressions=[
@@ -45,7 +44,12 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
                     ],
                     nested=True,
                     values=[
-                        sge.Tuple(expressions=tuple(map(sge.convert, row)))
+                        sge.Tuple(
+                            expressions=tuple(
+                                self.visit_Literal(None, value=value, dtype=type_)
+                                for value, type_ in zip(row, schema.types)
+                            )
+                        )
                         for row in tuples
                     ],
                 ),
