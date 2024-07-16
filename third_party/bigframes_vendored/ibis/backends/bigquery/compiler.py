@@ -12,10 +12,14 @@ import sqlglot.expressions as sge
 
 
 class BigQueryCompiler(bq_compiler.BigQueryCompiler):
-    UNSUPPORTED_OPS = bq_compiler.BigQueryCompiler.UNSUPPORTED_OPS = tuple(
-        op
-        for op in bq_compiler.BigQueryCompiler.UNSUPPORTED_OPS
-        if op != ibis_reductions.Quantile
+    UNSUPPORTED_OPS = (
+        tuple(
+            op
+            for op in bq_compiler.BigQueryCompiler.UNSUPPORTED_OPS
+            if op != ibis_reductions.Quantile
+        )
+        if hasattr(bq_compiler.BigQueryCompiler, "UNSUPPORTED_OPS")
+        else ()
     )
 
     def visit_InMemoryTable(self, op, *, name, schema, data):
