@@ -305,7 +305,7 @@ class Session(
             if context._strictly_ordered
             else bigframes.enums.DefaultIndexKind.NULL
         )
-        self._compiler = bigframes.core.compile.SqlCompiler(
+        self._compiler = bigframes.core.compile.SQLCompiler(
             strict=context._strictly_ordered
         )
 

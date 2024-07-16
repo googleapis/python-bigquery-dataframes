@@ -500,7 +500,31 @@ class Block:
         *,
         ordered: bool = True,
     ) -> Tuple[pd.DataFrame, bigquery.QueryJob]:
-        """Run query and download results as a pandas DataFrame."""
+        """Run query and download results as a pandas DataFrame.
+
+        Args:
+            max_download_size (int, default None):
+                Download size threshold in MB. If max_download_size is exceeded when downloading data
+                (e.g., to_pandas()), the data will be downsampled if
+                bigframes.options.sampling.enable_downsampling is True, otherwise, an error will be
+                raised. If set to a value other than None, this will supersede the global config.
+            sampling_method (str, default None):
+                Downsampling algorithms to be chosen from, the choices are: "head": This algorithm
+                returns a portion of the data from the beginning. It is fast and requires minimal
+                computations to perform the downsampling; "uniform": This algorithm returns uniform
+                random samples of the data. If set to a value other than None, this will supersede
+                the global config.
+            random_state (int, default None):
+                The seed for the uniform downsampling algorithm. If provided, the uniform method may
+                take longer to execute and require more computation. If set to a value other than
+                None, this will supersede the global config.
+            ordered (bool, default True):
+                Determines whether the resulting pandas dataframe will be ordered.
+                Whether the row ordering is deterministics depends on whether session ordering is strict.
+
+        Returns:
+            pandas.DataFrame, QueryJob
+        """
         if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
             raise NotImplementedError(
                 f"The downsampling method {sampling_method} is not implemented, "

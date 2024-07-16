@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 _STRICT_COMPILER = compiler.Compiler(strict=True)
 
 
-class SqlCompiler:
+class SQLCompiler:
     def __init__(self, strict: bool = True):
         self._compiler = compiler.Compiler(strict=strict)
 
