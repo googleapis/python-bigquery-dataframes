@@ -1179,7 +1179,8 @@ class _RemoteFunctionSession:
             node = ibis.udf.scalar.builtin(
                 func,
                 name=rf_name,
-                schema=f"{dataset_ref.project}.{dataset_ref.dataset_id}",
+                database=dataset_ref.project,
+                catalog=dataset_ref.dataset_id,
                 signature=(ibis_signature.input_types, ibis_signature.output_type),
             )
             func.bigframes_cloud_function = (
