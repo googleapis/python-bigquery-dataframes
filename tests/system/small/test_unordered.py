@@ -20,6 +20,15 @@ import bigframes.pandas as bpd
 from tests.system.utils import assert_pandas_df_equal, skip_legacy_pandas
 
 
+def test_unordered_mode_sql_no_hash(unordered_session):
+    bf_df = unordered_session.read_gbq(
+        "bigquery-public-data.ethereum_blockchain.blocks"
+    )
+    sql = bf_df.sql
+    assert "ORDER BY" not in sql.upper()
+    assert "farm_fingerprint" not in sql
+
+
 def test_unordered_mode_cache_aggregate(unordered_session):
     pd_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}, dtype=pd.Int64Dtype())
     df = bpd.DataFrame(pd_df, session=unordered_session)
