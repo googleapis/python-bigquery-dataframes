@@ -6,6 +6,8 @@ from __future__ import annotations
 import ibis.backends.bigquery.compiler as bq_compiler
 import ibis.backends.sql.compiler as sql_compiler
 import ibis.backends.sql.datatypes as sql_datatypes
+import ibis.common.exceptions as com
+from ibis.common.temporal import IntervalUnit
 import ibis.expr.operations.reductions as ibis_reductions
 import sqlglot as sg
 import sqlglot.expressions as sge
@@ -66,6 +68,40 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
         # return expr
         return sg.select(sge.Star()).from_(expr)
 
+    def visit_NonNullLiteral(self, op, *, value, dtype):
+        # Patch from https://github.com/ibis-project/ibis/pull/9610 to support ibis 9.0.0 and 9.1.0
+        if dtype.is_inet() or dtype.is_macaddr():
+            return sge.convert(str(value))
+        elif dtype.is_timestamp():
+            funcname = "DATETIME" if dtype.timezone is None else "TIMESTAMP"
+            return self.f.anon[funcname](value.isoformat())
+        elif dtype.is_date():
+            return self.f.date_from_parts(value.year, value.month, value.day)
+        elif dtype.is_time():
+            time = self.f.time_from_parts(value.hour, value.minute, value.second)
+            if micros := value.microsecond:
+                # bigquery doesn't support `time(12, 34, 56.789101)`, AKA a
+                # float seconds specifier, so add any non-zero micros to the
+                # time value
+                return sge.TimeAdd(
+                    this=time, expression=sge.convert(micros), unit=self.v.MICROSECOND
+                )
+            return time
+        elif dtype.is_binary():
+            return sge.Cast(
+                this=sge.convert(value.hex()),
+                to=sge.DataType(this=sge.DataType.Type.BINARY),
+                format=sge.convert("HEX"),
+            )
+        elif dtype.is_interval():
+            if dtype.unit == IntervalUnit.NANOSECOND:
+                raise com.UnsupportedOperationError(
+                    "BigQuery does not support nanosecond intervals"
+                )
+        elif dtype.is_uuid():
+            return sge.convert(str(value))
+        return None
+
     def visit_FirstNonNullValue(self, op, *, arg):
         return sge.IgnoreNulls(this=sge.FirstValue(this=arg))
 
@@ -79,6 +115,9 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
 # Override implementation.
 # We monkeypatch individual methods because the class might have already been imported in other modules.
 bq_compiler.BigQueryCompiler.visit_InMemoryTable = BigQueryCompiler.visit_InMemoryTable
+bq_compiler.BigQueryCompiler.visit_NonNullLiteral = (
+    BigQueryCompiler.visit_NonNullLiteral
+)
 bq_compiler.BigQueryCompiler.visit_FirstNonNullValue = (
     BigQueryCompiler.visit_FirstNonNullValue
 )
