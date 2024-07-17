@@ -319,6 +319,7 @@ def collect_benchmark_result(path: Path) -> pd.DataFrame:
         columns=columns,
     )
 
+    print("---BIGQUERY USAGE REPORT---")
     for index, row in benchmark_metrics.iterrows():
         print(
             f"{index} - query count: {row['Query_Count']},"
