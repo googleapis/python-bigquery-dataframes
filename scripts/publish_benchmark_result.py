@@ -350,7 +350,6 @@ def collect_benchmark_result(path: Path) -> pd.DataFrame:
 
 
 def get_repository_status():
-
     git_hash = subprocess.check_output(
         ["git", "rev-parse", "--short", "HEAD"], text=True
     ).strip()
