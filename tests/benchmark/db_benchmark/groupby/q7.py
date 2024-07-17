@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import argparse
+from pathlib import Path
+import time
 
 import bigframes_vendored.db_benchmark.groupby_queries as vendored_dbbenchmark_groupby_queries
 
@@ -24,6 +26,22 @@ if __name__ == "__main__":
         required=True,
         help="The BigQuery table ID to query.",
     )
+    parser.add_argument(
+        "--benchmark_suffix",
+        type=str,
+        help="Suffix to append to benchmark names for identification purposes.",
+    )
     args = parser.parse_args()
 
+    start_time = time.perf_counter()
     vendored_dbbenchmark_groupby_queries.q7(args.table_id)
+    end_time = time.perf_counter()
+    runtime = end_time - start_time
+
+    current_path = Path(__file__).absolute()
+    suffix = args.benchmark_suffix
+
+    clock_time_file_path = f"{current_path}_{suffix}.local_exec_time_seconds"
+
+    with open(clock_time_file_path, "w") as log_file:
+        log_file.write(f"{runtime}\n")

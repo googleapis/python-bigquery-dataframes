@@ -28,13 +28,17 @@ def get_tpch_configuration():
     parser.add_argument(
         "--ordered",
         type=str,
-        default=True,
         help="Set to True (default) to have an ordered session, or False for an unordered session.",
+    )
+    parser.add_argument(
+        "--benchmark_suffix",
+        type=str,
+        help="Suffix to append to benchmark names for identification purposes.",
     )
 
     args = parser.parse_args()
     session = _initialize_session(_str_to_bool(args.ordered))
-    return args.dataset_id, session
+    return args.dataset_id, session, args.benchmark_suffix
 
 
 def _str_to_bool(value):
