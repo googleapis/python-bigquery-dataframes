@@ -117,7 +117,8 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
                     # unsupported in ARRAY_AGG by reconstructing the node.
                     sge.Ordered(
                         this=order_column.this,
-                        desc=order_column.desc,
+                        desc=order_column.desc is True,
+                        nulls_first=True,
                     )
                     for order_column in order_by
                 ],
