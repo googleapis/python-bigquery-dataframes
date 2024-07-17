@@ -349,6 +349,15 @@ def collect_benchmark_result(path: Path) -> pd.DataFrame:
 
 def get_repository_status():
     print("Working directory:", os.getcwd())
+    is_kokoro = "KOKORO_JOB_NAME" in os.environ
+
+    if is_kokoro:
+        current_directory = os.getcwd()
+        subprocess.run(
+            ["git", "config", "--global", "--add", "safe.directory", current_directory],
+            check=True,
+        )
+
     git_hash = subprocess.check_output(
         ["git", "rev-parse", "--short", "HEAD"], text=True
     ).strip()
@@ -364,7 +373,7 @@ def get_repository_status():
         "git_hash": git_hash,
         "bigframes_version": bigframes_version,
         "release_version": release_version,
-        "is_running_in_kokoro": "KOKORO_JOB_NAME" in os.environ,
+        "is_running_in_kokoro": is_kokoro,
     }
 
 
