@@ -6,7 +6,6 @@ import bigframes.pandas as bpd
 
 
 def q(dataset_id, session):
-
     lineitem = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.lineitem")
     cutoff_date = datetime(1998, 12, 1) - timedelta(days=3)
     lineitem = lineitem[lineitem["L_SHIPDATE"] <= cutoff_date.date()]
