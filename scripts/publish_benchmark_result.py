@@ -348,7 +348,6 @@ def collect_benchmark_result(path: Path) -> pd.DataFrame:
 
 
 def get_repository_status():
-    print("Working directory:", os.getcwd())
     is_kokoro = "KOKORO_JOB_NAME" in os.environ
 
     if is_kokoro:
