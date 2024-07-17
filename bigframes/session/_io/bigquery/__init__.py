@@ -283,7 +283,11 @@ def get_performance_stats(
         # dry run stats are just predictions of the real run
         slot_millis = 0
 
-    exec_seconds = (query_job.ended - query_job.created).total_seconds()
+    exec_seconds = (
+        (query_job.ended - query_job.created).total_seconds()
+        if query_job.created is not None and query_job.ended is not None
+        else None
+    )
 
     return bytes_processed, slot_millis, exec_seconds
 
