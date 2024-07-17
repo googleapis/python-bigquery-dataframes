@@ -340,8 +340,8 @@ def collect_benchmark_result(path: Path) -> pd.DataFrame:
     print(
         f"---total queries: {cumulative_queries}, "
         f"total bytes: {cumulative_bytes}, "
-        f"total slot millis: {cumulative_slot_millis}---"
-        f"Total local execution time: {cumulative_local_seconds} seconds---"
+        f"total slot millis: {cumulative_slot_millis},"
+        f"Total local execution time: {cumulative_local_seconds} seconds,"
         f"Total bigquery execution time: {cumulative_bq_seconds} seconds---"
     )
 
