@@ -349,20 +349,10 @@ def collect_benchmark_result(path: Path) -> pd.DataFrame:
 
 def get_repository_status():
     """
-    Retrieves the current Git commit hash, the current timestamp,
-    and whether it is run by kokoro.
+    Retrieves the current timestamp, and whether it is run by kokoro.
     """
-    commit_hash = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        text=True,
-        check=True,
-        capture_output=True,
-        env=os.environ,
-    )
-
     return {
         "benchmark_start_time": datetime.now().isoformat(),
-        "commit_hash": commit_hash.stdout.strip(),
         "is_running_in_kokoro": "KOKORO_JOB_NAME" in os.environ,
     }
 
