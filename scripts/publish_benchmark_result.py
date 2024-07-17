@@ -389,10 +389,10 @@ def main():
 
     repo_status = get_repository_status()
     if args.notebook:
-        bigquery_table = "bigframes-metrics.benchmark_report.notebook_benchmark"
+        bigquery_table = "bigframes-perf-dev.benchmark_report.notebook_benchmark"
         benchmark_metrics = run_notebook_benchmark()
     else:
-        bigquery_table = "bigframes-metrics.benchmark_report.benchmark"
+        bigquery_table = "bigframes-perf-dev.benchmark_report.benchmark"
         benchmark_metrics = run_benchmark(Path("tests/benchmark/"))
 
     for idx, col in enumerate(repo_status.keys()):
