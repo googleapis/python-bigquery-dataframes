@@ -350,14 +350,6 @@ def collect_benchmark_result(path: Path) -> pd.DataFrame:
 
 
 def get_repository_status():
-    is_kokoro = "KOKORO_JOB_NAME" in os.environ
-
-    if is_kokoro:
-        current_directory = os.getcwd()
-        subprocess.run(
-            ["git", "config", "--global", "--add", "safe.directory", current_directory],
-            check=True,
-        )
 
     git_hash = subprocess.check_output(
         ["git", "rev-parse", "--short", "HEAD"], text=True
@@ -369,7 +361,7 @@ def get_repository_status():
         f"{bigframes_version}dev{datetime.datetime.now().strftime('%Y%m%d')}+{git_hash}"
     )
 
-    return is_kokoro, {
+    return {
         "benchmark_start_time": datetime.datetime.now().isoformat(),
         "git_hash": git_hash,
         "bigframes_version": bigframes_version,
@@ -389,7 +381,16 @@ def main():
     )
     args = parser.parse_args()
 
-    is_kokoro, repo_status = get_repository_status()
+    is_kokoro = "KOKORO_JOB_NAME" in os.environ
+
+    if is_kokoro:
+        current_directory = os.getcwd()
+        subprocess.run(
+            ["git", "config", "--global", "--add", "safe.directory", current_directory],
+            check=True,
+        )
+
+    repo_status = get_repository_status()
     if args.notebook:
         bigquery_table = "bigframes-metrics.benchmark_report.notebook_benchmark"
         benchmark_metrics = run_notebook_benchmark()
