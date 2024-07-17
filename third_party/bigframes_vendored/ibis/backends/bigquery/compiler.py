@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ibis.backends.bigquery.compiler as bq_compiler
+from ibis.backends.sql.compiler import NULL
 import ibis.backends.sql.compiler as sql_compiler
 import ibis.backends.sql.datatypes as sql_datatypes
 import ibis.common.exceptions as com
@@ -102,6 +103,29 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
             return sge.convert(str(value))
         return None
 
+    # Custom operators.
+
+    def visit_ArrayAggregate(self, op, *, arg, order_by, where):
+        if where is not None:
+            arg = self.if_(where, arg, NULL)
+
+        if len(order_by) > 0:
+            expr = sge.Order(
+                this=arg,
+                expressions=[
+                    # Avoid adding NULLS FIRST / NULLS LAST in SQL, which is
+                    # unsupported in ARRAY_AGG by reconstructing the node.
+                    sge.Ordered(
+                        this=order_column.this,
+                        desc=order_column.desc,
+                    )
+                    for order_column in order_by
+                ],
+            )
+        else:
+            expr = arg
+        return sge.IgnoreNulls(this=sge.ArrayAgg(this=expr))
+
     def visit_FirstNonNullValue(self, op, *, arg):
         return sge.IgnoreNulls(this=sge.FirstValue(this=arg))
 
@@ -117,6 +141,11 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
 bq_compiler.BigQueryCompiler.visit_InMemoryTable = BigQueryCompiler.visit_InMemoryTable
 bq_compiler.BigQueryCompiler.visit_NonNullLiteral = (
     BigQueryCompiler.visit_NonNullLiteral
+)
+
+# Custom operators.
+bq_compiler.BigQueryCompiler.visit_ArrayAggregate = (
+    BigQueryCompiler.visit_ArrayAggregate
 )
 bq_compiler.BigQueryCompiler.visit_FirstNonNullValue = (
     BigQueryCompiler.visit_FirstNonNullValue
