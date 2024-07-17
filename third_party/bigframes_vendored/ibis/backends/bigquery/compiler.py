@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import ibis.backends.bigquery.compiler as bq_compiler
-from ibis.backends.sql.compiler import NULL
 import ibis.backends.sql.compiler as sql_compiler
 import ibis.backends.sql.datatypes as sql_datatypes
 import ibis.common.exceptions as com
@@ -106,26 +105,20 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
     # Custom operators.
 
     def visit_ArrayAggregate(self, op, *, arg, order_by, where):
-        if where is not None:
-            arg = self.if_(where, arg, NULL)
-
         if len(order_by) > 0:
             expr = sge.Order(
                 this=arg,
                 expressions=[
                     # Avoid adding NULLS FIRST / NULLS LAST in SQL, which is
-                    # unsupported in ARRAY_AGG by reconstructing the node.
-                    sge.Ordered(
-                        this=order_column.this,
-                        desc=order_column.desc is True,
-                        nulls_first=True,
-                    )
+                    # unsupported in ARRAY_AGG by reconstructing the node as
+                    # plain SQL text.
+                    f"({order_column.args['this'].sql(dialect='bigquery')}) {'DESC' if order_column.args.get('desc') else 'ASC'}"
                     for order_column in order_by
                 ],
             )
         else:
             expr = arg
-        return sge.IgnoreNulls(this=sge.ArrayAgg(this=expr))
+        return sge.IgnoreNulls(this=self.agg.array_agg(expr, where=where))
 
     def visit_FirstNonNullValue(self, op, *, arg):
         return sge.IgnoreNulls(this=sge.FirstValue(this=arg))
