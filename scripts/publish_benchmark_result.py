@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import argparse
-from datetime import datetime
+import datetime
 import json
 import os
 import pathlib
@@ -22,7 +22,6 @@ import subprocess
 from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
-import pandas_gbq
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
@@ -340,8 +339,8 @@ def collect_benchmark_result(path: Path) -> pd.DataFrame:
     print(
         f"---total queries: {cumulative_queries}, "
         f"total bytes: {cumulative_bytes}, "
-        f"total slot millis: {cumulative_slot_millis},"
-        f"Total local execution time: {cumulative_local_seconds} seconds,"
+        f"total slot millis: {cumulative_slot_millis}, "
+        f"Total local execution time: {cumulative_local_seconds} seconds, "
         f"Total bigquery execution time: {cumulative_bq_seconds} seconds---"
     )
 
@@ -349,11 +348,21 @@ def collect_benchmark_result(path: Path) -> pd.DataFrame:
 
 
 def get_repository_status():
-    """
-    Retrieves the current timestamp, and whether it is run by kokoro.
-    """
+    git_hash = subprocess.check_output(
+        ["git", "rev-parse", "--short", "HEAD"], text=True
+    ).strip()
+    bigframes_version = subprocess.check_output(
+        ["python", "-c", "import bigframes; print(bigframes.__version__)"], text=True
+    ).strip()
+    release_version = (
+        f"{bigframes_version}dev{datetime.datetime.now().strftime('%Y%m%d')}+{git_hash}"
+    )
+
     return {
-        "benchmark_start_time": datetime.now().isoformat(),
+        "benchmark_start_time": datetime.datetime.now().isoformat(),
+        "git_hash": git_hash,
+        "bigframes_version": bigframes_version,
+        "release_version": release_version,
         "is_running_in_kokoro": "KOKORO_JOB_NAME" in os.environ,
     }
 
@@ -380,11 +389,7 @@ def main():
     for idx, col in enumerate(repo_status.keys()):
         benchmark_metrics.insert(idx, col, repo_status[col])
 
-    pandas_gbq.to_gbq(
-        dataframe=benchmark_metrics,
-        destination_table=bigquery_table,
-        if_exists="append",
-    )
+    benchmark_metrics.to_gbq(bigquery_table, if_exists="append")
 
 
 if __name__ == "__main__":
