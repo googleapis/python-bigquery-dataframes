@@ -19,9 +19,11 @@ import os
 import pathlib
 from pathlib import Path
 import subprocess
+import sys
 from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
+import pandas_gbq
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
@@ -367,12 +369,12 @@ def get_repository_status():
         f"{bigframes_version}dev{datetime.datetime.now().strftime('%Y%m%d')}+{git_hash}"
     )
 
-    return {
+    return is_kokoro, {
         "benchmark_start_time": datetime.datetime.now().isoformat(),
         "git_hash": git_hash,
         "bigframes_version": bigframes_version,
         "release_version": release_version,
-        "is_running_in_kokoro": is_kokoro,
+        "python_version": sys.version,
     }
 
 
@@ -387,18 +389,25 @@ def main():
     )
     args = parser.parse_args()
 
-    repo_status = get_repository_status()
+    is_kokoro, repo_status = get_repository_status()
     if args.notebook:
-        bigquery_table = "bigframes-perf-dev.benchmark_report.notebook_benchmark"
+        bigquery_table = "bigframes-metrics.benchmark_report.notebook_benchmark"
         benchmark_metrics = run_notebook_benchmark()
     else:
-        bigquery_table = "bigframes-perf-dev.benchmark_report.benchmark"
+        bigquery_table = "bigframes-metrics.benchmark_report.benchmark"
         benchmark_metrics = run_benchmark(Path("tests/benchmark/"))
 
     for idx, col in enumerate(repo_status.keys()):
         benchmark_metrics.insert(idx, col, repo_status[col])
 
-    benchmark_metrics.to_gbq(bigquery_table, if_exists="append")
+    # Append data to BigQuery only in Kokoro. Local upload permissions
+    # will be removed to prevent unintended data submissions.
+    if is_kokoro:
+        pandas_gbq.to_gbq(
+            dataframe=benchmark_metrics,
+            destination_table=bigquery_table,
+            if_exists="append",
+        )
 
 
 if __name__ == "__main__":
