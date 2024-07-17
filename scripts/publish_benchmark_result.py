@@ -346,7 +346,7 @@ def collect_benchmark_result(path: Path) -> pd.DataFrame:
         f"Total bigquery execution time: {cumulative_bq_seconds} seconds---"
     )
 
-    return benchmark_metrics.reset_index()
+    return benchmark_metrics.reset_index().rename(columns={"index": "Benchmark_Name"})
 
 
 def get_repository_status():
