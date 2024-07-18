@@ -3,14 +3,49 @@
 
 from __future__ import annotations
 
+import bigframes_vendored.ibis.backends.bigquery.datatypes as bq_datatypes
 import ibis.backends.bigquery.compiler as bq_compiler
 import ibis.backends.sql.compiler as sql_compiler
-import ibis.backends.sql.datatypes as sql_datatypes
 import ibis.common.exceptions as com
 from ibis.common.temporal import IntervalUnit
 import ibis.expr.operations.reductions as ibis_reductions
 import sqlglot as sg
 import sqlglot.expressions as sge
+
+
+def _convert(value, ibis_type):
+    if value is None:
+        return sge.Null()
+
+    # Older versions of SQLGlot can't support time literals in convert().
+    if ibis_type.is_time():
+        return sge.TimeAdd(
+            this=sge.TimeFromParts(
+                hour=sge.convert(value.hour),
+                min=sge.convert(value.minute),
+                sec=sge.convert(value.second),
+            ),
+            expression=sge.convert(value.microsecond),
+            unit=sge.Var(this="MICROSECOND"),
+        )
+
+    # Older versions of SQLGlot don't distinguish DATETIME from TIMESTAMP in convert().
+    if ibis_type.is_timestamp():
+        if ibis_type.timezone == "UTC":
+            return sge.cast(
+                sge.convert(value.isoformat()), sge.DataType.Type.TIMESTAMPTZ
+            )
+        else:
+            return sge.cast(
+                sge.convert(value.strftime("%Y-%m-%d %H:%M:%S.%f")),
+                sge.DataType.Type.TIMESTAMP,
+            )
+
+    # In-memory nullable integers can get stored as floats.
+    if ibis_type.is_integer():
+        value = int(value)
+
+    return sge.convert(value)
 
 
 class BigQueryCompiler(bq_compiler.BigQueryCompiler):
@@ -41,7 +76,7 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
                             expressions=[
                                 sge.ColumnDef(
                                     this=sge.to_identifier(field, quoted=self.quoted),
-                                    kind=sql_datatypes.SqlglotType.from_ibis(type_),
+                                    kind=bq_datatypes.BigQueryType.from_ibis(type_),
                                 )
                                 for field, type_ in zip(schema.names, schema.types)
                             ],
@@ -52,12 +87,7 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
                     values=[
                         sge.Tuple(
                             expressions=tuple(
-                                # In-memory nullable integers can get stored as floats.
-                                sge.convert(
-                                    int(value)
-                                    if value is not None and type_.is_integer()
-                                    else value
-                                )
+                                _convert(value, type_)
                                 for value, type_ in zip(row, schema.types)
                             )
                         )
