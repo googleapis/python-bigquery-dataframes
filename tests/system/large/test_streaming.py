@@ -14,6 +14,8 @@
 
 import time
 
+import pytest
+
 import bigframes.streaming
 
 
