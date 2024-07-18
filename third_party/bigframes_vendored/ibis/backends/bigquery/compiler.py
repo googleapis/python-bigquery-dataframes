@@ -52,7 +52,12 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
                     values=[
                         sge.Tuple(
                             expressions=tuple(
-                                self.visit_Literal(None, value=value, dtype=type_)
+                                # In-memory nullable integers can get stored as floats.
+                                sge.convert(
+                                    int(value)
+                                    if value is not None and type_.is_integer()
+                                    else value
+                                )
                                 for value, type_ in zip(row, schema.types)
                             )
                         )
