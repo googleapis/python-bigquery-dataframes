@@ -254,10 +254,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
 
     @validations.requires_strict_ordering()
     def shift(self, periods=1) -> series.Series:
-        window = window_specs.rows(
+        # Window framing clause is not allowed for analytic function lag.
+        window = window_specs.unbound(
             grouping_keys=tuple(self._by_col_ids),
-            preceding=periods if periods > 0 else None,
-            following=-periods if periods < 0 else None,
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window=window)
 
@@ -685,10 +684,9 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     @validations.requires_strict_ordering()
     def shift(self, periods=1) -> series.Series:
         """Shift index by desired number of periods."""
-        window = window_specs.rows(
+        # Window framing clause is not allowed for analytic function lag.
+        window = window_specs.unbound(
             grouping_keys=tuple(self._by_col_ids),
-            preceding=periods if periods > 0 else None,
-            following=-periods if periods < 0 else None,
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window=window)
 

@@ -50,7 +50,7 @@ import bigframes.core.schema as bf_schema
 import bigframes.core.sql as sql
 import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils as utils
-import bigframes.core.window_spec as window_specs
+import bigframes.core.window_spec as windows
 import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.features
@@ -876,7 +876,7 @@ class Block:
         self,
         columns: typing.Sequence[str],
         op: agg_ops.WindowOp,
-        window_spec: window_specs.WindowSpec,
+        window_spec: windows.WindowSpec,
         *,
         skip_null_groups: bool = False,
         never_skip_nulls: bool = False,
@@ -935,7 +935,7 @@ class Block:
         self,
         column: str,
         op: agg_ops.WindowOp,
-        window_spec: window_specs.WindowSpec,
+        window_spec: windows.WindowSpec,
         *,
         result_label: Label = None,
         skip_null_groups: bool = False,
@@ -1456,7 +1456,7 @@ class Block:
         value_columns: typing.Sequence[str],
         n: int,
     ):
-        window_spec = window_specs.cumulative_rows(grouping_keys=tuple(by_column_ids))
+        window_spec = windows.cumulative_rows(grouping_keys=tuple(by_column_ids))
 
         block, result_id = self.apply_window_op(
             value_columns[0],
@@ -2383,11 +2383,8 @@ class Block:
         if op_name in self._stats_cache[column_name]:
             return self._stats_cache[column_name][op_name]
 
-        period = 1
-        window = window_specs.rows(
-            preceding=period,
-            following=None,
-        )
+        # Window framing clause is not allowed for analytic function lag.
+        window_spec = windows.unbound()
 
         # any NaN value means not monotonic
         block, last_notna_id = self.apply_unary_op(column_ids[0], ops.notnull_op)
@@ -2398,10 +2395,11 @@ class Block:
             )
 
         # loop over all columns to check monotonicity
+        period = 1
         last_result_id = None
         for column_id in column_ids[::-1]:
             block, lag_result_id = block.apply_window_op(
-                column_id, agg_ops.ShiftOp(period), window
+                column_id, agg_ops.ShiftOp(period), window_spec
             )
             block, strict_monotonic_id = block.apply_binary_op(
                 column_id, lag_result_id, ops.gt_op if increasing else ops.lt_op
