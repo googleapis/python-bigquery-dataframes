@@ -1190,7 +1190,14 @@ class _RemoteFunctionSession:
                     rf_name
                 )
             )
-
+            func.input_dtypes = tuple(
+                [
+                    bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
+                        input_type
+                    )
+                    for input_type in ibis_signature.input_types
+                ]
+            )
             func.output_dtype = (
                 bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
                     ibis_signature.output_type
@@ -1279,6 +1286,12 @@ def read_gbq_function(
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )
     func.bigframes_remote_function = str(routine_ref)  # type: ignore
+    func.input_dtypes = tuple(  # type: ignore
+        [
+            bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(input_type)
+            for input_type in ibis_signature.input_types
+        ]
+    )
     func.output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(  # type: ignore
         ibis_signature.output_type
     )
