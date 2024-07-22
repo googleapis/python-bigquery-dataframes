@@ -148,7 +148,7 @@ class SchemaSourceHandler:
         return dag_ret
     
     @staticmethod
-    def leaves(dag: DiGraph):
+    def leafs(dag: DiGraph):
         return [node for node in dag.nodes if dag.out_degree(node) == 0]
 
     # two identical properties, depending on what meaning you prefer
