@@ -20,8 +20,9 @@ import io
 import itertools
 import typing
 from typing import Iterable, Optional, Sequence, Tuple, final
+from types import FunctionType, MethodType
 import warnings
-from collections.abc import Iterator
+from collections.abc import Iterator, Callable
 from collections import deque
 
 import google.cloud.bigquery
@@ -47,6 +48,7 @@ import bigframes.core.rewrite
 import bigframes.core.schema as schemata
 import bigframes.core.utils
 from bigframes.core.window_spec import WindowSpec
+#import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -61,6 +63,10 @@ options = config.options
 
 
 # -- schema tracking --
+def bfnode_hash(node: nodes.BigFrameNode):
+    return node._node_hash
+    
+
 class SchemaSource:
     def __init__(self, dag: DiGraph, schema_orig: Tuple[SchemaField, ...], schema_bq: BQSchemaLayout) -> None:
         self.schema_orig = schema_orig
@@ -81,10 +87,15 @@ class SchemaSourceHandler:
 
     def __init__(self):
         self._sources = {}
+        self._order = []
 
     @property
     def sources(self) -> dict:
         return self._sources
+
+    @property
+    def order(self) -> list:
+        return self._order
 
     @staticmethod
     def _tree_from_strings(paths: list[str], struct_separator: str) -> dict:
@@ -111,7 +122,7 @@ class SchemaSourceHandler:
                 # get current item and traverse its direct succesors
                 path, node = queue.popleft()
                 for key, child in node.items():
-                    # build key string by concatenating with path/ predecessor's name
+                    # build key string by concatenating with path/ predecessor's name. Separator should be struct_separator here.
                     new_path = path + separator + key if path else key
                     # add item to layer/ current level in tree
                     layer.append(new_path)
@@ -135,7 +146,12 @@ class SchemaSourceHandler:
                 dag_ret.add_edge(last_layer, col_name)
             root_layer = False
         return dag_ret
+    
+    @staticmethod
+    def leaves(dag: DiGraph):
+        return [node for node in dag.nodes if dag.out_degree(node) == 0]
 
+    # two identical properties, depending on what meaning you prefer
     def _dag_to_schema(self):
         # layers = bfs_layers(self._dag, self._base_root_name)
         # bfs = bfs_tree(self._dag, self._base_root_name)
@@ -153,9 +169,11 @@ class SchemaSourceHandler:
             dag = DiGraph()
             # ONE common root note as multiple columns can follow
             dag.add_node(self._base_root_name, node_type=self._base_root_name)
-            dag = self._init_dag_from_schema(dag, schema, layer_separator, struct_separator) 
+            dag = self._init_dag_from_schema(dag, schema, layer_separator, struct_separator)
         source = SchemaSource(dag, schema_orig, schema)
-        self._sources[src] = source
+        src_hash = bfnode_hash(src)
+        self._sources[src_hash] = source
+        self._order.append(src_hash)
 
     def _value_multiplicities(self, input_dict: dict[str, list[str]]) -> dict[tuple, str]:
         """
@@ -174,12 +192,12 @@ class SchemaSourceHandler:
         duplicates = {value: keys for value, keys in inverted_dict.items() if len(keys) > 1}
         #TODO: add NodeInfo?
         return duplicates
-    
+
     def exists(self, src: nodes.BigFrameNode) -> SchemaSource|None:
         """Returns SchemaSource if src exists, else None."""
         return self._sources.get(src, None)
-    
-    
+
+
 
 # to guarantee singleton creation, we prohibit inheritnig from the class
 @final
@@ -200,6 +218,8 @@ class SchemaTrackingContextManager:
         self.sep_layers = layer_separator if layer_separator is not None else SchemaTrackingContextManager._default_sep_layers
         self.set_structs = struct_separator if struct_separator is not None else SchemaTrackingContextManager._default_sep_structs
         self._source_handler = SchemaSourceHandler()
+        self.block_start: bigframes.core.blocks.Block|None = None
+        self.block_end: bigframes.core.blocks.Block|None = None
 
     #@property
     @classmethod
@@ -215,10 +235,38 @@ class SchemaTrackingContextManager:
             raise ValueError(f"{self.__class__.__name__}:{self.__class__.__qualname__}: Source {src} already exists")
         self._source_handler.add_source(src, layer_separator=self.sep_layers, struct_separator=self.set_structs)
 
+    def _schemata_matching(self, src: nodes.BigFrameNode, hdl: SchemaSourceHandler) -> bool:
+        schema_src = src.physical_schema
+        #TODO: compare src schema to hdl schema. Otherwise DAG mismatch
+        return True
+    
+    def _extend_dag(self, src: nodes.BigFrameNode, dst: nodes.BigFrameNode) -> None:
+        #TODO: extend dag
+        return
+
+    def step(self, parent: nodes.BigFrameNode):
+        assert(self.block_start is not None)
+        assert(self.block_end is not None)
+        hash_start = bfnode_hash(self.block_start.expr.node)
+        hash_parent = bfnode_hash(parent)
+        hdl = self._source_handler.sources.get(hash_parent, None)
+        if hdl is None:
+            raise ValueError(f"NestedDataCM: Unknown data source {self.block_start}")
+        # no join, merge etc., no new source/BigFrameNode
+        if not self._schemata_matching(self.block_start, hdl):
+            raise Exception("Internal error: Nested Schema mismatch")
+            self._extend_dag(hdl, self.block_end.expr.node)
+
+    def reset_block_markers(self):
+        self.block_start = None
+        self.block_end = None
+        return
+
     # Context Manager interface
     def __enter__(self):
         assert(options.bigquery.project is not None and options.bigquery.location is not None)
         SchemaTrackingContextManager._is_active = True
+        self.reset_block_markers()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -226,6 +274,7 @@ class SchemaTrackingContextManager:
         SchemaTrackingContextManager._is_active = False
         #TODO: compute final schema from DAG
         #TODO: delete DAG so "new" context can be used
+        #TODO: Get new source in case of joins. new table name/ which one is target?
         return
 
     # Private helper methods for starting schema deduction and DAG creation
@@ -237,7 +286,26 @@ class SchemaTrackingContextManager:
 def schema_tracking_factory(singleton=SchemaTrackingContextManager()) -> SchemaTrackingContextManager:
     return singleton
 
-NestedDataContextManager = schema_tracking_factory() # SchemaTrackingContextManager()
+nested_data_contet_manager: SchemaTrackingContextManager = schema_tracking_factory()
+
+def cm_nested(func: Callable):
+    def wrapper(*args, **kwargs):
+        if nested_data_contet_manager.active():
+            #TODO (abeschorner): handle multiple parents
+            current_block = args[0].block
+            parent = None
+            for node in current_block.expr.node.child_nodes:
+                if bfnode_hash(node.child) == bfnode_hash(current_block.expr.node):
+                    parent = node
+                    continue
+            
+            nested_data_contet_manager.block_start = current_block
+            res = func(*args, **kwargs)
+            nested_data_contet_manager.block_end = res.block
+            nested_data_contet_manager.step(parent)
+            nested_data_contet_manager.reset_block_markers()
+        return res
+    return wrapper
 
 
 @dataclass(frozen=True)
@@ -260,8 +328,8 @@ class ArrayValue:
             data_schema=schema,
             session=session,
         )
-        if NestedDataContextManager.active():
-            NestedDataContextManager.add_source(node)
+        if nested_data_contet_manager.active():
+            nested_data_contet_manager.add_source(node)
 
         return cls(node)
 
@@ -280,8 +348,8 @@ class ArrayValue:
             physical_schema=tuple(table.schema),
             ordering=ordering,
         )
-        if NestedDataContextManager.active():
-            NestedDataContextManager.add_source(node)
+        if nested_data_contet_manager.active():
+            nested_data_contet_manager.add_source(node)
         return cls(node)
 
     @classmethod
@@ -315,8 +383,8 @@ class ArrayValue:
             table_session=session,
             sql_predicate=predicate,
         )
-        if NestedDataContextManager.active():
-            NestedDataContextManager.add_source(node)
+        if nested_data_contet_manager.active():
+            nested_data_contet_manager.add_source(node)
         return cls(node)
 
     @property
@@ -669,8 +737,7 @@ class ArrayValue:
     ) -> ArrayValue:
         """Create an ArrayValue from a list of label tuples."""
         rows = []
-        for row_offset in range(len(former_column_labels)):
-            row_label = former_column_labels[row_offset]
+        for row_offset, row_label in enumerate(former_column_labels):
             row_label = (row_label,) if not isinstance(row_label, tuple) else row_label
             row = {
                 col_ids[i]: (row_label[i] if pandas.notnull(row_label[i]) else None)

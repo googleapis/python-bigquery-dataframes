@@ -22,6 +22,7 @@
 import bigframes.pandas as bfpd
 import bigframes.core as core
 from bigframes.core.schema_tracking import set_project
+from bigframes.dataframe import DataFrame
 #from bigframes.core.nodes import NestedDataContextManager
 #from bigframes.core import Session
 
@@ -58,21 +59,17 @@ from bigframes.core.schema_tracking import set_project
 
 if __name__ == "__main__":
     #TODO: autodetect if bfpd si already setup and copy proj/loc if availabe
-    # bfpd.options.bigquery.project = "vf-de-aib-prd-cmr-chn-lab"
-    # bfpd.options.bigquery._location = "europe-west3"
     set_project(project="gmbigframes", location="europe-west3")
     table = "gmbigframes.nested.tiny"  #"vf-de-aib-prd-cmr-chn-lab.staging.scs_mini"
     #testdf = DataFrame({"a": [1]}, index=None)
 
-    #ncm_t = NestedDataFrame(testdf)
-    #ncm =  NestedDataFrame(table)
-    #testsq = Series()
-    #session = Session()
-
-    with core.NestedDataContextManager:
+    with core.nested_data_contet_manager:
         df = bfpd.read_gbq(f"SELECT * FROM {table} limit 10")
         df = df.rename(columns={"out_of_contract_flag": "ooc_flag"})
-        
+        pass
+        #testdf = DataFrame({"ooc_flag": [1], "test_value": ["Grmph"]}, index=None)
+        #TODO: How create 
+
         #ncm |=  ncm.data, {"columns": []} | n_get_dummies
     pass
 

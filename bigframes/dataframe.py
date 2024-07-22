@@ -273,6 +273,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self.index.name = value.name if hasattr(value, "name") else None
 
     @property
+    def block(self) -> blocks.Block:
+        return self._block
+
+    @property
     @requires_index
     def loc(self) -> indexers.LocDataFrameIndexer:
         return indexers.LocDataFrameIndexer(self)
@@ -1519,6 +1523,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _resolve_levels(self, level: LevelsType) -> typing.Sequence[str]:
         return self._block.index.resolve_level(level)
 
+    @bigframes.core.cm_nested
     def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame:
         block = self._block.rename(columns=columns)
         return DataFrame(block)

@@ -33,7 +33,6 @@ import bigframes.core.window_spec as window
 import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
 
-
 if typing.TYPE_CHECKING:
     import bigframes.core.ordering as orderings
     import bigframes.session
