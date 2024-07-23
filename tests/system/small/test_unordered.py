@@ -25,8 +25,8 @@ def test_unordered_mode_sql_no_hash(unordered_session):
         "bigquery-public-data.ethereum_blockchain.blocks"
     )
     sql = bf_df.sql
-    assert "ORDER BY" not in sql.upper()
-    assert "farm_fingerprint" not in sql
+    assert "ORDER BY".casefold() not in sql.casefold()
+    assert "farm_fingerprint".casefold() not in sql.casefold()
 
 
 def test_unordered_mode_job_label(unordered_session):
