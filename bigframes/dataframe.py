@@ -1293,6 +1293,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def copy(self) -> DataFrame:
         return DataFrame(self._block)
 
+    @validations.requires_strict_ordering("Use .peek(n) to preview n arbitrary rows.")
     def head(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[:n])
 
