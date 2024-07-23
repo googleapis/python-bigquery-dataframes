@@ -942,6 +942,7 @@ def test_df_apply_axis_1_unsupported_dtype(session, scalars_dfs, dataset_id_perm
         bigframes.series.Series,
         float,
         dataset_id_permanent,
+        name=get_rf_name(echo_len, is_row_processor=True),
     )(echo_len)
 
     for column in columns_with_not_supported_dtypes:

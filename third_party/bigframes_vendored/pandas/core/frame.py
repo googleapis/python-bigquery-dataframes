@@ -4357,6 +4357,23 @@ class DataFrame(generic.NDFrame):
             1    19
             dtype: Int64
 
+        You could also apply a remote function which accepts multiple parameters
+        to every row of a DataFrame by using it with `axis=1` if the DataFrame
+        has matching number of columns and data types. Note: This feature is
+        currently in **preview**.
+
+            >>> @bpd.remote_function(reuse=False)
+            ... def foo(val1: int, val2: int) -> float:
+            ...     result = 1
+            ...     result += val1
+            ...     result += val2/2
+            ...     return result
+
+            >>> df[["col1", "col2"]].apply(foo, axis=1)
+            0    3.5
+            1    5.0
+            dtype: Float64
+
         Args:
             func (function):
                 Function to apply to each column or row.
