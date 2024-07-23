@@ -4380,14 +4380,15 @@ class DataFrame(generic.NDFrame):
                 (i.e. when `axis=1` is specified) the function can be of one of
                 the two types:
 
-                1. It can accept a single input parameter of
-                type `Series`, in which case each row is delivered to the
-                function as a pandas Series.
+                (1). It accepts a single input parameter of type `Series`, in
+                     which case each row is delivered to the function as a pandas
+                     Series.
 
-                2. It can accept multiple
-                params, in which case column values for each row are delivered
-                to the function separately (as those parameters). For this to work the `DataFrame` must have same number of
-                columns with matching data types.
+                (2). It accept one or more parameters, in which case column values
+                     are delivered to the function as separate arguments (mapping
+                     to those parameters) for each row. For this to work the
+                     `DataFrame` must have same number of columns and matching
+                     data types.
             axis ({index (0), columns (1)}):
                 Axis along which the function is applied. Specify 0 or 'index'
                 to apply function to each column. Specify 1 or 'columns' to
