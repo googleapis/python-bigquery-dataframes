@@ -3432,36 +3432,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if not hasattr(func, "bigframes_remote_function"):
                 raise ValueError("For axis=1 a remote function must be used.")
 
-            udf_input_dtypes = getattr(func, "input_dtypes")
-            if len(udf_input_dtypes) > 1:
-                # This is a special case where we are providing not-pandas-like
-                # extension. If the remote function can take multiple params
-                # then we assume that here the user intention is to use the
-                # column values of the dataframe as arguments to the function.
-                # For this to work the following condition must be true:
-                #   1. The number or input params in the function must be same
-                #      as the number of columns in the dataframe
-                #   2. The dtypes of the columns in the dataframe must be
-                #      compatible with the data types of the input params
-                #   3. The order of the columns in the dataframe must correspond
-                #      to the order of the input params in the function
-                if len(udf_input_dtypes) != len(self.columns):
-                    raise ValueError(
-                        f"Remote function takes {len(udf_input_dtypes)} arguments but DataFrame has {len(self.columns)} columns."
-                    )
-                if udf_input_dtypes != tuple(self.dtypes.to_list()):
-                    raise ValueError(
-                        f"Remote function takes arguments of types {udf_input_dtypes} but DataFrame dtypes are {tuple(self.dtypes)}."
-                    )
-
-                series_list = [self[col] for col in self.columns]
-                reprojected_series = bigframes.series.Series(
-                    series_list[0]._block._force_reproject()
-                )
-                result_series = reprojected_series._apply_nary_op(
-                    ops.NaryRemoteFunctionOp(func=func), series_list[1:]
-                )
-            else:
+            is_row_processor = getattr(func, "is_row_processor")
+            if is_row_processor:
                 # Early check whether the dataframe dtypes are currently supported
                 # in the remote function
                 # NOTE: Keep in sync with the value converters used in the gcf code
@@ -3516,6 +3488,35 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 # Apply the function
                 result_series = rows_as_json_series._apply_unary_op(
                     ops.RemoteFunctionOp(func=func, apply_on_null=True)
+                )
+            else:
+                # This is a special case where we are providing not-pandas-like
+                # extension. If the remote function can take one or more params
+                # then we assume that here the user intention is to use the
+                # column values of the dataframe as arguments to the function.
+                # For this to work the following condition must be true:
+                #   1. The number or input params in the function must be same
+                #      as the number of columns in the dataframe
+                #   2. The dtypes of the columns in the dataframe must be
+                #      compatible with the data types of the input params
+                #   3. The order of the columns in the dataframe must correspond
+                #      to the order of the input params in the function
+                udf_input_dtypes = getattr(func, "input_dtypes")
+                if len(udf_input_dtypes) != len(self.columns):
+                    raise ValueError(
+                        f"Remote function takes {len(udf_input_dtypes)} arguments but DataFrame has {len(self.columns)} columns."
+                    )
+                if udf_input_dtypes != tuple(self.dtypes.to_list()):
+                    raise ValueError(
+                        f"Remote function takes arguments of types {udf_input_dtypes} but DataFrame dtypes are {tuple(self.dtypes)}."
+                    )
+
+                series_list = [self[col] for col in self.columns]
+                reprojected_series = bigframes.series.Series(
+                    series_list[0]._block._force_reproject()
+                )
+                result_series = reprojected_series._apply_nary_op(
+                    ops.NaryRemoteFunctionOp(func=func), series_list[1:]
                 )
             result_series.name = None
 

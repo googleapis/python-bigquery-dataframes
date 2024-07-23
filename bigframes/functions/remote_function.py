@@ -1208,6 +1208,7 @@ class _RemoteFunctionSession:
                     ibis_signature.output_type
                 )
             )
+            func.is_row_processor = is_row_processor
             func.ibis_node = node
 
             # If a new remote function was created, update the cloud artifacts
