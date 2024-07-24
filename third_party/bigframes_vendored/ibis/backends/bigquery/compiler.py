@@ -13,41 +13,6 @@ import sqlglot as sg
 import sqlglot.expressions as sge
 
 
-def _convert(value, ibis_type):
-    if value is None:
-        return sge.Null()
-
-    # Older versions of SQLGlot can't support time literals in convert().
-    if ibis_type.is_time():
-        return sge.TimeAdd(
-            this=sge.TimeFromParts(
-                hour=sge.convert(value.hour),
-                min=sge.convert(value.minute),
-                sec=sge.convert(value.second),
-            ),
-            expression=sge.convert(value.microsecond),
-            unit=sge.Var(this="MICROSECOND"),
-        )
-
-    # Older versions of SQLGlot don't distinguish DATETIME from TIMESTAMP in convert().
-    if ibis_type.is_timestamp():
-        if ibis_type.timezone == "UTC":
-            return sge.cast(
-                sge.convert(value.isoformat()), sge.DataType.Type.TIMESTAMPTZ
-            )
-        else:
-            return sge.cast(
-                sge.convert(value.strftime("%Y-%m-%d %H:%M:%S.%f")),
-                sge.DataType.Type.TIMESTAMP,
-            )
-
-    # In-memory nullable integers can get stored as floats.
-    if ibis_type.is_integer():
-        value = int(value)
-
-    return sge.convert(value)
-
-
 class BigQueryCompiler(bq_compiler.BigQueryCompiler):
     UNSUPPORTED_OPS = (
         tuple(
@@ -87,7 +52,7 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
                     values=[
                         sge.Tuple(
                             expressions=tuple(
-                                _convert(value, type_)
+                                self.visit_Literal(None, value=value, dtype=type_)
                                 for value, type_ in zip(row, schema.types)
                             )
                         )
