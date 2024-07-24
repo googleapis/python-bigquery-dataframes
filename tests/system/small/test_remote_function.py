@@ -779,10 +779,14 @@ def test_read_gbq_function_enforces_explicit_types(
         str(both_types_specified.reference),
         session=session,
     )
-    rf.read_gbq_function(
-        str(only_return_type_specified.reference),
-        session=session,
-    )
+    with pytest.warns(
+        bigframes.exceptions.UnknownDataTypeWarning,
+        match="missing input data types.*assume default data type",
+    ):
+        rf.read_gbq_function(
+            str(only_return_type_specified.reference),
+            session=session,
+        )
     with pytest.raises(ValueError):
         rf.read_gbq_function(
             str(only_arg_type_specified.reference),

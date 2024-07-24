@@ -30,6 +30,7 @@ import test_utils.prefixer
 import bigframes
 import bigframes.dataframe
 import bigframes.dtypes
+import bigframes.exceptions
 import bigframes.functions.remote_function as bigframes_rf
 import bigframes.pandas as bpd
 import bigframes.series

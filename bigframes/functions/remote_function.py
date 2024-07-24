@@ -66,6 +66,7 @@ from ibis.expr.datatypes.core import DataType as IbisDataType
 from bigframes import clients
 import bigframes.constants as constants
 import bigframes.core.compile.ibis_types
+import bigframes.dtypes
 import bigframes.functions.remote_function_template
 
 logger = logging.getLogger(__name__)
@@ -1292,12 +1293,29 @@ def read_gbq_function(
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )
     func.bigframes_remote_function = str(routine_ref)  # type: ignore
-    func.input_dtypes = tuple(  # type: ignore
-        [
-            bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(input_type)
-            for input_type in ibis_signature.input_types
-        ]
-    )
+
+    # set input bigframes data types
+    has_unknown_dtypes = False
+    function_input_dtypes = []
+    for ibis_type in ibis_signature.input_types:
+        input_dtype = cast(bigframes.dtypes.Dtype, bigframes.dtypes.DEFAULT_DTYPE)
+        if ibis_type is None:
+            has_unknown_dtypes = True
+        else:
+            input_dtype = (
+                bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
+                    ibis_type
+                )
+            )
+        function_input_dtypes.append(input_dtype)
+    if has_unknown_dtypes:
+        warnings.warn(
+            "The function has one or more missing input data types."
+            f" BigQuery DataFrames will assume default data type {bigframes.dtypes.DEFAULT_DTYPE} for them.",
+            category=bigframes.exceptions.UnknownDataTypeWarning,
+        )
+    func.input_dtypes = function_input_dtypes  # type: ignore
+
     func.output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(  # type: ignore
         ibis_signature.output_type
     )
