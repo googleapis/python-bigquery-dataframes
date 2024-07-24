@@ -215,9 +215,9 @@ def udf_http_row_processor(request):
 
 
 def generate_udf_code(def_, directory):
-    """Generate serialized bytecode using cloudpickle given a udf."""
+    """Generate serialized code using cloudpickle given a udf."""
     udf_code_file_name = "udf.py"
-    udf_bytecode_file_name = "udf.cloudpickle"
+    udf_pickle_file_name = "udf.cloudpickle"
 
     # original code, only for debugging purpose
     udf_code = textwrap.dedent(inspect.getsource(def_))
@@ -225,13 +225,29 @@ def generate_udf_code(def_, directory):
     with open(udf_code_file_path, "w") as f:
         f.write(udf_code)
 
-    # serialized bytecode
-    udf_bytecode_file_path = os.path.join(directory, udf_bytecode_file_name)
-    # TODO(b/345433300): try io.BytesIO to avoid writing to the file system
-    with open(udf_bytecode_file_path, "wb") as f:
-        cloudpickle.dump(def_, f, protocol=_pickle_protocol_version)
+    # There is a known cell-id sensitivity of the cloudpickle serialization in
+    # notebooks https://github.com/cloudpipe/cloudpickle/issues/538. Because of
+    # this, if a cell contains a udf decorated with @remote_function, a unique
+    # cloudpickle code is generated every time the cell is run, creating new
+    # cloud artifacts every time. This is slow and wasteful.
+    # A workaround of the same can be achieved by replacing the filename in the
+    # code object to a static value
+    # https://github.com/cloudpipe/cloudpickle/issues/120#issuecomment-338510661.
+    #
+    # To respect the user code/environment let's make this modification on a
+    # copy of the udf, not on the original udf itself.
+    def_copy = cloudpickle.loads(cloudpickle.dumps(def_))
+    def_copy.__code__ = def_copy.__code__.replace(
+        co_filename="bigframes_place_holder_filename"
+    )
 
-    return udf_code_file_name, udf_bytecode_file_name
+    # serialized udf
+    udf_pickle_file_path = os.path.join(directory, udf_pickle_file_name)
+    # TODO(b/345433300): try io.BytesIO to avoid writing to the file system
+    with open(udf_pickle_file_path, "wb") as f:
+        cloudpickle.dump(def_copy, f, protocol=_pickle_protocol_version)
+
+    return udf_code_file_name, udf_pickle_file_name
 
 
 def generate_cloud_function_main_code(
@@ -252,15 +268,15 @@ def generate_cloud_function_main_code(
     """
 
     # Pickle the udf with all its dependencies
-    udf_code_file, udf_bytecode_file = generate_udf_code(def_, directory)
+    udf_code_file, udf_pickle_file = generate_udf_code(def_, directory)
 
     code_blocks = [
         f"""\
 import cloudpickle
 
 # original udf code is in {udf_code_file}
-# serialized udf code is in {udf_bytecode_file}
-with open("{udf_bytecode_file}", "rb") as f:
+# serialized udf code is in {udf_pickle_file}
+with open("{udf_pickle_file}", "rb") as f:
     udf = cloudpickle.load(f)
 
 input_types = {repr(input_types)}
