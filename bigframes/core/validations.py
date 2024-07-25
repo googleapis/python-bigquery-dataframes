@@ -45,7 +45,8 @@ def requires_strict_ordering():
 
 
 def enforce_ordered(object: HasSession, opname: str) -> None:
-    if not object._session._strictly_ordered:
+    session = object._session
+    if not (session._strictly_ordered or session.allow_ambiguity):
         raise bigframes.exceptions.OrderRequiredError(
             f"Op {opname} not supported when strict ordering is disabled. {bigframes.constants.FEEDBACK_LINK}"
         )
