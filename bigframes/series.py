@@ -1653,7 +1653,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def to_csv(
         self,
-        path_or_buf,
+        path_or_buf=None,
         sep=",",
         *,
         header: bool = True,
@@ -1677,7 +1677,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def to_json(
         self,
-        path_or_buf,
+        path_or_buf=None,
         orient: Optional[typing.Literal["split", "records", "index", "table"]] = None,
         *,
         lines: bool = False,
