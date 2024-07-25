@@ -1314,7 +1314,7 @@ def read_gbq_function(
             f" BigQuery DataFrames will assume default data type {bigframes.dtypes.DEFAULT_DTYPE} for them.",
             category=bigframes.exceptions.UnknownDataTypeWarning,
         )
-    func.input_dtypes = function_input_dtypes  # type: ignore
+    func.input_dtypes = tuple(function_input_dtypes)  # type: ignore
 
     func.output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(  # type: ignore
         ibis_signature.output_type
