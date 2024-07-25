@@ -49,8 +49,8 @@ import tests.system.utils
 # We are running pytest with "-n 20". For a rough estimation, let's say all
 # parallel sessions run in parallel. So that allows 1000/20 = 50 mutations per
 # minute. One session takes about 1 minute to create a remote function. This
-# leaves 50-1 = 49 deletions per session. As a heuristic let's use half of that
-# potential for the clean up.
+# would allow 50-1 = 49 deletions per session. As a heuristic let's use half of
+# that potential for the clean up.
 MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION = 25
 
 CURRENT_DIR = pathlib.Path(__file__).parent
