@@ -44,7 +44,6 @@ class StreamingBase:
         instance: str,
         table: str,
         service_account_email: Optional[str] = None,
-        session: Optional[bigframes.Session] = None,
         app_profile: Optional[str] = None,
         truncate: bool = False,
         overwrite: bool = False,
@@ -58,7 +57,7 @@ class StreamingBase:
             instance=instance,
             table=table,
             service_account_email=service_account_email,
-            session=session,
+            session=self._session,  # type: ignore
             app_profile=app_profile,
             truncate=truncate,
             overwrite=overwrite,
@@ -81,7 +80,7 @@ class StreamingBase:
             self.sql,  # type: ignore
             topic=topic,
             service_account_email=service_account_email,
-            session=session,
+            session=self._session,  # type: ignore
             job_id=job_id,
             job_id_prefix=job_id_prefix,
         )
@@ -108,6 +107,7 @@ class StreamingDataFrame(StreamingBase):
             "ndim",
             "empty",
             "values",
+            "_session",
         ]
         for attr in attrs:
             df_item = getattr(self._df, attr)
