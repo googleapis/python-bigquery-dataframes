@@ -225,27 +225,11 @@ def generate_udf_code(def_, directory):
     with open(udf_code_file_path, "w") as f:
         f.write(udf_code)
 
-    # There is a known cell-id sensitivity of the cloudpickle serialization in
-    # notebooks https://github.com/cloudpipe/cloudpickle/issues/538. Because of
-    # this, if a cell contains a udf decorated with @remote_function, a unique
-    # cloudpickle code is generated every time the cell is run, creating new
-    # cloud artifacts every time. This is slow and wasteful.
-    # A workaround of the same can be achieved by replacing the filename in the
-    # code object to a static value
-    # https://github.com/cloudpipe/cloudpickle/issues/120#issuecomment-338510661.
-    #
-    # To respect the user code/environment let's make this modification on a
-    # copy of the udf, not on the original udf itself.
-    def_copy = cloudpickle.loads(cloudpickle.dumps(def_))
-    def_copy.__code__ = def_copy.__code__.replace(
-        co_filename="bigframes_place_holder_filename"
-    )
-
     # serialized udf
     udf_pickle_file_path = os.path.join(directory, udf_pickle_file_name)
     # TODO(b/345433300): try io.BytesIO to avoid writing to the file system
     with open(udf_pickle_file_path, "wb") as f:
-        cloudpickle.dump(def_copy, f, protocol=_pickle_protocol_version)
+        cloudpickle.dump(def_, f, protocol=_pickle_protocol_version)
 
     return udf_code_file_name, udf_pickle_file_name
 
