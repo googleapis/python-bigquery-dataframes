@@ -749,6 +749,16 @@ class Session(
             filters=filters,
         )
 
+    def read_gbq_streaming(self, table):
+        from bigframes import streaming
+
+        df = self._read_gbq_table(
+            table, api_name="read_gbq_steaming", enable_snapshot=False
+        )
+        streaming.StreamingDataFrame
+
+        return streaming.StreamingDataFrame(df)
+
     def _read_gbq_table(
         self,
         query: str,
@@ -759,6 +769,7 @@ class Session(
         api_name: str,
         use_cache: bool = True,
         filters: third_party_pandas_gbq.FiltersType = (),
+        enable_snapshot: bool = True,
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
@@ -877,7 +888,7 @@ class Session(
             else (*columns, *[col for col in index_cols if col not in columns])
         )
 
-        supports_snapshot = bf_read_gbq_table.validate_table(
+        enable_snapshot = enable_snapshot and bf_read_gbq_table.validate_table(
             self.bqclient, table_ref, all_columns, time_travel_timestamp, filter_str
         )
 
@@ -905,7 +916,7 @@ class Session(
             table,
             schema=schema,
             predicate=filter_str,
-            at_time=time_travel_timestamp if supports_snapshot else None,
+            at_time=time_travel_timestamp if enable_snapshot else None,
             primary_key=index_cols if is_index_unique else (),
             session=self,
         )

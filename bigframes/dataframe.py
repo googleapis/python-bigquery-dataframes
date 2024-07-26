@@ -104,6 +104,8 @@ def requires_index(meth):
 @log_adapter.class_logger
 class DataFrame(vendored_pandas_frame.DataFrame):
     __doc__ = vendored_pandas_frame.DataFrame.__doc__
+    # internal flag to disable cache at all
+    _disable_cache_override: bool = False
 
     def __init__(
         self,
@@ -3612,6 +3614,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         No-op if the dataframe represents a trivial transformation of an existing materialization.
         Force=True is used for BQML integration where need to copy data rather than use snapshot.
         """
+        if self._disable_cache_override:
+            return self
         self._block.cached(force=force)
         return self
 

@@ -13,7 +13,9 @@
 # limitations under the License.
 
 """Module for bigquery continuous queries"""
+from __future__ import annotations
 
+import functools
 import json
 from typing import Optional
 import warnings
@@ -21,9 +23,113 @@ import warnings
 from google.cloud import bigquery
 
 import bigframes
+from bigframes import dataframe
 
 
-def to_bigtable(
+def return_type_wrapper(method, cls):
+    @functools.wraps(method)
+    def wrapper(*args, **kwargs):
+        return_value = method(*args, **kwargs)
+        if isinstance(return_value, dataframe.DataFrame):
+            return cls(return_value)
+        return return_value
+
+    return wrapper
+
+
+class StreamingBase:
+    def to_bigtable(
+        self,
+        *,
+        instance: str,
+        table: str,
+        service_account_email: Optional[str] = None,
+        session: Optional[bigframes.Session] = None,
+        app_profile: Optional[str] = None,
+        truncate: bool = False,
+        overwrite: bool = False,
+        auto_create_column_families: bool = False,
+        bigtable_options: Optional[dict] = None,
+        job_id: Optional[str] = None,
+        job_id_prefix: Optional[str] = None,
+    ) -> bigquery.QueryJob:
+        return _to_bigtable(
+            self.sql,  # type: ignore
+            instance=instance,
+            table=table,
+            service_account_email=service_account_email,
+            session=session,
+            app_profile=app_profile,
+            truncate=truncate,
+            overwrite=overwrite,
+            auto_create_column_families=auto_create_column_families,
+            bigtable_options=bigtable_options,
+            job_id=job_id,
+            job_id_prefix=job_id_prefix,
+        )
+
+    def to_pubsub(
+        self,
+        *,
+        topic: str,
+        service_account_email: str,
+        session: Optional[bigframes.Session] = None,
+        job_id: Optional[str] = None,
+        job_id_prefix: Optional[str] = None,
+    ) -> bigquery.QueryJob:
+        return _to_pubsub(
+            self.sql,  # type: ignore
+            topic=topic,
+            service_account_email=service_account_email,
+            session=session,
+            job_id=job_id,
+            job_id_prefix=job_id_prefix,
+        )
+
+
+class StreamingDataFrame(StreamingBase):
+    def __init__(self, df: dataframe.DataFrame):
+        self._df = df
+        self._df._disable_cache_override = True
+        self._override_methods()
+
+    def _override_methods(self):
+        override_methods = ["__repr__", "_repr_html_", "rename"]
+        for method in override_methods:
+            setattr(
+                self,
+                method,
+                return_type_wrapper(getattr(self._df, method), StreamingDataFrame),
+            )
+
+    def __getattr__(self, item):
+        delegate_properties = {
+            "sql",
+            "dtypes",
+            "columns",
+            "shape",
+            "size",
+            "ndim",
+            "empty",
+            "values",
+        }
+        if item in delegate_properties:
+            return getattr(self._df, item)
+        raise AttributeError
+
+    # Delegate seperately otherwise sdf[] will return error: isn't subscriptable.
+    def __getitem__(self, *args, **kwargs):
+        return return_type_wrapper(self._df.__getitem__, StreamingDataFrame)(
+            *args, **kwargs
+        )
+
+    def __setitem__(self, *args, **kwargs):
+        return return_type_wrapper(self._df.__setitem__, StreamingDataFrame)(
+            *args, **kwargs
+        )
+
+
+def _to_bigtable(
     query: str,
     *,
     instance: str,
@@ -162,7 +268,7 @@ def to_bigtable(
     return query_job
 
 
-def to_pubsub(
+def _to_pubsub(
     query: str,
     *,
     topic: str,

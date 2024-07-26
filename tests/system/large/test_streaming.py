@@ -26,7 +26,7 @@ def test_streaming_to_bigtable():
     sql = """SELECT
         body_mass_g, island as rowkey
         FROM birds.penguins_bigtable_streaming"""
-    query_job = bigframes.streaming.to_bigtable(
+    query_job = bigframes.streaming._to_bigtable(
         sql,
         instance="streaming-testing-instance",
         table="table-testing",
@@ -59,7 +59,7 @@ def test_streaming_to_pubsub():
     sql = """SELECT
         island
         FROM birds.penguins_pubsub_streaming"""
-    query_job = bigframes.streaming.to_pubsub(
+    query_job = bigframes.streaming._to_pubsub(
         sql,
         topic="penguins",
         service_account_email="streaming-testing@bigframes-load-testing.iam.gserviceaccount.com",
