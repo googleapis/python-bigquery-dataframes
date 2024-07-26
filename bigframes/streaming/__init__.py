@@ -111,7 +111,7 @@ class StreamingDataFrame(StreamingBase):
         ]
         for attr in attrs:
             df_item = getattr(self._df, attr)
-            if callable(attr):
+            if callable(df_item):
                 setattr(
                     self,
                     attr,
