@@ -91,19 +91,15 @@ class StreamingDataFrame(StreamingBase):
     def __init__(self, df: dataframe.DataFrame):
         self._df = df
         self._df._disable_cache_override = True
-        self._override_methods()
+        self._delegate_attrs()
 
-    def _override_methods(self):
-        override_methods = ["__repr__", "_repr_html_", "rename"]
-        for method in override_methods:
-            setattr(
-                self,
-                method,
-                return_type_wrapper(getattr(self._df, method), StreamingDataFrame),
-            )
-
-    def __getattr__(self, item):
-        delegate_properties = {
+    def _delegate_attrs(self):
+        attrs = [
+            # callables
+            "__repr__",
+            "_repr_html_",
+            "rename",
+            # properties
             "sql",
             "dtypes",
             "columns",
@@ -112,10 +108,17 @@ class StreamingDataFrame(StreamingBase):
             "ndim",
             "empty",
             "values",
-        }
-        if item in delegate_properties:
-            return getattr(self._df, item)
-        raise AttributeError
+        ]
+        for attr in attrs:
+            df_item = getattr(self._df, attr)
+            if callable(attr):
+                setattr(
+                    self,
+                    attr,
+                    return_type_wrapper(df_item, StreamingDataFrame),
+                )
+            else:
+                setattr(self, attr, df_item)
 
     # Delegate seperately otherwise sdf[] will return error: isn't subscriptable.
     def __getitem__(self, *args, **kwargs):
