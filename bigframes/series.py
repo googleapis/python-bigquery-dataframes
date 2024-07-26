@@ -1678,7 +1678,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def to_json(
         self,
         path_or_buf=None,
-        orient: Optional[typing.Literal["split", "records", "index", "table"]] = None,
+        orient: Optional[
+            typing.Literal["split", "records", "index", "columns", "values", "table"]
+        ] = None,
         *,
         lines: bool = False,
         index: bool = True,
@@ -1690,7 +1692,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         else:
             pd_series = self.to_pandas()
             return pd_series.to_json(
-                path_or_buf=path_or_buf, orient=orient, lines=lines, index=index
+                path_or_buf=path_or_buf, orient=orient, lines=lines, index=index  # type: ignore
             )
 
     def to_latex(
