@@ -32,6 +32,9 @@ export PY_IGNORE_IMPORTMISMATCH=1
 # Debug: show build environment
 env | grep KOKORO
 
+# Debug: show auth
+gcloud auth list
+
 # Install pip
 python3 -m pip install --upgrade --quiet pip
 python3 -m pip --version
