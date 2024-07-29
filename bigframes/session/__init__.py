@@ -755,6 +755,8 @@ class Session(
     ) -> bigframes.streaming.StreamingDataFrame:
         """Turn a BigQuery table into a StreamingDataFrame.
 
+        Note: The bigframes.streaming module is a preview feature, and subject to change.
+
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -762,6 +764,12 @@ class Session(
 
             >>> sdf = bpd.read_gbq_table_streaming("bigquery-public-data.ml_datasets.penguins")
         """
+        warnings.warn(
+            "The bigframes.streaming module is a preview feature, and subject to change.",
+            stacklevel=1,
+            category=bigframes.exceptions.PreviewWarning,
+        )
+
         from bigframes import streaming
 
         df = self._read_gbq_table(
