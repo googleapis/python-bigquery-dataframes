@@ -249,7 +249,8 @@ class StreamingDataFrame(StreamingBase):
 
     @property
     def sql(self):
-        return self._df.sql
+        sql_str, _, _ = self._df._to_sql_query(include_index=False, enable_cache=False)
+        return sql_str
 
     sql.__doc__ = _curate_df_doc(inspect.getdoc(dataframe.DataFrame.sql))
 

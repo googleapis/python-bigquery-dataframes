@@ -773,7 +773,10 @@ class Session(
         from bigframes import streaming
 
         df = self._read_gbq_table(
-            table, api_name="read_gbq_table_steaming", enable_snapshot=False
+            table,
+            api_name="read_gbq_table_steaming",
+            enable_snapshot=False,
+            index_col=bigframes.enums.DefaultIndexKind.NULL,
         )
 
         return streaming.StreamingDataFrame._from_table_df(df)
@@ -2080,17 +2083,20 @@ class Session(
         offset_column: typing.Optional[str] = None,
         col_id_overrides: typing.Mapping[str, str] = {},
         ordered: bool = False,
+        enable_cache: bool = True,
     ) -> str:
         if offset_column:
             array_value = array_value.promote_offsets(offset_column)
-        node_w_cached = self._with_cached_executions(array_value.node)
+        node = (
+            self._with_cached_executions(array_value.node)
+            if enable_cache
+            else array_value.node
+        )
         if ordered:
             return self._compiler.compile_ordered(
-                node_w_cached, col_id_overrides=col_id_overrides
+                node, col_id_overrides=col_id_overrides
             )
-        return self._compiler.compile_unordered(
-            node_w_cached, col_id_overrides=col_id_overrides
-        )
+        return self._compiler.compile_unordered(node, col_id_overrides=col_id_overrides)
 
     def _get_table_size(self, destination_table):
         table = self.bqclient.get_table(destination_table)
