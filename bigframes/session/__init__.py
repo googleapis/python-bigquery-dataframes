@@ -313,7 +313,7 @@ class Session(
         self._compiler = bigframes.core.compile.SQLCompiler(
             strict=self._strictly_ordered
         )
-        self._allow_ambiguity = False
+        self._allow_ambiguity = not self._strictly_ordered
 
         self._remote_function_session = bigframes_rf._RemoteFunctionSession()
 
