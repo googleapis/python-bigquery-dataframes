@@ -100,6 +100,7 @@ import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session.clients
 import bigframes.session.planner
+import bigframes.streaming
 import bigframes.version
 
 # Avoid circular imports.
@@ -749,7 +750,9 @@ class Session(
             filters=filters,
         )
 
-    def read_gbq_table_streaming(self, table):
+    def read_gbq_table_streaming(
+        self, table: str
+    ) -> bigframes.streaming.StreamingDataFrame:
         """Turn a BigQuery table into a StreamingDataFrame.
 
         **Examples:**
