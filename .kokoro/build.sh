@@ -33,7 +33,11 @@ export PY_IGNORE_IMPORTMISMATCH=1
 env | grep KOKORO
 
 # Debug: show auth
-gcloud auth list
+if (which gcloud); then
+    gcloud auth list
+else
+    echo "gcloud not installed"
+fi
 
 # Install pip
 python3 -m pip install --upgrade --quiet pip
