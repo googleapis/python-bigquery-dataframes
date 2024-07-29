@@ -749,15 +749,23 @@ class Session(
             filters=filters,
         )
 
-    def read_gbq_streaming(self, table):
+    def read_gbq_table_streaming(self, table):
+        """Turn a BigQuery table into a StreamingDataFrame.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> sdf = bpd.read_gbq_table_streaming("bigquery-public-data.ml_datasets.penguins")
+        """
         from bigframes import streaming
 
         df = self._read_gbq_table(
-            table, api_name="read_gbq_steaming", enable_snapshot=False
+            table, api_name="read_gbq_table_steaming", enable_snapshot=False
         )
-        streaming.StreamingDataFrame
 
-        return streaming.StreamingDataFrame(df)
+        return streaming.StreamingDataFrame._from_table_df(df)
 
     def _read_gbq_table(
         self,

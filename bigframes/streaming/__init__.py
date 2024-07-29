@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import functools
+import inspect
 import json
 from typing import Optional
 import warnings
@@ -26,18 +27,34 @@ import bigframes
 from bigframes import dataframe
 
 
-def return_type_wrapper(method, cls):
+def _return_type_wrapper(method, cls):
     @functools.wraps(method)
     def wrapper(*args, **kwargs):
         return_value = method(*args, **kwargs)
         if isinstance(return_value, dataframe.DataFrame):
-            return cls(return_value)
+            return cls._from_table_df(return_value)
         return return_value
 
     return wrapper
 
 
+def _curate_df_doc(doc: Optional[str]):
+    if not doc:
+        return doc
+
+    # Remove examples, some are not applicable to StreamingDataFrame
+    doc = doc[: doc.find("**Examples:**")] + doc[doc.find("Args:") :]
+
+    doc = doc.replace("dataframe.DataFrame", "streaming.StreamingDataFrame")
+    doc = doc.replace(" DataFrame", " StreamingDataFrame")
+
+    return doc
+
+
 class StreamingBase:
+    sql: str
+    _session: bigframes.Session
+
     def to_bigtable(
         self,
         *,
@@ -52,12 +69,64 @@ class StreamingBase:
         job_id: Optional[str] = None,
         job_id_prefix: Optional[str] = None,
     ) -> bigquery.QueryJob:
+        """
+        Export the StreamingDataFrame as a continue job and returns a
+        QueryJob object for some management functionality.
+
+        This method requires an existing bigtable preconfigured to
+        accept the continuous query export statement. For instructions
+        on export to bigtable, see
+        https://cloud.google.com/bigquery/docs/export-to-bigtable.
+
+        Args:
+            instance (str):
+                The name of the bigtable instance to export to.
+            table (str):
+                The name of the bigtable table to export to.
+            service_account_email (str):
+                Full name of the service account to run the continuous query.
+                Example: accountname@projectname.gserviceaccounts.com
+                If not provided, the user account will be used, but this
+                limits the lifetime of the continuous query.
+            app_profile (str, default None):
+                The bigtable app profile to export to. If None, no app
+                profile will be used.
+            truncate (bool, default False):
+                The export truncate option, see
+                https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#bigtable_export_option
+            overwrite (bool, default False):
+                The export overwrite option, see
+                https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#bigtable_export_option
+            auto_create_column_families (bool, default False):
+                The auto_create_column_families option, see
+                https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#bigtable_export_option
+            bigtable_options (dict, default None):
+                The bigtable options dict, which will be converted to JSON
+                using json.dumps, see
+                https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#bigtable_export_option
+                If None, no bigtable_options parameter will be passed.
+            job_id (str, default None):
+                If specified, replace the default job id for the query,
+                see job_id parameter of
+                https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
+            job_id_prefix (str, default None):
+                If specified, a job id prefix for the query, see
+                job_id_prefix parameter of
+                https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
+
+        Returns:
+            google.cloud.bigquery.QueryJob:
+                See https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob
+                The ongoing query job can be managed using this object.
+                For example, the job can be cancelled or its error status
+                can be examined.
+        """
         return _to_bigtable(
-            self.sql,  # type: ignore
+            self.sql,
             instance=instance,
             table=table,
             service_account_email=service_account_email,
-            session=self._session,  # type: ignore
+            session=self._session,
             app_profile=app_profile,
             truncate=truncate,
             overwrite=overwrite,
@@ -72,64 +141,123 @@ class StreamingBase:
         *,
         topic: str,
         service_account_email: str,
-        session: Optional[bigframes.Session] = None,
         job_id: Optional[str] = None,
         job_id_prefix: Optional[str] = None,
     ) -> bigquery.QueryJob:
+        """
+        Export the StreamingDataFrame as a continue job and returns a
+        QueryJob object for some management functionality.
+
+        This method requires an existing pubsub topic. For instructions
+        on creating a pubsub topic, see
+        https://cloud.google.com/pubsub/docs/samples/pubsub-quickstart-create-topic?hl=en
+
+        Note that a service account is a requirement for continuous queries
+        exporting to pubsub.
+
+        Args:
+            topic (str):
+                The name of the pubsub topic to export to.
+                For example: "taxi-rides"
+            service_account_email (str):
+                Full name of the service account to run the continuous query.
+                Example: accountname@projectname.gserviceaccounts.com
+            job_id (str, default None):
+                If specified, replace the default job id for the query,
+                see job_id parameter of
+                https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
+            job_id_prefix (str, default None):
+                If specified, a job id prefix for the query, see
+                job_id_prefix parameter of
+                https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
+
+        Returns:
+            google.cloud.bigquery.QueryJob:
+                See https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob
+                The ongoing query job can be managed using this object.
+                For example, the job can be cancelled or its error status
+                can be examined.
+        """
         return _to_pubsub(
-            self.sql,  # type: ignore
+            self.sql,
             topic=topic,
             service_account_email=service_account_email,
-            session=self._session,  # type: ignore
+            session=self._session,
             job_id=job_id,
             job_id_prefix=job_id_prefix,
         )
 
 
 class StreamingDataFrame(StreamingBase):
-    def __init__(self, df: dataframe.DataFrame):
+    __doc__ = _curate_df_doc(dataframe.DataFrame.__doc__)
+
+    # Private constructor
+    _create_key = object()
+
+    def __init__(self, df: dataframe.DataFrame, *, create_key=0):
+        if create_key is not StreamingDataFrame._create_key:
+            raise ValueError(
+                "StreamingDataFrame class shouldn't be created through constructor. Call bigframes.Session.read_gbq_table_streaming method to create."
+            )
         self._df = df
         self._df._disable_cache_override = True
-        self._delegate_attrs()
 
-    def _delegate_attrs(self):
-        attrs = [
-            # callables
-            "__repr__",
-            "_repr_html_",
-            "rename",
-            # properties
-            "sql",
-            "dtypes",
-            "columns",
-            "shape",
-            "size",
-            "ndim",
-            "empty",
-            "values",
-            "_session",
-        ]
-        for attr in attrs:
-            df_item = getattr(self._df, attr)
-            if callable(df_item):
-                setattr(
-                    self,
-                    attr,
-                    return_type_wrapper(df_item, StreamingDataFrame),
-                )
-            else:
-                setattr(self, attr, df_item)
+    @classmethod
+    def _from_table_df(cls, df: dataframe.DataFrame) -> StreamingDataFrame:
+        return cls(df, create_key=cls._create_key)
 
-    # Delegate seperately otherwise sdf[] will return error: isn't subscriptable.
     def __getitem__(self, *args, **kwargs):
-        return return_type_wrapper(self._df.__getitem__, StreamingDataFrame)(
+        return _return_type_wrapper(self._df.__getitem__, StreamingDataFrame)(
             *args, **kwargs
         )
+
+    __getitem__.__doc__ = _curate_df_doc(
+        inspect.getdoc(dataframe.DataFrame.__getitem__)
+    )
 
     def __setitem__(self, *args, **kwargs):
-        return return_type_wrapper(self._df.__setitem__, StreamingDataFrame)(
+        return _return_type_wrapper(self._df.__setitem__, StreamingDataFrame)(
             *args, **kwargs
         )
+
+    __setitem__.__doc__ = _curate_df_doc(
+        inspect.getdoc(dataframe.DataFrame.__setitem__)
+    )
+
+    def rename(self, *args, **kwargs):
+        return _return_type_wrapper(self._df.rename, StreamingDataFrame)(
+            *args, **kwargs
+        )
+
+    rename.__doc__ = _curate_df_doc(inspect.getdoc(dataframe.DataFrame.rename))
+
+    def __repr__(self, *args, **kwargs):
+        return _return_type_wrapper(self._df.__repr__, StreamingDataFrame)(
+            *args, **kwargs
+        )
+
+    __repr__.__doc__ = _curate_df_doc(inspect.getdoc(dataframe.DataFrame.__repr__))
+
+    def _repr_html_(self, *args, **kwargs):
+        return _return_type_wrapper(self._df._repr_html_, StreamingDataFrame)(
+            *args, **kwargs
+        )
+
+    _repr_html_.__doc__ = _curate_df_doc(
+        inspect.getdoc(dataframe.DataFrame._repr_html_)
+    )
+
+    @property
+    def sql(self):
+        return self._df.sql
+
+    sql.__doc__ = _curate_df_doc(inspect.getdoc(dataframe.DataFrame.sql))
+
+    @property
+    def _session(self):
+        return self._df._session
+
+    _session.__doc__ = _curate_df_doc(inspect.getdoc(dataframe.DataFrame._session))
 
 
 def _to_bigtable(
