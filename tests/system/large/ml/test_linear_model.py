@@ -111,13 +111,12 @@ def test_linear_regression_customized_params_fit_score(
     assert reloaded_model.learning_rate == 0.2
 
 
-# TODO(garrettwu): add tests for param warm_start. Requires a trained model.
+def test_unordered_mode_regression_configure_fit_score(
+    unordered_session, penguins_table_id, dataset_id
+):
+    model = bigframes.ml.linear_model.LinearRegression()
 
-
-def test_logistic_regression_configure_fit_score(penguins_df_default_index, dataset_id):
-    model = bigframes.ml.linear_model.LogisticRegression()
-
-    df = penguins_df_default_index.dropna()
+    df = unordered_session.read_gbq(penguins_table_id).dropna()
     X_train = df[
         [
             "species",
@@ -125,37 +124,44 @@ def test_logistic_regression_configure_fit_score(penguins_df_default_index, data
             "culmen_length_mm",
             "culmen_depth_mm",
             "flipper_length_mm",
-            "body_mass_g",
+            "sex",
         ]
     ]
-    y_train = df[["sex"]]
+    y_train = df[["body_mass_g"]]
     model.fit(X_train, y_train)
 
     # Check score to ensure the model was fitted
     result = model.score(X_train, y_train).to_pandas()
     utils.check_pandas_df_schema_and_index(
-        result, columns=utils.ML_CLASSFICATION_METRICS, index=1
+        result, columns=utils.ML_REGRESSION_METRICS, index=1
     )
 
     # save, load, check parameters to ensure configuration was kept
-    reloaded_model = model.to_gbq(
-        f"{dataset_id}.temp_configured_logistic_reg_model", replace=True
-    )
+    reloaded_model = model.to_gbq(f"{dataset_id}.temp_configured_model", replace=True)
     assert reloaded_model._bqml_model is not None
     assert (
-        f"{dataset_id}.temp_configured_logistic_reg_model"
-        in reloaded_model._bqml_model.model_name
+        f"{dataset_id}.temp_configured_model" in reloaded_model._bqml_model.model_name
     )
+    assert reloaded_model.optimize_strategy == "NORMAL_EQUATION"
     assert reloaded_model.fit_intercept is True
-    assert reloaded_model.class_weight is None
+    assert reloaded_model.calculate_p_values is False
+    assert reloaded_model.enable_global_explain is False
+    assert reloaded_model.l1_reg is None
+    assert reloaded_model.l2_reg == 0.0
+    assert reloaded_model.learning_rate is None
+    assert reloaded_model.learning_rate_strategy == "line_search"
+    assert reloaded_model.ls_init_learning_rate is None
+    assert reloaded_model.max_iterations == 20
+    assert reloaded_model.tol == 0.01
 
 
-def test_unordered_mode_logistic_regression_configure_fit_score(
-    unordered_session, penguins_table_id, dataset_id
-):
+# TODO(garrettwu): add tests for param warm_start. Requires a trained model.
+
+
+def test_logistic_regression_configure_fit_score(penguins_df_default_index, dataset_id):
     model = bigframes.ml.linear_model.LogisticRegression()
 
-    df = unordered_session.read_gbq(penguins_table_id).dropna()
+    df = penguins_df_default_index.dropna()
     X_train = df[
         [
             "species",

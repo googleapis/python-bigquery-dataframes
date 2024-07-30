@@ -326,7 +326,7 @@ class BqmlModelFactory:
         if y_train is None:
             input_data = X_train.cache()
         else:
-            input_data = X_train.join(y_train.cache(), how="outer").cache()
+            input_data = X_train.join(y_train, how="outer").cache()
             options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
 
         session = X_train._session
