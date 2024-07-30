@@ -29,9 +29,11 @@ import google.cloud.bigquery_storage_v1
 import google.cloud.functions_v2
 import google.cloud.resourcemanager_v3
 import ibis
-import pydata_google_auth
 
 import bigframes.version
+
+# import pydata_google_auth
+
 
 _ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
 _APPLICATION_NAME = f"bigframes/{bigframes.version.__version__} ibis/{ibis.__version__}"
@@ -61,7 +63,16 @@ _BIGQUERYSTORAGE_REGIONAL_ENDPOINT = (
 
 
 def _get_default_credentials_with_project():
-    return pydata_google_auth.default(scopes=_SCOPES, use_local_webserver=False)
+    # return pydata_google_auth.default(scopes=_SCOPES, use_local_webserver=False)
+    credentials, project = google.auth.default(scopes=_SCOPES)
+    if not credentials:
+        raise ValueError("No default credentials found!")
+    elif not credentials.valid:
+        request = google.auth.transport.requests.Request()
+        credentials.refresh(request)
+        if not credentials.valid:
+            raise ValueError("Default credentials could not be refreshed!")
+    return credentials, project
 
 
 class ClientsProvider:

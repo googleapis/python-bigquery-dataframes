@@ -35,6 +35,7 @@ env | grep KOKORO
 # Debug: show auth
 if (which gcloud); then
     gcloud auth list
+    gcloud auth application-default print-access-token
 else
     echo "gcloud not installed"
 fi
