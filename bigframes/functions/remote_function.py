@@ -893,11 +893,16 @@ class _RemoteFunctionSession:
                 dynamically using the `bigquery_connection_client` assuming the user has necessary
                 priviliges. The PROJECT_ID should be the same as the BigQuery connection project.
             reuse (bool, Optional):
-                Reuse the remote function if is already exists.
-                `True` by default, which results in reusing an existing remote
+                Reuse the remote function if already exists.
+                `True` by default, which will result in reusing an existing remote
                 function and corresponding cloud function (if any) that was
                 previously created for the same udf.
-                Setting it to `False` forces the creation of a unique remote function.
+                Please note that for an unnamed (i.e. created without an explicit
+                `name` argument) remote function, the BigQuery DataFrames
+                session id is attached in the cloud artifacts names. So for the
+                effective reuse across the sessions it is recommended to create
+                the remote function with an explicit `name`.
+                Setting it to `False` would force creating a unique remote function.
                 If the required remote function does not exist then it would be
                 created irrespective of this param.
             name (str, Optional):
