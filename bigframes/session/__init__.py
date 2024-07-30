@@ -765,6 +765,12 @@ class Session(
 
             >>> sdf = bst.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
         """
+        warnings.warn(
+            "The bigframes.streaming module is a preview feature, and subject to change.",
+            stacklevel=1,
+            category=bigframes.exceptions.PreviewWarning,
+        )
+
         import bigframes.streaming.dataframe as streaming_dataframe
 
         df = self._read_gbq_table(
