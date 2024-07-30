@@ -4133,6 +4133,7 @@ def test_df_to_json_local_str(scalars_df_index, scalars_pandas_df_index):
     assert bf_result == pd_result
 
 
+@skip_legacy_pandas
 def test_df_to_json_local_file(scalars_df_index, scalars_pandas_df_index):
     with tempfile.TemporaryFile() as bf_result_file, tempfile.TemporaryFile() as pd_result_file:
         scalars_df_index.to_json(bf_result_file, orient="table")
