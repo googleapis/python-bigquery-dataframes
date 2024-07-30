@@ -760,6 +760,7 @@ class Session(
         **Examples:**
 
             >>> import bigframes.streaming as bst
+            >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
             >>> sdf = bst.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
