@@ -69,7 +69,6 @@ import bigframes.series
 import bigframes.session
 import bigframes.session._io.bigquery
 import bigframes.session.clients
-import bigframes.streaming
 
 try:
     import resource
@@ -597,18 +596,6 @@ def read_gbq_table(
 
 
 read_gbq_table.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_table)
-
-
-def read_gbq_table_streaming(table: str) -> bigframes.streaming.StreamingDataFrame:
-    _set_default_session_location_if_possible(table)
-    return global_session.with_default_session(
-        bigframes.session.Session.read_gbq_table_streaming, table
-    )
-
-
-read_gbq_table_streaming.__doc__ = inspect.getdoc(
-    bigframes.session.Session.read_gbq_table_streaming
-)
 
 
 @typing.overload

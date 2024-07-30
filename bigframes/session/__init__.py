@@ -100,7 +100,6 @@ import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session.clients
 import bigframes.session.planner
-import bigframes.streaming
 import bigframes.version
 
 # Avoid circular imports.
@@ -108,6 +107,7 @@ if typing.TYPE_CHECKING:
     import bigframes.core.indexes
     import bigframes.dataframe as dataframe
     import bigframes.series
+    import bigframes.streaming.dataframe as streaming_dataframe
 
 _BIGFRAMES_DEFAULT_CONNECTION_ID = "bigframes-default-connection"
 
@@ -752,25 +752,19 @@ class Session(
 
     def read_gbq_table_streaming(
         self, table: str
-    ) -> bigframes.streaming.StreamingDataFrame:
+    ) -> streaming_dataframe.StreamingDataFrame:
         """Turn a BigQuery table into a StreamingDataFrame.
 
         Note: The bigframes.streaming module is a preview feature, and subject to change.
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
+            >>> import bigframes.streaming as bst
             >>> bpd.options.display.progress_bar = None
 
-            >>> sdf = bpd.read_gbq_table_streaming("bigquery-public-data.ml_datasets.penguins")
+            >>> sdf = bst.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
         """
-        warnings.warn(
-            "The bigframes.streaming module is a preview feature, and subject to change.",
-            stacklevel=1,
-            category=bigframes.exceptions.PreviewWarning,
-        )
-
-        from bigframes import streaming
+        import bigframes.streaming.dataframe as streaming_dataframe
 
         df = self._read_gbq_table(
             table,
@@ -779,7 +773,7 @@ class Session(
             index_col=bigframes.enums.DefaultIndexKind.NULL,
         )
 
-        return streaming.StreamingDataFrame._from_table_df(df)
+        return streaming_dataframe.StreamingDataFrame._from_table_df(df)
 
     def _read_gbq_table(
         self,
