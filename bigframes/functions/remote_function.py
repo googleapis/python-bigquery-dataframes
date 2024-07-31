@@ -1154,7 +1154,9 @@ class _RemoteFunctionSession:
 
             try_delattr("bigframes_cloud_function")
             try_delattr("bigframes_remote_function")
+            try_delattr("input_dtypes")
             try_delattr("output_dtype")
+            try_delattr("is_row_processor")
             try_delattr("ibis_node")
 
             (
