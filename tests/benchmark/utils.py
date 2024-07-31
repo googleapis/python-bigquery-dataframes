@@ -13,8 +13,32 @@
 # limitations under the License.
 
 import argparse
+import time
 
 import bigframes
+
+
+def get_dbbenchmark_configuration():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--table_id",
+        type=str,
+        required=True,
+        help="The BigQuery table ID to query.",
+    )
+    parser.add_argument(
+        "--ordered",
+        type=str,
+        help="Set to True (default) to have an ordered session, or False for an unordered session.",
+    )
+    parser.add_argument(
+        "--benchmark_suffix",
+        type=str,
+        help="Suffix to append to benchmark names for identification purposes.",
+    )
+    args = parser.parse_args()
+    session = _initialize_session(_str_to_bool(args.ordered))
+    return args.table_id, session, args.benchmark_suffix
 
 
 def get_tpch_configuration():
@@ -41,6 +65,18 @@ def get_tpch_configuration():
     return args.dataset_id, session, args.benchmark_suffix
 
 
+def get_execution_time(func, current_path, suffix, *args, **kwargs):
+    start_time = time.perf_counter()
+    func(*args, **kwargs)
+    end_time = time.perf_counter()
+    runtime = end_time - start_time
+
+    clock_time_file_path = f"{current_path}_{suffix}.local_exec_time_seconds"
+
+    with open(clock_time_file_path, "w") as log_file:
+        log_file.write(f"{runtime}\n")
+
+
 def _str_to_bool(value):
     if value == "True":
         return True
@@ -51,7 +87,9 @@ def _str_to_bool(value):
 
 
 def _initialize_session(ordered: bool):
-    context = bigframes.BigQueryOptions(location="US", _strictly_ordered=ordered)
+    context = bigframes.BigQueryOptions(
+        location="US", ordering_mode="strict" if ordered else "partial"
+    )
     session = bigframes.Session(context=context)
     print(f"Initialized {'ordered' if ordered else 'unordered'} session.")
     return session

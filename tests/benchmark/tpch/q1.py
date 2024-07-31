@@ -12,21 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from pathlib import Path
-import time
 
+import benchmark.utils as utils
 import bigframes_vendored.tpch.queries.q1 as vendored_tpch_q1
-import utils
 
 if __name__ == "__main__":
     dataset_id, session, suffix = utils.get_tpch_configuration()
-
-    start_time = time.perf_counter()
-    vendored_tpch_q1.q(dataset_id, session)
-    end_time = time.perf_counter()
-    runtime = end_time - start_time
-
     current_path = Path(__file__).absolute()
-    clock_time_file_path = f"{current_path}_{suffix}.local_exec_time_seconds"
 
-    with open(clock_time_file_path, "w") as log_file:
-        log_file.write(f"{runtime}\n")
+    utils.get_execution_time(
+        vendored_tpch_q1.q, current_path, suffix, dataset_id, session
+    )

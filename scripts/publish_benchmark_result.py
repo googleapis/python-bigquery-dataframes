@@ -216,6 +216,11 @@ def notebooks_restore_from_backup(notebooks):
 
 def benchmark_process(args, log_env_name_var, filename=None, region=None):
     env = os.environ.copy()
+    current_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        os.path.join(os.getcwd(), "tests") + os.pathsep + current_pythonpath
+    )
+
     if region:
         env["BIGQUERY_LOCATION"] = region
     env[LOGGING_NAME_ENV_VAR] = log_env_name_var
@@ -326,7 +331,7 @@ def collect_benchmark_result(path: Path) -> pd.DataFrame:
             f"{index} - query count: {row['Query_Count']},"
             f" bytes processed sum: {row['Bytes_Processed']},"
             f" slot millis sum: {row['Slot_Millis']},"
-            f" local execution time: {row['Local_Execution_Time_Sec']} seconds"
+            f" local execution time: {row['Local_Execution_Time_Sec']} seconds,"
             f" bigquery execution time: {row['BigQuery_Execution_Time_Sec']} seconds"
         )
 
@@ -395,7 +400,7 @@ def main():
         benchmark_metrics = run_notebook_benchmark()
     else:
         bigquery_table = "bigframes-metrics.benchmark_report.benchmark"
-        benchmark_metrics = run_benchmark(Path("tests/benchmark/"))
+        benchmark_metrics = run_benchmark(Path(os.path.join("tests", "benchmark")))
 
     for idx, col in enumerate(repo_status.keys()):
         benchmark_metrics.insert(idx, col, repo_status[col])

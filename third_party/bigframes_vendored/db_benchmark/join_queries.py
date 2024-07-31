@@ -1,14 +1,14 @@
 # Contains code from https://github.com/duckdblabs/db-benchmark/blob/master/pandas/join-pandas.py
 # and https://github.com/duckdblabs/db-benchmark/blob/main/_helpers/helpers.py
 
-import bigframes.pandas as bpd
+import bigframes
 
 
-def q1(table_id: str):
+def q1(table_id: str, session: bigframes.Session):
     print("Join benchmark 1: small inner on int")
 
-    x = bpd.read_gbq(f"bigframes-dev-perf.dbbenchmark.{table_id}")
-    small = bpd.read_gbq(
+    x = session.read_gbq(f"bigframes-dev-perf.dbbenchmark.{table_id}")
+    small = session.read_gbq(
         f"bigframes-dev-perf.dbbenchmark.{_get_join_table_id(table_id, 'small')}"
     )
 
@@ -18,14 +18,12 @@ def q1(table_id: str):
     chk = [ans["v1"].sum(), ans["v2"].sum()]
     print(chk)
 
-    bpd.reset_session()
 
-
-def q2(table_id: str):
+def q2(table_id: str, session: bigframes.Session):
     print("Join benchmark 2: medium inner on int")
 
-    x = bpd.read_gbq(f"bigframes-dev-perf.dbbenchmark.{table_id}")
-    medium = bpd.read_gbq(
+    x = session.read_gbq(f"bigframes-dev-perf.dbbenchmark.{table_id}")
+    medium = session.read_gbq(
         f"bigframes-dev-perf.dbbenchmark.{_get_join_table_id(table_id, 'medium')}"
     )
 
@@ -35,14 +33,12 @@ def q2(table_id: str):
     chk = [ans["v1"].sum(), ans["v2"].sum()]
     print(chk)
 
-    bpd.reset_session()
 
-
-def q3(table_id: str):
+def q3(table_id: str, session: bigframes.Session):
     print("Join benchmark 3: medium outer on int")
 
-    x = bpd.read_gbq(f"bigframes-dev-perf.dbbenchmark.{table_id}")
-    medium = bpd.read_gbq(
+    x = session.read_gbq(f"bigframes-dev-perf.dbbenchmark.{table_id}")
+    medium = session.read_gbq(
         f"bigframes-dev-perf.dbbenchmark.{_get_join_table_id(table_id, 'medium')}"
     )
 
@@ -52,14 +48,12 @@ def q3(table_id: str):
     chk = [ans["v1"].sum(), ans["v2"].sum()]
     print(chk)
 
-    bpd.reset_session()
 
-
-def q4(table_id: str):
+def q4(table_id: str, session: bigframes.Session):
     print("Join benchmark 4: medium inner on factor")
 
-    x = bpd.read_gbq(f"bigframes-dev-perf.dbbenchmark.{table_id}")
-    medium = bpd.read_gbq(
+    x = session.read_gbq(f"bigframes-dev-perf.dbbenchmark.{table_id}")
+    medium = session.read_gbq(
         f"bigframes-dev-perf.dbbenchmark.{_get_join_table_id(table_id, 'medium')}"
     )
 
@@ -69,14 +63,12 @@ def q4(table_id: str):
     chk = [ans["v1"].sum(), ans["v2"].sum()]
     print(chk)
 
-    bpd.reset_session()
 
-
-def q5(table_id: str):
+def q5(table_id: str, session: bigframes.Session):
     print("Join benchmark 5: big inner on int")
 
-    x = bpd.read_gbq(f"bigframes-dev-perf.dbbenchmark.{table_id}")
-    big = bpd.read_gbq(
+    x = session.read_gbq(f"bigframes-dev-perf.dbbenchmark.{table_id}")
+    big = session.read_gbq(
         f"bigframes-dev-perf.dbbenchmark.{_get_join_table_id(table_id, 'big')}"
     )
 
@@ -85,8 +77,6 @@ def q5(table_id: str):
 
     chk = [ans["v1"].sum(), ans["v2"].sum()]
     print(chk)
-
-    bpd.reset_session()
 
 
 def _get_join_table_id(table_id, join_size):

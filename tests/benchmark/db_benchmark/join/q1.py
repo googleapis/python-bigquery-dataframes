@@ -12,36 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 from pathlib import Path
-import time
 
+import benchmark.utils as utils
 import bigframes_vendored.db_benchmark.join_queries as vendored_dbbenchmark_join_queries
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--table_id",
-        type=str,
-        required=True,
-        help="The BigQuery table ID to query.",
-    )
-    parser.add_argument(
-        "--benchmark_suffix",
-        type=str,
-        help="Suffix to append to benchmark names for identification purposes.",
-    )
-    args = parser.parse_args()
-
-    start_time = time.perf_counter()
-    vendored_dbbenchmark_join_queries.q1(args.table_id)
-    end_time = time.perf_counter()
-    runtime = end_time - start_time
+    table_id, session, suffix = utils.get_dbbenchmark_configuration()
 
     current_path = Path(__file__).absolute()
-    suffix = args.benchmark_suffix
 
-    clock_time_file_path = f"{current_path}_{suffix}.local_exec_time_seconds"
-
-    with open(clock_time_file_path, "w") as log_file:
-        log_file.write(f"{runtime}\n")
+    utils.get_execution_time(
+        vendored_dbbenchmark_join_queries.q1, current_path, suffix, table_id, session
+    )

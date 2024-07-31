@@ -1,14 +1,17 @@
 # Contains code from https://github.com/pola-rs/tpch/blob/main/queries/pandas/q1.py
 
-from datetime import datetime, timedelta
+from datetime import datetime
+import typing
 
+import bigframes
 import bigframes.pandas as bpd
 
 
-def q(dataset_id, session):
+def q(dataset_id: str, session: bigframes.Session):
     lineitem = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.lineitem")
-    cutoff_date = datetime(1998, 12, 1) - timedelta(days=3)
-    lineitem = lineitem[lineitem["L_SHIPDATE"] <= cutoff_date.date()]
+
+    var1 = datetime(1998, 9, 2)
+    lineitem = lineitem[lineitem["L_SHIPDATE"] <= var1.date()]
 
     lineitem["DISC_PRICE"] = lineitem["L_EXTENDEDPRICE"] * (
         1.0 - lineitem["L_DISCOUNT"]
@@ -19,7 +22,7 @@ def q(dataset_id, session):
         * (1.0 + lineitem["L_TAX"])
     )
 
-    result = lineitem.groupby(["L_RETURNFLAG", "L_LINESTATUS"]).agg(
+    result = lineitem.groupby(["L_RETURNFLAG", "L_LINESTATUS"], as_index=False).agg(
         SUM_QTY=bpd.NamedAgg(column="L_QUANTITY", aggfunc="sum"),
         SUM_BASE_PRICE=bpd.NamedAgg(column="L_EXTENDEDPRICE", aggfunc="sum"),
         SUM_DISC_PRICE=bpd.NamedAgg(column="DISC_PRICE", aggfunc="sum"),
@@ -29,8 +32,8 @@ def q(dataset_id, session):
         AVG_DISC=bpd.NamedAgg(column="L_DISCOUNT", aggfunc="mean"),
         COUNT_ORDER=bpd.NamedAgg(column="L_QUANTITY", aggfunc="count"),
     )
-    result = result.sort_index()
+    result = typing.cast(bpd.DataFrame, result).sort_values(
+        ["L_RETURNFLAG", "L_LINESTATUS"]
+    )
 
     print(result)
-
-    bpd.reset_session()
