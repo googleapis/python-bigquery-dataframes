@@ -126,10 +126,11 @@ def test_json_extract_from_json():
 def test_json_extract_from_string():
     s = bpd.Series(['{"a": {"b": [1, 2]}}', '{"a": {"c": 1}}', '{"a": {"b": 0}}'])
     actual = bbq.json_extract(s, "$.a.b")
-    expected = bpd.Series(["[1,2]", None, "0"])
+    expected = _get_series_from_json(["[1,2]", None, "0"])
     pd.testing.assert_series_equal(
         actual.to_pandas(),
         expected.to_pandas(),
+        check_names=False,
     )
 
 
