@@ -1475,8 +1475,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 raise
 
         # We are working with remote function at this point
-        reprojected_series = Series(self._block._force_reproject())
-        result_series = reprojected_series._apply_unary_op(
+        result_series = self._apply_unary_op(
             ops.RemoteFunctionOp(func=func, apply_on_null=True)
         )
 
