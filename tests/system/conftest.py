@@ -51,8 +51,8 @@ import tests.system.utils
 # minute. One session takes about 1 minute to create a remote function. This
 # would allow 50-1 = 49 deletions per session.
 # However, because of b/356217175 the service may throw ResourceExhausted("Too
-# many operations are currently being executed, try again later.", so we peg the
-# cleanup to a more controlled rate.
+# many operations are currently being executed, try again later."), so we peg
+# the cleanup to a more controlled rate.
 MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION = 15
 
 CURRENT_DIR = pathlib.Path(__file__).parent
