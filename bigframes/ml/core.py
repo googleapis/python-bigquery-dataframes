@@ -50,7 +50,7 @@ class BqmlModel(BaseBqml):
             self.model_name
         )
 
-    def _predict_sql(
+    def _apply_ml_tvf(
         self,
         input_data: bpd.DataFrame,
         apply_sql_tvf: Callable[[str], str],
@@ -114,13 +114,13 @@ class BqmlModel(BaseBqml):
         return self._model
 
     def predict(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
-        return self._predict_sql(
+        return self._apply_ml_tvf(
             input_data,
             self._model_manipulation_sql_generator.ml_predict,
         )
 
     def transform(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
-        return self._predict_sql(
+        return self._apply_ml_tvf(
             input_data,
             self._model_manipulation_sql_generator.ml_transform,
         )
@@ -130,7 +130,7 @@ class BqmlModel(BaseBqml):
         input_data: bpd.DataFrame,
         options: Mapping[str, int | float],
     ) -> bpd.DataFrame:
-        return self._predict_sql(
+        return self._apply_ml_tvf(
             input_data,
             lambda source_sql: self._model_manipulation_sql_generator.ml_generate_text(
                 source_sql=source_sql,
@@ -143,7 +143,7 @@ class BqmlModel(BaseBqml):
         input_data: bpd.DataFrame,
         options: Mapping[str, int | float],
     ) -> bpd.DataFrame:
-        return self._predict_sql(
+        return self._apply_ml_tvf(
             input_data,
             lambda source_sql: self._model_manipulation_sql_generator.ml_generate_embedding(
                 source_sql=source_sql,
@@ -156,7 +156,7 @@ class BqmlModel(BaseBqml):
     ) -> bpd.DataFrame:
         assert self._model.model_type in ("PCA", "KMEANS", "ARIMA_PLUS")
 
-        return self._predict_sql(
+        return self._apply_ml_tvf(
             input_data,
             lambda source_sql: self._model_manipulation_sql_generator.ml_detect_anomalies(
                 source_sql=source_sql,
