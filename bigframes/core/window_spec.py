@@ -14,7 +14,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union
+import itertools
+from typing import Optional, Set, Tuple, Union
 
 import bigframes.core.ordering as orderings
 
@@ -162,3 +163,14 @@ class WindowSpec:
         to calculate deterministically.
         """
         return isinstance(self.bounds, RowsWindowBounds)
+
+    @property
+    def all_referenced_columns(self) -> Set[str]:
+        """
+        Return list of all variables reference ind the window.
+        """
+        ordering_vars = itertools.chain.from_iterable(
+            item.scalar_expression.unbound_variables for item in self.ordering
+        )
+        itertools.chain(self.grouping_keys, ordering_vars)
+        return set(itertools.chain(self.grouping_keys, ordering_vars))

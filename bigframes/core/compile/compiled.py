@@ -24,6 +24,7 @@ import ibis
 import ibis.backends.bigquery as ibis_bigquery
 import ibis.common.deferred  # type: ignore
 import ibis.expr.datatypes as ibis_dtypes
+import ibis.expr.operations as ibis_ops
 import ibis.expr.types as ibis_types
 import pandas
 
@@ -71,19 +72,16 @@ class BaseIbisIR(abc.ABC):
         # Allow creating a DataFrame directly from an Ibis table expression.
         # TODO(swast): Validate that each column references the same table (or
         # no table for literal values).
-        self._columns = tuple(columns)
+        self._columns = tuple(
+            column.resolve(table)
+            # TODO(https://github.com/ibis-project/ibis/issues/7613): use
+            # public API to refer to Deferred type.
+            if isinstance(column, ibis.common.deferred.Deferred) else column
+            for column in columns
+        )
         # To allow for more efficient lookup by column name, create a
         # dictionary mapping names to column values.
-        self._column_names = {
-            (
-                column.resolve(table)
-                # TODO(https://github.com/ibis-project/ibis/issues/7613): use
-                # public API to refer to Deferred type.
-                if isinstance(column, ibis.common.deferred.Deferred)
-                else column
-            ).get_name(): column
-            for column in self._columns
-        }
+        self._column_names = {column.get_name(): column for column in self._columns}
 
     @property
     def columns(self) -> typing.Tuple[ibis_types.Value, ...]:
@@ -139,10 +137,6 @@ class BaseIbisIR(abc.ABC):
             for expression, id in expression_id_pairs
         ]
         result = self._select(tuple(values))  # type: ignore
-
-        # Need to reproject to convert ibis Scalar to ibis Column object
-        if any(exp_id[0].is_const for exp_id in expression_id_pairs):
-            result = result._reproject_to_table()
         return result
 
     @abc.abstractmethod
@@ -165,6 +159,13 @@ class BaseIbisIR(abc.ABC):
                 self._column_names[key]
             ),
         )
+
+    def is_scalar_expr(self, key: str) -> bool:
+        # sometimes need to determine if column expression is a scalar expression.
+        # For instance, cannot filter on an analytic expression, or nest analytic expressions.
+        # Literals are excluded because ibis itself doesn't work well with them, not because of sql limitations.
+        ibis_expr = self._get_ibis_column(key)
+        return not is_literal(ibis_expr) and not is_window(ibis_expr)
 
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
         ibis_type = typing.cast(
@@ -355,6 +356,9 @@ class UnorderedIR(BaseIbisIR):
         return table
 
     def filter(self, predicate: ex.Expression) -> UnorderedIR:
+        if any(map(is_window, map(self._get_ibis_column, predicate.unbound_variables))):
+            # ibis doesn't support qualify syntax
+            return self._reproject_to_table().filter(predicate)
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         condition = op_compiler.compile_expression(predicate, bindings)
         return self._filter(condition)
@@ -806,7 +810,6 @@ class OrderedIR(BaseIbisIR):
         output_name=None,
         *,
         never_skip_nulls=False,
-        skip_reproject_unsafe: bool = False,
     ) -> OrderedIR:
         """
         Creates a new expression based on this expression with unary operation applied to one column.
@@ -815,8 +818,18 @@ class OrderedIR(BaseIbisIR):
         window_spec: a specification of the window over which to apply the operator
         output_name: the id to assign to the output of the operator, by default will replace input col if distinct output id not provided
         never_skip_nulls: will disable null skipping for operators that would otherwise do so
-        skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
         """
+        used_vars = [column_name, *window_spec.all_referenced_columns]
+        # Cannot nest analytic expressions, so reproject to cte first if needed.
+        if not all(map(self.is_scalar_expr, used_vars)):
+            return self._reproject_to_table().project_window_op(
+                column_name,
+                op,
+                window_spec,
+                output_name,
+                never_skip_nulls=never_skip_nulls,
+            )
+
         column = typing.cast(ibis_types.Column, self._get_ibis_column(column_name))
         window = self._ibis_window_from_spec(
             window_spec, require_total_order=op.uses_total_row_ordering
@@ -861,8 +874,7 @@ class OrderedIR(BaseIbisIR):
             window_op = case_statement
 
         result = self._set_or_replace_by_id(output_name or column_name, window_op)
-        # TODO(tbergeron): Automatically track analytic expression usage and defer reprojection until required for valid query generation.
-        return result._reproject_to_table() if not skip_reproject_unsafe else result
+        return result
 
     def _reproject_to_table(self) -> OrderedIR:
         table = self._to_ibis_expr(
@@ -1034,6 +1046,9 @@ class OrderedIR(BaseIbisIR):
         return table
 
     def filter(self, predicate: ex.Expression) -> OrderedIR:
+        if any(map(is_window, map(self._get_ibis_column, predicate.unbound_variables))):
+            # ibis doesn't support qualify syntax
+            return self._reproject_to_table().filter(predicate)
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         condition = op_compiler.compile_expression(predicate, bindings)
         return self._filter(condition)
@@ -1326,6 +1341,22 @@ class OrderedIR(BaseIbisIR):
                 ordering=self.ordering,
                 predicates=self.predicates,
             )
+
+
+def is_literal(column: ibis_types.Value) -> bool:
+    # Unfortunately, Literals in ibis are not "Columns"s and therefore can't be aggregated.
+    return not isinstance(column, ibis_types.Column)
+
+
+def is_window(column: ibis_types.Value) -> bool:
+    matches = (
+        (column)
+        .op()
+        .find_topmost(
+            lambda x: isinstance(x, (ibis_ops.WindowFunction, ibis_ops.Relation))
+        )
+    )
+    return any(isinstance(op, ibis_ops.WindowFunction) for op in matches)
 
 
 def _reduce_predicate_list(
