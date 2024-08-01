@@ -4366,16 +4366,28 @@ class DataFrame(generic.NDFrame):
         has matching number of columns and data types. Note: This feature is
         currently in **preview**.
 
+            >>> df = bpd.DataFrame({
+            ...     'col1': [1, 2],
+            ...     'col2': [3, 4],
+            ...     'col3': [5, 5]
+            ... })
+            >>> df
+               col1  col2  col3
+            0     1     3     5
+            1     2     4     5
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
             >>> @bpd.remote_function(reuse=False)
-            ... def foo(val1: int, val2: int) -> float:
+            ... def foo(x: int, y: int, z: int) -> float:
             ...     result = 1
-            ...     result += val1
-            ...     result += val2/2
+            ...     result += x
+            ...     result += y/z
             ...     return result
 
-            >>> df[["col1", "col2"]].apply(foo, axis=1)
-            0    3.5
-            1    5.0
+            >>> df.apply(foo, axis=1)
+            0    2.6
+            1    3.8
             dtype: Float64
 
         Args:
