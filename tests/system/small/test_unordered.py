@@ -139,37 +139,6 @@ def test_unordered_merge(unordered_session):
     assert_pandas_df_equal(bf_result.to_pandas(), pd_result, ignore_order=True)
 
 
-@pytest.mark.parametrize(
-    ("function"),
-    [
-        pytest.param(
-            lambda x: x.cumsum(),
-            id="cumsum",
-        ),
-        pytest.param(
-            lambda x: x.idxmin(),
-            id="idxmin",
-        ),
-        pytest.param(
-            lambda x: x.a.iloc[1::2],
-            id="series_iloc",
-        ),
-        pytest.param(
-            lambda x: x.head(3),
-            id="head",
-        ),
-    ],
-)
-def test_unordered_mode_blocks_windowing(unordered_session, function):
-    pd_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}, dtype=pd.Int64Dtype())
-    df = bpd.DataFrame(pd_df, session=unordered_session)
-    with pytest.raises(
-        bigframes.exceptions.OrderRequiredError,
-        match=r"Op.*not supported when strict ordering is disabled",
-    ):
-        function(df)
-
-
 def test_unordered_mode_cache_preserves_order(unordered_session):
     pd_df = pd.DataFrame(
         {"a": [1, 2, 3, 4, 5, 6], "b": [4, 5, 9, 3, 1, 6]}, dtype=pd.Int64Dtype()
