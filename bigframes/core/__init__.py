@@ -196,7 +196,9 @@ class ArrayValue:
         """
         if self.node.order_ambiguous and not (self.session._strictly_ordered):
             if not self.session._allows_ambiguity:
-                raise ValueError("Generating offsets not supported in unordered mode")
+                raise ValueError(
+                    "Generating offsets not supported in partial ordering mode"
+                )
             else:
                 warnings.warn(
                     "Window ordering may be ambiguous, this can cause unstable results.",
@@ -356,7 +358,7 @@ class ArrayValue:
             if self.node.order_ambiguous and not self.session._strictly_ordered:
                 if not self.session._allows_ambiguity:
                     raise ValueError(
-                        "Generating offsets not supported in unordered mode"
+                        "Generating offsets not supported in partial ordering mode"
                     )
                 else:
                     warnings.warn(
