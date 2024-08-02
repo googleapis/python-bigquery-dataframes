@@ -116,6 +116,28 @@ def test_unordered_drop_duplicates(unordered_session, keep):
     assert_pandas_df_equal(bf_result.to_pandas(), pd_result, ignore_order=True)
 
 
+def test_unordered_reset_index(unordered_session):
+    pd_df = pd.DataFrame({"a": [1, 1, 3], "b": [4, 4, 6]}, dtype=pd.Int64Dtype())
+    bf_df = bpd.DataFrame(pd_df, session=unordered_session)
+
+    bf_result = bf_df.set_index("b").reset_index(drop=False)
+    pd_result = pd_df.set_index("b").reset_index(drop=False)
+
+    assert_pandas_df_equal(bf_result.to_pandas(), pd_result)
+
+
+def test_unordered_merge(unordered_session):
+    pd_df = pd.DataFrame(
+        {"a": [1, 1, 3], "b": [4, 4, 6], "c": [1, 2, 3]}, dtype=pd.Int64Dtype()
+    )
+    bf_df = bpd.DataFrame(pd_df, session=unordered_session)
+
+    bf_result = bf_df.merge(bf_df, left_on="a", right_on="c")
+    pd_result = pd_df.merge(pd_df, left_on="a", right_on="c")
+
+    assert_pandas_df_equal(bf_result.to_pandas(), pd_result, ignore_order=True)
+
+
 @pytest.mark.parametrize(
     ("function"),
     [
@@ -130,6 +152,10 @@ def test_unordered_drop_duplicates(unordered_session, keep):
         pytest.param(
             lambda x: x.a.iloc[1::2],
             id="series_iloc",
+        ),
+        pytest.param(
+            lambda x: x.head(3),
+            id="head",
         ),
     ],
 )

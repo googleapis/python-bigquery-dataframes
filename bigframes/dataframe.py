@@ -49,6 +49,7 @@ import tabulate
 
 import bigframes
 import bigframes._config.display_options as display_options
+import bigframes.constants
 import bigframes.constants as constants
 import bigframes.core
 from bigframes.core import log_adapter
@@ -104,6 +105,8 @@ def requires_index(meth):
 @log_adapter.class_logger
 class DataFrame(vendored_pandas_frame.DataFrame):
     __doc__ = vendored_pandas_frame.DataFrame.__doc__
+    # internal flag to disable cache at all
+    _disable_cache_override: bool = False
 
     def __init__(
         self,
@@ -366,7 +369,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._apply_unary_op(ops.AsTypeOp(to_type=dtype))
 
     def _to_sql_query(
-        self, include_index: bool
+        self, include_index: bool, enable_cache: bool = True
     ) -> Tuple[str, list[str], list[blocks.Label]]:
         """Compiles this DataFrame's expression tree to SQL, optionally
         including index columns.
@@ -380,7 +383,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 If include_index is set to False, index_column_id_list and index_column_label_list
                 return empty lists.
         """
-        return self._block.to_sql_query(include_index)
+        return self._block.to_sql_query(include_index, enable_cache=enable_cache)
 
     @property
     def sql(self) -> str:
@@ -1293,6 +1296,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def copy(self) -> DataFrame:
         return DataFrame(self._block)
 
+    @validations.requires_strict_ordering(bigframes.constants.SUGGEST_PEEK_PREVIEW)
     def head(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[:n])
 
@@ -2948,15 +2952,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def to_csv(
-        self, path_or_buf: str, sep=",", *, header: bool = True, index: bool = True
-    ) -> None:
+        self,
+        path_or_buf=None,
+        sep=",",
+        *,
+        header: bool = True,
+        index: bool = True,
+    ) -> Optional[str]:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
         # TODO(swast): Some warning that wildcard is recommended for large
         # query results? See:
         # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
-        if not path_or_buf.startswith("gs://"):
-            raise NotImplementedError(ERROR_IO_ONLY_GS_PATHS)
+        if not utils.is_gcs_path(path_or_buf):
+            pd_df = self.to_pandas()
+            return pd_df.to_csv(path_or_buf, sep=sep, header=header, index=index)
         if "*" not in path_or_buf:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
@@ -2973,22 +2983,28 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             export_data_statement, api_name="dataframe-to_csv"
         )
         self._set_internal_query_job(query_job)
+        return None
 
     def to_json(
         self,
-        path_or_buf: str,
-        orient: Literal[
-            "split", "records", "index", "columns", "values", "table"
-        ] = "columns",
+        path_or_buf=None,
+        orient: Optional[
+            Literal["split", "records", "index", "columns", "values", "table"]
+        ] = None,
         *,
         lines: bool = False,
         index: bool = True,
-    ) -> None:
+    ) -> Optional[str]:
         # TODO(swast): Can we support partition columns argument?
-        # TODO(chelsealin): Support local file paths.
-        if not path_or_buf.startswith("gs://"):
-            raise NotImplementedError(ERROR_IO_ONLY_GS_PATHS)
-
+        if not utils.is_gcs_path(path_or_buf):
+            pd_df = self.to_pandas()
+            return pd_df.to_json(
+                path_or_buf,
+                orient=orient,
+                lines=lines,
+                index=index,
+                default_handler=str,
+            )
         if "*" not in path_or_buf:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
@@ -3017,6 +3033,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             export_data_statement, api_name="dataframe-to_json"
         )
         self._set_internal_query_job(query_job)
+        return None
 
     def to_gbq(
         self,
@@ -3115,19 +3132,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def to_parquet(
         self,
-        path: str,
+        path=None,
         *,
         compression: Optional[Literal["snappy", "gzip"]] = "snappy",
         index: bool = True,
-    ) -> None:
+    ) -> Optional[bytes]:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
         # TODO(swast): Some warning that wildcard is recommended for large
         # query results? See:
         # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
-        if not path.startswith("gs://"):
-            raise NotImplementedError(ERROR_IO_ONLY_GS_PATHS)
-
+        if not utils.is_gcs_path(path):
+            pd_df = self.to_pandas()
+            return pd_df.to_parquet(path, compression=compression, index=index)
         if "*" not in path:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
@@ -3151,6 +3168,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             export_data_statement, api_name="dataframe-to_parquet"
         )
         self._set_internal_query_job(query_job)
+        return None
 
     def to_dict(
         self,
@@ -3610,6 +3628,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         No-op if the dataframe represents a trivial transformation of an existing materialization.
         Force=True is used for BQML integration where need to copy data rather than use snapshot.
         """
+        if self._disable_cache_override:
+            return self
         self._block.cached(force=force)
         return self
 
