@@ -107,6 +107,7 @@ if typing.TYPE_CHECKING:
     import bigframes.core.indexes
     import bigframes.dataframe as dataframe
     import bigframes.series
+    import bigframes.streaming.dataframe as streaming_dataframe
 
 _BIGFRAMES_DEFAULT_CONNECTION_ID = "bigframes-default-connection"
 
@@ -301,7 +302,7 @@ class Session(
         if not self._strictly_ordered:
             warnings.warn(
                 "Partial ordering mode is a preview feature and is subject to change.",
-                bigframes.exceptions.PreviewWarning,
+                bigframes.exceptions.OrderingModePartialPreviewWarning,
             )
 
         # Sequential index needs total ordering to generate, so use null index with unstrict ordering.
@@ -754,6 +755,38 @@ class Session(
             filters=filters,
         )
 
+    def read_gbq_table_streaming(
+        self, table: str
+    ) -> streaming_dataframe.StreamingDataFrame:
+        """Turn a BigQuery table into a StreamingDataFrame.
+
+        Note: The bigframes.streaming module is a preview feature, and subject to change.
+
+        **Examples:**
+
+            >>> import bigframes.streaming as bst
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> sdf = bst.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
+        """
+        warnings.warn(
+            "The bigframes.streaming module is a preview feature, and subject to change.",
+            stacklevel=1,
+            category=bigframes.exceptions.PreviewWarning,
+        )
+
+        import bigframes.streaming.dataframe as streaming_dataframe
+
+        df = self._read_gbq_table(
+            table,
+            api_name="read_gbq_table_steaming",
+            enable_snapshot=False,
+            index_col=bigframes.enums.DefaultIndexKind.NULL,
+        )
+
+        return streaming_dataframe.StreamingDataFrame._from_table_df(df)
+
     def _read_gbq_table(
         self,
         query: str,
@@ -764,6 +797,7 @@ class Session(
         api_name: str,
         use_cache: bool = True,
         filters: third_party_pandas_gbq.FiltersType = (),
+        enable_snapshot: bool = True,
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
@@ -882,7 +916,7 @@ class Session(
             else (*columns, *[col for col in index_cols if col not in columns])
         )
 
-        supports_snapshot = bf_read_gbq_table.validate_table(
+        enable_snapshot = enable_snapshot and bf_read_gbq_table.validate_table(
             self.bqclient, table_ref, all_columns, time_travel_timestamp, filter_str
         )
 
@@ -910,7 +944,7 @@ class Session(
             table,
             schema=schema,
             predicate=filter_str,
-            at_time=time_travel_timestamp if supports_snapshot else None,
+            at_time=time_travel_timestamp if enable_snapshot else None,
             primary_key=index_cols if is_index_unique else (),
             session=self,
         )
@@ -1632,17 +1666,23 @@ class Session(
             reuse (bool, Optional):
                 Reuse the remote function if already exists.
                 `True` by default, which will result in reusing an existing remote
-                function and corresponding cloud function (if any) that was
-                previously created for the same udf.
+                function and corresponding cloud function that was previously
+                created (if any) for the same udf.
+                Please note that for an unnamed (i.e. created without an explicit
+                `name` argument) remote function, the BigQuery DataFrames
+                session id is attached in the cloud artifacts names. So for the
+                effective reuse across the sessions it is recommended to create
+                the remote function with an explicit `name`.
                 Setting it to `False` would force creating a unique remote function.
                 If the required remote function does not exist then it would be
                 created irrespective of this param.
             name (str, Optional):
-                Explicit name of the persisted BigQuery remote function. Use it with
-                caution, because two users working in the same project and dataset
-                could overwrite each other's remote functions if they use the same
-                persistent name. When an explicit name is provided, any session
-                specific clean up (``bigframes.session.Session.close``/
+                Explicit name of the persisted BigQuery remote function. Use it
+                with caution, because more than one users working in the same
+                project and dataset could overwrite each other's remote
+                functions if they use the same persistent name. When an explicit
+                name is provided, any session specific clean up (
+                ``bigframes.session.Session.close``/
                 ``bigframes.pandas.close_session``/
                 ``bigframes.pandas.reset_session``/
                 ``bigframes.pandas.clean_up_by_session_id``) does not clean up
@@ -2055,17 +2095,20 @@ class Session(
         offset_column: typing.Optional[str] = None,
         col_id_overrides: typing.Mapping[str, str] = {},
         ordered: bool = False,
+        enable_cache: bool = True,
     ) -> str:
         if offset_column:
             array_value = array_value.promote_offsets(offset_column)
-        node_w_cached = self._with_cached_executions(array_value.node)
+        node = (
+            self._with_cached_executions(array_value.node)
+            if enable_cache
+            else array_value.node
+        )
         if ordered:
             return self._compiler.compile_ordered(
-                node_w_cached, col_id_overrides=col_id_overrides
+                node, col_id_overrides=col_id_overrides
             )
-        return self._compiler.compile_unordered(
-            node_w_cached, col_id_overrides=col_id_overrides
-        )
+        return self._compiler.compile_unordered(node, col_id_overrides=col_id_overrides)
 
     def _get_table_size(self, destination_table):
         table = self.bqclient.get_table(destination_table)
