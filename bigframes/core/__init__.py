@@ -195,7 +195,7 @@ class ArrayValue:
         Convenience function to promote copy of column offsets to a value column. Can be used to reset index.
         """
         if self.node.order_ambiguous and not (self.session._strictly_ordered):
-            if not self.session.allow_ambiguity:
+            if not self.session._allows_ambiguity:
                 raise ValueError("Generating offsets not supported in unordered mode")
             else:
                 warnings.warn(
@@ -354,7 +354,7 @@ class ArrayValue:
         # TODO: Support non-deterministic windowing
         if window_spec.row_bounded or not op.order_independent:
             if self.node.order_ambiguous and not self.session._strictly_ordered:
-                if not self.session.allow_ambiguity:
+                if not self.session._allows_ambiguity:
                     raise ValueError(
                         "Generating offsets not supported in unordered mode"
                     )

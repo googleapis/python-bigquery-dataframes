@@ -56,7 +56,7 @@ def enforce_ordered(
     if session._strictly_ordered or not object._block.expr.node.order_ambiguous:
         # No ambiguity for how to calculate ordering, so no error or warning
         return None
-    if not session.allow_ambiguity:
+    if not session._allows_ambiguity:
         suggestion_substr = suggestion + " " if suggestion else ""
         raise bigframes.exceptions.OrderRequiredError(
             f"Op {opname} not supported when strict ordering is disabled. {suggestion_substr}{bigframes.constants.FEEDBACK_LINK}"

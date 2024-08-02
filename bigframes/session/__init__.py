@@ -380,7 +380,7 @@ class Session(
         return self._slot_millis_sum
 
     @property
-    def allow_ambiguity(self) -> bool:
+    def _allows_ambiguity(self) -> bool:
         return self._allow_ambiguity
 
     def _add_bytes_processed(self, amount: int):
