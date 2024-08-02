@@ -172,5 +172,4 @@ class WindowSpec:
         ordering_vars = itertools.chain.from_iterable(
             item.scalar_expression.unbound_variables for item in self.ordering
         )
-        itertools.chain(self.grouping_keys, ordering_vars)
         return set(itertools.chain(self.grouping_keys, ordering_vars))

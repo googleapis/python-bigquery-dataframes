@@ -1919,7 +1919,7 @@ class Session(
                 new_message = "Computation is too complex to execute as a single query. Try using DataFrame.cache() on intermediate results, or setting bigframes.options.compute.enable_multi_query_execution."
                 raise bigframes.exceptions.QueryComplexityError(new_message) from e
             else:
-                raise
+                raise ValueError(sql)
 
     def _start_query_ml_ddl(
         self,
