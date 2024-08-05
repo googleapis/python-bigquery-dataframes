@@ -347,7 +347,8 @@ class UnorderedIR(BaseIbisIR):
 
     def filter(self, predicate: ex.Expression) -> UnorderedIR:
         if any(map(is_window, map(self._get_ibis_column, predicate.unbound_variables))):
-            # ibis doesn't support qualify syntax
+            # ibis doesn't support qualify syntax, so create CTE if filtering over window expression
+            # https://github.com/ibis-project/ibis/issues/9775
             return self._reproject_to_table().filter(predicate)
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         condition = op_compiler.compile_expression(predicate, bindings)
@@ -791,6 +792,7 @@ class OrderedIR(BaseIbisIR):
             return expr_builder.build()
         # Cannot nest analytic expressions, so reproject to cte first if needed.
         # Also ibis cannot window literals, so need to reproject those (even though this is legal in googlesql)
+        # Seee: https://github.com/ibis-project/ibis/issues/9773
         can_directly_window = not any(
             map(lambda x: is_literal(x) or is_window(x), self._ibis_order)
         )
@@ -828,6 +830,7 @@ class OrderedIR(BaseIbisIR):
         """
         # Cannot nest analytic expressions, so reproject to cte first if needed.
         # Also ibis cannot window literals, so need to reproject those (even though this is legal in googlesql)
+        # See: https://github.com/ibis-project/ibis/issues/9773
         used_exprs = map(
             self._get_any_column, [column_name, *window_spec.all_referenced_columns]
         )
@@ -1058,7 +1061,8 @@ class OrderedIR(BaseIbisIR):
 
     def filter(self, predicate: ex.Expression) -> OrderedIR:
         if any(map(is_window, map(self._get_ibis_column, predicate.unbound_variables))):
-            # ibis doesn't support qualify syntax
+            # ibis doesn't support qualify syntax, so create CTE if filtering over window expression
+            # https://github.com/ibis-project/ibis/issues/9775
             return self._reproject_to_table().filter(predicate)
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         condition = op_compiler.compile_expression(predicate, bindings)
