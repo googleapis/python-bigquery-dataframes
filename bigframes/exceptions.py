@@ -47,6 +47,10 @@ class NullIndexError(ValueError):
     """Object has no index."""
 
 
+class OrderingModePartialPreviewWarning(PreviewWarning):
+    """Ordering mode 'partial' is in preview."""
+
+
 class OrderRequiredError(ValueError):
     """Operation requires total row ordering to be enabled."""
 
@@ -57,3 +61,11 @@ class QueryComplexityError(RuntimeError):
 
 class TimeTravelDisabledWarning(Warning):
     """A query was reattempted without time travel."""
+
+
+class AmbiguousWindowWarning(Warning):
+    """A query may produce nondeterministic results as the window may be ambiguously ordered."""
+
+
+class UnknownDataTypeWarning(Warning):
+    """Data type is unknown."""

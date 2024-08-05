@@ -659,6 +659,19 @@ class BinaryRemoteFunctionOp(BinaryOp):
             raise AttributeError("output_dtype not defined")
 
 
+@dataclasses.dataclass(frozen=True)
+class NaryRemoteFunctionOp(NaryOp):
+    name: typing.ClassVar[str] = "nary_remote_function"
+    func: typing.Callable
+
+    def output_type(self, *input_types):
+        # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
+        if hasattr(self.func, "output_dtype"):
+            return self.func.output_dtype
+        else:
+            raise AttributeError("output_dtype not defined")
+
+
 add_op = AddOp()
 sub_op = SubOp()
 mul_op = create_binary_op(name="mul", type_signature=op_typing.BINARY_NUMERIC)
@@ -688,6 +701,17 @@ lt_op = create_binary_op(name="lt", type_signature=op_typing.COMPARISON)
 gt_op = create_binary_op(name="gt", type_signature=op_typing.COMPARISON)
 le_op = create_binary_op(name="le", type_signature=op_typing.COMPARISON)
 ge_op = create_binary_op(name="ge", type_signature=op_typing.COMPARISON)
+
+
+cosine_distance_op = create_binary_op(
+    name="ml_cosine_distance", type_signature=op_typing.VECTOR_METRIC
+)
+manhattan_distance_op = create_binary_op(
+    name="ml_manhattan_distance", type_signature=op_typing.VECTOR_METRIC
+)
+euclidean_distance_op = create_binary_op(
+    name="ml_euclidean_distance", type_signature=op_typing.VECTOR_METRIC
+)
 
 
 ## String Ops

@@ -17,13 +17,14 @@
 from __future__ import annotations
 
 import functools
-from typing import Protocol, TYPE_CHECKING
+from typing import Optional, Protocol, TYPE_CHECKING
 
 import bigframes.constants
 import bigframes.exceptions
 
 if TYPE_CHECKING:
     from bigframes import Session
+    from bigframes.core.blocks import Block
 
 
 class HasSession(Protocol):
@@ -31,12 +32,16 @@ class HasSession(Protocol):
     def _session(self) -> Session:
         ...
 
+    @property
+    def _block(self) -> Block:
+        ...
 
-def requires_strict_ordering():
+
+def requires_ordering(suggestion: Optional[str] = None):
     def decorator(meth):
         @functools.wraps(meth)
         def guarded_meth(object: HasSession, *args, **kwargs):
-            enforce_ordered(object, meth.__name__)
+            enforce_ordered(object, meth.__name__, suggestion)
             return meth(object, *args, **kwargs)
 
         return guarded_meth
@@ -44,8 +49,19 @@ def requires_strict_ordering():
     return decorator
 
 
-def enforce_ordered(object: HasSession, opname: str) -> None:
-    if not object._session._strictly_ordered:
+def enforce_ordered(
+    object: HasSession, opname: str, suggestion: Optional[str] = None
+) -> None:
+    session = object._session
+    if session._strictly_ordered or not object._block.expr.node.order_ambiguous:
+        # No ambiguity for how to calculate ordering, so no error or warning
+        return None
+    if not session._allows_ambiguity:
+        suggestion_substr = suggestion + " " if suggestion else ""
         raise bigframes.exceptions.OrderRequiredError(
-            f"Op {opname} not supported when strict ordering is disabled. {bigframes.constants.FEEDBACK_LINK}"
+            f"Op {opname} not supported when strict ordering is disabled. {suggestion_substr}{bigframes.constants.FEEDBACK_LINK}"
+        )
+    if not object._block.explicitly_ordered:
+        raise bigframes.exceptions.OrderRequiredError(
+            f"Op {opname} requires an ordering. Use .sort_values or .sort_index to provide an ordering. {bigframes.constants.FEEDBACK_LINK}"
         )
