@@ -282,12 +282,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return indexers.LocDataFrameIndexer(self)
 
     @property
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def iloc(self) -> indexers.ILocDataFrameIndexer:
         return indexers.ILocDataFrameIndexer(self)
 
     @property
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def iat(self) -> indexers.IatDataFrameIndexer:
         return indexers.IatDataFrameIndexer(self)
 
@@ -344,12 +344,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return len(self._block.index_columns) > 0
 
     @property
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def T(self) -> DataFrame:
         return DataFrame(self._get_block().transpose())
 
     @requires_index
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def transpose(self) -> DataFrame:
         return self.T
 
@@ -1296,11 +1296,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def copy(self) -> DataFrame:
         return DataFrame(self._block)
 
-    @validations.requires_strict_ordering(bigframes.constants.SUGGEST_PEEK_PREVIEW)
+    @validations.requires_ordering(bigframes.constants.SUGGEST_PEEK_PREVIEW)
     def head(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[:n])
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def tail(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[-n:])
 
@@ -1540,7 +1540,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             labels = [mapper]
         return DataFrame(self._block.with_index_labels(labels))
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def equals(self, other: typing.Union[bigframes.series.Series, DataFrame]) -> bool:
         # Must be same object type, same column dtypes, and same label values
         if not isinstance(other, DataFrame):
@@ -1938,7 +1938,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def reindex_like(self, other: DataFrame, *, validate: typing.Optional[bool] = None):
         return self.reindex(index=other.index, columns=other.columns, validate=validate)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     @requires_index
     def interpolate(self, method: str = "linear") -> DataFrame:
         if method == "pad":
@@ -1964,12 +1964,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             lambda x: x.replace(to_replace=to_replace, value=value, regex=regex)
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
         window = window_spec.rows(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def bfill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
         window = window_spec.rows(preceding=0, following=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
@@ -2235,16 +2235,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     aggregate.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.agg)
 
     @requires_index
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def idxmin(self) -> bigframes.series.Series:
         return bigframes.series.Series(block_ops.idxmin(self._block))
 
     @requires_index
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def idxmax(self) -> bigframes.series.Series:
         return bigframes.series.Series(block_ops.idxmax(self._block))
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def melt(
         self,
         id_vars: typing.Optional[typing.Iterable[typing.Hashable]] = None,
@@ -2349,7 +2349,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(pivot_block)
 
     @requires_index
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def pivot(
         self,
         *,
@@ -2364,7 +2364,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._pivot(columns=columns, index=index, values=values)
 
     @requires_index
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def pivot_table(
         self,
         values: typing.Optional[
@@ -2464,7 +2464,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     @requires_index
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def unstack(self, level: LevelsType = -1):
         if not utils.is_list_like(level):
             level = [level]
@@ -2675,7 +2675,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block, _ = self._block.join(other._block, how=how, block_identity_join=True)
         return DataFrame(block)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
         # To get n size window, need current row and n-1 preceding rows.
         window_def = window_spec.rows(
@@ -2685,7 +2685,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._block, window_def, self._block.value_columns
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def expanding(self, min_periods: int = 1) -> bigframes.core.window.Window:
         window = window_spec.cumulative_rows(min_periods=min_periods)
         return bigframes.core.window.Window(
@@ -2788,7 +2788,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     notnull = notna
     notnull.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.notna)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cumsum(self):
         is_numeric_types = [
             (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
@@ -2801,7 +2801,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             window_spec.cumulative_rows(),
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cumprod(self) -> DataFrame:
         is_numeric_types = [
             (dtype in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
@@ -2814,21 +2814,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             window_spec.cumulative_rows(),
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cummin(self) -> DataFrame:
         return self._apply_window_op(
             agg_ops.min_op,
             window_spec.cumulative_rows(),
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cummax(self) -> DataFrame:
         return self._apply_window_op(
             agg_ops.max_op,
             window_spec.cumulative_rows(),
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def shift(self, periods: int = 1) -> DataFrame:
         window = window_spec.rows(
             preceding=periods if periods > 0 else None,
@@ -2836,7 +2836,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def diff(self, periods: int = 1) -> DataFrame:
         window = window_spec.rows(
             preceding=periods if periods > 0 else None,
@@ -2844,7 +2844,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return self._apply_window_op(agg_ops.DiffOp(periods), window)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def pct_change(self, periods: int = 1) -> DataFrame:
         # Future versions of pandas will not perfrom ffill automatically
         df = self.ffill()
@@ -2862,7 +2862,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(block.select_columns(result_ids))
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def sample(
         self,
         n: Optional[int] = None,
@@ -3433,9 +3433,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError(f"na_action={na_action} not supported")
 
         # TODO(shobs): Support **kwargs
-        # Reproject as workaround to applying filter too late. This forces the filter
-        # to be applied before passing data to remote function, protecting from bad
-        # inputs causing errors.
+        # Reproject as workaround to applying filter too late. This forces the
+        # filter to be applied before passing data to remote function,
+        # protecting from bad inputs causing errors.
         reprojected_df = DataFrame(self._block._force_reproject())
         return reprojected_df._apply_unary_op(
             ops.RemoteFunctionOp(func=func, apply_on_null=(na_action is None))
@@ -3448,65 +3448,99 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 category=bigframes.exceptions.PreviewWarning,
             )
 
-            # Early check whether the dataframe dtypes are currently supported
-            # in the remote function
-            # NOTE: Keep in sync with the value converters used in the gcf code
-            # generated in remote_function_template.py
-            remote_function_supported_dtypes = (
-                bigframes.dtypes.INT_DTYPE,
-                bigframes.dtypes.FLOAT_DTYPE,
-                bigframes.dtypes.BOOL_DTYPE,
-                bigframes.dtypes.BYTES_DTYPE,
-                bigframes.dtypes.STRING_DTYPE,
-            )
-            supported_dtypes_types = tuple(
-                type(dtype)
-                for dtype in remote_function_supported_dtypes
-                if not isinstance(dtype, pandas.ArrowDtype)
-            )
-            # Check ArrowDtype separately since multiple BigQuery types map to
-            # ArrowDtype, including BYTES and TIMESTAMP.
-            supported_arrow_types = tuple(
-                dtype.pyarrow_dtype
-                for dtype in remote_function_supported_dtypes
-                if isinstance(dtype, pandas.ArrowDtype)
-            )
-            supported_dtypes_hints = tuple(
-                str(dtype) for dtype in remote_function_supported_dtypes
-            )
-
-            for dtype in self.dtypes:
-                if (
-                    # Not one of the pandas/numpy types.
-                    not isinstance(dtype, supported_dtypes_types)
-                    # And not one of the arrow types.
-                    and not (
-                        isinstance(dtype, pandas.ArrowDtype)
-                        and any(
-                            dtype.pyarrow_dtype.equals(arrow_type)
-                            for arrow_type in supported_arrow_types
-                        )
-                    )
-                ):
-                    raise NotImplementedError(
-                        f"DataFrame has a column of dtype '{dtype}' which is not supported with axis=1."
-                        f" Supported dtypes are {supported_dtypes_hints}."
-                    )
-
             # Check if the function is a remote function
             if not hasattr(func, "bigframes_remote_function"):
                 raise ValueError("For axis=1 a remote function must be used.")
 
-            # Serialize the rows as json values
-            block = self._get_block()
-            rows_as_json_series = bigframes.series.Series(
-                block._get_rows_as_json_values()
-            )
+            is_row_processor = getattr(func, "is_row_processor")
+            if is_row_processor:
+                # Early check whether the dataframe dtypes are currently supported
+                # in the remote function
+                # NOTE: Keep in sync with the value converters used in the gcf code
+                # generated in remote_function_template.py
+                remote_function_supported_dtypes = (
+                    bigframes.dtypes.INT_DTYPE,
+                    bigframes.dtypes.FLOAT_DTYPE,
+                    bigframes.dtypes.BOOL_DTYPE,
+                    bigframes.dtypes.BYTES_DTYPE,
+                    bigframes.dtypes.STRING_DTYPE,
+                )
+                supported_dtypes_types = tuple(
+                    type(dtype)
+                    for dtype in remote_function_supported_dtypes
+                    if not isinstance(dtype, pandas.ArrowDtype)
+                )
+                # Check ArrowDtype separately since multiple BigQuery types map to
+                # ArrowDtype, including BYTES and TIMESTAMP.
+                supported_arrow_types = tuple(
+                    dtype.pyarrow_dtype
+                    for dtype in remote_function_supported_dtypes
+                    if isinstance(dtype, pandas.ArrowDtype)
+                )
+                supported_dtypes_hints = tuple(
+                    str(dtype) for dtype in remote_function_supported_dtypes
+                )
 
-            # Apply the function
-            result_series = rows_as_json_series._apply_unary_op(
-                ops.RemoteFunctionOp(func=func, apply_on_null=True)
-            )
+                for dtype in self.dtypes:
+                    if (
+                        # Not one of the pandas/numpy types.
+                        not isinstance(dtype, supported_dtypes_types)
+                        # And not one of the arrow types.
+                        and not (
+                            isinstance(dtype, pandas.ArrowDtype)
+                            and any(
+                                dtype.pyarrow_dtype.equals(arrow_type)
+                                for arrow_type in supported_arrow_types
+                            )
+                        )
+                    ):
+                        raise NotImplementedError(
+                            f"DataFrame has a column of dtype '{dtype}' which is not supported with axis=1."
+                            f" Supported dtypes are {supported_dtypes_hints}."
+                        )
+
+                # Serialize the rows as json values
+                block = self._get_block()
+                rows_as_json_series = bigframes.series.Series(
+                    block._get_rows_as_json_values()
+                )
+
+                # Apply the function
+                result_series = rows_as_json_series._apply_unary_op(
+                    ops.RemoteFunctionOp(func=func, apply_on_null=True)
+                )
+            else:
+                # This is a special case where we are providing not-pandas-like
+                # extension. If the remote function can take one or more params
+                # then we assume that here the user intention is to use the
+                # column values of the dataframe as arguments to the function.
+                # For this to work the following condition must be true:
+                #   1. The number or input params in the function must be same
+                #      as the number of columns in the dataframe
+                #   2. The dtypes of the columns in the dataframe must be
+                #      compatible with the data types of the input params
+                #   3. The order of the columns in the dataframe must correspond
+                #      to the order of the input params in the function
+                udf_input_dtypes = getattr(func, "input_dtypes")
+                if len(udf_input_dtypes) != len(self.columns):
+                    raise ValueError(
+                        f"Remote function takes {len(udf_input_dtypes)} arguments but DataFrame has {len(self.columns)} columns."
+                    )
+                if udf_input_dtypes != tuple(self.dtypes.to_list()):
+                    raise ValueError(
+                        f"Remote function takes arguments of types {udf_input_dtypes} but DataFrame dtypes are {tuple(self.dtypes)}."
+                    )
+
+                series_list = [self[col] for col in self.columns]
+                # Reproject as workaround to applying filter too late. This forces the
+                # filter to be applied before passing data to remote function,
+                # protecting from bad inputs causing errors.
+                reprojected_series = bigframes.series.Series(
+                    series_list[0]._block._force_reproject()
+                )
+                result_series = reprojected_series._apply_nary_op(
+                    ops.NaryRemoteFunctionOp(func=func), series_list[1:]
+                )
             result_series.name = None
 
             # Return Series with materialized result so that any error in the remote
@@ -3644,7 +3678,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     _DataFrameOrSeries = typing.TypeVar("_DataFrameOrSeries")
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def dot(self, other: _DataFrameOrSeries) -> _DataFrameOrSeries:
         if not isinstance(other, (DataFrame, bf_series.Series)):
             raise NotImplementedError(
