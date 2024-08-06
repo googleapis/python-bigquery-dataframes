@@ -206,6 +206,8 @@
   - items:
     - name: Overview
       uid: bigframes.streaming
-    name: Streaming
+    - name: StreamingDataFrame
+      uid: bigframes.streaming.dataframe.StreamingDataFrame
+    name: bigframes.streaming
     status: beta
   name: BigQuery DataFrames
