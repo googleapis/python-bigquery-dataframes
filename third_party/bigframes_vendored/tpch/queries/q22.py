@@ -17,7 +17,7 @@ def q(dataset_id: str, session: bigframes.Session):
     ]["C_ACCTBAL"].mean()
 
     if not session._strictly_ordered:
-        orders_unique = orders.sort_values(by="O_CUSTKEY")
+        orders = orders.sort_values(by="O_CUSTKEY")
     orders_unique = orders.drop_duplicates(subset=["O_CUSTKEY"])
 
     matched_customers = customer.merge(
