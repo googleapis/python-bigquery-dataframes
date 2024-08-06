@@ -39,4 +39,4 @@ def q(dataset_id: str, session: bigframes.Session):
     q_final = max_revenue_suppliers[
         ["S_SUPPKEY", "S_NAME", "S_ADDRESS", "S_PHONE", "TOTAL_REVENUE"]
     ].sort_values("S_SUPPKEY")
-    print(q_final)
+    q_final.to_gbq()

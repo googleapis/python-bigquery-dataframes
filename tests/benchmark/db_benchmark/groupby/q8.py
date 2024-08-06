@@ -21,9 +21,6 @@ if __name__ == "__main__":
     table_id, session, suffix = utils.get_dbbenchmark_configuration()
     current_path = Path(__file__).absolute()
 
-    if not session._strictly_ordered:
-        exit()
-
     utils.get_execution_time(
         vendored_dbbenchmark_groupby_queries.q8, current_path, suffix, table_id, session
     )

@@ -36,4 +36,4 @@ def q(dataset_id: str, session: bigframes.Session):
         ["L_RETURNFLAG", "L_LINESTATUS"]
     )
 
-    print(result)
+    result.to_gbq()

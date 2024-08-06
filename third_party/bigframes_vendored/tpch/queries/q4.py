@@ -20,10 +20,13 @@ def q(dataset_id: str, session: bigframes.Session):
     jn = jn[(jn["O_ORDERDATE"] >= var1) & (jn["O_ORDERDATE"] < var2)]
     jn = jn[jn["L_COMMITDATE"] < jn["L_RECEIPTDATE"]]
 
+    if not session._strictly_ordered:
+        jn = jn.sort_values(by=["O_ORDERPRIORITY", "L_ORDERKEY"])
+
     jn = jn.drop_duplicates(subset=["O_ORDERPRIORITY", "L_ORDERKEY"])
 
     gb = jn.groupby("O_ORDERPRIORITY", as_index=False)
     agg = gb.agg(ORDER_COUNT=bpd.NamedAgg(column="L_ORDERKEY", aggfunc="count"))
 
     result_df = typing.cast(bpd.DataFrame, agg).sort_values(["O_ORDERPRIORITY"])
-    print(result_df)
+    result_df.to_gbq()

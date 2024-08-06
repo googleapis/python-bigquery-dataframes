@@ -31,4 +31,4 @@ def q(dataset_id: str, session: bigframes.Session):
         {"AVG_YEARLY": [(q_final["L_EXTENDEDPRICE"].sum() / 7.0).round(2)]}
     )
 
-    print(q_final)
+    q_final.to_gbq()

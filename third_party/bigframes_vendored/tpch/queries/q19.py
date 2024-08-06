@@ -48,5 +48,4 @@ def q(dataset_id: str, session: bigframes.Session):
     ]
 
     revenue = (filtered["L_EXTENDEDPRICE"] * (1 - filtered["L_DISCOUNT"])).sum()
-    rounded_revenue = round(revenue, 2)
-    print(rounded_revenue)
+    _ = round(revenue, 2)

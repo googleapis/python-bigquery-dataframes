@@ -24,4 +24,4 @@ def q(dataset_id: str, session: bigframes.Session):
         .to_frame()
     )
 
-    print(result_df)
+    result_df.to_gbq()

@@ -28,4 +28,4 @@ def q(dataset_id: str, session: bigframes.Session):
         ["CUSTDIST", "C_COUNT"], ascending=[False, False]
     )
 
-    print(q_final)
+    q_final.to_gbq()

@@ -16,7 +16,6 @@
 
 from __future__ import absolute_import
 
-from multiprocessing import Process
 import os
 import pathlib
 from pathlib import Path
@@ -721,7 +720,7 @@ def notebook(session: nox.Session):
     notebooks = [str(nb) for nb in notebooks_list]
 
     # Remove tests that we choose not to test.
-    notebooks = [list(filter(lambda nb: nb not in denylist, notebooks))[2]]
+    notebooks = list(filter(lambda nb: nb not in denylist, notebooks))
 
     # Regionalized notebooks
     notebooks_reg = {
@@ -753,26 +752,23 @@ def notebook(session: nox.Session):
             CURRENT_DIRECTORY / "scripts" / "notebooks_fill_params.py",
             *notebooks,
         )
-
-        # Run notebooks in parallel session.run's, since each notebook
-        # takes an environment variable for performance logging
-        processes = []
         for notebook in notebooks:
-            process = Process(
-                target=session.run,
-                args=[
+            session.run(
+                "python",
+                "scripts/run_and_publish_benchmark.py",
+                "--notebook",
+                f"--benchmark-path={notebook}",
+            )
+
+        for notebook, regions in notebooks_reg.items():
+            for region in regions:
+                session.run(
                     "python",
                     "scripts/run_and_publish_benchmark.py",
                     "--notebook",
                     f"--benchmark-path={notebook}",
-                ],
-            )
-            process.start()
-            processes.append(process)
-
-        for process in processes:
-            process.join()
-
+                    f"--region={region}",
+                )
     finally:
         # Prevent our notebook changes from getting checked in to git
         # accidentally.
@@ -781,31 +777,12 @@ def notebook(session: nox.Session):
             CURRENT_DIRECTORY / "scripts" / "notebooks_restore_from_backup.py",
             *notebooks,
         )
-
-    # Additionally run regionalized notebooks in parallel session.run's.
-    # Each notebook takes a different region via env param.
-    processes = []
-    for notebook, regions in notebooks_reg.items():
-        for region in regions:
-            process = Process(
-                target=session.run,
-                args=[
-                    "python",
-                    "scripts/run_and_publish_benchmark.py",
-                    "--notebook",
-                    f"--benchmark-path={notebook}",
-                    f"--region={region}",
-                ],
-            )
-            process.start()
-            processes.append(process)
-
-    for process in processes:
-        process.join()
-
-    session.run(
-        "python", "scripts/run_and_publish_benchmark.py", "--notebook", "--publish"
-    )
+        session.run(
+            "python",
+            "scripts/run_and_publish_benchmark.py",
+            "--notebook",
+            "--publish-benchmarks=notebooks/",
+        )
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)
@@ -814,26 +791,16 @@ def benchmark(session: nox.Session):
     base_path = os.path.join("tests", "benchmark")
 
     benchmark_script_list = list(Path(base_path).rglob("*.py"))
-    # Run benchmarks in parallel session.run's, since each benchmark
-    # takes an environment variable for performance logging
-    processes = []
+
     try:
         for benchmark in benchmark_script_list:
             if benchmark.name in ("__init__.py", "utils.py"):
                 continue
-            process = Process(
-                target=session.run,
-                args=[
-                    "python",
-                    "scripts/run_and_publish_benchmark.py",
-                    f"--benchmark-path={benchmark}",
-                ],
+            session.run(
+                "python",
+                "scripts/run_and_publish_benchmark.py",
+                f"--benchmark-path={benchmark}",
             )
-            process.start()
-            processes.append(process)
-
-        for process in processes:
-            process.join()
     finally:
         session.run(
             "python",

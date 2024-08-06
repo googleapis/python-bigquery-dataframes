@@ -20,9 +20,6 @@ if __name__ == "__main__":
     dataset_id, session, suffix = utils.get_tpch_configuration()
     current_path = Path(__file__).absolute()
 
-    if not session._strictly_ordered:
-        exit()
-
     utils.get_execution_time(
         vendored_tpch_q8.q, current_path, suffix, dataset_id, session
     )

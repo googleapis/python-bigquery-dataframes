@@ -47,4 +47,4 @@ def q(dataset_id: str, session: bigframes.Session):
         ["NATION", "O_YEAR"], ascending=[True, False]
     )
 
-    print(q_final)
+    q_final.to_gbq()

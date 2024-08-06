@@ -16,6 +16,8 @@ def q(dataset_id: str, session: bigframes.Session):
         (customer["CNTRYCODE"].isin(country_codes)) & (customer["C_ACCTBAL"] > 0)
     ]["C_ACCTBAL"].mean()
 
+    if not session._strictly_ordered:
+        orders_unique = orders.sort_values(by="O_CUSTKEY")
     orders_unique = orders.drop_duplicates(subset=["O_CUSTKEY"])
 
     matched_customers = customer.merge(
@@ -41,4 +43,4 @@ def q(dataset_id: str, session: bigframes.Session):
 
     result = result.sort_values(by="CNTRYCODE")
 
-    print(result)
+    result.to_gbq()

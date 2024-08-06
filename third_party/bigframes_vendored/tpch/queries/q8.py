@@ -53,5 +53,5 @@ def q(dataset_id: str, session: bigframes.Session):
     # ValueError: Caching with offsets only supported in strictly ordered mode.
     jn8["MKT_SHARE"] = (jn8["NUMERATOR"] / jn8["DENOMINATOR"]).round(2)
 
-    result_df = jn8["MKT_SHARE"].sort_index().rename("MKT_SHARE")  # .reset_index()
-    print(result_df)
+    result_df = jn8["MKT_SHARE"].sort_index().rename("MKT_SHARE").reset_index()
+    result_df.to_gbq()

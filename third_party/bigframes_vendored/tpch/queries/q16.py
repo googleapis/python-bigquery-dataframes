@@ -32,4 +32,4 @@ def q(dataset_id: str, session: bigframes.Session):
         ascending=[False, True, True, True],
     )
 
-    print(q_final)
+    q_final.to_gbq()

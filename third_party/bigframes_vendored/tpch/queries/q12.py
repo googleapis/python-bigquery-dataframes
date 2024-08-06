@@ -40,4 +40,4 @@ def q(dataset_id: str, session: bigframes.Session):
 
     agg_results = typing.cast(bpd.DataFrame, agg_results).sort_values("L_SHIPMODE")
 
-    print(agg_results)
+    agg_results.to_gbq()

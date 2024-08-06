@@ -34,4 +34,4 @@ def q(dataset_id: str, session: bigframes.Session):
     gb = jn5.groupby("N_NAME", as_index=False)["REVENUE"].sum()
     result_df = gb.sort_values("REVENUE", ascending=False)
 
-    print(result_df)
+    result_df.to_gbq()

@@ -44,4 +44,4 @@ def q(dataset_id: str, session: bigframes.Session):
     )
 
     result_df = sort.head(100)
-    print(result_df)
+    result_df.to_gbq()

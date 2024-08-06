@@ -25,6 +25,4 @@ def q(dataset_id: str, session: bigframes.Session):
 
     promo_revenue_percent = 100.00 * promo_revenue / total_revenue
 
-    q_final = round(promo_revenue_percent, 2)
-
-    print(q_final)
+    _ = round(promo_revenue_percent, 2)

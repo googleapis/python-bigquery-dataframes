@@ -39,12 +39,7 @@ def benchmark_process(args, log_env_name_var, filename=None, region=None):
     if region:
         env["BIGQUERY_LOCATION"] = region
     env[LOGGING_NAME_ENV_VAR] = log_env_name_var
-    result = subprocess.run(
-        args, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    )
-    print(result.stdout)
-    if result.returncode != 0:
-        print(result.stderr)
+    subprocess.run(args, env=env, check=True)
 
 
 def collect_benchmark_result(benchmark_path: str) -> pd.DataFrame:
@@ -175,12 +170,11 @@ def collect_benchmark_result(benchmark_path: str) -> pd.DataFrame:
 
 
 def get_repository_status():
-    if "KOKORO_JOB_NAME" in os.environ:
-        current_directory = os.getcwd()
-        subprocess.run(
-            ["git", "config", "--global", "--add", "safe.directory", current_directory],
-            check=True,
-        )
+    current_directory = os.getcwd()
+    subprocess.run(
+        ["git", "config", "--global", "--add", "safe.directory", current_directory],
+        check=True,
+    )
 
     git_hash = subprocess.check_output(
         ["git", "rev-parse", "--short", "HEAD"], text=True
@@ -315,20 +309,18 @@ def main():
             else "bigframes-metrics.benchmark_report.benchmark"
         )
         benchmark_metrics = collect_benchmark_result(args.publish_benchmarks)
-        repo_status = get_repository_status()
 
-        for idx, col in enumerate(repo_status.keys()):
-            benchmark_metrics.insert(idx, col, repo_status[col])
+        if os.getenv("BENCHMARK_AND_PUBLISH", "false") == "true":
+            repo_status = get_repository_status()
+            for idx, col in enumerate(repo_status.keys()):
+                benchmark_metrics.insert(idx, col, repo_status[col])
 
-        if os.getenv("NOX_SESSION", "local") in (
-            "benchmark-load",
-            "notebook-continuous",
-        ):
             pandas_gbq.to_gbq(
                 dataframe=benchmark_metrics,
                 destination_table=bigquery_table,
                 if_exists="append",
             )
+            print("Results have been successfully uploaded to BigQuery.")
     elif args.notebook:
         process_notebook_benchmark(args.benchmark_path, args.region)
     else:

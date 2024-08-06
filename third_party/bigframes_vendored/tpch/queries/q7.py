@@ -61,4 +61,4 @@ def q(dataset_id: str, session: bigframes.Session):
     result_df = typing.cast(bpd.DataFrame, agg).sort_values(
         ["SUPP_NATION", "CUST_NATION", "L_YEAR"]
     )
-    print(result_df)
+    result_df.to_gbq()

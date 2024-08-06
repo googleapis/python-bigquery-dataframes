@@ -39,4 +39,4 @@ def q(dataset_id: str, session: bigframes.Session):
     )
 
     q_final = final_result.head(100)
-    print(q_final)
+    q_final.to_gbq()

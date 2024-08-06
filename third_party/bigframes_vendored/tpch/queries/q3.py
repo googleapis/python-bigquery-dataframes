@@ -24,10 +24,10 @@ def q(dataset_id: str, session: bigframes.Session):
     gb = jn2.groupby(["O_ORDERKEY", "O_ORDERDATE", "O_SHIPPRIORITY"], as_index=False)
     agg = gb["REVENUE"].sum()
 
-    sel = agg.loc[:, ["O_ORDERKEY", "REVENUE", "O_ORDERDATE", "O_SHIPPRIORITY"]]
+    sel = agg[["O_ORDERKEY", "REVENUE", "O_ORDERDATE", "O_SHIPPRIORITY"]]
     sel = sel.rename(columns={"O_ORDERKEY": "L_ORDERKEY"})
 
     sorted_sel = sel.sort_values(by=["REVENUE", "O_ORDERDATE"], ascending=[False, True])
     result_df = sorted_sel.head(10)
 
-    print(result_df)
+    result_df.to_gbq()
