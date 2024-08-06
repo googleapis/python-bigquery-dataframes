@@ -16,8 +16,10 @@
 
 from __future__ import absolute_import
 
+from multiprocessing import Process
 import os
 import pathlib
+from pathlib import Path
 import re
 import shutil
 from typing import Dict, List
@@ -681,13 +683,163 @@ def notebook(session: nox.Session):
         "seaborn",
     )
 
-    session.run("python", "scripts/publish_benchmark_result.py", "--notebook")
+    notebooks_list = list(Path("notebooks/").glob("*/*.ipynb"))
+
+    denylist = [
+        # Regionalized testing is manually added later.
+        "notebooks/location/regionalized.ipynb",
+        # These notebooks contain special colab `param {type:"string"}`
+        # comments, which make it easy for customers to fill in their
+        # own information.
+        #
+        # With the notebooks_fill_params.py script, we are able to find and
+        # replace the PROJECT_ID parameter, but not the others.
+        #
+        # TODO(ashleyxu): Test these notebooks by replacing parameters with
+        # appropriate values and omitting cleanup logic that may break
+        # our test infrastructure.
+        "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",  # Needs DATASET.
+        "notebooks/regression/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
+        "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
+        # TODO(b/332737009): investigate why we get 404 errors, even though
+        # bq_dataframes_llm_code_generation creates a bucket in the sample.
+        "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
+        "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
+        "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
+        "notebooks/vertex_sdk/sdk2_bigframes_sklearn.ipynb",  # Needs BUCKET_URI.
+        "notebooks/vertex_sdk/sdk2_bigframes_tensorflow.ipynb",  # Needs BUCKET_URI.
+        # The experimental notebooks imagine features that don't yet
+        # exist or only exist as temporary prototypes.
+        "notebooks/experimental/longer_ml_demo.ipynb",
+        # The notebooks that are added for more use cases, such as backing a
+        # blog post, which may take longer to execute and need not be
+        # continuously tested.
+        "notebooks/apps/synthetic_data_generation.ipynb",
+    ]
+
+    # Convert each Path notebook object to a string using a list comprehension.
+    notebooks = [str(nb) for nb in notebooks_list]
+
+    # Remove tests that we choose not to test.
+    notebooks = [list(filter(lambda nb: nb not in denylist, notebooks))[2]]
+
+    # Regionalized notebooks
+    notebooks_reg = {
+        "regionalized.ipynb": [
+            "asia-southeast1",
+            "eu",
+            "europe-west4",
+            "southamerica-west1",
+            "us",
+            "us-central1",
+        ]
+    }
+    notebooks_reg = {
+        os.path.join("notebooks/location", nb): regions
+        for nb, regions in notebooks_reg.items()
+    }
+
+    # The pytest --nbmake exits silently with "no tests ran" message if
+    # one of the notebook paths supplied does not exist. Let's make sure that
+    # each path exists.
+    for nb in notebooks + list(notebooks_reg):
+        assert os.path.exists(nb), nb
+
+    try:
+        # Populate notebook parameters and make a backup so that the notebooks
+        # are runnable.
+        session.run(
+            "python",
+            CURRENT_DIRECTORY / "scripts" / "notebooks_fill_params.py",
+            *notebooks,
+        )
+
+        # Run notebooks in parallel session.run's, since each notebook
+        # takes an environment variable for performance logging
+        processes = []
+        for notebook in notebooks:
+            process = Process(
+                target=session.run,
+                args=[
+                    "python",
+                    "scripts/run_and_publish_benchmark.py",
+                    "--notebook",
+                    f"--benchmark-path={notebook}",
+                ],
+            )
+            process.start()
+            processes.append(process)
+
+        for process in processes:
+            process.join()
+
+    finally:
+        # Prevent our notebook changes from getting checked in to git
+        # accidentally.
+        session.run(
+            "python",
+            CURRENT_DIRECTORY / "scripts" / "notebooks_restore_from_backup.py",
+            *notebooks,
+        )
+
+    # Additionally run regionalized notebooks in parallel session.run's.
+    # Each notebook takes a different region via env param.
+    processes = []
+    for notebook, regions in notebooks_reg.items():
+        for region in regions:
+            process = Process(
+                target=session.run,
+                args=[
+                    "python",
+                    "scripts/run_and_publish_benchmark.py",
+                    "--notebook",
+                    f"--benchmark-path={notebook}",
+                    f"--region={region}",
+                ],
+            )
+            process.start()
+            processes.append(process)
+
+    for process in processes:
+        process.join()
+
+    session.run(
+        "python", "scripts/run_and_publish_benchmark.py", "--notebook", "--publish"
+    )
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)
 def benchmark(session: nox.Session):
     session.install("-e", ".[all]")
-    session.run("python", "scripts/publish_benchmark_result.py")
+    base_path = os.path.join("tests", "benchmark")
+
+    benchmark_script_list = list(Path(base_path).rglob("*.py"))
+    # Run benchmarks in parallel session.run's, since each benchmark
+    # takes an environment variable for performance logging
+    processes = []
+    try:
+        for benchmark in benchmark_script_list:
+            if benchmark.name in ("__init__.py", "utils.py"):
+                continue
+            process = Process(
+                target=session.run,
+                args=[
+                    "python",
+                    "scripts/run_and_publish_benchmark.py",
+                    f"--benchmark-path={benchmark}",
+                ],
+            )
+            process.start()
+            processes.append(process)
+
+        for process in processes:
+            process.join()
+    finally:
+        session.run(
+            "python",
+            "scripts/run_and_publish_benchmark.py",
+            f"--publish-benchmarks={base_path}",
+        )
 
 
 @nox.session(python="3.10")
