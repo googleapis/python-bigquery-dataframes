@@ -695,7 +695,7 @@ def notebook(session: nox.Session):
         # With the notebooks_fill_params.py script, we are able to find and
         # replace the PROJECT_ID parameter, but not the others.
         #
-        # TODO(ashleyxu): Test these notebooks by replacing parameters with
+        # TODO(b/357904266): Test these notebooks by replacing parameters with
         # appropriate values and omitting cleanup logic that may break
         # our test infrastructure.
         "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",  # Needs DATASET.
