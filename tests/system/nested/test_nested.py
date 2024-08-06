@@ -58,14 +58,16 @@ from bigframes.dataframe import DataFrame
 
 
 if __name__ == "__main__":
-    #TODO: autodetect if bfpd si already setup and copy proj/loc if availabe
-    set_project(project="gmbigframes", location="europe-west3")
-    table = "gmbigframes.nested.tiny"  #"vf-de-aib-prd-cmr-chn-lab.staging.scs_mini"
+    #TODO: autodetect if bfpd is already setup and copy proj/loc if availabe
+    #set_project(project="gmbigframes", location="europe-west3")
+    #table = "gmbigframes.nested.tiny"  #"vf-de-aib-prd-cmr-chn-lab.staging.scs_mini"
+    set_project(project="vf-de-ca-lab", location="europe-west3")
+    table="andreas_beschorner.nested_tiny"
     #testdf = DataFrame({"a": [1]}, index=None)
 
-    with core.nested_data_contet_manager:
+    with core.nested_data_context_manager:
         df = bfpd.read_gbq(f"SELECT * FROM {table} limit 10")
-        df = df.rename(columns={"out_of_contract_flag": "ooc_flag"})
+        df = df.rename(columns={"event_sequence.POSO": "event_sequence.pso"})
         pass
         #testdf = DataFrame({"ooc_flag": [1], "test_value": ["Grmph"]}, index=None)
         #TODO: How create 

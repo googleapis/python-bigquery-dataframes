@@ -14,12 +14,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from abc import ABCMeta, abstractmethod
 import datetime
 import functools
 import io
 import itertools
 import typing
 from typing import Iterable, Optional, Sequence, Tuple, final
+from collections.abc import Mapping
 from types import FunctionType, MethodType
 import warnings
 from collections.abc import Iterator, Callable
@@ -42,6 +44,7 @@ import bigframes.core.guid
 import bigframes.core.join_def as join_def
 import bigframes.core.local_data as local_data
 import bigframes.core.nodes as nodes
+import bigframes.core.blocks as blocks
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.ordering as orderings
 import bigframes.core.rewrite
@@ -218,8 +221,23 @@ class SchemaTrackingContextManager:
         self.sep_layers = layer_separator if layer_separator is not None else SchemaTrackingContextManager._default_sep_layers
         self.set_structs = struct_separator if struct_separator is not None else SchemaTrackingContextManager._default_sep_structs
         self._source_handler = SchemaSourceHandler()
-        self.block_start: bigframes.core.blocks.Block|None = None
-        self.block_end: bigframes.core.blocks.Block|None = None
+        self.block_start: blocks.Block|None = None
+        self.block_end: blocks.Block|None = None
+        self._latest_op: dict|Mapping = {}  # latest schema changes
+        self._latest_callee: str = ""
+        self._op_count = 0
+
+    @property
+    def num_nested_commands(self) -> int:
+        return self._op_count
+
+    def prev_changes(self) -> tuple[str, dict|Mapping]:
+        return ((self._latest_callee, self._latest_op))
+
+    def add_changes(self, hdl: str, changes: dict|Mapping):
+        self._latest_callee = hdl
+        self._latest_op = changes
+        self._op_count += 1
 
     #@property
     @classmethod
@@ -235,7 +253,9 @@ class SchemaTrackingContextManager:
             raise ValueError(f"{self.__class__.__name__}:{self.__class__.__qualname__}: Source {src} already exists")
         self._source_handler.add_source(src, layer_separator=self.sep_layers, struct_separator=self.set_structs)
 
-    def _schemata_matching(self, src: nodes.BigFrameNode, hdl: SchemaSourceHandler) -> bool:
+    def _schemata_matching(self, changes: dict|Mapping) -> bool:
+        # compare changes keys to leafs to DAG including nesting
+        
         schema_src = src.physical_schema
         #TODO: compare src schema to hdl schema. Otherwise DAG mismatch
         return True
@@ -244,12 +264,16 @@ class SchemaTrackingContextManager:
         #TODO: extend dag
         return
 
-    def step(self, parent: nodes.BigFrameNode):
+    def step(self):  #nodes.BigFrameNode):
         assert(self.block_start is not None)
         assert(self.block_end is not None)
         hash_start = bfnode_hash(self.block_start.expr.node)
-        hash_parent = bfnode_hash(parent)
-        hdl = self._source_handler.sources.get(hash_parent, None)
+        hash_parent =bfnode_hash(self.block_end.expr.node.child)
+        assert(hash_start==hash_parent)
+        hdl = None
+        if parent is not None:
+            hash_parent = bfnode_hash(parent)
+            hdl = self._source_handler.sources.get(hash_parent, None)
         if hdl is None:
             raise ValueError(f"NestedDataCM: Unknown data source {self.block_start}")
         # no join, merge etc., no new source/BigFrameNode
@@ -286,24 +310,49 @@ class SchemaTrackingContextManager:
 def schema_tracking_factory(singleton=SchemaTrackingContextManager()) -> SchemaTrackingContextManager:
     return singleton
 
-nested_data_contet_manager: SchemaTrackingContextManager = schema_tracking_factory()
+nested_data_context_manager: SchemaTrackingContextManager = schema_tracking_factory()
+
+class CMNnested(ABCMeta):
+    def __init__(self, func: Callable):
+        self.func = func
+
+    def __call__(self, *args, **kwargs):
+        if nested_data_context_manager.active():
+            #TODO (abeschorner): handle multiple parents
+            current_block = args[0].block           
+            nested_data_context_manager.block_start = current_block
+            res = self.func(*args, **kwargs)
+            nested_data_context_manager.block_end = res.block
+            parent: nodes.BigFrameNode = current_block        
+            nested_data_context_manager.step(parent) # or current_block.expr.node? nodes or blocks?
+            nested_data_context_manager.reset_block_markers()
+        return res
+
+    @abstractmethod
+    def _nesting(self) -> dict:
+        ...
+
+    @property
+    def nesting(self) -> dict:
+        return self._nesting()
+
 
 def cm_nested(func: Callable):
     def wrapper(*args, **kwargs):
-        if nested_data_contet_manager.active():
+        if nested_data_context_manager.active():
             #TODO (abeschorner): handle multiple parents
-            current_block = args[0].block
-            parent = None
-            for node in current_block.expr.node.child_nodes:
-                if bfnode_hash(node.child) == bfnode_hash(current_block.expr.node):
-                    parent = node
-                    continue
-            
-            nested_data_contet_manager.block_start = current_block
+            current_block = args[0].block           
+            nested_data_context_manager.block_start = current_block
+            prev_op = nested_data_context_manager.prev_changes()
+            prev_num_ops = nested_data_context_manager.num_nested_commands
             res = func(*args, **kwargs)
-            nested_data_contet_manager.block_end = res.block
-            nested_data_contet_manager.step(parent)
-            nested_data_contet_manager.reset_block_markers()
+            if (prev_op == nested_data_context_manager.prev_changes()) | (nested_data_context_manager.num_nested_commands <= prev_num_ops):
+                raise ValueError(f"Nested operation {func.__qualname__} did not set changes in the nested_data_context_manager!")
+                
+            nested_data_context_manager.block_end = res.block
+            parent: nodes.BigFrameNode = current_block        
+            nested_data_context_manager.step() # or current_block.expr.node? nodes or blocks?
+            nested_data_context_manager.reset_block_markers()
         return res
     return wrapper
 
@@ -328,8 +377,8 @@ class ArrayValue:
             data_schema=schema,
             session=session,
         )
-        if nested_data_contet_manager.active():
-            nested_data_contet_manager.add_source(node)
+        if nested_data_context_manager.active():
+            nested_data_context_manager.add_source(node)
 
         return cls(node)
 
@@ -348,8 +397,8 @@ class ArrayValue:
             physical_schema=tuple(table.schema),
             ordering=ordering,
         )
-        if nested_data_contet_manager.active():
-            nested_data_contet_manager.add_source(node)
+        if nested_data_context_manager.active():
+            nested_data_context_manager.add_source(node)
         return cls(node)
 
     @classmethod
@@ -383,8 +432,8 @@ class ArrayValue:
             table_session=session,
             sql_predicate=predicate,
         )
-        if nested_data_contet_manager.active():
-            nested_data_contet_manager.add_source(node)
+        if nested_data_context_manager.active():
+            nested_data_context_manager.add_source(node)
         return cls(node)
 
     @property

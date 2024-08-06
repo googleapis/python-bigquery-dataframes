@@ -64,6 +64,7 @@ import bigframes.core.utils as utils
 import bigframes.core.validations as validations
 import bigframes.core.window
 import bigframes.core.window_spec as window_spec
+from bigframes.core import nested_data_context_manager
 import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.formatting_helpers as formatter
@@ -73,6 +74,7 @@ import bigframes.operations.plotting as plotting
 import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session._io.bigquery
+
 
 if typing.TYPE_CHECKING:
     import bigframes.session
@@ -1526,6 +1528,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @bigframes.core.cm_nested
     def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame:
         block = self._block.rename(columns=columns)
+        nested_data_context_manager.add_changes(DataFrame.rename.__qualname__, columns)
         return DataFrame(block)
 
     def rename_axis(
@@ -2885,7 +2888,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 ns=ns, fracs=fracs, random_state=random_state, sort=sort
             )[0]
         )
-
+        
+    #TODO: create explod_recursion to arbitrary depth of nestings
+    #TODO: DataFrame.Struct.explode, not yet available
     def explode(
         self,
         column: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],

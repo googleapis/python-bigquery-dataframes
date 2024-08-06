@@ -1158,6 +1158,7 @@ class Block:
                 modified_label = tuple(remap_f(part) for part in col_label)
                 col_labels.append(modified_label)
         else:
+            #TODO: this does not work on nested data
             col_labels = []
             for col_label in self.column_labels:
                 col_labels.append(remap_f(col_label))
