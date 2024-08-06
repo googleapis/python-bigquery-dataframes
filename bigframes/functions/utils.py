@@ -14,14 +14,18 @@
 
 
 import hashlib
-from typing import cast, Set
+import inspect
+from typing import cast, List, NamedTuple, Optional, Sequence, Set
 
 import cloudpickle
 import google.api_core.exceptions
 from google.cloud import bigquery, functions_v2
+import ibis.expr.datatypes.core
 import numpy
 import pandas
 import pyarrow
+
+import bigframes.core.compile.ibis_types
 
 # Naming convention for the remote function artifacts
 _BIGFRAMES_REMOTE_FUNCTION_PREFIX = "bigframes"
@@ -184,3 +188,27 @@ def get_remote_function_name(function_hash, session_id, uniq_suffix=None):
     if uniq_suffix:
         parts.append(uniq_suffix)
     return _BQ_FUNCTION_NAME_SEPERATOR.join(parts)
+
+
+class IbisSignature(NamedTuple):
+    parameter_names: List[str]
+    input_types: List[Optional[ibis.expr.datatypes.core.DataType]]
+    output_type: ibis.expr.datatypes.core.DataType
+
+
+def ibis_signature_from_python_signature(
+    signature: inspect.Signature,
+    input_types: Sequence[type],
+    output_type: type,
+) -> IbisSignature:
+
+    return IbisSignature(
+        parameter_names=list(signature.parameters.keys()),
+        input_types=[
+            bigframes.core.compile.ibis_types.ibis_type_from_python_type(t)
+            for t in input_types
+        ],
+        output_type=bigframes.core.compile.ibis_types.ibis_type_from_python_type(
+            output_type
+        ),
+    )
