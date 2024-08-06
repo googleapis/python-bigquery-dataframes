@@ -320,7 +320,10 @@ def main():
         for idx, col in enumerate(repo_status.keys()):
             benchmark_metrics.insert(idx, col, repo_status[col])
 
-        if "KOKORO_JOB_NAME" in os.environ:
+        if os.getenv("NOX_SESSION", "local") in (
+            "benchmark-load",
+            "notebook-continuous",
+        ):
             pandas_gbq.to_gbq(
                 dataframe=benchmark_metrics,
                 destination_table=bigquery_table,
