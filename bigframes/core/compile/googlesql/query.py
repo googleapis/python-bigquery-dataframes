@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import typing
 
 import google.cloud.bigquery as bigquery
@@ -60,6 +61,7 @@ class Select(abc.SQLSyntax):
         default_factory=list
     )
     distinct: bool = False
+    snapshot: typing.Optional[datetime.datetime] = None
 
     def select(
         self,
@@ -77,6 +79,10 @@ class Select(abc.SQLSyntax):
             else [SelectAll(expression=expr.StarExpression())]
         )
         self.distinct = distinct
+        return self
+
+    def asof(self, time: datetime.datetime) -> Select:
+        self.snapshot = time
         return self
 
     def from_(
