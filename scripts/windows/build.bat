@@ -20,9 +20,9 @@ py -3.10 -m pip install --upgrade pip
 py -3.10 -m pip install --upgrade pip setuptools wheel
 
 echo "Building Wheel"
-py -3.10 -m pip wheel . --wheel-dir wheels/
+py -3.10 -m pip wheel . --wheel-dir wheels/ || exit /b
 
 echo "Built wheel, now running tests."
-call %~dp0/test.bat %%P
+call %~dp0/test.bat 3.10 || exit /b
 
 echo "Windows build has completed successfully"

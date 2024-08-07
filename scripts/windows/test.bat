@@ -21,8 +21,11 @@ if "%PYTHON_VERSION%"=="" (
   set PYTHON_VERSION=3.10
 )
 
-py -%PYTHON_VERSION%-64 -m pip install --no-index --find-links=wheels bigframes --force-reinstall
+py -%PYTHON_VERSION%-64 -m venv venv
+call .\venv\Scripts\activate.bat
 
-py -%PYTHON_VERSION%-64 -m pip install pytest
-py -%PYTHON_VERSION%-64 -m pytest tests/unit
-py -%PYTHON_VERSION%-64 -m pytest tests/system/small
+python -m pip install --no-index --find-links=wheels bigframes --force-reinstall || exit /b
+
+python -m pip install pytest || exit /b
+python -m pytest tests/unit || exit /b
+python -m pytest tests/system/small || exit /b
