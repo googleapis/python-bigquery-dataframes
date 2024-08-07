@@ -25,14 +25,10 @@ if "%PYTHON_VERSION%"=="" (
   set PYTHON_VERSION=3.10
 )
 
-py -%PYTHON_VERSION%-64 -m venv venv
-call .\venv\Scripts\activate.bat
+py -%PYTHON_VERSION%-64 -m pip install nox
 
-python -m pip install --no-index --find-links=wheels bigframes --force-reinstall || goto :error
-
-python -m pip install pytest || goto :error
-python -m pytest tests/unit || goto :error
-python -m pytest tests/system/small || goto :error
+py -%PYTHON_VERSION%-64 -m nox -s unit-"%PYTHON_VERSION%" || goto :error
+py -%PYTHON_VERSION%-64 -m nox -s system-"%PYTHON_VERSION%" || goto :error
 
 :; https://stackoverflow.com/a/46813196/101923
 :; exit 0
