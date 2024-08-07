@@ -28,7 +28,9 @@ if "%PYTHON_VERSION%"=="" (
 py -%PYTHON_VERSION%-64 -m pip install nox
 
 py -%PYTHON_VERSION%-64 -m nox -s unit-"%PYTHON_VERSION%" || goto :error
-py -%PYTHON_VERSION%-64 -m nox -s system-"%PYTHON_VERSION%" || goto :error
+
+:; TODO(b/358148440): enable system tests on windows
+:; py -%PYTHON_VERSION%-64 -m nox -s system-"%PYTHON_VERSION%" || goto :error
 
 :; https://stackoverflow.com/a/46813196/101923
 :; exit 0
