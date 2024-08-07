@@ -12,6 +12,9 @@
 @rem See the License for the specific language governing permissions and
 @rem limitations under the License.
 
+:; Change directory to repo root.
+SET script_dir="%~dp0"
+cd "%~dp0"\..\..
 
 echo "Listing available Python versions'
 py -0
@@ -20,9 +23,16 @@ py -3.10 -m pip install --upgrade pip
 py -3.10 -m pip install --upgrade pip setuptools wheel
 
 echo "Building Wheel"
-py -3.10 -m pip wheel . --wheel-dir wheels/ || exit /b
+py -3.10 -m pip wheel . --wheel-dir wheels/ || goto :error
 
 echo "Built wheel, now running tests."
-call %~dp0/test.bat 3.10 || exit /b
+call "%script_dir%"/test.bat 3.10 || goto :error
 
 echo "Windows build has completed successfully"
+
+:; https://stackoverflow.com/a/46813196/101923
+:; exit 0
+exit /b 0
+
+:error
+exit /b %errorlevel%
