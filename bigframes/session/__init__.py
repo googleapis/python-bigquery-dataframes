@@ -302,7 +302,7 @@ class Session(
         if not self._strictly_ordered:
             warnings.warn(
                 "Partial ordering mode is a preview feature and is subject to change.",
-                bigframes.exceptions.PreviewWarning,
+                bigframes.exceptions.OrderingModePartialPreviewWarning,
             )
 
         # Sequential index needs total ordering to generate, so use null index with unstrict ordering.
@@ -314,6 +314,7 @@ class Session(
         self._compiler = bigframes.core.compile.SQLCompiler(
             strict=self._strictly_ordered
         )
+        self._allow_ambiguity = not self._strictly_ordered
 
         self._remote_function_session = bigframes_rf._RemoteFunctionSession()
 
@@ -377,6 +378,10 @@ class Session(
     def slot_millis_sum(self):
         """The sum of all slot time used by bigquery jobs in this session."""
         return self._slot_millis_sum
+
+    @property
+    def _allows_ambiguity(self) -> bool:
+        return self._allow_ambiguity
 
     def _add_bytes_processed(self, amount: int):
         """Increment bytes_processed_sum by amount."""
@@ -755,7 +760,9 @@ class Session(
     ) -> streaming_dataframe.StreamingDataFrame:
         """Turn a BigQuery table into a StreamingDataFrame.
 
-        Note: The bigframes.streaming module is a preview feature, and subject to change.
+        .. note::
+
+            The bigframes.streaming module is a preview feature, and subject to change.
 
         **Examples:**
 
@@ -1661,8 +1668,8 @@ class Session(
             reuse (bool, Optional):
                 Reuse the remote function if already exists.
                 `True` by default, which will result in reusing an existing remote
-                function and corresponding cloud function (if any) that was
-                previously created for the same udf.
+                function and corresponding cloud function that was previously
+                created (if any) for the same udf.
                 Please note that for an unnamed (i.e. created without an explicit
                 `name` argument) remote function, the BigQuery DataFrames
                 session id is attached in the cloud artifacts names. So for the
@@ -1992,8 +1999,10 @@ class Session(
         )
         if len(cluster_cols) > 0:
             self._cache_with_cluster_cols(core.ArrayValue(target), cluster_cols)
-        else:
+        elif self._strictly_ordered:
             self._cache_with_offsets(core.ArrayValue(target))
+        else:
+            self._cache_with_cluster_cols(core.ArrayValue(target), [])
 
     def _simplify_with_caching(self, array_value: core.ArrayValue):
         """Attempts to handle the complexity by caching duplicated subtrees and breaking the query into pieces."""

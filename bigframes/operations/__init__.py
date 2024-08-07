@@ -602,6 +602,22 @@ class ArrayToStringOp(UnaryOp):
         return dtypes.STRING_DTYPE
 
 
+## JSON Ops
+@dataclasses.dataclass(frozen=True)
+class JSONExtract(UnaryOp):
+    name: typing.ClassVar[str] = "json_extract"
+    json_path: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return input_type
+
+
 # Binary Ops
 fillna_op = create_binary_op(name="fillna", type_signature=op_typing.COERCE)
 maximum_op = create_binary_op(name="maximum", type_signature=op_typing.COERCE)
@@ -649,6 +665,19 @@ class SubOp(BinaryOp):
 @dataclasses.dataclass(frozen=True)
 class BinaryRemoteFunctionOp(BinaryOp):
     name: typing.ClassVar[str] = "binary_remote_function"
+    func: typing.Callable
+
+    def output_type(self, *input_types):
+        # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
+        if hasattr(self.func, "output_dtype"):
+            return self.func.output_dtype
+        else:
+            raise AttributeError("output_dtype not defined")
+
+
+@dataclasses.dataclass(frozen=True)
+class NaryRemoteFunctionOp(NaryOp):
+    name: typing.ClassVar[str] = "nary_remote_function"
     func: typing.Callable
 
     def output_type(self, *input_types):
