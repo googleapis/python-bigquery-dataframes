@@ -4,13 +4,27 @@
 from __future__ import annotations
 
 import bigframes_vendored.ibis.backends.bigquery.datatypes as bq_datatypes
-import ibis.backends.bigquery.compiler as bq_compiler
-import ibis.backends.sql.compiler as sql_compiler
 import ibis.common.exceptions as com
 from ibis.common.temporal import IntervalUnit
 import ibis.expr.operations.reductions as ibis_reductions
 import sqlglot as sg
 import sqlglot.expressions as sge
+
+# The compilers moved between ibis-framework 9.1 and 9.2.
+try:
+    # ibis-framework 9.0 & 9.1
+    import ibis.backends.bigquery.compiler as bq_compiler
+except ImportError:
+    # ibis-framework 9.2
+    import ibis.backends.sql.compilers.bigquery as bq_compiler
+
+
+try:
+    # ibis-framework 9.0 & 9.1
+    import ibis.backends.sql.compiler as sql_compiler
+except ImportError:
+    # ibis-framework 9.2
+    import ibis.backends.sql.compilers.base as sql_compiler
 
 
 class BigQueryCompiler(bq_compiler.BigQueryCompiler):
