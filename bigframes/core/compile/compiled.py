@@ -19,7 +19,6 @@ import itertools
 import typing
 from typing import Collection, Literal, Optional, Sequence
 
-import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import ibis
 import ibis.backends.bigquery as ibis_bigquery
 import ibis.common.deferred  # type: ignore
@@ -400,18 +399,13 @@ class UnorderedIR(BaseIbisIR):
 
         # The offset array ensures null represents empty arrays after unnesting.
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
-        offset_array = (
-            vendored_ibis_ops.GenerateArray(
-                ibis.greatest(
-                    0,
-                    ibis.least(
-                        *[table[column_id].length() - 1 for column_id in column_ids]
-                    ),
-                )
-            )
-            .to_expr()
-            .name(offset_array_id),
-        )
+        offset_array = ibis.range(
+            0,
+            ibis.greatest(
+                1,  # We always want at least 1 element to fill in NULLs for empty arrays.
+                ibis.least(*[table[column_id].length() for column_id in column_ids]),
+            ),
+        ).name(offset_array_id)
         table_w_offset_array = table.select(
             offset_array,
             *self._column_names,
@@ -709,18 +703,13 @@ class OrderedIR(BaseIbisIR):
         table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
 
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
-        offset_array = (
-            vendored_ibis_ops.GenerateArray(
-                ibis.greatest(
-                    0,
-                    ibis.least(
-                        *[table[column_id].length() - 1 for column_id in column_ids]
-                    ),
-                )
-            )
-            .to_expr()
-            .name(offset_array_id),
-        )
+        offset_array = ibis.range(
+            0,
+            ibis.greatest(
+                1,  # We always want at least 1 element to fill in NULLs for empty arrays.
+                ibis.least(*[table[column_id].length() for column_id in column_ids]),
+            ),
+        ).name(offset_array_id)
         table_w_offset_array = table.select(
             offset_array,
             *self._column_names,
@@ -858,7 +847,7 @@ class OrderedIR(BaseIbisIR):
 
         clauses = []
         if op.skips_nulls and not never_skip_nulls:
-            clauses.append((column.isnull(), ibis.NA))
+            clauses.append((column.isnull(), ibis.null()))
         if window_spec.min_periods:
             if op.skips_nulls:
                 # Most operations do not count NULL values towards min_periods
@@ -879,7 +868,7 @@ class OrderedIR(BaseIbisIR):
             clauses.append(
                 (
                     observation_count < ibis_types.literal(window_spec.min_periods),
-                    ibis.NA,
+                    ibis.null(),
                 )
             )
         if clauses:

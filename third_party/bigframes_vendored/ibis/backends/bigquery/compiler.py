@@ -3,57 +3,168 @@
 
 from __future__ import annotations
 
-import re
+import bigframes_vendored.ibis.backends.bigquery.datatypes as bq_datatypes
+import ibis.common.exceptions as com
+from ibis.common.temporal import IntervalUnit
+import ibis.expr.operations.reductions as ibis_reductions
+import sqlglot as sg
+import sqlglot.expressions as sge
 
-from ibis.backends.base.sql import compiler as sql_compiler
-import ibis.backends.bigquery.compiler
-from ibis.backends.bigquery.datatypes import BigQueryType
-import ibis.expr.datatypes as dt
-import ibis.expr.operations as ops
+# The compilers moved between ibis-framework 9.1 and 9.2.
+try:
+    # ibis-framework 9.0 & 9.1
+    import ibis.backends.bigquery.compiler as bq_compiler
+except ImportError:
+    # ibis-framework 9.2
+    import ibis.backends.sql.compilers.bigquery as bq_compiler
 
-_NAME_REGEX = re.compile(r'[^!"$()*,./;?@[\\\]^`{}~\n]+')
-_EXACT_NAME_REGEX = re.compile(f"^{_NAME_REGEX.pattern}$")
+
+try:
+    # ibis-framework 9.0 & 9.1
+    import ibis.backends.sql.compiler as sql_compiler
+except ImportError:
+    # ibis-framework 9.2
+    import ibis.backends.sql.compilers.base as sql_compiler
 
 
-class BigQueryTableSetFormatter(sql_compiler.TableSetFormatter):
-    def _quote_identifier(self, name):
-        """Restore 6.x version of identifier quoting.
+class BigQueryCompiler(bq_compiler.BigQueryCompiler):
+    UNSUPPORTED_OPS = (
+        tuple(
+            op
+            for op in bq_compiler.BigQueryCompiler.UNSUPPORTED_OPS
+            if op != ibis_reductions.Quantile
+        )
+        if hasattr(bq_compiler.BigQueryCompiler, "UNSUPPORTED_OPS")
+        else ()
+    )
 
-        7.x uses sqlglot which as of December 2023 doesn't know about the
-        extended unicode names for BigQuery yet.
-        """
-        if _EXACT_NAME_REGEX.match(name) is not None:
-            return name
-        return f"`{name}`"
+    def visit_InMemoryTable(self, op, *, name, schema, data):
+        # Avoid creating temp tables for small data, which is how memtable is
+        # used in BigQuery DataFrames. Inspired by:
+        # https://github.com/ibis-project/ibis/blob/efa6fb72bf4c790450d00a926d7bd809dade5902/ibis/backends/druid/compiler.py#L95
+        tuples = data.to_frame().itertuples(index=False)
+        quoted = self.quoted
+        columns = [sg.column(col, quoted=quoted) for col in schema.names]
+        expr = sge.Unnest(
+            expressions=[
+                sge.DataType(
+                    this=sge.DataType.Type.ARRAY,
+                    expressions=[
+                        sge.DataType(
+                            this=sge.DataType.Type.STRUCT,
+                            expressions=[
+                                sge.ColumnDef(
+                                    this=sge.to_identifier(field, quoted=self.quoted),
+                                    kind=bq_datatypes.BigQueryType.from_ibis(type_),
+                                )
+                                for field, type_ in zip(schema.names, schema.types)
+                            ],
+                            nested=True,
+                        )
+                    ],
+                    nested=True,
+                    values=[
+                        sge.Tuple(
+                            expressions=tuple(
+                                self.visit_Literal(None, value=value, dtype=type_)
+                                for value, type_ in zip(row, schema.types)
+                            )
+                        )
+                        for row in tuples
+                    ],
+                ),
+            ],
+            alias=sge.TableAlias(
+                this=sg.to_identifier(name, quoted=quoted),
+                columns=columns,
+            ),
+        )
+        # return expr
+        return sg.select(sge.Star()).from_(expr)
 
-    def _format_in_memory_table(self, op):
-        """Restore 6.x version of InMemoryTable.
-
-        BigQuery DataFrames explicitly uses InMemoryTable only when we know
-        the data is small enough to embed in SQL.
-        """
-        schema = op.schema
-        names = schema.names
-        types = schema.types
-
-        raw_rows = []
-        for row in op.data.to_frame().itertuples(index=False):
-            raw_row = ", ".join(
-                f"{self._translate(lit)} AS {name}"
-                for lit, name in zip(
-                    map(ops.Literal, row, types), map(self._quote_identifier, names)
+    def visit_NonNullLiteral(self, op, *, value, dtype):
+        # Patch from https://github.com/ibis-project/ibis/pull/9610 to support ibis 9.0.0 and 9.1.0
+        if dtype.is_inet() or dtype.is_macaddr():
+            return sge.convert(str(value))
+        elif dtype.is_timestamp():
+            funcname = "DATETIME" if dtype.timezone is None else "TIMESTAMP"
+            return self.f.anon[funcname](value.isoformat())
+        elif dtype.is_date():
+            return self.f.date_from_parts(value.year, value.month, value.day)
+        elif dtype.is_time():
+            time = self.f.time_from_parts(value.hour, value.minute, value.second)
+            if micros := value.microsecond:
+                # bigquery doesn't support `time(12, 34, 56.789101)`, AKA a
+                # float seconds specifier, so add any non-zero micros to the
+                # time value
+                return sge.TimeAdd(
+                    this=time, expression=sge.convert(micros), unit=self.v.MICROSECOND
                 )
+            return time
+        elif dtype.is_binary():
+            return sge.Cast(
+                this=sge.convert(value.hex()),
+                to=sge.DataType(this=sge.DataType.Type.BINARY),
+                format=sge.convert("HEX"),
             )
-            raw_rows.append(f"STRUCT({raw_row})")
-        array_type = BigQueryType.from_ibis(dt.Array(op.schema.as_struct()))
+        elif dtype.is_interval():
+            if dtype.unit == IntervalUnit.NANOSECOND:
+                raise com.UnsupportedOperationError(
+                    "BigQuery does not support nanosecond intervals"
+                )
+        elif dtype.is_uuid():
+            return sge.convert(str(value))
+        return None
 
-        return f"UNNEST({array_type}[{', '.join(raw_rows)}])"
+    # Custom operators.
+
+    def visit_ArrayAggregate(self, op, *, arg, order_by, where):
+        if len(order_by) > 0:
+            expr = sge.Order(
+                this=arg,
+                expressions=[
+                    # Avoid adding NULLS FIRST / NULLS LAST in SQL, which is
+                    # unsupported in ARRAY_AGG by reconstructing the node as
+                    # plain SQL text.
+                    f"({order_column.args['this'].sql(dialect='bigquery')}) {'DESC' if order_column.args.get('desc') else 'ASC'}"
+                    for order_column in order_by
+                ],
+            )
+        else:
+            expr = arg
+        return sge.IgnoreNulls(this=self.agg.array_agg(expr, where=where))
+
+    def visit_FirstNonNullValue(self, op, *, arg):
+        return sge.IgnoreNulls(this=sge.FirstValue(this=arg))
+
+    def visit_LastNonNullValue(self, op, *, arg):
+        return sge.IgnoreNulls(this=sge.LastValue(this=arg))
+
+    def visit_ToJsonString(self, op, *, arg):
+        return self.f.to_json_string(arg)
 
 
 # Override implementation.
-ibis.backends.bigquery.compiler.BigQueryTableSetFormatter._quote_identifier = (
-    BigQueryTableSetFormatter._quote_identifier
+# We monkeypatch individual methods because the class might have already been imported in other modules.
+bq_compiler.BigQueryCompiler.visit_InMemoryTable = BigQueryCompiler.visit_InMemoryTable
+bq_compiler.BigQueryCompiler.visit_NonNullLiteral = (
+    BigQueryCompiler.visit_NonNullLiteral
 )
-ibis.backends.bigquery.compiler.BigQueryTableSetFormatter._format_in_memory_table = (
-    BigQueryTableSetFormatter._format_in_memory_table
+
+# Custom operators.
+bq_compiler.BigQueryCompiler.visit_ArrayAggregate = (
+    BigQueryCompiler.visit_ArrayAggregate
+)
+bq_compiler.BigQueryCompiler.visit_FirstNonNullValue = (
+    BigQueryCompiler.visit_FirstNonNullValue
+)
+bq_compiler.BigQueryCompiler.visit_LastNonNullValue = (
+    BigQueryCompiler.visit_LastNonNullValue
+)
+bq_compiler.BigQueryCompiler.visit_ToJsonString = BigQueryCompiler.visit_ToJsonString
+
+# TODO(swast): sqlglot base implementation appears to work fine for the bigquery backend, at least in our windowed contexts. See: ISSUE NUMBER
+bq_compiler.BigQueryCompiler.UNSUPPORTED_OPS = BigQueryCompiler.UNSUPPORTED_OPS
+bq_compiler.BigQueryCompiler.visit_Quantile = (
+    sql_compiler.SQLGlotCompiler.visit_Quantile
 )
