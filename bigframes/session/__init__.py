@@ -96,6 +96,7 @@ import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.formatting_helpers as formatting_helpers
 import bigframes.functions.remote_function as bigframes_rf
+import bigframes.functions.remote_function_session as bigframes_rf_session
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session.clients
@@ -316,7 +317,7 @@ class Session(
         )
         self._allow_ambiguity = not self._strictly_ordered
 
-        self._remote_function_session = bigframes_rf._RemoteFunctionSession()
+        self._remote_function_session = bigframes_rf_session.RemoteFunctionSession()
 
     @property
     def bqclient(self):
