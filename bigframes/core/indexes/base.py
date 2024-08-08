@@ -127,7 +127,6 @@ class Index(vendored_pandas_index.Index):
         )
         if index:  # matching pandas behavior
             result.index.name = self.name
-
         return result
 
     @property
