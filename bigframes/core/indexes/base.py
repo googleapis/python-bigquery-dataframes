@@ -114,6 +114,17 @@ class Index(vendored_pandas_index.Index):
         index = Index(frame._block)
         index._linked_frame = frame
         return index
+    
+    def to_frame(
+        self, index: bool = True, name: blocks.Label | None = None
+    ) -> bigframes.dataframe.DataFrame:
+        import numpy as np
+        provided_name = name if name else self.name
+        provided_index = self.values if index else np.arange(len(self.values))
+        result = bigframes.dataframe.DataFrame({provided_name: self.values}, index= provided_index)
+        if index: # matching pandas behavior
+            result.index.name = self.name
+        return result
 
     def to_frame(
         self, index: bool = True, name: blocks.Label | None = None
