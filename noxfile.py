@@ -35,7 +35,15 @@ ISORT_VERSION = "isort==5.12.0"
 # https://github.com/str0zzapreti/pytest-retry/issues/32
 PYTEST_VERSION = "pytest<8.0.0dev"
 SPHINX_VERSION = "sphinx==4.5.0"
-LINT_PATHS = ["docs", "bigframes", "tests", "third_party", "noxfile.py", "setup.py"]
+LINT_PATHS = [
+    "docs",
+    "bigframes",
+    "tests",
+    "third_party",
+    "noxfile.py",
+    "setup.py",
+    os.path.join("scripts", "benchmark"),
+]
 
 DEFAULT_PYTHON_VERSION = "3.10"
 
@@ -54,7 +62,8 @@ UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.12"]
+# 3.10 is needed for Windows tests.
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.12"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -76,6 +85,8 @@ SYSTEM_TEST_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_EXTRAS: List[str] = ["tests"]
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
+LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
+
 CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 
 # Sessions are executed in the order so putting the smaller sessions
@@ -90,8 +101,8 @@ nox.options.sessions = [
     "docfx",
     "unit",
     "unit_noextras",
-    "system",
-    "doctest",
+    "system-3.9",
+    "system-3.12",
     "cover",
 ]
 
@@ -248,6 +259,7 @@ def mypy(session):
         "bigframes",
         os.path.join("tests", "system"),
         os.path.join("tests", "unit"),
+        "--check-untyped-defs",
         "--explicit-package-bases",
         '--exclude="^third_party"',
     )
@@ -402,26 +414,6 @@ def load(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
-def samples(session):
-    """Run the samples test suite."""
-
-    constraints_path = str(
-        CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
-    )
-
-    # TODO(b/332735129): Remove this session and use python_samples templates
-    # where each samples directory has its own noxfile.py file, instead.
-    install_test_extra = True
-    install_systemtest_dependencies(session, install_test_extra, "-c", constraints_path)
-
-    session.run(
-        "py.test",
-        "samples",
-        *session.posargs,
-    )
-
-
 @nox.session(python=DEFAULT_PYTHON_VERSION)
 def cover(session):
     """Run the final coverage report.
@@ -439,7 +431,8 @@ def cover(session):
         "--show-missing",
         "--include=tests/unit/*",
         "--include=tests/system/small/*",
-        "--fail-under=100",
+        # TODO(b/353775058) resume coverage to 100 when the issue is fixed.
+        "--fail-under=99",
     )
 
     session.run("coverage", "erase")
@@ -562,8 +555,6 @@ def prerelease(session: nox.sessions.Session, tests_path):
     already_installed.add("pyarrow")
 
     session.install(
-        "--extra-index-url",
-        "https://pypi.anaconda.org/scipy-wheels-nightly/simple",
         "--prefer-binary",
         "--pre",
         "--upgrade",
@@ -723,6 +714,10 @@ def notebook(session: nox.Session):
         # The experimental notebooks imagine features that don't yet
         # exist or only exist as temporary prototypes.
         "notebooks/experimental/longer_ml_demo.ipynb",
+        # The notebooks that are added for more use cases, such as backing a
+        # blog post, which may take longer to execute and need not be
+        # continuously tested.
+        "notebooks/apps/synthetic_data_generation.ipynb",
     ]
 
     # Convert each Path notebook object to a string using a list comprehension.
@@ -773,13 +768,21 @@ def notebook(session: nox.Session):
             *notebooks,
         )
 
-        # Run self-contained notebooks in single session.run
-        # achieve parallelization via -n
-        session.run(
-            *pytest_command,
-            "-nauto",
-            *notebooks,
-        )
+        # Run notebooks in parallel session.run's, since each notebook
+        # takes an environment variable for performance logging
+        processes = []
+        for notebook in notebooks:
+            process = Process(
+                target=session.run,
+                args=(*pytest_command, notebook),
+                kwargs={"env": {LOGGING_NAME_ENV_VAR: os.path.basename(notebook)}},
+            )
+            process.start()
+            processes.append(process)
+
+        for process in processes:
+            process.join()
+
     finally:
         # Prevent our notebook changes from getting checked in to git
         # accidentally.
@@ -789,21 +792,114 @@ def notebook(session: nox.Session):
             *notebooks,
         )
 
-    # Run regionalized notebooks in parallel session.run's, since each notebook
-    # takes a different region via env param.
+    # Additionally run regionalized notebooks in parallel session.run's.
+    # Each notebook takes a different region via env param.
     processes = []
     for notebook, regions in notebooks_reg.items():
         for region in regions:
             process = Process(
                 target=session.run,
                 args=(*pytest_command, notebook),
-                kwargs={"env": {"BIGQUERY_LOCATION": region}},
+                kwargs={
+                    "env": {
+                        "BIGQUERY_LOCATION": region,
+                        LOGGING_NAME_ENV_VAR: os.path.basename(notebook),
+                    }
+                },
             )
             process.start()
             processes.append(process)
 
     for process in processes:
         process.join()
+
+    # when the environment variable is set as it is above,
+    # notebooks output a .bytesprocessed and .slotmillis report
+    # collect those reports and print a summary
+    _print_performance_report("notebooks/")
+
+
+@nox.session(python=DEFAULT_PYTHON_VERSION)
+def benchmark(session: nox.Session):
+    session.install("-e", ".[all]")
+    base_path = os.path.join("scripts", "benchmark")
+
+    benchmark_script_list = list(Path(base_path).rglob("*.py"))
+    # Run benchmarks in parallel session.run's, since each benchmark
+    # takes an environment variable for performance logging
+    processes = []
+    for benchmark in benchmark_script_list:
+        process = Process(
+            target=session.run,
+            args=("python", benchmark),
+            kwargs={"env": {LOGGING_NAME_ENV_VAR: benchmark.as_posix()}},
+        )
+        process.start()
+        processes.append(process)
+
+    for process in processes:
+        process.join()
+
+    # when the environment variable is set as it is above,
+    # notebooks output a .bytesprocessed and .slotmillis report
+    # collect those reports and print a summary
+    _print_performance_report(base_path)
+
+
+def _print_performance_report(path: str):
+    """Add an informational report about http queries, bytes
+    processed, and slot time to the testlog output for purposes
+    of measuring bigquery-related performance changes.
+
+    Looks specifically for output files in subfolders of the
+    passed path. (*/*.bytesprocessed and */*.slotmillis)
+    """
+    print("---BIGQUERY USAGE REPORT---")
+    results_dict = {}
+    bytes_reports = sorted(Path(path).rglob("*.bytesprocessed"))
+    for bytes_report in bytes_reports:
+        with open(bytes_report, "r") as bytes_file:
+            filename = bytes_report.relative_to(path).with_suffix("")
+            lines = bytes_file.read().splitlines()
+            query_count = len(lines)
+            total_bytes = sum([int(line) for line in lines])
+            results_dict[filename] = [query_count, total_bytes]
+        os.remove(bytes_report)
+
+    millis_reports = sorted(Path(path).rglob("*.slotmillis"))
+    for millis_report in millis_reports:
+        with open(millis_report, "r") as millis_file:
+            filename = millis_report.relative_to(path).with_suffix("")
+            lines = millis_file.read().splitlines()
+            total_slot_millis = sum([int(line) for line in lines])
+            results_dict[filename] += [total_slot_millis]
+        os.remove(millis_report)
+
+    cumulative_queries = 0
+    cumulative_bytes = 0
+    cumulative_slot_millis = 0
+    for name, results in results_dict.items():
+        if len(results) != 3:
+            raise IOError(
+                "Mismatch in performance logging output. "
+                "Expected one .bytesprocessed and one .slotmillis "
+                "file for each notebook."
+            )
+        query_count, total_bytes, total_slot_millis = results
+        cumulative_queries += query_count
+        cumulative_bytes += total_bytes
+        cumulative_slot_millis += total_slot_millis
+        print(
+            f"{name} - query count: {query_count},"
+            f" bytes processed sum: {total_bytes},"
+            f" slot millis sum: {total_slot_millis}"
+        )
+
+    print(
+        f"---total queries: {cumulative_queries}, "
+        f"total bytes: {cumulative_bytes}, "
+        f"total slot millis: {cumulative_slot_millis}---"
+    )
 
 
 @nox.session(python="3.10")

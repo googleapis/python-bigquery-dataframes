@@ -22,6 +22,11 @@ class JoinSide(enum.Enum):
     LEFT = 0
     RIGHT = 1
 
+    def inverse(self) -> JoinSide:
+        if self == JoinSide.LEFT:
+            return JoinSide.RIGHT
+        return JoinSide.LEFT
+
 
 JoinType = Literal["inner", "outer", "left", "right", "cross"]
 
@@ -35,6 +40,15 @@ class JoinCondition(NamedTuple):
 class JoinColumnMapping:
     source_table: JoinSide
     source_id: str
+    destination_id: str
+
+
+@dataclasses.dataclass(frozen=True)
+class CoalescedColumnMapping:
+    """Special column mapping used only by implicit joiner only"""
+
+    left_source_id: str
+    right_source_id: str
     destination_id: str
 
 

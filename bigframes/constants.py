@@ -12,25 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
-
 """Constants used across BigQuery DataFrames.
 
 This module should not depend on any others in the package.
 """
 
-FEEDBACK_LINK = (
-    "Share your usecase with the BigQuery DataFrames team at the "
-    "https://bit.ly/bigframes-feedback survey."
-)
+import datetime
 
-ABSTRACT_METHOD_ERROR_MESSAGE = f"Abstract method. You have likely encountered a bug. Please share this stacktrace and how you reached it with the BigQuery DataFrames team. {FEEDBACK_LINK}"
+import bigframes_vendored.constants
+
+FEEDBACK_LINK = bigframes_vendored.constants.FEEDBACK_LINK
+ABSTRACT_METHOD_ERROR_MESSAGE = (
+    bigframes_vendored.constants.ABSTRACT_METHOD_ERROR_MESSAGE
+)
 
 DEFAULT_EXPIRATION = datetime.timedelta(days=7)
 
 # https://cloud.google.com/bigquery/docs/locations
 ALL_BIGQUERY_LOCATIONS = frozenset(
     {
+        # regions
         "us-east5",
         "us-south1",
         "us-central1",
@@ -74,6 +75,9 @@ ALL_BIGQUERY_LOCATIONS = frozenset(
         "me-central1",
         "me-west1",
         "africa-south1",
+        # multi-regions
+        "US",
+        "EU",
     }
 )
 
@@ -92,3 +96,8 @@ REP_ENABLED_BIGQUERY_LOCATIONS = frozenset(
 LEP_ENABLED_BIGQUERY_LOCATIONS = frozenset(
     ALL_BIGQUERY_LOCATIONS - REP_ENABLED_BIGQUERY_LOCATIONS
 )
+
+# BigQuery default is 10000, leave 100 for overhead
+MAX_COLUMNS = 9900
+
+SUGGEST_PEEK_PREVIEW = "Use .peek(n) to preview n arbitrary rows."

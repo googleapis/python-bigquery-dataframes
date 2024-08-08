@@ -15,12 +15,15 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import typing
+from typing import Union
 
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 
+import bigframes.dtypes
 import bigframes.dtypes as dtypes
 import bigframes.operations.type as op_typing
 
@@ -34,11 +37,6 @@ class RowOp(typing.Protocol):
     def name(self) -> str:
         ...
 
-    @property
-    def arguments(self) -> int:
-        """The number of column argument the operation takes"""
-        ...
-
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         ...
 
@@ -48,20 +46,48 @@ class RowOp(typing.Protocol):
         ...
 
 
-# These classes can be used to create simple ops that don't take local parameters
-# All is needed is a unique name, and to register an implementation in ibis_mappings.py
 @dataclasses.dataclass(frozen=True)
-class UnaryOp:
+class ScalarOp:
     @property
     def name(self) -> str:
         raise NotImplementedError("RowOp abstract base class has no implementation")
 
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        raise NotImplementedError("Abstract operation has no output type")
+
+    @property
+    def order_preserving(self) -> bool:
+        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
+        return False
+
+
+@dataclasses.dataclass(frozen=True)
+class NaryOp(ScalarOp):
+    def as_expr(
+        self,
+        *exprs: Union[str | bigframes.core.expression.Expression],
+    ) -> bigframes.core.expression.Expression:
+        import bigframes.core.expression
+
+        # Keep this in sync with output_type and compilers
+        inputs: list[bigframes.core.expression.Expression] = []
+
+        for expr in exprs:
+            inputs.append(_convert_expr_input(expr))
+
+        return bigframes.core.expression.OpExpression(
+            self,
+            tuple(inputs),
+        )
+
+
+# These classes can be used to create simple ops that don't take local parameters
+# All is needed is a unique name, and to register an implementation in ibis_mappings.py
+@dataclasses.dataclass(frozen=True)
+class UnaryOp(ScalarOp):
     @property
     def arguments(self) -> int:
         return 1
-
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        raise NotImplementedError("Abstract operation has no output type")
 
     def as_expr(
         self, input_id: typing.Union[str, bigframes.core.expression.Expression] = "arg"
@@ -72,24 +98,12 @@ class UnaryOp:
             self, (_convert_expr_input(input_id),)
         )
 
-    @property
-    def order_preserving(self) -> bool:
-        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
-        return False
-
 
 @dataclasses.dataclass(frozen=True)
-class BinaryOp:
-    @property
-    def name(self) -> str:
-        raise NotImplementedError("RowOp abstract base class has no implementation")
-
+class BinaryOp(ScalarOp):
     @property
     def arguments(self) -> int:
         return 2
-
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        raise NotImplementedError("Abstract operation has no output type")
 
     def as_expr(
         self,
@@ -106,24 +120,12 @@ class BinaryOp:
             ),
         )
 
-    @property
-    def order_preserving(self) -> bool:
-        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
-        return False
-
 
 @dataclasses.dataclass(frozen=True)
-class TernaryOp:
-    @property
-    def name(self) -> str:
-        raise NotImplementedError("RowOp abstract base class has no implementation")
-
+class TernaryOp(ScalarOp):
     @property
     def arguments(self) -> int:
         return 3
-
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        raise NotImplementedError("Abstract operation has no output type")
 
     def as_expr(
         self,
@@ -142,11 +144,6 @@ class TernaryOp:
             ),
         )
 
-    @property
-    def order_preserving(self) -> bool:
-        """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
-        return False
-
 
 def _convert_expr_input(
     input: typing.Union[str, bigframes.core.expression.Expression]
@@ -164,7 +161,10 @@ def _convert_expr_input(
 def create_unary_op(name: str, type_signature: op_typing.UnaryTypeSignature) -> UnaryOp:
     return dataclasses.make_dataclass(
         name,
-        [("name", typing.ClassVar[str], name), ("output_type", typing.ClassVar[typing.Callable], type_signature.as_method)],  # type: ignore
+        [
+            ("name", typing.ClassVar[str], name),
+            ("output_type", typing.ClassVar[typing.Callable], type_signature.as_method),
+        ],
         bases=(UnaryOp,),
         frozen=True,
     )()
@@ -175,7 +175,10 @@ def create_binary_op(
 ) -> BinaryOp:
     return dataclasses.make_dataclass(
         name,
-        [("name", typing.ClassVar[str], name), ("output_type", typing.ClassVar[typing.Callable], type_signature.as_method)],  # type: ignore
+        [
+            ("name", typing.ClassVar[str], name),
+            ("output_type", typing.ClassVar[typing.Callable], type_signature.as_method),
+        ],
         bases=(BinaryOp,),
         frozen=True,
     )()
@@ -189,7 +192,7 @@ invert_op = create_unary_op(
         dtypes.is_binary_like,
         description="binary-like",
     ),
-)  # numeric
+)
 isnull_op = create_unary_op(
     name="isnull",
     type_signature=op_typing.FixedOutputType(
@@ -314,6 +317,8 @@ arctanh_op = create_unary_op(
 floor_op = create_unary_op(name="floor", type_signature=op_typing.UNARY_REAL_NUMERIC)
 ceil_op = create_unary_op(name="ceil", type_signature=op_typing.UNARY_REAL_NUMERIC)
 abs_op = create_unary_op(name="abs", type_signature=op_typing.UNARY_NUMERIC)
+pos_op = create_unary_op(name="pos", type_signature=op_typing.UNARY_NUMERIC)
+neg_op = create_unary_op(name="neg", type_signature=op_typing.UNARY_NUMERIC)
 exp_op = create_unary_op(name="exp", type_signature=op_typing.UNARY_REAL_NUMERIC)
 expm1_op = create_unary_op(name="expm1", type_signature=op_typing.UNARY_REAL_NUMERIC)
 ln_op = create_unary_op(name="log", type_signature=op_typing.UNARY_REAL_NUMERIC)
@@ -388,6 +393,19 @@ class StartsWithOp(UnaryOp):
 
     def output_type(self, *input_types):
         return op_typing.STRING_PREDICATE.output_type(input_types[0])
+
+
+@dataclasses.dataclass(frozen=True)
+class StringSplitOp(UnaryOp):
+    name: typing.ClassVar[str] = "str_split"
+    pat: typing.Sequence[str]
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not isinstance(input_type, pd.StringDtype):
+            raise TypeError("field accessor input must be a string type")
+        arrow_type = dtypes.bigframes_dtype_to_arrow_dtype(input_type)
+        return pd.ArrowDtype(pa.list_(arrow_type))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -467,9 +485,7 @@ class StructFieldOp(UnaryOp):
             raise TypeError("field accessor input must be a struct type")
 
         pa_result_type = pa_type[self.name_or_index].type
-        # TODO: Directly convert from arrow to pandas type
-        ibis_result_type = dtypes.arrow_dtype_to_ibis_dtype(pa_result_type)
-        return dtypes.ibis_dtype_to_bigframes_dtype(ibis_result_type)
+        return dtypes.arrow_dtype_to_bigframes_dtype(pa_result_type)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -483,7 +499,9 @@ class AsTypeOp(UnaryOp):
         if self.to_type == pa.string():
             return dtypes.STRING_DTYPE
         if isinstance(self.to_type, str):
-            return dtypes.BIGFRAMES_STRING_TO_BIGFRAMES[self.to_type]
+            return dtypes.BIGFRAMES_STRING_TO_BIGFRAMES[
+                typing.cast(dtypes.DtypeString, self.to_type)
+            ]
         return self.to_type
 
 
@@ -505,7 +523,10 @@ class RemoteFunctionOp(UnaryOp):
 
     def output_type(self, *input_types):
         # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
-        return self.func.output_dtype
+        if hasattr(self.func, "output_dtype"):
+            return self.func.output_dtype
+        else:
+            raise AttributeError("output_dtype not defined")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -520,13 +541,34 @@ class MapOp(UnaryOp):
 @dataclasses.dataclass(frozen=True)
 class ToDatetimeOp(UnaryOp):
     name: typing.ClassVar[str] = "to_datetime"
-    utc: bool = False
     format: typing.Optional[str] = None
     unit: typing.Optional[str] = None
 
     def output_type(self, *input_types):
-        timezone = "UTC" if self.utc else None
-        return pd.ArrowDtype(pa.timestamp("us", tz=timezone))
+        if input_types[0] not in (
+            bigframes.dtypes.FLOAT_DTYPE,
+            bigframes.dtypes.INT_DTYPE,
+            bigframes.dtypes.STRING_DTYPE,
+        ):
+            raise TypeError("expected string or numeric input")
+        return pd.ArrowDtype(pa.timestamp("us", tz=None))
+
+
+@dataclasses.dataclass(frozen=True)
+class ToTimestampOp(UnaryOp):
+    name: typing.ClassVar[str] = "to_timestamp"
+    format: typing.Optional[str] = None
+    unit: typing.Optional[str] = None
+
+    def output_type(self, *input_types):
+        # Must be numeric or string
+        if input_types[0] not in (
+            bigframes.dtypes.FLOAT_DTYPE,
+            bigframes.dtypes.INT_DTYPE,
+            bigframes.dtypes.STRING_DTYPE,
+        ):
+            raise TypeError("expected string or numeric input")
+        return pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -547,10 +589,39 @@ class FloorDtOp(UnaryOp):
         return input_types[0]
 
 
+## Array Ops
+@dataclasses.dataclass(frozen=True)
+class ArrayToStringOp(UnaryOp):
+    name: typing.ClassVar[str] = "array_to_string"
+    delimiter: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_array_string_like(input_type):
+            raise TypeError("Input type must be an array of string type.")
+        return dtypes.STRING_DTYPE
+
+
+## JSON Ops
+@dataclasses.dataclass(frozen=True)
+class JSONExtract(UnaryOp):
+    name: typing.ClassVar[str] = "json_extract"
+    json_path: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return input_type
+
+
 # Binary Ops
 fillna_op = create_binary_op(name="fillna", type_signature=op_typing.COERCE)
-cliplower_op = create_binary_op(name="clip_lower", type_signature=op_typing.COERCE)
-clipupper_op = create_binary_op(name="clip_upper", type_signature=op_typing.COERCE)
+maximum_op = create_binary_op(name="maximum", type_signature=op_typing.COERCE)
+minimum_op = create_binary_op(name="minimum", type_signature=op_typing.COERCE)
 coalesce_op = create_binary_op(name="coalesce", type_signature=op_typing.COERCE)
 
 
@@ -591,6 +662,32 @@ class SubOp(BinaryOp):
         raise TypeError(f"Cannot subtract dtypes {left_type} and {right_type}")
 
 
+@dataclasses.dataclass(frozen=True)
+class BinaryRemoteFunctionOp(BinaryOp):
+    name: typing.ClassVar[str] = "binary_remote_function"
+    func: typing.Callable
+
+    def output_type(self, *input_types):
+        # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
+        if hasattr(self.func, "output_dtype"):
+            return self.func.output_dtype
+        else:
+            raise AttributeError("output_dtype not defined")
+
+
+@dataclasses.dataclass(frozen=True)
+class NaryRemoteFunctionOp(NaryOp):
+    name: typing.ClassVar[str] = "nary_remote_function"
+    func: typing.Callable
+
+    def output_type(self, *input_types):
+        # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
+        if hasattr(self.func, "output_dtype"):
+            return self.func.output_dtype
+        else:
+            raise AttributeError("output_dtype not defined")
+
+
 add_op = AddOp()
 sub_op = SubOp()
 mul_op = create_binary_op(name="mul", type_signature=op_typing.BINARY_NUMERIC)
@@ -608,6 +705,7 @@ unsafe_pow_op = create_binary_op(
 # Logical Ops
 and_op = create_binary_op(name="and", type_signature=op_typing.LOGICAL)
 or_op = create_binary_op(name="or", type_signature=op_typing.LOGICAL)
+xor_op = create_binary_op(name="xor", type_signature=op_typing.LOGICAL)
 
 ## Comparison Ops
 eq_op = create_binary_op(name="eq", type_signature=op_typing.COMPARISON)
@@ -619,6 +717,17 @@ lt_op = create_binary_op(name="lt", type_signature=op_typing.COMPARISON)
 gt_op = create_binary_op(name="gt", type_signature=op_typing.COMPARISON)
 le_op = create_binary_op(name="le", type_signature=op_typing.COMPARISON)
 ge_op = create_binary_op(name="ge", type_signature=op_typing.COMPARISON)
+
+
+cosine_distance_op = create_binary_op(
+    name="ml_cosine_distance", type_signature=op_typing.VECTOR_METRIC
+)
+manhattan_distance_op = create_binary_op(
+    name="ml_manhattan_distance", type_signature=op_typing.VECTOR_METRIC
+)
+euclidean_distance_op = create_binary_op(
+    name="ml_euclidean_distance", type_signature=op_typing.VECTOR_METRIC
+)
 
 
 ## String Ops
@@ -636,6 +745,30 @@ class StrConcatOp(BinaryOp):
 
 
 strconcat_op = StrConcatOp()
+
+
+## JSON Ops
+@dataclasses.dataclass(frozen=True)
+class JSONSet(BinaryOp):
+    name: typing.ClassVar[str] = "json_set"
+    json_path: str
+
+    def output_type(self, *input_types):
+        left_type = input_types[0]
+        right_type = input_types[1]
+        if not dtypes.is_json_like(left_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {left_type}"
+            )
+        if not dtypes.is_json_encoding_type(right_type):
+            raise TypeError(
+                "The value to be assigned must be a type that can be encoded as JSON."
+                + f"Received type: {right_type}"
+            )
+
+        # After JSON type implementation, ONLY return JSON data.
+        return left_type
 
 
 # Ternary Ops
@@ -663,6 +796,25 @@ class ClipOp(TernaryOp):
 
 
 clip_op = ClipOp()
+
+
+class CaseWhenOp(NaryOp):
+    name: typing.ClassVar[str] = "switch"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        assert len(input_types) % 2 == 0
+        # predicate1, output1, predicate2, output2...
+        if not all(map(lambda x: x == dtypes.BOOL_DTYPE, input_types[::2])):
+            raise TypeError(f"Case inputs {input_types[::2]} must be boolean-valued")
+        output_expr_types = input_types[1::2]
+        return functools.reduce(
+            lambda t1, t2: dtypes.coerce_to_common(t1, t2),
+            output_expr_types,
+        )
+
+
+case_when_op = CaseWhenOp()
+
 
 # Just parameterless unary ops for now
 # TODO: Parameter mappings
@@ -698,4 +850,6 @@ NUMPY_TO_BINOP: typing.Final = {
     np.divide: div_op,
     np.power: pow_op,
     np.arctan2: arctan2_op,
+    np.maximum: maximum_op,
+    np.minimum: minimum_op,
 }

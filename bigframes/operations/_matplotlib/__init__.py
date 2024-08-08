@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
+
 import bigframes.operations._matplotlib.core as core
 import bigframes.operations._matplotlib.hist as hist
 
-PLOT_CLASSES: dict[str, type[core.MPLPlot]] = {
+PLOT_TYPES = typing.Union[type[core.SamplingPlot], type[hist.HistPlot]]
+
+PLOT_CLASSES: dict[str, PLOT_TYPES] = {
     "hist": hist.HistPlot,
     "line": core.LinePlot,
     "area": core.AreaPlot,

@@ -74,7 +74,7 @@ s.replace(
         import pandas
         import pyarrow
         import sqlglot
-        
+
         print(f"Python: {sys.version}")
         print(f"bigframes=={bigframes.__version__}")
         print(f"google-cloud-bigquery=={google.cloud.bigquery.__version__}")
@@ -83,7 +83,7 @@ s.replace(
         print(f"pyarrow=={pyarrow.__version__}")
         print(f"sqlglot=={sqlglot.__version__}")
         ```
-        
+
         #### Steps to reproduce
         """,
     ),
@@ -112,14 +112,14 @@ s.replace(
         re.escape("# upload docs")
         + "\n"
         + re.escape(
-            'python3 -m docuploader upload docs/_build/html/docfx_yaml --metadata-file docs.metadata --destination-prefix docfx --staging-bucket "${V2_STAGING_BUCKET}"'
+            'python3.10 -m docuploader upload docs/_build/html/docfx_yaml --metadata-file docs.metadata --destination-prefix docfx --staging-bucket "${V2_STAGING_BUCKET}"'
         )
     ),
     (
         "# Replace toc.yml template file\n"
         + "mv docs/templates/toc.yml docs/_build/html/docfx_yaml/toc.yml\n\n"
         + "# upload docs\n"
-        + 'python3 -m docuploader upload docs/_build/html/docfx_yaml --metadata-file docs.metadata --destination-prefix docfx --staging-bucket "${V2_STAGING_BUCKET}"'
+        + 'python3.10 -m docuploader upload docs/_build/html/docfx_yaml --metadata-file docs.metadata --destination-prefix docfx --staging-bucket "${V2_STAGING_BUCKET}"'
     ),
 )
 
@@ -148,3 +148,5 @@ python.py_samples(skip_readmes=True)
 # ----------------------------------------------------------------------------
 
 s.shell.run(["nox", "-s", "format"], hide_output=False)
+for noxfile in REPO_ROOT.glob("samples/**/noxfile.py"):
+    s.shell.run(["nox", "-s", "format"], cwd=noxfile.parent, hide_output=False)

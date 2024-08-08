@@ -854,6 +854,7 @@ def test_column_multi_index_stack(level):
 
     # Pandas produces NaN, where bq dataframes produces pd.NA
     # Column ordering seems to depend on pandas version
+    assert isinstance(pd_result, pandas.DataFrame)
     pandas.testing.assert_frame_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
@@ -889,9 +890,9 @@ def test_column_multi_index_melt():
 
 def test_column_multi_index_unstack(scalars_df_index, scalars_pandas_df_index):
     columns = ["int64_too", "int64_col", "rowindex_2"]
-    level1 = pandas.Index(["b", "a", "b"], dtype="string[pyarrow]")
+    level1: pandas.Index = pandas.Index(["b", "a", "b"], dtype="string[pyarrow]")
     # Need resulting column to be pyarrow string rather than object dtype
-    level2 = pandas.Index(["a", "b", "b"], dtype="string[pyarrow]")
+    level2: pandas.Index = pandas.Index(["a", "b", "b"], dtype="string[pyarrow]")
     multi_columns = pandas.MultiIndex.from_arrays([level1, level2])
     bf_df = scalars_df_index[columns].copy()
     bf_df.columns = multi_columns
@@ -1185,9 +1186,31 @@ def test_explode_w_multi_index():
 
     df = bpd.DataFrame(data, columns=multi_level_columns)
     pd_df = df.to_pandas()
+
+    assert isinstance(pd_df, pandas.DataFrame)
+    assert isinstance(pd_df["col0"], pandas.DataFrame)
     pandas.testing.assert_frame_equal(
         df["col0"].explode("col00").to_pandas(),
         pd_df["col0"].explode("col00"),
         check_dtype=False,
         check_index_type=False,
     )
+
+
+def test_column_multi_index_w_na_stack(scalars_df_index, scalars_pandas_df_index):
+    columns = ["int64_too", "int64_col", "rowindex_2"]
+    level1 = pandas.Index(["b", "c", "d"])
+    # Need resulting column to be pyarrow string rather than object dtype
+    level2: pandas.Index = pandas.Index([None, "b", "b"], dtype="string[pyarrow]")
+    multi_columns = pandas.MultiIndex.from_arrays([level1, level2])
+    bf_df = scalars_df_index[columns].copy()
+    bf_df.columns = multi_columns
+    pd_df = scalars_pandas_df_index[columns].copy()
+    pd_df.columns = multi_columns
+
+    pd_result = pd_df.stack()
+    bf_result = bf_df.stack().to_pandas()
+
+    # Pandas produces pd.NA, where bq dataframes produces NaN
+    pd_result["c"] = pd_result["c"].replace(pandas.NA, np.nan)
+    pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)

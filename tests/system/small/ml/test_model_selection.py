@@ -130,12 +130,12 @@ def test_train_test_split_seeded_correct_rows(
         X, y, random_state=42
     )
 
-    X_train = X_train.to_pandas().sort_index()
-    X_test = X_test.to_pandas().sort_index()
-    y_train = y_train.to_pandas().sort_index()
-    y_test = y_test.to_pandas().sort_index()
+    X_train_sorted = X_train.to_pandas().sort_index()
+    X_test_sorted = X_test.to_pandas().sort_index()
+    y_train_sorted = y_train.to_pandas().sort_index()
+    y_test_sorted = y_test.to_pandas().sort_index()
 
-    train_index = pd.Index(
+    train_index: pd.Index = pd.Index(
         [
             144,
             146,
@@ -162,13 +162,20 @@ def test_train_test_split_seeded_correct_rows(
         dtype="Int64",
         name="rowindex",
     )
-    test_index = pd.Index(
+    test_index: pd.Index = pd.Index(
         [148, 161, 226, 269, 278, 289, 291], dtype="Int64", name="rowindex"
     )
 
     all_data.index.name = "_"
+
+    assert (
+        isinstance(X_train_sorted, pd.DataFrame)
+        and isinstance(X_test_sorted, pd.DataFrame)
+        and isinstance(y_train_sorted, pd.DataFrame)
+        and isinstance(y_test_sorted, pd.DataFrame)
+    )
     pd.testing.assert_frame_equal(
-        X_train,
+        X_train_sorted,
         all_data[
             [
                 "species",
@@ -178,7 +185,7 @@ def test_train_test_split_seeded_correct_rows(
         ].loc[train_index],
     )
     pd.testing.assert_frame_equal(
-        X_test,
+        X_test_sorted,
         all_data[
             [
                 "species",
@@ -188,7 +195,7 @@ def test_train_test_split_seeded_correct_rows(
         ].loc[test_index],
     )
     pd.testing.assert_frame_equal(
-        y_train,
+        y_train_sorted,
         all_data[
             [
                 "body_mass_g",
@@ -196,7 +203,7 @@ def test_train_test_split_seeded_correct_rows(
         ].loc[train_index],
     )
     pd.testing.assert_frame_equal(
-        y_test,
+        y_test_sorted,
         all_data[
             [
                 "body_mass_g",
@@ -227,3 +234,65 @@ def test_train_test_split_value_error(penguins_df_default_index, train_size, tes
         model_selection.train_test_split(
             X, y, train_size=train_size, test_size=test_size
         )
+
+
+def test_train_test_split_stratify(penguins_df_default_index):
+    X = penguins_df_default_index[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+        ]
+    ]
+    y = penguins_df_default_index[["species"]]
+    X_train, X_test, y_train, y_test = model_selection.train_test_split(
+        X, y, stratify=penguins_df_default_index["species"]
+    )
+
+    # Original distribution is [152, 124, 68]. All the categories follow 75/25 split
+    train_counts = pd.Series(
+        [114, 93, 51],
+        index=pd.Index(
+            [
+                "Adelie Penguin (Pygoscelis adeliae)",
+                "Gentoo penguin (Pygoscelis papua)",
+                "Chinstrap penguin (Pygoscelis antarctica)",
+            ],
+            name="species",
+        ),
+        dtype="Int64",
+        name="count",
+    )
+    test_counts = pd.Series(
+        [38, 31, 17],
+        index=pd.Index(
+            [
+                "Adelie Penguin (Pygoscelis adeliae)",
+                "Gentoo penguin (Pygoscelis papua)",
+                "Chinstrap penguin (Pygoscelis antarctica)",
+            ],
+            name="species",
+        ),
+        dtype="Int64",
+        name="count",
+    )
+    pd.testing.assert_series_equal(
+        X_train["species"].value_counts().to_pandas(),
+        train_counts,
+        check_index_type=False,
+    )
+    pd.testing.assert_series_equal(
+        X_test["species"].value_counts().to_pandas(),
+        test_counts,
+        check_index_type=False,
+    )
+    pd.testing.assert_series_equal(
+        y_train["species"].value_counts().to_pandas(),
+        train_counts,
+        check_index_type=False,
+    )
+    pd.testing.assert_series_equal(
+        y_test["species"].value_counts().to_pandas(),
+        test_counts,
+        check_index_type=False,
+    )

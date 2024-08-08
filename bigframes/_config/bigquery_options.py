@@ -16,16 +16,54 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 import warnings
 
 import google.api_core.exceptions
 import google.auth.credentials
+import jellyfish
+
+import bigframes.constants
+import bigframes.enums
+import bigframes.exceptions
 
 SESSION_STARTED_MESSAGE = (
     "Cannot change '{attribute}' once a session has started. "
     "Call bigframes.pandas.close_session() first, if you are using the bigframes.pandas API."
 )
+
+
+UNKNOWN_LOCATION_MESSAGE = "The location '{location}' is set to an unknown value. Did you mean '{possibility}'?"
+
+
+def _validate_location(value: Optional[str]):
+
+    if value is None:
+        return
+
+    if value not in bigframes.constants.ALL_BIGQUERY_LOCATIONS:
+        location = str(value)
+        possibility = min(
+            bigframes.constants.ALL_BIGQUERY_LOCATIONS,
+            key=lambda item: jellyfish.levenshtein_distance(location, item),
+        )
+        warnings.warn(
+            UNKNOWN_LOCATION_MESSAGE.format(location=location, possibility=possibility),
+            # There are many layers before we get to (possibly) the user's code:
+            # -> bpd.options.bigquery.location = "us-central-1"
+            # -> location.setter
+            # -> _validate_location
+            stacklevel=3,
+            category=bigframes.exceptions.UnknownLocationWarning,
+        )
+
+
+def _validate_ordering_mode(value: str) -> bigframes.enums.OrderingMode:
+    if value.casefold() == bigframes.enums.OrderingMode.STRICT.value.casefold():
+        return bigframes.enums.OrderingMode.STRICT
+    if value.casefold() == bigframes.enums.OrderingMode.PARTIAL.value.casefold():
+        return bigframes.enums.OrderingMode.PARTIAL
+    raise ValueError("Ordering mode must be one of 'strict' or 'partial'.")
 
 
 class BigQueryOptions:
@@ -41,6 +79,8 @@ class BigQueryOptions:
         application_name: Optional[str] = None,
         kms_key_name: Optional[str] = None,
         skip_bq_connection_check: bool = False,
+        *,
+        ordering_mode: Literal["strict", "partial"] = "strict",
     ):
         self._credentials = credentials
         self._project = project
@@ -51,6 +91,8 @@ class BigQueryOptions:
         self._kms_key_name = kms_key_name
         self._skip_bq_connection_check = skip_bq_connection_check
         self._session_started = False
+        # Determines the ordering strictness for the session.
+        self._ordering_mode = _validate_ordering_mode(ordering_mode)
 
     @property
     def application_name(self) -> Optional[str]:
@@ -93,6 +135,7 @@ class BigQueryOptions:
     def location(self, value: Optional[str]):
         if self._session_started and self._location != value:
             raise ValueError(SESSION_STARTED_MESSAGE.format(attribute="location"))
+        _validate_location(value)
         self._location = value
 
     @property
@@ -205,3 +248,12 @@ class BigQueryOptions:
             raise ValueError(SESSION_STARTED_MESSAGE.format(attribute="kms_key_name"))
 
         self._kms_key_name = value
+
+    @property
+    def ordering_mode(self) -> Literal["strict", "partial"]:
+        """Controls whether total row order is always maintained for DataFrame/Series."""
+        return self._ordering_mode.value
+
+    @ordering_mode.setter
+    def ordering_mode(self, ordering_mode: Literal["strict", "partial"]) -> None:
+        self._ordering_mode = _validate_ordering_mode(ordering_mode)

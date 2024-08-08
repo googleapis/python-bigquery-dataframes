@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import io
 import itertools
 import os
@@ -38,13 +39,16 @@ dependencies = [
     "gcsfs >=2023.3.0",
     "geopandas >=0.12.2",
     "google-auth >=2.15.0,<3.0dev",
-    "google-cloud-bigquery[bqstorage,pandas] >=3.10.0",
+    "google-cloud-bigtable >=2.24.0",
+    "google-cloud-pubsub >=2.21.4",
+    "google-cloud-bigquery[bqstorage,pandas] >=3.16.0",
     "google-cloud-functions >=1.12.0",
     "google-cloud-bigquery-connection >=1.12.0",
     "google-cloud-iam >=2.12.1",
     "google-cloud-resource-manager >=1.10.3",
     "google-cloud-storage >=2.0.0",
     "ibis-framework[bigquery] >=8.0.0,<9.0.0dev",
+    "jellyfish >=0.8.9",
     # TODO: Relax upper bound once we have fixed `system_prerelease` tests.
     "pandas >=1.5.0",
     "pyarrow >=8.0.0",

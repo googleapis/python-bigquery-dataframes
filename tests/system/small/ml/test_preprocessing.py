@@ -19,6 +19,7 @@ import pyarrow as pa
 
 import bigframes.features
 from bigframes.ml import preprocessing
+from tests.system import utils
 
 ONE_HOT_ENCODED_DTYPE = (
     pd.ArrowDtype(pa.list_(pa.struct([("index", pa.int64()), ("value", pa.float64())])))
@@ -373,6 +374,27 @@ def test_k_bins_discretizer_normalized_fit_transform_default_params(new_penguins
     pd.testing.assert_frame_equal(result, expected, rtol=0.1)
 
 
+def test_k_bins_discretizer_normalized_fit_transform_default_params_quantile(
+    new_penguins_df,
+):
+    discretizer = preprocessing.KBinsDiscretizer(strategy="quantile")
+    result = discretizer.fit_transform(
+        new_penguins_df[["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"]]
+    ).to_pandas()
+
+    expected = pd.DataFrame(
+        {
+            "kbinsdiscretizer_culmen_length_mm": ["bin_2", "bin_2", "bin_1"],
+            "kbinsdiscretizer_culmen_depth_mm": ["bin_2", "bin_1", "bin_2"],
+            "kbinsdiscretizer_flipper_length_mm": ["bin_2", "bin_1", "bin_2"],
+        },
+        dtype="string[pyarrow]",
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+
+    pd.testing.assert_frame_equal(result, expected, rtol=0.1)
+
+
 def test_k_bins_discretizer_series_normalizes(
     penguins_df_default_index, new_penguins_df
 ):
@@ -387,6 +409,28 @@ def test_k_bins_discretizer_series_normalizes(
     expected = pd.DataFrame(
         {
             "kbinsdiscretizer_culmen_length_mm": ["bin_3", "bin_3", "bin_3"],
+        },
+        dtype="string[pyarrow]",
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+
+    pd.testing.assert_frame_equal(result, expected, rtol=0.1)
+
+
+def test_k_bins_discretizer_series_normalizes_quantile(
+    penguins_df_default_index, new_penguins_df
+):
+    discretizer = preprocessing.KBinsDiscretizer(strategy="quantile")
+    discretizer.fit(penguins_df_default_index["culmen_length_mm"])
+
+    result = discretizer.transform(
+        penguins_df_default_index["culmen_length_mm"]
+    ).to_pandas()
+    result = discretizer.transform(new_penguins_df).to_pandas()
+
+    expected = pd.DataFrame(
+        {
+            "kbinsdiscretizer_culmen_length_mm": ["bin_2", "bin_2", "bin_1"],
         },
         dtype="string[pyarrow]",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
@@ -486,6 +530,21 @@ def test_k_bins_discretizer_save_load(new_penguins_df, dataset_id):
     )
 
     pd.testing.assert_frame_equal(result, expected, rtol=0.1)
+
+
+def test_k_bins_discretizer_save_load_quantile(new_penguins_df, dataset_id):
+    transformer = preprocessing.KBinsDiscretizer(n_bins=6, strategy="quantile")
+    transformer.fit(
+        new_penguins_df[["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"]]
+    )
+
+    reloaded_transformer = transformer.to_gbq(
+        f"{dataset_id}.temp_configured_model", replace=True
+    )
+    assert isinstance(reloaded_transformer, preprocessing.KBinsDiscretizer)
+    assert reloaded_transformer.n_bins == transformer.n_bins
+    assert reloaded_transformer.strategy == transformer.strategy
+    assert reloaded_transformer._bqml_model is not None
 
 
 def test_one_hot_encoder_default_params(new_penguins_df):
@@ -782,3 +841,101 @@ def test_label_encoder_save_load(new_penguins_df, dataset_id):
 
 
 # TODO(garrettwu): add OneHotEncoder tests to compare with sklearn.
+
+
+def test_poly_features_default_params(new_penguins_df):
+    transformer = preprocessing.PolynomialFeatures()
+    df = new_penguins_df[["culmen_length_mm", "culmen_depth_mm"]]
+    transformer.fit(df)
+
+    result = transformer.transform(df).to_pandas()
+
+    expected = pd.DataFrame(
+        {
+            "poly_feat_culmen_length_mm": [
+                39.5,
+                38.5,
+                37.9,
+            ],
+            "poly_feat_culmen_length_mm_culmen_length_mm": [
+                1560.25,
+                1482.25,
+                1436.41,
+            ],
+            "poly_feat_culmen_length_mm_culmen_depth_mm": [
+                742.6,
+                662.2,
+                685.99,
+            ],
+            "poly_feat_culmen_depth_mm": [
+                18.8,
+                17.2,
+                18.1,
+            ],
+            "poly_feat_culmen_depth_mm_culmen_depth_mm": [
+                353.44,
+                295.84,
+                327.61,
+            ],
+        },
+        dtype="Float64",
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+
+    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=0.1)
+
+
+def test_poly_features_params(new_penguins_df):
+    transformer = preprocessing.PolynomialFeatures(degree=3)
+    df = new_penguins_df[["culmen_length_mm", "culmen_depth_mm"]]
+    transformer.fit(df)
+
+    result = transformer.transform(df).to_pandas()
+
+    utils.check_pandas_df_schema_and_index(
+        result,
+        [
+            "poly_feat_culmen_length_mm",
+            "poly_feat_culmen_length_mm_culmen_length_mm",
+            "poly_feat_culmen_length_mm_culmen_length_mm_culmen_length_mm",
+            "poly_feat_culmen_length_mm_culmen_length_mm_culmen_depth_mm",
+            "poly_feat_culmen_length_mm_culmen_depth_mm",
+            "poly_feat_culmen_length_mm_culmen_depth_mm_culmen_depth_mm",
+            "poly_feat_culmen_depth_mm",
+            "poly_feat_culmen_depth_mm_culmen_depth_mm",
+            "poly_feat_culmen_depth_mm_culmen_depth_mm_culmen_depth_mm",
+        ],
+        [1633, 1672, 1690],
+    )
+
+
+def test_poly_features_save_load(new_penguins_df, dataset_id):
+    transformer = preprocessing.PolynomialFeatures(degree=3)
+    transformer.fit(new_penguins_df[["culmen_length_mm", "culmen_depth_mm"]])
+
+    reloaded_transformer = transformer.to_gbq(
+        f"{dataset_id}.temp_configured_model", replace=True
+    )
+    assert isinstance(reloaded_transformer, preprocessing.PolynomialFeatures)
+    assert reloaded_transformer.degree == 3
+    assert reloaded_transformer._bqml_model is not None
+
+    result = reloaded_transformer.transform(
+        new_penguins_df[["culmen_length_mm", "culmen_depth_mm"]]
+    ).to_pandas()
+
+    utils.check_pandas_df_schema_and_index(
+        result,
+        [
+            "poly_feat_culmen_length_mm",
+            "poly_feat_culmen_length_mm_culmen_length_mm",
+            "poly_feat_culmen_length_mm_culmen_length_mm_culmen_length_mm",
+            "poly_feat_culmen_length_mm_culmen_length_mm_culmen_depth_mm",
+            "poly_feat_culmen_length_mm_culmen_depth_mm",
+            "poly_feat_culmen_length_mm_culmen_depth_mm_culmen_depth_mm",
+            "poly_feat_culmen_depth_mm",
+            "poly_feat_culmen_depth_mm_culmen_depth_mm",
+            "poly_feat_culmen_depth_mm_culmen_depth_mm_culmen_depth_mm",
+        ],
+        [1633, 1672, 1690],
+    )

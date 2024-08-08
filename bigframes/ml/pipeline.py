@@ -26,7 +26,15 @@ from google.cloud import bigquery
 import bigframes
 import bigframes.constants as constants
 from bigframes.core import log_adapter
-from bigframes.ml import base, compose, forecasting, loader, preprocessing, utils
+from bigframes.ml import (
+    base,
+    compose,
+    forecasting,
+    impute,
+    loader,
+    preprocessing,
+    utils,
+)
 import bigframes.pandas as bpd
 
 
@@ -56,6 +64,8 @@ class Pipeline(
                 preprocessing.MinMaxScaler,
                 preprocessing.KBinsDiscretizer,
                 preprocessing.LabelEncoder,
+                preprocessing.PolynomialFeatures,
+                impute.SimpleImputer,
             ),
         ):
             self._transform = transform
@@ -96,9 +106,7 @@ class Pipeline(
     ) -> Pipeline:
         (X,) = utils.convert_to_dataframe(X)
 
-        compiled_transforms = self._transform._compile_to_sql(X.columns.tolist(), X=X)
-        transform_sqls = [transform_sql for transform_sql, _ in compiled_transforms]
-
+        transform_sqls = self._transform._compile_to_sql(X)
         if y is not None:
             # If labels columns are present, they should pass through un-transformed
             (y,) = utils.convert_to_dataframe(y)
@@ -126,12 +134,12 @@ class Pipeline(
 
         Args:
             model_name (str):
-                the name of the model(pipeline).
+                The name of the model(pipeline).
             replace (bool, default False):
-                whether to replace if the model(pipeline) already exists. Default to False.
+                Whether to replace if the model(pipeline) already exists. Default to False.
 
         Returns:
-            Pipeline: saved model(pipeline)."""
+            Pipeline: Saved model(pipeline)."""
         if not self._estimator._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 

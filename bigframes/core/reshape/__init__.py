@@ -19,10 +19,10 @@ from typing import Iterable, Literal, Optional, Union
 import pandas as pd
 
 import bigframes.constants as constants
-import bigframes.core as core
 import bigframes.core.expression as ex
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
+import bigframes.core.window_spec as window_specs
 import bigframes.dataframe
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -116,7 +116,7 @@ def cut(
         Iterable,
     ],
     *,
-    labels: Optional[bool] = None,
+    labels: Union[Iterable[str], bool, None] = None,
 ) -> bigframes.series.Series:
     if isinstance(bins, int) and bins <= 0:
         raise ValueError("`bins` should be a positive integer.")
@@ -159,7 +159,7 @@ def cut(
         )
 
     return x._apply_window_op(
-        agg_ops.CutOp(bins, labels=labels), window_spec=core.WindowSpec()
+        agg_ops.CutOp(bins, labels=labels), window_spec=window_specs.unbound()
     )
 
 
@@ -189,7 +189,7 @@ def qcut(
     block, result = block.apply_window_op(
         x._value_column,
         agg_ops.QcutOp(q),  # type: ignore
-        window_spec=core.WindowSpec(
+        window_spec=window_specs.unbound(
             grouping_keys=(nullity_id,),
             ordering=(order.ascending_over(x._value_column),),
         ),

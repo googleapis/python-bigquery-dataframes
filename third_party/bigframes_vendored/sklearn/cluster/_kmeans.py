@@ -75,7 +75,7 @@ class KMeans(_BaseKMeans):
                 Not used, present here for API consistency by convention.
 
         Returns:
-            KMeans: Fitted Estimator.
+            KMeans: Fitted estimator.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -103,7 +103,7 @@ class KMeans(_BaseKMeans):
 
         .. note::
 
-            Output matches that of the BigQuery ML.EVALUTE function.
+            Output matches that of the BigQuery ML.EVALUATE function.
             See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate#k-means_models
             for the outputs relevant to this model type.
 

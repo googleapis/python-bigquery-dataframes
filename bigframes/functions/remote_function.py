@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import collections.abc
 import hashlib
 import inspect
 import logging
@@ -23,10 +24,27 @@ import shutil
 import string
 import sys
 import tempfile
-import textwrap
-from typing import List, NamedTuple, Optional, Sequence, TYPE_CHECKING
+import threading
+from typing import (
+    Any,
+    cast,
+    Dict,
+    List,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+)
+import warnings
 
 import ibis
+import numpy
+import pandas
+import pyarrow
 import requests
 
 if TYPE_CHECKING:
@@ -47,13 +65,84 @@ from ibis.expr.datatypes.core import DataType as IbisDataType
 
 from bigframes import clients
 import bigframes.constants as constants
+import bigframes.core.compile.ibis_types
 import bigframes.dtypes
+import bigframes.functions.remote_function_template
 
 logger = logging.getLogger(__name__)
+
+# Naming convention for the remote function artifacts
+_BIGFRAMES_REMOTE_FUNCTION_PREFIX = "bigframes"
+_BQ_FUNCTION_NAME_SEPERATOR = "_"
+_GCF_FUNCTION_NAME_SEPERATOR = "-"
 
 # Protocol version 4 is available in python version 3.4 and above
 # https://docs.python.org/3/library/pickle.html#data-stream-format
 _pickle_protocol_version = 4
+
+
+def _clean_up_by_session_id(
+    bqclient: bigquery.Client,
+    gcfclient: functions_v2.FunctionServiceClient,
+    dataset: bigquery.DatasetReference,
+    session_id: str,
+):
+    """Delete remote function artifacts for a session id, where the session id
+    was not necessarily created in the current runtime. This is useful if the
+    user worked with a BigQuery DataFrames session previously and remembered the
+    session id, and now wants to clean up its temporary resources at a later
+    point in time.
+    """
+
+    # First clean up the BQ remote functions and then the underlying
+    # cloud functions, so that at no point we are left with a remote function
+    # that is pointing to a cloud function that does not exist
+
+    endpoints_to_be_deleted: Set[str] = set()
+    match_prefix = "".join(
+        [
+            _BIGFRAMES_REMOTE_FUNCTION_PREFIX,
+            _BQ_FUNCTION_NAME_SEPERATOR,
+            session_id,
+            _BQ_FUNCTION_NAME_SEPERATOR,
+        ]
+    )
+    for routine in bqclient.list_routines(dataset):
+        routine = cast(bigquery.Routine, routine)
+
+        # skip past the routines not belonging to the given session id, or
+        # non-remote-function routines
+        if (
+            routine.type_ != bigquery.RoutineType.SCALAR_FUNCTION
+            or not cast(str, routine.routine_id).startswith(match_prefix)
+            or not routine.remote_function_options
+            or not routine.remote_function_options.endpoint
+        ):
+            continue
+
+        # Let's forgive the edge case possibility that the BQ remote function
+        # may have been deleted at the same time directly by the user
+        bqclient.delete_routine(routine, not_found_ok=True)
+        endpoints_to_be_deleted.add(routine.remote_function_options.endpoint)
+
+    # Now clean up the cloud functions
+    bq_location = bqclient.get_dataset(dataset).location
+    bq_location, gcf_location = get_remote_function_locations(bq_location)
+    parent_path = gcfclient.common_location_path(
+        project=dataset.project, location=gcf_location
+    )
+    for gcf in gcfclient.list_functions(parent=parent_path):
+        # skip past the cloud functions not attached to any BQ remote function
+        # belonging to the given session id
+        if gcf.service_config.uri not in endpoints_to_be_deleted:
+            continue
+
+        # Let's forgive the edge case possibility that the cloud function
+        # may have been deleted at the same time directly by the user
+        try:
+            gcfclient.delete_function(name=gcf.name)
+        except google.api_core.exceptions.NotFound:
+            pass
 
 
 def get_remote_function_locations(bq_location):
@@ -79,11 +168,47 @@ def get_remote_function_locations(bq_location):
 
 def _get_hash(def_, package_requirements=None):
     "Get hash (32 digits alphanumeric) of a function."
-    def_repr = cloudpickle.dumps(def_, protocol=_pickle_protocol_version)
+    # There is a known cell-id sensitivity of the cloudpickle serialization in
+    # notebooks https://github.com/cloudpipe/cloudpickle/issues/538. Because of
+    # this, if a cell contains a udf decorated with @remote_function, a unique
+    # cloudpickle code is generated every time the cell is run, creating new
+    # cloud artifacts every time. This is slow and wasteful.
+    # A workaround of the same can be achieved by replacing the filename in the
+    # code object to a static value
+    # https://github.com/cloudpipe/cloudpickle/issues/120#issuecomment-338510661.
+    #
+    # To respect the user code/environment let's make this modification on a
+    # copy of the udf, not on the original udf itself.
+    def_copy = cloudpickle.loads(cloudpickle.dumps(def_))
+    def_copy.__code__ = def_copy.__code__.replace(
+        co_filename="bigframes_place_holder_filename"
+    )
+
+    def_repr = cloudpickle.dumps(def_copy, protocol=_pickle_protocol_version)
     if package_requirements:
         for p in sorted(package_requirements):
             def_repr += p.encode()
     return hashlib.md5(def_repr).hexdigest()
+
+
+def _get_updated_package_requirements(
+    package_requirements=None, is_row_processor=False
+):
+    requirements = [f"cloudpickle=={cloudpickle.__version__}"]
+    if is_row_processor:
+        # bigframes remote function will send an entire row of data as json,
+        # which would be converted to a pandas series and processed
+        # Ensure numpy versions match to avoid unpickling problems. See
+        # internal issue b/347934471.
+        requirements.append(f"numpy=={numpy.__version__}")
+        requirements.append(f"pandas=={pandas.__version__}")
+        requirements.append(f"pyarrow=={pyarrow.__version__}")
+
+    if package_requirements:
+        requirements.extend(package_requirements)
+
+    requirements = sorted(requirements)
+    return requirements
 
 
 def routine_ref_to_string_for_query(routine_ref: bigquery.RoutineReference) -> str:
@@ -96,22 +221,23 @@ class IbisSignature(NamedTuple):
     output_type: IbisDataType
 
 
-def get_cloud_function_name(def_, uniq_suffix=None, package_requirements=None):
+def get_cloud_function_name(function_hash, session_id=None, uniq_suffix=None):
     "Get a name for the cloud function for the given user defined function."
-    cf_name = _get_hash(def_, package_requirements)
-    cf_name = f"bigframes-{cf_name}"  # for identification
+    parts = [_BIGFRAMES_REMOTE_FUNCTION_PREFIX]
+    if session_id:
+        parts.append(session_id)
+    parts.append(function_hash)
     if uniq_suffix:
-        cf_name = f"{cf_name}-{uniq_suffix}"
-    return cf_name
+        parts.append(uniq_suffix)
+    return _GCF_FUNCTION_NAME_SEPERATOR.join(parts)
 
 
-def get_remote_function_name(def_, uniq_suffix=None, package_requirements=None):
+def get_remote_function_name(function_hash, session_id, uniq_suffix=None):
     "Get a name for the BQ remote function for the given user defined function."
-    bq_rf_name = _get_hash(def_, package_requirements)
-    bq_rf_name = f"bigframes_{bq_rf_name}"  # for identification
+    parts = [_BIGFRAMES_REMOTE_FUNCTION_PREFIX, session_id, function_hash]
     if uniq_suffix:
-        bq_rf_name = f"{bq_rf_name}_{uniq_suffix}"
-    return bq_rf_name
+        parts.append(uniq_suffix)
+    return _BQ_FUNCTION_NAME_SEPERATOR.join(parts)
 
 
 class RemoteFunctionClient:
@@ -131,6 +257,8 @@ class RemoteFunctionClient:
         cloud_function_service_account,
         cloud_function_kms_key_name,
         cloud_function_docker_repository,
+        *,
+        session: Session,
     ):
         self._gcp_project_id = gcp_project_id
         self._cloud_function_region = cloud_function_region
@@ -143,9 +271,16 @@ class RemoteFunctionClient:
         self._cloud_function_service_account = cloud_function_service_account
         self._cloud_function_kms_key_name = cloud_function_kms_key_name
         self._cloud_function_docker_repository = cloud_function_docker_repository
+        self._session = session
 
     def create_bq_remote_function(
-        self, input_args, input_types, output_type, endpoint, bq_function_name
+        self,
+        input_args,
+        input_types,
+        output_type,
+        endpoint,
+        bq_function_name,
+        max_batching_rows,
     ):
         """Create a BigQuery remote function given the artifacts of a user defined
         function and the http endpoint of a corresponding cloud function."""
@@ -160,23 +295,30 @@ class RemoteFunctionClient:
         # Create BQ function
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function_2
         bq_function_args = []
-        bq_function_return_type = third_party_ibis_bqtypes.BigQueryType.from_ibis(
-            output_type
-        )
+        bq_function_return_type = output_type
 
         # We are expecting the input type annotations to be 1:1 with the input args
-        for idx, name in enumerate(input_args):
-            bq_function_args.append(
-                f"{name} {third_party_ibis_bqtypes.BigQueryType.from_ibis(input_types[idx])}"
-            )
+        for name, type_ in zip(input_args, input_types):
+            bq_function_args.append(f"{name} {type_}")
+
+        remote_function_options = {
+            "endpoint": endpoint,
+            "max_batching_rows": max_batching_rows,
+        }
+
+        remote_function_options_str = ", ".join(
+            [
+                f'{key}="{val}"' if isinstance(val, str) else f"{key}={val}"
+                for key, val in remote_function_options.items()
+                if val is not None
+            ]
+        )
+
         create_function_ddl = f"""
             CREATE OR REPLACE FUNCTION `{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name}({','.join(bq_function_args)})
             RETURNS {bq_function_return_type}
             REMOTE WITH CONNECTION `{self._gcp_project_id}.{self._bq_location}.{self._bq_connection_id}`
-            OPTIONS (
-              endpoint = "{endpoint}",
-              max_batching_rows = 1000
-            )"""
+            OPTIONS ({remote_function_options_str})"""
 
         logger.info(f"Creating BQ remote function: {create_function_ddl}")
 
@@ -197,10 +339,8 @@ class RemoteFunctionClient:
             # This requires bigquery.datasets.create IAM permission
             self._bq_client.create_dataset(dataset, exists_ok=True)
 
-        # TODO: Use session._start_query() so we get progress bar
-        query_job = self._bq_client.query(create_function_ddl)  # Make an API request.
-        query_job.result()  # Wait for the job to complete.
-
+        # TODO(swast): plumb through the original, user-facing api_name.
+        _, query_job = self._session._start_query(create_function_ddl)
         logger.info(f"Created remote function {query_job.ddl_target_routine}")
 
     def get_cloud_function_fully_qualified_parent(self):
@@ -215,6 +355,10 @@ class RemoteFunctionClient:
             self._gcp_project_id, self._cloud_function_region, name
         )
 
+    def get_remote_function_fully_qualilfied_name(self, name):
+        "Get the fully qualilfied name for a BQ remote function."
+        return f"{self._gcp_project_id}.{self._bq_dataset}.{name}"
+
     def get_cloud_function_endpoint(self, name):
         """Get the http endpoint of a cloud function if it exists."""
         fully_qualified_name = self.get_cloud_function_fully_qualified_name(name)
@@ -227,112 +371,75 @@ class RemoteFunctionClient:
             pass
         return None
 
-    def generate_udf_code(self, def_, dir):
-        """Generate serialized bytecode using cloudpickle given a udf."""
-        udf_code_file_name = "udf.py"
-        udf_bytecode_file_name = "udf.cloudpickle"
+    def generate_cloud_function_code(
+        self,
+        def_,
+        directory,
+        *,
+        input_types: Tuple[str],
+        output_type: str,
+        package_requirements=None,
+        is_row_processor=False,
+    ):
+        """Generate the cloud function code for a given user defined function.
 
-        # original code, only for debugging purpose
-        udf_code = textwrap.dedent(inspect.getsource(def_))
-        udf_code_file_path = os.path.join(dir, udf_code_file_name)
-        with open(udf_code_file_path, "w") as f:
-            f.write(udf_code)
-
-        # serialized bytecode
-        udf_bytecode_file_path = os.path.join(dir, udf_bytecode_file_name)
-        with open(udf_bytecode_file_path, "wb") as f:
-            cloudpickle.dump(def_, f, protocol=_pickle_protocol_version)
-
-        return udf_code_file_name, udf_bytecode_file_name
-
-    def generate_cloud_function_main_code(self, def_, dir):
-        """Get main.py code for the cloud function for the given user defined function."""
-
-        # Pickle the udf with all its dependencies
-        udf_code_file, udf_bytecode_file = self.generate_udf_code(def_, dir)
-        handler_func_name = "udf_http"
-
-        # We want to build a cloud function that works for BQ remote functions,
-        # where we receive `calls` in json which is a batch of rows from BQ SQL.
-        # The number and the order of values in each row is expected to exactly
-        # match to the number and order of arguments in the udf , e.g. if the udf is
-        #   def foo(x: int, y: str):
-        #     ...
-        # then the http request body could look like
-        # {
-        #   ...
-        #   "calls" : [
-        #     [123, "hello"],
-        #     [456, "world"]
-        #   ]
-        #   ...
-        # }
-        # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#input_format
-        code_template = textwrap.dedent(
-            """\
-        import cloudpickle
-        import functions_framework
-        from flask import jsonify
-        import json
-
-        # original udf code is in {udf_code_file}
-        # serialized udf code is in {udf_bytecode_file}
-        with open("{udf_bytecode_file}", "rb") as f:
-          udf = cloudpickle.load(f)
-
-        def {handler_func_name}(request):
-          try:
-            request_json = request.get_json(silent=True)
-            calls = request_json["calls"]
-            replies = []
-            for call in calls:
-              reply = udf(*call)
-              replies.append(reply)
-            return_json = json.dumps({{"replies" : replies}})
-            return return_json
-          except Exception as e:
-            return jsonify( {{ "errorMessage": str(e) }} ), 400
+        Args:
+            input_types (tuple[str]):
+                Types of the input arguments in BigQuery SQL data type names.
+            output_type (str):
+                Types of the output scalar as a BigQuery SQL data type name.
         """
-        )
-
-        code = code_template.format(
-            udf_code_file=udf_code_file,
-            udf_bytecode_file=udf_bytecode_file,
-            handler_func_name=handler_func_name,
-        )
-
-        main_py = os.path.join(dir, "main.py")
-        with open(main_py, "w") as f:
-            f.write(code)
-        logger.debug(f"Wrote {os.path.abspath(main_py)}:\n{open(main_py).read()}")
-
-        return handler_func_name
-
-    def generate_cloud_function_code(self, def_, dir, package_requirements=None):
-        """Generate the cloud function code for a given user defined function."""
 
         # requirements.txt
-        requirements = ["cloudpickle >= 2.1.0"]
         if package_requirements:
-            requirements.extend(package_requirements)
-        requirements = sorted(requirements)
-        requirements_txt = os.path.join(dir, "requirements.txt")
-        with open(requirements_txt, "w") as f:
-            f.write("\n".join(requirements))
+            requirements_txt = os.path.join(directory, "requirements.txt")
+            with open(requirements_txt, "w") as f:
+                f.write("\n".join(package_requirements))
 
         # main.py
-        entry_point = self.generate_cloud_function_main_code(def_, dir)
+        entry_point = bigframes.functions.remote_function_template.generate_cloud_function_main_code(
+            def_,
+            directory,
+            input_types=input_types,
+            output_type=output_type,
+            is_row_processor=is_row_processor,
+        )
         return entry_point
 
-    def create_cloud_function(self, def_, cf_name, package_requirements=None):
-        """Create a cloud function from the given user defined function."""
+    def create_cloud_function(
+        self,
+        def_,
+        cf_name,
+        *,
+        input_types: Tuple[str],
+        output_type: str,
+        package_requirements=None,
+        timeout_seconds=600,
+        max_instance_count=None,
+        is_row_processor=False,
+        vpc_connector=None,
+        memory_mib=1024,
+    ):
+        """Create a cloud function from the given user defined function.
+
+        Args:
+            input_types (tuple[str]):
+                Types of the input arguments in BigQuery SQL data type names.
+            output_type (str):
+                Types of the output scalar as a BigQuery SQL data type name.
+        """
 
         # Build and deploy folder structure containing cloud function
-        with tempfile.TemporaryDirectory() as dir:
+        with tempfile.TemporaryDirectory() as directory:
             entry_point = self.generate_cloud_function_code(
-                def_, dir, package_requirements
+                def_,
+                directory,
+                package_requirements=package_requirements,
+                input_types=input_types,
+                output_type=output_type,
+                is_row_processor=is_row_processor,
             )
-            archive_path = shutil.make_archive(dir, "zip", dir)
+            archive_path = shutil.make_archive(directory, "zip", directory)
 
             # We are creating cloud function source code from the currently running
             # python version. Use the same version to deploy. This is necessary
@@ -391,8 +498,20 @@ class RemoteFunctionClient:
                 self._cloud_function_docker_repository
             )
             function.service_config = functions_v2.ServiceConfig()
-            function.service_config.available_memory = "1024M"
-            function.service_config.timeout_seconds = 600
+            if memory_mib is not None:
+                function.service_config.available_memory = f"{memory_mib}Mi"
+            if timeout_seconds is not None:
+                if timeout_seconds > 1200:
+                    raise ValueError(
+                        "BigQuery remote function can wait only up to 20 minutes"
+                        ", see for more details "
+                        "https://cloud.google.com/bigquery/quotas#remote_function_limits."
+                    )
+                function.service_config.timeout_seconds = timeout_seconds
+            if max_instance_count is not None:
+                function.service_config.max_instance_count = max_instance_count
+            if vpc_connector is not None:
+                function.service_config.vpc_connector = vpc_connector
             function.service_config.service_account_email = (
                 self._cloud_function_service_account
             )
@@ -438,28 +557,58 @@ class RemoteFunctionClient:
         reuse,
         name,
         package_requirements,
+        max_batching_rows,
+        cloud_function_timeout,
+        cloud_function_max_instance_count,
+        is_row_processor,
+        cloud_function_vpc_connector,
+        cloud_function_memory_mib,
     ):
         """Provision a BigQuery remote function."""
+        # Augment user package requirements with any internal package
+        # requirements
+        package_requirements = _get_updated_package_requirements(
+            package_requirements, is_row_processor
+        )
+
+        # Compute a unique hash representing the user code
+        function_hash = _get_hash(def_, package_requirements)
+
         # If reuse of any existing function with the same name (indicated by the
         # same hash of its source code) is not intended, then attach a unique
         # suffix to the intended function name to make it unique.
         uniq_suffix = None
         if not reuse:
+            # use 4 digits as a unique suffix which should suffice for
+            # uniqueness per session
             uniq_suffix = "".join(
-                random.choices(string.ascii_lowercase + string.digits, k=8)
+                random.choices(string.ascii_lowercase + string.digits, k=4)
             )
 
         # Derive the name of the cloud function underlying the intended BQ
-        # remote function
+        # remote function. Use the session id to identify the GCF for unnamed
+        # functions. The named remote functions are treated as a persistant
+        # artifacts, so let's keep them independent of session id, which also
+        # makes their naming more stable for the same udf code
+        session_id = None if name else self._session.session_id
         cloud_function_name = get_cloud_function_name(
-            def_, uniq_suffix, package_requirements
+            function_hash, session_id, uniq_suffix
         )
         cf_endpoint = self.get_cloud_function_endpoint(cloud_function_name)
 
         # Create the cloud function if it does not exist
         if not cf_endpoint:
             cf_endpoint = self.create_cloud_function(
-                def_, cloud_function_name, package_requirements
+                def_,
+                cloud_function_name,
+                input_types=input_types,
+                output_type=output_type,
+                package_requirements=package_requirements,
+                timeout_seconds=cloud_function_timeout,
+                max_instance_count=cloud_function_max_instance_count,
+                is_row_processor=is_row_processor,
+                vpc_connector=cloud_function_vpc_connector,
+                memory_mib=cloud_function_memory_mib,
             )
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")
@@ -468,7 +617,7 @@ class RemoteFunctionClient:
         remote_function_name = name
         if not remote_function_name:
             remote_function_name = get_remote_function_name(
-                def_, uniq_suffix, package_requirements
+                function_hash, self._session.session_id, uniq_suffix
             )
         rf_endpoint, rf_conn = self.get_remote_function_specs(remote_function_name)
 
@@ -476,6 +625,7 @@ class RemoteFunctionClient:
         # 1. It does not exist
         # 2. It exists but the existing remote function has different
         #    configuration than intended
+        created_new = False
         if not rf_endpoint or (
             rf_endpoint != cf_endpoint or rf_conn != self._bq_connection_id
         ):
@@ -485,12 +635,19 @@ class RemoteFunctionClient:
                     "Exactly one type should be provided for every input arg."
                 )
             self.create_bq_remote_function(
-                input_args, input_types, output_type, cf_endpoint, remote_function_name
+                input_args,
+                input_types,
+                output_type,
+                cf_endpoint,
+                remote_function_name,
+                max_batching_rows,
             )
+
+            created_new = True
         else:
             logger.info(f"Remote function {remote_function_name} already exists.")
 
-        return remote_function_name, cloud_function_name
+        return remote_function_name, cloud_function_name, created_new
 
     def get_remote_function_specs(self, remote_function_name):
         """Check whether a remote function already exists for the udf."""
@@ -501,13 +658,12 @@ class RemoteFunctionClient:
         )
         try:
             for routine in routines:
+                routine = cast(bigquery.Routine, routine)
                 if routine.reference.routine_id == remote_function_name:
-                    # TODO(shobs): Use first class properties when they are available
-                    # https://github.com/googleapis/python-bigquery/issues/1552
-                    rf_options = routine._properties.get("remoteFunctionOptions")
+                    rf_options = routine.remote_function_options
                     if rf_options:
-                        http_endpoint = rf_options.get("endpoint")
-                        bq_connection = rf_options.get("connection")
+                        http_endpoint = rf_options.endpoint
+                        bq_connection = rf_options.connection
                         if bq_connection:
                             bq_connection = os.path.basename(bq_connection)
                     break
@@ -529,12 +685,16 @@ def ibis_signature_from_python_signature(
     input_types: Sequence[type],
     output_type: type,
 ) -> IbisSignature:
+
     return IbisSignature(
         parameter_names=list(signature.parameters.keys()),
         input_types=[
-            bigframes.dtypes.ibis_type_from_python_type(t) for t in input_types
+            bigframes.core.compile.ibis_types.ibis_type_from_python_type(t)
+            for t in input_types
         ],
-        output_type=bigframes.dtypes.ibis_type_from_python_type(output_type),
+        output_type=bigframes.core.compile.ibis_types.ibis_type_from_python_type(
+            output_type
+        ),
     )
 
 
@@ -542,6 +702,7 @@ class ReturnTypeMissingError(ValueError):
     pass
 
 
+# TODO: Move this to compile folder
 def ibis_signature_from_routine(routine: bigquery.Routine) -> IbisSignature:
     if not routine.return_type:
         raise ReturnTypeMissingError
@@ -549,12 +710,14 @@ def ibis_signature_from_routine(routine: bigquery.Routine) -> IbisSignature:
     return IbisSignature(
         parameter_names=[arg.name for arg in routine.arguments],
         input_types=[
-            bigframes.dtypes.ibis_type_from_type_kind(arg.data_type.type_kind)
+            bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
+                arg.data_type.type_kind
+            )
             if arg.data_type
             else None
             for arg in routine.arguments
         ],
-        output_type=bigframes.dtypes.ibis_type_from_type_kind(
+        output_type=bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
             routine.return_type.type_kind
         ),
     )
@@ -585,305 +748,527 @@ def get_routine_reference(
         return dataset_ref.routine(routine_ref_str)
 
 
-# Inspired by @udf decorator implemented in ibis-bigquery package
-# https://github.com/ibis-project/ibis-bigquery/blob/main/ibis_bigquery/udf/__init__.py
-# which has moved as @js to the ibis package
-# https://github.com/ibis-project/ibis/blob/master/ibis/backends/bigquery/udf/__init__.py
-def remote_function(
-    input_types: Sequence[type],
-    output_type: type,
-    session: Optional[Session] = None,
-    bigquery_client: Optional[bigquery.Client] = None,
-    bigquery_connection_client: Optional[
-        bigquery_connection_v1.ConnectionServiceClient
-    ] = None,
-    cloud_functions_client: Optional[functions_v2.FunctionServiceClient] = None,
-    resource_manager_client: Optional[resourcemanager_v3.ProjectsClient] = None,
-    dataset: Optional[str] = None,
-    bigquery_connection: Optional[str] = None,
-    reuse: bool = True,
-    name: Optional[str] = None,
-    packages: Optional[Sequence[str]] = None,
-    cloud_function_service_account: Optional[str] = None,
-    cloud_function_kms_key_name: Optional[str] = None,
-    cloud_function_docker_repository: Optional[str] = None,
-):
-    """Decorator to turn a user defined function into a BigQuery remote function.
+class _RemoteFunctionSession:
+    """Session to manage remote functions."""
 
-    .. deprecated:: 0.0.1
-       This is an internal method. Please use :func:`bigframes.pandas.remote_function` instead.
+    def __init__(self):
+        # Session level mapping of remote function artifacts
+        self._temp_artifacts: Dict[str, str] = dict()
 
-    .. note::
-        Please make sure following is setup before using this API:
+        # Lock to synchronize the update of the session artifacts
+        self._artifacts_lock = threading.Lock()
 
-        1. Have the below APIs enabled for your project:
+    def _update_temp_artifacts(self, bqrf_routine: str, gcf_path: str):
+        """Update remote function artifacts in the current session."""
+        with self._artifacts_lock:
+            self._temp_artifacts[bqrf_routine] = gcf_path
 
-            * BigQuery Connection API
-            * Cloud Functions API
-            * Cloud Run API
-            * Cloud Build API
-            * Artifact Registry API
-            * Cloud Resource Manager API
-
-           This can be done from the cloud console (change `PROJECT_ID` to yours):
-           https://console.cloud.google.com/apis/enableflow?apiid=bigqueryconnection.googleapis.com,cloudfunctions.googleapis.com,run.googleapis.com,cloudbuild.googleapis.com,artifactregistry.googleapis.com,cloudresourcemanager.googleapis.com&project=PROJECT_ID
-
-           Or from the gcloud CLI:
-
-           `$ gcloud services enable bigqueryconnection.googleapis.com cloudfunctions.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com cloudresourcemanager.googleapis.com`
-
-        2. Have following IAM roles enabled for you:
-
-            * BigQuery Data Editor (roles/bigquery.dataEditor)
-            * BigQuery Connection Admin (roles/bigquery.connectionAdmin)
-            * Cloud Functions Developer (roles/cloudfunctions.developer)
-            * Service Account User (roles/iam.serviceAccountUser) on the service account `PROJECT_NUMBER-compute@developer.gserviceaccount.com`
-            * Storage Object Viewer (roles/storage.objectViewer)
-            * Project IAM Admin (roles/resourcemanager.projectIamAdmin) (Only required if the bigquery connection being used is not pre-created and is created dynamically with user credentials.)
-
-        3. Either the user has setIamPolicy privilege on the project, or a BigQuery connection is pre-created with necessary IAM role set:
-
-            1. To create a connection, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_connection
-            2. To set up IAM, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#grant_permission_on_function
-
-               Alternatively, the IAM could also be setup via the gcloud CLI:
-
-               `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
-
-    Args:
-        input_types list(type):
-            List of input data types in the user defined function.
-        output_type type:
-            Data type of the output in the user defined function.
-        session (bigframes.Session, Optional):
-            BigQuery DataFrames session to use for getting default project,
-            dataset and BigQuery connection.
-        bigquery_client (google.cloud.bigquery.Client, Optional):
-            Client to use for BigQuery operations. If this param is not provided
-            then bigquery client from the session would be used.
-        bigquery_connection_client (google.cloud.bigquery_connection_v1.ConnectionServiceClient, Optional):
-            Client to use for BigQuery connection operations. If this param is
-            not provided then bigquery connection client from the session would
-            be used.
-        cloud_functions_client (google.cloud.functions_v2.FunctionServiceClient, Optional):
-            Client to use for cloud functions operations. If this param is not
-            provided then the functions client from the session would be used.
-        resource_manager_client (google.cloud.resourcemanager_v3.ProjectsClient, Optional):
-            Client to use for cloud resource management operations, e.g. for
-            getting and setting IAM roles on cloud resources. If this param is
-            not provided then resource manager client from the session would be
-            used.
-        dataset (str, Optional.):
-            Dataset in which to create a BigQuery remote function. It should be in
-            `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
-            parameter is not provided then session dataset id is used.
-        bigquery_connection (str, Optional):
-            Name of the BigQuery connection in the form of `CONNECTION_ID` or
-            `LOCATION.CONNECTION_ID` or `PROJECT_ID.LOCATION.CONNECTION_ID`.
-            If this param is not provided then the bigquery connection from the session
-            would be used. If it is pre created in the same location as the
-            `bigquery_client.location` then it would be used, otherwise it is created
-            dynamically using the `bigquery_connection_client` assuming the user has necessary
-            priviliges. The PROJECT_ID should be the same as the BigQuery connection project.
-        reuse (bool, Optional):
-            Reuse the remote function if is already exists.
-            `True` by default, which results in reusing an existing remote
-            function and corresponding cloud function (if any) that was
-            previously created for the same udf.
-            Setting it to `False` forces the creation of a unique remote function.
-            If the required remote function does not exist then it would be
-            created irrespective of this param.
-        name (str, Optional):
-            Explicit name of the persisted BigQuery remote function. Use it with
-            caution, because two users working in the same project and dataset
-            could overwrite each other's remote functions if they use the same
-            persistent name.
-        packages (str[], Optional):
-            Explicit name of the external package dependencies. Each dependency
-            is added to the `requirements.txt` as is, and can be of the form
-            supported in https://pip.pypa.io/en/stable/reference/requirements-file-format/.
-        cloud_function_service_account (str, Optional):
-            Service account to use for the cloud functions. If not provided then
-            the default service account would be used. See
-            https://cloud.google.com/functions/docs/securing/function-identity
-            for more details. Please make sure the service account has the
-            necessary IAM permissions configured as described in
-            https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration.
-        cloud_function_kms_key_name (str, Optional):
-            Customer managed encryption key to protect cloud functions and
-            related data at rest. This is of the format
-            projects/PROJECT_ID/locations/LOCATION/keyRings/KEYRING/cryptoKeys/KEY.
-            Read https://cloud.google.com/functions/docs/securing/cmek for
-            more details including granting necessary service accounts
-            access to the key.
-        cloud_function_docker_repository (str, Optional):
-            Docker repository created with the same encryption key as
-            `cloud_function_kms_key_name` to store encrypted artifacts
-            created to support the cloud function. This is of the format
-            projects/PROJECT_ID/locations/LOCATION/repositories/REPOSITORY_NAME.
-            For more details see
-            https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.
-    """
-    import bigframes.pandas as bpd
-
-    session = session or bpd.get_global_session()
-
-    # A BigQuery client is required to perform BQ operations
-    if not bigquery_client:
-        bigquery_client = session.bqclient
-    if not bigquery_client:
-        raise ValueError(
-            "A bigquery client must be provided, either directly or via session. "
-            f"{constants.FEEDBACK_LINK}"
-        )
-
-    # A BigQuery connection client is required to perform BQ connection operations
-    if not bigquery_connection_client:
-        bigquery_connection_client = session.bqconnectionclient
-    if not bigquery_connection_client:
-        raise ValueError(
-            "A bigquery connection client must be provided, either directly or via session. "
-            f"{constants.FEEDBACK_LINK}"
-        )
-
-    # A cloud functions client is required to perform cloud functions operations
-    if not cloud_functions_client:
-        cloud_functions_client = session.cloudfunctionsclient
-    if not cloud_functions_client:
-        raise ValueError(
-            "A cloud functions client must be provided, either directly or via session. "
-            f"{constants.FEEDBACK_LINK}"
-        )
-
-    # A resource manager client is required to get/set IAM operations
-    if not resource_manager_client:
-        resource_manager_client = session.resourcemanagerclient
-    if not resource_manager_client:
-        raise ValueError(
-            "A resource manager client must be provided, either directly or via session. "
-            f"{constants.FEEDBACK_LINK}"
-        )
-
-    # BQ remote function must be persisted, for which we need a dataset
-    # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#:~:text=You%20cannot%20create%20temporary%20remote%20functions.
-    if dataset:
-        dataset_ref = bigquery.DatasetReference.from_string(
-            dataset, default_project=bigquery_client.project
-        )
-    else:
-        dataset_ref = session._anonymous_dataset
-
-    bq_location, cloud_function_region = get_remote_function_locations(
-        bigquery_client.location
-    )
-
-    # A connection is required for BQ remote function
-    # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function
-    if not bigquery_connection:
-        bigquery_connection = session._bq_connection  # type: ignore
-
-    bigquery_connection = clients.resolve_full_bq_connection_name(
-        bigquery_connection,
-        default_project=dataset_ref.project,
-        default_location=bq_location,
-    )
-    # Guaranteed to be the form of <project>.<location>.<connection_id>
-    (
-        gcp_project_id,
-        bq_connection_location,
-        bq_connection_id,
-    ) = bigquery_connection.split(".")
-    if gcp_project_id.casefold() != dataset_ref.project.casefold():
-        raise ValueError(
-            "The project_id does not match BigQuery connection gcp_project_id: "
-            f"{dataset_ref.project}."
-        )
-    if bq_connection_location.casefold() != bq_location.casefold():
-        raise ValueError(
-            "The location does not match BigQuery connection location: "
-            f"{bq_location}."
-        )
-
-    # If any CMEK is intended then check that a docker repository is also specified
-    if (
-        cloud_function_kms_key_name is not None
-        and cloud_function_docker_repository is None
+    def clean_up(
+        self,
+        bqclient: bigquery.Client,
+        gcfclient: functions_v2.FunctionServiceClient,
+        session_id: str,
     ):
-        raise ValueError(
-            "cloud_function_docker_repository must be specified with cloud_function_kms_key_name."
-            " For more details see https://cloud.google.com/functions/docs/securing/cmek#before_you_begin"
+        """Delete remote function artifacts in the current session."""
+        with self._artifacts_lock:
+            for bqrf_routine, gcf_path in self._temp_artifacts.items():
+                # Let's accept the possibility that the remote function may have
+                # been deleted directly by the user
+                bqclient.delete_routine(bqrf_routine, not_found_ok=True)
+
+                # Let's accept the possibility that the cloud function may have
+                # been deleted directly by the user
+                try:
+                    gcfclient.delete_function(name=gcf_path)
+                except google.api_core.exceptions.NotFound:
+                    pass
+
+            self._temp_artifacts.clear()
+
+    # Inspired by @udf decorator implemented in ibis-bigquery package
+    # https://github.com/ibis-project/ibis-bigquery/blob/main/ibis_bigquery/udf/__init__.py
+    # which has moved as @js to the ibis package
+    # https://github.com/ibis-project/ibis/blob/master/ibis/backends/bigquery/udf/__init__.py
+    def remote_function(
+        self,
+        input_types: Union[None, type, Sequence[type]] = None,
+        output_type: Optional[type] = None,
+        session: Optional[Session] = None,
+        bigquery_client: Optional[bigquery.Client] = None,
+        bigquery_connection_client: Optional[
+            bigquery_connection_v1.ConnectionServiceClient
+        ] = None,
+        cloud_functions_client: Optional[functions_v2.FunctionServiceClient] = None,
+        resource_manager_client: Optional[resourcemanager_v3.ProjectsClient] = None,
+        dataset: Optional[str] = None,
+        bigquery_connection: Optional[str] = None,
+        reuse: bool = True,
+        name: Optional[str] = None,
+        packages: Optional[Sequence[str]] = None,
+        cloud_function_service_account: Optional[str] = None,
+        cloud_function_kms_key_name: Optional[str] = None,
+        cloud_function_docker_repository: Optional[str] = None,
+        max_batching_rows: Optional[int] = 1000,
+        cloud_function_timeout: Optional[int] = 600,
+        cloud_function_max_instances: Optional[int] = None,
+        cloud_function_vpc_connector: Optional[str] = None,
+        cloud_function_memory_mib: Optional[int] = 1024,
+    ):
+        """Decorator to turn a user defined function into a BigQuery remote function.
+
+        .. deprecated:: 0.0.1
+        This is an internal method. Please use :func:`bigframes.pandas.remote_function` instead.
+
+        .. note::
+            Please make sure following is setup before using this API:
+
+            1. Have the below APIs enabled for your project:
+
+                * BigQuery Connection API
+                * Cloud Functions API
+                * Cloud Run API
+                * Cloud Build API
+                * Artifact Registry API
+                * Cloud Resource Manager API
+
+            This can be done from the cloud console (change `PROJECT_ID` to yours):
+            https://console.cloud.google.com/apis/enableflow?apiid=bigqueryconnection.googleapis.com,cloudfunctions.googleapis.com,run.googleapis.com,cloudbuild.googleapis.com,artifactregistry.googleapis.com,cloudresourcemanager.googleapis.com&project=PROJECT_ID
+
+            Or from the gcloud CLI:
+
+            `$ gcloud services enable bigqueryconnection.googleapis.com cloudfunctions.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com cloudresourcemanager.googleapis.com`
+
+            2. Have following IAM roles enabled for you:
+
+                * BigQuery Data Editor (roles/bigquery.dataEditor)
+                * BigQuery Connection Admin (roles/bigquery.connectionAdmin)
+                * Cloud Functions Developer (roles/cloudfunctions.developer)
+                * Service Account User (roles/iam.serviceAccountUser) on the service account `PROJECT_NUMBER-compute@developer.gserviceaccount.com`
+                * Storage Object Viewer (roles/storage.objectViewer)
+                * Project IAM Admin (roles/resourcemanager.projectIamAdmin) (Only required if the bigquery connection being used is not pre-created and is created dynamically with user credentials.)
+
+            3. Either the user has setIamPolicy privilege on the project, or a BigQuery connection is pre-created with necessary IAM role set:
+
+                1. To create a connection, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_connection
+                2. To set up IAM, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#grant_permission_on_function
+
+                Alternatively, the IAM could also be setup via the gcloud CLI:
+
+                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
+
+        Args:
+            input_types (None, type, or sequence(type)):
+                For scalar user defined function it should be the input type or
+                sequence of input types. For row processing user defined function,
+                type `Series` should be specified.
+            output_type (Optional[type]):
+                Data type of the output in the user defined function.
+            session (bigframes.Session, Optional):
+                BigQuery DataFrames session to use for getting default project,
+                dataset and BigQuery connection.
+            bigquery_client (google.cloud.bigquery.Client, Optional):
+                Client to use for BigQuery operations. If this param is not provided
+                then bigquery client from the session would be used.
+            bigquery_connection_client (google.cloud.bigquery_connection_v1.ConnectionServiceClient, Optional):
+                Client to use for BigQuery connection operations. If this param is
+                not provided then bigquery connection client from the session would
+                be used.
+            cloud_functions_client (google.cloud.functions_v2.FunctionServiceClient, Optional):
+                Client to use for cloud functions operations. If this param is not
+                provided then the functions client from the session would be used.
+            resource_manager_client (google.cloud.resourcemanager_v3.ProjectsClient, Optional):
+                Client to use for cloud resource management operations, e.g. for
+                getting and setting IAM roles on cloud resources. If this param is
+                not provided then resource manager client from the session would be
+                used.
+            dataset (str, Optional.):
+                Dataset in which to create a BigQuery remote function. It should be in
+                `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
+                parameter is not provided then session dataset id is used.
+            bigquery_connection (str, Optional):
+                Name of the BigQuery connection in the form of `CONNECTION_ID` or
+                `LOCATION.CONNECTION_ID` or `PROJECT_ID.LOCATION.CONNECTION_ID`.
+                If this param is not provided then the bigquery connection from the session
+                would be used. If it is pre created in the same location as the
+                `bigquery_client.location` then it would be used, otherwise it is created
+                dynamically using the `bigquery_connection_client` assuming the user has necessary
+                priviliges. The PROJECT_ID should be the same as the BigQuery connection project.
+            reuse (bool, Optional):
+                Reuse the remote function if already exists.
+                `True` by default, which will result in reusing an existing remote
+                function and corresponding cloud function that was previously
+                created (if any) for the same udf.
+                Please note that for an unnamed (i.e. created without an explicit
+                `name` argument) remote function, the BigQuery DataFrames
+                session id is attached in the cloud artifacts names. So for the
+                effective reuse across the sessions it is recommended to create
+                the remote function with an explicit `name`.
+                Setting it to `False` would force creating a unique remote function.
+                If the required remote function does not exist then it would be
+                created irrespective of this param.
+            name (str, Optional):
+                Explicit name of the persisted BigQuery remote function. Use it with
+                caution, because two users working in the same project and dataset
+                could overwrite each other's remote functions if they use the same
+                persistent name. When an explicit name is provided, any session
+                specific clean up (``bigframes.session.Session.close``/
+                ``bigframes.pandas.close_session``/
+                ``bigframes.pandas.reset_session``/
+                ``bigframes.pandas.clean_up_by_session_id``) does not clean up
+                the function, and leaves it for the user to manage the function
+                and the associated cloud function directly.
+            packages (str[], Optional):
+                Explicit name of the external package dependencies. Each dependency
+                is added to the `requirements.txt` as is, and can be of the form
+                supported in https://pip.pypa.io/en/stable/reference/requirements-file-format/.
+            cloud_function_service_account (str, Optional):
+                Service account to use for the cloud functions. If not provided then
+                the default service account would be used. See
+                https://cloud.google.com/functions/docs/securing/function-identity
+                for more details. Please make sure the service account has the
+                necessary IAM permissions configured as described in
+                https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration.
+            cloud_function_kms_key_name (str, Optional):
+                Customer managed encryption key to protect cloud functions and
+                related data at rest. This is of the format
+                projects/PROJECT_ID/locations/LOCATION/keyRings/KEYRING/cryptoKeys/KEY.
+                Read https://cloud.google.com/functions/docs/securing/cmek for
+                more details including granting necessary service accounts
+                access to the key.
+            cloud_function_docker_repository (str, Optional):
+                Docker repository created with the same encryption key as
+                `cloud_function_kms_key_name` to store encrypted artifacts
+                created to support the cloud function. This is of the format
+                projects/PROJECT_ID/locations/LOCATION/repositories/REPOSITORY_NAME.
+                For more details see
+                https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.
+            max_batching_rows (int, Optional):
+                The maximum number of rows to be batched for processing in the
+                BQ remote function. Default value is 1000. A lower number can be
+                passed to avoid timeouts in case the user code is too complex to
+                process large number of rows fast enough. A higher number can be
+                used to increase throughput in case the user code is fast enough.
+                `None` can be passed to let BQ remote functions service apply
+                default batching. See for more details
+                https://cloud.google.com/bigquery/docs/remote-functions#limiting_number_of_rows_in_a_batch_request.
+            cloud_function_timeout (int, Optional):
+                The maximum amount of time (in seconds) BigQuery should wait for
+                the cloud function to return a response. See for more details
+                https://cloud.google.com/functions/docs/configuring/timeout.
+                Please note that even though the cloud function (2nd gen) itself
+                allows seeting up to 60 minutes of timeout, BigQuery remote
+                function can wait only up to 20 minutes, see for more details
+                https://cloud.google.com/bigquery/quotas#remote_function_limits.
+                By default BigQuery DataFrames uses a 10 minute timeout. `None`
+                can be passed to let the cloud functions default timeout take effect.
+            cloud_function_max_instances (int, Optional):
+                The maximumm instance count for the cloud function created. This
+                can be used to control how many cloud function instances can be
+                active at max at any given point of time. Lower setting can help
+                control the spike in the billing. Higher setting can help
+                support processing larger scale data. When not specified, cloud
+                function's default setting applies. For more details see
+                https://cloud.google.com/functions/docs/configuring/max-instances.
+            cloud_function_vpc_connector (str, Optional):
+                The VPC connector you would like to configure for your cloud
+                function. This is useful if your code needs access to data or
+                service(s) that are on a VPC network. See for more details
+                https://cloud.google.com/functions/docs/networking/connecting-vpc.
+            cloud_function_memory_mib (int, Optional):
+                The amounts of memory (in mebibytes) to allocate for the cloud
+                function (2nd gen) created. This also dictates a corresponding
+                amount of allocated CPU for the function. By default a memory of
+                1024 MiB is set for the cloud functions created to support
+                BigQuery DataFrames remote function. If you want to let the
+                default memory of cloud functions be allocated, pass `None`. See
+                for more details
+                https://cloud.google.com/functions/docs/configuring/memory.
+        """
+        # Some defaults may be used from the session if not provided otherwise
+        import bigframes.exceptions as bf_exceptions
+        import bigframes.pandas as bpd
+        import bigframes.series as bf_series
+        import bigframes.session
+
+        session = cast(bigframes.session.Session, session or bpd.get_global_session())
+
+        # A BigQuery client is required to perform BQ operations
+        if not bigquery_client:
+            bigquery_client = session.bqclient
+        if not bigquery_client:
+            raise ValueError(
+                "A bigquery client must be provided, either directly or via session. "
+                f"{constants.FEEDBACK_LINK}"
+            )
+
+        # A BigQuery connection client is required to perform BQ connection operations
+        if not bigquery_connection_client:
+            bigquery_connection_client = session.bqconnectionclient
+        if not bigquery_connection_client:
+            raise ValueError(
+                "A bigquery connection client must be provided, either directly or via session. "
+                f"{constants.FEEDBACK_LINK}"
+            )
+
+        # A cloud functions client is required to perform cloud functions operations
+        if not cloud_functions_client:
+            cloud_functions_client = session.cloudfunctionsclient
+        if not cloud_functions_client:
+            raise ValueError(
+                "A cloud functions client must be provided, either directly or via session. "
+                f"{constants.FEEDBACK_LINK}"
+            )
+
+        # A resource manager client is required to get/set IAM operations
+        if not resource_manager_client:
+            resource_manager_client = session.resourcemanagerclient
+        if not resource_manager_client:
+            raise ValueError(
+                "A resource manager client must be provided, either directly or via session. "
+                f"{constants.FEEDBACK_LINK}"
+            )
+
+        # BQ remote function must be persisted, for which we need a dataset
+        # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#:~:text=You%20cannot%20create%20temporary%20remote%20functions.
+        if dataset:
+            dataset_ref = bigquery.DatasetReference.from_string(
+                dataset, default_project=bigquery_client.project
+            )
+        else:
+            dataset_ref = session._anonymous_dataset
+
+        bq_location, cloud_function_region = get_remote_function_locations(
+            bigquery_client.location
         )
 
-    bq_connection_manager = None if session is None else session.bqconnectionmanager
+        # A connection is required for BQ remote function
+        # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function
+        if not bigquery_connection:
+            bigquery_connection = session._bq_connection  # type: ignore
 
-    def wrapper(f):
-        if not callable(f):
-            raise TypeError("f must be callable, got {}".format(f))
-
-        signature = inspect.signature(f)
-        ibis_signature = ibis_signature_from_python_signature(
-            signature, input_types, output_type
+        bigquery_connection = clients.resolve_full_bq_connection_name(
+            bigquery_connection,
+            default_project=dataset_ref.project,
+            default_location=bq_location,
         )
-
-        remote_function_client = RemoteFunctionClient(
-            dataset_ref.project,
-            cloud_function_region,
-            cloud_functions_client,
-            bq_location,
-            dataset_ref.dataset_id,
-            bigquery_client,
+        # Guaranteed to be the form of <project>.<location>.<connection_id>
+        (
+            gcp_project_id,
+            bq_connection_location,
             bq_connection_id,
-            bq_connection_manager,
-            cloud_function_service_account,
-            cloud_function_kms_key_name,
-            cloud_function_docker_repository,
-        )
+        ) = bigquery_connection.split(".")
+        if gcp_project_id.casefold() != dataset_ref.project.casefold():
+            raise ValueError(
+                "The project_id does not match BigQuery connection gcp_project_id: "
+                f"{dataset_ref.project}."
+            )
+        if bq_connection_location.casefold() != bq_location.casefold():
+            raise ValueError(
+                "The location does not match BigQuery connection location: "
+                f"{bq_location}."
+            )
 
-        rf_name, cf_name = remote_function_client.provision_bq_remote_function(
-            f,
-            ibis_signature.input_types,
-            ibis_signature.output_type,
-            reuse,
-            name,
-            packages,
-        )
+        # If any CMEK is intended then check that a docker repository is also specified
+        if (
+            cloud_function_kms_key_name is not None
+            and cloud_function_docker_repository is None
+        ):
+            raise ValueError(
+                "cloud_function_docker_repository must be specified with cloud_function_kms_key_name."
+                " For more details see https://cloud.google.com/functions/docs/securing/cmek#before_you_begin"
+            )
 
-        # TODO: Move ibis logic to compiler step
-        node = ibis.udf.scalar.builtin(
-            f,
-            name=rf_name,
-            schema=f"{dataset_ref.project}.{dataset_ref.dataset_id}",
-            signature=(ibis_signature.input_types, ibis_signature.output_type),
-        )
-        node.bigframes_cloud_function = (
-            remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
-        )
-        node.bigframes_remote_function = str(dataset_ref.routine(rf_name))  # type: ignore
-        node.output_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(
-            ibis_signature.output_type
-        )
-        return node
+        bq_connection_manager = session.bqconnectionmanager
 
-    return wrapper
+        def wrapper(func):
+            nonlocal input_types, output_type
+
+            if not callable(func):
+                raise TypeError("f must be callable, got {}".format(func))
+
+            if sys.version_info >= (3, 10):
+                # Add `eval_str = True` so that deferred annotations are turned into their
+                # corresponding type objects. Need Python 3.10 for eval_str parameter.
+                # https://docs.python.org/3/library/inspect.html#inspect.signature
+                signature_kwargs: Mapping[str, Any] = {"eval_str": True}
+            else:
+                signature_kwargs = {}
+
+            signature = inspect.signature(
+                func,
+                **signature_kwargs,
+            )
+
+            # Try to get input types via type annotations.
+            if input_types is None:
+                input_types = []
+                for parameter in signature.parameters.values():
+                    if (param_type := parameter.annotation) is inspect.Signature.empty:
+                        raise ValueError(
+                            "'input_types' was not set and parameter "
+                            f"'{parameter.name}' is missing a type annotation. "
+                            "Types are required to use @remote_function."
+                        )
+                    input_types.append(param_type)
+            elif not isinstance(input_types, collections.abc.Sequence):
+                input_types = [input_types]
+
+            if output_type is None:
+                if (
+                    output_type := signature.return_annotation
+                ) is inspect.Signature.empty:
+                    raise ValueError(
+                        "'output_type' was not set and function is missing a "
+                        "return type annotation. Types are required to use "
+                        "@remote_function."
+                    )
+
+            # The function will actually be receiving a pandas Series, but allow both
+            # BigQuery DataFrames and pandas object types for compatibility.
+            is_row_processor = False
+            if len(input_types) == 1 and (
+                (input_type := input_types[0]) == bf_series.Series
+                or input_type == pandas.Series
+            ):
+                warnings.warn(
+                    "input_types=Series is in preview.",
+                    stacklevel=1,
+                    category=bf_exceptions.PreviewWarning,
+                )
+
+                # we will model the row as a json serialized string containing the data
+                # and the metadata representing the row
+                input_types = [str]
+                is_row_processor = True
+            elif isinstance(input_types, type):
+                input_types = [input_types]
+
+            # TODO(b/340898611): fix type error
+            ibis_signature = ibis_signature_from_python_signature(
+                signature, input_types, output_type  # type: ignore
+            )
+
+            remote_function_client = RemoteFunctionClient(
+                dataset_ref.project,
+                cloud_function_region,
+                cloud_functions_client,
+                bq_location,
+                dataset_ref.dataset_id,
+                bigquery_client,
+                bq_connection_id,
+                bq_connection_manager,
+                cloud_function_service_account,
+                cloud_function_kms_key_name,
+                cloud_function_docker_repository,
+                session=session,  # type: ignore
+            )
+
+            # In the unlikely case where the user is trying to re-deploy the same
+            # function, cleanup the attributes we add below, first. This prevents
+            # the pickle from having dependencies that might not otherwise be
+            # present such as ibis or pandas.
+            def try_delattr(attr):
+                try:
+                    delattr(func, attr)
+                except AttributeError:
+                    pass
+
+            try_delattr("bigframes_cloud_function")
+            try_delattr("bigframes_remote_function")
+            try_delattr("input_dtypes")
+            try_delattr("output_dtype")
+            try_delattr("is_row_processor")
+            try_delattr("ibis_node")
+
+            (
+                rf_name,
+                cf_name,
+                created_new,
+            ) = remote_function_client.provision_bq_remote_function(
+                func,
+                input_types=tuple(
+                    third_party_ibis_bqtypes.BigQueryType.from_ibis(type_)
+                    for type_ in ibis_signature.input_types
+                ),
+                output_type=third_party_ibis_bqtypes.BigQueryType.from_ibis(
+                    ibis_signature.output_type
+                ),
+                reuse=reuse,
+                name=name,
+                package_requirements=packages,
+                max_batching_rows=max_batching_rows,
+                cloud_function_timeout=cloud_function_timeout,
+                cloud_function_max_instance_count=cloud_function_max_instances,
+                is_row_processor=is_row_processor,
+                cloud_function_vpc_connector=cloud_function_vpc_connector,
+                cloud_function_memory_mib=cloud_function_memory_mib,
+            )
+
+            # TODO: Move ibis logic to compiler step
+            node = ibis.udf.scalar.builtin(
+                func,
+                name=rf_name,
+                schema=f"{dataset_ref.project}.{dataset_ref.dataset_id}",
+                signature=(ibis_signature.input_types, ibis_signature.output_type),
+            )
+            func.bigframes_cloud_function = (
+                remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
+            )
+            func.bigframes_remote_function = (
+                remote_function_client.get_remote_function_fully_qualilfied_name(
+                    rf_name
+                )
+            )
+            func.input_dtypes = tuple(
+                [
+                    bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
+                        input_type
+                    )
+                    for input_type in ibis_signature.input_types
+                ]
+            )
+            func.output_dtype = (
+                bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
+                    ibis_signature.output_type
+                )
+            )
+            func.is_row_processor = is_row_processor
+            func.ibis_node = node
+
+            # If a new remote function was created, update the cloud artifacts
+            # created in the session. This would be used to clean up any
+            # resources in the session. Note that we need to do this only for
+            # the case where an explicit name was not provided by the user and
+            # we used an internal name. For the cases where the user provided an
+            # explicit name, we are assuming that the user wants to persist them
+            # with that name and would directly manage their lifecycle.
+            if created_new and (not name):
+                self._update_temp_artifacts(
+                    func.bigframes_remote_function, func.bigframes_cloud_function
+                )
+            return func
+
+        return wrapper
+
+
+def remote_function(*args, **kwargs):
+    remote_function_session = _RemoteFunctionSession()
+    return remote_function_session.remote_function(*args, **kwargs)
+
+
+remote_function.__doc__ = _RemoteFunctionSession.remote_function.__doc__
 
 
 def read_gbq_function(
     function_name: str,
-    session: Optional[Session] = None,
-    bigquery_client: Optional[bigquery.Client] = None,
+    *,
+    session: Session,
 ):
     """
     Read an existing BigQuery function and prepare it for use in future queries.
     """
-
-    # A BigQuery client is required to perform BQ operations
-    if not bigquery_client and session:
-        bigquery_client = session.bqclient
-    if not bigquery_client:
-        raise ValueError(
-            "A bigquery client must be provided, either directly or via session. "
-            f"{constants.FEEDBACK_LINK}"
-        )
+    bigquery_client = session.bqclient
+    ibis_client = session.ibis_client
 
     try:
         routine_ref = get_routine_reference(function_name, bigquery_client, session)
@@ -905,7 +1290,7 @@ def read_gbq_function(
         raise ValueError(
             f"Function return type must be specified. {constants.FEEDBACK_LINK}"
         )
-    except bigframes.dtypes.UnsupportedTypeError as e:
+    except bigframes.core.compile.ibis_types.UnsupportedTypeError as e:
         raise ValueError(
             f"Type {e.type} not supported, supported types are {e.supported_types}. "
             f"{constants.FEEDBACK_LINK}"
@@ -913,19 +1298,49 @@ def read_gbq_function(
 
     # The name "args" conflicts with the Ibis operator, so we use
     # non-standard names for the arguments here.
-    def node(*ignored_args, **ignored_kwargs):
+    def func(*ignored_args, **ignored_kwargs):
         f"""Remote function {str(routine_ref)}."""
+        nonlocal node  # type: ignore
+
+        expr = node(*ignored_args, **ignored_kwargs)  # type: ignore
+        return ibis_client.execute(expr)
 
     # TODO: Move ibis logic to compiler step
-    node.__name__ = routine_ref.routine_id
+
+    func.__name__ = routine_ref.routine_id
+
     node = ibis.udf.scalar.builtin(
-        node,
+        func,
         name=routine_ref.routine_id,
         schema=f"{routine_ref.project}.{routine_ref.dataset_id}",
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )
-    node.bigframes_remote_function = str(routine_ref)  # type: ignore
-    node.output_dtype = bigframes.dtypes.ibis_dtype_to_bigframes_dtype(  # type: ignore
+    func.bigframes_remote_function = str(routine_ref)  # type: ignore
+
+    # set input bigframes data types
+    has_unknown_dtypes = False
+    function_input_dtypes = []
+    for ibis_type in ibis_signature.input_types:
+        input_dtype = cast(bigframes.dtypes.Dtype, bigframes.dtypes.DEFAULT_DTYPE)
+        if ibis_type is None:
+            has_unknown_dtypes = True
+        else:
+            input_dtype = (
+                bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
+                    ibis_type
+                )
+            )
+        function_input_dtypes.append(input_dtype)
+    if has_unknown_dtypes:
+        warnings.warn(
+            "The function has one or more missing input data types."
+            f" BigQuery DataFrames will assume default data type {bigframes.dtypes.DEFAULT_DTYPE} for them.",
+            category=bigframes.exceptions.UnknownDataTypeWarning,
+        )
+    func.input_dtypes = tuple(function_input_dtypes)  # type: ignore
+
+    func.output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(  # type: ignore
         ibis_signature.output_type
     )
-    return node
+    func.ibis_node = node  # type: ignore
+    return func

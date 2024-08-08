@@ -21,9 +21,9 @@ from typing import Iterable, Literal, Mapping, Optional, Union
 import google.cloud.bigquery
 
 import bigframes.constants as constants
-import bigframes.pandas as bpd
 
 
+# TODO: Add proper escaping logic from core/compile module
 class BaseSqlGenerator:
     """Generate base SQL strings for ML. Model name isn't needed in this class."""
 
@@ -73,6 +73,11 @@ class BaseSqlGenerator:
         """Encode a BQ STRUCT as options."""
         return f"STRUCT({self.build_structs(**kwargs)})"
 
+    def struct_columns(self, columns: Iterable[str]) -> str:
+        """Encode a BQ Table columns to a STRUCT."""
+        columns_str = ", ".join(columns)
+        return f"STRUCT({columns_str})"
+
     def input(self, **kwargs: str) -> str:
         """Encode a BQML INPUT clause."""
         return f"INPUT({self.build_schema(**kwargs)})"
@@ -103,14 +108,32 @@ class BaseSqlGenerator:
         """Encode ML.MIN_MAX_SCALER for BQML"""
         return f"""ML.MIN_MAX_SCALER({numeric_expr_sql}) OVER() AS {name}"""
 
+    def ml_imputer(
+        self,
+        expr_sql: str,
+        strategy: str,
+        name: str,
+    ) -> str:
+        """Encode ML.IMPUTER for BQML"""
+        return f"""ML.IMPUTER({expr_sql}, '{strategy}') OVER() AS {name}"""
+
     def ml_bucketize(
         self,
         numeric_expr_sql: str,
         array_split_points: Iterable[Union[int, float]],
         name: str,
     ) -> str:
-        """Encode ML.MIN_MAX_SCALER for BQML"""
+        """Encode ML.BUCKETIZE for BQML"""
         return f"""ML.BUCKETIZE({numeric_expr_sql}, {array_split_points}, FALSE) AS {name}"""
+
+    def ml_quantile_bucketize(
+        self,
+        numeric_expr_sql: str,
+        num_bucket: int,
+        name: str,
+    ) -> str:
+        """Encode ML.QUANTILE_BUCKETIZE for BQML"""
+        return f"""ML.QUANTILE_BUCKETIZE({numeric_expr_sql}, {num_bucket}) OVER() AS {name}"""
 
     def ml_one_hot_encoder(
         self,
@@ -135,17 +158,23 @@ class BaseSqlGenerator:
         https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-label-encoder for params."""
         return f"""ML.LABEL_ENCODER({numeric_expr_sql}, {top_k}, {frequency_threshold}) OVER() AS {name}"""
 
+    def ml_polynomial_expand(
+        self, columns: Iterable[str], degree: int, name: str
+    ) -> str:
+        """Encode ML.POLYNOMIAL_EXPAND.
+        https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-polynomial-expand"""
+        return f"""ML.POLYNOMIAL_EXPAND({self.struct_columns(columns)}, {degree}) AS {name}"""
+
     def ml_distance(
         self,
         col_x: str,
         col_y: str,
         type: Literal["EUCLIDEAN", "MANHATTAN", "COSINE"],
-        source_df: bpd.DataFrame,
+        source_sql: str,
         name: str,
     ) -> str:
         """Encode ML.DISTANCE for BQML.
         https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-distance"""
-        source_sql, _, _ = source_df._to_sql_query(include_index=True)
         return f"""SELECT *, ML.DISTANCE({col_x}, {col_y}, '{type}') AS {name} FROM ({source_sql})"""
 
 
@@ -161,17 +190,30 @@ class ModelCreationSqlGenerator(BaseSqlGenerator):
     # Model create and alter
     def create_model(
         self,
-        source_df: bpd.DataFrame,
+        source_sql: str,
         model_ref: google.cloud.bigquery.ModelReference,
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
         transforms: Optional[Iterable[str]] = None,
     ) -> str:
         """Encode the CREATE OR REPLACE MODEL statement for BQML"""
-        source_sql = source_df.sql
-
         parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
         if transforms:
             parts.append(self.transform(*transforms))
+        if options:
+            parts.append(self.options(**options))
+        parts.append(f"AS {source_sql}")
+        return "\n".join(parts)
+
+    def create_llm_remote_model(
+        self,
+        source_sql: str,
+        connection_name: str,
+        model_ref: google.cloud.bigquery.ModelReference,
+        options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
+    ) -> str:
+        """Encode the CREATE OR REPLACE MODEL statement for BQML"""
+        parts = [f"CREATE OR REPLACE MODEL {self._model_id_sql(model_ref)}"]
+        parts.append(self.connection(connection_name))
         if options:
             parts.append(self.options(**options))
         parts.append(f"AS {source_sql}")
@@ -233,11 +275,6 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
     def __init__(self, model_name: str):
         self._model_name = model_name
 
-    def _source_sql(self, source_df: bpd.DataFrame) -> str:
-        """Return DataFrame sql with index columns."""
-        _source_sql, _, _ = source_df._to_sql_query(include_index=True)
-        return _source_sql
-
     # Alter model
     def alter_model(
         self,
@@ -251,10 +288,10 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         return "\n".join(parts)
 
     # ML prediction TVFs
-    def ml_predict(self, source_df: bpd.DataFrame) -> str:
+    def ml_predict(self, source_sql: str) -> str:
         """Encode ML.PREDICT for BQML"""
         return f"""SELECT * FROM ML.PREDICT(MODEL `{self._model_name}`,
-  ({self._source_sql(source_df)}))"""
+  ({source_sql}))"""
 
     def ml_forecast(self, struct_options: Mapping[str, Union[int, float]]) -> str:
         """Encode ML.FORECAST for BQML"""
@@ -263,43 +300,48 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
   {struct_options_sql})"""
 
     def ml_generate_text(
-        self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
+        self, source_sql: str, struct_options: Mapping[str, Union[int, float]]
     ) -> str:
         """Encode ML.GENERATE_TEXT for BQML"""
         struct_options_sql = self.struct_options(**struct_options)
         return f"""SELECT * FROM ML.GENERATE_TEXT(MODEL `{self._model_name}`,
-  ({self._source_sql(source_df)}), {struct_options_sql})"""
+  ({source_sql}), {struct_options_sql})"""
 
     def ml_generate_embedding(
-        self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
+        self, source_sql: str, struct_options: Mapping[str, Union[int, float]]
     ) -> str:
         """Encode ML.GENERATE_EMBEDDING for BQML"""
         struct_options_sql = self.struct_options(**struct_options)
         return f"""SELECT * FROM ML.GENERATE_EMBEDDING(MODEL `{self._model_name}`,
-  ({self._source_sql(source_df)}), {struct_options_sql})"""
+  ({source_sql}), {struct_options_sql})"""
 
     def ml_detect_anomalies(
-        self, source_df: bpd.DataFrame, struct_options: Mapping[str, Union[int, float]]
+        self, source_sql: str, struct_options: Mapping[str, Union[int, float]]
     ) -> str:
         """Encode ML.DETECT_ANOMALIES for BQML"""
         struct_options_sql = self.struct_options(**struct_options)
         return f"""SELECT * FROM ML.DETECT_ANOMALIES(MODEL `{self._model_name}`,
-  {struct_options_sql}, ({self._source_sql(source_df)}))"""
+  {struct_options_sql}, ({source_sql}))"""
 
     # ML evaluation TVFs
-    def ml_evaluate(self, source_df: Optional[bpd.DataFrame] = None) -> str:
+    def ml_evaluate(self, source_sql: Optional[str] = None) -> str:
         """Encode ML.EVALUATE for BQML"""
-        if source_df is None:
-            source_sql = None
-        else:
-            # Note: don't need index as evaluate returns a new table
-            source_sql, _, _ = source_df._to_sql_query(include_index=False)
-
         if source_sql is None:
             return f"""SELECT * FROM ML.EVALUATE(MODEL `{self._model_name}`)"""
         else:
             return f"""SELECT * FROM ML.EVALUATE(MODEL `{self._model_name}`,
   ({source_sql}))"""
+
+    def ml_arima_coefficients(self) -> str:
+        """Encode ML.ARIMA_COEFFICIENTS for BQML"""
+        return f"""SELECT * FROM ML.ARIMA_COEFFICIENTS(MODEL `{self._model_name}`)"""
+
+    # ML evaluation TVFs
+    def ml_llm_evaluate(self, source_sql: str, task_type: Optional[str] = None) -> str:
+        """Encode ML.EVALUATE for BQML"""
+        # Note: don't need index as evaluate returns a new table
+        return f"""SELECT * FROM ML.EVALUATE(MODEL `{self._model_name}`,
+            ({source_sql}), STRUCT("{task_type}" AS task_type))"""
 
     # ML evaluation TVFs
     def ml_arima_evaluate(self, show_all_candidate_models: bool = False) -> str:
@@ -322,7 +364,7 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         )
 
     # ML transform TVF, that require a transform_only type model
-    def ml_transform(self, source_df: bpd.DataFrame) -> str:
+    def ml_transform(self, source_sql: str) -> str:
         """Encode ML.TRANSFORM for BQML"""
         return f"""SELECT * FROM ML.TRANSFORM(MODEL `{self._model_name}`,
-  ({self._source_sql(source_df)}))"""
+  ({source_sql}))"""

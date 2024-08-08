@@ -160,8 +160,13 @@ class LocDataFrameIndexer:
                 )
 
                 columns = key[1]
-                if isinstance(columns, pd.Series) and columns.dtype == "bool":
-                    columns = df.columns[columns]
+                if isinstance(columns, bigframes.series.Series):
+                    columns = columns.to_pandas()
+                if isinstance(columns, pd.Series) and columns.dtype in (
+                    bool,
+                    pd.BooleanDtype(),
+                ):
+                    columns = df.columns[typing.cast(pd.Series, columns)]
 
                 return df[columns]
 
@@ -267,7 +272,7 @@ class IatDataFrameIndexer:
             raise ValueError(error_message)
         if len(key) != 2:
             raise TypeError(error_message)
-        block: bigframes.core.blocks.Block = self._dataframe._block  # type: ignore
+        block: bigframes.core.blocks.Block = self._dataframe._block
         column_block = block.select_columns([block.value_columns[key[1]]])
         column = bigframes.series.Series(column_block)
         return column.iloc[key[0]]
@@ -391,14 +396,14 @@ def _perform_loc_list_join(
         )
         result = result.rename(original_name)
     else:
-        result = series_or_dataframe._perform_join_by_index(keys_index, how="right")  # type: ignore
+        result = series_or_dataframe._perform_join_by_index(keys_index, how="right")
 
     if drop_levels and series_or_dataframe.index.nlevels > keys_index.nlevels:
         # drop common levels
         levels_to_drop = [
             name for name in series_or_dataframe.index.names if name in keys_index.names
         ]
-        result = result.droplevel(levels_to_drop)  # type: ignore
+        result = result.droplevel(levels_to_drop)
     return result
 
 

@@ -24,7 +24,7 @@ def test_index_construct_from_list():
     bf_result = bpd.Index(
         [3, 14, 159], dtype=pd.Int64Dtype(), name="my_index"
     ).to_pandas()
-    pd_result = pd.Index([3, 14, 159], dtype=pd.Int64Dtype(), name="my_index")
+    pd_result: pd.Index = pd.Index([3, 14, 159], dtype=pd.Int64Dtype(), name="my_index")
     pd.testing.assert_index_equal(bf_result, pd_result)
 
 
@@ -34,7 +34,7 @@ def test_index_construct_from_series():
         name="index_name",
         dtype=pd.Int64Dtype(),
     ).to_pandas()
-    pd_result = pd.Index(
+    pd_result: pd.Index = pd.Index(
         pd.Series([3, 14, 159], dtype=pd.Float64Dtype(), name="series_name"),
         name="index_name",
         dtype=pd.Int64Dtype(),
@@ -49,8 +49,12 @@ def test_index_construct_from_index():
     bf_result = bpd.Index(
         bf_index_input, dtype=pd.Int64Dtype(), name="index_name"
     ).to_pandas()
-    pd_index_input = pd.Index([3, 14, 159], dtype=pd.Float64Dtype(), name="series_name")
-    pd_result = pd.Index(pd_index_input, dtype=pd.Int64Dtype(), name="index_name")
+    pd_index_input: pd.Index = pd.Index(
+        [3, 14, 159], dtype=pd.Float64Dtype(), name="series_name"
+    )
+    pd_result: pd.Index = pd.Index(
+        pd_index_input, dtype=pd.Int64Dtype(), name="index_name"
+    )
     pd.testing.assert_index_equal(bf_result, pd_result)
 
 
@@ -359,16 +363,16 @@ def test_index_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep):
 
 
 def test_index_isin(scalars_df_index, scalars_pandas_df_index):
+    col_name = "int64_col"
     bf_series = (
-        scalars_df_index.set_index("int64_col").index.isin([2, 55555, 4]).to_pandas()
+        scalars_df_index.set_index(col_name).index.isin([2, 55555, 4]).to_pandas()
     )
-    pd_result_array = scalars_pandas_df_index.set_index("int64_col").index.isin(
+    pd_result_array = scalars_pandas_df_index.set_index(col_name).index.isin(
         [2, 55555, 4]
     )
     pd.testing.assert_index_equal(
-        pd.Index(pd_result_array),
+        pd.Index(pd_result_array).set_names(col_name),
         bf_series,
-        check_names=False,
     )
 
 

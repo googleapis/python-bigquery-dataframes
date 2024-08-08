@@ -47,6 +47,16 @@ class Aggregation(abc.ABC):
 
 
 @dataclasses.dataclass(frozen=True)
+class NullaryAggregation(Aggregation):
+    op: agg_ops.NullaryWindowOp = dataclasses.field()
+
+    def output_type(
+        self, input_types: dict[str, bigframes.dtypes.Dtype]
+    ) -> dtypes.ExpressionType:
+        return self.op.output_type()
+
+
+@dataclasses.dataclass(frozen=True)
 class UnaryAggregation(Aggregation):
     op: agg_ops.UnaryWindowOp = dataclasses.field()
     arg: Union[
@@ -189,9 +199,6 @@ class OpExpression(Expression):
 
     op: bigframes.operations.RowOp
     inputs: typing.Tuple[Expression, ...]
-
-    def __post_init__(self):
-        assert self.op.arguments == len(self.inputs)
 
     @property
     def unbound_variables(self) -> typing.Tuple[str, ...]:

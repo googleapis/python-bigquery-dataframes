@@ -394,10 +394,8 @@ def test_cut(scalars_dfs):
 
     # make sure the result is a supported dtype
     assert bf_result.dtype == bpd.Int64Dtype()
-
-    bf_result = bf_result.to_pandas()
     pd_result = pd_result.astype("Int64")
-    pd.testing.assert_series_equal(bf_result, pd_result)
+    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
 
 
 def test_cut_default_labels(scalars_dfs):
@@ -527,11 +525,9 @@ def test_qcut(scalars_dfs, q):
         scalars_pandas_df["float64_col"], q, labels=False, duplicates="drop"
     )
     bf_result = bpd.qcut(scalars_df["float64_col"], q, labels=False, duplicates="drop")
-
-    bf_result = bf_result.to_pandas()
     pd_result = pd_result.astype("Int64")
 
-    pd.testing.assert_series_equal(bf_result, pd_result)
+    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
 
 
 @pytest.mark.parametrize(
@@ -631,6 +627,102 @@ def test_to_datetime_format_param(arg, utc, format):
         .astype("datetime64[ns, UTC]" if utc else "datetime64[ns]")
     )
     pd_result = pd.Series(pd.to_datetime(arg, utc=utc, format=format)).dt.floor("us")
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_index_type=False, check_names=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("arg", "utc", "output_in_utc", "format"),
+    [
+        (
+            ["2014-08-15 08:15:12", "2011-08-15 08:15:12", "2015-08-15 08:15:12"],
+            False,
+            False,
+            None,
+        ),
+        (
+            [
+                "2008-12-25 05:30:00Z",
+                "2008-12-25 05:30:00-00:00",
+                "2008-12-25 05:30:00+00:00",
+                "2008-12-25 05:30:00-0000",
+                "2008-12-25 05:30:00+0000",
+                "2008-12-25 05:30:00-00",
+                "2008-12-25 05:30:00+00",
+            ],
+            False,
+            True,
+            None,
+        ),
+        (
+            ["2014-08-15 08:15:12", "2011-08-15 08:15:12", "2015-08-15 08:15:12"],
+            True,
+            True,
+            "%Y-%m-%d %H:%M:%S",
+        ),
+        (
+            [
+                "2014-08-15 08:15:12+05:00",
+                "2011-08-15 08:15:12+05:00",
+                "2015-08-15 08:15:12+05:00",
+            ],
+            True,
+            True,
+            None,
+        ),
+    ],
+)
+def test_to_datetime_string_inputs(arg, utc, output_in_utc, format):
+    bf_result = (
+        bpd.to_datetime(arg, utc=utc, format=format)
+        .to_pandas()
+        .astype("datetime64[ns, UTC]" if output_in_utc else "datetime64[ns]")
+    )
+    pd_result = pd.Series(pd.to_datetime(arg, utc=utc, format=format)).dt.floor("us")
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_index_type=False, check_names=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("arg", "utc", "output_in_utc"),
+    [
+        (
+            [datetime(2023, 1, 1, 12, 0), datetime(2023, 2, 1, 12, 0)],
+            False,
+            False,
+        ),
+        (
+            [datetime(2023, 1, 1, 12, 0), datetime(2023, 2, 1, 12, 0)],
+            True,
+            True,
+        ),
+        (
+            [
+                datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("UTC")),
+                datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("UTC")),
+            ],
+            True,
+            True,
+        ),
+        (
+            [
+                datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("America/New_York")),
+                datetime(2023, 1, 1, 12, 0, tzinfo=pytz.timezone("UTC")),
+            ],
+            True,
+            True,
+        ),
+    ],
+)
+def test_to_datetime_timestamp_inputs(arg, utc, output_in_utc):
+    bf_result = (
+        bpd.to_datetime(arg, utc=utc)
+        .to_pandas()
+        .astype("datetime64[ns, UTC]" if output_in_utc else "datetime64[ns]")
+    )
+    pd_result = pd.Series(pd.to_datetime(arg, utc=utc)).dt.floor("us")
     pd.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )

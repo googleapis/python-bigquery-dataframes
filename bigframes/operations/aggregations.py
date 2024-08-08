@@ -34,13 +34,33 @@ class WindowOp:
         return True
 
     @property
-    def handles_ties(self):
-        """Whether the operator can handle ties without nondeterministic output. (eg. rank operator can handle ties but not the count operator)"""
+    def uses_total_row_ordering(self):
+        """Whether the operator needs total row ordering. (eg. lead, lag, array_agg)"""
+        return False
+
+    @property
+    def can_order_by(self):
+        return False
+
+    @property
+    def order_independent(self):
+        """
+        True if the output of the operator does not depend on the ordering of input rows.
+
+        Navigation functions are a notable case that are not order independent.
+        """
         return False
 
     @abc.abstractmethod
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         ...
+
+
+@dataclasses.dataclass(frozen=True)
+class NullaryWindowOp(WindowOp):
+    @property
+    def arguments(self) -> int:
+        return 0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -67,6 +87,22 @@ class AggregateOp(WindowOp):
     def arguments(self) -> int:
         ...
 
+    @property
+    def order_independent(self):
+        """
+        True if results don't depend on the order of the input.
+
+        Almost all aggregation functions are order independent, excepting ``array_agg`` and ``string_agg``.
+        """
+        return not self.can_order_by
+
+
+@dataclasses.dataclass(frozen=True)
+class NullaryAggregateOp(AggregateOp, NullaryWindowOp):
+    @property
+    def arguments(self) -> int:
+        return 0
+
 
 @dataclasses.dataclass(frozen=True)
 class UnaryAggregateOp(AggregateOp, UnaryWindowOp):
@@ -80,6 +116,14 @@ class BinaryAggregateOp(AggregateOp):
     @property
     def arguments(self) -> int:
         return 2
+
+
+@dataclasses.dataclass(frozen=True)
+class SizeOp(NullaryAggregateOp):
+    name: ClassVar[str] = "size"
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.INT_DTYPE
 
 
 @dataclasses.dataclass(frozen=True)
@@ -110,12 +154,24 @@ class MedianOp(UnaryAggregateOp):
 
 
 @dataclasses.dataclass(frozen=True)
+class QuantileOp(UnaryAggregateOp):
+    q: float
+
+    @property
+    def name(self):
+        return f"{int(self.q * 100)}%"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
+
+
+@dataclasses.dataclass(frozen=True)
 class ApproxQuartilesOp(UnaryAggregateOp):
     quartile: int
 
     @property
     def name(self):
-        return f"{self.quartile*25}%"
+        return f"{self.quartile * 25}%"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         if not dtypes.is_orderable(input_types[0]):
@@ -211,6 +267,24 @@ class CountOp(UnaryAggregateOp):
 
 
 @dataclasses.dataclass(frozen=True)
+class ArrayAggOp(UnaryAggregateOp):
+    name: ClassVar[str] = "arrayagg"
+
+    @property
+    def can_order_by(self):
+        return True
+
+    @property
+    def skips_nulls(self):
+        return True
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return pd.ArrowDtype(
+            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(input_types[0]))
+        )
+
+
+@dataclasses.dataclass(frozen=True)
 class CutOp(UnaryWindowOp):
     # TODO: Unintuitive, refactor into multiple ops?
     bins: typing.Union[int, Iterable]
@@ -219,10 +293,6 @@ class CutOp(UnaryWindowOp):
     @property
     def skips_nulls(self):
         return False
-
-    @property
-    def handles_ties(self):
-        return True
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         if isinstance(self.bins, int) and (self.labels is False):
@@ -242,6 +312,10 @@ class CutOp(UnaryWindowOp):
             )
             return pd.ArrowDtype(pa_type)
 
+    @property
+    def order_independent(self):
+        return True
+
 
 @dataclasses.dataclass(frozen=True)
 class QcutOp(UnaryWindowOp):
@@ -255,14 +329,14 @@ class QcutOp(UnaryWindowOp):
     def skips_nulls(self):
         return False
 
-    @property
-    def handles_ties(self):
-        return True
-
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return signatures.FixedOutputType(
             dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
         ).output_type(input_types[0])
+
+    @property
+    def order_independent(self):
+        return True
 
 
 @dataclasses.dataclass(frozen=True)
@@ -296,14 +370,14 @@ class RankOp(UnaryWindowOp):
     def skips_nulls(self):
         return False
 
-    @property
-    def handles_ties(self):
-        return True
-
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return signatures.FixedOutputType(
             dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
         ).output_type(input_types[0])
+
+    @property
+    def order_independent(self):
+        return True
 
 
 @dataclasses.dataclass(frozen=True)
@@ -312,23 +386,31 @@ class DenseRankOp(UnaryWindowOp):
     def skips_nulls(self):
         return False
 
-    @property
-    def handles_ties(self):
-        return True
-
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return signatures.FixedOutputType(
             dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
         ).output_type(input_types[0])
+
+    @property
+    def order_independent(self):
+        return True
 
 
 @dataclasses.dataclass(frozen=True)
 class FirstOp(UnaryWindowOp):
     name: ClassVar[str] = "first"
 
+    @property
+    def uses_total_row_ordering(self):
+        return True
+
 
 @dataclasses.dataclass(frozen=True)
 class FirstNonNullOp(UnaryWindowOp):
+    @property
+    def uses_total_row_ordering(self):
+        return True
+
     @property
     def skips_nulls(self):
         return False
@@ -338,9 +420,17 @@ class FirstNonNullOp(UnaryWindowOp):
 class LastOp(UnaryWindowOp):
     name: ClassVar[str] = "last"
 
+    @property
+    def uses_total_row_ordering(self):
+        return True
+
 
 @dataclasses.dataclass(frozen=True)
 class LastNonNullOp(UnaryWindowOp):
+    @property
+    def uses_total_row_ordering(self):
+        return True
+
     @property
     def skips_nulls(self):
         return False
@@ -351,6 +441,10 @@ class ShiftOp(UnaryWindowOp):
     periods: int
 
     @property
+    def uses_total_row_ordering(self):
+        return True
+
+    @property
     def skips_nulls(self):
         return False
 
@@ -358,6 +452,10 @@ class ShiftOp(UnaryWindowOp):
 @dataclasses.dataclass(frozen=True)
 class DiffOp(UnaryWindowOp):
     periods: int
+
+    @property
+    def uses_total_row_ordering(self):
+        return True
 
     @property
     def skips_nulls(self):
@@ -404,6 +502,7 @@ class CovOp(BinaryAggregateOp):
         )
 
 
+size_op = SizeOp()
 sum_op = SumOp()
 mean_op = MeanOp()
 median_op = MedianOp()
@@ -422,7 +521,9 @@ first_op = FirstOp()
 
 
 # TODO: Alternative names and lookup from numpy function objects
-_AGGREGATIONS_LOOKUP: dict[str, UnaryAggregateOp] = {
+_AGGREGATIONS_LOOKUP: typing.Dict[
+    str, typing.Union[UnaryAggregateOp, NullaryAggregateOp]
+] = {
     op.name: op
     for op in [
         sum_op,
@@ -441,10 +542,14 @@ _AGGREGATIONS_LOOKUP: dict[str, UnaryAggregateOp] = {
         ApproxQuartilesOp(2),
         ApproxQuartilesOp(3),
     ]
+    + [
+        # Add size_op separately to avoid Mypy type inference errors.
+        size_op,
+    ]
 }
 
 
-def lookup_agg_func(key: str) -> UnaryAggregateOp:
+def lookup_agg_func(key: str) -> typing.Union[UnaryAggregateOp, NullaryAggregateOp]:
     if callable(key):
         raise NotImplementedError(
             "Aggregating with callable object not supported, pass method name as string instead (eg. 'sum' instead of np.sum)."

@@ -109,10 +109,18 @@ class ClientsProvider:
 
         # cloud clients initialized for lazy load
         self._bqclient = None
-        self._bqconnectionclient = None
-        self._bqstoragereadclient = None
-        self._cloudfunctionsclient = None
-        self._resourcemanagerclient = None
+        self._bqconnectionclient: Optional[
+            google.cloud.bigquery_connection_v1.ConnectionServiceClient
+        ] = None
+        self._bqstoragereadclient: Optional[
+            google.cloud.bigquery_storage_v1.BigQueryReadClient
+        ] = None
+        self._cloudfunctionsclient: Optional[
+            google.cloud.functions_v2.FunctionServiceClient
+        ] = None
+        self._resourcemanagerclient: Optional[
+            google.cloud.resourcemanager_v3.ProjectsClient
+        ] = None
 
     def _create_bigquery_client(self):
         bq_options = None
@@ -120,7 +128,8 @@ class ClientsProvider:
             bq_options = google.api_core.client_options.ClientOptions(
                 api_endpoint=(
                     _BIGQUERY_REGIONAL_ENDPOINT
-                    if self._location.lower() in _REP_SUPPORTED_REGIONS
+                    if self._location is not None
+                    and self._location.lower() in _REP_SUPPORTED_REGIONS
                     else _BIGQUERY_LOCATIONAL_ENDPOINT
                 ).format(location=self._location),
             )
@@ -176,7 +185,8 @@ class ClientsProvider:
                 bqstorage_options = google.api_core.client_options.ClientOptions(
                     api_endpoint=(
                         _BIGQUERYSTORAGE_REGIONAL_ENDPOINT
-                        if self._location.lower() in _REP_SUPPORTED_REGIONS
+                        if self._location is not None
+                        and self._location.lower() in _REP_SUPPORTED_REGIONS
                         else _BIGQUERYSTORAGE_LOCATIONAL_ENDPOINT
                     ).format(location=self._location),
                 )

@@ -219,8 +219,8 @@ def test_roc_curve_binary_classification_prediction_matches_sklearn(session):
     )
 
     # sklearn returns float64 np arrays
-    np_fpr = fpr.to_pandas().astype("float64").array
-    np_tpr = tpr.to_pandas().astype("float64").array
+    np_fpr = fpr.to_pandas().astype("float64").array.to_numpy()
+    np_tpr = tpr.to_pandas().astype("float64").array.to_numpy()
     np_thresholds = thresholds.to_pandas().astype("float64").array
 
     np.testing.assert_array_equal(
@@ -314,8 +314,8 @@ def test_roc_curve_binary_classification_decision_matches_sklearn(session):
     )
 
     # sklearn returns float64 np arrays
-    np_fpr = fpr.to_pandas().astype("float64").array
-    np_tpr = tpr.to_pandas().astype("float64").array
+    np_fpr = fpr.to_pandas().astype("float64").array.to_numpy()
+    np_tpr = tpr.to_pandas().astype("float64").array.to_numpy()
     np_thresholds = thresholds.to_pandas().astype("float64").array
 
     np.testing.assert_array_equal(
@@ -515,13 +515,10 @@ def test_confusion_matrix_column_index(session):
     ).astype("Int64")
     df = session.read_pandas(pd_df)
     confusion_matrix = metrics.confusion_matrix(df[["y_true"]], df[["y_pred"]])
-    expected_pd_df = (
-        pd.DataFrame(
-            {1: [1, 0, 1, 0], 2: [0, 0, 2, 0], 3: [0, 0, 0, 0], 4: [0, 1, 0, 1]}
-        )
-        .astype("int64")
-        .set_index([pd.Index([1, 2, 3, 4])])
-    )
+    expected_pd_df = pd.DataFrame(
+        {1: [1, 0, 1, 0], 2: [0, 0, 2, 0], 3: [0, 0, 0, 0], 4: [0, 1, 0, 1]},
+        index=[1, 2, 3, 4],
+    ).astype("int64")
     pd.testing.assert_frame_equal(
         confusion_matrix, expected_pd_df, check_index_type=False
     )
@@ -557,8 +554,8 @@ def test_confusion_matrix_str_matches_sklearn(session):
     expected_confusion_matrix = sklearn_metrics.confusion_matrix(
         pd_df[["y_true"]], pd_df[["y_pred"]]
     )
-    expected_pd_df = pd.DataFrame(expected_confusion_matrix).set_index(
-        [pd.Index(["ant", "bird", "cat"])]
+    expected_pd_df = pd.DataFrame(
+        expected_confusion_matrix, index=["ant", "bird", "cat"]
     )
     expected_pd_df.columns = pd.Index(["ant", "bird", "cat"])
     pd.testing.assert_frame_equal(
@@ -683,6 +680,7 @@ def test_precision_score_matches_sklearn(session):
         }
     ).astype("Int64")
     df = session.read_pandas(pd_df)
+    # TODO(b/340872435): fix type error
     precision_score = metrics.precision_score(
         df[["y_true"]], df[["y_pred"]], average=None
     )

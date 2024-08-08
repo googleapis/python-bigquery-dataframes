@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import functools
 import typing
+from typing import Sequence
 
 import pandas as pd
 
@@ -70,21 +71,19 @@ def indicate_duplicates(
     if keep == "first":
         # Count how many copies occur up to current copy of value
         # Discard this value if there are copies BEFORE
-        window_spec = windows.WindowSpec(
+        window_spec = windows.cumulative_rows(
             grouping_keys=tuple(columns),
-            following=0,
         )
     elif keep == "last":
         # Count how many copies occur up to current copy of values
         # Discard this value if there are copies AFTER
-        window_spec = windows.WindowSpec(
+        window_spec = windows.inverse_cumulative_rows(
             grouping_keys=tuple(columns),
-            preceding=0,
         )
     else:  # keep == False
         # Count how many copies of the value occur in entire series.
         # Discard this value if there are copies ANYWHERE
-        window_spec = windows.WindowSpec(grouping_keys=tuple(columns))
+        window_spec = windows.unbound(grouping_keys=tuple(columns))
     block, dummy = block.create_constant(1)
     block, val_count_col_id = block.apply_window_op(
         dummy,
@@ -103,6 +102,40 @@ def indicate_duplicates(
         ),
         duplicate_indicator,
     )
+
+
+def quantile(
+    block: blocks.Block,
+    columns: Sequence[str],
+    qs: Sequence[float],
+    grouping_column_ids: Sequence[str] = (),
+    dropna: bool = False,
+) -> blocks.Block:
+    # TODO: handle windowing and more interpolation methods
+    window = windows.unbound(
+        grouping_keys=tuple(grouping_column_ids),
+    )
+    quantile_cols = []
+    labels = []
+    if len(columns) * len(qs) > constants.MAX_COLUMNS:
+        raise NotImplementedError("Too many aggregates requested.")
+    for col in columns:
+        for q in qs:
+            label = block.col_id_to_label[col]
+            new_label = (*label, q) if isinstance(label, tuple) else (label, q)
+            labels.append(new_label)
+            block, quantile_col = block.apply_window_op(
+                col,
+                agg_ops.QuantileOp(q),
+                window_spec=window,
+            )
+            quantile_cols.append(quantile_col)
+    block, results = block.aggregate(
+        grouping_column_ids,
+        tuple((col, agg_ops.AnyValueOp()) for col in quantile_cols),
+        dropna=dropna,
+    )
+    return block.select_columns(results).with_column_labels(labels)
 
 
 def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
@@ -177,8 +210,8 @@ def _interpolate_column(
     if interpolate_method not in ["linear", "nearest", "ffill"]:
         raise ValueError("interpolate method not supported")
     window_ordering = (ordering.OrderingExpression(ex.free_var(x_values)),)
-    backwards_window = windows.WindowSpec(following=0, ordering=window_ordering)
-    forwards_window = windows.WindowSpec(preceding=0, ordering=window_ordering)
+    backwards_window = windows.rows(following=0, ordering=window_ordering)
+    forwards_window = windows.rows(preceding=0, ordering=window_ordering)
 
     # Note, this method may
     block, notnull = block.apply_unary_op(column, ops.notnull_op)
@@ -329,7 +362,7 @@ def value_counts(
     )
     count_id = agg_ids[0]
     if normalize:
-        unbound_window = windows.WindowSpec()
+        unbound_window = windows.unbound()
         block, total_count_id = block.apply_window_op(
             count_id, agg_ops.sum_op, unbound_window
         )
@@ -353,7 +386,7 @@ def value_counts(
 
 def pct_change(block: blocks.Block, periods: int = 1) -> blocks.Block:
     column_labels = block.column_labels
-    window_spec = windows.WindowSpec(
+    window_spec = windows.rows(
         preceding=periods if periods > 0 else None,
         following=-periods if periods < 0 else None,
     )
@@ -395,23 +428,22 @@ def rank(
             ops.isnull_op,
         )
         nullity_col_ids.append(nullity_col_id)
-        window = windows.WindowSpec(
-            # BigQuery has syntax to reorder nulls with "NULLS FIRST/LAST", but that is unavailable through ibis presently, so must order on a separate nullity expression first.
-            ordering=(
-                ordering.OrderingExpression(
-                    ex.free_var(col),
-                    ordering.OrderingDirection.ASC
-                    if ascending
-                    else ordering.OrderingDirection.DESC,
-                    na_last=(na_option in ["bottom", "keep"]),
-                ),
+        window_ordering = (
+            ordering.OrderingExpression(
+                ex.free_var(col),
+                ordering.OrderingDirection.ASC
+                if ascending
+                else ordering.OrderingDirection.DESC,
+                na_last=(na_option in ["bottom", "keep"]),
             ),
         )
         # Count_op ignores nulls, so if na_option is "top" or "bottom", we instead count the nullity columns, where nulls have been mapped to bools
         block, rownum_id = block.apply_window_op(
             col if na_option == "keep" else nullity_col_id,
             agg_ops.dense_rank_op if method == "dense" else agg_ops.count_op,
-            window_spec=window,
+            window_spec=windows.unbound(ordering=window_ordering)
+            if method == "dense"
+            else windows.rows(following=0, ordering=window_ordering),
             skip_reproject_unsafe=(col != columns[-1]),
         )
         rownum_col_ids.append(rownum_id)
@@ -429,7 +461,7 @@ def rank(
             block, result_id = block.apply_window_op(
                 rownum_col_ids[i],
                 agg_op,
-                window_spec=windows.WindowSpec(grouping_keys=(columns[i],)),
+                window_spec=windows.unbound(grouping_keys=(columns[i],)),
                 skip_reproject_unsafe=(i < (len(columns) - 1)),
             )
             post_agg_rownum_col_ids.append(result_id)
@@ -493,7 +525,7 @@ def nsmallest(
         block, counter = block.apply_window_op(
             column_ids[0],
             agg_ops.rank_op,
-            window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
+            window_spec=windows.unbound(ordering=tuple(order_refs)),
         )
         block, condition = block.project_expr(ops.le_op.as_expr(counter, ex.const(n)))
         block = block.filter_by_id(condition)
@@ -523,7 +555,7 @@ def nlargest(
         block, counter = block.apply_window_op(
             column_ids[0],
             agg_ops.rank_op,
-            window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
+            window_spec=windows.unbound(ordering=tuple(order_refs)),
         )
         block, condition = block.project_expr(ops.le_op.as_expr(counter, ex.const(n)))
         block = block.filter_by_id(condition)
@@ -565,9 +597,11 @@ def skew(
 
     block = block.select_columns(skew_ids).with_column_labels(column_labels)
     if not grouping_column_ids:
-        # When ungrouped, stack everything into single column so can be returned as series
-        block = block.stack()
-        block = block.drop_levels([block.index_columns[0]])
+        # When ungrouped, transpose result row into a series
+        # perform transpose last, so as to not invalidate cache
+        block, index_col = block.create_constant(None, None)
+        block = block.set_index([index_col])
+        return block.transpose(original_row_index=pd.Index([None]))
     return block
 
 
@@ -605,9 +639,11 @@ def kurt(
 
     block = block.select_columns(kurt_ids).with_column_labels(column_labels)
     if not grouping_column_ids:
-        # When ungrouped, stack everything into single column so can be returned as series
-        block = block.stack()
-        block = block.drop_levels([block.index_columns[0]])
+        # When ungrouped, transpose result row into a series
+        # perform transpose last, so as to not invalidate cache
+        block, index_col = block.create_constant(None, None)
+        block = block.set_index([index_col])
+        return block.transpose(original_row_index=pd.Index([None]))
     return block
 
 
@@ -618,7 +654,7 @@ def _mean_delta_to_power(
     grouping_column_ids: typing.Sequence[str],
 ) -> typing.Tuple[blocks.Block, typing.Sequence[str]]:
     """Calculate (x-mean(x))^n. Useful for calculating moment statistics such as skew and kurtosis."""
-    window = windows.WindowSpec(grouping_keys=tuple(grouping_column_ids))
+    window = windows.unbound(grouping_keys=tuple(grouping_column_ids))
     block, mean_ids = block.multi_apply_window_op(column_ids, agg_ops.mean_op, window)
     delta_ids = []
     for val_id, mean_val_id in zip(column_ids, mean_ids):
@@ -788,7 +824,8 @@ def idxmax(block: blocks.Block) -> blocks.Block:
 def _idx_extrema(
     block: blocks.Block, min_or_max: typing.Literal["min", "max"]
 ) -> blocks.Block:
-    if len(block.index_columns) != 1:
+    block._throw_if_null_index("idx")
+    if len(block.index_columns) > 1:
         # TODO: Need support for tuple dtype
         raise NotImplementedError(
             f"idxmin not support for multi-index. {constants.FEEDBACK_LINK}"
@@ -810,7 +847,7 @@ def _idx_extrema(
                 for idx_col in original_block.index_columns
             ],
         ]
-        window_spec = windows.WindowSpec(ordering=tuple(order_refs))
+        window_spec = windows.unbound(ordering=tuple(order_refs))
         idx_col = original_block.index_columns[0]
         block, result_col = block.apply_window_op(
             idx_col, agg_ops.first_op, window_spec
@@ -823,5 +860,5 @@ def _idx_extrema(
     # Stack the entire column axis to produce single-column result
     # Assumption: uniform dtype for stackability
     return block.aggregate_all_and_stack(
-        agg_ops.AnyValueOp(), dtype=block.dtypes[0]
+        agg_ops.AnyValueOp(),
     ).with_column_labels([original_block.index.name])

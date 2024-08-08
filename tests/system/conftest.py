@@ -18,8 +18,9 @@ import logging
 import math
 import pathlib
 import textwrap
+import traceback
 import typing
-from typing import Dict, Optional
+from typing import Dict, Generator, Optional
 
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
@@ -29,6 +30,7 @@ import google.cloud.functions_v2 as functions_v2
 import google.cloud.resourcemanager_v3 as resourcemanager_v3
 import google.cloud.storage as storage  # type: ignore
 import ibis.backends.base
+import numpy as np
 import pandas as pd
 import pytest
 import pytz
@@ -36,15 +38,22 @@ import test_utils.prefixer
 
 import bigframes
 import bigframes.dataframe
+import bigframes.pandas as bpd
 import tests.system.utils
 
 # Use this to control the number of cloud functions being deleted in a single
 # test session. This should help soften the spike of the number of mutations per
-# minute tracked against a quota limit (default 60, increased to 120 for
-# bigframes-dev project) by the Cloud Functions API
-# We are running pytest with "-n 20". Let's say each session lasts about a
-# minute, so we are setting a limit of 120/20 = 6 deletions per session.
-MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION = 6
+# minute tracked against the quota limit:
+#   Cloud Functions API -> Per project mutation requests per minute per region
+#   (default 60, increased to 1000 for the test projects)
+# We are running pytest with "-n 20". For a rough estimation, let's say all
+# parallel sessions run in parallel. So that allows 1000/20 = 50 mutations per
+# minute. One session takes about 1 minute to create a remote function. This
+# would allow 50-1 = 49 deletions per session.
+# However, because of b/356217175 the service may throw ResourceExhausted("Too
+# many operations are currently being executed, try again later."), so we peg
+# the cleanup to a more controlled rate.
+MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION = 15
 
 CURRENT_DIR = pathlib.Path(__file__).parent
 DATA_DIR = CURRENT_DIR.parent / "data"
@@ -127,16 +136,45 @@ def resourcemanager_client(
 
 
 @pytest.fixture(scope="session")
-def session() -> bigframes.Session:
-    return bigframes.Session()
+def session() -> Generator[bigframes.Session, None, None]:
+    context = bigframes.BigQueryOptions(
+        location="US",
+    )
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()  # close generated session at cleanup time
 
 
 @pytest.fixture(scope="session")
-def session_tokyo(tokyo_location: str) -> bigframes.Session:
-    context = bigframes.BigQueryOptions(
-        location=tokyo_location,
-    )
-    return bigframes.Session(context=context)
+def session_load() -> Generator[bigframes.Session, None, None]:
+    context = bigframes.BigQueryOptions(location="US", project="bigframes-load-testing")
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()  # close generated session at cleanup time
+
+
+@pytest.fixture(scope="session", params=["ordered", "unordered"])
+def maybe_ordered_session(request) -> Generator[bigframes.Session, None, None]:
+    context = bigframes.BigQueryOptions(location="US", ordering_mode="partial")
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()  # close generated session at cleanup type
+
+
+@pytest.fixture(scope="session")
+def unordered_session() -> Generator[bigframes.Session, None, None]:
+    context = bigframes.BigQueryOptions(location="US", ordering_mode="partial")
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()  # close generated session at cleanup type
+
+
+@pytest.fixture(scope="session")
+def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, None]:
+    context = bigframes.BigQueryOptions(location=tokyo_location)
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()  # close generated session at cleanup type
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -385,6 +423,16 @@ def scalars_df_index(
 
 
 @pytest.fixture(scope="session")
+def scalars_df_null_index(
+    scalars_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(
+        scalars_table_id, index_col=bigframes.enums.DefaultIndexKind.NULL
+    ).sort_values("rowindex")
+
+
+@pytest.fixture(scope="session")
 def scalars_df_2_default_index(
     scalars_df_2_index: bigframes.dataframe.DataFrame,
 ) -> bigframes.dataframe.DataFrame:
@@ -439,6 +487,17 @@ def scalars_dfs(
     scalars_pandas_df_index,
 ):
     return scalars_df_index, scalars_pandas_df_index
+
+
+@pytest.fixture(scope="session")
+def scalars_dfs_maybe_ordered(
+    maybe_ordered_session,
+    scalars_pandas_df_index,
+):
+    return (
+        maybe_ordered_session.read_pandas(scalars_pandas_df_index),
+        scalars_pandas_df_index,
+    )
 
 
 @pytest.fixture(scope="session")
@@ -605,6 +664,18 @@ def new_penguins_pandas_df():
             "sex": ["MALE", "FEMALE", "FEMALE"],
         }
     ).set_index("tag_number")
+
+
+@pytest.fixture(scope="session")
+def missing_values_penguins_df():
+    """Additional data matching the missing values penguins dataset"""
+    return bpd.DataFrame(
+        {
+            "culmen_length_mm": [39.5, 38.5, 37.9],
+            "culmen_depth_mm": [np.nan, 17.2, 18.1],
+            "flipper_length_mm": [np.nan, 181.0, 188.0],
+        }
+    )
 
 
 @pytest.fixture(scope="session")
@@ -915,6 +986,18 @@ WHERE
 
 
 @pytest.fixture(scope="session")
+def llm_fine_tune_df_default_index(
+    session: bigframes.Session,
+) -> bigframes.dataframe.DataFrame:
+    training_table_name = "llm_tuning.emotion_classification_train"
+    df = session.read_gbq(training_table_name).dropna().head(30)
+    prefix = "Please do sentiment analysis on the following text and only output a number from 0 to 5 where 0 means sadness, 1 means joy, 2 means love, 3 means anger, 4 means fear, and 5 means surprise. Text: "
+    df["prompt"] = prefix + df["text"]
+    df["label"] = df["label"].astype("string")
+    return df
+
+
+@pytest.fixture(scope="session")
 def usa_names_grouped_table(
     session: bigframes.Session, dataset_id_permanent
 ) -> bigquery.Table:
@@ -1033,7 +1116,7 @@ def floats_pd():
         dtype=pd.Float64Dtype(),
     )
     # Index helps debug failed cases
-    df.index = df.float64_col
+    df.index = df.float64_col  # type: ignore
     # Upload fails if index name same as column name
     df.index.name = None
     return df.float64_col
@@ -1043,7 +1126,7 @@ def floats_pd():
 def floats_product_pd(floats_pd):
     df = pd.merge(floats_pd, floats_pd, how="cross")
     # Index helps debug failed cases
-    df = df.set_index([df.float64_col_x, df.float64_col_y])
+    df = df.set_index([df.float64_col_x, df.float64_col_y])  # type: ignore
     df.index.names = ["left", "right"]
     return df
 
@@ -1065,46 +1148,54 @@ def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent
         session.bqclient, dataset_id_permanent
     )
     delete_count = 0
-    for cloud_function in tests.system.utils.get_cloud_functions(
-        cloudfunctions_client,
-        session.bqclient.project,
-        session.bqclient.location,
-        name_prefix="bigframes-",
-    ):
-        # Ignore bigframes cloud functions referred by the remote functions in
-        # the permanent dataset
-        if cloud_function.service_config.uri in permanent_endpoints:
-            continue
+    try:
+        for cloud_function in tests.system.utils.get_cloud_functions(
+            cloudfunctions_client,
+            session.bqclient.project,
+            session.bqclient.location,
+            name_prefix="bigframes-",
+        ):
+            # Ignore bigframes cloud functions referred by the remote functions in
+            # the permanent dataset
+            if cloud_function.service_config.uri in permanent_endpoints:
+                continue
 
-        # Ignore the functions less than one day old
-        age = datetime.now() - datetime.fromtimestamp(
-            cloud_function.update_time.timestamp()
-        )
-        if age.days <= 0:
-            continue
-
-        # Go ahead and delete
-        try:
-            tests.system.utils.delete_cloud_function(
-                cloudfunctions_client, cloud_function.name
+            # Ignore the functions less than one day old
+            age = datetime.now() - datetime.fromtimestamp(
+                cloud_function.update_time.timestamp()
             )
-            delete_count += 1
-            if delete_count >= MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION:
-                break
-        except google.api_core.exceptions.NotFound:
-            # This can happen when multiple pytest sessions are running in
-            # parallel. Two or more sessions may discover the same cloud
-            # function, but only one of them would be able to delete it
-            # successfully, while the other instance will run into this
-            # exception. Ignore this exception.
-            pass
-        except google.api_core.exceptions.ResourceExhausted:
-            # This can happen if we are hitting GCP limits, e.g.
-            # google.api_core.exceptions.ResourceExhausted: 429 Quota exceeded
-            # for quota metric 'Per project mutation requests' and limit
-            # 'Per project mutation requests per minute per region' of service
-            # 'cloudfunctions.googleapis.com' for consumer
-            # 'project_number:1084210331973'.
-            # [reason: "RATE_LIMIT_EXCEEDED" domain: "googleapis.com" ...
-            # Let's stop further clean up and leave it to later.
-            break
+            if age.days <= 0:
+                continue
+
+            # Go ahead and delete
+            try:
+                tests.system.utils.delete_cloud_function(
+                    cloudfunctions_client, cloud_function.name
+                )
+                delete_count += 1
+                if delete_count >= MAX_NUM_FUNCTIONS_TO_DELETE_PER_SESSION:
+                    break
+            except google.api_core.exceptions.NotFound:
+                # This can happen when multiple pytest sessions are running in
+                # parallel. Two or more sessions may discover the same cloud
+                # function, but only one of them would be able to delete it
+                # successfully, while the other instance will run into this
+                # exception. Ignore this exception.
+                pass
+    except Exception as exc:
+        # Don't fail the tests for unknown exceptions.
+        #
+        # This can happen if we are hitting GCP limits, e.g.
+        # google.api_core.exceptions.ResourceExhausted: 429 Quota exceeded
+        # for quota metric 'Per project mutation requests' and limit
+        # 'Per project mutation requests per minute per region' of service
+        # 'cloudfunctions.googleapis.com' for consumer
+        # 'project_number:1084210331973'.
+        # [reason: "RATE_LIMIT_EXCEEDED" domain: "googleapis.com" ...
+        #
+        # It can also happen occasionally with
+        # google.api_core.exceptions.ServiceUnavailable when there is some
+        # backend flakiness.
+        #
+        # Let's stop further clean up and leave it to later.
+        traceback.print_exception(exc)

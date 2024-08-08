@@ -32,6 +32,10 @@
       - name: Session
         uid: bigframes.session.Session
       name: Session
+    - name: Enumerations
+      uid: bigframes.enums
+    - name: Exceptions and warnings
+      uid: bigframes.exceptions
     name: Core Objects
   - items:
     - name: DataFrame
@@ -132,6 +136,12 @@
       name: imported
     - items:
       - name: Overview
+        uid: bigframes.ml.impute
+      - name: SimpleImputer
+        uid: bigframes.ml.impute.SimpleImputer
+      name: impute
+    - items:
+      - name: Overview
         uid: bigframes.ml.linear_model
       - name: LinearRegression
         uid: bigframes.ml.linear_model.LinearRegression
@@ -189,5 +199,15 @@
         uid: bigframes.ml.remote.VertexAIModel
       name: remote
     name: bigframes.ml
+  - items:
+    - name: BigQuery built-in functions
+      uid: bigframes.bigquery
+    name: bigframes.bigquery
+  - items:
+    - name: Overview
+      uid: bigframes.streaming
+    - name: StreamingDataFrame
+      uid: bigframes.streaming.dataframe.StreamingDataFrame
+    name: bigframes.streaming
+    status: beta
   name: BigQuery DataFrames
-  status: beta

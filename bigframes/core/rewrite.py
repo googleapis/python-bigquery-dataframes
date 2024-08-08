@@ -26,32 +26,44 @@ import bigframes.operations as ops
 
 Selection = Tuple[Tuple[scalar_exprs.Expression, str], ...]
 
+REWRITABLE_NODE_TYPES = (
+    nodes.ProjectionNode,
+    nodes.FilterNode,
+    nodes.ReversedNode,
+    nodes.OrderByNode,
+)
+
 
 @dataclasses.dataclass(frozen=True)
 class SquashedSelect:
-    """Squash together as many nodes as possible, separating out the projection, filter and reordering expressions."""
+    """Squash nodes together until target node, separating out the projection, filter and reordering expressions."""
 
     root: nodes.BigFrameNode
     columns: Tuple[Tuple[scalar_exprs.Expression, str], ...]
     predicate: Optional[scalar_exprs.Expression]
     ordering: Tuple[order.OrderingExpression, ...]
+    reverse_root: bool = False
 
     @classmethod
-    def from_node(cls, node: nodes.BigFrameNode) -> SquashedSelect:
-        if isinstance(node, nodes.ProjectionNode):
-            return cls.from_node(node.child).project(node.assignments)
-        elif isinstance(node, nodes.FilterNode):
-            return cls.from_node(node.child).filter(node.predicate)
-        elif isinstance(node, nodes.ReversedNode):
-            return cls.from_node(node.child).reverse()
-        elif isinstance(node, nodes.OrderByNode):
-            return cls.from_node(node.child).order_with(node.by)
-        else:
+    def from_node_span(
+        cls, node: nodes.BigFrameNode, target: nodes.BigFrameNode
+    ) -> SquashedSelect:
+        if node == target:
             selection = tuple(
                 (scalar_exprs.UnboundVariableExpression(id), id)
                 for id in get_node_column_ids(node)
             )
             return cls(node, selection, None, ())
+        if isinstance(node, nodes.ProjectionNode):
+            return cls.from_node_span(node.child, target).project(node.assignments)
+        elif isinstance(node, nodes.FilterNode):
+            return cls.from_node_span(node.child, target).filter(node.predicate)
+        elif isinstance(node, nodes.ReversedNode):
+            return cls.from_node_span(node.child, target).reverse()
+        elif isinstance(node, nodes.OrderByNode):
+            return cls.from_node_span(node.child, target).order_with(node.by)
+        else:
+            raise ValueError(f"Cannot rewrite node {node}")
 
     @property
     def column_lookup(self) -> Mapping[str, scalar_exprs.Expression]:
@@ -63,7 +75,9 @@ class SquashedSelect:
         new_columns = tuple(
             (expr.bind_all_variables(self.column_lookup), id) for expr, id in projection
         )
-        return SquashedSelect(self.root, new_columns, self.predicate, self.ordering)
+        return SquashedSelect(
+            self.root, new_columns, self.predicate, self.ordering, self.reverse_root
+        )
 
     def filter(self, predicate: scalar_exprs.Expression) -> SquashedSelect:
         if self.predicate is None:
@@ -72,38 +86,57 @@ class SquashedSelect:
             new_predicate = ops.and_op.as_expr(
                 self.predicate, predicate.bind_all_variables(self.column_lookup)
             )
-        return SquashedSelect(self.root, self.columns, new_predicate, self.ordering)
+        return SquashedSelect(
+            self.root, self.columns, new_predicate, self.ordering, self.reverse_root
+        )
 
     def reverse(self) -> SquashedSelect:
         new_ordering = tuple(expr.with_reverse() for expr in self.ordering)
-        return SquashedSelect(self.root, self.columns, self.predicate, new_ordering)
+        return SquashedSelect(
+            self.root, self.columns, self.predicate, new_ordering, not self.reverse_root
+        )
 
     def order_with(self, by: Tuple[order.OrderingExpression, ...]):
         adjusted_orderings = [
             order_part.bind_variables(self.column_lookup) for order_part in by
         ]
         new_ordering = (*adjusted_orderings, *self.ordering)
-        return SquashedSelect(self.root, self.columns, self.predicate, new_ordering)
+        return SquashedSelect(
+            self.root, self.columns, self.predicate, new_ordering, self.reverse_root
+        )
 
-    def maybe_join(
-        self, right: SquashedSelect, join_def: join_defs.JoinDefinition
-    ) -> Optional[SquashedSelect]:
-        if join_def.type == "cross":
-            # Cannot convert cross join to projection
-            return None
-
+    def can_merge(
+        self,
+        right: SquashedSelect,
+        join_keys: Tuple[join_defs.CoalescedColumnMapping, ...],
+    ) -> bool:
+        """Determines whether the two selections can be merged into a single selection."""
         r_exprs_by_id = {id: expr for expr, id in right.columns}
         l_exprs_by_id = {id: expr for expr, id in self.columns}
-        l_join_exprs = [l_exprs_by_id[cond.left_id] for cond in join_def.conditions]
-        r_join_exprs = [r_exprs_by_id[cond.right_id] for cond in join_def.conditions]
+        l_join_exprs = [
+            l_exprs_by_id[join_key.left_source_id] for join_key in join_keys
+        ]
+        r_join_exprs = [
+            r_exprs_by_id[join_key.right_source_id] for join_key in join_keys
+        ]
 
-        if (self.root != right.root) or any(
-            l_expr != r_expr for l_expr, r_expr in zip(l_join_exprs, r_join_exprs)
-        ):
-            return None
+        if self.root != right.root:
+            return False
+        if len(l_join_exprs) != len(r_join_exprs):
+            return False
+        if any(l_expr != r_expr for l_expr, r_expr in zip(l_join_exprs, r_join_exprs)):
+            return False
+        return True
 
-        join_type = join_def.type
-
+    def merge(
+        self,
+        right: SquashedSelect,
+        join_type: join_defs.JoinType,
+        join_keys: Tuple[join_defs.CoalescedColumnMapping, ...],
+        mappings: Tuple[join_defs.JoinColumnMapping, ...],
+    ) -> SquashedSelect:
+        if self.root != right.root:
+            raise ValueError("Cannot merge expressions with different roots")
         # Mask columns and remap names to expected schema
         lselection = self.columns
         rselection = right.columns
@@ -119,15 +152,15 @@ class SquashedSelect:
         l_relative, r_relative = relative_predicates(self.predicate, right.predicate)
         lmask = l_relative if join_type in {"right", "outer"} else None
         rmask = r_relative if join_type in {"left", "outer"} else None
-        if lmask is not None:
-            lselection = tuple((apply_mask(expr, lmask), id) for expr, id in lselection)
-        if rmask is not None:
-            rselection = tuple((apply_mask(expr, rmask), id) for expr, id in rselection)
-        new_columns = remap_names(join_def, lselection, rselection)
+        new_columns = merge_expressions(
+            join_keys, mappings, lselection, rselection, lmask, rmask
+        )
 
         # Reconstruct ordering
+        reverse_root = self.reverse_root
         if join_type == "right":
             new_ordering = right.ordering
+            reverse_root = right.reverse_root
         elif join_type == "outer":
             if lmask is not None:
                 prefix = order.OrderingExpression(lmask, order.OrderingDirection.DESC)
@@ -158,11 +191,15 @@ class SquashedSelect:
             new_ordering = self.ordering
         else:
             raise ValueError(f"Unexpected join type {join_type}")
-        return SquashedSelect(self.root, new_columns, new_predicate, new_ordering)
+        return SquashedSelect(
+            self.root, new_columns, new_predicate, new_ordering, reverse_root
+        )
 
     def expand(self) -> nodes.BigFrameNode:
         # Safest to apply predicates first, as it may filter out inputs that cannot be handled by other expressions
         root = self.root
+        if self.reverse_root:
+            root = nodes.ReversedNode(child=root)
         if self.predicate:
             root = nodes.FilterNode(child=root, predicate=self.predicate)
         if self.ordering:
@@ -170,29 +207,56 @@ class SquashedSelect:
         return nodes.ProjectionNode(child=root, assignments=self.columns)
 
 
-def maybe_rewrite_join(join_node: nodes.JoinNode) -> nodes.BigFrameNode:
-    left_side = SquashedSelect.from_node(join_node.left_child)
-    right_side = SquashedSelect.from_node(join_node.right_child)
-    joined = left_side.maybe_join(right_side, join_node.join)
-    if joined is not None:
-        return joined.expand()
+def join_as_projection(
+    l_node: nodes.BigFrameNode,
+    r_node: nodes.BigFrameNode,
+    join_keys: Tuple[join_defs.CoalescedColumnMapping, ...],
+    mappings: Tuple[join_defs.JoinColumnMapping, ...],
+    how: join_defs.JoinType,
+) -> Optional[nodes.BigFrameNode]:
+    rewrite_common_node = common_selection_root(l_node, r_node)
+    if rewrite_common_node is not None:
+        left_side = SquashedSelect.from_node_span(l_node, rewrite_common_node)
+        right_side = SquashedSelect.from_node_span(r_node, rewrite_common_node)
+        if not left_side.can_merge(right_side, join_keys):
+            # Most likely because join keys didn't match
+            return None
+        merged = left_side.merge(right_side, how, join_keys, mappings)
+        assert (
+            merged is not None
+        ), "Couldn't merge nodes. This shouldn't happen. Please share full stacktrace with the BigQuery DataFrames team at bigframes-feedback@google.com."
+        return merged.expand()
     else:
-        return join_node
+        return None
 
 
-def remap_names(
-    join: join_defs.JoinDefinition, lselection: Selection, rselection: Selection
+def merge_expressions(
+    join_keys: Tuple[join_defs.CoalescedColumnMapping, ...],
+    mappings: Tuple[join_defs.JoinColumnMapping, ...],
+    lselection: Selection,
+    rselection: Selection,
+    lmask: Optional[scalar_exprs.Expression],
+    rmask: Optional[scalar_exprs.Expression],
 ) -> Selection:
     new_selection: Selection = tuple()
     l_exprs_by_id = {id: expr for expr, id in lselection}
     r_exprs_by_id = {id: expr for expr, id in rselection}
-    for mapping in join.mappings:
+    for key in join_keys:
+        # Join keys expressions are equivalent on both sides, so can choose either left or right key
+        assert l_exprs_by_id[key.left_source_id] == r_exprs_by_id[key.right_source_id]
+        expr = l_exprs_by_id[key.left_source_id]
+        id = key.destination_id
+        new_selection = (*new_selection, (expr, id))
+    for mapping in mappings:
         if mapping.source_table == join_defs.JoinSide.LEFT:
             expr = l_exprs_by_id[mapping.source_id]
+            if lmask is not None:
+                expr = apply_mask(expr, lmask)
         else:  # Right
             expr = r_exprs_by_id[mapping.source_id]
-        id = mapping.destination_id
-        new_selection = (*new_selection, (expr, id))
+            if rmask is not None:
+                expr = apply_mask(expr, rmask)
+        new_selection = (*new_selection, (expr, mapping.destination_id))
     return new_selection
 
 
@@ -269,3 +333,25 @@ def get_node_column_ids(node: nodes.BigFrameNode) -> Tuple[str, ...]:
     import bigframes.core
 
     return tuple(bigframes.core.ArrayValue(node).column_ids)
+
+
+def common_selection_root(
+    l_tree: nodes.BigFrameNode, r_tree: nodes.BigFrameNode
+) -> Optional[nodes.BigFrameNode]:
+    """Find common subtree between join subtrees"""
+    l_node = l_tree
+    l_nodes: set[nodes.BigFrameNode] = set()
+    while isinstance(l_node, REWRITABLE_NODE_TYPES):
+        l_nodes.add(l_node)
+        l_node = l_node.child
+    l_nodes.add(l_node)
+
+    r_node = r_tree
+    while isinstance(r_node, REWRITABLE_NODE_TYPES):
+        if r_node in l_nodes:
+            return r_node
+        r_node = r_node.child
+
+    if r_node in l_nodes:
+        return r_node
+    return None

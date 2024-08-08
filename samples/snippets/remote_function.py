@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-def run_remote_function_and_read_gbq_function(project_id: str):
+def run_remote_function_and_read_gbq_function(project_id: str) -> None:
     your_gcp_project_id = project_id
 
     # [START bigquery_dataframes_remote_function]
@@ -47,11 +47,11 @@ def run_remote_function_and_read_gbq_function(project_id: str):
     # of the penguins, which is a real number, into a category, which is a
     # string.
     @bpd.remote_function(
-        [float],
+        float,
         str,
         reuse=False,
     )
-    def get_bucket(num):
+    def get_bucket(num: float) -> str:
         if not num:
             return "NA"
         boundary = 4000
@@ -91,12 +91,12 @@ def run_remote_function_and_read_gbq_function(project_id: str):
     # as a remote function. The custom function in this example has external
     # package dependency, which can be specified via `packages` parameter.
     @bpd.remote_function(
-        [str],
+        str,
         str,
         reuse=False,
         packages=["cryptography"],
     )
-    def get_hash(input):
+    def get_hash(input: str) -> str:
         from cryptography.fernet import Fernet
 
         # handle missing value

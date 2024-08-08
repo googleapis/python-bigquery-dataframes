@@ -86,9 +86,7 @@ def test_session_load_job(bq_cmek, session_with_bq_cmek):
         pytest.skip("no cmek set for testing")  # pragma: NO COVER
 
     # Session should have cmek set in the default query and load job configs
-    load_table = bigframes.session._io.bigquery.random_table(
-        session_with_bq_cmek._anonymous_dataset
-    )
+    load_table = session_with_bq_cmek._random_table()
 
     df = pandas.DataFrame({"col0": [1, 2, 3]})
     load_job_config = session_with_bq_cmek._prepare_load_job_config()
@@ -188,9 +186,7 @@ def test_to_gbq(bq_cmek, session_with_bq_cmek, scalars_table_id):
 
     # Write the result to BQ custom table and assert encryption
     session_with_bq_cmek.bqclient.get_table(output_table_id)
-    output_table_ref = bigframes.session._io.bigquery.random_table(
-        session_with_bq_cmek._anonymous_dataset
-    )
+    output_table_ref = session_with_bq_cmek._random_table()
     output_table_id = str(output_table_ref)
     df.to_gbq(output_table_id)
     output_table = session_with_bq_cmek.bqclient.get_table(output_table_id)
@@ -246,6 +242,7 @@ def test_bqml(bq_cmek, session_with_bq_cmek, penguins_table_id):
     model.fit(X_train, y_train)
 
     assert model is not None
+    assert model._bqml_model is not None
     assert model._bqml_model.model.encryption_configuration is not None
     assert model._bqml_model.model.encryption_configuration.kms_key_name == bq_cmek
 
@@ -261,6 +258,8 @@ def test_bqml(bq_cmek, session_with_bq_cmek, penguins_table_id):
         f"{model_ref.project}.{model_ref.dataset_id}.{model_ref.model_id}"
     )
     new_model = model.to_gbq(model_ref_full_name)
+    assert new_model._bqml_model is not None
+    assert new_model._bqml_model.model.encryption_configuration is not None
     assert new_model._bqml_model.model.encryption_configuration.kms_key_name == bq_cmek
 
     # Assert that model exists in BQ with intended encryption
@@ -278,6 +277,8 @@ def test_bqml(bq_cmek, session_with_bq_cmek, penguins_table_id):
     # https://cloud.google.com/vertex-ai/docs/general/cmek#create_resources_with_the_kms_key.
     # bigframes.ml does not provide any API for the model deployment.
     model_registered = new_model.register()
+    assert model_registered._bqml_model is not None
+    assert model_registered._bqml_model.model.encryption_configuration is not None
     assert (
         model_registered._bqml_model.model.encryption_configuration.kms_key_name
         == bq_cmek

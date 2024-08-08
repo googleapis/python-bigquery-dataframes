@@ -13,11 +13,10 @@ from __future__ import annotations
 
 from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
 
+from bigframes_vendored import constants
 import bigframes_vendored.pandas.core.generic as generic
 import numpy as np
 import pandas as pd
-
-from bigframes import constants
 
 # -----------------------------------------------------------------------
 # DataFrame class
@@ -90,6 +89,88 @@ class DataFrame(generic.NDFrame):
                 on another array.
             na_value (default None):
                 The value to use for missing values.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def T(self) -> DataFrame:
+        """
+        The transpose of the DataFrame.
+
+        All columns must be the same dtype (numerics can be coerced to a common supertype).
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+            >>> df
+               col1  col2
+            0     1     3
+            1     2     4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> df.T
+                  0  1
+            col1  1  2
+            col2  3  4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Returns:
+            DataFrame: The transposed DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def transpose(self) -> DataFrame:
+        """
+        Transpose index and columns.
+
+        Reflect the DataFrame over its main diagonal by writing rows as columns
+        and vice-versa. The property :attr:`.T` is an accessor to the method
+        :meth:`transpose`.
+
+        All columns must be the same dtype (numerics can be coerced to a common supertype).
+
+        **Examples:**
+
+            **Square DataFrame with homogeneous dtype**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> d1 = {'col1': [1, 2], 'col2': [3, 4]}
+            >>> df1 = bpd.DataFrame(data=d1)
+            >>> df1
+               col1  col2
+            0     1     3
+            1     2     4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> df1_transposed = df1.T  # or df1.transpose()
+            >>> df1_transposed
+                  0  1
+            col1  1  2
+            col2  3  4
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            When the dtype is homogeneous in the original DataFrame, we get a
+            transposed DataFrame with the same dtype:
+
+            >>> df1.dtypes
+            col1    Int64
+            col2    Int64
+            dtype: object
+            >>> df1_transposed.dtypes
+            0    Int64
+            1    Int64
+            dtype: object
+
+        Returns:
+            DataFrame: The transposed DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -329,7 +410,7 @@ class DataFrame(generic.NDFrame):
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> destination = df.to_gbq(ordering_id="ordering_id")
             >>> # The table created can be read outside of the current session.
-            >>> bpd.close_session()  # For demonstration, only.
+            >>> bpd.close_session()  # Optional, to demonstrate a new session.
             >>> bpd.read_gbq(destination, index_col="ordering_id")
                          col1  col2
             ordering_id
@@ -395,11 +476,11 @@ class DataFrame(generic.NDFrame):
 
     def to_parquet(
         self,
-        path: str,
+        path: Optional[str],
         *,
         compression: Optional[Literal["snappy", "gzip"]] = "snappy",
         index: bool = True,
-    ) -> None:
+    ) -> Optional[bytes]:
         """Write a DataFrame to the binary Parquet format.
 
         This function writes the dataframe as a `parquet file
@@ -415,9 +496,13 @@ class DataFrame(generic.NDFrame):
             >>> df.to_parquet(path=gcs_bucket)
 
         Args:
-            path (str):
+            path (str, path object, file-like object, or None, default None):
+                String, path object (implementing ``os.PathLike[str]``), or file-like
+                object implementing a binary ``write()`` function. If None, the result is
+                returned as bytes. If a string or path, it will be used as Root Directory
+                path when writing a partitioned dataset.
                 Destination URI(s) of Cloud Storage files(s) to store the extracted dataframe
-                in format of ``gs://<bucket_name>/<object_name_or_glob>``.
+                should be formatted ``gs://<bucket_name>/<object_name_or_glob>``.
                 If the data size is more than 1GB, you must use a wildcard to export
                 the data into multiple files and the size of the files varies.
 
@@ -430,7 +515,7 @@ class DataFrame(generic.NDFrame):
                 If ``False``, they will not be written to the file.
 
         Returns:
-            None.
+            bytes if no path argument is provided else None
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -983,6 +1068,51 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             Series or DataFrame: Same type as caller, but with changed indices on each axis.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def insert(self, loc, column, value, allow_duplicates=False):
+        """Insert column into DataFrame at specified location.
+
+        Raises a ValueError if `column` is already contained in the DataFrame,
+        unless `allow_duplicates` is set to True.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
+
+        Insert a new column named 'col3' between 'col1' and 'col2' with all entries set to 5.
+
+            >>> df.insert(1, 'col3', 5)
+            >>> df
+               col1  col3  col2
+            0     1     5     3
+            1     2     5     4
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+        Insert another column named 'col2' at the beginning of the DataFrame with values [5, 6]
+
+            >>> df.insert(0, 'col2', [5, 6], allow_duplicates=True)
+            >>> df
+               col2  col1  col3  col2
+            0     5     1     5     3
+            1     6     2     5     4
+            <BLANKLINE>
+            [2 rows x 4 columns]
+
+        Args:
+            loc (int):
+                Insertion index. Must verify 0 <= loc <= len(columns).
+            column (str, number, or hashable object):
+                Label of the inserted column.
+            value (Scalar, Series, or array-like):
+                Content of the inserted column.
+            allow_duplicates (bool, default False):
+                Allow duplicate column labels to be created.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1918,6 +2048,30 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             DataFrame: The result of comparing `other` to DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __invert__(self) -> DataFrame:
+        """
+        Returns the bitwise inversion of the DataFrame, element-wise
+        using operator `~`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'a':[True, False, True], 'b':[-1, 0, 1]})
+            >>> ~df
+                   a  b
+            0  False  0
+            1   True -1
+            2  False -2
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Returns:
+            DataFrame: The result of inverting elements in the input.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3450,6 +3604,42 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __and__(self, other):
+        """Get bitwise AND of DataFrame and other, element-wise, using operator `&`.
+
+        Args:
+            other (scalar, Series or DataFrame):
+                Object to bitwise AND with the DataFrame.
+
+        Returns:
+            bigframes.dataframe.DataFrame: The result of the operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __or__(self, other):
+        """Get bitwise OR of DataFrame and other, element-wise, using operator `|`.
+
+        Args:
+            other (scalar, Series or DataFrame):
+                Object to bitwise OR with the DataFrame.
+
+        Returns:
+            bigframes.dataframe.DataFrame: The result of the operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __xor__(self, other):
+        """Get bitwise XOR of DataFrame and other, element-wise, using operator `^`.
+
+        Args:
+            other (scalar, Series or DataFrame):
+                Object to bitwise XOR with the DataFrame.
+
+        Returns:
+            bigframes.dataframe.DataFrame: The result of the operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def combine(
         self, other, func, fill_value=None, overwrite: bool = True
     ) -> DataFrame:
@@ -3810,8 +4000,8 @@ class DataFrame(generic.NDFrame):
         to potentially reuse a previously deployed ``remote_function`` from
         the same user defined function.
 
-            >>> @bpd.remote_function([int], float, reuse=False)
-            ... def minutes_to_hours(x):
+            >>> @bpd.remote_function(reuse=False)
+            ... def minutes_to_hours(x: int) -> float:
             ...     return x/60
 
             >>> df_minutes = bpd.DataFrame(
@@ -4118,16 +4308,21 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def apply(self, func, *, args=(), **kwargs):
+    def apply(self, func, *, axis=0, args=(), **kwargs):
         """Apply a function along an axis of the DataFrame.
 
         Objects passed to the function are Series objects whose index is
-        the DataFrame's index (``axis=0``) the final return type
-        is inferred from the return type of the applied function.
+        the DataFrame's index (``axis=0``) or the DataFrame's columns (``axis=1``).
+        The final return type is inferred from the return type of the applied
+        function.
+
+        .. note::
+            ``axis=1`` scenario is in preview.
 
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import pandas as pd
             >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
@@ -4148,9 +4343,72 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [2 rows x 2 columns]
 
+        You could apply a user defined function to every row of the DataFrame by
+        creating a remote function out of it, and using it with `axis=1`. Within
+        the function, each row is passed as a ``pandas.Series``. It is recommended
+        to select only the necessary columns before calling `apply()`. Note: This
+        feature is currently in **preview**.
+
+            >>> @bpd.remote_function(reuse=False)
+            ... def foo(row: pd.Series) -> int:
+            ...     result = 1
+            ...     result += row["col1"]
+            ...     result += row["col2"]*row["col2"]
+            ...     return result
+
+            >>> df[["col1", "col2"]].apply(foo, axis=1)
+            0    11
+            1    19
+            dtype: Int64
+
+        You could also apply a remote function which accepts multiple parameters
+        to every row of a DataFrame by using it with `axis=1` if the DataFrame
+        has matching number of columns and data types. Note: This feature is
+        currently in **preview**.
+
+            >>> df = bpd.DataFrame({
+            ...     'col1': [1, 2],
+            ...     'col2': [3, 4],
+            ...     'col3': [5, 5]
+            ... })
+            >>> df
+               col1  col2  col3
+            0     1     3     5
+            1     2     4     5
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+            >>> @bpd.remote_function(reuse=False)
+            ... def foo(x: int, y: int, z: int) -> float:
+            ...     result = 1
+            ...     result += x
+            ...     result += y/z
+            ...     return result
+
+            >>> df.apply(foo, axis=1)
+            0    2.6
+            1    3.8
+            dtype: Float64
+
         Args:
             func (function):
-                Function to apply to each column or row.
+                Function to apply to each column or row. To apply to each row
+                (i.e. when `axis=1` is specified) the function can be of one of
+                the two types:
+
+                (1). It accepts a single input parameter of type `Series`, in
+                     which case each row is delivered to the function as a pandas
+                     Series.
+
+                (2). It accept one or more parameters, in which case column values
+                     are delivered to the function as separate arguments (mapping
+                     to those parameters) for each row. For this to work the
+                     `DataFrame` must have same number of columns and matching
+                     data types.
+            axis ({index (0), columns (1)}):
+                Axis along which the function is applied. Specify 0 or 'index'
+                to apply function to each column. Specify 1 or 'columns' to
+                apply function to each row.
             args (tuple):
                 Positional arguments to pass to `func` in addition to the
                 array/series.
@@ -4327,16 +4585,16 @@ class DataFrame(generic.NDFrame):
         Finding the minimum value in each column (the default behavior without an explicit axis parameter).
 
             >>> df.min()
-            A    1.0
-            B    2.0
-            dtype: Float64
+            A    1
+            B    2
+            dtype: Int64
 
         Finding the minimum value in each row.
 
             >>> df.min(axis=1)
-            0    1.0
-            1    3.0
-            dtype: Float64
+            0    1
+            1    3
+            dtype: Int64
 
         Args:
             axis ({index (0), columns (1)}):
@@ -4372,16 +4630,16 @@ class DataFrame(generic.NDFrame):
         Finding the maximum value in each column (the default behavior without an explicit axis parameter).
 
             >>> df.max()
-            A    3.0
-            B    4.0
-            dtype: Float64
+            A    3
+            B    4
+            dtype: Int64
 
         Finding the maximum value in each row.
 
             >>> df.max(axis=1)
-            0    2.0
-            1    4.0
-            dtype: Float64
+            0    2
+            1    4
+            dtype: Int64
 
         Args:
             axis ({index (0), columns (1)}):
@@ -4416,16 +4674,16 @@ class DataFrame(generic.NDFrame):
         Calculating the sum of each column (the default behavior without an explicit axis parameter).
 
             >>> df.sum()
-            A    4.0
-            B    6.0
-            dtype: Float64
+            A    4
+            B    6
+            dtype: Int64
 
         Calculating the sum of each row.
 
             >>> df.sum(axis=1)
-            0    3.0
-            1    7.0
-            dtype: Float64
+            0    3
+            1    7
+            dtype: Int64
 
         Args:
             axis ({index (0), columns (1)}):
@@ -4481,7 +4739,7 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def median(self, *, numeric_only: bool = False, exact: bool = False):
+    def median(self, *, numeric_only: bool = False, exact: bool = True):
         """Return the median of the values over colunms.
 
         **Examples:**
@@ -4500,19 +4758,58 @@ class DataFrame(generic.NDFrame):
         Finding the median value of each column.
 
             >>> df.median()
-            A    1.0
-            B    2.0
+            A    2.0
+            B    3.0
             dtype: Float64
 
         Args:
             numeric_only (bool. default False):
                 Default False. Include only float, int, boolean columns.
-            exact (bool. default False):
-                Default False. Get the exact median instead of an approximate
-                one. Note: ``exact=True`` not yet supported.
+            exact (bool. default True):
+                Default True. Get the exact median instead of an approximate
+                one.
 
         Returns:
             bigframes.series.Series: Series with the median of values.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def quantile(
+        self, q: Union[float, Sequence[float]] = 0.5, *, numeric_only: bool = False
+    ):
+        """
+        Return values at the given quantile over requested axis.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame(np.array([[1, 1], [2, 10], [3, 100], [4, 100]]),
+            ...                   columns=['a', 'b'])
+            >>> df.quantile(.1)
+            a    1.3
+            b    3.7
+            Name: 0.1, dtype: Float64
+            >>> df.quantile([.1, .5])
+                   a     b
+            0.1  1.3   3.7
+            0.5  2.5  55.0
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Args:
+            q (float or array-like, default 0.5 (50% quantile)):
+                Value between 0 <= q <= 1, the quantile(s) to compute.
+            numeric_only (bool, default False):
+                Include only `float`, `int` or `boolean` data.
+
+        Returns:
+            Series or DataFrame:
+                If ``q`` is an array, a DataFrame will be returned where the
+                index is ``q``, the columns are the columns of self, and the
+                values are the quantiles.
+                If ``q`` is a float, a Series will be returned where the
+                index is the columns of self and the values are the quantiles.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4710,10 +5007,10 @@ class DataFrame(generic.NDFrame):
         Counting non-NA values for each column:
 
             >>> df.count()
-            A    4.0
-            B    5.0
-            C    3.0
-            dtype: Float64
+            A    4
+            B    5
+            C    3
+            dtype: Int64
 
         Args:
             numeric_only (bool, default False):
@@ -5013,17 +5310,17 @@ class DataFrame(generic.NDFrame):
         Using `melt` with `id_vars` and `value_vars`:
 
             >>> df.melt(id_vars='A', value_vars=['B', 'C'])
-                   A	variable	value
-            0	 1.0	       B	    1
-            1	<NA>	       B	    2
-            2	 3.0	       B	    3
-            3	 4.0	       B	    4
-            4	 5.0	       B	    5
-            5	 1.0	       C	 <NA>
-            6	 <NA>	       C	    3
-            7	 3.0	       C	 <NA>
-            8	 4.0	       C	    4
-            9	 5.0	       C	    5
+                  A variable  value
+            0   1.0        B    1.0
+            1  <NA>        B    2.0
+            2   3.0        B    3.0
+            3   4.0        B    4.0
+            4   5.0        B    5.0
+            5   1.0        C   <NA>
+            6  <NA>        C    3.5
+            7   3.0        C   <NA>
+            8   4.0        C    4.5
+            9   5.0        C    5.0
             <BLANKLINE>
             [10 rows x 3 columns]
 
@@ -5064,9 +5361,9 @@ class DataFrame(generic.NDFrame):
             [3 rows x 2 columns]
 
             >>> df.nunique()
-            A    3.0
-            B    2.0
-            dtype: Float64
+            A    3
+            B    2
+            dtype: Int64
 
         Returns:
             bigframes.series.Series: Series with number of distinct elements.
@@ -5275,9 +5572,9 @@ class DataFrame(generic.NDFrame):
         Using a single function:
 
             >>> df.agg('sum')
-            A    6.0
-            B    6.0
-            dtype: Float64
+            A    6
+            B    6
+            dtype: Int64
 
         Using a list of functions:
 
