@@ -25,7 +25,7 @@ if "%PYTHON_VERSION%"=="" (
   set PYTHON_VERSION=3.10
 )
 
-py -%PYTHON_VERSION%-64 -m pip install nox
+py -%PYTHON_VERSION%-64 -m pip install nox || goto :error
 
 py -%PYTHON_VERSION%-64 -m nox -s unit-"%PYTHON_VERSION%" || goto :error
 
