@@ -118,14 +118,27 @@ class Index(vendored_pandas_index.Index):
     def to_frame(
         self, index: bool = True, name: blocks.Label | None = None
     ) -> bigframes.dataframe.DataFrame:
-        import numpy as np
+        from bigframes.core.indexes.multi import MultiIndex
 
-        provided_name = name if name else self.name
-        provided_index = self.values if index else np.arange(len(self.values))
+        multi = isinstance(self, MultiIndex)
+
+        if multi:
+            columns = [
+                [self.values[j][i] for j in range(len(self.values))]
+                for i in range(len(self.values[0]))
+            ]
+            assert name is None or len(name) == len(columns)
+            data = {name[i] if name else i: column for i, column in enumerate(columns)}
+            original_index = columns
+        else:
+            provided_name = name if name else self.name
+            data = {provided_name: self.values}
+            original_index = self.values
+
         result = bigframes.dataframe.DataFrame(
-            {provided_name: self.values}, index=provided_index
+            data, index=original_index if index else None
         )
-        if index:  # matching pandas behavior
+        if index and not multi:  # matching pandas behavior
             result.index.name = self.name
         return result
 
