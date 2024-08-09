@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
+
 import numpy
 import pandas as pd
 import pytest
 
+import bigframes.core.indexes as indexes
 import bigframes.pandas as bpd
 from tests.system.utils import assert_pandas_index_equal_ignore_index_type
 
@@ -318,6 +321,28 @@ def test_index_to_series(
     )
 
     pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_index_to_frame():
+    index_to_frame_test_args = [[True, False], [None, "food"]]
+    pd_idx = pd.Index(["Ant", "Bear", "Cow"], name="animal", dtype="string[pyarrow]")
+    bf_idx = indexes.Index(["Ant", "Bear", "Cow"], name="animal")
+
+    for index_arg, name_arg in itertools.product(*index_to_frame_test_args):
+        if name_arg is None:
+            pd_df = pd_idx.to_frame(index=index_arg)
+            bf_df = bf_idx.to_frame(index=index_arg)
+        else:
+            pd_df = pd_idx.to_frame(index=index_arg, name=name_arg)
+            bf_df = bf_idx.to_frame(index=index_arg, name=name_arg)
+        pd.testing.assert_frame_equal(
+            pd_df, bf_df.to_pandas(), check_column_type=False, check_index_type=False
+        )
+        # BigFrames type casting is weird
+        # automatically casts dtype to string whereas pandas dtype is object
+        # additionally, pandas uses string[python] and BigFrames uses string[pyarrow]
+        # so we set dtype in pandas index creation
+        # similarly, pandas uses int64 dtype for numerical index and BigFrames uses Int64
 
 
 @pytest.mark.parametrize(

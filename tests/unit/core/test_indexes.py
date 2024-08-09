@@ -12,15 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
-
-import pandas as pd
-from pandas.testing import assert_frame_equal
-
 import bigframes.core.indexes
-
-index_to_frame_test_args = [[True, False], [None, "food"]]
-multi_index_to_frame_test_args = [[True, False], [None, ["x", "y"]]]
 
 
 def test_index_repr_with_uninitialized_object():
@@ -45,45 +37,3 @@ def test_multiindex_repr_with_uninitialized_object():
     index = object.__new__(bigframes.core.indexes.MultiIndex)
     got = repr(index)
     assert "MultiIndex" in got
-
-
-def test_index_to_frame():
-    pd_idx = pd.Index(["Ant", "Bear", "Cow"], name="animal", dtype="string[pyarrow]")
-    bf_idx = bigframes.core.indexes.Index(["Ant", "Bear", "Cow"], name="animal")
-
-    for index_arg, name_arg in itertools.product(*index_to_frame_test_args):
-        if name_arg is None:
-            pd_df = pd_idx.to_frame(index=index_arg)
-            bf_df = bf_idx.to_frame(index=index_arg)
-        else:
-            pd_df = pd_idx.to_frame(index=index_arg, name=name_arg)
-            bf_df = bf_idx.to_frame(index=index_arg, name=name_arg)
-        assert_frame_equal(
-            pd_df, bf_df.to_pandas(), check_column_type=False, check_index_type=False
-        )
-        # BigFrames type casting is weird
-        # automatically casts dtype to string whereas pandas dtype is object
-        # additionally, pandas uses string[python] and BigFrames uses string[pyarrow]
-        # so we set dtype in pandas index creation
-        # similarly, pandas uses int64 dtype for numerical index and BigFrames uses Int64
-
-
-def test_multi_index_to_frame():
-    pd_idx = pd.MultiIndex.from_arrays([["a", "b", "c"], ["d", "e", "f"]])
-    bf_idx = bigframes.core.indexes.MultiIndex.from_arrays(
-        [["a", "b", "c"], ["d", "e", "f"]]
-    )
-    for index_arg, name_arg in itertools.product(*multi_index_to_frame_test_args):
-        if name_arg is None:
-            pd_df = pd_idx.to_frame(index=index_arg)
-            bf_df = bf_idx.to_frame(index=index_arg)
-        else:
-            pd_df = pd_idx.to_frame(index=index_arg, name=name_arg)
-            bf_df = bf_idx.to_frame(index=index_arg, name=name_arg)
-        assert_frame_equal(
-            pd_df,
-            bf_df.to_pandas(),
-            check_dtype=False,
-            check_column_type=False,
-            check_index_type=False,
-        )

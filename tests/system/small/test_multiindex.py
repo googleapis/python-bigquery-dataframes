@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
+
 import numpy as np
 import pandas
 import pytest
 
+import bigframes.core.indexes as indexes
 import bigframes.pandas as bpd
 from tests.system.utils import assert_pandas_df_equal, skip_legacy_pandas
 
@@ -43,6 +46,26 @@ def test_multi_index_from_arrays():
     )
     assert bf_idx.names == pd_idx.names
     pandas.testing.assert_index_equal(bf_idx.to_pandas(), pd_idx)
+
+
+def test_multi_index_to_frame():
+    multi_index_to_frame_test_args = [[True, False], [None, ["x", "y"]]]
+    pd_idx = pandas.MultiIndex.from_arrays([["a", "b", "c"], ["d", "e", "f"]])
+    bf_idx = indexes.MultiIndex.from_arrays([["a", "b", "c"], ["d", "e", "f"]])
+    for index_arg, name_arg in itertools.product(*multi_index_to_frame_test_args):
+        if name_arg is None:
+            pd_df = pd_idx.to_frame(index=index_arg)
+            bf_df = bf_idx.to_frame(index=index_arg)
+        else:
+            pd_df = pd_idx.to_frame(index=index_arg, name=name_arg)
+            bf_df = bf_idx.to_frame(index=index_arg, name=name_arg)
+        pandas.testing.assert_frame_equal(
+            pd_df,
+            bf_df.to_pandas(),
+            check_dtype=False,
+            check_column_type=False,
+            check_index_type=False,
+        )
 
 
 @skip_legacy_pandas
