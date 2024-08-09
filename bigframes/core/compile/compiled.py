@@ -322,8 +322,6 @@ class UnorderedIR(BaseIbisIR):
         if not columns:
             return ibis.memtable([])
 
-        # Make sure all dtypes are the "canonical" ones for BigFrames. This is
-        # important for operations like UNION where the schema must match.
         table = self._table.select(columns)
         base_table = table
         if self._reduced_predicate is not None:
@@ -1031,8 +1029,6 @@ class OrderedIR(BaseIbisIR):
         # Make sure we don't have any unbound (deferred) columns.
         table = self._table.select(columns)
 
-        # Make sure all dtypes are the "canonical" ones for BigFrames. This is
-        # important for operations like UNION where the schema must match.
         table = table.select(table[column] for column in table.columns)
         base_table = table
         if self._reduced_predicate is not None:
