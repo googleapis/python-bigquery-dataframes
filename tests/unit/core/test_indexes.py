@@ -58,8 +58,6 @@ def test_index_to_frame():
         else:
             pd_df = pd_idx.to_frame(index=index_arg, name=name_arg)
             bf_df = bf_idx.to_frame(index=index_arg, name=name_arg)
-        print(pd_df)
-        print(bf_df.to_pandas())
         assert_frame_equal(
             pd_df, bf_df.to_pandas(), check_column_type=False, check_index_type=False
         )
@@ -82,8 +80,6 @@ def test_multi_index_to_frame():
         else:
             pd_df = pd_idx.to_frame(index=index_arg, name=name_arg)
             bf_df = bf_idx.to_frame(index=index_arg, name=name_arg)
-        print(pd_df)
-        print(bf_df.to_pandas())
         assert_frame_equal(
             pd_df,
             bf_df.to_pandas(),

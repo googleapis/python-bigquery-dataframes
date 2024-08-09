@@ -127,7 +127,10 @@ class Index(vendored_pandas_index.Index):
                 [self.values[j][i] for j in range(len(self.values))]
                 for i in range(len(self.values[0]))
             ]
-            assert name is None or len(name) == len(columns)
+            if name is not None and len(name) != len(columns):
+                raise ValueError(
+                    "Length of provided names must match length of MultiIndex columns"
+                )
             data = {name[i] if name else i: column for i, column in enumerate(columns)}
             original_index = columns
         else:
