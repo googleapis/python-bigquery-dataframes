@@ -46,7 +46,6 @@ import pandas
 import pandas.io.formats.format
 import pyarrow
 import tabulate
-
 import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.constants
@@ -66,6 +65,7 @@ import bigframes.core.utils as utils
 import bigframes.core.validations as validations
 import bigframes.core.window
 import bigframes.core.window_spec as window_spec
+from bigframes.core import nested_data_context_manager
 import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.formatting_helpers as formatter
@@ -75,6 +75,7 @@ import bigframes.operations.plotting as plotting
 import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session._io.bigquery
+
 
 if typing.TYPE_CHECKING:
     import bigframes.session
@@ -275,6 +276,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         self._set_block(result._get_block())
         self.index.name = value.name if hasattr(value, "name") else None
+
+    @property
+    def block(self) -> blocks.Block:
+        return self._block
 
     @property
     @requires_index
@@ -630,8 +635,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # Can this be removed?
         except (AttributeError, TypeError):
             object.__setattr__(self, key, value)
-
-    def __repr__(self) -> str:
+    
+    #TODO: problemati.. rename back to __repr__ 
+    def __my_repr__(self) -> str:
         """Converts a DataFrame to a string. Calls to_pandas.
 
         Only represents the first `bigframes.options.display.max_rows`.
@@ -722,6 +728,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     __setitem__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__setitem__)
 
+    #TODO: _apply should be comparabe to _align_n, adds to expression tree
     def _apply_binop(
         self,
         other: float | int | bigframes.series.Series | DataFrame,
@@ -1520,8 +1527,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _resolve_levels(self, level: LevelsType) -> typing.Sequence[str]:
         return self._block.index.resolve_level(level)
 
+    @bigframes.core.cm_nested
     def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame:
         block = self._block.rename(columns=columns)
+        nested_data_context_manager.add_changes(DataFrame.rename.__qualname__, columns)
         return DataFrame(block)
 
     def rename_axis(
@@ -2881,7 +2890,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 ns=ns, fracs=fracs, random_state=random_state, sort=sort
             )[0]
         )
-
+        
+    #TODO: create explod_recursion to arbitrary depth of nestings
+    #TODO: DataFrame.Struct.explode, not yet available
     def explode(
         self,
         column: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
