@@ -115,33 +115,18 @@ class Index(vendored_pandas_index.Index):
         index._linked_frame = frame
         return index
 
-    def to_frame(self, index: bool = True, name=None) -> bigframes.dataframe.DataFrame:
-        from bigframes.core.indexes.multi import MultiIndex
-
-        multi = isinstance(self, MultiIndex)
-
-        if multi:
-            columns = [
-                [self.values[j][i] for j in range(len(self.values))]
-                for i in range(len(self.values[0]))
-            ]
-            if name is not None and len(name) != len(columns):
-                raise ValueError(
-                    "Length of provided names must match length of MultiIndex columns"
-                )
-            data = {name[i] if name else i: column for i, column in enumerate(columns)}
-            original_index = columns
+    def to_frame(
+        self, index: bool = True, name: blocks.Label | None = None
+    ) -> bigframes.dataframe.DataFrame:
+        provided_name = name if name else self.name
+        series = self.to_series()
+        series.name = provided_name
+        frame = series.to_frame()
+        if index:  # matching pandas behavior
+            frame.index.name = self.name
         else:
-            provided_name = name if name else self.name
-            data = {provided_name: self.values.tolist()}
-            original_index = self.values.tolist()
-
-        result = bigframes.dataframe.DataFrame(
-            data, index=original_index if index else None
-        )
-        if index and not multi:  # matching pandas behavior
-            result.index.name = self.name
-        return result
+            frame = frame.reset_index(drop= True)
+        return frame
 
     @property
     def _session(self):

@@ -48,27 +48,25 @@ def test_multi_index_from_arrays():
     pandas.testing.assert_index_equal(bf_idx.to_pandas(), pd_idx)
 
 
-def test_multi_index_to_frame():
-    multi_index_to_frame_index_args = [True, False]
-    multi_index_to_frame_name_args = [None, ["x", "y"]]
+@pytest.mark.parametrize("index_arg", [True, False])
+@pytest.mark.parametrize("name_arg", [None, ["x", "y"]])
+def test_multi_index_to_frame(index_arg, name_arg):
+
     pd_idx = pandas.MultiIndex.from_arrays([["a", "b", "c"], ["d", "e", "f"]])
     bf_idx = indexes.MultiIndex.from_arrays([["a", "b", "c"], ["d", "e", "f"]])
-    for index_arg, name_arg in itertools.product(
-        multi_index_to_frame_index_args, multi_index_to_frame_name_args
-    ):
-        if name_arg is None:
-            pd_df = pd_idx.to_frame(index=index_arg)
-            bf_df = bf_idx.to_frame(index=index_arg)
-        else:
-            pd_df = pd_idx.to_frame(index=index_arg, name=name_arg)
-            bf_df = bf_idx.to_frame(index=index_arg, name=name_arg)
-        pandas.testing.assert_frame_equal(
-            pd_df,
-            bf_df.to_pandas(),
-            check_dtype=False,
-            check_column_type=False,
-            check_index_type=False,
-        )
+    if name_arg is None:
+        pd_df = pd_idx.to_frame(index=index_arg)
+        bf_df = bf_idx.to_frame(index=index_arg)
+    else:
+        pd_df = pd_idx.to_frame(index=index_arg, name=name_arg)
+        bf_df = bf_idx.to_frame(index=index_arg, name=name_arg)
+    pandas.testing.assert_frame_equal(
+        pd_df,
+        bf_df.to_pandas(),
+        check_dtype=False,
+        check_column_type=False,
+        check_index_type=False,
+    )
 
 
 @skip_legacy_pandas
