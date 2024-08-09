@@ -60,7 +60,8 @@ UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.12"]
+# 3.10 is needed for Windows tests.
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.12"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -98,7 +99,8 @@ nox.options.sessions = [
     "docfx",
     "unit",
     "unit_noextras",
-    "system",
+    "system-3.9",
+    "system-3.12",
     "cover",
 ]
 
