@@ -324,11 +324,16 @@ def test_index_to_series(
 
 
 def test_index_to_frame():
-    index_to_frame_test_args = [[True, False], [None, "food"]]
-    pd_idx = pd.Index(["Ant", "Bear", "Cow"], name="animal", dtype="string[pyarrow]")
+    index_to_frame_index_args = [True, False]
+    index_to_frame_name_args = [None, "food"]
+    pd_idx: pd.Index = pd.Index(
+        ["Ant", "Bear", "Cow"], name="animal", dtype="string[pyarrow]"
+    )
     bf_idx = indexes.Index(["Ant", "Bear", "Cow"], name="animal")
 
-    for index_arg, name_arg in itertools.product(*index_to_frame_test_args):
+    for index_arg, name_arg in itertools.product(
+        index_to_frame_index_args, index_to_frame_name_args
+    ):
         if name_arg is None:
             pd_df = pd_idx.to_frame(index=index_arg)
             bf_df = bf_idx.to_frame(index=index_arg)

@@ -115,9 +115,7 @@ class Index(vendored_pandas_index.Index):
         index._linked_frame = frame
         return index
 
-    def to_frame(
-        self, index: bool = True, name: blocks.Label | None = None
-    ) -> bigframes.dataframe.DataFrame:
+    def to_frame(self, index: bool = True, name=None) -> bigframes.dataframe.DataFrame:
         from bigframes.core.indexes.multi import MultiIndex
 
         multi = isinstance(self, MultiIndex)
@@ -135,8 +133,8 @@ class Index(vendored_pandas_index.Index):
             original_index = columns
         else:
             provided_name = name if name else self.name
-            data = {provided_name: self.values}
-            original_index = self.values
+            data = {provided_name: self.values.tolist()}
+            original_index = self.values.tolist()
 
         result = bigframes.dataframe.DataFrame(
             data, index=original_index if index else None

@@ -49,10 +49,13 @@ def test_multi_index_from_arrays():
 
 
 def test_multi_index_to_frame():
-    multi_index_to_frame_test_args = [[True, False], [None, ["x", "y"]]]
+    multi_index_to_frame_index_args = [True, False]
+    multi_index_to_frame_name_args = [None, ["x", "y"]]
     pd_idx = pandas.MultiIndex.from_arrays([["a", "b", "c"], ["d", "e", "f"]])
     bf_idx = indexes.MultiIndex.from_arrays([["a", "b", "c"], ["d", "e", "f"]])
-    for index_arg, name_arg in itertools.product(*multi_index_to_frame_test_args):
+    for index_arg, name_arg in itertools.product(
+        multi_index_to_frame_index_args, multi_index_to_frame_name_args
+    ):
         if name_arg is None:
             pd_df = pd_idx.to_frame(index=index_arg)
             bf_df = bf_idx.to_frame(index=index_arg)
