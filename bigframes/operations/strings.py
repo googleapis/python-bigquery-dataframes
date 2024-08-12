@@ -38,7 +38,7 @@ REGEXP_FLAGS = {
 class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMethods):
     __doc__ = vendorstr.StringMethods.__doc__
 
-    def __getitem__(self, key: int | slice) -> series.Series:
+    def __getitem__(self, key: Union[int, slice]) -> series.Series:
         if isinstance(key, int):
             if key < 0:
                 raise NotImplementedError("Negative indexing is not supported.")

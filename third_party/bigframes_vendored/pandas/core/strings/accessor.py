@@ -13,7 +13,7 @@ class StringMethods:
     R's stringr package.
     """
 
-    def __getitem__(self, key: int | slice):
+    def __getitem__(self, key: typing.Union[int, slice]):
         """
         Index or slice string or list in the Series.
 
