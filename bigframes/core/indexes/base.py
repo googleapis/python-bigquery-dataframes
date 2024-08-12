@@ -125,7 +125,7 @@ class Index(vendored_pandas_index.Index):
         if index:  # matching pandas behavior
             frame.index.name = self.name
         else:
-            frame = frame.reset_index(drop= True)
+            frame = frame.reset_index(drop=True)
         return frame
 
     @property
