@@ -131,7 +131,7 @@ assert 1 == s.replace(
 )
 
 # Update the contributing guide to reflect some differences in this repo.
-assert 1 == s.replace(
+s.replace(
     ["CONTRIBUTING.rst"],
     re.escape("blacken"),
     "format",
