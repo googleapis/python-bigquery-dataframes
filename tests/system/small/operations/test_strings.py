@@ -639,7 +639,7 @@ def test_getitem_w_struct_array():
             ("age", pa.int64()),
         ]
     )
-    data = [
+    data: list[list[dict]] = [
         [
             {"name": "Alice", "age": 30},
             {"name": "Bob", "age": 25},
