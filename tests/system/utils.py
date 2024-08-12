@@ -26,7 +26,7 @@ import pandas as pd
 import pyarrow as pa  # type: ignore
 import pytest
 
-import bigframes.functions.utils as functions_utils
+import bigframes.functions._utils as functions_utils
 import bigframes.pandas
 
 ML_REGRESSION_METRICS = [

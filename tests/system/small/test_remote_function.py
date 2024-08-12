@@ -23,8 +23,8 @@ import pytest
 import bigframes
 import bigframes.dtypes
 import bigframes.exceptions
+from bigframes.functions import _utils as rf_utils
 from bigframes.functions import remote_function as rf
-from bigframes.functions import utils as rf_utils
 from tests.system.utils import assert_pandas_df_equal
 
 

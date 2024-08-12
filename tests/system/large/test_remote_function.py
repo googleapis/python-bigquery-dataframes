@@ -31,7 +31,7 @@ import bigframes
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.exceptions
-import bigframes.functions.utils as functions_utils
+import bigframes.functions._utils as functions_utils
 import bigframes.pandas as bpd
 import bigframes.series
 from tests.system.utils import (

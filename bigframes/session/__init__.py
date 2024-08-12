@@ -95,8 +95,8 @@ import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.formatting_helpers as formatting_helpers
+import bigframes.functions._remote_function_session as bigframes_rf_session
 import bigframes.functions.remote_function as bigframes_rf
-import bigframes.functions.remote_function_session as bigframes_rf_session
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session.clients

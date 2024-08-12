@@ -33,8 +33,8 @@ import bigframes.core.compile.ibis_types
 import bigframes.dtypes
 import bigframes.functions.remote_function_template
 
-from . import remote_function_session as rf_session
-from . import utils
+from . import _remote_function_session as rf_session
+from . import _utils
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +50,11 @@ class ReturnTypeMissingError(ValueError):
 
 
 # TODO: Move this to compile folder
-def ibis_signature_from_routine(routine: bigquery.Routine) -> utils.IbisSignature:
+def ibis_signature_from_routine(routine: bigquery.Routine) -> _utils.IbisSignature:
     if not routine.return_type:
         raise ReturnTypeMissingError
 
-    return utils.IbisSignature(
+    return _utils.IbisSignature(
         parameter_names=[arg.name for arg in routine.arguments],
         input_types=[
             bigframes.core.compile.ibis_types.ibis_type_from_type_kind(

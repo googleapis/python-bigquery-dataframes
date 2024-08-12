@@ -37,7 +37,7 @@ import google.api_core.exceptions
 import google.api_core.retry
 from google.cloud import bigquery, functions_v2
 
-from . import utils
+from . import _utils
 
 logger = logging.getLogger(__name__)
 
@@ -369,12 +369,12 @@ class RemoteFunctionClient:
         """Provision a BigQuery remote function."""
         # Augment user package requirements with any internal package
         # requirements
-        package_requirements = utils._get_updated_package_requirements(
+        package_requirements = _utils._get_updated_package_requirements(
             package_requirements, is_row_processor
         )
 
         # Compute a unique hash representing the user code
-        function_hash = utils._get_hash(def_, package_requirements)
+        function_hash = _utils._get_hash(def_, package_requirements)
 
         # If reuse of any existing function with the same name (indicated by the
         # same hash of its source code) is not intended, then attach a unique
@@ -393,7 +393,7 @@ class RemoteFunctionClient:
         # artifacts, so let's keep them independent of session id, which also
         # makes their naming more stable for the same udf code
         session_id = None if name else self._session.session_id
-        cloud_function_name = utils.get_cloud_function_name(
+        cloud_function_name = _utils.get_cloud_function_name(
             function_hash, session_id, uniq_suffix
         )
         cf_endpoint = self.get_cloud_function_endpoint(cloud_function_name)
@@ -418,7 +418,7 @@ class RemoteFunctionClient:
         # Derive the name of the remote function
         remote_function_name = name
         if not remote_function_name:
-            remote_function_name = utils.get_remote_function_name(
+            remote_function_name = _utils.get_remote_function_name(
                 function_hash, self._session.session_id, uniq_suffix
             )
         rf_endpoint, rf_conn = self.get_remote_function_specs(remote_function_name)

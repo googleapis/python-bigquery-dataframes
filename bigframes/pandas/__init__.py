@@ -63,7 +63,7 @@ import bigframes.core.reshape
 import bigframes.core.tools
 import bigframes.dataframe
 import bigframes.enums
-import bigframes.functions.utils as functions_utils
+import bigframes.functions._utils as functions_utils
 import bigframes.operations as ops
 import bigframes.series
 import bigframes.session

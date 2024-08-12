@@ -39,8 +39,8 @@ import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_b
 import ibis
 import pandas
 
-from . import remote_function_client as rf_client
-from . import utils
+from . import _remote_function_client as rf_client
+from . import _utils
 
 
 class RemoteFunctionSession:
@@ -332,7 +332,7 @@ class RemoteFunctionSession:
         else:
             dataset_ref = session._anonymous_dataset
 
-        bq_location, cloud_function_region = utils.get_remote_function_locations(
+        bq_location, cloud_function_region = _utils.get_remote_function_locations(
             bigquery_client.location
         )
 
@@ -439,7 +439,7 @@ class RemoteFunctionSession:
                 input_types = [input_types]
 
             # TODO(b/340898611): fix type error
-            ibis_signature = utils.ibis_signature_from_python_signature(
+            ibis_signature = _utils.ibis_signature_from_python_signature(
                 signature, input_types, output_type  # type: ignore
             )
 
