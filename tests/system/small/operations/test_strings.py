@@ -573,9 +573,17 @@ def test_str_split_raise_errors(scalars_dfs, pat, regex):
             "first", id="invalid_type", marks=pytest.mark.xfail(raises=ValueError)
         ),
         pytest.param(
+            -1, id="neg_index", marks=pytest.mark.xfail(raises=NotImplementedError)
+        ),
+        pytest.param(
             slice(0, 2, 2),
-            id="only_support_step_one",
-            marks=pytest.mark.xfail(raises=ValueError),
+            id="only_allow_one_step",
+            marks=pytest.mark.xfail(raises=NotImplementedError),
+        ),
+        pytest.param(
+            slice(-1, None, None),
+            id="neg_slicing",
+            marks=pytest.mark.xfail(raises=NotImplementedError),
         ),
     ],
 )
