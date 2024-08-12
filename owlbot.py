@@ -130,13 +130,6 @@ assert 1 == s.replace(
     "BigQuery DataFrames provides DataFrame APIs on the BigQuery engine",
 )
 
-# Update the contributing guide to reflect some differences in this repo.
-s.replace(
-    ["CONTRIBUTING.rst"],
-    re.escape("blacken"),
-    "format",
-)
-
 # ----------------------------------------------------------------------------
 # Samples templates
 # ----------------------------------------------------------------------------
