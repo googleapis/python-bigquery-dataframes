@@ -14,19 +14,14 @@
 
 from __future__ import annotations
 
-import typing
 from typing import cast, Hashable, Iterable, Sequence
 
 import bigframes_vendored.pandas.core.indexes.multi as vendored_pandas_multindex
 import pandas
-from typing_extensions import assert_type
 
 import bigframes.core.blocks as blocks
 from bigframes.core.indexes.base import Index
 import bigframes.dataframe
-
-if typing.TYPE_CHECKING:
-    import bigframes.dataframe
 
 
 class MultiIndex(Index, vendored_pandas_multindex.MultiIndex):
