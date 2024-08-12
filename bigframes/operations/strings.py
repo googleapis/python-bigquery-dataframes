@@ -38,6 +38,20 @@ REGEXP_FLAGS = {
 class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMethods):
     __doc__ = vendorstr.StringMethods.__doc__
 
+    def __getitem__(self, key: int | slice) -> series.Series:
+        if isinstance(key, int):
+            return self._apply_unary_op(ops.ArrayIndexOp(index=key))
+        elif isinstance(key, slice):
+            return self._apply_unary_op(
+                ops.ArraySliceOp(
+                    start=key.start if key.start is not None else 0,
+                    stop=key.stop,
+                    step=key.step,
+                )
+            )
+        else:
+            raise ValueError(f"key must be an int or slice, got {type(key).__name__}")
+
     def find(
         self,
         sub: str,

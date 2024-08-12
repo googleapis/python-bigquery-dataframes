@@ -15,9 +15,11 @@
 import re
 
 import pandas as pd
+import pyarrow as pa
 import pytest
 
-import bigframes.series
+import bigframes.dtypes as dtypes
+import bigframes.pandas as bpd
 
 from ...utils import assert_series_equal
 
@@ -25,7 +27,7 @@ from ...utils import assert_series_equal
 def test_find(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.find("W").to_pandas()
     pd_result = scalars_pandas_df[col_name].str.find("W")
 
@@ -50,7 +52,7 @@ def test_find(scalars_dfs):
 def test_str_contains(scalars_dfs, pat, case, flags, regex):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
 
     bf_result = bf_series.str.contains(
         pat, case=case, flags=flags, regex=regex
@@ -72,7 +74,7 @@ def test_str_contains(scalars_dfs, pat, case, flags, regex):
 def test_str_extract(scalars_dfs, pat):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
 
     bf_result = bf_series.str.extract(pat).to_pandas()
     pd_result = scalars_pandas_df[col_name].str.extract(pat)
@@ -101,7 +103,7 @@ def test_str_extract(scalars_dfs, pat):
 def test_str_replace(scalars_dfs, pat, repl, case, flags, regex):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
 
     bf_result = bf_series.str.replace(
         pat, repl=repl, case=case, flags=flags, regex=regex
@@ -132,7 +134,7 @@ def test_str_replace(scalars_dfs, pat, repl, case, flags, regex):
 def test_str_startswith(scalars_dfs, pat):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     pd_series = scalars_pandas_df[col_name].astype("object")
 
     bf_result = bf_series.str.startswith(pat).to_pandas()
@@ -157,7 +159,7 @@ def test_str_startswith(scalars_dfs, pat):
 def test_str_endswith(scalars_dfs, pat):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     pd_series = scalars_pandas_df[col_name].astype("object")
 
     bf_result = bf_series.str.endswith(pat).to_pandas()
@@ -169,7 +171,7 @@ def test_str_endswith(scalars_dfs, pat):
 def test_len(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.len().to_pandas()
     pd_result = scalars_pandas_df[col_name].str.len()
 
@@ -188,7 +190,7 @@ def test_len_with_array_column(nested_df, nested_pandas_df):
     See: https://stackoverflow.com/a/41340543/101923
     """
     col_name = "event_sequence"
-    bf_series: bigframes.series.Series = nested_df[col_name]
+    bf_series: bpd.Series = nested_df[col_name]
     bf_result = bf_series.str.len().to_pandas()
     pd_result = nested_pandas_df[col_name].str.len()
 
@@ -204,7 +206,7 @@ def test_len_with_array_column(nested_df, nested_pandas_df):
 def test_lower(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.lower().to_pandas()
     pd_result = scalars_pandas_df[col_name].str.lower()
 
@@ -217,7 +219,7 @@ def test_lower(scalars_dfs):
 def test_reverse(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.reverse().to_pandas()
     pd_result = scalars_pandas_df[col_name].copy()
     for i in pd_result.index:
@@ -239,7 +241,7 @@ def test_reverse(scalars_dfs):
 def test_slice(scalars_dfs, start, stop):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.slice(start, stop).to_pandas()
     pd_series = scalars_pandas_df[col_name]
     pd_result = pd_series.str.slice(start, stop)
@@ -253,7 +255,7 @@ def test_slice(scalars_dfs, start, stop):
 def test_strip(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.strip().to_pandas()
     pd_result = scalars_pandas_df[col_name].str.strip()
 
@@ -266,7 +268,7 @@ def test_strip(scalars_dfs):
 def test_upper(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.upper().to_pandas()
     pd_result = scalars_pandas_df[col_name].str.upper()
 
@@ -375,7 +377,7 @@ def test_isupper(weird_strings, weird_strings_pd):
 def test_rstrip(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.rstrip().to_pandas()
     pd_result = scalars_pandas_df[col_name].str.rstrip()
 
@@ -388,7 +390,7 @@ def test_rstrip(scalars_dfs):
 def test_lstrip(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.lstrip().to_pandas()
     pd_result = scalars_pandas_df[col_name].str.lstrip()
 
@@ -402,7 +404,7 @@ def test_lstrip(scalars_dfs):
 def test_repeat(scalars_dfs, repeats):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.repeat(repeats).to_pandas()
     pd_result = scalars_pandas_df[col_name].str.repeat(repeats)
 
@@ -415,7 +417,7 @@ def test_repeat(scalars_dfs, repeats):
 def test_capitalize(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.capitalize().to_pandas()
     pd_result = scalars_pandas_df[col_name].str.capitalize()
 
@@ -428,9 +430,9 @@ def test_capitalize(scalars_dfs):
 def test_cat_with_series(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_filter: bigframes.series.Series = scalars_df["bool_col"]
-    bf_left: bigframes.series.Series = scalars_df[col_name][bf_filter]
-    bf_right: bigframes.series.Series = scalars_df[col_name]
+    bf_filter: bpd.Series = scalars_df["bool_col"]
+    bf_left: bpd.Series = scalars_df[col_name][bf_filter]
+    bf_right: bpd.Series = scalars_df[col_name]
     bf_result = bf_left.str.cat(others=bf_right).to_pandas()
     pd_filter = scalars_pandas_df["bool_col"]
     pd_left = scalars_pandas_df[col_name][pd_filter]
@@ -447,7 +449,7 @@ def test_str_match(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
     pattern = "[A-Z].*"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.match(pattern).to_pandas()
     pd_result = scalars_pandas_df[col_name].str.match(pattern)
 
@@ -461,7 +463,7 @@ def test_str_fullmatch(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
     pattern = "[A-Z].*!"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.fullmatch(pattern).to_pandas()
     pd_result = scalars_pandas_df[col_name].str.fullmatch(pattern)
 
@@ -474,7 +476,7 @@ def test_str_fullmatch(scalars_dfs):
 def test_str_get(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.get(8).to_pandas()
     pd_result = scalars_pandas_df[col_name].str.get(8)
 
@@ -487,7 +489,7 @@ def test_str_get(scalars_dfs):
 def test_str_pad(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.pad(8, side="both", fillchar="%").to_pandas()
     pd_result = scalars_pandas_df[col_name].str.pad(8, side="both", fillchar="%")
 
@@ -510,7 +512,7 @@ def test_str_zfill(weird_strings, weird_strings_pd):
 def test_str_ljust(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.ljust(7, fillchar="%").to_pandas()
     pd_result = scalars_pandas_df[col_name].str.ljust(7, fillchar="%")
 
@@ -523,7 +525,7 @@ def test_str_ljust(scalars_dfs):
 def test_str_rjust(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
-    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.rjust(9, fillchar="%").to_pandas()
     pd_result = scalars_pandas_df[col_name].str.rjust(9, fillchar="%")
 
@@ -562,3 +564,92 @@ def test_str_split_raise_errors(scalars_dfs, pat, regex):
     pd_result = pd_result.apply(lambda x: [] if pd.isnull(x) is True else x)
 
     assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("index"),
+    [
+        pytest.param(
+            "first", id="invalid_type", marks=pytest.mark.xfail(raises=ValueError)
+        ),
+        pytest.param(
+            slice(0, 2, 2),
+            id="only_support_step_one",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+    ],
+)
+def test_getitem_raise_errors(scalars_dfs, index):
+    scalars_df, _ = scalars_dfs
+    col_name = "string_col"
+    scalars_df[col_name].str[index]
+
+
+@pytest.mark.parametrize(
+    ("index"),
+    [
+        pytest.param(2, id="int"),
+        pytest.param(slice(None, None, None), id="default_start_slice"),
+        pytest.param(slice(0, None, 1), id="default_stop_slice"),
+        pytest.param(slice(0, 2, None), id="default_step_slice"),
+    ],
+)
+def test_getitem_w_string(scalars_dfs, index):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_result = scalars_df[col_name].str[index].to_pandas()
+    pd_result = scalars_pandas_df[col_name].str[index]
+
+    assert_series_equal(pd_result, bf_result)
+
+
+@pytest.mark.parametrize(
+    ("index"),
+    [
+        pytest.param(2, id="int"),
+        pytest.param(slice(None, None, None), id="default_start_slice"),
+        pytest.param(slice(0, None, 1), id="default_stop_slice"),
+        pytest.param(slice(0, 2, None), id="default_step_slice"),
+        pytest.param(slice(0, 0, None), id="single_one_slice"),
+    ],
+)
+def test_getitem_w_array(index):
+    data = [[1], [2, 3], [], [4, 5, 6]]
+    s = bpd.Series(data)
+    pd_s = pd.Series(data)
+
+    bf_result = s.str[index].to_pandas()
+    pd_result = pd_s.str[index]
+    # Skip dtype checks here because pandas returns `int64` while BF returns `Int64`.
+    assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)
+
+
+def test_getitem_w_struct_array():
+    pa_struct = pa.struct(
+        [
+            ("name", pa.string()),
+            ("age", pa.int64()),
+        ]
+    )
+    data = [
+        [
+            {"name": "Alice", "age": 30},
+            {"name": "Bob", "age": 25},
+        ],
+        [
+            {"name": "Charlie", "age": 35},
+            {"name": "David", "age": 40},
+            {"name": "Eva", "age": 28},
+        ],
+        [],
+        [{"name": "Frank", "age": 50}],
+    ]
+    s = bpd.Series(data, dtype=bpd.ArrowDtype(pa.list_(pa_struct)))
+
+    result = s.str[1]
+    assert dtypes.is_struct_like(result.dtype)
+
+    expected_data = [item[1] if len(item) > 1 else None for item in data]
+    expected = bpd.Series(expected_data, dtype=bpd.ArrowDtype((pa_struct)))
+
+    assert_series_equal(result.to_pandas(), expected.to_pandas())
