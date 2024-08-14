@@ -46,6 +46,9 @@ _MAX_CLUSTER_COLUMNS = 4
 class BigQueryCachingExecutor:
     """Computes BigFrames values using BigQuery Engine.
 
+    This executor can cache expressions. If those expressions are executed later, this session
+    will re-use the pre-existing results from previous executions.
+
     This class is not thread-safe.
     """
 
@@ -75,6 +78,9 @@ class BigQueryCachingExecutor:
         ordered: bool = False,
         enable_cache: bool = True,
     ) -> str:
+        """
+        Convert an ArrayValue to a sql query that will yield its value.
+        """
         if offset_column:
             array_value = array_value.promote_offsets(offset_column)
         node = (
@@ -88,7 +94,6 @@ class BigQueryCachingExecutor:
             )
         return self.compiler.compile_unordered(node, col_id_overrides=col_id_overrides)
 
-    # TODO: Split into 3 - Execute to temp, execute export, execute dry
     def execute(
         self,
         array_value: bigframes.core.ArrayValue,
@@ -96,6 +101,9 @@ class BigQueryCachingExecutor:
         ordered: bool = True,
         col_id_overrides: Mapping[str, str] = {},
     ):
+        """
+        Execute the ArrayValue, storing the result to a temporary session-owned table.
+        """
         if bigframes.options.compute.enable_multi_query_execution:
             self._simplify_with_caching(array_value)
 
@@ -118,6 +126,9 @@ class BigQueryCachingExecutor:
         if_exists: Literal["fail", "replace", "append"] = "fail",
         cluster_cols: Sequence[str] = [],
     ):
+        """
+        Export the ArrayValue to an existing BigQuery table.
+        """
         dispositions = {
             "fail": bigquery.WriteDisposition.WRITE_EMPTY,
             "replace": bigquery.WriteDisposition.WRITE_TRUNCATE,
@@ -137,6 +148,11 @@ class BigQueryCachingExecutor:
         )
 
     def dry_run(self, array_value: bigframes.core.ArrayValue, ordered: bool = True):
+        """
+        Dry run executing the ArrayValue.
+
+        Does not actually execute the data but will get stats and indicate any invalid query errors.
+        """
         sql = self.to_sql(array_value, ordered=ordered)
         job_config = bigquery.QueryJobConfig(dry_run=True)
         query_job = self.bqclient.query(sql, job_config=job_config)
@@ -169,7 +185,7 @@ class BigQueryCachingExecutor:
         """
         Starts BigQuery query job and waits for results.
         """
-        job_config = bigquery.QueryJobConfig()
+        job_config = bq_job.QueryJobConfig() if job_config is None else job_config
         if bigframes.options.compute.maximum_bytes_billed is not None:
             job_config.maximum_bytes_billed = (
                 bigframes.options.compute.maximum_bytes_billed
