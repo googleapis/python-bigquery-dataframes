@@ -1823,8 +1823,9 @@ class Session(
 
         Do not execute dataframe through this API, instead use the executor.
         """
-        job_config = typing.cast(bigquery.QueryJobConfig, bigquery.QueryJobConfig())
+        job_config = bigquery.QueryJobConfig() if job_config is None else job_config
         if bigframes.options.compute.maximum_bytes_billed is not None:
+            # Maybe this should be pushed down into start_query_with_client
             job_config.maximum_bytes_billed = (
                 bigframes.options.compute.maximum_bytes_billed
             )
