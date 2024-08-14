@@ -278,11 +278,6 @@ class Session(
                 ]
             ]
         ] = []
-
-        # performance logging
-        self._bytes_processed_sum = 0
-        self._slot_millis_sum = 0
-        self._execution_count = 0
         # Whether this session treats objects as totally ordered.
         # Will expose as feature later, only False for internal testing
         self._strictly_ordered: bool = context.ordering_mode != "partial"
@@ -380,14 +375,6 @@ class Session(
     @property
     def _allows_ambiguity(self) -> bool:
         return self._allow_ambiguity
-
-    def _add_bytes_processed(self, amount: int):
-        """Increment bytes_processed_sum by amount."""
-        self._bytes_processed_sum += amount
-
-    def _add_slot_millis(self, amount: int):
-        """Increment slot_millis_sum by amount."""
-        self._slot_millis_sum += amount
 
     def __hash__(self):
         # Stable hash needed to use in expression tree
