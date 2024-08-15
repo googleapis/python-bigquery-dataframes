@@ -952,7 +952,7 @@ class Claude3TextGenerator(base.BaseEstimator):
     @classmethod
     def _from_bq(
         cls, session: bigframes.Session, bq_model: bigquery.Model
-    ) -> PaLM2TextGenerator:
+    ) -> Claude3TextGenerator:
         assert bq_model.model_type == "MODEL_TYPE_UNSPECIFIED"
         assert "remoteModelInfo" in bq_model._properties
         assert "endpoint" in bq_model._properties["remoteModelInfo"]
