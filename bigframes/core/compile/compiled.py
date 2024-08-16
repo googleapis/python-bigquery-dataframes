@@ -27,6 +27,7 @@ import ibis.backends.bigquery.datatypes
 import ibis.common.deferred  # type: ignore
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.operations as ibis_ops
+import ibis.expr.schema as ibis_schema
 import ibis.expr.types as ibis_types
 import pandas
 
@@ -963,8 +964,13 @@ class OrderedIR(BaseIbisIR):
             expose_hidden_cols=True,
         ).select(all_columns)
 
+        # Ibis will produce non-nullable schema types, but bigframes should always be nullable
+        fixed_ibis_schema = ibis_schema.Schema.from_tuples(
+            (name, dtype.copy(nullable=True))
+            for (name, dtype) in as_ibis.schema().items()
+        )
         bq_schema = ibis.backends.bigquery.datatypes.BigQuerySchema.from_ibis(
-            as_ibis.schema()
+            fixed_ibis_schema
         )
         return ibis_bigquery.Backend().compile(as_ibis), bq_schema
 
