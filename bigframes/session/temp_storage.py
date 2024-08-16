@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import datetime
-from typing import List, Sequence
+from typing import List, Optional, Sequence
 import uuid
 
 import google.cloud.bigquery as bigquery
@@ -34,11 +34,14 @@ class TemporaryGbqStorageManager:
         bqclient: bigquery.Client,
         dataset: bigquery.DatasetReference,
         session_id: str,
+        *,
+        kms_key: Optional[str] = None
     ):
         self.bqclient = bqclient
         self.dataset = dataset
         self.session_id = session_id
         self._table_ids: List[str] = []
+        self._kms_key = kms_key
 
     def create_temp_table(
         self, schema: Sequence[bigquery.SchemaField], cluster_cols: Sequence[str]
@@ -54,6 +57,7 @@ class TemporaryGbqStorageManager:
             expiration,
             schema=schema,
             cluster_columns=list(cluster_cols),
+            kms_key=self._kms_key,
         )
         return bigquery.TableReference.from_string(table)
 

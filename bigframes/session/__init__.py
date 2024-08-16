@@ -302,6 +302,7 @@ class Session(
                 self._clients_provider.bqclient,
                 dataset=self._anonymous_dataset,
                 session_id=self._session_id,
+                kms_key=self._bq_kms_key_name,
             )
         )
         self._executor = bigframes.session.executor.BigQueryCachingExecutor(
