@@ -155,6 +155,7 @@ class BigQueryCachingExecutor:
         """
         sql = self.to_sql(array_value, ordered=ordered)
         job_config = bigquery.QueryJobConfig(dry_run=True)
+        bq_io.add_labels(job_config)
         query_job = self.bqclient.query(sql, job_config=job_config)
         results_iterator = query_job.result()
         return results_iterator, query_job
@@ -194,7 +195,7 @@ class BigQueryCachingExecutor:
         bq_io.add_labels(job_config, api_name=api_name)
 
         if not self.strictly_ordered:
-            job_config.labels = {"bigframes-mode": "unordered"}
+            job_config.labels["bigframes-mode"] = "unordered"
         try:
             query_job = self.bqclient.query(sql, job_config=job_config)
             opts = bigframes.options.display
