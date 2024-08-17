@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import bigframes_vendored.ibis.backends.bigquery.datatypes as bq_datatypes
 import ibis.common.exceptions as com
 from ibis.common.temporal import IntervalUnit
@@ -45,33 +46,33 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
         tuples = data.to_frame().itertuples(index=False)
         quoted = self.quoted
         columns = [sg.column(col, quoted=quoted) for col in schema.names]
+        array_expr = sge.DataType(
+            this=sge.DataType.Type.STRUCT,
+            expressions=[
+                sge.ColumnDef(
+                    this=sge.to_identifier(field, quoted=self.quoted),
+                    kind=bq_datatypes.BigQueryType.from_ibis(type_),
+                )
+                for field, type_ in zip(schema.names, schema.types)
+            ],
+            nested=True,
+        )
+        array_values = [
+            sge.Tuple(
+                expressions=tuple(
+                    self.visit_Literal(None, value=value, dtype=type_)
+                    for value, type_ in zip(row, schema.types)
+                )
+            )
+            for row in tuples
+        ]
         expr = sge.Unnest(
             expressions=[
                 sge.DataType(
                     this=sge.DataType.Type.ARRAY,
-                    expressions=[
-                        sge.DataType(
-                            this=sge.DataType.Type.STRUCT,
-                            expressions=[
-                                sge.ColumnDef(
-                                    this=sge.to_identifier(field, quoted=self.quoted),
-                                    kind=bq_datatypes.BigQueryType.from_ibis(type_),
-                                )
-                                for field, type_ in zip(schema.names, schema.types)
-                            ],
-                            nested=True,
-                        )
-                    ],
+                    expressions=[array_expr],
                     nested=True,
-                    values=[
-                        sge.Tuple(
-                            expressions=tuple(
-                                self.visit_Literal(None, value=value, dtype=type_)
-                                for value, type_ in zip(row, schema.types)
-                            )
-                        )
-                        for row in tuples
-                    ],
+                    values=array_values,
                 ),
             ],
             alias=sge.TableAlias(
@@ -114,6 +115,8 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
                 )
         elif dtype.is_uuid():
             return sge.convert(str(value))
+        elif dtype.is_int64():
+            return sge.convert(np.int64(value))
         return None
 
     # Custom operators.
