@@ -705,7 +705,7 @@ class TextEmbeddingGenerator(base.BaseEstimator):
                 Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            PaLM2TextEmbeddingGenerator: Saved model."""
+            TextEmbeddingGenerator: Saved model."""
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
