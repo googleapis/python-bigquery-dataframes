@@ -20,14 +20,6 @@ except ImportError:
     import ibis.backends.sql.compilers.bigquery as bq_compiler
 
 
-try:
-    # ibis-framework 9.0 & 9.1
-    import ibis.backends.sql.compiler as sql_compiler
-except ImportError:
-    # ibis-framework 9.2
-    import ibis.backends.sql.compilers.base as sql_compiler
-
-
 class BigQueryCompiler(bq_compiler.BigQueryCompiler):
     UNSUPPORTED_OPS = (
         tuple(
