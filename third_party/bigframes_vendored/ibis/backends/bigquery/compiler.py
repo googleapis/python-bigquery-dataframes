@@ -3,11 +3,11 @@
 
 from __future__ import annotations
 
-import numpy as np
 import bigframes_vendored.ibis.backends.bigquery.datatypes as bq_datatypes
 import ibis.common.exceptions as com
 from ibis.common.temporal import IntervalUnit
 import ibis.expr.operations.reductions as ibis_reductions
+import numpy as np
 import sqlglot as sg
 import sqlglot.expressions as sge
 
@@ -146,6 +146,46 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
     def visit_ToJsonString(self, op, *, arg):
         return self.f.to_json_string(arg)
 
+    def visit_Quantile(self, op, *, arg, quantile, where):
+        return sge.PercentileCont(this=arg, expression=quantile)
+
+    def visit_WindowFunction(self, op, *, how, func, start, end, group_by, order_by):
+        # Patch for https://github.com/ibis-project/ibis/issues/9872
+        if start is None and end is None:
+            spec = None
+        else:
+            if start is None:
+                start = {}
+            if end is None:
+                end = {}
+
+            start_value = start.get("value", "UNBOUNDED")
+            start_side = start.get("side", "PRECEDING")
+            end_value = end.get("value", "UNBOUNDED")
+            end_side = end.get("side", "FOLLOWING")
+
+            if getattr(start_value, "this", None) == "0":
+                start_value = "CURRENT ROW"
+                start_side = None
+
+            if getattr(end_value, "this", None) == "0":
+                end_value = "CURRENT ROW"
+                end_side = None
+
+            spec = sge.WindowSpec(
+                kind=how.upper(),
+                start=start_value,
+                start_side=start_side,
+                end=end_value,
+                end_side=end_side,
+                over="OVER",
+            )
+            spec = self._minimize_spec(op.start, op.end, spec)
+
+        order = sge.Order(expressions=order_by) if order_by else None
+
+        return sge.Window(this=func, partition_by=group_by, order=order, spec=spec)
+
 
 # Override implementation.
 # We monkeypatch individual methods because the class might have already been imported in other modules.
@@ -165,9 +205,10 @@ bq_compiler.BigQueryCompiler.visit_LastNonNullValue = (
     BigQueryCompiler.visit_LastNonNullValue
 )
 bq_compiler.BigQueryCompiler.visit_ToJsonString = BigQueryCompiler.visit_ToJsonString
+bq_compiler.BigQueryCompiler.visit_Quantile = BigQueryCompiler.visit_Quantile
+bq_compiler.BigQueryCompiler.visit_WindowFunction = (
+    BigQueryCompiler.visit_WindowFunction
+)
 
 # TODO(swast): sqlglot base implementation appears to work fine for the bigquery backend, at least in our windowed contexts. See: ISSUE NUMBER
 bq_compiler.BigQueryCompiler.UNSUPPORTED_OPS = BigQueryCompiler.UNSUPPORTED_OPS
-bq_compiler.BigQueryCompiler.visit_Quantile = (
-    sql_compiler.SQLGlotCompiler.visit_Quantile
-)
