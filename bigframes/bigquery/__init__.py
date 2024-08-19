@@ -21,7 +21,7 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions. "
 from __future__ import annotations
 
 import typing
-from typing import Literal, Optional, Union
+from typing import Any, Dict,Literal, List, Optional, Union
 
 import bigframes.constants as constants
 import bigframes.core.groupby as groupby
@@ -237,6 +237,15 @@ def json_extract(
         bigframes.series.Series: A new Series with the JSON or JSON-formatted STRING.
     """
     return series._apply_unary_op(ops.JSONExtract(json_path=json_path))
+
+
+def struct(value: bigframes.dataframe.DataFrame) -> series.Series:
+    data: List[Dict[str, Any]] = [{} for _ in value.index]
+    for col_name in value.columns:
+        col = value[col_name]
+        for i, val in enumerate(col):
+            data[i][col_name] = val
+    return bigframes.series.Series(data)
 
 
 # Search functions defined from
