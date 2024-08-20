@@ -852,7 +852,7 @@ case_when_op = CaseWhenOp()
 
 # Just parameterless unary ops for now
 # TODO: Parameter mappings
-NUMPY_TO_OP: typing.Final = {
+NUMPY_TO_OP: dict[np.ufunc, UnaryOp] = {
     np.sin: sin_op,
     np.cos: cos_op,
     np.tan: tan_op,
@@ -877,7 +877,7 @@ NUMPY_TO_OP: typing.Final = {
 }
 
 
-NUMPY_TO_BINOP: typing.Final = {
+NUMPY_TO_BINOP: dict[np.ufunc, UnaryOp] = {
     np.add: add_op,
     np.subtract: sub_op,
     np.multiply: mul_op,
