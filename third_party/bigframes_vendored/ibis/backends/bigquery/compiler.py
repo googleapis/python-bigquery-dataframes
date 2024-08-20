@@ -19,6 +19,13 @@ except ImportError:
     # ibis-framework 9.2
     import ibis.backends.sql.compilers.bigquery as bq_compiler
 
+try:
+    # ibis-framework 9.0 & 9.1
+    import ibis.backends.sql.compiler as sql_compiler
+except ImportError:
+    # ibis-framework 9.2
+    import ibis.backends.sql.compilers.base as sql_compiler
+
 
 class BigQueryCompiler(bq_compiler.BigQueryCompiler):
     UNSUPPORTED_OPS = (
@@ -178,6 +185,10 @@ class BigQueryCompiler(bq_compiler.BigQueryCompiler):
 
         return sge.Window(this=func, partition_by=group_by, order=order, spec=spec)
 
+    @sql_compiler.parenthesize_inputs
+    def visit_And(self, op, *, left, right):
+        return sge.And(this=sge.Paren(this=left), expression=sge.Paren(this=right))
+
 
 # Override implementation.
 # We monkeypatch individual methods because the class might have already been imported in other modules.
@@ -201,6 +212,7 @@ bq_compiler.BigQueryCompiler.visit_Quantile = BigQueryCompiler.visit_Quantile
 bq_compiler.BigQueryCompiler.visit_WindowFunction = (
     BigQueryCompiler.visit_WindowFunction
 )
+bq_compiler.BigQueryCompiler.visit_And = BigQueryCompiler.visit_And
 
 # TODO(swast): sqlglot base implementation appears to work fine for the bigquery backend, at least in our windowed contexts. See: ISSUE NUMBER
 bq_compiler.BigQueryCompiler.UNSUPPORTED_OPS = BigQueryCompiler.UNSUPPORTED_OPS

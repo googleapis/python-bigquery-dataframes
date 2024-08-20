@@ -2414,8 +2414,8 @@ class Block:
         if op_name in self._stats_cache[column_name]:
             return self._stats_cache[column_name][op_name]
 
-        # Window framing clause is not allowed for analytic function lag.
-        window_spec = windows.unbound()
+        period = 1
+        window_spec = windows.rows(preceding=period, following=None)
 
         # any NaN value means not monotonic
         block, last_notna_id = self.apply_unary_op(column_ids[0], ops.notnull_op)
@@ -2426,7 +2426,6 @@ class Block:
             )
 
         # loop over all columns to check monotonicity
-        period = 1
         last_result_id = None
         for column_id in column_ids[::-1]:
             block, lag_result_id = block.apply_window_op(
