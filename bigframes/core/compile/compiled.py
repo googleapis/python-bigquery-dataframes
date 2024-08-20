@@ -1293,9 +1293,10 @@ class OrderedIR(BaseIbisIR):
                     bounds.preceding, bounds.following, how="range"
                 )
             if isinstance(bounds, RowsWindowBounds):
-                window = window.preceding_following(
-                    bounds.preceding, bounds.following, how="rows"
-                )
+                if bounds.preceding is not None and bounds.following is not None:
+                    window = window.preceding_following(
+                        bounds.preceding, bounds.following, how="rows"
+                    )
             else:
                 raise ValueError(f"unrecognized window bounds {bounds}")
         return window
