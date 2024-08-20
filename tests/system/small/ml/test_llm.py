@@ -405,6 +405,7 @@ def test_gemini_text_generator_predict_with_params_success(
     assert all(series.str.len() > 20)
 
 
+# TODO(garrettwu): add tests for claude3.5 sonnet and claude3 opus as they are only available in other regions.
 @pytest.mark.parametrize(
     "model_name",
     ("claude-3-sonnet", "claude-3-haiku"),

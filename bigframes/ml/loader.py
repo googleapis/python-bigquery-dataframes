@@ -65,6 +65,8 @@ _BQML_ENDPOINT_TYPE_MAPPING = MappingProxyType(
         llm._GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT: llm.GeminiTextGenerator,
         llm._CLAUDE_3_HAIKU_ENDPOINT: llm.Claude3TextGenerator,
         llm._CLAUDE_3_SONNET_ENDPOINT: llm.Claude3TextGenerator,
+        llm._CLAUDE_3_5_SONNET_ENDPOINT: llm.Claude3TextGenerator,
+        llm._CLAUDE_3_OPUS_ENDPOINT: llm.Claude3TextGenerator,
         llm._TEXT_EMBEDDING_004_ENDPOINT: llm.TextEmbeddingGenerator,
         llm._TEXT_MULTILINGUAL_EMBEDDING_002_ENDPOINT: llm.TextEmbeddingGenerator,
     }
