@@ -488,8 +488,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @validations.requires_ordering()
     def shift(self, periods: int = 1) -> Series:
-        # Window framing clause is not allowed for analytic function lag.
-        window_spec = windows.unbound()
+        window_spec = windows.rows(
+            preceding=periods if periods > 0 else None,
+            following=-periods if periods < 0 else None,
+        )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window_spec)
 
     @validations.requires_ordering()
