@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import bigframes
-import bigframes.pandas
-
 
 def test_quickstart() -> None:
+    import bigframes.pandas
+
     # We need a fresh session since we're modifying connection options.
     bigframes.pandas.close_session()
 
@@ -25,6 +24,16 @@ def test_quickstart() -> None:
 
     bpd.options.bigquery.ordering_mode = "partial"
     # [END bigquery_bigframes_ordering_mode_partial]
+
+    # [START bigquery_bigframes_ordering_mode_partial_ambiguous_window_warning]
+    import warnings
+
+    import bigframes.exceptions
+
+    warnings.simplefilter(
+        "ignore", category=bigframes.exceptions.AmbiguousWindowWarning
+    )
+    # [END bigquery_bigframes_ordering_mode_partial_ambiguous_window_warning]
 
     # Below is a copy of the main quickstart to check that it also works with
     # this ordering mode.
