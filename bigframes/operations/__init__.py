@@ -877,7 +877,7 @@ NUMPY_TO_OP: dict[np.ufunc, UnaryOp] = {
 }
 
 
-NUMPY_TO_BINOP: dict[np.ufunc, UnaryOp] = {
+NUMPY_TO_BINOP: dict[np.ufunc, BinaryOp] = {
     np.add: add_op,
     np.subtract: sub_op,
     np.multiply: mul_op,

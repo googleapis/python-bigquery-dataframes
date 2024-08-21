@@ -170,4 +170,4 @@ def value_to_join_key(value: ibis_types.Value):
     """Converts nullable values to non-null string SQL will not match null keys together - but pandas does."""
     if not value.type().is_string():
         value = value.cast(ibis_dtypes.str)
-    return value.fillna(ibis_types.literal("$NULL_SENTINEL$"))
+    return value.fill_null(ibis_types.literal("$NULL_SENTINEL$"))
