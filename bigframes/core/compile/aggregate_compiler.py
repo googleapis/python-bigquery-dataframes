@@ -525,7 +525,7 @@ def _(
     result = _is_true(column).all()
     return cast(
         ibis_types.BooleanScalar,
-        _apply_window_if_present(result, window).fill_null(ibis_types.literal(True)),
+        _apply_window_if_present(result, window).fillna(ibis_types.literal(True)),
     )
 
 
@@ -539,7 +539,7 @@ def _(
     result = _is_true(column).any()
     return cast(
         ibis_types.BooleanScalar,
-        _apply_window_if_present(result, window).fill_null(ibis_types.literal(False)),
+        _apply_window_if_present(result, window).fillna(ibis_types.literal(False)),
     )
 
 
