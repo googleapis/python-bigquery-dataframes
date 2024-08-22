@@ -66,7 +66,7 @@ class StructFrameAccessor(vendoracessors.StructFrameAccessor):
     def __init__(self, data: bigframes.dataframe.DataFrame) -> None:
         self._parent = data
 
-    def explode(self, column, separator: str = ".") -> bigframes.dataframe.DataFrame:
+    def explode(self, column, *, separator: str = ".") -> bigframes.dataframe.DataFrame:
         df = self._parent
         column_labels = bigframes.core.explode.check_column(column)
 

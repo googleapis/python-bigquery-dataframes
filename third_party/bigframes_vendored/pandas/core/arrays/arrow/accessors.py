@@ -124,7 +124,11 @@ class StructAccessor:
 
 
 class StructFrameAccessor:
-    def explode(self, column, separator: str = "."):
+    """
+    Accessor object for structured data properties of the DataFrame values.
+    """
+
+    def explode(self, column, *, separator: str = "."):
         """
         Extract all child fields of struct column(s) and add to the DataFrame.
 
