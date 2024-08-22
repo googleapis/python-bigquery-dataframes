@@ -111,7 +111,8 @@ def collect_benchmark_result(benchmark_path: str) -> pd.DataFrame:
                 # 'local_seconds' captures the total execution time for a benchmark as it
                 # starts timing immediately before the benchmark code begins and stops
                 # immediately after it ends. Unlike other metrics that might accumulate
-                # values proportional to the number of queries executed, 'local_seconds' is # a singular measure of the time taken for the complete execution of the
+                # values proportional to the number of queries executed, 'local_seconds' is
+                # a singular measure of the time taken for the complete execution of the
                 # benchmark, from start to finish.
                 with open(local_seconds_file, "r") as file:
                     local_seconds = float(file.readline().strip())
