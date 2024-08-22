@@ -159,3 +159,8 @@ def test_json_extract_array_from_array_strings():
         actual.to_pandas(),
         expected.to_pandas(),
     )
+
+
+def test_json_extract_array_w_invalid_series_type():
+    with pytest.raises(TypeError):
+        bbq.json_extract_array(bpd.Series([1, 2]))
