@@ -664,7 +664,7 @@ class JSONExtractArray(UnaryOp):
                 "Input type must be an valid JSON object or JSON-formatted string type."
                 + f" Received type: {input_type}"
             )
-        pd.ArrowDtype(
+        return pd.ArrowDtype(
             pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(dtypes.STRING_DTYPE))
         )
 
