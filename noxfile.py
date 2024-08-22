@@ -18,7 +18,6 @@ from __future__ import absolute_import
 
 import os
 import pathlib
-from pathlib import Path
 import re
 import shutil
 from typing import Dict, List
@@ -684,7 +683,7 @@ def notebook(session: nox.Session):
         "seaborn",
     )
 
-    notebooks_list = list(Path("notebooks/").glob("*/*.ipynb"))
+    notebooks_list = list(pathlib.Path("notebooks/").glob("*/*.ipynb"))
 
     denylist = [
         # Regionalized testing is manually added later.
@@ -792,7 +791,7 @@ def benchmark(session: nox.Session):
     session.install("-e", ".[all]")
     base_path = os.path.join("tests", "benchmark")
 
-    benchmark_script_list = list(Path(base_path).rglob("*.py"))
+    benchmark_script_list = list(pathlib.Path(base_path).rglob("*.py"))
 
     try:
         for benchmark in benchmark_script_list:
