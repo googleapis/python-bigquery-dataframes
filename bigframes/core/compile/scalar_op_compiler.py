@@ -755,8 +755,8 @@ def struct_field_op_impl(x: ibis_types.Value, op: ops.StructFieldOp):
     else:
         name = struct_value.names[op.name_or_index]
 
-    result = struct_value[name].name(name)
-    return result.cast(result.type()(nullable=True))
+    result = struct_value[name]
+    return result.cast(result.type()(nullable=True)).name(name)
 
 
 def numeric_to_datetime(x: ibis_types.Value, unit: str) -> ibis_types.TimestampValue:
