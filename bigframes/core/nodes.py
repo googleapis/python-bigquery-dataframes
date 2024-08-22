@@ -312,17 +312,35 @@ class ConcatNode(BigFrameNode):
 
 # Input Nodex
 @dataclass(frozen=True)
-class ReadLocalNode(BigFrameNode):
+class LeafNode(BigFrameNode):
+    @property
+    def roots(self) -> typing.Set[BigFrameNode]:
+        return {self}
+
+    @property
+    def supports_fast_head(self) -> bool:
+        return False
+
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        return self
+
+    @property
+    def row_count(self) -> typing.Optional[int]:
+        """How many rows are in the data source. None means unknown."""
+        return None
+
+
+@dataclass(frozen=True)
+class ReadLocalNode(LeafNode):
     feather_bytes: bytes
     data_schema: schemata.ArraySchema
+    n_rows: int
     session: typing.Optional[bigframes.session.Session] = None
 
     def __hash__(self):
         return self._node_hash
-
-    @property
-    def roots(self) -> typing.Set[BigFrameNode]:
-        return {self}
 
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
@@ -334,6 +352,10 @@ class ReadLocalNode(BigFrameNode):
         return len(self.schema.items) + 1
 
     @property
+    def supports_fast_head(self) -> bool:
+        return True
+
+    @property
     def order_ambiguous(self) -> bool:
         return False
 
@@ -341,15 +363,14 @@ class ReadLocalNode(BigFrameNode):
     def explicitly_ordered(self) -> bool:
         return True
 
-    def transform_children(
-        self, t: Callable[[BigFrameNode], BigFrameNode]
-    ) -> BigFrameNode:
-        return self
+    @property
+    def row_count(self) -> typing.Optional[int]:
+        return self.n_rows
 
 
 ## Put ordering in here or just add order_by node above?
 @dataclass(frozen=True)
-class ReadTableNode(BigFrameNode):
+class ReadTableNode(LeafNode):
     project_id: str = field()
     dataset_id: str = field()
     table_id: str = field()
@@ -386,10 +407,6 @@ class ReadTableNode(BigFrameNode):
         return self._node_hash
 
     @property
-    def roots(self) -> typing.Set[BigFrameNode]:
-        return {self}
-
-    @property
     def schema(self) -> schemata.ArraySchema:
         return self.columns
 
@@ -397,6 +414,11 @@ class ReadTableNode(BigFrameNode):
     def relation_ops_created(self) -> int:
         # Assume worst case, where readgbq actually has baked in analytic operation to generate index
         return 3
+
+    @property
+    def supports_fast_head(self) -> bool:
+        # TODO: Be more lenient for small tables, or those clustered on non-sequential order key
+        return self.order_col_is_sequential
 
     @property
     def order_ambiguous(self) -> bool:
@@ -410,15 +432,10 @@ class ReadTableNode(BigFrameNode):
     def variables_introduced(self) -> int:
         return len(self.schema.items) + 1
 
-    def transform_children(
-        self, t: Callable[[BigFrameNode], BigFrameNode]
-    ) -> BigFrameNode:
-        return self
-
 
 # This node shouldn't be used in the "original" expression tree, only used as replacement for original during planning
 @dataclass(frozen=True)
-class CachedTableNode(BigFrameNode):
+class CachedTableNode(LeafNode):
     # The original BFET subtree that was cached
     # note: this isn't a "child" node.
     original_node: BigFrameNode = field()
@@ -429,6 +446,7 @@ class CachedTableNode(BigFrameNode):
     physical_schema: Tuple[bq.SchemaField, ...] = field()
 
     ordering: typing.Optional[orderings.RowOrdering] = field()
+    n_rows: int = field()
 
     def __post_init__(self):
         # enforce invariants
@@ -451,10 +469,6 @@ class CachedTableNode(BigFrameNode):
         return self._node_hash
 
     @property
-    def roots(self) -> typing.Set[BigFrameNode]:
-        return {self}
-
-    @property
     def schema(self) -> schemata.ArraySchema:
         return self.original_node.schema
 
@@ -474,6 +488,12 @@ class CachedTableNode(BigFrameNode):
         )
 
     @property
+    def supports_fast_head(self) -> bool:
+        # TODO: Be more lenient for small tables, or those clustered on non-sequential order key
+        # No ordering supports fast head as can just take n arbitrary rows
+        return (self.ordering is None) or self.ordering.is_sequential
+
+    @property
     def order_ambiguous(self) -> bool:
         return not isinstance(self.ordering, orderings.TotalOrdering)
 
@@ -483,10 +503,9 @@ class CachedTableNode(BigFrameNode):
             self.ordering.all_ordering_columns
         ) > 0
 
-    def transform_children(
-        self, t: Callable[[BigFrameNode], BigFrameNode]
-    ) -> BigFrameNode:
-        return self
+    @property
+    def row_count(self) -> typing.Optional[int]:
+        return self.n_rows
 
 
 # Unary nodes

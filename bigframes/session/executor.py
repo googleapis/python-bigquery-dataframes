@@ -25,11 +25,13 @@ import google.cloud.bigquery.job as bq_job
 
 import bigframes.core
 import bigframes.core.compile
+import bigframes.core.expression as ex
 import bigframes.core.guid
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
 import bigframes.core.tree_properties as tree_properties
 import bigframes.formatting_helpers as formatting_helpers
+import bigframes.operations as ops
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
 import bigframes.session.planner
@@ -84,7 +86,7 @@ class BigQueryCachingExecutor:
         if offset_column:
             array_value = array_value.promote_offsets(offset_column)
         node = (
-            self._with_cached_executions(array_value.node)
+            self._get_optimized_plan(array_value.node)
             if enable_cache
             else array_value.node
         )
@@ -161,20 +163,74 @@ class BigQueryCachingExecutor:
         return results_iterator, query_job
 
     def peek(
-        self, array_value: bigframes.core.ArrayValue, n_rows: int
+        self,
+        array_value: bigframes.core.ArrayValue,
+        n_rows: int,
     ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
-        """A 'peek' efficiently accesses a small number of rows in the dataframe."""
-        if not tree_properties.peekable(self._with_cached_executions(array_value.node)):
+        """
+        A 'peek' efficiently accesses a small number of rows in the dataframe.
+        """
+        plan = self._get_optimized_plan(array_value.node)
+        if not tree_properties.can_fast_peek(plan):
             warnings.warn("Peeking this value cannot be done efficiently.")
-        sql = self.compiler.compile_peek(
-            self._with_cached_executions(array_value.node), n_rows
-        )
+
+        sql = self.compiler.compile_peek(plan, n_rows)
 
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
-        return self._run_execute_query(
-            sql=sql,
-        )
+        return self._run_execute_query(sql=sql)
+
+    def head(
+        self, array_value: bigframes.core.ArrayValue, n_rows: int
+    ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+        """
+        A 'peek' efficiently accesses a small number of rows in the dataframe.
+        """
+        maybe_row_count = self._local_get_row_count(array_value)
+        if (maybe_row_count is not None) and (maybe_row_count <= n_rows):
+            return self.execute(array_value, ordered=True)
+
+        if not self.strictly_ordered and not array_value.node.explicitly_ordered:
+            # No user-provided ordering, so just get any N rows, its faster!
+            return self.peek(array_value, n_rows)
+
+        plan = self._get_optimized_plan(array_value.node)
+        if not tree_properties.can_fast_head(plan):
+            # If can't get head fast, we are going to need to execute the whole query
+            # Will want to do this in a way such that the result is reusable, but the first
+            # N values can be easily extracted. This means clustering on the order key.
+
+            # This may be too much, might be sufficient to cluster on ordering key (if <= 4 parts)
+            self._cache_with_offsets(array_value)
+            # Get a new optimized plan after caching
+            plan = self._get_optimized_plan(array_value.node)
+            assert tree_properties.can_fast_head(plan)
+
+        head_plan = generate_head_plan(plan, n_rows)
+        sql = self.compiler.compile_ordered(head_plan)
+
+        # TODO(swast): plumb through the api_name of the user-facing api that
+        # caused this query.
+        return self._run_execute_query(sql=sql)
+
+    def get_row_count(self, array_value: bigframes.core.ArrayValue) -> int:
+        # optimized plan less likely to have count-destroying operators like filter or join
+        count = self._local_get_row_count(array_value)
+        if count is not None:
+            return count
+        else:
+            row_count_plan = self._get_optimized_plan(
+                generate_row_count_plan(array_value.node)
+            )
+            sql = self.compiler.compile_unordered(row_count_plan)
+            iter, _ = self._run_execute_query(sql)
+            return next(iter)[0]
+
+    def _local_get_row_count(
+        self, array_value: bigframes.core.ArrayValue
+    ) -> Optional[int]:
+        plan = self._get_optimized_plan(array_value.node)
+        return tree_properties.row_count(plan)
 
     # Helpers
     def _run_execute_query(
@@ -218,7 +274,7 @@ class BigQueryCachingExecutor:
             else:
                 raise
 
-    def _with_cached_executions(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
+    def _get_optimized_plan(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         return tree_properties.replace_nodes(node, (dict(self._cached_executions)))
 
     def _is_trivially_executable(self, array_value: bigframes.core.ArrayValue):
@@ -229,7 +285,7 @@ class BigQueryCachingExecutor:
         # Once rewriting is available, will want to rewrite before
         # evaluating execution cost.
         return tree_properties.is_trivially_executable(
-            self._with_cached_executions(array_value.node)
+            self._get_optimized_plan(array_value.node)
         )
 
     def _cache_with_cluster_cols(
@@ -238,7 +294,7 @@ class BigQueryCachingExecutor:
         """Executes the query and uses the resulting table to rewrite future executions."""
 
         sql, schema, ordering_info = self.compiler.compile_raw(
-            self._with_cached_executions(array_value.node)
+            self._get_optimized_plan(array_value.node)
         )
         tmp_table = self._sql_as_cached_temp_table(
             sql,
@@ -260,9 +316,7 @@ class BigQueryCachingExecutor:
             )
         offset_column = bigframes.core.guid.generate_guid("bigframes_offsets")
         node_w_offsets = array_value.promote_offsets(offset_column).node
-        sql = self.compiler.compile_unordered(
-            self._with_cached_executions(node_w_offsets)
-        )
+        sql = self.compiler.compile_unordered(self._get_optimized_plan(node_w_offsets))
 
         tmp_table = self._sql_as_cached_temp_table(
             sql,
@@ -297,7 +351,7 @@ class BigQueryCachingExecutor:
         """Attempts to handle the complexity by caching duplicated subtrees and breaking the query into pieces."""
         # Apply existing caching first
         for _ in range(MAX_SUBTREE_FACTORINGS):
-            node_with_cache = self._with_cached_executions(array_value.node)
+            node_with_cache = self._get_optimized_plan(array_value.node)
             if node_with_cache.planning_complexity < QUERY_COMPLEXITY_LIMIT:
                 return
 
@@ -343,4 +397,21 @@ class BigQueryCachingExecutor:
             job_config=job_config,
             api_name="cached",
         )
+        query_job.destination
+        query_job.result()
         return query_job.destination
+
+
+def generate_head_plan(node: nodes.BigFrameNode, n: int):
+    offsets_id = bigframes.core.guid.generate_guid("offsets_")
+    plan_w_offsets = nodes.PromoteOffsetsNode(node, offsets_id)
+    predicate = ops.lt_op.as_expr(ex.free_var(offsets_id), ex.const(n))
+    plan_w_head = nodes.FilterNode(plan_w_offsets, predicate)
+    # Finally, drop the offsets column
+    return nodes.ProjectionNode(
+        plan_w_head, tuple((ex.free_var(i), i) for i in node.schema.names)
+    )
+
+
+def generate_row_count_plan(node: nodes.BigFrameNode):
+    return nodes.RowCountNode(node)

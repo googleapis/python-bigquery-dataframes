@@ -70,23 +70,7 @@ class ArrayValue:
             iobytes.getvalue(),
             data_schema=schema,
             session=session,
-        )
-        return cls(node)
-
-    @classmethod
-    def from_cached(
-        cls,
-        original: ArrayValue,
-        table: google.cloud.bigquery.Table,
-        ordering: orderings.TotalOrdering,
-    ):
-        node = nodes.CachedTableNode(
-            original_node=original.node,
-            project_id=table.reference.project,
-            dataset_id=table.reference.dataset_id,
-            table_id=table.reference.table_id,
-            physical_schema=tuple(table.schema),
-            ordering=ordering,
+            n_rows=arrow_table.num_rows,
         )
         return cls(node)
 
@@ -159,6 +143,7 @@ class ArrayValue:
             table_id=cache_table.reference.table_id,
             physical_schema=tuple(cache_table.schema),
             ordering=ordering,
+            n_rows=cache_table.num_rows,
         )
         return ArrayValue(node)
 
