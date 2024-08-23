@@ -6,9 +6,13 @@ import bigframes
 
 
 def q(dataset_id: str, session: bigframes.Session):
-    customer = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.CUSTOMER")
-    lineitem = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.LINEITEM")
-    orders = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.ORDERS")
+    customer = session.read_gbq(
+        f"bigframes-dev-perf.{dataset_id}.CUSTOMER"
+    ).reset_index()
+    lineitem = session.read_gbq(
+        f"bigframes-dev-perf.{dataset_id}.LINEITEM"
+    ).reset_index()
+    orders = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.ORDERS").reset_index()
 
     date_var = date(1995, 3, 15)
 

@@ -8,7 +8,9 @@ import bigframes.pandas as bpd
 
 
 def q(dataset_id: str, session: bigframes.Session):
-    lineitem = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.LINEITEM")
+    lineitem = session.read_gbq(
+        f"bigframes-dev-perf.{dataset_id}.LINEITEM"
+    ).reset_index()
 
     var1 = datetime(1998, 9, 2)
     lineitem = lineitem[lineitem["L_SHIPDATE"] <= var1.date()]
