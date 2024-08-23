@@ -18,7 +18,6 @@ from __future__ import absolute_import
 
 import os
 import pathlib
-from pathlib import Path
 import re
 import shutil
 from typing import Dict, List
@@ -60,7 +59,8 @@ UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.12"]
+# 3.10 is needed for Windows tests.
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.12"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -98,7 +98,8 @@ nox.options.sessions = [
     "docfx",
     "unit",
     "unit_noextras",
-    "system",
+    "system-3.9",
+    "system-3.12",
     "cover",
 ]
 
@@ -682,7 +683,7 @@ def notebook(session: nox.Session):
         "seaborn",
     )
 
-    notebooks_list = list(Path("notebooks/").glob("*/*.ipynb"))
+    notebooks_list = list(pathlib.Path("notebooks/").glob("*/*.ipynb"))
 
     denylist = [
         # Regionalized testing is manually added later.
@@ -790,7 +791,7 @@ def benchmark(session: nox.Session):
     session.install("-e", ".[all]")
     base_path = os.path.join("tests", "benchmark")
 
-    benchmark_script_list = list(Path(base_path).rglob("*.py"))
+    benchmark_script_list = list(pathlib.Path(base_path).rglob("*.py"))
 
     try:
         for benchmark in benchmark_script_list:

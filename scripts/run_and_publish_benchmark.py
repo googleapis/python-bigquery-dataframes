@@ -17,11 +17,11 @@ import datetime
 import json
 import os
 import pathlib
-from pathlib import Path
 import subprocess
 import sys
 from typing import Dict, List, Union
 
+import numpy as np
 import pandas as pd
 import pandas_gbq
 
@@ -29,7 +29,15 @@ LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 
 
-def benchmark_process(args, log_env_name_var, filename=None, region=None):
+def run_benchmark_subprocess(args, log_env_name_var, filename=None, region=None):
+    """
+    Runs a benchmark subprocess with configured environment variables. Adjusts PYTHONPATH,
+    sets region-specific BigQuery location, and logs environment variables.
+
+    This function terminates the benchmark session if the subprocess exits with an error,
+    due to `check=True` in subprocess.run, which raises CalledProcessError on non-zero
+    exit status.
+    """
     env = os.environ.copy()
     current_pythonpath = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = (
@@ -44,7 +52,7 @@ def benchmark_process(args, log_env_name_var, filename=None, region=None):
 
 def collect_benchmark_result(benchmark_path: str) -> pd.DataFrame:
     """Generate a DataFrame report on HTTP queries, bytes processed, slot time and execution time from log files."""
-    path = Path(benchmark_path)
+    path = pathlib.Path(benchmark_path)
     try:
         results_dict: Dict[str, List[Union[int, float, None]]] = {}
         bytes_files = sorted(path.rglob("*.bytesprocessed"))
@@ -100,6 +108,12 @@ def collect_benchmark_result(benchmark_path: str) -> pd.DataFrame:
                 total_slot_millis = sum(int(line) for line in lines)
 
             if has_local_seconds:
+                # 'local_seconds' captures the total execution time for a benchmark as it
+                # starts timing immediately before the benchmark code begins and stops
+                # immediately after it ends. Unlike other metrics that might accumulate
+                # values proportional to the number of queries executed, 'local_seconds' is
+                # a singular measure of the time taken for the complete execution of the
+                # benchmark, from start to finish.
                 with open(local_seconds_file, "r") as file:
                     local_seconds = float(file.readline().strip())
             else:
@@ -146,27 +160,41 @@ def collect_benchmark_result(benchmark_path: str) -> pd.DataFrame:
             f"{index} - query count: {row['Query_Count']},"
             f" bytes processed sum: {row['Bytes_Processed']},"
             f" slot millis sum: {row['Slot_Millis']},"
-            f" local execution time: {row['Local_Execution_Time_Sec']} seconds,"
-            f" bigquery execution time: {row['BigQuery_Execution_Time_Sec']} seconds"
+            f" local execution time: {round(row['Local_Execution_Time_Sec'], 1)} seconds,"
+            f" bigquery execution time: {round(row['BigQuery_Execution_Time_Sec'], 1)} seconds"
         )
 
-    cumulative_queries = benchmark_metrics["Query_Count"].sum()
-    cumulative_bytes = benchmark_metrics["Bytes_Processed"].sum()
-    cumulative_slot_millis = benchmark_metrics["Slot_Millis"].sum()
-    cumulative_local_seconds = benchmark_metrics["Local_Execution_Time_Sec"].sum(
-        skipna=True
+    geometric_mean_queries = geometric_mean(benchmark_metrics["Query_Count"])
+    geometric_mean_bytes = geometric_mean(benchmark_metrics["Bytes_Processed"])
+    geometric_mean_slot_millis = geometric_mean(benchmark_metrics["Slot_Millis"])
+    geometric_mean_local_seconds = geometric_mean(
+        benchmark_metrics["Local_Execution_Time_Sec"]
     )
-    cumulative_bq_seconds = benchmark_metrics["BigQuery_Execution_Time_Sec"].sum()
+    geometric_mean_bq_seconds = geometric_mean(
+        benchmark_metrics["BigQuery_Execution_Time_Sec"]
+    )
 
     print(
-        f"---total queries: {cumulative_queries}, "
-        f"total bytes: {cumulative_bytes}, "
-        f"total slot millis: {cumulative_slot_millis}, "
-        f"Total local execution time: {cumulative_local_seconds} seconds, "
-        f"Total bigquery execution time: {cumulative_bq_seconds} seconds---"
+        f"---Geometric mean of queries: {geometric_mean_queries}, "
+        f"Geometric mean of bytes processed: {geometric_mean_bytes}, "
+        f"Geometric mean of slot millis: {geometric_mean_slot_millis}, "
+        f"Geometric mean of local execution time: {geometric_mean_local_seconds} seconds, "
+        f"Geometric mean of BigQuery execution time: {geometric_mean_bq_seconds} seconds---"
     )
 
     return benchmark_metrics.reset_index().rename(columns={"index": "Benchmark_Name"})
+
+
+def geometric_mean(data):
+    """
+    Calculate the geometric mean of a dataset, rounding the result to one decimal place.
+    Returns NaN if the dataset is empty or contains only NaN values.
+    """
+    data = data.dropna()
+    if len(data) == 0:
+        return np.nan
+    log_data = np.log(data)
+    return round(np.exp(log_data.mean()), 1)
 
 
 def get_repository_status():
@@ -196,8 +224,20 @@ def get_repository_status():
 
 
 def find_config(start_path):
+    """
+    Searches for a 'config.jsonl' file starting from the given path and moving up to parent
+    directories.
+
+    This function ascends from the initial directory specified by `start_path` up to 3
+    levels or until it reaches a directory named 'benchmark'. The search moves upwards
+    because if there are multiple 'config.jsonl' files in the path hierarchy, the closest
+    configuration to the starting directory (the lowest level) is expected to take effect.
+    It checks each directory for the presence of 'config.jsonl'. If found, it returns the
+    path to the configuration file. If not found within the limit or upon reaching
+    the 'benchmark' directory, it returns None.
+    """
     target_file = "config.jsonl"
-    current_path = Path(start_path).resolve()
+    current_path = pathlib.Path(start_path).resolve()
     if current_path.is_file():
         current_path = current_path.parent
 
@@ -214,7 +254,7 @@ def find_config(start_path):
     return None
 
 
-def process_benchmark(benchmark: str):
+def run_benchmark_from_config(benchmark: str):
     print(benchmark)
     config_path = find_config(benchmark)
 
@@ -239,10 +279,10 @@ def process_benchmark(benchmark: str):
         log_env_name_var = str(benchmark)
         if benchmark_config[0] is not None:
             log_env_name_var += f"_{benchmark_config[0]}"
-        benchmark_process(args=args, log_env_name_var=log_env_name_var)
+        run_benchmark_subprocess(args=args, log_env_name_var=log_env_name_var)
 
 
-def process_notebook_benchmark(benchmark_file: str, region: str):
+def run_notebook_benchmark(benchmark_file: str, region: str):
     export_file = f"{benchmark_file}_{region}" if region else benchmark_file
     log_env_name_var = os.path.basename(export_file)
     # TODO(shobs): For some reason --retries arg masks exceptions occurred in
@@ -257,7 +297,7 @@ def process_notebook_benchmark(benchmark_file: str, region: str):
     ]
     benchmark_args = (*pytest_command, benchmark_file)
 
-    benchmark_process(
+    run_benchmark_subprocess(
         args=benchmark_args,
         log_env_name_var=log_env_name_var,
         filename=export_file,
@@ -322,9 +362,9 @@ def main():
             )
             print("Results have been successfully uploaded to BigQuery.")
     elif args.notebook:
-        process_notebook_benchmark(args.benchmark_path, args.region)
+        run_notebook_benchmark(args.benchmark_path, args.region)
     else:
-        process_benchmark(args.benchmark_path)
+        run_benchmark_from_config(args.benchmark_path)
 
 
 if __name__ == "__main__":

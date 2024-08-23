@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import datetime
-import functools
 import inspect
 import re
 import sys
@@ -56,6 +55,7 @@ from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.convert
+import bigframes.core.explode
 import bigframes.core.expression as ex
 import bigframes.core.groupby as groupby
 import bigframes.core.guid
@@ -72,6 +72,7 @@ import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.plotting as plotting
+import bigframes.operations.structs
 import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session._io.bigquery
@@ -90,15 +91,6 @@ ERROR_IO_REQUIRES_WILDCARD = (
     "https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#export_data_statement"
     f"{constants.FEEDBACK_LINK}"
 )
-
-
-def requires_index(meth):
-    @functools.wraps(meth)
-    def guarded_meth(df: DataFrame, *args, **kwargs):
-        df._throw_if_null_index(meth.__name__)
-        return meth(df, *args, **kwargs)
-
-    return guarded_meth
 
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
@@ -261,7 +253,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return results
 
     @property
-    @requires_index
+    @validations.requires_index
     def index(
         self,
     ) -> indexes.Index:
@@ -277,7 +269,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self.index.name = value.name if hasattr(value, "name") else None
 
     @property
-    @requires_index
+    @validations.requires_index
     def loc(self) -> indexers.LocDataFrameIndexer:
         return indexers.LocDataFrameIndexer(self)
 
@@ -292,7 +284,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return indexers.IatDataFrameIndexer(self)
 
     @property
-    @requires_index
+    @validations.requires_index
     def at(self) -> indexers.AtDataFrameIndexer:
         return indexers.AtDataFrameIndexer(self)
 
@@ -348,7 +340,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def T(self) -> DataFrame:
         return DataFrame(self._get_block().transpose())
 
-    @requires_index
+    @validations.requires_index
     @validations.requires_ordering()
     def transpose(self) -> DataFrame:
         return self.T
@@ -417,7 +409,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             column_sizes = pandas.concat([index_size, column_sizes])
         return column_sizes
 
-    @requires_index
+    @validations.requires_index
     def info(
         self,
         verbose: Optional[bool] = None,
@@ -1214,7 +1206,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             category=bigframes.exceptions.PreviewWarning,
         )
 
-        self._optimize_query_complexity()
         pa_table, query_job = self._block.to_arrow(ordered=ordered)
         self._set_internal_query_job(query_job)
         return pa_table
@@ -1255,7 +1246,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 downsampled rows and all columns of this DataFrame.
         """
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
-        self._optimize_query_complexity()
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
@@ -1285,7 +1275,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 form the original dataframe. Results stream from bigquery,
                 see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
         """
-        self._optimize_query_complexity()
         return self._block.to_pandas_batches(
             page_size=page_size, max_results=max_results
         )
@@ -1685,7 +1674,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         col_ids_strs: List[str] = [col_id for col_id in col_ids if col_id is not None]
         return DataFrame(self._block.set_index(col_ids_strs, append=append, drop=drop))
 
-    @requires_index
+    @validations.requires_index
     def sort_index(
         self, ascending: bool = True, na_position: Literal["first", "last"] = "last"
     ) -> DataFrame:
@@ -1887,7 +1876,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if columns is not None:
             return self._reindex_columns(columns)
 
-    @requires_index
+    @validations.requires_index
     def _reindex_rows(
         self,
         index,
@@ -1934,12 +1923,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         result_df.columns = new_column_index
         return result_df
 
-    @requires_index
+    @validations.requires_index
     def reindex_like(self, other: DataFrame, *, validate: typing.Optional[bool] = None):
         return self.reindex(index=other.index, columns=other.columns, validate=validate)
 
     @validations.requires_ordering()
-    @requires_index
+    @validations.requires_index
     def interpolate(self, method: str = "linear") -> DataFrame:
         if method == "pad":
             return self.ffill()
@@ -2234,12 +2223,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     aggregate = agg
     aggregate.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.agg)
 
-    @requires_index
+    @validations.requires_index
     @validations.requires_ordering()
     def idxmin(self) -> bigframes.series.Series:
         return bigframes.series.Series(block_ops.idxmin(self._block))
 
-    @requires_index
+    @validations.requires_index
     @validations.requires_ordering()
     def idxmax(self) -> bigframes.series.Series:
         return bigframes.series.Series(block_ops.idxmax(self._block))
@@ -2348,7 +2337,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(pivot_block)
 
-    @requires_index
+    @validations.requires_index
     @validations.requires_ordering()
     def pivot(
         self,
@@ -2363,7 +2352,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._pivot(columns=columns, index=index, values=values)
 
-    @requires_index
+    @validations.requires_index
     @validations.requires_ordering()
     def pivot_table(
         self,
@@ -2463,7 +2452,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = block.stack(levels=len(level))
         return DataFrame(block)
 
-    @requires_index
+    @validations.requires_index
     @validations.requires_ordering()
     def unstack(self, level: LevelsType = -1):
         if not utils.is_list_like(level):
@@ -2714,7 +2703,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             raise TypeError("You have to supply one of 'by' and 'level'")
 
-    @requires_index
+    @validations.requires_index
     def _groupby_level(
         self,
         level: LevelsType,
@@ -2888,15 +2877,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         ignore_index: Optional[bool] = False,
     ) -> DataFrame:
-        if not utils.is_list_like(column):
-            column_labels = typing.cast(typing.Sequence[blocks.Label], (column,))
-        else:
-            column_labels = typing.cast(typing.Sequence[blocks.Label], tuple(column))
-
-        if not column_labels:
-            raise ValueError("column must be nonempty")
-        if len(column_labels) > len(set(column_labels)):
-            raise ValueError("column must be unique")
+        column_labels = bigframes.core.explode.check_column(column)
 
         column_ids = [self._resolve_label_exact(label) for label in column_labels]
         missing = [
@@ -3046,12 +3027,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ordering_id: Optional[str] = None,
         clustering_columns: Union[pandas.Index, Iterable[typing.Hashable]] = (),
     ) -> str:
-        dispositions = {
-            "fail": bigquery.WriteDisposition.WRITE_EMPTY,
-            "replace": bigquery.WriteDisposition.WRITE_TRUNCATE,
-            "append": bigquery.WriteDisposition.WRITE_APPEND,
-        }
-
         temp_table_ref = None
 
         if destination_table is None:
@@ -3063,7 +3038,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             if_exists = "replace"
 
-            temp_table_ref = self._session._random_table(
+            temp_table_ref = self._session._temp_storage_manager._random_table(
                 # The client code owns this table reference now, so skip_cleanup=True
                 #  to not clean it up when we close the session.
                 skip_cleanup=True,
@@ -3086,10 +3061,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if if_exists is None:
             if_exists = "fail"
 
-        if if_exists not in dispositions:
+        valid_if_exists = ["fail", "replace", "append"]
+        if if_exists not in valid_if_exists:
             raise ValueError(
                 f"Got invalid value {repr(if_exists)} for if_exists. "
-                f"Valid options include None or one of {dispositions.keys()}."
+                f"Valid options include None or one of {valid_if_exists}."
             )
 
         try:
@@ -3101,16 +3077,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             clustering_columns, index=index
         )
 
-        job_config = bigquery.QueryJobConfig(
-            write_disposition=dispositions[if_exists],
-            destination=bigquery.table.TableReference.from_string(
-                destination_table,
-                default_project=default_project,
-            ),
-            clustering_fields=clustering_fields if clustering_fields else None,
+        export_array, id_overrides = self._prepare_export(
+            index=index and self._has_index, ordering_id=ordering_id
         )
+        destination = bigquery.table.TableReference.from_string(
+            destination_table,
+            default_project=default_project,
+        )
+        _, query_job = self._session._export(
+            export_array,
+            destination=destination,
+            col_id_overrides=id_overrides,
+            cluster_cols=clustering_fields,
+            if_exists=if_exists,
+        )
+        self._set_internal_query_job(query_job)
 
-        self._run_io_query(index=index, ordering_id=ordering_id, job_config=job_config)
+        # The query job should have finished, so there should be always be a result table.
+        result_table = query_job.destination
+        assert result_table is not None
 
         if temp_table_ref:
             bigframes.session._io.bigquery.set_table_expiration(
@@ -3402,19 +3387,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         index: bool,
         ordering_id: Optional[str] = None,
-        job_config: Optional[bigquery.job.QueryJobConfig] = None,
     ) -> bigquery.TableReference:
         """Executes a query job presenting this dataframe and returns the destination
         table."""
         session = self._block.expr.session
-        self._optimize_query_complexity()
         export_array, id_overrides = self._prepare_export(
             index=index and self._has_index, ordering_id=ordering_id
         )
 
         _, query_job = session._execute(
             export_array,
-            job_config=job_config,
             ordered=False,
             col_id_overrides=id_overrides,
         )
@@ -3669,13 +3651,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self._block.cached(force=force)
         return self
 
-    def _optimize_query_complexity(self):
-        """Reduce query complexity by caching repeated subtrees and recursively materializing maximum-complexity subtrees.
-        May generate many queries and take substantial time to execute.
-        """
-        # TODO: Move all this to session
-        self._session._simplify_with_caching(self._block.expr)
-
     _DataFrameOrSeries = typing.TypeVar("_DataFrameOrSeries")
 
     @validations.requires_ordering()
@@ -3769,6 +3744,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self.dot(other)
 
     __matmul__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__matmul__)
+
+    @property
+    def struct(self):
+        return bigframes.operations.structs.StructFrameAccessor(self)
 
     def _throw_if_null_index(self, opname: str):
         if not self._has_index:
