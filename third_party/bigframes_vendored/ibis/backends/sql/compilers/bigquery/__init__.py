@@ -27,6 +27,7 @@ import ibis.common.exceptions as com
 from ibis.common.temporal import DateUnit, IntervalUnit, TimestampUnit, TimeUnit
 import ibis.expr.datatypes as dt
 import ibis.expr.operations as ops
+import numpy as np
 import sqlglot as sg
 from sqlglot.dialects import BigQuery
 import sqlglot.expressions as sge
@@ -511,6 +512,9 @@ class BigQueryCompiler(SQLGlotCompiler):
                 )
         elif dtype.is_uuid():
             return sge.convert(str(value))
+
+        elif dtype.is_int64():
+            return sge.convert(np.int64(value))
         return None
 
     def visit_IntervalFromInteger(self, op, *, arg, unit):
