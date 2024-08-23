@@ -160,7 +160,7 @@ def collect_benchmark_result(benchmark_path: str) -> pd.DataFrame:
             f"{index} - query count: {row['Query_Count']},"
             f" bytes processed sum: {row['Bytes_Processed']},"
             f" slot millis sum: {row['Slot_Millis']},"
-            f" local execution time: {round(row['Local_Execution_Time_Sec'], 1)} seconds,"
+            f" local execution time: {round(row['Local_Execution_Time_Sec'], 1) if row['Local_Execution_Time_Sec'] else np.nan} seconds,"
             f" bigquery execution time: {round(row['BigQuery_Execution_Time_Sec'], 1)} seconds"
         )
 
