@@ -4,11 +4,11 @@ import bigframes
 
 
 def q(dataset_id: str, session: bigframes.Session):
-    region = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.region")
-    nation = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.nation")
-    supplier = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.supplier")
-    part = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.part")
-    partsupp = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.partsupp")
+    region = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.REGION")
+    nation = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.NATION")
+    supplier = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.SUPPLIER")
+    part = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.PART")
+    partsupp = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.PARTSUPP")
 
     jn = (
         part.merge(partsupp, left_on="P_PARTKEY", right_on="PS_PARTKEY")
