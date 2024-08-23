@@ -19,9 +19,9 @@ import itertools
 import typing
 from typing import Collection, Literal, Optional, Sequence
 
+import bigframes_vendored.ibis.backends.bigquery.backend as ibis_bigquery
 import google.cloud.bigquery
 import ibis
-import ibis.backends.bigquery as ibis_bigquery
 import ibis.backends.bigquery.datatypes
 import ibis.common.deferred  # type: ignore
 import ibis.expr.datatypes as ibis_dtypes
