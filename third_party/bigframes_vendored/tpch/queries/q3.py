@@ -7,12 +7,17 @@ import bigframes
 
 def q(dataset_id: str, session: bigframes.Session):
     customer = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.CUSTOMER"
-    ).reset_index()
+        f"bigframes-dev-perf.{dataset_id}.CUSTOMER",
+        index_col=bigframes.enums.DefaultIndexKind.NULL,
+    )
     lineitem = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.LINEITEM"
-    ).reset_index()
-    orders = session.read_gbq(f"bigframes-dev-perf.{dataset_id}.ORDERS").reset_index()
+        f"bigframes-dev-perf.{dataset_id}.LINEITEM",
+        index_col=bigframes.enums.DefaultIndexKind.NULL,
+    )
+    orders = session.read_gbq(
+        f"bigframes-dev-perf.{dataset_id}.ORDERS",
+        index_col=bigframes.enums.DefaultIndexKind.NULL,
+    )
 
     date_var = date(1995, 3, 15)
 
