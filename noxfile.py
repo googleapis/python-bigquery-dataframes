@@ -721,7 +721,7 @@ def notebook(session: nox.Session):
     notebooks = [str(nb) for nb in notebooks_list]
 
     # Remove tests that we choose not to test.
-    notebooks = [list(filter(lambda nb: nb not in denylist, notebooks))[2]]
+    notebooks = list(filter(lambda nb: nb not in denylist, notebooks))
 
     # Regionalized notebooks
     notebooks_reg = {
@@ -761,15 +761,15 @@ def notebook(session: nox.Session):
                 f"--benchmark-path={notebook}",
             )
 
-        # for notebook, regions in notebooks_reg.items():
-        #     for region in regions:
-        #         session.run(
-        #             "python",
-        #             "scripts/run_and_publish_benchmark.py",
-        #             "--notebook",
-        #             f"--benchmark-path={notebook}",
-        #             f"--region={region}",
-        #         )
+        for notebook, regions in notebooks_reg.items():
+            for region in regions:
+                session.run(
+                    "python",
+                    "scripts/run_and_publish_benchmark.py",
+                    "--notebook",
+                    f"--benchmark-path={notebook}",
+                    f"--region={region}",
+                )
     finally:
         # Prevent our notebook changes from getting checked in to git
         # accidentally.
