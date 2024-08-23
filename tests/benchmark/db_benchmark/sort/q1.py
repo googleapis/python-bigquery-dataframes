@@ -1,10 +1,10 @@
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,4 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "1.15.0"
+import pathlib
+
+import benchmark.utils as utils
+import bigframes_vendored.db_benchmark.sort_queries as vendored_dbbenchmark_sort_queries
+
+if __name__ == "__main__":
+    table_id, session, suffix = utils.get_dbbenchmark_configuration()
+    current_path = pathlib.Path(__file__).absolute()
+
+    utils.get_execution_time(
+        vendored_dbbenchmark_sort_queries.q1, current_path, suffix, table_id, session
+    )
