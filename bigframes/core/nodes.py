@@ -285,7 +285,8 @@ class ConcatNode(BigFrameNode):
 
     @property
     def explicitly_ordered(self) -> bool:
-        return all(child.explicitly_ordered for child in self.children)
+        # Consider concat to always destroy order even if all children are ordered
+        return False
 
     def __hash__(self):
         return self._node_hash

@@ -76,13 +76,22 @@ class Compiler:
     @_compile_node.register
     def compile_join(self, node: nodes.JoinNode, ordered: bool = True):
         if ordered:
-            left_ordered = self.compile_ordered_ir(node.left_child)
-            right_ordered = self.compile_ordered_ir(node.right_child)
-            return bigframes.core.compile.single_column.join_by_column_ordered(
-                left=left_ordered,
-                right=right_ordered,
-                join=node.join,
-            )
+            if self.strict:
+                left_ordered = self.compile_ordered_ir(node.left_child)
+                right_ordered = self.compile_ordered_ir(node.right_child)
+                return bigframes.core.compile.single_column.join_by_column_ordered(
+                    left=left_ordered,
+                    right=right_ordered,
+                    join=node.join,
+                )
+            else:
+                left_unordered = self.compile_unordered_ir(node.left_child)
+                right_unordered = self.compile_unordered_ir(node.right_child)
+                return bigframes.core.compile.single_column.join_by_column_unordered(
+                    left=left_unordered,
+                    right=right_unordered,
+                    join=node.join,
+                ).as_ordered_ir()
         else:
             left_unordered = self.compile_unordered_ir(node.left_child)
             right_unordered = self.compile_unordered_ir(node.right_child)
@@ -268,8 +277,16 @@ class Compiler:
     @_compile_node.register
     def compile_concat(self, node: nodes.ConcatNode, ordered: bool = True):
         if ordered:
-            compiled_ordered = [self.compile_ordered_ir(node) for node in node.children]
-            return concat_impl.concat_ordered(compiled_ordered)
+            if self.strict:
+                compiled_ordered = [
+                    self.compile_ordered_ir(node) for node in node.children
+                ]
+                return concat_impl.concat_ordered(compiled_ordered)
+            else:
+                compiled_unordered = [
+                    self.compile_unordered_ir(node) for node in node.children
+                ]
+                return concat_impl.concat_unordered(compiled_unordered).as_ordered_ir()
         else:
             compiled_unordered = [
                 self.compile_unordered_ir(node) for node in node.children

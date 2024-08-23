@@ -47,7 +47,6 @@ def join_by_column_ordered(
         first the coalesced join keys, then, all the left columns, and
         finally, all the right columns.
     """
-
     l_hidden_mapping = {
         id: guids.generate_guid("hidden_") for id in left._hidden_column_ids
     }
