@@ -191,19 +191,27 @@ class ScalarOpCompiler:
 
         return decorator
 
-    def register_nary_op(self, op_ref: typing.Union[ops.NaryOp, type[ops.NaryOp]]):
+    def register_nary_op(
+        self, op_ref: typing.Union[ops.NaryOp, type[ops.NaryOp]], pass_op: bool = False
+    ):
         """
         Decorator to register a nary op implementation.
 
         Args:
             op_ref (NaryOp or NaryOp type):
                 Class or instance of operator that is implemented by the decorated function.
+            pass_op (bool):
+                Set to true if implementation takes the operator object as the last argument.
+                This is needed for parameterized ops where parameters are part of op object.
         """
         key = typing.cast(str, op_ref.name)
 
         def decorator(impl: typing.Callable[..., ibis_types.Value]):
             def normalized_impl(args: typing.Sequence[ibis_types.Value], op: ops.RowOp):
-                return impl(*args)
+                if pass_op:
+                    return impl(*args, op=op)
+                else:
+                    return impl(*args)
 
             self._register(key, normalized_impl)
             return impl
@@ -746,7 +754,9 @@ def struct_field_op_impl(x: ibis_types.Value, op: ops.StructFieldOp):
         name = op.name_or_index
     else:
         name = struct_value.names[op.name_or_index]
-    return struct_value[name].name(name)
+
+    result = struct_value[name]
+    return result.cast(result.type()(nullable=True)).name(name)
 
 
 def numeric_to_datetime(x: ibis_types.Value, unit: str) -> ibis_types.TimestampValue:
@@ -894,6 +904,24 @@ def array_to_string_op_impl(x: ibis_types.Value, op: ops.ArrayToStringOp):
     return typing.cast(ibis_types.ArrayValue, x).join(op.delimiter)
 
 
+@scalar_op_compiler.register_unary_op(ops.ArrayIndexOp, pass_op=True)
+def array_index_op_impl(x: ibis_types.Value, op: ops.ArrayIndexOp):
+    res = typing.cast(ibis_types.ArrayValue, x)[op.index]
+    if x.type().is_string():
+        return _null_or_value(res, res != ibis.literal(""))
+    else:
+        return res
+
+
+@scalar_op_compiler.register_unary_op(ops.ArraySliceOp, pass_op=True)
+def array_slice_op_impl(x: ibis_types.Value, op: ops.ArraySliceOp):
+    res = typing.cast(ibis_types.ArrayValue, x)[op.start : op.stop : op.step]
+    if x.type().is_string():
+        return _null_or_value(res, res != ibis.literal(""))
+    else:
+        return res
+
+
 # JSON Ops
 @scalar_op_compiler.register_binary_op(ops.JSONSet, pass_op=True)
 def json_set_op_impl(x: ibis_types.Value, y: ibis_types.Value, op: ops.JSONSet):
@@ -912,6 +940,16 @@ def json_set_op_impl(x: ibis_types.Value, y: ibis_types.Value, op: ops.JSONSet):
                 json_value=y,
             )
         ).to_expr()
+
+
+@scalar_op_compiler.register_unary_op(ops.JSONExtract, pass_op=True)
+def json_extract_op_impl(x: ibis_types.Value, op: ops.JSONExtract):
+    return json_extract(json_obj=x, json_path=op.json_path)
+
+
+@scalar_op_compiler.register_unary_op(ops.JSONExtractArray, pass_op=True)
+def json_extract_array_op_impl(x: ibis_types.Value, op: ops.JSONExtractArray):
+    return json_extract_array(json_obj=x, json_path=op.json_path)
 
 
 ### Binary Ops
@@ -971,7 +1009,7 @@ def ne_op(
 
 
 def _null_or_value(value: ibis_types.Value, where_value: ibis_types.BooleanValue):
-    return ibis.where(
+    return ibis.ifelse(
         where_value,
         value,
         ibis.null(),
@@ -1380,6 +1418,30 @@ def minimum_impl(
     return ibis.case().when(upper.isnull() | (value > upper), upper).else_(value).end()
 
 
+@scalar_op_compiler.register_binary_op(ops.cosine_distance_op)
+def cosine_distance_impl(
+    vector1: ibis_types.Value,
+    vector2: ibis_types.Value,
+):
+    return vector_distance(vector1, vector2, "COSINE")
+
+
+@scalar_op_compiler.register_binary_op(ops.euclidean_distance_op)
+def euclidean_distance_impl(
+    vector1: ibis_types.Value,
+    vector2: ibis_types.Value,
+):
+    return vector_distance(vector1, vector2, "EUCLIDEAN")
+
+
+@scalar_op_compiler.register_binary_op(ops.manhattan_distance_op)
+def manhattan_distance_impl(
+    vector1: ibis_types.Value,
+    vector2: ibis_types.Value,
+):
+    return vector_distance(vector1, vector2, "MANHATTAN")
+
+
 @scalar_op_compiler.register_binary_op(ops.BinaryRemoteFunctionOp, pass_op=True)
 def binary_remote_function_op_impl(
     x: ibis_types.Value, y: ibis_types.Value, op: ops.BinaryRemoteFunctionOp
@@ -1444,6 +1506,7 @@ def clip_op(
         )
 
 
+# N-ary Operations
 @scalar_op_compiler.register_nary_op(ops.case_when_op)
 def case_when_op(*cases_and_outputs: ibis_types.Value) -> ibis_types.Value:
     # ibis can handle most type coercions, but we need to force bool -> int
@@ -1461,6 +1524,19 @@ def case_when_op(*cases_and_outputs: ibis_types.Value) -> ibis_types.Value:
     for predicate, output in zip(cases_and_outputs[::2], result_values):
         case_val = case_val.when(predicate, output)
     return case_val.end()
+
+
+@scalar_op_compiler.register_nary_op(ops.NaryRemoteFunctionOp, pass_op=True)
+def nary_remote_function_op_impl(
+    *operands: ibis_types.Value, op: ops.NaryRemoteFunctionOp
+):
+    ibis_node = getattr(op.func, "ibis_node", None)
+    if ibis_node is None:
+        raise TypeError(
+            f"only a bigframes remote function is supported as a callable. {constants.FEEDBACK_LINK}"
+        )
+    result = ibis_node(*operands)
+    return result
 
 
 # Helpers
@@ -1501,3 +1577,22 @@ def json_set(
     json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str, json_value
 ) -> ibis_dtypes.JSON:
     """Produces a new SQL JSON value with the specified JSON data inserted or replaced."""
+
+
+@ibis.udf.scalar.builtin(name="json_extract")
+def json_extract(
+    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str
+) -> ibis_dtypes.JSON:
+    """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
+
+
+@ibis.udf.scalar.builtin(name="json_extract_array")
+def json_extract_array(
+    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str
+) -> ibis_dtypes.Array[ibis_dtypes.String]:
+    """Extracts a JSON array and converts it to a SQL ARRAY of JSON-formatted STRINGs or JSON values."""
+
+
+@ibis.udf.scalar.builtin(name="ML.DISTANCE")
+def vector_distance(vector1, vector2, type: str) -> ibis_dtypes.Float64:
+    """Computes the distance between two vectors using specified type ("EUCLIDEAN", "MANHATTAN", or "COSINE")"""

@@ -602,6 +602,73 @@ class ArrayToStringOp(UnaryOp):
         return dtypes.STRING_DTYPE
 
 
+@dataclasses.dataclass(frozen=True)
+class ArrayIndexOp(UnaryOp):
+    name: typing.ClassVar[str] = "array_index"
+    index: int
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if dtypes.is_string_like(input_type):
+            return dtypes.STRING_DTYPE
+        elif dtypes.is_array_like(input_type):
+            return dtypes.arrow_dtype_to_bigframes_dtype(
+                input_type.pyarrow_dtype.value_type
+            )
+        else:
+            raise TypeError("Input type must be an array or string-like type.")
+
+
+@dataclasses.dataclass(frozen=True)
+class ArraySliceOp(UnaryOp):
+    name: typing.ClassVar[str] = "array_slice"
+    start: int
+    stop: typing.Optional[int] = None
+    step: typing.Optional[int] = None
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if dtypes.is_string_like(input_type):
+            return dtypes.STRING_DTYPE
+        elif dtypes.is_array_like(input_type):
+            return input_type
+        else:
+            raise TypeError("Input type must be an array or string-like type.")
+
+
+## JSON Ops
+@dataclasses.dataclass(frozen=True)
+class JSONExtract(UnaryOp):
+    name: typing.ClassVar[str] = "json_extract"
+    json_path: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return input_type
+
+
+@dataclasses.dataclass(frozen=True)
+class JSONExtractArray(UnaryOp):
+    name: typing.ClassVar[str] = "json_extract_array"
+    json_path: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return pd.ArrowDtype(
+            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(dtypes.STRING_DTYPE))
+        )
+
+
 # Binary Ops
 fillna_op = create_binary_op(name="fillna", type_signature=op_typing.COERCE)
 maximum_op = create_binary_op(name="maximum", type_signature=op_typing.COERCE)
@@ -659,6 +726,19 @@ class BinaryRemoteFunctionOp(BinaryOp):
             raise AttributeError("output_dtype not defined")
 
 
+@dataclasses.dataclass(frozen=True)
+class NaryRemoteFunctionOp(NaryOp):
+    name: typing.ClassVar[str] = "nary_remote_function"
+    func: typing.Callable
+
+    def output_type(self, *input_types):
+        # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
+        if hasattr(self.func, "output_dtype"):
+            return self.func.output_dtype
+        else:
+            raise AttributeError("output_dtype not defined")
+
+
 add_op = AddOp()
 sub_op = SubOp()
 mul_op = create_binary_op(name="mul", type_signature=op_typing.BINARY_NUMERIC)
@@ -688,6 +768,17 @@ lt_op = create_binary_op(name="lt", type_signature=op_typing.COMPARISON)
 gt_op = create_binary_op(name="gt", type_signature=op_typing.COMPARISON)
 le_op = create_binary_op(name="le", type_signature=op_typing.COMPARISON)
 ge_op = create_binary_op(name="ge", type_signature=op_typing.COMPARISON)
+
+
+cosine_distance_op = create_binary_op(
+    name="ml_cosine_distance", type_signature=op_typing.VECTOR_METRIC
+)
+manhattan_distance_op = create_binary_op(
+    name="ml_manhattan_distance", type_signature=op_typing.VECTOR_METRIC
+)
+euclidean_distance_op = create_binary_op(
+    name="ml_euclidean_distance", type_signature=op_typing.VECTOR_METRIC
+)
 
 
 ## String Ops

@@ -2179,10 +2179,10 @@ def test_binop_with_self_aggregate(session, scalars_dfs):
     df_columns = ["int64_col", "float64_col", "int64_too"]
 
     # Ensure that this takes the optimized single-query path by counting executions
-    execution_count_before = session._execution_count
+    execution_count_before = session._metrics.execution_count
     bf_df = scalars_df[df_columns]
     bf_result = (bf_df - bf_df.mean()).to_pandas()
-    execution_count_after = session._execution_count
+    execution_count_after = session._metrics.execution_count
 
     pd_df = scalars_pandas_df[df_columns]
     pd_result = pd_df - pd_df.mean()
@@ -2273,7 +2273,7 @@ all_joins = pytest.mark.parametrize(
 def test_join_same_table(scalars_dfs_maybe_ordered, how):
     bf_df, pd_df = scalars_dfs_maybe_ordered
     if not bf_df._session._strictly_ordered and how == "cross":
-        pytest.skip("Cross join not supported in unordered mode.")
+        pytest.skip("Cross join not supported in partial ordering mode.")
 
     bf_df_a = bf_df.set_index("int64_too")[["string_col", "int64_col"]]
     bf_df_a = bf_df_a.sort_index()
