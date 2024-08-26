@@ -3,6 +3,7 @@ from google.cloud.bigquery_storage_v1 import types
 
 from bigframes.functions.nested_utils import MemberSelector
 
+
 # We introduce using MemberSelector to avoid having to remember hard coded strings and make things IDE-able.
 
 class BQSchemaLayout(MemberSelector):
@@ -60,7 +61,6 @@ class BQSchemaLayout(MemberSelector):
             if fields: # no record but a primitive -> end of recursion!
                 for field_value in fields:
                     self._unroll_schema(field_value, hierarchy, sep=sep)
-
 
     def determine_layout(self, struc_separator: str):
         """

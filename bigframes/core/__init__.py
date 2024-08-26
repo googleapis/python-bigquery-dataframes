@@ -41,6 +41,7 @@ from bigframes.core.bqsql_schema_unnest import BQSchemaLayout
 import bigframes.core.compile
 import bigframes.core.expression as ex
 import bigframes.core.guid
+#from bigframes.dataframe import DataFrame
 import bigframes.core.join_def as join_def
 import bigframes.core.local_data as local_data
 import bigframes.core.nodes as nodes
@@ -111,7 +112,7 @@ class SchemaSourceHandler:
         return root
     
     @staticmethod
-    def bfs(tree: list[str], separator: str, root: str|None=None) -> Iterator[list]:
+    def bfs(tree: list[str]|dict, separator: str, root: str|None=None) -> Iterator[list]:
         """
         Iteraror function for BQ schema base on Tuple[SchemaField, ...]. Returns layer using breadth first search.
         """
@@ -124,13 +125,15 @@ class SchemaSourceHandler:
             for _ in range(len(queue)):
                 # get current item and traverse its direct succesors
                 path, node = queue.popleft()
+                assert(isinstance(node, dict))
+                #assert(isinstance(path, list))
                 for key, child in node.items():
                     # build key string by concatenating with path/ predecessor's name. Separator should be struct_separator here.
-                    new_path = path + separator + key if path else key
+                    new_path = path + separator + key if path else key # type: ignore
                     # add item to layer/ current level in tree
                     layer.append(new_path)
                     # append item to queue for breadth first search
-                    queue.append((new_path, child))
+                    queue.append((new_path, child)) # type: ignore
             if layer:
                 yield layer
 
@@ -163,7 +166,7 @@ class SchemaSourceHandler:
 
     def add_source(self, src: nodes.BigFrameNode, layer_separator: str, struct_separator: str) -> None:
         """Adds new SchemaSource for src to self._sources"""
-        schema_orig: Tuple[SchemaField, ...] = src.physical_schema if hasattr(src, "physical_schema") else None
+        schema_orig: Tuple[SchemaField, ...] = src.physical_schema if hasattr(src, "physical_schema") else None # type: ignore
         schema = None
         dag = None
         if schema_orig:

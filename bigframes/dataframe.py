@@ -39,6 +39,7 @@ import warnings
 
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
+from bigframes_vendored.pandas.core.reshape import concat
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
@@ -2888,6 +2889,38 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 ns=ns, fracs=fracs, random_state=random_state, sort=sort
             )[0]
         )
+
+    def explode_nested(self, sep_explode: str, columns: list|None=None):
+        return self._explode_nested(
+            df_new = DataFrame({}), level_prefix="", sep_explode=sep_explode, columns=columns
+        )
+
+    def _explode_nested(self, df_new: DataFrame, level_prefix: str, sep_explode: str, sep_struct: str|None=None,
+                       columns: list|None=None) -> DataFrame|dict:
+        sep_struct = sep_struct if sep_struct is not None else "."
+        schema = self._block.expr.schema
+        raw, rcols = {}, []
+        nested, ncols = {}, []
+        for idx, col in enumerate(schema.items):
+            last = level_prefix + sep_explode + col.column
+            if bigframes.dtypes.is_array_like(col.dtype):
+                ncols.append(last)
+                nested.update({col: last})    
+            else:
+                rcols.append(last)
+                raw.update({col: last})
+        # select those columns prefixing any string of the "columns" list
+        cols_considered = ncols if columns is None else columns
+        cols = [col for col in cols_considered if col.startswith(tuple(ncols))]
+        df_tmp = self[list(raw.keys())]
+        df_tmp.rename(columns=raw)
+        #df = concat([df, df_tmp], axis=)
+        
+        for ncol in cols:
+            self._explode_nested(df_new=df_new, level_prefix=ncol, sep_explode=sep_explode,
+                                        sep_struct=sep_struct, columns=columns)
+        return {}
+        
         
     #TODO: create explod_recursion to arbitrary depth of nestings
     #TODO: DataFrame.Struct.explode, not yet available

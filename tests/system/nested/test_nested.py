@@ -56,6 +56,48 @@ from bigframes.dataframe import DataFrame
 #     testdf.apply(cm._current_data),
 #     bfpd.get_dummies(cm._current_data)   
 
+def create_simple_nested():
+    """
+            import bigframes.pandas as bpd
+          import pyarrow as pa
+           bpd.options.display.progress_bar = None
+          s = bpd.Series(
+            ...     [
+            ...         {"version": 1, "project": "pandas"},
+            ...         {"version": 2, "project": "pandas"},
+            ...         {"version": 1, "project": "numpy"},
+            ...     ],
+            ...     dtype=bpd.ArrowDtype(pa.struct(
+            ...         [("version", pa.int64()), ("project", pa.string())]
+            ...     ))
+            ... ) """
+    import pyarrow as pa
+    import pandas as pd
+    s = pd.Series([
+            {"version": 1, "project": "pandas"},
+            {"version": 2, "project": "pandas"},
+            {"version": 1, "project": "numpy"},
+        ], dtype=pd.ArrowDtype( #pa.struct([("sel", 
+                                           pa.struct([("version", pa.int64()), ("project", pa.string())]
+                                ))
+        #])
+        )
+    #)
+    dfp = pd.DataFrame(s.to_frame())
+    
+    d = DataFrame(dfp, index=[])
+    d.to_gbq("andreas_beschorner.nested_dbg")
+   
+    # import pandas as pd
+    # df1 = pd.DataFrame({
+    #     "aa": [2, 3, 4],
+    #     "bb": ["I", "you", "we"],
+    #     "cc": {
+    #         "k1": [[22], [44], [33]],
+    #         "k2": [["one"], ["2"], [None]]
+    #     } 
+    # }, index=None)
+    # df1.to_gbq("andreas_beschorner.nested_dbg")
 
 if __name__ == "__main__":
     #TODO: autodetect if bfpd is already setup and copy proj/loc if availabe
@@ -63,10 +105,13 @@ if __name__ == "__main__":
     #table = "gmbigframes.nested.tiny"  #"vf-de-aib-prd-cmr-chn-lab.staging.scs_mini"
     set_project(project="vf-de-ca-lab", location="europe-west3")
     table="andreas_beschorner.nested_tiny"
+    create_simple_nested()
+    exit(0)
     #testdf = DataFrame({"a": [1]}, index=None)
 
     with core.nested_data_context_manager:
         df = bfpd.read_gbq(f"SELECT * FROM {table} limit 10")
+        df_n = df.explode_nested(sep_explode=core.nested_data_context_manager.sep_layers)
         df = df.rename(columns={"event_sequence.POSO": "event_sequence.pso"})
         pass
         #testdf = DataFrame({"ooc_flag": [1], "test_value": ["Grmph"]}, index=None)
