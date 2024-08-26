@@ -65,3 +65,4 @@ pylintrc.test
 Dockerfile
 bigframes/operations/python-bigquery-dataframes.code-workspace
 pyproject.toml_
+tests/system/nested/CAR.md
