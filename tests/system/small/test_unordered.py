@@ -11,13 +11,37 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
+
 import pandas as pd
 import pyarrow as pa
 import pytest
 
 import bigframes.exceptions
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_df_equal, skip_legacy_pandas
+from tests.system.utils import (
+    assert_pandas_df_equal,
+    assert_series_equal,
+    skip_legacy_pandas,
+)
+
+
+def test_unordered_mode_sql_no_hash(unordered_session):
+    bf_df = unordered_session.read_gbq(
+        "bigquery-public-data.ethereum_blockchain.blocks"
+    )
+    sql = bf_df.sql
+    assert "ORDER BY".casefold() not in sql.casefold()
+    assert "farm_fingerprint".casefold() not in sql.casefold()
+
+
+def test_unordered_mode_job_label(unordered_session):
+    pd_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}, dtype=pd.Int64Dtype())
+    df = bpd.DataFrame(pd_df, session=unordered_session)
+    df.to_pandas()
+    job_labels = df.query_job.labels  # type:ignore
+    assert "bigframes-mode" in job_labels
+    assert job_labels["bigframes-mode"] == "unordered"
 
 
 def test_unordered_mode_cache_aggregate(unordered_session):
@@ -29,6 +53,28 @@ def test_unordered_mode_cache_aggregate(unordered_session):
     pd_result = pd_df - pd_df.mean()
 
     assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
+
+
+def test_unordered_mode_series_peek(unordered_session):
+    pd_series = pd.Series([1, 2, 3, 4, 5, 6], dtype=pd.Int64Dtype())
+    bf_series = bpd.Series(pd_series, session=unordered_session)
+    pd_result = pd_series.groupby(pd_series % 4).sum()
+    bf_peek = bf_series.groupby(bf_series % 4).sum().peek(2)
+
+    assert_series_equal(bf_peek, pd_result.reindex(bf_peek.index))
+
+
+def test_unordered_mode_single_aggregate(unordered_session):
+    pd_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}, dtype=pd.Int64Dtype())
+    bf_df = bpd.DataFrame(pd_df, session=unordered_session)
+
+    assert bf_df.a.mean() == pd_df.a.mean()
+
+
+def test_unordered_mode_print(unordered_session):
+    pd_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}, dtype=pd.Int64Dtype())
+    df = bpd.DataFrame(pd_df, session=unordered_session).cache()
+    print(df)
 
 
 @skip_legacy_pandas
@@ -68,7 +114,6 @@ def test_unordered_mode_read_gbq(unordered_session):
     [
         pytest.param(
             "first",
-            marks=pytest.mark.xfail(raises=bigframes.exceptions.OrderRequiredError),
         ),
         pytest.param(
             False,
@@ -85,28 +130,71 @@ def test_unordered_drop_duplicates(unordered_session, keep):
     assert_pandas_df_equal(bf_result.to_pandas(), pd_result, ignore_order=True)
 
 
-@pytest.mark.parametrize(
-    ("function"),
-    [
-        pytest.param(
-            lambda x: x.cumsum(),
-            id="cumsum",
-        ),
-        pytest.param(
-            lambda x: x.idxmin(),
-            id="idxmin",
-        ),
-        pytest.param(
-            lambda x: x.a.iloc[1::2],
-            id="series_iloc",
-        ),
-    ],
-)
-def test_unordered_mode_blocks_windowing(unordered_session, function):
-    pd_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}, dtype=pd.Int64Dtype())
+def test_unordered_reset_index(unordered_session):
+    pd_df = pd.DataFrame({"a": [1, 1, 3], "b": [4, 4, 6]}, dtype=pd.Int64Dtype())
+    bf_df = bpd.DataFrame(pd_df, session=unordered_session)
+
+    bf_result = bf_df.set_index("b").reset_index(drop=False)
+    pd_result = pd_df.set_index("b").reset_index(drop=False)
+
+    assert_pandas_df_equal(bf_result.to_pandas(), pd_result)
+
+
+def test_unordered_merge(unordered_session):
+    pd_df = pd.DataFrame(
+        {"a": [1, 1, 3], "b": [4, 4, 6], "c": [1, 2, 3]}, dtype=pd.Int64Dtype()
+    )
+    bf_df = bpd.DataFrame(pd_df, session=unordered_session)
+
+    bf_result = bf_df.merge(bf_df, left_on="a", right_on="c")
+    pd_result = pd_df.merge(pd_df, left_on="a", right_on="c")
+
+    assert_pandas_df_equal(bf_result.to_pandas(), pd_result, ignore_order=True)
+
+
+def test_unordered_mode_cache_preserves_order(unordered_session):
+    pd_df = pd.DataFrame(
+        {"a": [1, 2, 3, 4, 5, 6], "b": [4, 5, 9, 3, 1, 6]}, dtype=pd.Int64Dtype()
+    )
+    pd_df.index = pd_df.index.astype(pd.Int64Dtype())
     df = bpd.DataFrame(pd_df, session=unordered_session)
-    with pytest.raises(
-        bigframes.exceptions.OrderRequiredError,
-        match=r"Op.*not supported when strict ordering is disabled",
-    ):
-        function(df)
+    sorted_df = df.sort_values("b").cache()
+    bf_result = sorted_df.to_pandas()
+    pd_result = pd_df.sort_values("b")
+
+    # B is unique so unstrict order mode result here should be equivalent to strictly ordered
+    assert_pandas_df_equal(bf_result, pd_result, ignore_order=False)
+
+
+def test_unordered_mode_no_ordering_error(unordered_session):
+    pd_df = pd.DataFrame(
+        {"a": [1, 2, 3, 4, 5, 1], "b": [4, 5, 9, 3, 1, 6]}, dtype=pd.Int64Dtype()
+    )
+    pd_df.index = pd_df.index.astype(pd.Int64Dtype())
+    df = bpd.DataFrame(pd_df, session=unordered_session)
+
+    with pytest.raises(bigframes.exceptions.OrderRequiredError):
+        df.merge(df, on="a").head(3)
+
+
+def test_unordered_mode_ambiguity_warning(unordered_session):
+    pd_df = pd.DataFrame(
+        {"a": [1, 2, 3, 4, 5, 1], "b": [4, 5, 9, 3, 1, 6]}, dtype=pd.Int64Dtype()
+    )
+    pd_df.index = pd_df.index.astype(pd.Int64Dtype())
+    df = bpd.DataFrame(pd_df, session=unordered_session)
+
+    with pytest.warns(bigframes.exceptions.AmbiguousWindowWarning):
+        df.merge(df, on="a").sort_values("b_x").head(3)
+
+
+def test_unordered_mode_no_ambiguity_warning(unordered_session):
+    pd_df = pd.DataFrame(
+        {"a": [1, 2, 3, 4, 5, 1], "b": [4, 5, 9, 3, 1, 6]}, dtype=pd.Int64Dtype()
+    )
+    pd_df.index = pd_df.index.astype(pd.Int64Dtype())
+    df = bpd.DataFrame(pd_df, session=unordered_session)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        df.groupby("a").head(3)

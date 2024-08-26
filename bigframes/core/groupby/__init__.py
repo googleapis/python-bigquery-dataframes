@@ -110,6 +110,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 dropna=self._dropna,
             )
 
+    @validations.requires_ordering()
     def head(self, n: int = 5) -> df.DataFrame:
         block = self._block
         if self._dropna:
@@ -235,25 +236,25 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     def nunique(self) -> df.DataFrame:
         return self._aggregate_all(agg_ops.nunique_op)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cumsum(self, *args, numeric_only: bool = False, **kwargs) -> df.DataFrame:
         if not numeric_only:
             self._raise_on_non_numeric("cumsum")
         return self._apply_window_op(agg_ops.sum_op, numeric_only=True)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cummin(self, *args, numeric_only: bool = False, **kwargs) -> df.DataFrame:
         return self._apply_window_op(agg_ops.min_op, numeric_only=numeric_only)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cummax(self, *args, numeric_only: bool = False, **kwargs) -> df.DataFrame:
         return self._apply_window_op(agg_ops.max_op, numeric_only=numeric_only)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cumprod(self, *args, **kwargs) -> df.DataFrame:
         return self._apply_window_op(agg_ops.product_op, numeric_only=True)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def shift(self, periods=1) -> series.Series:
         window = window_specs.rows(
             grouping_keys=tuple(self._by_col_ids),
@@ -262,7 +263,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window=window)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def diff(self, periods=1) -> series.Series:
         window = window_specs.rows(
             grouping_keys=tuple(self._by_col_ids),
@@ -271,7 +272,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         )
         return self._apply_window_op(agg_ops.DiffOp(periods), window=window)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def rolling(self, window: int, min_periods=None) -> windows.Window:
         # To get n size window, need current row and n-1 preceding rows.
         window_spec = window_specs.rows(
@@ -287,7 +288,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             block, window_spec, self._selected_cols, drop_null_groups=self._dropna
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def expanding(self, min_periods: int = 1) -> windows.Window:
         window_spec = window_specs.cumulative_rows(
             grouping_keys=tuple(self._by_col_ids),
@@ -532,6 +533,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     def _session(self) -> core.Session:
         return self._block.session
 
+    @validations.requires_ordering()
     def head(self, n: int = 5) -> series.Series:
         block = self._block
         if self._dropna:
@@ -649,31 +651,31 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
 
     aggregate = agg
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cumsum(self, *args, **kwargs) -> series.Series:
         return self._apply_window_op(
             agg_ops.sum_op,
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cumprod(self, *args, **kwargs) -> series.Series:
         return self._apply_window_op(
             agg_ops.product_op,
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cummax(self, *args, **kwargs) -> series.Series:
         return self._apply_window_op(
             agg_ops.max_op,
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cummin(self, *args, **kwargs) -> series.Series:
         return self._apply_window_op(
             agg_ops.min_op,
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cumcount(self, *args, **kwargs) -> series.Series:
         return (
             self._apply_window_op(
@@ -683,7 +685,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
             - 1
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def shift(self, periods=1) -> series.Series:
         """Shift index by desired number of periods."""
         window = window_specs.rows(
@@ -693,7 +695,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window=window)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def diff(self, periods=1) -> series.Series:
         window = window_specs.rows(
             grouping_keys=tuple(self._by_col_ids),
@@ -702,7 +704,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         )
         return self._apply_window_op(agg_ops.DiffOp(periods), window=window)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def rolling(self, window: int, min_periods=None) -> windows.Window:
         # To get n size window, need current row and n-1 preceding rows.
         window_spec = window_specs.rows(
@@ -722,7 +724,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
             is_series=True,
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def expanding(self, min_periods: int = 1) -> windows.Window:
         window_spec = window_specs.cumulative_rows(
             grouping_keys=tuple(self._by_col_ids),

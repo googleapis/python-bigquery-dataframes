@@ -390,7 +390,7 @@ class ArrayValue:
         cls,
         original: ArrayValue,
         table: google.cloud.bigquery.Table,
-        ordering: orderings.ExpressionOrdering,
+        ordering: orderings.TotalOrdering,
     ):
         node = nodes.CachedTableNode(
             original_node=original.node,
@@ -463,7 +463,7 @@ class ArrayValue:
     def as_cached(
         self: ArrayValue,
         cache_table: google.cloud.bigquery.Table,
-        ordering: Optional[orderings.ExpressionOrdering],
+        ordering: Optional[orderings.RowOrdering],
     ) -> ArrayValue:
         """
         Replace the node with an equivalent one that references a tabel where the value has been materialized to.
@@ -510,8 +510,17 @@ class ArrayValue:
         """
         Convenience function to promote copy of column offsets to a value column. Can be used to reset index.
         """
-        if not self.session._strictly_ordered:
-            raise ValueError("Generating offsets not supported in unordered mode")
+        if self.node.order_ambiguous and not (self.session._strictly_ordered):
+            if not self.session._allows_ambiguity:
+                raise ValueError(
+                    "Generating offsets not supported in partial ordering mode"
+                )
+            else:
+                warnings.warn(
+                    "Window ordering may be ambiguous, this can cause unstable results.",
+                    bigframes.exceptions.AmbiguousWindowWarning,
+                )
+
         return ArrayValue(nodes.PromoteOffsetsNode(child=self.node, col_id=col_id))
 
     def concat(self, other: typing.Sequence[ArrayValue]) -> ArrayValue:
@@ -662,10 +671,17 @@ class ArrayValue:
         """
         # TODO: Support non-deterministic windowing
         if window_spec.row_bounded or not op.order_independent:
-            if not self.session._strictly_ordered:
-                raise ValueError(
-                    "Order-dependent windowed ops not supported in unordered mode"
-                )
+            if self.node.order_ambiguous and not self.session._strictly_ordered:
+                if not self.session._allows_ambiguity:
+                    raise ValueError(
+                        "Generating offsets not supported in partial ordering mode"
+                    )
+                else:
+                    warnings.warn(
+                        "Window ordering may be ambiguous, this can cause unstable results.",
+                        bigframes.exceptions.AmbiguousWindowWarning,
+                    )
+
         return ArrayValue(
             nodes.WindowOpNode(
                 child=self.node,
@@ -776,9 +792,9 @@ class ArrayValue:
             conditions=(), mappings=(*labels_mappings, *table_mappings), type="cross"
         )
         if join_side == "left":
-            joined_array = self.join(labels_array, join_def=join)
+            joined_array = self.relational_join(labels_array, join_def=join)
         else:
-            joined_array = labels_array.join(self, join_def=join)
+            joined_array = labels_array.relational_join(self, join_def=join)
         return joined_array
 
     def _create_unpivot_labels_array(
@@ -800,30 +816,27 @@ class ArrayValue:
 
         return ArrayValue.from_pyarrow(pa.Table.from_pylist(rows), session=self.session)
 
-    def join(
+    def relational_join(
         self,
         other: ArrayValue,
         join_def: join_def.JoinDefinition,
-        allow_row_identity_join: bool = False,
-    ):
+    ) -> ArrayValue:
         join_node = nodes.JoinNode(
             left_child=self.node,
             right_child=other.node,
             join=join_def,
-            allow_row_identity_join=allow_row_identity_join,
         )
-        if allow_row_identity_join:
-            return ArrayValue(bigframes.core.rewrite.maybe_rewrite_join(join_node))
         return ArrayValue(join_node)
 
     def try_align_as_projection(
         self,
         other: ArrayValue,
         join_type: join_def.JoinType,
+        join_keys: typing.Tuple[join_def.CoalescedColumnMapping, ...],
         mappings: typing.Tuple[join_def.JoinColumnMapping, ...],
     ) -> typing.Optional[ArrayValue]:
         result = bigframes.core.rewrite.join_as_projection(
-            self.node, other.node, mappings, join_type
+            self.node, other.node, join_keys, mappings, join_type
         )
         if result is not None:
             return ArrayValue(result)

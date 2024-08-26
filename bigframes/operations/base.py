@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import functools
 import typing
 from typing import List, Sequence
 
@@ -35,15 +34,6 @@ import bigframes.series as series
 import bigframes.session
 
 #TODO: window = SQL windowing/ "over clause"
-
-def requires_index(meth):
-    @functools.wraps(meth)
-    def guarded_meth(df: SeriesMethods, *args, **kwargs):
-        df._throw_if_null_index(meth.__name__)
-        return meth(df, *args, **kwargs)
-
-    return guarded_meth
-
 
 class SeriesMethods:
     def __init__(

@@ -19,6 +19,7 @@ import pytest
 
 import bigframes
 import bigframes.pandas as bpd
+import bigframes.session._io.bigquery
 
 
 @pytest.mark.parametrize(
@@ -58,7 +59,7 @@ def test_read_gbq_for_large_tables(
     assert len(df.columns) != 0
 
 
-def test_close(session):
+def test_close(session: bigframes.Session):
     # we will create two tables and confirm that they are deleted
     # when the session is closed
 
@@ -68,8 +69,12 @@ def test_close(session):
         datetime.datetime.now(datetime.timezone.utc)
         + bigframes.constants.DEFAULT_EXPIRATION
     )
-    full_id_1 = bigframes.session._io.bigquery.create_temp_table(session, expiration)
-    full_id_2 = bigframes.session._io.bigquery.create_temp_table(session, expiration)
+    full_id_1 = bigframes.session._io.bigquery.create_temp_table(
+        session.bqclient, session._temp_storage_manager._random_table(), expiration
+    )
+    full_id_2 = bigframes.session._io.bigquery.create_temp_table(
+        session.bqclient, session._temp_storage_manager._random_table(), expiration
+    )
 
     # check that the tables were actually created
     assert bqclient.get_table(full_id_1).created is not None
@@ -93,16 +98,19 @@ def test_clean_up_by_session_id():
     session_id = session.session_id
 
     # we will create two tables and confirm that they are deleted
-    # when the session is closed by id
-
+    # when the session is cleaned up by id
     bqclient = session.bqclient
     dataset = session._anonymous_dataset
     expiration = (
         datetime.datetime.now(datetime.timezone.utc)
         + bigframes.constants.DEFAULT_EXPIRATION
     )
-    bigframes.session._io.bigquery.create_temp_table(session, expiration)
-    bigframes.session._io.bigquery.create_temp_table(session, expiration)
+    bigframes.session._io.bigquery.create_temp_table(
+        session.bqclient, session._temp_storage_manager._random_table(), expiration
+    )
+    bigframes.session._io.bigquery.create_temp_table(
+        session.bqclient, session._temp_storage_manager._random_table(), expiration
+    )
 
     # check that some table exists with the expected session_id
     tables_before = bqclient.list_tables(
@@ -110,9 +118,7 @@ def test_clean_up_by_session_id():
         max_results=bigframes.session._io.bigquery._LIST_TABLES_LIMIT,
         page_size=bigframes.session._io.bigquery._LIST_TABLES_LIMIT,
     )
-    assert any(
-        [(session.session_id in table.full_table_id) for table in list(tables_before)]
-    )
+    assert any([(session.session_id in table.full_table_id) for table in tables_before])
 
     bpd.clean_up_by_session_id(
         session_id, location=session._location, project=session._project
@@ -125,5 +131,5 @@ def test_clean_up_by_session_id():
         page_size=bigframes.session._io.bigquery._LIST_TABLES_LIMIT,
     )
     assert not any(
-        [(session.session_id in table.full_table_id) for table in list(tables_after)]
+        [(session.session_id in table.full_table_id) for table in tables_after]
     )

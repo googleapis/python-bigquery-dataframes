@@ -63,6 +63,7 @@ import bigframes.core.reshape
 import bigframes.core.tools
 import bigframes.dataframe
 import bigframes.enums
+import bigframes.functions._utils as functions_utils
 import bigframes.operations as ops
 import bigframes.series
 import bigframes.session
@@ -768,8 +769,11 @@ def clean_up_by_session_id(
     location: Optional[str] = None,
     project: Optional[str] = None,
 ) -> None:
-    """Searches through table names in BigQuery and deletes tables
-    found matching the expected format.
+    """Searches through BigQuery tables and routines and deletes the ones
+    created during the session with the given session id. The match is
+    determined by having the session id present in the resource name or
+    metadata. The cloud functions serving the cleaned up routines are also
+    cleaned up.
 
     This could be useful if the session object has been lost.
     Calling `session.close()` or `bigframes.pandas.close_session()`
@@ -794,7 +798,6 @@ def clean_up_by_session_id(
         None
     """
     session = get_global_session()
-    client = session.bqclient
 
     if (location is None) != (project is None):
         raise ValueError(
@@ -804,14 +807,18 @@ def clean_up_by_session_id(
         dataset = session._anonymous_dataset
     else:
         dataset = bigframes.session._io.bigquery.create_bq_dataset_reference(
-            client,
+            session.bqclient,
             location=location,
             project=project,
             api_name="clean_up_by_session_id",
         )
 
     bigframes.session._io.bigquery.delete_tables_matching_session_id(
-        client, dataset, session_id
+        session.bqclient, dataset, session_id
+    )
+
+    functions_utils._clean_up_by_session_id(
+        session.bqclient, session.cloudfunctionsclient, dataset, session_id
     )
 
 
@@ -840,10 +847,28 @@ options = config.options
 option_context = config.option_context
 """Global :class:`~bigframes._config.option_context` to configure BigQuery DataFrames."""
 
+
 # Session management APIs
-get_global_session = global_session.get_global_session
-close_session = global_session.close_session
-reset_session = global_session.close_session
+def get_global_session():
+    return global_session.get_global_session()
+
+
+get_global_session.__doc__ = global_session.get_global_session.__doc__
+
+
+def close_session():
+    return global_session.close_session()
+
+
+close_session.__doc__ = global_session.close_session.__doc__
+
+
+def reset_session():
+    return global_session.close_session()
+
+
+reset_session.__doc__ = global_session.close_session.__doc__
+
 
 # SQL Compilation uses recursive algorithms on deep trees
 # 10M tree depth should be sufficient to generate any sql that is under bigquery limit

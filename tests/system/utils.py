@@ -26,7 +26,8 @@ import pandas as pd
 import pyarrow as pa  # type: ignore
 import pytest
 
-from bigframes.functions import remote_function
+import bigframes.functions._utils as functions_utils
+import bigframes.pandas
 
 ML_REGRESSION_METRICS = [
     "mean_absolute_error",
@@ -54,6 +55,23 @@ def skip_legacy_pandas(test):
         return test(*args, **kwds)
 
     return wrapper
+
+
+# Prefer this function for tests that run in both ordered and unordered mode
+def assert_dfs_equivalent(
+    pd_df: pd.DataFrame, bf_df: bigframes.pandas.DataFrame, **kwargs
+):
+    bf_df_local = bf_df.to_pandas()
+    ignore_order = not bf_df._session._strictly_ordered
+    assert_pandas_df_equal(bf_df_local, pd_df, ignore_order=ignore_order, **kwargs)
+
+
+def assert_series_equivalent(
+    pd_series: pd.Series, bf_series: bigframes.pandas.Series, **kwargs
+):
+    bf_df_local = bf_series.to_pandas()
+    ignore_order = not bf_series._session._strictly_ordered
+    assert_series_equal(bf_df_local, pd_series, ignore_order=ignore_order, **kwargs)
 
 
 def assert_pandas_df_equal(df0, df1, ignore_order: bool = False, **kwargs):
@@ -322,7 +340,7 @@ def get_cloud_functions(
         not name or not name_prefix
     ), "Either 'name' or 'name_prefix' can be passed but not both."
 
-    _, location = remote_function.get_remote_function_locations(location)
+    _, location = functions_utils.get_remote_function_locations(location)
     parent = f"projects/{project}/locations/{location}"
     request = functions_v2.ListFunctionsRequest(parent=parent)
     page_result = functions_client.list_functions(request=request)

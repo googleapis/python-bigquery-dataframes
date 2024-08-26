@@ -23,11 +23,13 @@ import bigframes.pandas as bpd
 
 
 def _get_series_from_json(json_data):
+    # Note: converts None to sql "null" and not to json none.
+    values = [
+        f"JSON '{json.dumps(data)}'" if data is not None else "NULL"
+        for data in json_data
+    ]
     sql = " UNION ALL ".join(
-        [
-            f"SELECT {id} AS id, JSON '{json.dumps(data)}' AS data"
-            for id, data in enumerate(json_data)
-        ]
+        [f"SELECT {id} AS id, {value} AS data" for id, value in enumerate(values)]
     )
     df = bpd.read_gbq(sql).set_index("id").sort_index()
     return df["data"]
@@ -85,18 +87,18 @@ def test_json_set_w_more_pairs():
     )
 
 
-@pytest.mark.parametrize(
-    ("series", "json_path_value_pairs"),
-    [
-        pytest.param(
+def test_json_set_w_invalid_json_path_value_pairs():
+    with pytest.raises(ValueError):
+        bbq.json_set(
+            _get_series_from_json([{"a": 10}]), json_path_value_pairs=[("$.a", 1, 100)]  # type: ignore
+        )
+
+
+def test_json_set_w_invalid_value_type():
+    with pytest.raises(TypeError):
+        bbq.json_set(
             _get_series_from_json([{"a": 10}]),
-            [("$.a", 1, 100)],
-            id="invalid_json_path_value_pairs",
-            marks=pytest.mark.xfail(raises=ValueError),
-        ),
-        pytest.param(
-            _get_series_from_json([{"a": 10}]),
-            [
+            json_path_value_pairs=[
                 (
                     "$.a",
                     bpd.read_pandas(
@@ -104,16 +106,61 @@ def test_json_set_w_more_pairs():
                     ),
                 )
             ],
-            id="invalid_json_value_type",
-            marks=pytest.mark.xfail(raises=TypeError),
-        ),
-        pytest.param(
-            bpd.Series([1, 2]),
-            [("$.a", 1)],
-            id="invalid_series_type",
-            marks=pytest.mark.xfail(raises=TypeError),
-        ),
-    ],
-)
-def test_json_set_w_invalid(series, json_path_value_pairs):
-    bbq.json_set(series, json_path_value_pairs=json_path_value_pairs)
+        )
+
+
+def test_json_set_w_invalid_series_type():
+    with pytest.raises(TypeError):
+        bbq.json_set(bpd.Series([1, 2]), json_path_value_pairs=[("$.a", 1)])
+
+
+def test_json_extract_from_json():
+    s = _get_series_from_json([{"a": {"b": [1, 2]}}, {"a": {"c": 1}}, {"a": {"b": 0}}])
+    actual = bbq.json_extract(s, "$.a.b").to_pandas()
+    # After the introduction of the JSON type, the output should be a JSON-formatted series.
+    expected = _get_series_from_json([[1, 2], None, 0]).to_pandas()
+    pd.testing.assert_series_equal(
+        actual,
+        expected,
+    )
+
+
+def test_json_extract_from_string():
+    s = bpd.Series(['{"a": {"b": [1, 2]}}', '{"a": {"c": 1}}', '{"a": {"b": 0}}'])
+    actual = bbq.json_extract(s, "$.a.b")
+    expected = _get_series_from_json([[1, 2], None, 0])
+    pd.testing.assert_series_equal(
+        actual.to_pandas(),
+        expected.to_pandas(),
+        check_names=False,
+    )
+
+
+def test_json_extract_w_invalid_series_type():
+    with pytest.raises(TypeError):
+        bbq.json_extract(bpd.Series([1, 2]), "$.a")
+
+
+def test_json_extract_array_from_json_strings():
+    s = bpd.Series(['{"a": [1, 2, 3]}', '{"a": []}', '{"a": [4,5]}'])
+    actual = bbq.json_extract_array(s, "$.a")
+    expected = bpd.Series([["1", "2", "3"], [], ["4", "5"]])
+    pd.testing.assert_series_equal(
+        actual.to_pandas(),
+        expected.to_pandas(),
+    )
+
+
+def test_json_extract_array_from_array_strings():
+    s = bpd.Series(["[1, 2, 3]", "[]", "[4,5]"])
+    actual = bbq.json_extract_array(s)
+    expected = bpd.Series([["1", "2", "3"], [], ["4", "5"]])
+    pd.testing.assert_series_equal(
+        actual.to_pandas(),
+        expected.to_pandas(),
+    )
+
+
+def test_json_extract_array_w_invalid_series_type():
+    with pytest.raises(TypeError):
+        bbq.json_extract_array(bpd.Series([1, 2]))

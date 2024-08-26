@@ -52,7 +52,6 @@ import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
-from bigframes.operations.base import requires_index
 import bigframes.operations.datetimes as dt
 import bigframes.operations.plotting as plotting
 import bigframes.operations.strings as strings
@@ -88,22 +87,22 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._dtype
 
     @property
-    @requires_index
+    @validations.requires_index
     def loc(self) -> bigframes.core.indexers.LocSeriesIndexer:
         return bigframes.core.indexers.LocSeriesIndexer(self)
 
     @property
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def iloc(self) -> bigframes.core.indexers.IlocSeriesIndexer:
         return bigframes.core.indexers.IlocSeriesIndexer(self)
 
     @property
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def iat(self) -> bigframes.core.indexers.IatSeriesIndexer:
         return bigframes.core.indexers.IatSeriesIndexer(self)
 
     @property
-    @requires_index
+    @validations.requires_index
     def at(self) -> bigframes.core.indexers.AtSeriesIndexer:
         return bigframes.core.indexers.AtSeriesIndexer(self)
 
@@ -142,7 +141,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self.to_numpy()
 
     @property
-    @requires_index
+    @validations.requires_index
     def index(self) -> indexes.Index:
         return indexes.Index.from_frame(self)
 
@@ -163,7 +162,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return structs.StructAccessor(self._block)
 
     @property
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def T(self) -> Series:
         return self.transpose()
 
@@ -175,7 +174,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def _session(self) -> bigframes.Session:
         return self._get_block().expr.session
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def transpose(self) -> Series:
         return self
 
@@ -188,7 +187,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     __len__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__len__)
 
     def __iter__(self) -> typing.Iterator:
-        self._optimize_query_complexity()
         return itertools.chain.from_iterable(
             map(lambda x: x.squeeze(axis=1), self._block.to_pandas_batches())
         )
@@ -246,7 +244,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
         raise ValueError(f"Unsupported type of parameter index: {type(index)}")
 
-    @requires_index
+    @validations.requires_index
     def rename_axis(
         self,
         mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
@@ -271,7 +269,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return False
         return block_ops.equals(self._block, other._block)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def reset_index(
         self,
         *,
@@ -329,7 +327,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         sampling_method: Optional[str] = None,
         random_state: Optional[int] = None,
         *,
-        ordered: Optional[bool] = None,
+        ordered: bool = True,
     ) -> pandas.Series:
         """Writes Series to pandas Series.
 
@@ -349,22 +347,20 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 The seed for the uniform downsampling algorithm. If provided, the uniform method may
                 take longer to execute and require more computation. If set to a value other than
                 None, this will supersede the global config.
-            ordered (bool, default None):
-                Determines whether the resulting pandas series will be deterministically ordered.
-                In some cases, unordered may result in a faster-executing query. If set to a value
-                other than None, will override Session default.
+            ordered (bool, default True):
+                Determines whether the resulting pandas series will be  ordered.
+                In some cases, unordered may result in a faster-executing query.
 
 
         Returns:
             pandas.Series: A pandas Series with all rows of this Series if the data_sampling_threshold_mb
                 is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame.
         """
-        self._optimize_query_complexity()
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
-            ordered=ordered if ordered is not None else self._session._strictly_ordered,
+            ordered=ordered,
         )
         self._set_internal_query_job(query_job)
         series = df.squeeze(axis=1)
@@ -407,12 +403,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block.drop_columns([condition_id])
         return Series(block.select_column(self._value_column))
 
-    @requires_index
+    @validations.requires_index
     def droplevel(self, level: LevelsType, axis: int | str = 0):
         resolved_level_ids = self._resolve_levels(level)
         return Series(self._block.drop_levels(resolved_level_ids))
 
-    @requires_index
+    @validations.requires_index
     def swaplevel(self, i: int = -2, j: int = -1):
         level_i = self._block.index_columns[i]
         level_j = self._block.index_columns[j]
@@ -422,7 +418,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         ]
         return Series(self._block.reorder_levels(reordering))
 
-    @requires_index
+    @validations.requires_index
     def reorder_levels(self, order: LevelsType, axis: int | str = 0):
         resolved_level_ids = self._resolve_levels(order)
         return Series(self._block.reorder_levels(resolved_level_ids))
@@ -460,13 +456,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ignore_self=True,
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cumsum(self) -> Series:
         return self._apply_window_op(
             agg_ops.sum_op, bigframes.core.window_spec.cumulative_rows()
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def ffill(self, *, limit: typing.Optional[int] = None) -> Series:
         window = bigframes.core.window_spec.rows(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
@@ -474,30 +470,30 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     pad = ffill
     pad.__doc__ = inspect.getdoc(vendored_pandas_series.Series.ffill)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def bfill(self, *, limit: typing.Optional[int] = None) -> Series:
         window = bigframes.core.window_spec.rows(preceding=0, following=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cummax(self) -> Series:
         return self._apply_window_op(
             agg_ops.max_op, bigframes.core.window_spec.cumulative_rows()
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cummin(self) -> Series:
         return self._apply_window_op(
             agg_ops.min_op, bigframes.core.window_spec.cumulative_rows()
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def cumprod(self) -> Series:
         return self._apply_window_op(
             agg_ops.product_op, bigframes.core.window_spec.cumulative_rows()
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def shift(self, periods: int = 1) -> Series:
         window = bigframes.core.window_spec.rows(
             preceding=periods if periods > 0 else None,
@@ -505,7 +501,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return self._apply_window_op(agg_ops.ShiftOp(periods), window)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def diff(self, periods: int = 1) -> Series:
         window = bigframes.core.window_spec.rows(
             preceding=periods if periods > 0 else None,
@@ -513,13 +509,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return self._apply_window_op(agg_ops.DiffOp(periods), window)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def pct_change(self, periods: int = 1) -> Series:
         # Future versions of pandas will not perfrom ffill automatically
         series = self.ffill()
         return Series(block_ops.pct_change(series._block, periods=periods))
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def rank(
         self,
         axis=0,
@@ -611,8 +607,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return Series(block.select_column(result))
 
-    @validations.requires_strict_ordering()
-    @requires_index
+    @validations.requires_ordering()
+    @validations.requires_index
     def interpolate(self, method: str = "linear") -> Series:
         if method == "pad":
             return self.ffill()
@@ -634,15 +630,15 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             result = result.reset_index()
         return Series(result)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering(bigframes.constants.SUGGEST_PEEK_PREVIEW)
     def head(self, n: int = 5) -> Series:
         return typing.cast(Series, self.iloc[0:n])
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def tail(self, n: int = 5) -> Series:
         return typing.cast(Series, self.iloc[-n:])
 
-    def peek(self, n: int = 5, *, force: bool = True) -> pandas.DataFrame:
+    def peek(self, n: int = 5, *, force: bool = True) -> pandas.Series:
         """
         Preview n arbitrary elements from the series without guarantees about row selection or ordering.
 
@@ -1139,7 +1135,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return Series(block.select_column(result_id).with_column_labels([self.name]))
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def argmax(self) -> int:
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
@@ -1152,7 +1148,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             scalars.Scalar, Series(block.select_column(row_nums)).iloc[0]
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def argmin(self) -> int:
         block, row_nums = self._block.promote_offsets()
         block = block.order_by(
@@ -1165,7 +1161,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             scalars.Scalar, Series(block.select_column(row_nums)).iloc[0]
         )
 
-    @requires_index
+    @validations.requires_index
     def unstack(self, level: LevelsType = -1):
         if isinstance(level, int) or isinstance(level, str):
             level = [level]
@@ -1189,7 +1185,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return bigframes.dataframe.DataFrame(pivot_block)
 
-    @requires_index
+    @validations.requires_index
     def idxmax(self) -> blocks.Label:
         block = self._block.order_by(
             [
@@ -1203,7 +1199,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block.slice(0, 1)
         return indexes.Index(block).to_pandas()[0]
 
-    @requires_index
+    @validations.requires_index
     def idxmin(self) -> blocks.Label:
         block = self._block.order_by(
             [
@@ -1218,14 +1214,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return indexes.Index(block).to_pandas()[0]
 
     @property
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def is_monotonic_increasing(self) -> bool:
         return typing.cast(
             bool, self._block.is_monotonic_increasing(self._value_column)
         )
 
     @property
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def is_monotonic_decreasing(self) -> bool:
         return typing.cast(
             bool, self._block.is_monotonic_decreasing(self._value_column)
@@ -1317,7 +1313,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return Series(block)
 
-    @requires_index
+    @validations.requires_index
     def sort_index(self, *, axis=0, ascending=True, na_position="last") -> Series:
         # TODO(tbergeron): Support level parameter once multi-index introduced.
         if na_position not in ["first", "last"]:
@@ -1333,7 +1329,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block.order_by(ordering)
         return Series(block)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
         # To get n size window, need current row and n-1 preceding rows.
         window_spec = bigframes.core.window_spec.rows(
@@ -1343,7 +1339,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             self._block, window_spec, self._block.value_columns, is_series=True
         )
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def expanding(self, min_periods: int = 1) -> bigframes.core.window.Window:
         window_spec = bigframes.core.window_spec.cumulative_rows(
             min_periods=min_periods
@@ -1380,7 +1376,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         else:
             raise TypeError("You have to supply one of 'by' and 'level'")
 
-    @requires_index
+    @validations.requires_index
     def _groupby_level(
         self,
         level: int | str | typing.Sequence[int] | typing.Sequence[str],
@@ -1443,9 +1439,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> Series:
         # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
         # is actually a ternary op
-        # Reproject as workaround to applying filter too late. This forces the filter
-        # to be applied before passing data to remote function, protecting from bad
-        # inputs causing errors.
 
         if by_row not in ["compat", False]:
             raise ValueError("Param by_row must be one of 'compat' or False")
@@ -1475,7 +1468,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     ex.message += f"\n{_remote_function_recommendation_message}"
                 raise
 
-        # We are working with remote function at this point
+        # We are working with remote function at this point.
+        # Reproject as workaround to applying filter too late. This forces the
+        # filter to be applied before passing data to remote function,
+        # protecting from bad inputs causing errors.
         reprojected_series = Series(self._block._force_reproject())
         result_series = reprojected_series._apply_unary_op(
             ops.RemoteFunctionOp(func=func, apply_on_null=True)
@@ -1508,6 +1504,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     ex.message += f"\n{_remote_function_recommendation_message}"
                 raise
 
+        # Reproject as workaround to applying filter too late. This forces the
+        # filter to be applied before passing data to remote function,
+        # protecting from bad inputs causing errors.
         reprojected_series = Series(self._block._force_reproject())
         result_series = reprojected_series._apply_binary_op(
             other, ops.BinaryRemoteFunctionOp(func=func)
@@ -1518,11 +1517,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         materialized_series = result_series._cached()
         return materialized_series
 
-    @requires_index
+    @validations.requires_index
     def add_prefix(self, prefix: str, axis: int | str | None = None) -> Series:
         return Series(self._get_block().add_prefix(prefix))
 
-    @requires_index
+    @validations.requires_index
     def add_suffix(self, suffix: str, axis: int | str | None = None) -> Series:
         return Series(self._get_block().add_suffix(suffix))
 
@@ -1574,7 +1573,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         else:
             raise ValueError("Need to provide 'items', 'like', or 'regex'")
 
-    @requires_index
+    @validations.requires_index
     def reindex(self, index=None, *, validate: typing.Optional[bool] = None):
         if validate and not self.index.is_unique:
             raise ValueError("Original index must be unique to reindex")
@@ -1603,7 +1602,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )._block
         return Series(result_block)
 
-    @requires_index
+    @validations.requires_index
     def reindex_like(self, other: Series, *, validate: typing.Optional[bool] = None):
         return self.reindex(other.index, validate=validate)
 
@@ -1613,7 +1612,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)
         return Series(block)
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def unique(self) -> Series:
         return self.drop_duplicates()
 
@@ -1653,9 +1652,22 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return bigframes.dataframe.DataFrame(block)
 
     def to_csv(
-        self, path_or_buf: str, sep=",", *, header: bool = True, index: bool = True
-    ) -> None:
-        return self.to_frame().to_csv(path_or_buf, sep=sep, header=header, index=index)
+        self,
+        path_or_buf=None,
+        sep=",",
+        *,
+        header: bool = True,
+        index: bool = True,
+    ) -> Optional[str]:
+        if utils.is_gcs_path(path_or_buf):
+            return self.to_frame().to_csv(
+                path_or_buf, sep=sep, header=header, index=index
+            )
+        else:
+            pd_series = self.to_pandas()
+            return pd_series.to_csv(
+                path_or_buf=path_or_buf, sep=sep, header=header, index=index
+            )
 
     def to_dict(self, into: type[dict] = dict) -> typing.Mapping:
         return typing.cast(dict, self.to_pandas().to_dict(into))  # type: ignore
@@ -1665,17 +1677,23 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def to_json(
         self,
-        path_or_buf: str,
-        orient: typing.Literal[
-            "split", "records", "index", "columns", "values", "table"
-        ] = "columns",
+        path_or_buf=None,
+        orient: Optional[
+            typing.Literal["split", "records", "index", "columns", "values", "table"]
+        ] = None,
         *,
         lines: bool = False,
         index: bool = True,
-    ) -> None:
-        return self.to_frame().to_json(
-            path_or_buf=path_or_buf, orient=orient, lines=lines, index=index
-        )
+    ) -> Optional[str]:
+        if utils.is_gcs_path(path_or_buf):
+            return self.to_frame().to_json(
+                path_or_buf=path_or_buf, orient=orient, lines=lines, index=index
+            )
+        else:
+            pd_series = self.to_pandas()
+            return pd_series.to_json(
+                path_or_buf=path_or_buf, orient=orient, lines=lines, index=index  # type: ignore
+            )
 
     def to_latex(
         self, buf=None, columns=None, header=True, index=True, **kwargs
@@ -1785,7 +1803,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         result_df = self_df.join(map_df, on="series")
         return result_df[self.name]
 
-    @validations.requires_strict_ordering()
+    @validations.requires_ordering()
     def sample(
         self,
         n: Optional[int] = None,
@@ -1870,13 +1888,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def _cached(self, *, force: bool = True, session_aware: bool = True) -> Series:
         self._block.cached(force=force, session_aware=session_aware)
         return self
-
-    def _optimize_query_complexity(self):
-        """Reduce query complexity by caching repeated subtrees and recursively materializing maximum-complexity subtrees.
-        May generate many queries and take substantial time to execute.
-        """
-        # TODO: Move all this to session
-        self._block.session._simplify_with_caching(self._block.expr)
 
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
