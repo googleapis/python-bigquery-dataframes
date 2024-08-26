@@ -11,16 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import pathlib
 
 import benchmark.utils as utils
-import bigframes_vendored.db_benchmark.groupby_queries as vendored_dbbenchmark_groupby_queries
+import bigframes_vendored.tpch.queries.q10 as vendored_tpch_q10
 
 if __name__ == "__main__":
-    table_id, session, suffix = utils.get_dbbenchmark_configuration()
+    dataset_id, session, suffix = utils.get_tpch_configuration()
     current_path = pathlib.Path(__file__).absolute()
 
     utils.get_execution_time(
-        vendored_dbbenchmark_groupby_queries.q1, current_path, suffix, table_id, session
+        vendored_tpch_q10.q, current_path, suffix, dataset_id, session
     )
