@@ -297,7 +297,7 @@ def build_api_coverage_table(bigframes_version: str, release_version: str):
     combined_df["timestamp"] = combined_df["timestamp"].astype("datetime64[us]")
     combined_df["bigframes_version"] = bigframes_version
     combined_df["release_version"] = release_version
-    return combined_df.infer_objects().convert_dtypes()
+    combined_df = combined_df.infer_objects().convert_dtypes()
 
 
 def format_api(api_names, is_in_bigframes, api_prefix):

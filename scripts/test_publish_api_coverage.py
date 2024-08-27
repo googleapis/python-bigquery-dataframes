@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 import pandas
 import pytest
 
@@ -24,6 +26,11 @@ def api_coverage_df():
 
 
 def test_api_coverage_produces_expected_schema(api_coverage_df):
+    if sys.version.split(".")[:1] == ["3", "9"]:
+        pytest.skip(
+            "Python 3.9 uses older pandas without good microsecond timestamp support."
+        )
+
     pandas.testing.assert_series_equal(
         api_coverage_df.dtypes,
         pandas.Series(
