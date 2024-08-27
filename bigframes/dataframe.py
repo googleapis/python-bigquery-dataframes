@@ -2965,7 +2965,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             export_array,
             id_overrides,
             path_or_buf,
-            format="CSV",
+            format="csv",
             export_options=options,
         )
         self._set_internal_query_job(query_job)
@@ -3011,7 +3011,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID,
         )
         query_job = self._session._executor.export_gcs(
-            export_array, id_overrides, path_or_buf, format="JSON", export_options={}
+            export_array, id_overrides, path_or_buf, format="json", export_options={}
         )
         self._set_internal_query_job(query_job)
         return None
@@ -3148,7 +3148,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             export_array,
             id_overrides,
             path,
-            format="PARQUET",
+            format="parquet",
             export_options=export_options,
         )
         self._set_internal_query_job(query_job)

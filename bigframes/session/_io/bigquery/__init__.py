@@ -87,7 +87,7 @@ def create_export_data_statement(
 ) -> str:
     all_options: Dict[str, Union[bool, str]] = {
         "uri": uri,
-        "format": format,
+        "format": format.upper(),
         # TODO(swast): Does pandas have an option not to overwrite files?
         "overwrite": True,
     }

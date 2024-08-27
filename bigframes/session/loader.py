@@ -89,6 +89,22 @@ class GbqDataLoader:
     Responsible for loading data into BigFrames using temporary bigquery tables.
 
     This loader is constrained to loading local data and queries against data sources in the same region as the storage manager.
+
+
+    Args:
+        session (bigframes.session.Session):
+            The session the data will be loaded into. Objects will not be compatible with other sessions.
+        bqclient (bigquery.Client):
+            An object providing client library objects.
+        storage_manager (bigframes.session.temp_storage.TemporaryGbqStorageManager):
+            Manages temporary storage used by the loader.
+        default_index_type (bigframes.enums.DefaultIndexKind):
+            Determines the index type created for data loaded from gcs or gbq.
+        scan_index_uniqueness (bool):
+            Whether the loader will scan index columns to determine whether the values are unique.
+            This behavior is useful in total ordering mode to use index column as order key.
+        metrics (bigframes.session.metrics.ExecutionMetrics or None):
+            Used to record query execution statistics.
     """
 
     def __init__(
@@ -100,14 +116,14 @@ class GbqDataLoader:
         scan_index_uniqueness: bool,
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
     ):
-        self.bqclient = bqclient
-        self.storage_manager = storage_manager
+        self._bqclient = bqclient
+        self._storage_manager = storage_manager
         self._default_index_type = default_index_type
         self._scan_index_uniqueness = scan_index_uniqueness
         self._df_snapshot: Dict[
             bigquery.TableReference, Tuple[datetime.datetime, bigquery.Table]
         ] = {}
-        self.metrics = metrics
+        self._metrics = metrics
         # Unfortunate circular reference, but need to pass reference when constructing objects
         self._session = session
 
@@ -158,15 +174,15 @@ class GbqDataLoader:
 
         job_config.labels = {"bigframes-api": api_name}
 
-        load_table_destination = self.storage_manager._random_table()
-        load_job = self.bqclient.load_table_from_dataframe(
+        load_table_destination = self._storage_manager._random_table()
+        load_job = self._bqclient.load_table_from_dataframe(
             pandas_dataframe_copy,
             load_table_destination,
             job_config=job_config,
         )
         self._start_generic_job(load_job)
 
-        destination_table = self.bqclient.get_table(load_table_destination)
+        destination_table = self._bqclient.get_table(load_table_destination)
         array_value = core.ArrayValue.from_table(
             table=destination_table,
             # TODO: Generate this directly from original pandas df.
@@ -215,7 +231,7 @@ class GbqDataLoader:
             )
 
         table_ref = google.cloud.bigquery.table.TableReference.from_string(
-            query, default_project=self.bqclient.project
+            query, default_project=self._bqclient.project
         )
 
         columns = list(columns)
@@ -226,7 +242,7 @@ class GbqDataLoader:
         # ---------------------------------
 
         time_travel_timestamp, table = bf_read_gbq_table.get_table_metadata(
-            self.bqclient,
+            self._bqclient,
             table_ref=table_ref,
             api_name=api_name,
             cache=self._df_snapshot,
@@ -234,9 +250,9 @@ class GbqDataLoader:
         )
         table_column_names = {field.name for field in table.schema}
 
-        if table.location.casefold() != self.storage_manager.location.casefold():
+        if table.location.casefold() != self._storage_manager.location.casefold():
             raise ValueError(
-                f"Current session is in {self.storage_manager.location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
+                f"Current session is in {self._storage_manager.location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
             )
 
         for key in columns:
@@ -321,7 +337,7 @@ class GbqDataLoader:
         )
 
         enable_snapshot = enable_snapshot and bf_read_gbq_table.validate_table(
-            self.bqclient, table_ref, all_columns, time_travel_timestamp, filter_str
+            self._bqclient, table_ref, all_columns, time_travel_timestamp, filter_str
         )
 
         # ----------------------------
@@ -334,7 +350,7 @@ class GbqDataLoader:
         # TODO(b/338065601): Provide a way to assume uniqueness and avoid this
         # check.
         is_index_unique = bf_read_gbq_table.are_index_cols_unique(
-            bqclient=self.bqclient,
+            bqclient=self._bqclient,
             table=table,
             index_cols=index_cols,
             api_name=api_name,
@@ -402,16 +418,16 @@ class GbqDataLoader:
 
         if isinstance(filepath_or_buffer, str):
             if filepath_or_buffer.startswith("gs://"):
-                load_job = self.bqclient.load_table_from_uri(
+                load_job = self._bqclient.load_table_from_uri(
                     filepath_or_buffer, table, job_config=job_config
                 )
             else:
                 with open(filepath_or_buffer, "rb") as source_file:
-                    load_job = self.bqclient.load_table_from_file(
+                    load_job = self._bqclient.load_table_from_file(
                         source_file, table, job_config=job_config
                     )
         else:
-            load_job = self.bqclient.load_table_from_file(
+            load_job = self._bqclient.load_table_from_file(
                 filepath_or_buffer, table, job_config=job_config
             )
 
@@ -424,7 +440,7 @@ class GbqDataLoader:
         table_expiration.expires = (
             datetime.datetime.now(datetime.timezone.utc) + constants.DEFAULT_EXPIRATION
         )
-        self.bqclient.update_table(table_expiration, ["expires"])
+        self._bqclient.update_table(table_expiration, ["expires"])
 
         # The BigQuery REST API for tables.get doesn't take a session ID, so we
         # can't get the schema for a temp table that way.
@@ -555,7 +571,7 @@ class GbqDataLoader:
             )
         else:
             cluster_cols = []
-        temp_table = self.storage_manager.create_temp_table(schema, cluster_cols)
+        temp_table = self._storage_manager.create_temp_table(schema, cluster_cols)
 
         timeout_ms = configuration.get("jobTimeoutMs") or configuration["query"].get(
             "timeoutMs"
@@ -610,7 +626,7 @@ class GbqDataLoader:
                 bigframes.options.compute.maximum_bytes_billed
             )
         return bf_io_bigquery.start_query_with_client(
-            self.bqclient,
+            self._bqclient,
             sql,
             job_config,
             max_results,

@@ -15,17 +15,7 @@
 from __future__ import annotations
 
 import math
-from typing import (
-    cast,
-    Dict,
-    Iterable,
-    Literal,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import cast, Iterable, Literal, Mapping, Optional, Sequence, Tuple, Union
 import warnings
 import weakref
 
@@ -162,8 +152,8 @@ class BigQueryCachingExecutor:
         array_value: bigframes.core.ArrayValue,
         col_id_overrides: Mapping[str, str],
         uri: str,
-        format: Literal["JSON", "CSV", "PARQUET"],
-        export_options: Dict[str, Union[bool, str]],
+        format: Literal["json", "csv", "parquet"],
+        export_options: Mapping[str, Union[bool, str]],
     ):
         """
         Export the ArrayValue to gcs.
@@ -178,7 +168,7 @@ class BigQueryCachingExecutor:
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
             uri=uri,
             format=format,
-            export_options=export_options,
+            export_options=dict(export_options),
         )
         job_config = bigquery.QueryJobConfig()
         bq_io.add_labels(job_config, api_name=f"dataframe-to_{format.lower()}")
