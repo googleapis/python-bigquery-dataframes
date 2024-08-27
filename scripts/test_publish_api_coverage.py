@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import pandas
-import publish_api_coverage
+
+from . import publish_api_coverage
 
 
 def test_api_coverage_produces_expected_schema():
@@ -21,27 +22,21 @@ def test_api_coverage_produces_expected_schema():
     pandas.testing.assert_series_equal(
         df.dtypes,
         pandas.Series(
-            data=[
-                "string",
-                "string",
-                "string",
-                "boolean",
-                "string",
-                "string",
-                "datetime64[ns]",
-                "string",
-                "string",
-            ],
-            index=[
-                "api",
-                "pattern",
-                "kind",
-                "is_in_bigframes",
-                "missing_parameters",
-                "module",
-                "timestamp",
-                "bigframes_version",
-                "release_version",
-            ],
+            data={
+                # Note to developer: if you update this test, you will also
+                # need to update schema of the API coverage BigQuery table in
+                # the bigframes-metrics project.
+                "api": "string",
+                "pattern": "string",
+                "kind": "string",
+                "is_in_bigframes": "boolean",
+                "missing_parameters": "string",
+                "requires_index": "string",
+                "requires_ordering": "string",
+                "module": "string",
+                "timestamp": "datetime64[ns]",
+                "bigframes_version": "string",
+                "release_version": "string",
+            },
         ),
     )

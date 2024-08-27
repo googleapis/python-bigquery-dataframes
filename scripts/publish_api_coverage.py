@@ -164,13 +164,20 @@ def generate_pandas_api_coverage():
                 token_type = "property"
 
             is_in_bigframes = hasattr(bigframes_obj, member)
-            requires_index = False
-            requires_ordering = False
+            requires_index = ""
+            requires_ordering = ""
 
             if is_in_bigframes:
                 attr = getattr(bigframes_obj, member)
-                requires_index = hasattr(attr, "_validations_requires_index")
-                requires_ordering = hasattr(attr, "_validations_requires_ordering")
+
+                # TODO(b/361101138): Add check/documentation for partial
+                # support (e.g. with some parameters).
+                requires_index = (
+                    "Y" if hasattr(attr, "_validations_requires_index") else ""
+                )
+                requires_ordering = (
+                    "Y" if hasattr(attr, "_validations_requires_ordering") else ""
+                )
 
             api_patterns.append(
                 [
@@ -313,16 +320,14 @@ def generate_api_coverage(df, api_prefix):
                 api_prefix,
             ),
             "Implemented": "",
-            "Requires index": "",
-            "Requires ordering": "",
+            "Requires index": dataframe_apis["requires_index"],
+            "Requires ordering": dataframe_apis["requires_ordering"],
             "Missing parameters": dataframe_apis["missing_parameters"],
         }
     )
     dataframe_table.loc[fully_implemented, "Implemented"] = "Y"
     dataframe_table.loc[partial_implemented, "Implemented"] = "P"
     dataframe_table.loc[not_implemented, "Implemented"] = "N"
-    dataframe_table.loc[dataframe_apis["requires_index"], "Requires index"] = "Y"
-    dataframe_table.loc[dataframe_apis["requires_ordering"], "Requires ordering"] = "Y"
     return dataframe_table
 
 
