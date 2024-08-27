@@ -13,14 +13,19 @@
 # limitations under the License.
 
 import pandas
+import pytest
 
 from . import publish_api_coverage
 
 
-def test_api_coverage_produces_expected_schema():
-    df = publish_api_coverage.build_api_coverage_table("my_bf_ver", "my_release_ver")
+@pytest.fixture
+def api_coverage_df():
+    return publish_api_coverage.build_api_coverage_table("my_bf_ver", "my_release_ver")
+
+
+def test_api_coverage_produces_expected_schema(api_coverage_df):
     pandas.testing.assert_series_equal(
-        df.dtypes,
+        api_coverage_df.dtypes,
         pandas.Series(
             data={
                 # Note to developer: if you update this test, you will also
@@ -40,3 +45,8 @@ def test_api_coverage_produces_expected_schema():
             },
         ),
     )
+
+
+def test_api_coverage_produces_missing_parameters(api_coverage_df):
+    """Make sure at least some functions have reported missing parameters."""
+    assert (api_coverage_df["missing_parameters"].str.len() > 0).any()

@@ -107,8 +107,15 @@ def names_from_signature(signature):
 
 
 def calculate_missing_parameters(bigframes_function, target_function):
-    bigframes_params = names_from_signature(inspect.signature(bigframes_function))
-    target_params = names_from_signature(inspect.signature(target_function))
+    # Some built-in functions can't be inspected. These raise a ValueError.
+    try:
+        bigframes_signature = inspect.signature(bigframes_function)
+        target_signature = inspect.signature(target_function)
+    except ValueError:
+        return {}
+
+    bigframes_params = names_from_signature(bigframes_signature)
+    target_params = names_from_signature(target_signature)
     return target_params - bigframes_params
 
 
