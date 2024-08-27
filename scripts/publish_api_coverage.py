@@ -286,6 +286,8 @@ def build_api_coverage_table(bigframes_version: str, release_version: str):
     sklearn_cov_df["module"] = "bigframes.ml"
     combined_df = pd.concat([pandas_cov_df, sklearn_cov_df])
     combined_df["timestamp"] = pd.Timestamp.now()
+    # BigQuery only supports microsecond precision timestamps.
+    combined_df["timestamp"] = combined_df["timestamp"].astype("datetime64[us]")
     combined_df["bigframes_version"] = bigframes_version
     combined_df["release_version"] = release_version
     return combined_df.infer_objects().convert_dtypes()

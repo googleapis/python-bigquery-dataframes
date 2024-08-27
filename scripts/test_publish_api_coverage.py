@@ -34,7 +34,7 @@ def test_api_coverage_produces_expected_schema():
                 "requires_index": "string",
                 "requires_ordering": "string",
                 "module": "string",
-                "timestamp": "datetime64[ns]",
+                "timestamp": "datetime64[us]",
                 "bigframes_version": "string",
                 "release_version": "string",
             },
