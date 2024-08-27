@@ -298,6 +298,7 @@ def build_api_coverage_table(bigframes_version: str, release_version: str):
     combined_df["bigframes_version"] = bigframes_version
     combined_df["release_version"] = release_version
     combined_df = combined_df.infer_objects().convert_dtypes()
+    return combined_df
 
 
 def format_api(api_names, is_in_bigframes, api_prefix):
