@@ -13,13 +13,14 @@
 # limitations under the License.
 
 
+import random
+
 from google.cloud import bigquery
 import pandas
 import pytest
 
 import bigframes
 import bigframes.ml.linear_model
-from tests.system import utils
 
 
 @pytest.fixture(scope="module")
@@ -147,20 +148,19 @@ def test_df_apis(bq_cmek, session_with_bq_cmek, scalars_table_id):
         ),
     ],
 )
-def test_read_csv_gcs(
-    bq_cmek, session_with_bq_cmek, scalars_df_index, gcs_folder, engine
-):
+def test_read_csv_gcs(bq_cmek, session_with_bq_cmek, gcs_folder, engine):
     if not bq_cmek:  # pragma: NO COVER
         pytest.skip("no cmek set for testing")  # pragma: NO COVER
 
-    # Create a csv in gcs
-    write_path = gcs_folder + "test_read_csv_gcs_bigquery_engine*.csv"
-    read_path = (
-        utils.get_first_file_from_wildcard(write_path) if engine is None else write_path
-    )
-    scalars_df_index.to_csv(write_path)
+    # Initialize a pandas dataframe
+    pdf = pandas.DataFrame([random.randint(0, 1_000_000_000)])
 
-    # Read the BQ table
+    # Export the dataframe to a csv in gcs
+    write_path = gcs_folder + "test_read_csv_gcs_bigquery_engine*.csv"
+    read_path = write_path.replace("*", "0")
+    pdf.to_csv(write_path)
+
+    # Read the gcs csv
     df = session_with_bq_cmek.read_csv(read_path, engine=engine)
 
     # Assert encryption
@@ -205,7 +205,9 @@ def test_read_pandas(bq_cmek, session_with_bq_cmek):
         pytest.skip("no cmek set for testing")  # pragma: NO COVER
 
     # Read a pandas dataframe
-    df = session_with_bq_cmek.read_pandas(pandas.DataFrame([1]))
+    df = session_with_bq_cmek.read_pandas(
+        pandas.DataFrame([random.randint(0, 1_000_000_000)])
+    )
 
     # Assert encryption
     _assert_bq_table_is_encrypted(df, bq_cmek, session_with_bq_cmek)
