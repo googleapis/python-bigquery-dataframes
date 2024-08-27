@@ -26,7 +26,7 @@ def api_coverage_df():
 
 
 def test_api_coverage_produces_expected_schema(api_coverage_df):
-    if sys.version.split(".")[:1] == ["3", "9"]:
+    if sys.version.split(".")[:2] == ["3", "9"]:
         pytest.skip(
             "Python 3.9 uses older pandas without good microsecond timestamp support."
         )
