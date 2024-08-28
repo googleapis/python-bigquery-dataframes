@@ -92,7 +92,7 @@ class Options:
 
         Returns:
             bigframes._config.display_options.DisplayOptions:
-                Options for controlling object representaion.
+                Options for controlling object representation.
         """
         return self._local.display_options
 
