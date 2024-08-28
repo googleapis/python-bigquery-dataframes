@@ -49,6 +49,7 @@ dependencies = [
     "google-cloud-storage >=2.0.0",
     "ibis-framework[bigquery] >=9.0.0,<=9.3.0",
     "jellyfish >=0.8.9",
+    "numpy >=1.24.0",
     "pandas >=1.5.3",
     "pyarrow >=10.0.1",
     "pydata-google-auth >=1.8.2",
