@@ -16,6 +16,9 @@
 
 This module should not depend on any others in the package.
 """
+import bigframes
+
+BF_VERSION = bigframes.__version__
 
 FEEDBACK_LINK = (
     "Share your usecase with the BigQuery DataFrames team at the "
@@ -26,4 +29,5 @@ ABSTRACT_METHOD_ERROR_MESSAGE = (
     "Abstract method. You have likely encountered a bug. "
     "Please share this stacktrace and how you reached it with the BigQuery DataFrames team. "
     f"{FEEDBACK_LINK}"
+    f"You are currently running BigFrames version {BF_VERSION}"
 )
