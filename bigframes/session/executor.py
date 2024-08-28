@@ -243,7 +243,6 @@ class BigQueryCachingExecutor:
         return self._run_execute_query(sql=sql)
 
     def get_row_count(self, array_value: bigframes.core.ArrayValue) -> int:
-        # optimized plan less likely to have count-destroying operators like filter or join
         count = self._local_get_row_count(array_value)
         if count is not None:
             return count
@@ -258,6 +257,8 @@ class BigQueryCachingExecutor:
     def _local_get_row_count(
         self, array_value: bigframes.core.ArrayValue
     ) -> Optional[int]:
+        # optimized plan has cache materializations which will have row count metadata
+        # that is more likely to be usable than original leaf nodes.
         plan = self._get_optimized_plan(array_value.node)
         return tree_properties.row_count(plan)
 
@@ -307,6 +308,11 @@ class BigQueryCachingExecutor:
         return results_iterator
 
     def _get_optimized_plan(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
+        """
+        Takes the original expression tree and applies optimizations to accelerate execution.
+
+        At present, the only optimization is to replace subtress with cached previous materializations.
+        """
         return tree_properties.replace_nodes(node, (dict(self._cached_executions)))
 
     def _is_trivially_executable(self, array_value: bigframes.core.ArrayValue):

@@ -368,14 +368,28 @@ class ReadLocalNode(LeafNode):
         return self.n_rows
 
 
-## Put ordering in here or just add order_by node above?
 @dataclass(frozen=True)
-class ReadTableNode(LeafNode):
+class GbqTable:
     project_id: str = field()
     dataset_id: str = field()
     table_id: str = field()
-
     physical_schema: Tuple[bq.SchemaField, ...] = field()
+    n_rows: int = field()
+
+    def from_table(table: bq.Table) -> GbqTable:
+        return GbqTable(
+            project_id=table.project,
+            dataset_id=table.dataset_id,
+            table_id=table.table_id,
+            physical_schema=schemata.ArraySchema.from_bq_table(table),
+            n_rows=table.num_rows,
+        )
+
+
+## Put ordering in here or just add order_by node above?
+@dataclass(frozen=True)
+class ReadTableNode(LeafNode):
+    table: GbqTable
     # Subset of physical schema columns, with chosen BQ types
     columns: schemata.ArraySchema = field()
 
@@ -391,10 +405,10 @@ class ReadTableNode(LeafNode):
 
     def __post_init__(self):
         # enforce invariants
-        physical_names = set(map(lambda i: i.name, self.physical_schema))
+        physical_names = set(map(lambda i: i.name, self.table.physical_schema))
         if not set(self.columns.names).issubset(physical_names):
             raise ValueError(
-                f"Requested schema {self.columns} cannot be derived from table schemal {self.physical_schema}"
+                f"Requested schema {self.columns} cannot be derived from table schemal {self.table.physical_schema}"
             )
         if self.order_col_is_sequential and len(self.total_order_cols) != 1:
             raise ValueError("Sequential primary key must have only one component")
@@ -432,6 +446,12 @@ class ReadTableNode(LeafNode):
     def variables_introduced(self) -> int:
         return len(self.schema.items) + 1
 
+    @property
+    def row_count(self) -> typing.Optional[int]:
+        if self.sql_predicate is None:
+            return self.table.n_rows
+        return None
+
 
 # This node shouldn't be used in the "original" expression tree, only used as replacement for original during planning
 @dataclass(frozen=True)
@@ -440,25 +460,20 @@ class CachedTableNode(LeafNode):
     # note: this isn't a "child" node.
     original_node: BigFrameNode = field()
     # reference to cached materialization of original_node
-    project_id: str = field()
-    dataset_id: str = field()
-    table_id: str = field()
-    physical_schema: Tuple[bq.SchemaField, ...] = field()
-
+    table: GbqTable
     ordering: typing.Optional[orderings.RowOrdering] = field()
-    n_rows: int = field()
 
     def __post_init__(self):
         # enforce invariants
-        physical_names = set(map(lambda i: i.name, self.physical_schema))
+        physical_names = set(map(lambda i: i.name, self.table.physical_schema))
         logical_names = self.original_node.schema.names
         if not set(logical_names).issubset(physical_names):
             raise ValueError(
-                f"Requested schema {logical_names} cannot be derived from table schema {self.physical_schema}"
+                f"Requested schema {logical_names} cannot be derived from table schema {self.table.physical_schema}"
             )
         if not set(self.hidden_columns).issubset(physical_names):
             raise ValueError(
-                f"Requested hidden columns {self.hidden_columns} cannot be derived from table schema {self.physical_schema}"
+                f"Requested hidden columns {self.hidden_columns} cannot be derived from table schema {self.table.physical_schema}"
             )
 
     @property
@@ -505,7 +520,7 @@ class CachedTableNode(LeafNode):
 
     @property
     def row_count(self) -> typing.Optional[int]:
-        return self.n_rows
+        return self.table.n_rows
 
 
 # Unary nodes
