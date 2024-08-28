@@ -539,8 +539,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         selected_ids: Tuple[str, ...] = ()
         for label in key:
-            col_ids = self._block.label_to_col_id[label]
-            selected_ids = (*selected_ids, *col_ids)
+            col_ids = None
+            try:
+                col_ids = self._block.label_to_col_id[label] # type: ignore
+            except KeyError as err:
+                pass
+            if col_ids:
+                selected_ids = (*selected_ids, *col_ids)
 
         return DataFrame(self._block.select_columns(selected_ids))
 
@@ -2883,34 +2888,40 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def explode_nested(self, sep_explode: str, columns: list|None=None):
         return self._explode_nested(
-            df_new = DataFrame({}), level_prefix="", sep_explode=sep_explode, columns=columns
+            sep_explode=sep_explode, columns=columns
         )
 
-    def _explode_nested(self, df_new: DataFrame, level_prefix: str, sep_explode: str, sep_struct: str|None=None,
-                       columns: list|None=None) -> DataFrame|dict:
-        sep_struct = sep_struct if sep_struct is not None else "."
-        schema = self._block.expr.schema
-        raw, rcols = {}, []
-        nested, ncols = {}, []
-        for idx, col in enumerate(schema.items):
-            last = level_prefix + sep_explode + col.column
-            if bigframes.dtypes.is_array_like(col.dtype):
-                ncols.append(last)
-                nested.update({col: last})    
-            else:
-                rcols.append(last)
-                raw.update({col: last})
-        # select those columns prefixing any string of the "columns" list
-        cols_considered = ncols if columns is None else columns
-        cols = [col for col in cols_considered if col.startswith(tuple(ncols))]
-        df_tmp = self[list(raw.keys())]
-        df_tmp.rename(columns=raw)
-        #df = concat([df, df_tmp], axis=)
-        
-        for ncol in cols:
-            self._explode_nested(df_new=df_new, level_prefix=ncol, sep_explode=sep_explode,
-                                        sep_struct=sep_struct, columns=columns)
-        return {}
+    def _explode_nested(self, sep_explode: str, sep_struct: str|None=None, columns: list|None=None) -> DataFrame|dict:
+        sep_struct = sep_struct if sep_struct is not None else "."        
+        # has_nested = True
+        #if columns is not None:
+        #    columns = [c.replace(sep_struct, sep_explode) for c in columns]
+        ncols = [""]
+        df_flattened = self.copy()
+        while ncols:
+            prefix = ""
+            #has_nested = False
+            schema = df_flattened.dtypes.to_dict()
+            assert(isinstance(schema, dict))
+            ncols = []
+            for col, dtp in schema.items():
+                print(prefix)
+                if bigframes.dtypes.is_struct_like(dtp):
+                    ncols.append(col)
+                cols_considered = ncols if columns is None else columns
+                ncols = [cc for cc in cols_considered if cc.startswith(tuple(ncols))]
+                if ncols:
+                    prefix = col if not prefix else prefix + sep_struct + col
+                    #has_nested = True
+                    continue
+            if ncols:
+                df_flattened = df_flattened.struct.explode(ncols[0], separator=sep_explode)
+                
+        print(df_flattened.dtypes)
+        print(df_flattened.head(2))
+            # select those columns prefixing any string of the "columns" list     
+
+        return df_flattened
         
         
     #TODO: create explod_recursion to arbitrary depth of nestings

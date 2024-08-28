@@ -56,63 +56,70 @@ from bigframes.dataframe import DataFrame
 #     testdf.apply(cm._current_data),
 #     bfpd.get_dummies(cm._current_data)   
 
-def create_simple_nested():
-    """
-            import bigframes.pandas as bpd
-          import pyarrow as pa
-           bpd.options.display.progress_bar = None
-          s = bpd.Series(
-            ...     [
-            ...         {"version": 1, "project": "pandas"},
-            ...         {"version": 2, "project": "pandas"},
-            ...         {"version": 1, "project": "numpy"},
-            ...     ],
-            ...     dtype=bpd.ArrowDtype(pa.struct(
-            ...         [("version", pa.int64()), ("project", pa.string())]
-            ...     ))
-            ... ) """
+def create_simple_nested(create: bool) -> DataFrame:
     import pyarrow as pa
     import pandas as pd
-    s = pd.Series([
+    countries = bfpd.Series(["cn", "es", "us"])
+    s = bfpd.Series([
             {"version": 1, "project": "pandas"},
             {"version": 2, "project": "pandas"},
             {"version": 1, "project": "numpy"},
-        ], dtype=pd.ArrowDtype( #pa.struct([("sel", 
-                                           pa.struct([("version", pa.int64()), ("project", pa.string())]
-                                ))
-        #])
-        )
-    #)
-    dfp = pd.DataFrame(s.to_frame())
-    
-    d = DataFrame(dfp, index=[])
-    d.to_gbq("andreas_beschorner.nested_dbg")
-   
-    # import pandas as pd
-    # df1 = pd.DataFrame({
-    #     "aa": [2, 3, 4],
-    #     "bb": ["I", "you", "we"],
-    #     "cc": {
-    #         "k1": [[22], [44], [33]],
-    #         "k2": [["one"], ["2"], [None]]
-    #     } 
-    # }, index=None)
-    # df1.to_gbq("andreas_beschorner.nested_dbg")
+        ], dtype=pd.ArrowDtype( pa.struct([("version", pa.int64()), ("project", pa.string())] ))
+    )
+
+    downloads = bfpd.Series([100, 200, 300])
+    dfp = bfpd.DataFrame({"country": countries, "file": s, "download_count": downloads}, index=None)
+
+    if create:
+        dfp.to_gbq("andreas_beschorner.nested_dbg")
+    return dfp
+
+def create_complex_nested(create: bool) -> DataFrame:
+    import pyarrow as pa
+    import pandas as pd
+
+    nested_struct_schema = pa.struct([
+        pa.field("city", pa.string()),
+        pa.field("country", pa.string())
+    ])
+    complex_struct_schema = pa.struct([
+        pa.field("name", pa.string()),
+        pa.field("age", pa.int64()),
+        pa.field("address", nested_struct_schema)
+    ])
+    complex_data = [
+        {"name": "Alice", "age": 30, "address": {"city": "New York", "country": "USA"}},
+        {"name": "Bob", "age": 25, "address": {"city": "London", "country": "UK"}}
+    ]
+    complex_df = bfpd.DataFrame({
+        "id": pd.Series([1, 2]),
+        "person": pd.Series(
+            complex_data,
+            dtype=pd.ArrowDtype(complex_struct_schema),
+        ),
+    }, index=[0, 1])
+
+    if create:
+        complex_df.to_gbq("andreas_beschorner.nested_complex")
+    return complex_df
 
 if __name__ == "__main__":
     #TODO: autodetect if bfpd is already setup and copy proj/loc if availabe
     #set_project(project="gmbigframes", location="europe-west3")
     #table = "gmbigframes.nested.tiny"  #"vf-de-aib-prd-cmr-chn-lab.staging.scs_mini"
     set_project(project="vf-de-ca-lab", location="europe-west3")
-    table="andreas_beschorner.nested_tiny"
-    create_simple_nested()
-    exit(0)
+    table="andreas_beschorner.nested_dbg" # table="andreas_beschorner.nested_tiny"
+    #dfp = create_simple_nested(True)
     #testdf = DataFrame({"a": [1]}, index=None)
 
     with core.nested_data_context_manager:
-        df = bfpd.read_gbq(f"SELECT * FROM {table} limit 10")
-        df_n = df.explode_nested(sep_explode=core.nested_data_context_manager.sep_layers)
-        df = df.rename(columns={"event_sequence.POSO": "event_sequence.pso"})
+        #df = bfpd.read_gbq(f"SELECT * FROM {table} limit 10")
+        #df = bfpd.DataFrame(dfp)
+        df = create_complex_nested(False)
+        print(df)
+        df_n = df.explode_nested(sep_explode=core.nested_data_context_manager.sep_layers, columns=["person.address"])
+        #df_n.to_gbq("andreas_beschorner.nested_complex_half")
+        #df = df.rename(columns={"event_sequence.POSO": "event_sequence.pso"})
         pass
         #testdf = DataFrame({"ooc_flag": [1], "test_value": ["Grmph"]}, index=None)
         #TODO: How create 
