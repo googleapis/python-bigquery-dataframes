@@ -16,9 +16,9 @@
 
 This module should not depend on any others in the package.
 """
-import bigframes
+import bigframes.version
 
-BF_VERSION = bigframes.__version__
+BF_VERSION = bigframes.version.__version__
 
 FEEDBACK_LINK = (
     "Share your usecase with the BigQuery DataFrames team at the "
