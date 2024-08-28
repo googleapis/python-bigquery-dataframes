@@ -77,7 +77,7 @@ class Options:
 
         Returns:
             bigframes._config.bigquery_options.BigQueryOptions:
-               Options for BigQuery engine.
+                Options for BigQuery engine.
         """
         if self._local.bigquery_options is not None:
             # The only way we can get here is if someone called
@@ -92,7 +92,7 @@ class Options:
 
         Returns:
             bigframes._config.display_options.DisplayOptions:
-               Options for controlling object representaion.
+                Options for controlling object representaion.
         """
         return self._local.display_options
 
@@ -108,7 +108,7 @@ class Options:
 
         Returns:
             bigframes._config.sampling_options.SamplingOptions:
-              Options for controlling downsampling.
+                Options for controlling downsampling.
         """
         return self._local.sampling_options
 
@@ -118,7 +118,7 @@ class Options:
 
         Returns:
             bigframes._config.compute_options.ComputeOptions:
-              Thread-local options for controlling object computation
+                Thread-local options for controlling object computation
         """
         return self._local.compute_options
 
@@ -131,8 +131,8 @@ class Options:
 
         Returns:
             bool:
-              A boolean value, where a value is True if a thread-local session
-              is in use; otherwise False.
+                A boolean value, where a value is True if a thread-local session
+                is in use; otherwise False.
         """
         return self._local.bigquery_options is not None
 
