@@ -1293,7 +1293,7 @@ class OrderedIR(BaseIbisIR):
                     bounds.preceding, bounds.following, how="range"
                 )
             if isinstance(bounds, RowsWindowBounds):
-                if bounds.preceding is not None and bounds.following is not None:
+                if bounds.preceding is not None or bounds.following is not None:
                     window = window.preceding_following(
                         bounds.preceding, bounds.following, how="rows"
                     )

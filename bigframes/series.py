@@ -487,19 +487,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @validations.requires_ordering()
     def shift(self, periods: int = 1) -> Series:
-        window_spec = windows.rows(
-            preceding=periods if periods > 0 else None,
-            following=-periods if periods < 0 else None,
-        )
+        window_spec = windows.rows()
         return self._apply_window_op(agg_ops.ShiftOp(periods), window_spec)
 
     @validations.requires_ordering()
     def diff(self, periods: int = 1) -> Series:
-        window = windows.rows(
-            preceding=periods if periods > 0 else None,
-            following=-periods if periods < 0 else None,
-        )
-        return self._apply_window_op(agg_ops.DiffOp(periods), window)
+        window_spec = windows.rows()
+        return self._apply_window_op(agg_ops.DiffOp(periods), window_spec)
 
     @validations.requires_ordering()
     def pct_change(self, periods: int = 1) -> Series:

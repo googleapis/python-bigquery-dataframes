@@ -2822,17 +2822,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @validations.requires_ordering()
     def shift(self, periods: int = 1) -> DataFrame:
-        # Window framing clause is not allowed for analytic function lag.
-        window = windows.unbound()
-        return self._apply_window_op(agg_ops.ShiftOp(periods), window)
+        window_spec = windows.rows()
+        return self._apply_window_op(agg_ops.ShiftOp(periods), window_spec)
 
     @validations.requires_ordering()
     def diff(self, periods: int = 1) -> DataFrame:
-        window = windows.rows(
-            preceding=periods if periods > 0 else None,
-            following=-periods if periods < 0 else None,
-        )
-        return self._apply_window_op(agg_ops.DiffOp(periods), window)
+        window_spec = windows.rows()
+        return self._apply_window_op(agg_ops.DiffOp(periods), window_spec)
 
     @validations.requires_ordering()
     def pct_change(self, periods: int = 1) -> DataFrame:
