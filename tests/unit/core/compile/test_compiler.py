@@ -32,6 +32,6 @@ def test_compile_dql_statement_node(strict: bool):
     result = compiler.compile_node(node)
 
     assert (
-        re.sub("\s+", " ", result.to_sql())
+        re.sub(r"\s+", " ", result.to_sql())
         == "SELECT t0.`a`, t0.`b` FROM ( SELECT a, b FROM MyTable ) AS t0"
     )
