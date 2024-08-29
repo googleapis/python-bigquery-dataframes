@@ -107,8 +107,15 @@ def names_from_signature(signature):
 
 
 def calculate_missing_parameters(bigframes_function, target_function):
-    bigframes_params = names_from_signature(inspect.signature(bigframes_function))
-    target_params = names_from_signature(inspect.signature(target_function))
+    # Some built-in functions can't be inspected. These raise a ValueError.
+    try:
+        bigframes_signature = inspect.signature(bigframes_function)
+        target_signature = inspect.signature(target_function)
+    except ValueError:
+        return {}
+
+    bigframes_params = names_from_signature(bigframes_signature)
+    target_params = names_from_signature(target_signature)
     return target_params - bigframes_params
 
 
@@ -116,7 +123,15 @@ def generate_pandas_api_coverage():
     """Inspect all our pandas objects, and compare with the real pandas objects, to see
     which methods we implement. For each, generate a regex that can be used to check if
     its present in a notebook"""
-    header = ["api", "pattern", "kind", "is_in_bigframes", "missing_parameters"]
+    header = [
+        "api",
+        "pattern",
+        "kind",
+        "is_in_bigframes",
+        "missing_parameters",
+        "requires_index",
+        "requires_ordering",
+    ]
     api_patterns = []
     indexers = ["loc", "iloc", "iat", "ix", "at"]
     for name, pandas_obj, bigframes_obj in PANDAS_TARGETS:
@@ -156,6 +171,20 @@ def generate_pandas_api_coverage():
                 token_type = "property"
 
             is_in_bigframes = hasattr(bigframes_obj, member)
+            requires_index = ""
+            requires_ordering = ""
+
+            if is_in_bigframes:
+                attr = getattr(bigframes_obj, member)
+
+                # TODO(b/361101138): Add check/documentation for partial
+                # support (e.g. with some parameters).
+                requires_index = (
+                    "Y" if hasattr(attr, "_validations_requires_index") else ""
+                )
+                requires_ordering = (
+                    "Y" if hasattr(attr, "_validations_requires_ordering") else ""
+                )
 
             api_patterns.append(
                 [
@@ -164,6 +193,8 @@ def generate_pandas_api_coverage():
                     token_type,
                     is_in_bigframes,
                     missing_parameters,
+                    requires_index,
+                    requires_ordering,
                 ]
             )
 
@@ -262,9 +293,12 @@ def build_api_coverage_table(bigframes_version: str, release_version: str):
     sklearn_cov_df["module"] = "bigframes.ml"
     combined_df = pd.concat([pandas_cov_df, sklearn_cov_df])
     combined_df["timestamp"] = pd.Timestamp.now()
+    # BigQuery only supports microsecond precision timestamps.
+    combined_df["timestamp"] = combined_df["timestamp"].astype("datetime64[us]")
     combined_df["bigframes_version"] = bigframes_version
     combined_df["release_version"] = release_version
-    return combined_df.infer_objects().convert_dtypes()
+    combined_df = combined_df.infer_objects().convert_dtypes()
+    return combined_df
 
 
 def format_api(api_names, is_in_bigframes, api_prefix):
@@ -287,6 +321,7 @@ def generate_api_coverage(df, api_prefix):
         dataframe_apis["missing_parameters"].str.len() != 0
     ) & dataframe_apis["is_in_bigframes"]
     not_implemented = ~dataframe_apis["is_in_bigframes"]
+
     dataframe_table = pd.DataFrame(
         {
             "API": format_api(
@@ -295,6 +330,8 @@ def generate_api_coverage(df, api_prefix):
                 api_prefix,
             ),
             "Implemented": "",
+            "Requires index": dataframe_apis["requires_index"],
+            "Requires ordering": dataframe_apis["requires_ordering"],
             "Missing parameters": dataframe_apis["missing_parameters"],
         }
     )
