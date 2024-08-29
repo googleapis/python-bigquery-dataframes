@@ -12,25 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
 import google.cloud.bigquery as bq
 import pytest
-import re
 
 from bigframes.core.compile.compiler import Compiler
 from bigframes.core.nodes import DqlStatementNode
 
 
-
-@pytest.mark.parametrize(
-    "strict",
-    [pytest.param(True), pytest.param(False)]
-
-)
+@pytest.mark.parametrize("strict", [pytest.param(True), pytest.param(False)])
 def test_compile_dql_statement_node(strict: bool):
     compiler = Compiler(strict)
-    node = DqlStatementNode("SELECT a,b FROM MyTable", (bq.SchemaField("a", "INTEGER"), bq.SchemaField("b", "FLOAT")))
+    node = DqlStatementNode(
+        "SELECT a,b FROM MyTable",
+        (bq.SchemaField("a", "INTEGER"), bq.SchemaField("b", "FLOAT")),
+    )
 
     result = compiler.compile_node(node)
 
-    assert re.sub('\s+', ' ', result.to_sql()) == "SELECT t0.`a`, t0.`b` FROM ( SELECT a, b FROM MyTable ) AS t0"
-
+    assert (
+        re.sub("\s+", " ", result.to_sql())
+        == "SELECT t0.`a`, t0.`b` FROM ( SELECT a, b FROM MyTable ) AS t0"
+    )

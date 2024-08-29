@@ -324,8 +324,12 @@ class Compiler:
         return self.compile_node(node.child, ordered)._uniform_sampling(node.fraction)
 
     @_compile_node.register
-    def compile_dql_statement(self, node: nodes.DqlStatementNode, ordered: bool = False):
-        ibis_schema = ibis.backends.bigquery.BigQuerySchema.to_ibis(list(node.physical_schema))
+    def compile_dql_statement(
+        self, node: nodes.DqlStatementNode, ordered: bool = False
+    ):
+        ibis_schema = ibis.backends.bigquery.BigQuerySchema.to_ibis(
+            list(node.physical_schema)
+        )
         ibis_table = ibis.backends.bigquery.Backend().sql(
             schema=ibis_schema, query=node.sql
         )
