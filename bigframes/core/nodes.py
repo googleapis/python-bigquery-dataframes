@@ -382,7 +382,7 @@ class GbqTable:
             project_id=table.project,
             dataset_id=table.dataset_id,
             table_id=table.table_id,
-            physical_schema=schemata.ArraySchema.from_bq_table(table),
+            physical_schema=tuple(table.schema),
             n_rows=table.num_rows,
             cluster_cols=None
             if table.clustering_fields is None
