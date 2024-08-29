@@ -21,12 +21,11 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions. "
 from __future__ import annotations
 
 import typing
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Literal, Optional, Union
 
 import bigframes.constants as constants
 import bigframes.core.groupby as groupby
 import bigframes.core.sql
-import bigframes.dataframe
 import bigframes.ml.utils as utils
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops

@@ -16,9 +16,8 @@ from __future__ import annotations
 
 import dataclasses
 import functools
-import itertools
 import typing
-from typing import Sequence, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
