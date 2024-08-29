@@ -377,8 +377,8 @@ class GbqTable:
     n_rows: int = field()
     cluster_cols: typing.Optional[Tuple[str, ...]]
 
-    @classmethod
-    def from_table(cls, table: bq.Table) -> GbqTable:
+    @staticmethod
+    def from_table(table: bq.Table) -> GbqTable:
         return GbqTable(
             project_id=table.project,
             dataset_id=table.dataset_id,
