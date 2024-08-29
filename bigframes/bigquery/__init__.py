@@ -270,7 +270,7 @@ def json_extract_array(
     """
     return series._apply_unary_op(ops.JSONExtractArray(json_path=json_path))
 
-  
+
 def struct(value: dataframe.DataFrame) -> series.Series:
     block = value._block
     block, result_id = block.apply_nary_op(
