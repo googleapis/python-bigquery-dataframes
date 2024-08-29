@@ -146,6 +146,16 @@ def session() -> Generator[bigframes.Session, None, None]:
 
 
 @pytest.fixture(scope="session")
+def session_us_east5() -> Generator[bigframes.Session, None, None]:
+    context = bigframes.BigQueryOptions(
+        location="us-east5",
+    )
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()  # close generated session at cleanup time
+
+
+@pytest.fixture(scope="session")
 def session_load() -> Generator[bigframes.Session, None, None]:
     context = bigframes.BigQueryOptions(location="US", project="bigframes-load-testing")
     session = bigframes.Session(context=context)
@@ -594,6 +604,14 @@ def penguins_df_default_index(
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
     return session.read_gbq(penguins_table_id)
+
+
+@pytest.fixture(scope="session")
+def penguins_df_null_index(
+    penguins_table_id: str, unordered_session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return unordered_session.read_gbq(penguins_table_id)
 
 
 @pytest.fixture(scope="session")

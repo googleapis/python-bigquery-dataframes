@@ -754,7 +754,9 @@ def struct_field_op_impl(x: ibis_types.Value, op: ops.StructFieldOp):
         name = op.name_or_index
     else:
         name = struct_value.names[op.name_or_index]
-    return struct_value[name].name(name)
+
+    result = struct_value[name]
+    return result.cast(result.type()(nullable=True)).name(name)
 
 
 def numeric_to_datetime(x: ibis_types.Value, unit: str) -> ibis_types.TimestampValue:
@@ -943,6 +945,11 @@ def json_set_op_impl(x: ibis_types.Value, y: ibis_types.Value, op: ops.JSONSet):
 @scalar_op_compiler.register_unary_op(ops.JSONExtract, pass_op=True)
 def json_extract_op_impl(x: ibis_types.Value, op: ops.JSONExtract):
     return json_extract(json_obj=x, json_path=op.json_path)
+
+
+@scalar_op_compiler.register_unary_op(ops.JSONExtractArray, pass_op=True)
+def json_extract_array_op_impl(x: ibis_types.Value, op: ops.JSONExtractArray):
+    return json_extract_array(json_obj=x, json_path=op.json_path)
 
 
 ### Binary Ops
@@ -1588,6 +1595,13 @@ def json_extract(
     json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str
 ) -> ibis_dtypes.JSON:
     """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
+
+
+@ibis.udf.scalar.builtin(name="json_extract_array")
+def json_extract_array(
+    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str
+) -> ibis_dtypes.Array[ibis_dtypes.String]:
+    """Extracts a JSON array and converts it to a SQL ARRAY of JSON-formatted STRINGs or JSON values."""
 
 
 @ibis.udf.scalar.builtin(name="ML.DISTANCE")
