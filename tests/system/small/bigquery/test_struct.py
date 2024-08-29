@@ -13,18 +13,45 @@
 # limitations under the License.
 
 import pandas as pd
+import pytest
 
 import bigframes.bigquery as bbq
 import bigframes.series as series
 
 
-def test_struct_from_dataframe():
-    srs = series.Series(
+@pytest.mark.parametrize(
+    "columns_arg",
+    [
         [
             {"version": 1, "project": "pandas"},
             {"version": 2, "project": "pandas"},
             {"version": 1, "project": "numpy"},
         ],
+        [
+            {"version": 1, "project": "pandas"},
+            {"version": None, "project": "pandas"},
+            {"version": 1, "project": "numpy"},
+        ],
+        [
+            {"array": [6, 4, 6], "project": "pandas"},
+            {"array": [6, 4, 7, 6], "project": "pandas"},
+            {"array": [7, 2, 3], "project": "numpy"},
+        ],
+        [
+            {"array": [6, 4, 6], "project": "pandas"},
+            {"array": [6, 4, 7, 6], "project": "pandas"},
+            {"array": [7, 2, 3], "project": "numpy"},
+        ],
+        [
+            {"struct": [{"x": 2, "y": 4}], "project": "pandas"},
+            {"struct": [{"x": 9, "y": 3}], "project": "pandas"},
+            {"struct": [{"x": 1, "y": 2}], "project": "numpy"},
+        ],
+    ],
+)
+def test_struct_from_dataframe(columns_arg):
+    srs = series.Series(
+        columns_arg,
     )
     pd.testing.assert_series_equal(
         srs.to_pandas(),
