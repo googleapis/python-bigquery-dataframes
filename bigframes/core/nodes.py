@@ -828,3 +828,28 @@ class ExplodeNode(UnaryNode):
     @functools.cached_property
     def variables_introduced(self) -> int:
         return len(self.column_ids) + 1
+
+
+@dataclass(frozen=True)
+class DqlStatementNode(BigFrameNode):
+    """A node that represents a Data Query Language (DQL) statement."""
+
+    sql: str
+    physical_schema: Tuple[bq.SchemaField, ...]
+
+    def __hash__(self):
+        return self._node_hash
+
+    @functools.cached_property
+    def schema(self) -> schemata.ArraySchema:
+        # items = tuple(
+        #     typing.cast(schemata.SchemaItem, bigframes.dtypes.convert_schema_field(field))
+        #     for field in self.physical_schema
+        # )
+        items = tuple(map(_bq_to_bf_schema, self.physical_schema))
+        return schemata.ArraySchema(items)
+
+
+def _bq_to_bf_schema(field: bq.SchemaField) -> schemata.SchemaItem:
+    name, dtype = bigframes.dtypes.convert_schema_field(field)
+    return schemata.SchemaItem(name, dtype)
