@@ -213,7 +213,7 @@ class BigQueryCachingExecutor:
         self, array_value: bigframes.core.ArrayValue, n_rows: int
     ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
         """
-        A 'peek' efficiently accesses a small number of rows in the dataframe.
+        Preview the first n rows of the dataframe. This is less efficient than the unordered peek preview op.
         """
         maybe_row_count = self._local_get_row_count(array_value)
         if (maybe_row_count is not None) and (maybe_row_count <= n_rows):
@@ -227,9 +227,8 @@ class BigQueryCachingExecutor:
         if not tree_properties.can_fast_head(plan):
             # If can't get head fast, we are going to need to execute the whole query
             # Will want to do this in a way such that the result is reusable, but the first
-            # N values can be easily extracted. This means clustering on the order key.
-
-            # This may be too much, might be sufficient to cluster on ordering key (if <= 4 parts)
+            # N values can be easily extracted.
+            # This currently requires clustering on offsets.
             self._cache_with_offsets(array_value)
             # Get a new optimized plan after caching
             plan = self._get_optimized_plan(array_value.node)
@@ -313,7 +312,11 @@ class BigQueryCachingExecutor:
 
         At present, the only optimization is to replace subtress with cached previous materializations.
         """
-        return tree_properties.replace_nodes(node, (dict(self._cached_executions)))
+        # Apply any rewrites *after* applying cache, as cache is sensitive to exact tree structure
+        optimized_plan = tree_properties.replace_nodes(
+            node, (dict(self._cached_executions))
+        )
+        return optimized_plan
 
     def _is_trivially_executable(self, array_value: bigframes.core.ArrayValue):
         """

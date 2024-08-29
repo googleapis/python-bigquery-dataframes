@@ -375,6 +375,7 @@ class GbqTable:
     table_id: str = field()
     physical_schema: Tuple[bq.SchemaField, ...] = field()
     n_rows: int = field()
+    cluster_cols: typing.Optional[Tuple[str, ...]]
 
     def from_table(table: bq.Table) -> GbqTable:
         return GbqTable(
@@ -383,6 +384,9 @@ class GbqTable:
             table_id=table.table_id,
             physical_schema=schemata.ArraySchema.from_bq_table(table),
             n_rows=table.num_rows,
+            cluster_cols=None
+            if table.clustering_fields is None
+            else tuple(table.clustering_fields),
         )
 
 
@@ -431,7 +435,9 @@ class ReadTableNode(LeafNode):
 
     @property
     def supports_fast_head(self) -> bool:
-        # TODO: Be more lenient for small tables, or those clustered on non-sequential order key
+        # Fast head is only supported when row offsets are available.
+        # In the future, ORDER BY+LIMIT optimizations may allow fast head when
+        # clustered and/or partitioned on ordering key
         return self.order_col_is_sequential
 
     @property
@@ -504,8 +510,9 @@ class CachedTableNode(LeafNode):
 
     @property
     def supports_fast_head(self) -> bool:
-        # TODO: Be more lenient for small tables, or those clustered on non-sequential order key
-        # No ordering supports fast head as can just take n arbitrary rows
+        # Fast head is only supported when row offsets are available.
+        # In the future, ORDER BY+LIMIT optimizations may allow fast head when
+        # clustered and/or partitioned on ordering key
         return (self.ordering is None) or self.ordering.is_sequential
 
     @property
