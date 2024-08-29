@@ -849,6 +849,23 @@ class DqlStatementNode(BigFrameNode):
         items = tuple(map(_bq_to_bf_schema, self.physical_schema))
         return schemata.ArraySchema(items)
 
+    @property
+    def variables_introduced(self) -> int:
+        return 0
+
+    @property
+    def explicitly_ordered(self) -> bool:
+        return False
+
+    @property
+    def order_ambiguous(self) -> bool:
+        return True
+
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        return self
+
 
 def _bq_to_bf_schema(field: bq.SchemaField) -> schemata.SchemaItem:
     name, dtype = bigframes.dtypes.convert_schema_field(field)
