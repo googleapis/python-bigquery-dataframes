@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 import bigframes.constants as constants
 import bigframes.core.groupby as groupby
 import bigframes.core.sql
+import bigframes.dataframe
 import bigframes.ml.utils as utils
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -239,13 +240,13 @@ def json_extract(
     return series._apply_unary_op(ops.JSONExtract(json_path=json_path))
 
 
-def struct(value: bigframes.dataframe.DataFrame) -> series.Series:
-    data: List[Dict[str, Any]] = [{} for _ in value.index]
-    for col_name in value.columns:
-        col = value[col_name]
-        for i, val in enumerate(col):
-            data[i][col_name] = val
-    return bigframes.series.Series(data)
+def struct(value: dataframe.DataFrame) -> series.Series:
+    block = value._block
+    block, result_id = block.apply_nary_op(
+        block.value_columns, ops.StructOp(column_names=tuple(block.column_labels))
+    )
+    block = block.select_column(result_id)
+    return bigframes.series.Series(block)
 
 
 # Search functions defined from
