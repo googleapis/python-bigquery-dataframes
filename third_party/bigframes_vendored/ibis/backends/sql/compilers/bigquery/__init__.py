@@ -15,7 +15,6 @@ from bigframes_vendored.ibis.backends.sql.compilers.base import (
     SQLGlotCompiler,
     STAR,
 )
-import bigframes_vendored.ibis.backends.sql.compilers.base as sql_compiler
 from ibis import util
 from ibis.backends.sql.datatypes import BigQueryType, BigQueryUDFType
 from ibis.backends.sql.rewrites import (
