@@ -20,13 +20,12 @@ import typing
 from typing import Dict, List, Tuple
 
 import geopandas as gpd  # type: ignore
+from google.cloud import bigquery
 import numpy as np
 import pandas as pd
 import pandas.testing
 import pyarrow as pa  # type: ignore
 import pytest
-
-from google.cloud import bigquery
 
 import bigframes
 import bigframes._config.display_options as display_options
@@ -4658,13 +4657,15 @@ def test_to_gbq_and_create_dataset(session, scalars_df_index, dataset_id_not_cre
     loaded_scalars_df_index = session.read_gbq(result_table)
     assert not loaded_scalars_df_index.empty
 
+
 def test_to_gbq_table_labels(scalars_df_index):
     destination_table = "bigframes-dev.bigframes_tests_sys.table_labels"
-    result_table = scalars_df_index.to_gbq(destination_table, labels = {"test": "labels"})
+    result_table = scalars_df_index.to_gbq(destination_table, labels={"test": "labels"})
     client = bigquery.Client()
     table = client.get_table(result_table)
     assert table.labels
     assert table.labels["test"] == "labels"
+
 
 @pytest.mark.parametrize(
     ("col_names", "ignore_index"),
