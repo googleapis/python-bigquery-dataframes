@@ -4,6 +4,47 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.15.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.14.0...v1.15.0) (2024-08-20)
+
+
+### Features
+
+* Add llm.TextEmbeddingGenerator to support new embedding models ([#905](https://github.com/googleapis/python-bigquery-dataframes/issues/905)) ([6bc6a41](https://github.com/googleapis/python-bigquery-dataframes/commit/6bc6a41426fbbb60e77cd77f80860f88a1751a4b))
+* Add ml.llm.Claude3TextGenerator model ([#901](https://github.com/googleapis/python-bigquery-dataframes/issues/901)) ([7050038](https://github.com/googleapis/python-bigquery-dataframes/commit/7050038eeee258452860941aa6b01d6a8ae10c6f))
+
+
+### Documentation
+
+* Add columns for "requires ordering/index" to supported APIs summary ([#892](https://github.com/googleapis/python-bigquery-dataframes/issues/892)) ([d2fc51a](https://github.com/googleapis/python-bigquery-dataframes/commit/d2fc51a30c4fff6fe0b98df61eec70ddb28b37ec))
+* Remove duplicate description for `kms_key_name` ([#898](https://github.com/googleapis/python-bigquery-dataframes/issues/898)) ([1053d56](https://github.com/googleapis/python-bigquery-dataframes/commit/1053d56260eef1cff6e7c419f6c86be8f7e74373))
+* Update embedding model notebooks ([#906](https://github.com/googleapis/python-bigquery-dataframes/issues/906)) ([d9b8ef5](https://github.com/googleapis/python-bigquery-dataframes/commit/d9b8ef56deb0c776edeeb0112bd9d35d5ed1b70e))
+
+## [1.14.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.13.0...v1.14.0) (2024-08-14)
+
+
+### Features
+
+* Implement `bigframes.bigquery.json_extract` ([#868](https://github.com/googleapis/python-bigquery-dataframes/issues/868)) ([3dbf84b](https://github.com/googleapis/python-bigquery-dataframes/commit/3dbf84bd1531c1f8d41ba57c2c38b3ba6abfb812))
+* Implement `Series.str.__getitem__` ([#897](https://github.com/googleapis/python-bigquery-dataframes/issues/897)) ([e027b7e](https://github.com/googleapis/python-bigquery-dataframes/commit/e027b7e9d29f628d058611106014a1790459958c))
+
+
+### Bug Fixes
+
+* Fix caching from generating row numbers in partial ordering mode ([#872](https://github.com/googleapis/python-bigquery-dataframes/issues/872)) ([52b7786](https://github.com/googleapis/python-bigquery-dataframes/commit/52b7786c3a28da6c29e3ddf12629802215194ad9))
+
+
+### Performance Improvements
+
+* Generate SQL with fewer CTEs ([#877](https://github.com/googleapis/python-bigquery-dataframes/issues/877)) ([eb60804](https://github.com/googleapis/python-bigquery-dataframes/commit/eb6080460344aff2fabb7864536ea4fe24c5fbef))
+* Speed up compilation by reducing redundant type normalization ([#896](https://github.com/googleapis/python-bigquery-dataframes/issues/896)) ([e0b11bc](https://github.com/googleapis/python-bigquery-dataframes/commit/e0b11bc8c038db7b950b1653ed4cd44a6246c713))
+
+
+### Documentation
+
+* Add streaming html docs ([#884](https://github.com/googleapis/python-bigquery-dataframes/issues/884)) ([171da6c](https://github.com/googleapis/python-bigquery-dataframes/commit/171da6cb33165b49d46ea6528038342abd89e9fa))
+* Fix the `DisplayOptions` doc rendering ([#893](https://github.com/googleapis/python-bigquery-dataframes/issues/893)) ([3eb6a17](https://github.com/googleapis/python-bigquery-dataframes/commit/3eb6a17a5823faf5ecba92cb9a554df74477871d))
+* Update streaming notebook ([#887](https://github.com/googleapis/python-bigquery-dataframes/issues/887)) ([6e6f9df](https://github.com/googleapis/python-bigquery-dataframes/commit/6e6f9df55d435afe0b3ade728ca06826e92a6ee6))
+
 ## [1.13.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.12.0...v1.13.0) (2024-08-05)
 
 

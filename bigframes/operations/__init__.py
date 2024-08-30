@@ -602,6 +602,40 @@ class ArrayToStringOp(UnaryOp):
         return dtypes.STRING_DTYPE
 
 
+@dataclasses.dataclass(frozen=True)
+class ArrayIndexOp(UnaryOp):
+    name: typing.ClassVar[str] = "array_index"
+    index: int
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if dtypes.is_string_like(input_type):
+            return dtypes.STRING_DTYPE
+        elif dtypes.is_array_like(input_type):
+            return dtypes.arrow_dtype_to_bigframes_dtype(
+                input_type.pyarrow_dtype.value_type
+            )
+        else:
+            raise TypeError("Input type must be an array or string-like type.")
+
+
+@dataclasses.dataclass(frozen=True)
+class ArraySliceOp(UnaryOp):
+    name: typing.ClassVar[str] = "array_slice"
+    start: int
+    stop: typing.Optional[int] = None
+    step: typing.Optional[int] = None
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if dtypes.is_string_like(input_type):
+            return dtypes.STRING_DTYPE
+        elif dtypes.is_array_like(input_type):
+            return input_type
+        else:
+            raise TypeError("Input type must be an array or string-like type.")
+
+
 ## JSON Ops
 @dataclasses.dataclass(frozen=True)
 class JSONExtract(UnaryOp):
@@ -616,6 +650,23 @@ class JSONExtract(UnaryOp):
                 + f" Received type: {input_type}"
             )
         return input_type
+
+
+@dataclasses.dataclass(frozen=True)
+class JSONExtractArray(UnaryOp):
+    name: typing.ClassVar[str] = "json_extract_array"
+    json_path: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return pd.ArrowDtype(
+            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(dtypes.STRING_DTYPE))
+        )
 
 
 # Binary Ops
