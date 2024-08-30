@@ -3045,6 +3045,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         index: bool = True,
         ordering_id: Optional[str] = None,
         clustering_columns: Union[pandas.Index, Iterable[typing.Hashable]] = (),
+        labels : dict[str, str] = {}
     ) -> str:
         dispositions = {
             "fail": bigquery.WriteDisposition.WRITE_EMPTY,
@@ -3119,6 +3120,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 datetime.datetime.now(datetime.timezone.utc)
                 + constants.DEFAULT_EXPIRATION,
             )
+
+        if len(labels) != 0:
+            client = bigquery.Client()
+            table = client.get_table(destination_table)
+            table.labels = labels
+            client.update_table(table, ["labels"])
 
         return destination_table
 
