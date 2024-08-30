@@ -1385,7 +1385,10 @@ class SQLGlotCompiler(abc.ABC):
 
     @classmethod
     def _add_parens(cls, op, sg_expr):
-        if isinstance(op, cls.NEEDS_PARENS):
+        # Patch for https://github.com/ibis-project/ibis/issues/9975
+        if isinstance(op, cls.NEEDS_PARENS) or (
+            isinstance(op, ops.Alias) and isinstance(op.arg, cls.NEEDS_PARENS)
+        ):
             return sge.paren(sg_expr, copy=False)
         return sg_expr
 

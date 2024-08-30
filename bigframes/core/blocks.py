@@ -2415,7 +2415,7 @@ class Block:
             return self._stats_cache[column_name][op_name]
 
         period = 1
-        window_spec = windows.rows(preceding=period, following=None)
+        window_spec = windows.rows()
 
         # any NaN value means not monotonic
         block, last_notna_id = self.apply_unary_op(column_ids[0], ops.notnull_op)

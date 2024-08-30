@@ -1145,9 +1145,5 @@ class BigQueryCompiler(SQLGlotCompiler):
 
         return sge.Window(this=func, partition_by=group_by, order=order, spec=spec)
 
-    @sql_compiler.parenthesize_inputs
-    def visit_And(self, op, *, left, right):
-        return sge.And(this=sge.Paren(this=left), expression=sge.Paren(this=right))
-
 
 compiler = BigQueryCompiler()
