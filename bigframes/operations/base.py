@@ -14,12 +14,10 @@
 
 from __future__ import annotations
 
-import functools
 import typing
 from typing import List, Sequence
 
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
-import numpy
 import pandas as pd
 
 import bigframes.constants as constants
@@ -33,15 +31,6 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 import bigframes.session
-
-
-def requires_index(meth):
-    @functools.wraps(meth)
-    def guarded_meth(df: SeriesMethods, *args, **kwargs):
-        df._throw_if_null_index(meth.__name__)
-        return meth(df, *args, **kwargs)
-
-    return guarded_meth
 
 
 class SeriesMethods:
@@ -59,8 +48,9 @@ class SeriesMethods:
     ):
         import bigframes.pandas
 
-        # just ignore object dtype if provided
-        if dtype in {numpy.dtypes.ObjectDType, "object"}:
+        # Ignore object dtype if provided, as it provides no additional
+        # information about what BigQuery type to use.
+        if dtype is not None and bigframes.dtypes.is_object_like(dtype):
             dtype = None
 
         read_pandas_func = (
