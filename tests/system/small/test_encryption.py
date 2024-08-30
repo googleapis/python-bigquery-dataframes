@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+import random
+
 from google.cloud import bigquery
 import pandas
 import pytest
@@ -67,7 +69,7 @@ def test_session_query_job(bq_cmek, session_with_bq_cmek):
     if not bq_cmek:  # pragma: NO COVER
         pytest.skip("no cmek set for testing")  # pragma: NO COVER
 
-    _, query_job = session_with_bq_cmek._start_query(
+    _, query_job = session_with_bq_cmek._loader._start_query(
         "SELECT 123", job_config=bigquery.QueryJobConfig(use_query_cache=False)
     )
     query_job.result()
@@ -86,10 +88,10 @@ def test_session_load_job(bq_cmek, session_with_bq_cmek):
         pytest.skip("no cmek set for testing")  # pragma: NO COVER
 
     # Session should have cmek set in the default query and load job configs
-    load_table = session_with_bq_cmek._random_table()
+    load_table = session_with_bq_cmek._temp_storage_manager._random_table()
 
     df = pandas.DataFrame({"col0": [1, 2, 3]})
-    load_job_config = session_with_bq_cmek._prepare_load_job_config()
+    load_job_config = bigquery.LoadJobConfig()
     load_job_config.schema = [
         bigquery.SchemaField(df.columns[0], bigquery.enums.SqlTypeNames.INT64)
     ]
@@ -153,14 +155,19 @@ def test_read_csv_gcs(
     if not bq_cmek:  # pragma: NO COVER
         pytest.skip("no cmek set for testing")  # pragma: NO COVER
 
-    # Create a csv in gcs
+    # Let's make the source data non-deterministic so that the test doesn't run
+    # into a BQ caching path
+    df = scalars_df_index.copy()
+    df["int_random"] = random.randint(0, 1_000_000_000)
+
+    # Export the dataframe to a csv in gcs
     write_path = gcs_folder + "test_read_csv_gcs_bigquery_engine*.csv"
     read_path = (
         utils.get_first_file_from_wildcard(write_path) if engine is None else write_path
     )
-    scalars_df_index.to_csv(write_path)
+    df.to_csv(write_path)
 
-    # Read the BQ table
+    # Read the gcs csv
     df = session_with_bq_cmek.read_csv(read_path, engine=engine)
 
     # Assert encryption
@@ -186,7 +193,7 @@ def test_to_gbq(bq_cmek, session_with_bq_cmek, scalars_table_id):
 
     # Write the result to BQ custom table and assert encryption
     session_with_bq_cmek.bqclient.get_table(output_table_id)
-    output_table_ref = session_with_bq_cmek._random_table()
+    output_table_ref = session_with_bq_cmek._temp_storage_manager._random_table()
     output_table_id = str(output_table_ref)
     df.to_gbq(output_table_id)
     output_table = session_with_bq_cmek.bqclient.get_table(output_table_id)
@@ -205,7 +212,9 @@ def test_read_pandas(bq_cmek, session_with_bq_cmek):
         pytest.skip("no cmek set for testing")  # pragma: NO COVER
 
     # Read a pandas dataframe
-    df = session_with_bq_cmek.read_pandas(pandas.DataFrame([1]))
+    df = session_with_bq_cmek.read_pandas(
+        pandas.DataFrame([random.randint(0, 1_000_000_000)])
+    )
 
     # Assert encryption
     _assert_bq_table_is_encrypted(df, bq_cmek, session_with_bq_cmek)

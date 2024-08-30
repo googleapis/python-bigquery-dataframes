@@ -18,7 +18,7 @@ from bigframes.ml import llm
 from tests.system import utils
 
 
-def test_create_text_generator_model(
+def test_create_load_text_generator_model(
     palm2_text_generator_model, dataset_id, bq_connection
 ):
     # Model creation doesn't return error
@@ -34,7 +34,7 @@ def test_create_text_generator_model(
     assert reloaded_model.connection_name == bq_connection
 
 
-def test_create_text_generator_32k_model(
+def test_create_load_text_generator_32k_model(
     palm2_text_generator_32k_model, dataset_id, bq_connection
 ):
     # Model creation doesn't return error
@@ -74,10 +74,9 @@ def test_create_text_generator_model_default_session(
         llm_text_df = bpd.read_pandas(llm_text_pandas_df)
 
         df = model.predict(llm_text_df).to_pandas()
-        assert df.shape == (3, 4)
-        assert "ml_generate_text_llm_result" in df.columns
-        series = df["ml_generate_text_llm_result"]
-        assert all(series.str.len() > 20)
+        utils.check_pandas_df_schema_and_index(
+            df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+        )
 
 
 @pytest.mark.flaky(retries=2)
@@ -104,10 +103,9 @@ def test_create_text_generator_32k_model_default_session(
         llm_text_df = bpd.read_pandas(llm_text_pandas_df)
 
         df = model.predict(llm_text_df).to_pandas()
-        assert df.shape == (3, 4)
-        assert "ml_generate_text_llm_result" in df.columns
-        series = df["ml_generate_text_llm_result"]
-        assert all(series.str.len() > 20)
+        utils.check_pandas_df_schema_and_index(
+            df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+        )
 
 
 @pytest.mark.flaky(retries=2)
@@ -131,10 +129,9 @@ def test_create_text_generator_model_default_connection(
     )
 
     df = model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
 
 
 # Marked as flaky only because BQML LLM is in preview, the service only has limited capacity, not stable enough.
@@ -143,10 +140,9 @@ def test_text_generator_predict_default_params_success(
     palm2_text_generator_model, llm_text_df
 ):
     df = palm2_text_generator_model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
 
 
 @pytest.mark.flaky(retries=2)
@@ -154,10 +150,9 @@ def test_text_generator_predict_series_default_params_success(
     palm2_text_generator_model, llm_text_df
 ):
     df = palm2_text_generator_model.predict(llm_text_df["prompt"]).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
 
 
 @pytest.mark.flaky(retries=2)
@@ -166,10 +161,9 @@ def test_text_generator_predict_arbitrary_col_label_success(
 ):
     llm_text_df = llm_text_df.rename(columns={"prompt": "arbitrary"})
     df = palm2_text_generator_model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
 
 
 @pytest.mark.flaky(retries=2)
@@ -179,10 +173,9 @@ def test_text_generator_predict_with_params_success(
     df = palm2_text_generator_model.predict(
         llm_text_df, temperature=0.5, max_output_tokens=100, top_k=20, top_p=0.5
     ).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
 
 
 def test_create_embedding_generator_model(
@@ -306,6 +299,47 @@ def test_embedding_generator_predict_series_success(
 
 @pytest.mark.parametrize(
     "model_name",
+    ("text-embedding-004", "text-multilingual-embedding-002"),
+)
+def test_create_load_text_embedding_generator_model(
+    dataset_id, model_name, session, bq_connection
+):
+    text_embedding_model = llm.TextEmbeddingGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
+    assert text_embedding_model is not None
+    assert text_embedding_model._bqml_model is not None
+
+    # save, load to ensure configuration was kept
+    reloaded_model = text_embedding_model.to_gbq(
+        f"{dataset_id}.temp_text_model", replace=True
+    )
+    assert f"{dataset_id}.temp_text_model" == reloaded_model._bqml_model.model_name
+    assert reloaded_model.connection_name == bq_connection
+    assert reloaded_model.model_name == model_name
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    ("text-embedding-004", "text-multilingual-embedding-002"),
+)
+@pytest.mark.flaky(retries=2)
+def test_gemini_text_embedding_generator_predict_default_params_success(
+    llm_text_df, model_name, session, bq_connection
+):
+    text_embedding_model = llm.TextEmbeddingGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
+    df = text_embedding_model.predict(llm_text_df).to_pandas()
+    assert df.shape == (3, 4)
+    assert "ml_generate_embedding_result" in df.columns
+    series = df["ml_generate_embedding_result"]
+    value = series[0]
+    assert len(value) == 768
+
+
+@pytest.mark.parametrize(
+    "model_name",
     ("gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514"),
 )
 def test_create_load_gemini_text_generator_model(
@@ -338,10 +372,9 @@ def test_gemini_text_generator_predict_default_params_success(
         model_name=model_name, connection_name=bq_connection, session=session
     )
     df = gemini_text_generator_model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -358,10 +391,74 @@ def test_gemini_text_generator_predict_with_params_success(
     df = gemini_text_generator_model.predict(
         llm_text_df, temperature=0.5, max_output_tokens=100, top_k=20, top_p=0.5
     ).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    ("claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet", "claude-3-opus"),
+)
+@pytest.mark.flaky(retries=3, delay=120)
+def test_claude3_text_generator_create_load(
+    dataset_id, model_name, session, session_us_east5, bq_connection
+):
+    if model_name in ("claude-3-5-sonnet", "claude-3-opus"):
+        session = session_us_east5
+    claude3_text_generator_model = llm.Claude3TextGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
+    assert claude3_text_generator_model is not None
+    assert claude3_text_generator_model._bqml_model is not None
+
+    # save, load to ensure configuration was kept
+    reloaded_model = claude3_text_generator_model.to_gbq(
+        f"{dataset_id}.temp_text_model", replace=True
+    )
+    assert f"{dataset_id}.temp_text_model" == reloaded_model._bqml_model.model_name
+    assert reloaded_model.connection_name == bq_connection
+    assert reloaded_model.model_name == model_name
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    ("claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet", "claude-3-opus"),
+)
+@pytest.mark.flaky(retries=3, delay=120)
+def test_claude3_text_generator_predict_default_params_success(
+    llm_text_df, model_name, session, session_us_east5, bq_connection
+):
+    if model_name in ("claude-3-5-sonnet", "claude-3-opus"):
+        session = session_us_east5
+    claude3_text_generator_model = llm.Claude3TextGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
+    df = claude3_text_generator_model.predict(llm_text_df).to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    ("claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet", "claude-3-opus"),
+)
+@pytest.mark.flaky(retries=3, delay=120)
+def test_claude3_text_generator_predict_with_params_success(
+    llm_text_df, model_name, session, session_us_east5, bq_connection
+):
+    if model_name in ("claude-3-5-sonnet", "claude-3-opus"):
+        session = session_us_east5
+    claude3_text_generator_model = llm.Claude3TextGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
+    df = claude3_text_generator_model.predict(
+        llm_text_df, max_output_tokens=100, top_k=20, top_p=0.5
+    ).to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
 
 
 @pytest.mark.flaky(retries=2)
