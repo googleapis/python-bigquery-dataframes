@@ -3108,7 +3108,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
 
         if len(labels) != 0:
-            client = bigquery.Client()
+            client = self._session.bqclient
             table = client.get_table(destination_table)
             table.labels = labels
             client.update_table(table, ["labels"])
