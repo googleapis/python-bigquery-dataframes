@@ -719,6 +719,31 @@ def test_remote_function_restore_with_bigframes_series(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
+def test_remote_udf_mask_repr(session, dataset_id, bq_cf_connection):
+    try:
+
+        @session.remote_function(
+            dataset=dataset_id,
+            reuse=False,
+        )
+        def should_mask(name: str) -> bool:
+            hash = 0
+            for char_ in name:
+                hash += ord(char_)
+            return hash % 2 == 0
+
+        s = bpd.Series(["Alice", "Bob", "Caroline"])
+        repr(s.mask(should_mask))
+        repr(s.mask(should_mask, "REDACTED"))
+
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, should_mask
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_udf_mask_default_value(
     session, scalars_dfs, dataset_id, bq_cf_connection
 ):
