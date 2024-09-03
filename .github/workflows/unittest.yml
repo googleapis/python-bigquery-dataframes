@@ -22,14 +22,14 @@ jobs:
         python -m pip install nox
     - name: Run unit tests
       env:
-        COVERAGE_FILE: .coverage-${{ matrix.python }}
+        COVERAGE_FILE: .coverage-unit-${{ matrix.python }}
       run: |
         nox -s unit-${{ matrix.python }}
     - name: Upload coverage results
       uses: actions/upload-artifact@v4
       with:
         name: coverage-artifact-${{ matrix.python }}
-        path: .coverage-${{ matrix.python }}
+        path: .coverage-unit-${{ matrix.python }}
 
   cover:
     runs-on: ubuntu-latest
@@ -53,5 +53,5 @@ jobs:
     - name: Report coverage results
       run: |
         find .coverage-results -type f -name '*.zip' -exec unzip {} \;
-        coverage combine .coverage-results/**/.coverage*
+        coverage combine .coverage-results/**/.coverage-unit*
         coverage report --show-missing --fail-under=35
