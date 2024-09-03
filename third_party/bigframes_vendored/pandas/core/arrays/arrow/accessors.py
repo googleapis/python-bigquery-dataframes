@@ -6,6 +6,79 @@ from __future__ import annotations
 from bigframes import constants
 
 
+class ListAccessor:
+    """
+    Accessor object for list data properties of the Series values.
+    """
+
+    def len(self):
+        """
+        Return the length of each list in the Series.
+
+        Returns
+        -------
+        Series
+            The length of each list.
+
+        See Also
+        --------
+        str.len : Python built-in function returning the length of an object.
+        Series.size : Returns the length of the Series.
+        StringMethods.len : Compute the length of each element in the Series/Index.
+
+        Examples
+        --------
+        >>> import bigframes.pandas as bpd
+        >>> import pyarrow as pa
+        >>> bpd.options.display.progress_bar = None
+        >>> s = bpd.Series(
+        ...     [
+        ...         [1, 2, 3],
+        ...         [3],
+        ...     ],
+        ...     dtype=pd.ArrowDtype(pa.list_(pa.int64())),
+        ... )
+        >>> s.list.len()
+        0    3
+        1    1
+        dtype: int32[pyarrow]
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __getitem__(self, key: int | slice):
+        """
+        Index or slice lists in the Series.
+
+        Parameters
+        ----------
+        key : int | slice
+            Index or slice of indices to access from each list.
+
+        Returns
+        -------
+        Series
+            The list at requested index.
+
+        Examples
+        --------
+        >>> import bigframes.pandas as bpd
+        >>> import pyarrow as pa
+        >>> bpd.options.display.progress_bar = None
+        >>> s = bpd.Series(
+        ...     [
+        ...         [1, 2, 3],
+        ...         [3],
+        ...     ],
+        ...     dtype=pd.ArrowDtype(pa.list_(pa.int64())),
+        ... )
+        >>> s.list[0]
+        0    1
+        1    3
+        dtype: int64[pyarrow]
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+
 class StructAccessor:
     """
     Accessor object for structured data properties of the Series values.
