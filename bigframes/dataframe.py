@@ -3082,9 +3082,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         export_array, id_overrides = self._prepare_export(
             index=index and self._has_index, ordering_id=ordering_id
         )
-        destination = bigquery.table.TableReference.from_string(
-            destination_table,
-            default_project=default_project,
+        destination: bigquery.table.TableReference = (
+            bigquery.table.TableReference.from_string(
+                destination_table,
+                default_project=default_project,
+            )
         )
         _, query_job = self._session._export(
             export_array,
@@ -3108,10 +3110,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
 
         if len(labels) != 0:
-            client = self._session.bqclient
-            table = client.get_table(destination_table)
+            table = bigquery.Table(result_table)
             table.labels = labels
-            client.update_table(table, ["labels"])
+            self._session.bqclient.update_table(table, ["labels"])
 
         return destination_table
 

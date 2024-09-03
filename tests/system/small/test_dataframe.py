@@ -20,7 +20,6 @@ import typing
 from typing import Dict, List, Tuple
 
 import geopandas as gpd  # type: ignore
-from google.cloud import bigquery
 import numpy as np
 import pandas as pd
 import pandas.testing
@@ -4663,7 +4662,7 @@ def test_to_gbq_table_labels(scalars_df_index):
     result_table = scalars_df_index.to_gbq(
         destination_table, labels={"test": "labels"}, if_exists="replace"
     )
-    client = bigquery.Client()
+    client = scalars_df_index._session.bqclient
     table = client.get_table(result_table)
     assert table.labels
     assert table.labels["test"] == "labels"
