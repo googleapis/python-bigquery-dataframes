@@ -14,6 +14,7 @@
 
 import bigframes.constants as constants
 
+
 def test_feedback_link_includes_version():
-    assert len(constants.BF_VERSION)>0
+    assert len(constants.BF_VERSION) > 0
     assert constants.BF_VERSION in constants.FEEDBACK_LINK

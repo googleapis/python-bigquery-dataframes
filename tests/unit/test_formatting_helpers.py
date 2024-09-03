@@ -52,6 +52,6 @@ def test_wait_for_job_error_includes_version():
 
     with pytest.raises(api_core_exceptions.BadRequest) as cap_exc:
         formatting_helpers.wait_for_job(mock_job)
-    
+
     cap_exc.match("Test message 123.")
     cap_exc.match(constants.BF_VERSION)
