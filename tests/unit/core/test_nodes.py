@@ -12,27 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-
 import google.cloud.bigquery as bq
-import pytest
+import pandas as pd
 
-from bigframes.core.compile.compiler import Compiler
 from bigframes.core.nodes import DqlStatementNode
+from bigframes.core.schema import ArraySchema, SchemaItem
 
 
-@pytest.mark.parametrize("strict", [pytest.param(True), pytest.param(False)])
-def test_compile_dql_statement_node(strict: bool):
-    compiler = Compiler(strict)
+def test_dql_statement_node():
     node = DqlStatementNode(
-        sql="SELECT a,b FROM MyTable",
+        sql="SELECT a,b FROM Table1 INNER JOIN Table2 USING c",
         physical_schema=(bq.SchemaField("a", "INTEGER"), bq.SchemaField("b", "FLOAT")),
-        referenced_table_count=1
+        referenced_table_count=2,
     )
 
-    result = compiler.compile_node(node)
-
-    assert (
-        re.sub(r"\s+", " ", result.to_sql())
-        == "SELECT t0.`a`, t0.`b` FROM ( SELECT a, b FROM MyTable ) AS t0"
+    assert node.schema == ArraySchema(
+        (SchemaItem("a", pd.Int64Dtype()), SchemaItem("b", pd.Float64Dtype()))
     )
+    assert node.variables_introduced == 12
+    assert node.explicitly_ordered == False
+    assert node.order_ambiguous == True

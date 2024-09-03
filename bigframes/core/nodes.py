@@ -836,22 +836,21 @@ class DqlStatementNode(BigFrameNode):
 
     sql: str
     physical_schema: Tuple[bq.SchemaField, ...]
+    referenced_table_count: int
 
     def __hash__(self):
         return self._node_hash
 
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
-        # items = tuple(
-        #     typing.cast(schemata.SchemaItem, bigframes.dtypes.convert_schema_field(field))
-        #     for field in self.physical_schema
-        # )
         items = tuple(map(_bq_to_bf_schema, self.physical_schema))
         return schemata.ArraySchema(items)
 
     @property
     def variables_introduced(self) -> int:
-        return 0
+        return (
+            len(self.physical_schema) + OVERHEAD_VARIABLES * self.referenced_table_count
+        )
 
     @property
     def explicitly_ordered(self) -> bool:
