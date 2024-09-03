@@ -27,7 +27,7 @@ def test_compile_dql_statement_node(strict: bool):
     node = DqlStatementNode(
         sql="SELECT a,b FROM MyTable",
         physical_schema=(bq.SchemaField("a", "INTEGER"), bq.SchemaField("b", "FLOAT")),
-        referenced_table_count=1
+        referenced_table_count=1,
     )
 
     result = compiler.compile_node(node)
