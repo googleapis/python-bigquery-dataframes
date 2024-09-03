@@ -719,7 +719,7 @@ def test_remote_function_restore_with_bigframes_series(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_udf_mask_repr(session, dataset_id, bq_cf_connection):
+def test_remote_udf_application_repr(session, dataset_id):
     try:
 
         @session.remote_function(
@@ -733,6 +733,10 @@ def test_remote_udf_mask_repr(session, dataset_id, bq_cf_connection):
             return hash % 2 == 0
 
         s = bpd.Series(["Alice", "Bob", "Caroline"])
+
+        repr(s.apply(should_mask))
+        repr(s.where(s.apply(should_mask)))
+        repr(s.where(~s.apply(should_mask)))
         repr(s.mask(should_mask))
         repr(s.mask(should_mask, "REDACTED"))
 
