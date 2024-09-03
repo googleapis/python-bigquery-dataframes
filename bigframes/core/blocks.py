@@ -2453,7 +2453,8 @@ class Block:
         block, monotonic_result_id = block.apply_binary_op(
             last_result_id, last_notna_id, ops.and_op  # type: ignore
         )
-        block = block.drop_columns([last_result_id, last_notna_id])
+        if last_result_id is not None:
+            block = block.drop_columns([last_result_id, last_notna_id])
         result = block.get_stat(monotonic_result_id, agg_ops.all_op)
         self._stats_cache[column_name].update({op_name: result})
         return result
