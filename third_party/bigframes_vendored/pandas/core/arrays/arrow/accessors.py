@@ -36,12 +36,12 @@ class ListAccessor:
         ...         [1, 2, 3],
         ...         [3],
         ...     ],
-        ...     dtype=pd.ArrowDtype(pa.list_(pa.int64())),
+        ...     dtype=bpd.ArrowDtype(pa.list_(pa.int64())),
         ... )
         >>> s.list.len()
         0    3
         1    1
-        dtype: int32[pyarrow]
+        dtype: Int64
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -69,12 +69,12 @@ class ListAccessor:
         ...         [1, 2, 3],
         ...         [3],
         ...     ],
-        ...     dtype=pd.ArrowDtype(pa.list_(pa.int64())),
+        ...     dtype=bpd.ArrowDtype(pa.list_(pa.int64())),
         ... )
         >>> s.list[0]
         0    1
         1    3
-        dtype: int64[pyarrow]
+        dtype: Int64
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

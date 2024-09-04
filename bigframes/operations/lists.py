@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import inspect
 from typing import Union
 
 import bigframes_vendored.pandas.core.arrays.arrow.accessors as vendoracessors
@@ -41,3 +42,5 @@ class ListAccessor(
             return self._apply_unary_op(convert_slice(key))
         else:
             raise ValueError(f"key must be an int or slice, got {type(key).__name__}")
+
+    __getitem__.__doc__ = inspect.getdoc(vendoracessors.ListAccessor.__getitem__)
