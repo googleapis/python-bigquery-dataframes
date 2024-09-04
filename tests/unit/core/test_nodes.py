@@ -30,5 +30,5 @@ def test_dql_statement_node():
         (SchemaItem("a", pd.Int64Dtype()), SchemaItem("b", pd.Float64Dtype()))
     )
     assert node.variables_introduced == 12
-    assert node.explicitly_ordered == False
-    assert node.order_ambiguous == True
+    assert node.explicitly_ordered is False
+    assert node.order_ambiguous is True
