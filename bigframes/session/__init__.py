@@ -1223,6 +1223,7 @@ class Session(
     def read_gbq_function(
         self,
         function_name: str,
+        is_row_processor: bool = False,
     ):
         """Loads a BigQuery function from BigQuery.
 
@@ -1264,6 +1265,35 @@ class Session(
             <BLANKLINE>
             [3 rows x 3 columns]
 
+        You can even use a function with multiple inputs. For example, let's use
+        ``cw_regexp_replace_5`` from Community UDFs
+        (https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/README.md#cw_regexp_replace_5haystack-string-regexp-string-replacement-string-offset-int64-occurrence-int64).
+
+            >>> func = bpd.read_gbq_function("bqutil.fn.cw_regexp_replace_5")
+            >>> func('TestStr123456', 'Str', 'Cad$', 1, 1)
+            'TestCad$123456'
+
+            >>> df = bpd.DataFrame({
+            ...     "haystack" : ["TestStr123456", "TestStr123456Str", "TestStr123456Str"],
+            ...     "regexp" : ["Str", "Str", "Str"],
+            ...     "replacement" : ["Cad$", "Cad$", "Cad$"],
+            ...     "offset" : [1, 1, 1],
+            ...     "occurrence" : [1, 2, 1]
+            ... })
+            >>> df
+                       haystack regexp replacement  offset  occurrence
+            0     TestStr123456    Str        Cad$       1           1
+            1  TestStr123456Str    Str        Cad$       1           2
+            2  TestStr123456Str    Str        Cad$       1           1
+            <BLANKLINE>
+            [3 rows x 5 columns]
+            >>> df.apply(func, axis=1)
+            0       TestCad$123456
+            1    TestStr123456Cad$
+            2    TestCad$123456Str
+            dtype: string
+
+
         Args:
             function_name (str):
                 the function's name in BigQuery in the format
@@ -1271,6 +1301,10 @@ class Session(
                 `dataset_id.function_name` to load from the default project, or
                 `function_name` to load from the default project and the dataset
                 associated with the current session.
+            is_row_processor (bool, default False):
+                Whether the function is a row processor. This is set to True
+                for a function which receives an entire row of a DataFrame as
+                a pandas Series.
 
         Returns:
             callable: A function object pointing to the BigQuery function read
@@ -1284,6 +1318,7 @@ class Session(
         return bigframes_rf.read_gbq_function(
             function_name=function_name,
             session=self,
+            is_row_processor=is_row_processor,
         )
 
     def _prepare_copy_job_config(self) -> bigquery.CopyJobConfig:
