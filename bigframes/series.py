@@ -67,7 +67,7 @@ _remote_function_recommendation_message = (
     " Try converting it to a remote function."
 )
 
-_list = list # Type alias to escape Series.list property
+_list = list  # Type alias to escape Series.list property
 
 
 @log_adapter.class_logger
