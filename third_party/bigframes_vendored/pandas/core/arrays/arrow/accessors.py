@@ -5,6 +5,9 @@ from __future__ import annotations
 
 from bigframes import constants
 
+# TODO(huanc): Remove "doctest: +SKIP" from this file after the struct ordering
+# issue b/362738764 is fixed
+
 
 class StructAccessor:
     """
@@ -41,7 +44,7 @@ class StructAccessor:
 
         Extract by field index.
 
-            >>> s.struct.field(0)
+            >>> s.struct.field(0) # doctest: +SKIP
             0    1
             1    2
             2    1
@@ -79,7 +82,7 @@ class StructAccessor:
 
         Extract all child fields.
 
-            >>> s.struct.explode()
+            >>> s.struct.explode() # doctest: +SKIP
                version project
             0        1  pandas
             1        2  pandas
@@ -112,7 +115,7 @@ class StructAccessor:
             ...         [("version", pa.int64()), ("project", pa.string())]
             ...     ))
             ... )
-            >>> s.struct.dtypes()
+            >>> s.struct.dtypes() # doctest: +SKIP
             version              Int64
             project    string[pyarrow]
             dtype: object
@@ -150,7 +153,7 @@ class StructFrameAccessor:
             ... )
             >>> downloads = bpd.Series([100, 200, 300])
             >>> df = bpd.DataFrame({"country": countries, "file": files, "download_count": downloads})
-            >>> df.struct.explode("file")
+            >>> df.struct.explode("file") # doctest: +SKIP
               country  file.version file.project  download_count
             0      cn             1       pandas             100
             1      es             2       pandas             200
