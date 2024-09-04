@@ -226,6 +226,7 @@ class JoinNode(BigFrameNode):
 
     @property
     def explicitly_ordered(self) -> bool:
+        # Do not consider user pre-join ordering intent - they need to re-order post-join in unordered mode.
         return False
 
     def __hash__(self):
@@ -285,8 +286,8 @@ class ConcatNode(BigFrameNode):
 
     @property
     def explicitly_ordered(self) -> bool:
-        # Consider concat to always destroy order even if all children are ordered
-        return False
+        # Consider concat as an ordered operations (even though input frames may not be ordered)
+        return True
 
     def __hash__(self):
         return self._node_hash

@@ -281,16 +281,8 @@ class Compiler:
     @_compile_node.register
     def compile_concat(self, node: nodes.ConcatNode, ordered: bool = True):
         if ordered:
-            if self.strict:
-                compiled_ordered = [
-                    self.compile_ordered_ir(node) for node in node.children
-                ]
-                return concat_impl.concat_ordered(compiled_ordered)
-            else:
-                compiled_unordered = [
-                    self.compile_unordered_ir(node) for node in node.children
-                ]
-                return concat_impl.concat_unordered(compiled_unordered).as_ordered_ir()
+            compiled_ordered = [self.compile_ordered_ir(node) for node in node.children]
+            return concat_impl.concat_ordered(compiled_ordered)
         else:
             compiled_unordered = [
                 self.compile_unordered_ir(node) for node in node.children
