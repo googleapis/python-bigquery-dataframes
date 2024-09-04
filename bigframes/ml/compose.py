@@ -251,7 +251,7 @@ class ColumnTransformer(
                 
             
             if not found_transformer:
-                if not transform_sql.startswith("ML.") and not transform_sql.startswith("/*CT."):
+                if not transform_sql.startswith("ML.") and not "/*CT." in transform_sql:
                     continue   # ignore other patterns, only report unhandled known patterns
                 raise NotImplementedError(
                     f"Unsupported transformer type. {constants.FEEDBACK_LINK}"
