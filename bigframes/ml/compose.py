@@ -48,7 +48,7 @@ _BQML_TRANSFROM_TYPE_MAPPING = types.MappingProxyType(
 )
 
 
-CUSTOM_TRANSFORMER_SQL_RX = re.compile("^(?P<sql>.*)/[*]CT.(?P<id>[A-Z]+)[(](?P<config>[^*]*)[)][*]/$", re.IGNORECASE)
+CUSTOM_TRANSFORMER_SQL_RX = re.compile("^(?P<sql>.*)/[*]CT.(?P<id>[A-Z]+[A-Z0-9]*)[(](?P<config>[^*]*)[)][*]/$", re.IGNORECASE)
 
 class CustomTransformer(base.BaseTransformer):
     _CTID = None
@@ -87,29 +87,24 @@ class CustomTransformer(base.BaseTransformer):
     def get_target_column_name(self, column:str):
         return f"{self._CTID.lower()}_{column}"
 
-    @classmethod
+    @abc.abstractclassmethod
     def custom_compile_to_sql(self, X: bpd.DataFrame, column: str) -> str:
         pass
     
-    @abc.abstractmethod
-    def custom_compile_to_sql(self, X: bpd.DataFrame, column: str) -> str:
-        pass
-    
-    def get_persistent_config(self) -> Optional[Union[Dict, List]]:
+    def get_persistent_config(self, column: str) -> Optional[Union[Dict, List]]:
         """
         return structure to be persisted in the comment of the sql
         """
         return None
 
-    def _get_pc_as_args(self) -> str:
-        config = self.get_persistent_config()
+    def _get_pc_as_args(self, column:str) -> str:
+        config = self.get_persistent_config(column)
         if not config:
             return ""
         return json.dumps(config)
-        
 
     def _get_sql_comment(self, column:str):
-        args = self._get_pc_as_args()
+        args = self._get_pc_as_args(column)
         return f"/*CT.{self._CTID}({args})*/"
 
     @classmethod
@@ -133,11 +128,7 @@ class CustomTransformer(base.BaseTransformer):
         pass
 
     def _keys(self):
-        """
-        this method is used for merging multiple transformers together.
-        So, keys can be derived from get_persistent_config()
-        """ 
-        return self._get_pc_as_args()
+        return ()
     
     # CustomTransformers are thought to be used inside a column transformer.
     # So there is no need to implement fit() and transform() directly.
