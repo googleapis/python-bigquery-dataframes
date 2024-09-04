@@ -253,8 +253,12 @@ class ColumnTransformer(
             if not found_transformer:
                 if not transform_sql.startswith("ML.") and not "/*CT." in transform_sql:
                     continue   # ignore other patterns, only report unhandled known patterns
-                raise NotImplementedError(
-                    f"Unsupported transformer type. {constants.FEEDBACK_LINK}"
+                if transform_sql.startswith("ML."): 
+                    raise NotImplementedError(
+                        f"Unsupported transformer type. {constants.FEEDBACK_LINK}"
+                    )
+                raise ValueError(
+                    f"Missing custom transformer"
                 )
 
             output_names.append(transform_col_dict["name"])
