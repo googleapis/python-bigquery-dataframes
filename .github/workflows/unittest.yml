@@ -26,10 +26,11 @@ jobs:
       run: |
         nox -s unit-${{ matrix.python }}
     - name: Upload coverage results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v4.3.5
       with:
         name: coverage-artifact-${{ matrix.python }}
         path: /tmp/.coverage-${{ matrix.python }}
+        if-no-files-found: error
 
   cover:
     runs-on: ubuntu-latest
