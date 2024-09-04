@@ -263,10 +263,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
 
     @validations.requires_ordering()
     def diff(self, periods=1) -> series.Series:
+        # Window framing clause is not allowed for analytic function lag.
         window = window_specs.rows(
             grouping_keys=tuple(self._by_col_ids),
-            preceding=periods if periods > 0 else None,
-            following=-periods if periods < 0 else None,
         )
         return self._apply_window_op(agg_ops.DiffOp(periods), window=window)
 
