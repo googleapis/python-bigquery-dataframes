@@ -6515,12 +6515,12 @@ class DataFrame(generic.NDFrame):
         Get value at specified row/column pair
 
             >>> df.at[4, 'B']
-            2
+            np.int64(2)
 
         Get value within a series
 
             >>> df.loc[5].at['B']
-            4
+            np.int64(4)
 
         Returns:
             bigframes.core.indexers.AtDataFrameIndexer: Indexers object.

@@ -592,7 +592,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.agg('min')
-            1
+            np.int64(1)
 
             >>> s.agg(['min', 'max'])
             min    1
@@ -3080,7 +3080,7 @@ class Series(NDFrame):  # type: ignore[misc]
             1    3
             dtype: Int64
             >>> s.max()
-            3
+            np.int64(3)
 
         Calculating the max of a Series containing ``NA`` values:
 
@@ -3091,7 +3091,7 @@ class Series(NDFrame):  # type: ignore[misc]
             2    <NA>
             dtype: Int64
             >>> s.max()
-            3
+            np.int64(3)
 
         Returns:
             scalar: Scalar.
@@ -3576,10 +3576,10 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Float64
 
             >>> s.argmax()
-            2
+            np.int64(2)
 
             >>> s.argmin()
-            0
+            np.int64(0)
 
         The maximum cereal calories is the third element and the minimum cereal
         calories is the first element, since series is zero-indexed.
@@ -3612,10 +3612,10 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Float64
 
             >>> s.argmax()
-            2
+            np.int64(2)
 
             >>> s.argmin()
-            0
+            np.int64(0)
 
         The maximum cereal calories is the third element and the minimum cereal
         calories is the first element, since series is zero-indexed.
@@ -4066,7 +4066,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Get value at specified row label
 
             >>> s.at['B']
-            2
+            np.int64(2)
 
 
         Returns:
@@ -4314,7 +4314,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([15, 30, 45])
             >>> s[1]
-            30
+            np.int64(30)
             >>> s[0:2]
             0    15
             1    30
