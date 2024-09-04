@@ -20,7 +20,7 @@ import bigframes
 import bigframes.streaming
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=3, delay=10)
 def test_streaming_df_to_bigtable(session_load: bigframes.Session):
     # launch a continuous query
     job_id_prefix = "test_streaming_"
@@ -54,7 +54,7 @@ def test_streaming_df_to_bigtable(session_load: bigframes.Session):
         query_job.cancel()
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=3, delay=10)
 def test_streaming_df_to_pubsub(session_load: bigframes.Session):
     # launch a continuous query
     job_id_prefix = "test_streaming_pubsub_"
