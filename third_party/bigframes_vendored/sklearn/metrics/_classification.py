@@ -42,7 +42,7 @@ def accuracy_score(y_true, y_pred, normalize=True) -> float:
 
         >>> accuracy_score = bigframes.ml.metrics.accuracy_score(y_true, y_pred, normalize=False)
         >>> accuracy_score
-        np.float64(2)
+        np.int64(2)
 
     Args:
         y_true (Series or DataFrame of shape (n_samples,)):

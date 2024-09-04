@@ -540,7 +540,7 @@ class DataFrame(generic.NDFrame):
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df.to_dict()
-            {'col1': {0: 1, 1: 2}, 'col2': {0: 3, 1: 4}}
+            {'col1': {np.int64(0): 1, np.int64(1): 2}, 'col2': {np.int64(0): 3, np.int64(1): 4}}
 
         You can specify the return orientation.
 
@@ -1769,7 +1769,7 @@ class DataFrame(generic.NDFrame):
             ...     })
             >>> index, row = next(df.iterrows())
             >>> index
-            0
+            np.int64(0)
             >>> row
             A    1
             B    4
@@ -1790,7 +1790,7 @@ class DataFrame(generic.NDFrame):
             ...     'B': [4, 5, 6],
             ...     })
             >>> next(df.itertuples(name="Pair"))
-            Pair(Index=0, A=1, B=4)
+            Pair(Index=np.int64(0), A=np.int64(1), B=np.int64(4))
 
         Args:
             index (bool, default True):
@@ -6482,12 +6482,12 @@ class DataFrame(generic.NDFrame):
         Get value at specified row/column pair
 
             >>> df.iat[1, 2]
-            1
+            np.int64(1)
 
         Get value within a series
 
             >>> df.loc[0].iat[1]
-            2
+            np.int64(2)
 
         Returns:
             bigframes.core.indexers.IatDataFrameIndexer: Indexers object.
