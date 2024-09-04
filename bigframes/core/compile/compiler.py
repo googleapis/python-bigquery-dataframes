@@ -76,6 +76,9 @@ class Compiler:
     @_compile_node.register
     def compile_join(self, node: nodes.JoinNode, ordered: bool = True):
         if ordered:
+            # In general, joins are an ordering destroying operation.
+            # With ordering_mode = "partial", make this explicit. In
+            # this case, we don't need to provide a deterministic ordering.
             if self.strict:
                 left_ordered = self.compile_ordered_ir(node.left_child)
                 right_ordered = self.compile_ordered_ir(node.right_child)
