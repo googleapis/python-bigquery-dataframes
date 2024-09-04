@@ -30,8 +30,6 @@ jobs:
       with:
         name: coverage-artifact-${{ matrix.python }}
         path: .coverage-${{ matrix.python }}
-        if-no-files-found: error
-        include-hidden-files: true
 
   cover:
     runs-on: ubuntu-latest
