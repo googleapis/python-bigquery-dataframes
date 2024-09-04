@@ -152,7 +152,10 @@ class ScalarConstantExpression(Expression):
 
 @dataclasses.dataclass(frozen=True)
 class UnboundVariableExpression(Expression):
-    """A variable expression representing an unbound variable."""
+    """A variable expression representing an unbound variable.
+
+    This can be used to defer binding the values.
+    """
 
     id: str
 
@@ -172,6 +175,43 @@ class UnboundVariableExpression(Expression):
 
     def output_type(
         self, input_types: dict[str, bigframes.dtypes.Dtype]
+    ) -> dtypes.ExpressionType:
+        raise ValueError(f"Variable {self.id} has not been bound.")
+
+    def bind_all_variables(self, bindings: Mapping[str, Expression]) -> Expression:
+        if self.id in bindings.keys():
+            return bindings[self.id]
+        else:
+            raise ValueError(f"Variable {self.id} remains unbound")
+
+    @property
+    def is_bijective(self) -> bool:
+        return True
+
+    @property
+    def is_identity(self) -> bool:
+        return True
+
+
+@dataclasses.dataclass(frozen=True)
+class DereferenceExpression(Expression):
+    """A variable expression representing a reference to a value."""
+
+    reference: int
+
+    @property
+    def unbound_variables(self) -> typing.Tuple[str, ...]:
+        return ()
+
+    def rename(self, name_mapping: Mapping[str, str]) -> Expression:
+        return self
+
+    @property
+    def is_const(self) -> bool:
+        return False
+
+    def output_type(
+        self, input_types: dict[int, bigframes.dtypes.Dtype]
     ) -> dtypes.ExpressionType:
         if self.id in input_types:
             return input_types[self.id]

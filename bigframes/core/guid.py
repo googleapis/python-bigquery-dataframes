@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-_GUID_COUNTER = 0
+# Start at 10000 so as to not conflict with implicit offset-based ids
+_GUID_COUNTER = 10000
 
 
 def generate_guid(prefix="col_"):

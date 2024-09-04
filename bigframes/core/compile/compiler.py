@@ -28,6 +28,7 @@ import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
 import bigframes.core.compile.default_ordering as default_ordering
 import bigframes.core.compile.ibis_types
+import bigframes.core.compile.identifiers as compile_ids
 import bigframes.core.compile.schema_translator
 import bigframes.core.compile.single_column
 import bigframes.core.nodes as nodes
@@ -81,7 +82,8 @@ class Compiler:
             return bigframes.core.compile.single_column.join_by_column_ordered(
                 left=left_ordered,
                 right=right_ordered,
-                join=node.join,
+                type=node.type,
+                conditions=node.conditions,
             )
         else:
             left_unordered = self.compile_unordered_ir(node.left_child)
@@ -89,7 +91,8 @@ class Compiler:
             return bigframes.core.compile.single_column.join_by_column_unordered(
                 left=left_unordered,
                 right=right_unordered,
-                join=node.join,
+                type=node.type,
+                conditions=node.conditions,
             )
 
     @_compile_node.register
@@ -243,7 +246,9 @@ class Compiler:
     def compile_promote_offsets(
         self, node: nodes.PromoteOffsetsNode, ordered: bool = True
     ):
-        result = self.compile_ordered_ir(node.child).promote_offsets(node.col_id)
+        result = self.compile_ordered_ir(node.child).promote_offsets(
+            compile_ids.map_id_to_sql(node.col_id)
+        )
         return result if ordered else result.to_unordered()
 
     @_compile_node.register
@@ -303,10 +308,12 @@ class Compiler:
     @_compile_node.register
     def compile_window(self, node: nodes.WindowOpNode, ordered: bool = True):
         result = self.compile_ordered_ir(node.child).project_window_op(
-            node.column_name,
+            compile_ids.map_id_to_sql(node.column_name),
             node.op,
             node.window_spec,
-            node.output_name,
+            compile_ids.map_id_to_sql(node.output_name)
+            if node.output_name is not None
+            else None,
             never_skip_nulls=node.never_skip_nulls,
         )
         return result if ordered else result.to_unordered()

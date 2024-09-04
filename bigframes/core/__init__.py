@@ -19,7 +19,7 @@ import functools
 import io
 import itertools
 import typing
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional, Sequence, Tuple
 import warnings
 
 import google.cloud.bigquery
@@ -58,6 +58,18 @@ class ArrayValue:
     """
 
     node: nodes.BigFrameNode
+    # Temporary Mapping until ArrayValue interface switches fully to integer-based
+    columns: Tuple[Tuple[str, int], ...]
+
+    ## Temporary name resolution helpers ##
+    def resolve_name(self, name: str) -> int:
+        return self._name_mapping[name]
+
+    @functools.cached_property
+    def _name_mapping(self):
+        return {name: id for name, id in self.columns}
+
+    ## End temporary name resolution helpers ##
 
     @classmethod
     def from_pyarrow(cls, arrow_table: pa.Table, session: Session):
