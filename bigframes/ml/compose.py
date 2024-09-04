@@ -21,7 +21,9 @@ from __future__ import annotations
 import re
 import types
 import typing
-from typing import cast, Iterable, List, Optional, Set, Tuple, Union
+from typing import cast, Iterable, List, Optional, Set, Tuple, Union, Dict, Type
+import abc
+import json
 
 import bigframes_vendored.sklearn.compose._column_transformer
 from google.cloud import bigquery
@@ -44,6 +46,106 @@ _BQML_TRANSFROM_TYPE_MAPPING = types.MappingProxyType(
         "ML.IMPUTER": impute.SimpleImputer,
     }
 )
+
+
+CUSTOM_TRANSFORMER_SQL_RX = re.compile("^(?P<sql>.*)/[*]CT.(?P<id>[A-Z]+)[(](?P<config>[^*]*)[)][*]/$", re.IGNORECASE)
+
+class CustomTransformer(base.BaseTransformer):
+    _CTID = None
+    _custom_transformer_classes = {}
+    @classmethod
+    def register(cls, transformer_cls:Type[base.BaseTransformer]):
+        assert transformer_cls._CTID
+        cls._custom_transformer_classes[transformer_cls._CTID] = transformer_cls
+    @classmethod
+    def find_matching_transformer(cls, transform_sql:str) -> Optional[Type[base.BaseTransformer]]:
+        for transform_cls in cls._custom_transformer_classes.values():
+            if transform_cls.understands(transform_sql):
+                return transform_cls
+        return None
+    @classmethod
+    def understands(cls, transform_sql:str) -> bool:
+        """
+        may be overwritten to have a more advanced matching, possibly without comments in SQL
+        """
+        m = CUSTOM_TRANSFORMER_SQL_RX.match(transform_sql)
+        if m and m.group("id").strip() == cls._CTID:
+            return True
+        return False
+        
+    def __init__(self):
+        super().__init__()
+
+    def _compile_to_sql(self, X: bpd.DataFrame, columns: Optional[Iterable[str]] = None) -> List[str]:
+        if columns is None:
+            columns = X.columns
+        return [
+            f"{self.custom_compile_to_sql(X, column)} {self._get_sql_comment(column)} AS {self.get_target_column_name(column)}" 
+            for column in columns
+        ]
+
+    def get_target_column_name(self, column:str):
+        return f"{self._CTID.lower()}_{column}"
+
+    @classmethod
+    def custom_compile_to_sql(self, X: bpd.DataFrame, column: str) -> str:
+        pass
+    
+    @abc.abstractmethod
+    def custom_compile_to_sql(self, X: bpd.DataFrame, column: str) -> str:
+        pass
+    
+    def get_persistent_config(self) -> Optional[Union[Dict, List]]:
+        """
+        return structure to be persisted in the comment of the sql
+        """
+        return None
+
+    def _get_pc_as_args(self) -> str:
+        config = self.get_persistent_config()
+        if not config:
+            return ""
+        return json.dumps(config)
+        
+
+    def _get_sql_comment(self, column:str):
+        args = self._get_pc_as_args()
+        return f"/*CT.{self._CTID}({args})*/"
+
+    @classmethod
+    def _parse_from_sql(cls, transform_sql: str) -> tuple[base.BaseTransformer, str]:
+        m = CUSTOM_TRANSFORMER_SQL_RX.match(transform_sql)
+        if m and m.group("id").strip() != cls._CTID:
+            raise ValueError("understand() does not match _parse_from_sql!")
+        args = m.group("config").strip()
+        if args != "":
+            config = json.loads(args)
+        else:
+            config = None
+        sql = m.group("sql").strip()
+        return cls.custom_parse_from_sql(config, sql)
+
+    @abc.abstractclassmethod
+    def custom_parse_from_sql(cls, config: Optional[Union[Dict, List]], sql: str):
+        """
+        return transformer instance and column name
+        """
+        pass
+
+    def _keys(self):
+        """
+        this method is used for merging multiple transformers together.
+        So, keys can be derived from get_persistent_config()
+        """ 
+        return self._get_pc_as_args()
+    
+    # CustomTransformers are thought to be used inside a column transformer.
+    # So there is no need to implement fit() and transform() directly.
+    # This can lead to problems if merg() detects only 1 transformer left.
+    def fit(self, y: Union[bpd.DataFrame, bpd.Series]) -> base.BaseTransformer:
+        raise NotImplementedError("Unsupported")
+    def transform(self, y: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+        raise NotImplementedError("Unsupported")
 
 
 @log_adapter.class_logger
@@ -130,10 +232,7 @@ class ColumnTransformer(
             if "transformSql" not in transform_col_dict:
                 continue
             transform_sql: str = transform_col_dict["transformSql"]
-            if not transform_sql.startswith("ML."):
-                continue
 
-            output_names.append(transform_col_dict["name"])
             found_transformer = False
             for prefix in _BQML_TRANSFROM_TYPE_MAPPING:
                 if transform_sql.startswith(prefix):
@@ -147,10 +246,27 @@ class ColumnTransformer(
 
                     found_transformer = True
                     break
+            
             if not found_transformer:
+                transformer_cls = CustomTransformer.find_matching_transformer(transform_sql)
+                if transformer_cls:
+                    transformers_set.add(
+                        (
+                            camel_to_snake(transformer_cls.__name__),
+                            *transformer_cls._parse_from_sql(transform_sql),  # type: ignore
+                        )
+                    )
+                    found_transformer = True
+                
+            
+            if not found_transformer:
+                if not transform_sql.startswith("ML.") and not transform_sql.startswith("/*CT."):
+                    continue   # ignore other patterns, only report unhandled known patterns
                 raise NotImplementedError(
                     f"Unsupported transformer type. {constants.FEEDBACK_LINK}"
                 )
+
+            output_names.append(transform_col_dict["name"])
 
         transformer = cls(transformers=list(transformers_set))
         transformer._output_names = output_names
@@ -167,6 +283,8 @@ class ColumnTransformer(
 
         assert len(transformers) > 0
         _, transformer_0, column_0 = transformers[0]
+        if isinstance(transformer_0, CustomTransformer):
+            return self   # CustomTransformers only work inside ColumnTransformer
         feature_columns_sorted = sorted(
             [
                 cast(str, feature_column.name)
@@ -234,6 +352,26 @@ class ColumnTransformer(
         self._extract_output_names()
         return self
 
+    # Overwrite the implementation in BaseTransformer, as it only supports the "ML." transformers.
+    def _extract_output_names(self):
+        """Extract transform output column names. Save the results to self._output_names."""
+        assert self._bqml_model is not None
+
+        output_names = []
+        for transform_col in self._bqml_model._model._properties["transformColumns"]:
+            transform_col_dict = cast(dict, transform_col)
+            # pass the columns that are not transformed
+            if "transformSql" not in transform_col_dict:
+                continue
+            transform_sql: str = transform_col_dict["transformSql"]
+            if not transform_sql.startswith("ML."):
+                if not CustomTransformer.find_matching_transformer(transform_sql):
+                    continue
+
+            output_names.append(transform_col_dict["name"])
+
+        self._output_names = output_names
+
     def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
@@ -245,3 +383,4 @@ class ColumnTransformer(
             bpd.DataFrame,
             df[self._output_names],
         )
+
