@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import packaging.version
 import pandas as pd
 import pyarrow as pa
 import pytest
@@ -32,6 +33,10 @@ from ...utils import assert_series_equal
     ],
 )
 def test_getitem(key):
+    if packaging.version.Version(pd.__version__) < packaging.version.Version("2.2.0"):
+        pytest.skip(
+            "https://pandas.pydata.org/docs/whatsnew/v2.2.0.html#series-list-accessor-for-pyarrow-list-data"
+        )
     data = [[1], [2, 3], [4, 5, 6]]
     s = bpd.Series(data, dtype=pd.ArrowDtype(pa.list_(pa.int64())))
     pd_s = pd.Series(data, dtype=pd.ArrowDtype(pa.list_(pa.int64())))
@@ -64,6 +69,10 @@ def test_getitem_notsupported(key, expectation):
 
 
 def test_len():
+    if packaging.version.Version(pd.__version__) < packaging.version.Version("2.2.0"):
+        pytest.skip(
+            "https://pandas.pydata.org/docs/whatsnew/v2.2.0.html#series-list-accessor-for-pyarrow-list-data"
+        )
     data = [[], [1], [1, 2], [1, 2, 3]]
     s = bpd.Series(data, dtype=pd.ArrowDtype(pa.list_(pa.int64())))
     pd_s = pd.Series(data, dtype=pd.ArrowDtype(pa.list_(pa.int64())))
