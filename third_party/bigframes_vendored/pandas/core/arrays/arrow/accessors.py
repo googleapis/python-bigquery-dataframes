@@ -80,9 +80,9 @@ class StructAccessor:
         Extract all child fields.
 
             >>> s.struct.explode()
-               project version 
+               project version
             0   pandas       1
-            1   pandas       2  
+            1   pandas       2
             2    numpy       1
             <BLANKLINE>
             [3 rows x 2 columns]
