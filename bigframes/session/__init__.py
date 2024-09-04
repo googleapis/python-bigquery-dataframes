@@ -1293,7 +1293,6 @@ class Session(
             2    TestCad$123456Str
             dtype: string
 
-
         Args:
             function_name (str):
                 the function's name in BigQuery in the format
