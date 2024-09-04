@@ -22,15 +22,16 @@ jobs:
         python -m pip install nox
     - name: Run unit tests
       env:
-        COVERAGE_FILE: /tmp/.coverage-${{ matrix.python }}
+        COVERAGE_FILE: .coverage-${{ matrix.python }}
       run: |
         nox -s unit-${{ matrix.python }}
     - name: Upload coverage results
-      uses: actions/upload-artifact@v4.3.5
+      uses: actions/upload-artifact@v4
       with:
         name: coverage-artifact-${{ matrix.python }}
-        path: /tmp/.coverage-${{ matrix.python }}
+        path: .coverage-${{ matrix.python }}
         if-no-files-found: error
+        include-hidden-files: true
 
   cover:
     runs-on: ubuntu-latest
