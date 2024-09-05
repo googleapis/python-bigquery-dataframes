@@ -1242,8 +1242,8 @@ class Session(
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-        Use the ``cw_lower_case_ascii_only`` function from Community UDFs
-        (https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/README.md#cw_lower_case_ascii_onlystr-string).
+        Use the [cw_lower_case_ascii_only](https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/README.md#cw_lower_case_ascii_onlystr-string)
+        function from Community UDFs.
 
             >>> func = bpd.read_gbq_function("bqutil.fn.cw_lower_case_ascii_only")
 
@@ -1274,8 +1274,8 @@ class Session(
             [3 rows x 3 columns]
 
         You can even use a function with multiple inputs. For example, let's use
-        ``cw_instr4`` from Community UDFs
-        (https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/README.md#cw_instr4source-string-search-string-position-int64-ocurrence-int64).
+        [cw_instr4](https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/README.md#cw_instr4source-string-search-string-position-int64-ocurrence-int64)
+        from Community UDFs.
 
             >>> func = bpd.read_gbq_function("bqutil.fn.cw_instr4")
             >>> func('TestStr123456Str', 'Str', 1, 2)
