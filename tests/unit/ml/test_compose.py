@@ -191,16 +191,8 @@ def test_columntransformer_init_with_customtransforms():
     column_transformer = compose.ColumnTransformer(
         [
             ("ident_trafo", ident_transformer, ["culmen_length_mm", "flipper_length_mm"]),
-            (
-                "len1_trafo",
-                len1_transformer,
-                ["species"],
-            ),
-            (
-                "len2_trafo",
-                len2_transformer,
-                ["species"],
-            ),
+            ("len1_trafo", len1_transformer, ["species"]),
+            ("len2_trafo", len2_transformer, ["species"]),
             ("label", label_transformer, "species"),
         ]
     )
@@ -424,7 +416,6 @@ def test_columntransformer_extract_from_bq_model_no_merge(bq_model_no_merge):
     assert col_trans.__repr__() == """ColumnTransformer(transformers=[('identity_transformer', IdentityTransformer(),
                                  'culmen_length_mm')])"""
     
-
 def test_columntransformer_extract_from_bq_model_unknown_CT(bq_model_unknown_CT):
     try:
         col_trans = ColumnTransformer._extract_from_bq_model(bq_model_unknown_CT)
@@ -446,3 +437,42 @@ def test_columntransformer_extract_from_bq_model_foreign(bq_model_foreign):
                                               min_frequency=0),
                                  'county')])"""
 
+
+def test_columntransformer_extract_output_names(bq_model_good):
+    class BQMLModel:
+        def __init__(self, bq_model):
+            self._model = bq_model
+    col_trans = ColumnTransformer._extract_from_bq_model(bq_model_good)
+    col_trans._bqml_model = BQMLModel(bq_model_good)
+    col_trans._extract_output_names()
+    assert col_trans._output_names == [
+        'ident_culmen_length_mm', 
+        'ident_flipper_length_mm', 
+        'len1_species', 
+        'len2_species', 
+        'labelencoded_county', 
+        'labelencoded_species'
+    ]
+    
+
+def test_columntransformer_compile_to_sql():    
+    ident_transformer = IdentityTransformer()
+    len1_transformer = Length1Transformer(-2)
+    len2_transformer = Length2Transformer(99)
+    label_transformer = preprocessing.LabelEncoder()
+    column_transformer = compose.ColumnTransformer(
+        [
+            ("ident_trafo", ident_transformer, ["culmen_length_mm", "flipper_length_mm"]),
+            ("len1_trafo", len1_transformer, ["species"]),
+            ("len2_trafo", len2_transformer, ["species"]),
+            ("label", label_transformer, "species"),
+        ]
+    )
+    sqls = column_transformer._compile_to_sql(None)
+    assert sqls == [
+        'culmen_length_mm /*CT.IDENT()*/ AS ident_culmen_length_mm', 
+        'flipper_length_mm /*CT.IDENT()*/ AS ident_flipper_length_mm', 
+        'CASE WHEN species IS NULL THEN -2 ELSE LENGTH(species) END /*CT.LEN1()*/ AS len1_species', 
+        'CASE WHEN species IS NULL THEN 99 ELSE LENGTH(species) END /*CT.LEN2([99])*/ AS len2_species', 
+        'ML.LABEL_ENCODER(species, 1000000, 0) OVER() AS labelencoded_species'
+    ]
