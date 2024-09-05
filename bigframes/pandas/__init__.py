@@ -36,6 +36,7 @@ from typing import (
     Union,
 )
 
+import bigframes.pandas
 import bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
 import bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
 import bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
@@ -837,6 +838,7 @@ DataFrame = bigframes.dataframe.DataFrame
 Index = bigframes.core.indexes.Index
 MultiIndex = bigframes.core.indexes.MultiIndex
 Series = bigframes.series.Series
+__version__ = bigframes.core.pandas.__version__
 
 # Other public pandas attributes
 NamedAgg = namedtuple("NamedAgg", ["column", "aggfunc"])
@@ -846,6 +848,7 @@ options = config.options
 
 option_context = config.option_context
 """Global :class:`~bigframes._config.option_context` to configure BigQuery DataFrames."""
+
 
 
 # Session management APIs
@@ -910,6 +913,7 @@ __all___ = [
     "Index",
     "MultiIndex",
     "Series",
+    "__version__",
     # Other public pandas attributes
     "NamedAgg",
     "options",
