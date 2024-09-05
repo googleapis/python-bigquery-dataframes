@@ -78,7 +78,7 @@ class SquashedSelect:
     def select(self, input_output_pairs: Tuple[Tuple[str, str], ...]) -> SquashedSelect:
         new_columns = tuple(
             (
-                scalar_exprs.free_var(input).bind_all_variables(self.column_lookup),
+                scalar_exprs.free_var(input).bind_variables(self.column_lookup),
                 output,
             )
             for input, output in input_output_pairs
@@ -92,7 +92,7 @@ class SquashedSelect:
     ) -> SquashedSelect:
         existing_columns = self.columns
         new_columns = tuple(
-            (expr.bind_all_variables(self.column_lookup), id) for expr, id in projection
+            (expr.bind_variables(self.column_lookup), id) for expr, id in projection
         )
         return SquashedSelect(
             self.root,
@@ -104,10 +104,10 @@ class SquashedSelect:
 
     def filter(self, predicate: scalar_exprs.Expression) -> SquashedSelect:
         if self.predicate is None:
-            new_predicate = predicate.bind_all_variables(self.column_lookup)
+            new_predicate = predicate.bind_variables(self.column_lookup)
         else:
             new_predicate = ops.and_op.as_expr(
-                self.predicate, predicate.bind_all_variables(self.column_lookup)
+                self.predicate, predicate.bind_variables(self.column_lookup)
             )
         return SquashedSelect(
             self.root, self.columns, new_predicate, self.ordering, self.reverse_root

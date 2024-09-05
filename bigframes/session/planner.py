@@ -46,15 +46,18 @@ def session_aware_cache_plan(
             # Filter node doesn't define any variables, so no need to chain expressions
             filters.append(cur_node.predicate)
         elif isinstance(cur_node, nodes.ProjectionNode):
-            ...
-        elif isinstance(cur_node, nodes.SelectionNode):
             # Projection defines the variables that are used in the filter expressions, need to substitute variables with their scalar expressions
             # that instead reference variables in the child node.
+            bindings = {name: expr for expr, name in cur_node.assignments}
+            filters = [
+                i.bind_variables(bindings, check_bind_all=False) for i in filters
+            ]
+        elif isinstance(cur_node, nodes.SelectionNode):
             bindings = {
                 output: ex.free_var(input)
                 for input, output in cur_node.input_output_pairs
             }
-            filters = [i.bind_all_variables(bindings) for i in filters]
+            filters = [i.bind_variables(bindings) for i in filters]
         else:
             raise ValueError(f"Unexpected de-cached node: {cur_node}")
 

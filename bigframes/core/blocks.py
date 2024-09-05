@@ -939,7 +939,7 @@ class Block:
         for col_id in columns:
             label = self.col_id_to_label[col_id]
             block, result_id = block.project_expr(
-                expr.bind_all_variables({input_varname: ex.free_var(col_id)}),
+                expr.bind_variables({input_varname: ex.free_var(col_id)}),
                 label=label,
             )
             block = block.copy_values(result_id, col_id)
@@ -1629,7 +1629,7 @@ class Block:
 
             return Block(
                 expr,
-                index_columns=self.index_columns,
+                index_columns=new_index_cols,
                 column_labels=self.column_labels,
                 index_labels=self.index.names,
             )
@@ -1654,7 +1654,7 @@ class Block:
             expr = expr.select_columns((*new_index_cols, *self.value_columns))
             return Block(
                 expr,
-                index_columns=self.index_columns,
+                index_columns=new_index_cols,
                 column_labels=self.column_labels,
                 index_labels=self.index.names,
             )
