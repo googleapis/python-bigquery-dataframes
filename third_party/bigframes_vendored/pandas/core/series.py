@@ -878,7 +878,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 0, 0, 0])
             >>> s.autocorr()
-            nan
+            np.float64(nan)
 
         Args:
             lag (int, default 1):

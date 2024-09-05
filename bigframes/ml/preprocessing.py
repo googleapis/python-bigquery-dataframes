@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import typing
 from typing import cast, Iterable, List, Literal, Optional, Union
+import numpy as np
 
 import bigframes_vendored.sklearn.preprocessing._data
 import bigframes_vendored.sklearn.preprocessing._discretization
@@ -305,8 +306,18 @@ class KBinsDiscretizer(
         array_split_points = {}
         if self.strategy == "uniform":
             for column in columns:
-                min_value = X[column].min()
-                max_value = X[column].max()
+                column_min = X[column].min()
+                if np.issubdtype(column_min.dtype, np.floating):
+                    min_value = column_min.item()
+                else:
+                    min_value = column_min
+
+                column_max = X[column].max()
+                if np.issubdtype(column_max.dtype, np.floating):
+                    max_value = column_max.item()
+                else:
+                    max_value = column_max
+
                 bin_size = (max_value - min_value) / self.n_bins
                 array_split_points[column] = [
                     min_value + i * bin_size for i in range(self.n_bins - 1)
