@@ -1719,7 +1719,7 @@ def test_df_apply_axis_1_complex(session, pd_df):
 
         def serialize_row(row):
             custom = {
-                "name": row.name,
+                "name": row.name.item() if hasattr(row.name, "item") else row.name,
                 "index": [idx for idx in row.index],
                 "values": [
                     val.item() if hasattr(val, "item") else val for val in row.values

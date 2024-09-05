@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import typing
 from typing import cast, Iterable, List, Literal, Optional, Union
-import numpy as np
 
 import bigframes_vendored.sklearn.preprocessing._data
 import bigframes_vendored.sklearn.preprocessing._discretization
@@ -307,13 +306,15 @@ class KBinsDiscretizer(
         if self.strategy == "uniform":
             for column in columns:
                 column_min = X[column].min()
-                if np.issubdtype(column_min.dtype, np.floating):
+                column_max = X[column].max()
+
+                # Use Python value rather than Numpy value to serialization.
+                if hasattr(column_min, "item"):
                     min_value = column_min.item()
                 else:
                     min_value = column_min
 
-                column_max = X[column].max()
-                if np.issubdtype(column_max.dtype, np.floating):
+                if hasattr(column_max, "item"):
                     max_value = column_max.item()
                 else:
                     max_value = column_max
