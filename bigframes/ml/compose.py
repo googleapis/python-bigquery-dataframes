@@ -98,8 +98,9 @@ class CustomTransformer(base.BaseTransformer):
     def get_target_column_name(self, column: str) -> str:
         return f"{self._CTID.lower()}_{column}"
 
+    @classmethod
     @abc.abstractclassmethod
-    def custom_compile_to_sql(self, X: bpd.DataFrame, column: str) -> str:
+    def custom_compile_to_sql(cls, X: bpd.DataFrame, column: str) -> str:
         pass
 
     def get_persistent_config(self, column: str) -> Optional[Union[Dict, List]]:
@@ -131,8 +132,8 @@ class CustomTransformer(base.BaseTransformer):
         sql = m.group("sql").strip()
         return cls.custom_parse_from_sql(config, sql)
 
-    @abc.abstractclassmethod
     @classmethod
+    @abc.abstractclassmethod
     def custom_parse_from_sql(
         cls, config: Optional[Union[Dict, List]], sql: str
     ) -> Tuple[base.BaseTransformer, str]:
