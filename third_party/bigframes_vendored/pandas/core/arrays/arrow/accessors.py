@@ -12,8 +12,9 @@ class ListAccessor:
     def len(self):
         """Compute the length of each list in the Series.
 
-        See Also:
-            StringMethods.len : Compute the length of each element in the Series/Index.
+        **See Also:**
+
+            - :func:`StringMethods.len` : Compute the length of each element in the Series/Index.
 
         **Examples:**
 
