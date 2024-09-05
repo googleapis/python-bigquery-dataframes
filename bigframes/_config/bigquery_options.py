@@ -271,7 +271,7 @@ class BigQueryOptions:
 
         Returns:
             None or str:
-                Customer managed encryption key as a string; otherwise None.
+                Name of the customer managed encryption key as a string; otherwise None.
         """
         return self._kms_key_name
 
