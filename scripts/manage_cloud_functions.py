@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import argparse
-from datetime import datetime
+import datetime as dt
 import sys
 import time
 
@@ -61,6 +61,13 @@ GCF_REGIONS_ALL = [
 
 GCF_CLIENT = functions_v2.FunctionServiceClient()
 
+# Consider GCFs created in last 6 hours as recent
+RECENCY_CUTOFF = dt.timedelta(hours=6).total_seconds()
+
+
+def is_recent(age: dt.timedelta):
+    return age.total_seconds() <= RECENCY_CUTOFF
+
 
 def get_bigframes_functions(project, region):
     parent = f"projects/{args.project_id}/locations/{region}"
@@ -94,8 +101,10 @@ def summarize_gcfs(args):
         # Count how many GCFs are newer than a day
         recent = 0
         for f in functions:
-            age = datetime.now() - datetime.fromtimestamp(f.update_time.timestamp())
-            if age.days <= 0:
+            age = dt.datetime.now() - dt.datetime.fromtimestamp(
+                f.update_time.timestamp()
+            )
+            if is_recent(age):
                 recent += 1
 
         region_counts[region] = (functions_count, recent)
@@ -106,7 +115,7 @@ def summarize_gcfs(args):
         region = item[0]
         count, recent = item[1]
         print(
-            "{}: Total={}, Recent={}, OlderThanADay={}".format(
+            "{}: Total={}, Recent={}, Older={}".format(
                 region, count, recent, count - recent
             )
         )
@@ -120,8 +129,10 @@ def cleanup_gcfs(args):
         functions = get_bigframes_functions(args.project_id, region)
         count = 0
         for f in functions:
-            age = datetime.now() - datetime.fromtimestamp(f.update_time.timestamp())
-            if age.days > 0:
+            age = dt.datetime.now() - dt.datetime.fromtimestamp(
+                f.update_time.timestamp()
+            )
+            if not is_recent(age):
                 try:
                     count += 1
                     GCF_CLIENT.delete_function(name=f.name)
@@ -134,12 +145,15 @@ def cleanup_gcfs(args):
                     # that for this clean-up, i.e. 6 mutations per minute. So wait for
                     # 60/6 = 10 seconds
                     time.sleep(10)
+                except google.api_core.exceptions.NotFound:
+                    # Most likely the function was deleted otherwise
+                    pass
                 except google.api_core.exceptions.ResourceExhausted:
                     # Stop deleting in this region for now
                     print(
-                        f"Cannot delete any more functions in region {region} due to quota exhaustion. Please try again later."
+                        f"Failed to delete function in region {region} due to quota exhaustion. Pausing for 2 minutes."
                     )
-                    break
+                    time.sleep(120)
 
 
 def list_str(values):
