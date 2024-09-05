@@ -69,6 +69,7 @@ import bigframes.series
 import bigframes.session
 import bigframes.session._io.bigquery
 import bigframes.session.clients
+import bigframes.version
 
 try:
     import resource
@@ -837,7 +838,7 @@ DataFrame = bigframes.dataframe.DataFrame
 Index = bigframes.core.indexes.Index
 MultiIndex = bigframes.core.indexes.MultiIndex
 Series = bigframes.series.Series
-__version__ = bigframes.core.pandas.__version__
+__version__ = bigframes.version.__version__
 
 # Other public pandas attributes
 NamedAgg = namedtuple("NamedAgg", ["column", "aggfunc"])
