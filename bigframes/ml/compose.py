@@ -84,7 +84,7 @@ class CustomTransformer(base.BaseTransformer):
             for column in columns
         ]
 
-    def get_target_column_name(self, column:str):
+    def get_target_column_name(self, column:str) -> str:
         return f"{self._CTID.lower()}_{column}"
 
     @abc.abstractclassmethod
@@ -103,12 +103,12 @@ class CustomTransformer(base.BaseTransformer):
             return ""
         return json.dumps(config)
 
-    def _get_sql_comment(self, column:str):
+    def _get_sql_comment(self, column:str) -> str:
         args = self._get_pc_as_args(column)
         return f"/*CT.{self._CTID}({args})*/"
 
     @classmethod
-    def _parse_from_sql(cls, transform_sql: str) -> tuple[base.BaseTransformer, str]:
+    def _parse_from_sql(cls, transform_sql: str) -> Tuple[base.BaseTransformer, str]:
         m = CUSTOM_TRANSFORMER_SQL_RX.match(transform_sql)
         if m and m.group("id").strip() != cls._CTID:
             raise ValueError("understand() does not match _parse_from_sql!")
@@ -121,7 +121,7 @@ class CustomTransformer(base.BaseTransformer):
         return cls.custom_parse_from_sql(config, sql)
 
     @abc.abstractclassmethod
-    def custom_parse_from_sql(cls, config: Optional[Union[Dict, List]], sql: str):
+    def custom_parse_from_sql(cls, config: Optional[Union[Dict, List]], sql: str) -> Tuple[base.BaseTransformer, str]:
         """
         return transformer instance and column name
         """
@@ -132,7 +132,8 @@ class CustomTransformer(base.BaseTransformer):
     
     # CustomTransformers are thought to be used inside a column transformer.
     # So there is no need to implement fit() and transform() directly.
-    # This can lead to problems if merg() detects only 1 transformer left.
+    # ColumnTransformer.merge() takes care, that a single custom transformer 
+    # is not returned as a standalone transformer.
     def fit(self, y: Union[bpd.DataFrame, bpd.Series]) -> base.BaseTransformer:
         raise NotImplementedError("Unsupported")
     def transform(self, y: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
