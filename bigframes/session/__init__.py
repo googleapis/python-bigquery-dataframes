@@ -1265,7 +1265,7 @@ class Session(
             <BLANKLINE>
             [3 rows x 3 columns]
 
-        You can even use a function with multiple inputs. For example, let's use
+        You can even use a function with multiple inputs. For example, use
         ``cw_regexp_replace_5`` from Community UDFs
         (https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/README.md#cw_regexp_replace_5haystack-string-regexp-string-replacement-string-offset-int64-occurrence-int64).
 
