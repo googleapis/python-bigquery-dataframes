@@ -27,6 +27,7 @@ import bigframes.operations as ops
 Selection = Tuple[Tuple[scalar_exprs.Expression, str], ...]
 
 REWRITABLE_NODE_TYPES = (
+    nodes.SelectionNode,
     nodes.ProjectionNode,
     nodes.FilterNode,
     nodes.ReversedNode,
@@ -54,7 +55,12 @@ class SquashedSelect:
                 for id in get_node_column_ids(node)
             )
             return cls(node, selection, None, ())
-        if isinstance(node, nodes.ProjectionNode):
+
+        if isinstance(node, nodes.SelectionNode):
+            return cls.from_node_span(node.child, target).select(
+                node.input_output_pairs
+            )
+        elif isinstance(node, nodes.ProjectionNode):
             return cls.from_node_span(node.child, target).project(node.assignments)
         elif isinstance(node, nodes.FilterNode):
             return cls.from_node_span(node.child, target).filter(node.predicate)
@@ -69,14 +75,31 @@ class SquashedSelect:
     def column_lookup(self) -> Mapping[str, scalar_exprs.Expression]:
         return {col_id: expr for expr, col_id in self.columns}
 
+    def select(self, input_output_pairs: Tuple[Tuple[str, str], ...]) -> SquashedSelect:
+        new_columns = tuple(
+            (
+                scalar_exprs.free_var(input).bind_all_variables(self.column_lookup),
+                output,
+            )
+            for input, output in input_output_pairs
+        )
+        return SquashedSelect(
+            self.root, new_columns, self.predicate, self.ordering, self.reverse_root
+        )
+
     def project(
         self, projection: Tuple[Tuple[scalar_exprs.Expression, str], ...]
     ) -> SquashedSelect:
+        existing_columns = self.columns
         new_columns = tuple(
             (expr.bind_all_variables(self.column_lookup), id) for expr, id in projection
         )
         return SquashedSelect(
-            self.root, new_columns, self.predicate, self.ordering, self.reverse_root
+            self.root,
+            (*existing_columns, *new_columns),
+            self.predicate,
+            self.ordering,
+            self.reverse_root,
         )
 
     def filter(self, predicate: scalar_exprs.Expression) -> SquashedSelect:
@@ -204,7 +227,11 @@ class SquashedSelect:
             root = nodes.FilterNode(child=root, predicate=self.predicate)
         if self.ordering:
             root = nodes.OrderByNode(child=root, by=self.ordering)
-        return nodes.ProjectionNode(child=root, assignments=self.columns)
+        selection = tuple((id, id) for _, id in self.columns)
+        return nodes.SelectionNode(
+            child=nodes.ProjectionNode(child=root, assignments=self.columns),
+            input_output_pairs=selection,
+        )
 
 
 def join_as_projection(
