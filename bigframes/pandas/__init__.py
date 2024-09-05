@@ -36,7 +36,6 @@ from typing import (
     Union,
 )
 
-import bigframes.pandas
 import bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
 import bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
 import bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
@@ -848,7 +847,6 @@ options = config.options
 
 option_context = config.option_context
 """Global :class:`~bigframes._config.option_context` to configure BigQuery DataFrames."""
-
 
 
 # Session management APIs
