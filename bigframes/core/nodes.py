@@ -541,7 +541,7 @@ class PromoteOffsetsNode(UnaryNode):
 
     @property
     def schema(self) -> schemata.ArraySchema:
-        return self.child.schema.prepend(
+        return self.child.schema.append(
             schemata.SchemaItem(self.col_id, bigframes.dtypes.INT_DTYPE)
         )
 

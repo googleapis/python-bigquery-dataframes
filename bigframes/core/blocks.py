@@ -1106,7 +1106,7 @@ class Block:
             )
             return Block(
                 result_expr.drop_columns([passthrough_cols[-1]]),
-                passthrough_cols[:-1],
+                index_columns=passthrough_cols[:-1],
                 column_labels=[None],
                 index_labels=self.index.names,
             )
