@@ -1256,7 +1256,7 @@ class Session(
             >>> func('AURÉLIE')
             'aurÉlie'
 
-        You can apply it to a BigQuery DataFrame Series.
+        You can apply it to a BigQuery DataFrames Series.
 
             >>> df = bpd.DataFrame({'id': [1, 2, 3], 'name': ['AURÉLIE', 'CÉLESTINE', 'DAPHNÉ']})
             >>> df
