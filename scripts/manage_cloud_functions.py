@@ -61,13 +61,6 @@ GCF_REGIONS_ALL = [
 
 GCF_CLIENT = functions_v2.FunctionServiceClient()
 
-# Consider GCFs created in last 6 hours as recent
-RECENCY_CUTOFF = dt.timedelta(hours=6).total_seconds()
-
-
-def is_recent(age: dt.timedelta):
-    return age.total_seconds() <= RECENCY_CUTOFF
-
 
 def get_bigframes_functions(project, region):
     parent = f"projects/{args.project_id}/locations/{region}"
@@ -104,7 +97,7 @@ def summarize_gcfs(args):
             age = dt.datetime.now() - dt.datetime.fromtimestamp(
                 f.update_time.timestamp()
             )
-            if is_recent(age):
+            if age.total_seconds() < args.recency_cutoff:
                 recent += 1
 
         region_counts[region] = (functions_count, recent)
@@ -132,7 +125,7 @@ def cleanup_gcfs(args):
             age = dt.datetime.now() - dt.datetime.fromtimestamp(
                 f.update_time.timestamp()
             )
-            if not is_recent(age):
+            if age.total_seconds() >= args.recency_cutoff:
                 try:
                     count += 1
                     GCF_CLIENT.delete_function(name=f.name)
@@ -180,6 +173,19 @@ if __name__ == "__main__":
         default=GCF_REGIONS_ALL,
         action="store",
         help="Cloud functions region(s). If multiple regions, Specify comma separated (e.g. region1,region2)",
+    )
+
+    def hours_to_timedelta(hrs):
+        return dt.timedelta(hours=int(hrs)).total_seconds()
+
+    parser.add_argument(
+        "-c",
+        "--recency-cutoff",
+        type=hours_to_timedelta,
+        required=False,
+        default=hours_to_timedelta("24"),
+        action="store",
+        help="Number of hours, cloud functions older than which should be considered stale (worthy of cleanup).",
     )
 
     subparsers = parser.add_subparsers(title="subcommands", required=True)
