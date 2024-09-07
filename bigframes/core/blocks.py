@@ -1596,7 +1596,7 @@ class Block:
             Block(
                 expr,
                 index_columns=self.index_columns,
-                column_labels=self.column_labels.insert(0, label),
+                column_labels=self.column_labels.insert(len(self.column_labels), label),
                 index_labels=self._index_labels,
             ),
             result_id,
