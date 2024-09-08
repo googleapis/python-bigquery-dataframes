@@ -1438,6 +1438,37 @@ class Session(
         else:
             job.result()
 
+    def _create_object_table(self, path) -> str:
+        table = bf_io_bigquery.table_ref_to_sql(
+            self._loader._storage_manager._random_table()
+        )
+        connection = "bigframes-dev.us.bigframes-default-connection"
+
+        import textwrap
+
+        query = textwrap.dedent(
+            f"""
+            CREATE EXTERNAL TABLE `{table}`
+            WITH CONNECTION `{connection}`
+            OPTIONS(
+                object_metadata = 'SIMPLE',
+                uris = ['{path}']);
+            """
+        )
+        self._start_query_ml_ddl(query)
+
+        return table
+
+    def from_glob_path(self, path) -> dataframe.DataFrame:
+        table = self._create_object_table(path)
+
+        self._master_object_table = table
+        return self.read_gbq(table)["uri"].to_frame()
+
+    def read_gbq_object_table(self, table):
+        self._master_object_table = table
+        return self.read_gbq(table)["uri"].to_frame()
+
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
     return Session(context)

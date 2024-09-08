@@ -113,7 +113,7 @@ def create_export_data_statement(
 
 def table_ref_to_sql(table: bigquery.TableReference) -> str:
     """Format a table reference as escaped SQL."""
-    return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
+    return f"{table.project}.{table.dataset_id}.{table.table_id}"
 
 
 def create_temp_table(

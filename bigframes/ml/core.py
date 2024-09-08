@@ -20,7 +20,7 @@ import datetime
 from typing import Callable, cast, Iterable, Mapping, Optional, Union
 import uuid
 
-from google.cloud import bigquery
+from google.cloud import bigquery, storage
 
 import bigframes
 import bigframes.constants as constants
@@ -479,3 +479,21 @@ class BqmlModelFactory:
         )
 
         return self._create_model_with_sql(session=session, sql=sql)
+
+
+class GcsManager:
+    def __init__(self):
+        self._storage_client = storage.Client()
+
+    def download_as_bytes(self, bucket_name, blob_name) -> bytes:
+        bucket = self._storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        return blob.download_as_bytes()
+
+    def upload_bytes(self, bts, bucket_name, blob_name, content_type=None):
+        bucket = self._storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+
+        blob.upload_from_string(bts, content_type=content_type)
+
+        return f"gs://{bucket_name}/{blob_name}"

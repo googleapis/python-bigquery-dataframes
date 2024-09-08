@@ -871,6 +871,18 @@ def reset_session():
 reset_session.__doc__ = global_session.close_session.__doc__
 
 
+def from_glob_path(path):
+    return global_session.with_default_session(
+        bigframes.session.Session.from_glob_path, path
+    )
+
+
+def read_gbq_object_table(table):
+    return global_session.with_default_session(
+        bigframes.session.Session.read_gbq_object_table, table
+    )
+
+
 # SQL Compilation uses recursive algorithms on deep trees
 # 10M tree depth should be sufficient to generate any sql that is under bigquery limit
 # Note: This limit does not have the desired effect on Python 3.12 in
@@ -899,6 +911,8 @@ __all___ = [
     "read_pickle",
     "remote_function",
     "to_datetime",
+    "from_glob_path",
+    "read_gbq_object_table",
     # pandas dtype attributes
     "NA",
     "BooleanDtype",

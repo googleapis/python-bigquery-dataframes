@@ -52,6 +52,7 @@ import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
+import bigframes.operations.blob as blob
 import bigframes.operations.datetimes as dt
 import bigframes.operations.lists as lists
 import bigframes.operations.plotting as plotting
@@ -80,6 +81,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def dt(self) -> dt.DatetimeMethods:
         return dt.DatetimeMethods(self._block)
+
+    @property
+    def blob(self) -> blob.BlobMethods:
+        return blob.BlobMethods(self._block)
 
     @property
     def dtype(self):
