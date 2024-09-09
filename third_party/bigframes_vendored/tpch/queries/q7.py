@@ -55,7 +55,7 @@ def q(dataset_id: str, session: bigframes.Session):
     df2 = jn5.rename(columns={"N_NAME": "SUPP_NATION"})
 
     total = bpd.concat([df1, df2])
-    
+
     total = total[(total["L_SHIPDATE"] >= var3) & (total["L_SHIPDATE"] <= var4)]
     total["VOLUME"] = total["L_EXTENDEDPRICE"] * (1.0 - total["L_DISCOUNT"])
     total["L_YEAR"] = total["L_SHIPDATE"].dt.year
