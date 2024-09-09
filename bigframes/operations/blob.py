@@ -88,6 +88,9 @@ class BlobMethods(base.SeriesMethods):
 
         s = bpd.Series(self._block)
         session = self._block.session
+        session._transform_output_obj_table = session._create_object_table(
+            "gs://garrettwu_bucket/" + dst_folder + "/*"
+        )
 
         @session.remote_function(
             [str],
@@ -124,7 +127,7 @@ class BlobMethods(base.SeriesMethods):
 
             blob_path_out = os.path.join(dst_folder, file_name_full)
             blob_out = bucket.blob(blob_path_out)
-            blob_out.upload_from_string(bts)
+            blob_out.upload_from_string(bts, content_type="image/png")
 
             return f"gs://{bucket_name}/{blob_path_out}"
 

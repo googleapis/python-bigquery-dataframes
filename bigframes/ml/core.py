@@ -54,6 +54,7 @@ class BqmlModel(BaseBqml):
         self,
         input_data: bpd.DataFrame,
         apply_sql_tvf: Callable[[str], str],
+        obj_table=False,
     ) -> bpd.DataFrame:
         # Used for predict, transform, distance
         """Helper to wrap a dataframe in a SQL query, keeping the index intact.
@@ -74,10 +75,15 @@ class BqmlModel(BaseBqml):
         input_sql, index_col_ids, index_labels = input_data._to_sql_query(
             include_index=True
         )
+        if obj_table:
+            input_sql = (
+                "TABLE " + f"`{input_data._session._transform_output_obj_table}`"
+            )
+            index_col_ids = []
 
         result_sql = apply_sql_tvf(input_sql)
         df = self._session.read_gbq(result_sql, index_col=index_col_ids)
-        if df._has_index:
+        if df._has_index and not obj_table:
             df.index.names = index_labels
         # Restore column labels
         df.rename(
@@ -150,6 +156,20 @@ class BqmlModel(BaseBqml):
                 source_sql=source_sql,
                 struct_options=options,
             ),
+        )
+
+    def generate_embedding_obj_table(
+        self,
+        input_data: bpd.DataFrame,
+        options: Mapping[str, int | float],
+    ) -> bpd.DataFrame:
+        return self._apply_ml_tvf(
+            input_data,
+            lambda source_sql: self._model_manipulation_sql_generator.ml_generate_embedding_obj_table(
+                source_sql=source_sql,
+                struct_options=options,
+            ),
+            obj_table=True,
         )
 
     def detect_anomalies(

@@ -1463,10 +1463,14 @@ class Session(
         table = self._create_object_table(path)
 
         self._master_object_table = table
+        self._transform_output_obj_table = table
+
         return self.read_gbq(table)["uri"].to_frame()
 
     def read_gbq_object_table(self, table):
         self._master_object_table = table
+        self._transform_output_obj_table = table
+
         return self.read_gbq(table)["uri"].to_frame()
 
 

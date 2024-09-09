@@ -315,6 +315,14 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         return f"""SELECT * FROM ML.GENERATE_EMBEDDING(MODEL `{self._model_name}`,
   ({source_sql}), {struct_options_sql})"""
 
+    def ml_generate_embedding_obj_table(
+        self, source_sql: str, struct_options: Mapping[str, Union[int, float]]
+    ) -> str:
+        """Encode ML.GENERATE_EMBEDDING for BQML"""
+        struct_options_sql = self.struct_options(**struct_options)
+        return f"""SELECT * FROM ML.GENERATE_EMBEDDING(MODEL `{self._model_name}`,
+  {source_sql}, {struct_options_sql})"""
+
     def ml_detect_anomalies(
         self, source_sql: str, struct_options: Mapping[str, Union[int, float]]
     ) -> str:
