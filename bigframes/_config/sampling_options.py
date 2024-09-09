@@ -40,7 +40,7 @@ class SamplingOptions:
                 An int value for the maximum row size.
 
         Returns:
-            SamplingOptions:
+            bigframes._config.sampling_options.SamplingOptions:
                 The configuration for data sampling.
         """
         return SamplingOptions(
@@ -55,7 +55,7 @@ class SamplingOptions:
                 A literal string value of either head or uniform data sampling method.
 
         Returns:
-            SamplingOptions:
+            bigframes._config.sampling_options.SamplingOptions:
                 The configuration for data sampling.
         """
         return SamplingOptions(self.max_download_size, True, method, self.random_state)
@@ -68,7 +68,7 @@ class SamplingOptions:
                 An int value for the data sampling random state
 
         Returns:
-            SamplingOptions:
+            bigframes._config.sampling_options.SamplingOptions:
                 The configuration for data sampling.
         """
         return SamplingOptions(
@@ -82,7 +82,7 @@ class SamplingOptions:
         """Configures whether to disable downsampling
 
         Returns:
-            SamplingOptions:
+            bigframes._config.sampling_options.SamplingOptions:
                 The configuration for data sampling.
         """
         return SamplingOptions(
