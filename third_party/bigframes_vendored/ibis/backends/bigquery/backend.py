@@ -11,6 +11,7 @@ import os
 import re
 from typing import Any, Optional, TYPE_CHECKING
 
+from bigframes_vendored.ibis.backends.bigquery.datatypes import BigQueryType
 import google.api_core.exceptions
 import google.auth.credentials
 import google.cloud.bigquery as bq
@@ -27,7 +28,6 @@ from ibis.backends.bigquery.client import (
 from ibis.backends.bigquery.datatypes import BigQuerySchema
 from ibis.backends.sql import SQLBackend
 import ibis.backends.sql.compilers as sc
-from ibis.backends.sql.datatypes import BigQueryType
 import ibis.common.exceptions as com
 import ibis.expr.operations as ops
 import ibis.expr.schema as sch
@@ -130,7 +130,6 @@ def _remove_null_ordering_from_unsupported_window(
 def _force_quote_table(table: sge.Table) -> sge.Table:
     """Force quote all the parts of a bigquery path.
 
-    The BigQuery identifier quoting semantics are bonkers
     https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#identifiers
 
     my-table is OK, but not mydataset.my-table

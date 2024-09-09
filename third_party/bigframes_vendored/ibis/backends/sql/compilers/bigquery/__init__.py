@@ -9,16 +9,24 @@ import math
 import re
 from typing import Any, TYPE_CHECKING
 
-from ibis import util
-from ibis.backends.sql.compilers.base import AggGen, NULL, SQLGlotCompiler, STAR
-from ibis.backends.sql.compilers.bigquery.udf.core import PythonToJavaScriptTranslator
-from ibis.backends.sql.datatypes import BigQueryType, BigQueryUDFType
-from ibis.backends.sql.rewrites import (
+from bigframes_vendored.ibis.backends.bigquery.datatypes import (
+    BigQueryType,
+    BigQueryUDFType,
+)
+from bigframes_vendored.ibis.backends.sql.compilers.base import (
+    AggGen,
+    NULL,
+    SQLGlotCompiler,
+    STAR,
+)
+from bigframes_vendored.ibis.backends.sql.rewrites import (
     exclude_unsupported_window_frame_from_ops,
     exclude_unsupported_window_frame_from_rank,
     exclude_unsupported_window_frame_from_row_number,
     split_select_distinct_with_order_by,
 )
+from ibis import util
+from ibis.backends.sql.compilers.bigquery.udf.core import PythonToJavaScriptTranslator
 import ibis.common.exceptions as com
 from ibis.common.temporal import DateUnit, IntervalUnit, TimestampUnit, TimeUnit
 import ibis.expr.datatypes as dt

@@ -11,7 +11,7 @@ import operator
 import string
 from typing import Any, ClassVar, TYPE_CHECKING
 
-from ibis.backends.sql.rewrites import (
+from bigframes_vendored.ibis.backends.sql.rewrites import (
     add_one_to_nth_value_input,
     add_order_by_to_empty_ranking_window_functions,
     empty_in_values_right_side,
@@ -23,13 +23,13 @@ from ibis.backends.sql.rewrites import (
     one_to_zero_index,
     sqlize,
 )
+from bigframes_vendored.ibis.expr.rewrites import lower_stringslice
 import ibis.common.exceptions as com
 import ibis.common.patterns as pats
 from ibis.config import options
 import ibis.expr.datatypes as dt
 import ibis.expr.operations as ops
 from ibis.expr.operations.udf import InputType
-from ibis.expr.rewrites import lower_stringslice
 from public import public
 import sqlglot as sg
 import sqlglot.expressions as sge
@@ -47,7 +47,7 @@ else:
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
 
-    from ibis.backends.sql.datatypes import SqlglotType
+    from bigframes_vendored.ibis.backends.bigquery.datatypes import SqlglotType
     import ibis.expr.schema as sch
     import ibis.expr.types as ir
 
