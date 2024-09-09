@@ -764,8 +764,8 @@ def notebook(session: nox.Session):
             *notebooks,
         )
 
-        # Shared flag using multiprocessing.Manager() to indicate if 
-        # any process encounters an error. This flag may be updated 
+        # Shared flag using multiprocessing.Manager() to indicate if
+        # any process encounters an error. This flag may be updated
         # across different processes.
         error_flag = multiprocessing.Manager().Value("i", False)
         processes = []
