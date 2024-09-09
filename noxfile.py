@@ -763,10 +763,10 @@ def notebook(session: nox.Session):
             CURRENT_DIRECTORY / "scripts" / "notebooks_fill_params.py",
             *notebooks,
         )
-        processes = []
         manager = multiprocessing.Manager()
         error_flag = manager.Value("i", False)
 
+        processes = []
         for notebook in notebooks:
             args = (
                 "python",
@@ -787,6 +787,7 @@ def notebook(session: nox.Session):
         for process in processes:
             process.join()
 
+        processes = []
         for notebook, regions in notebooks_reg.items():
             for region in regions:
                 args = (
