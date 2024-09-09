@@ -763,9 +763,11 @@ def notebook(session: nox.Session):
             CURRENT_DIRECTORY / "scripts" / "notebooks_fill_params.py",
             *notebooks,
         )
-        manager = multiprocessing.Manager()
-        error_flag = manager.Value("i", False)
 
+        # Shared flag using multiprocessing.Manager() to indicate if 
+        # any process encounters an error. This flag may be updated 
+        # across different processes.
+        error_flag = multiprocessing.Manager().Value("i", False)
         processes = []
         for notebook in notebooks:
             args = (
