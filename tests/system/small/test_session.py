@@ -556,7 +556,8 @@ def test_read_gbq_with_custom_global_labels(
         bigframes.options.compute.assign_extra_query_labels(test1=1, test2="abc")
         bigframes.options.compute.extra_query_labels["test3"] = False
 
-        job_labels = session.read_gbq(scalars_table_id).query_job.labels  # type:ignore
+        query_job = session.read_gbq(scalars_table_id).query_job
+        job_labels = query_job.labels  # type:ignore
         expected_labels = {"test1": "1", "test2": "abc", "test3": "false"}
 
         # All jobs should include a bigframes-api key. See internal issue 336521938.
@@ -1033,6 +1034,25 @@ def test_read_csv_local_w_usecols(session, scalars_pandas_df_index, engine):
         # df should only have 1 column which is bool_col.
         df = session.read_csv(path, usecols=["bool_col"], engine=engine)
         assert len(df.columns) == 1
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [
+        pytest.param(
+            "bigquery",
+            id="bq_engine",
+            marks=pytest.mark.xfail(
+                raises=NotImplementedError,
+            ),
+        ),
+        pytest.param(None, id="default_engine"),
+    ],
+)
+def test_read_csv_others(session, engine):
+    uri = "https://raw.githubusercontent.com/googleapis/python-bigquery-dataframes/main/tests/data/people.csv"
+    df = session.read_csv(uri, engine=engine)
+    assert len(df.columns) == 3
 
 
 @pytest.mark.parametrize(

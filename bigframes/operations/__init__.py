@@ -652,6 +652,23 @@ class JSONExtract(UnaryOp):
         return input_type
 
 
+@dataclasses.dataclass(frozen=True)
+class JSONExtractArray(UnaryOp):
+    name: typing.ClassVar[str] = "json_extract_array"
+    json_path: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return pd.ArrowDtype(
+            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(dtypes.STRING_DTYPE))
+        )
+
+
 # Binary Ops
 fillna_op = create_binary_op(name="fillna", type_signature=op_typing.COERCE)
 maximum_op = create_binary_op(name="maximum", type_signature=op_typing.COERCE)
@@ -848,6 +865,29 @@ class CaseWhenOp(NaryOp):
 
 
 case_when_op = CaseWhenOp()
+
+
+@dataclasses.dataclass(frozen=True)
+class StructOp(NaryOp):
+    name: typing.ClassVar[str] = "struct"
+    column_names: tuple[str]
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        num_input_types = len(input_types)
+        # value1, value2, ...
+        assert num_input_types == len(self.column_names)
+        fields = []
+
+        for i in range(num_input_types):
+            fields.append(
+                (
+                    self.column_names[i],
+                    dtypes.bigframes_dtype_to_arrow_dtype(input_types[i]),
+                )
+            )
+        return pd.ArrowDtype(
+            pa.struct(fields)
+        )  # [(name1, value1), (name2, value2), ...]
 
 
 # Just parameterless unary ops for now

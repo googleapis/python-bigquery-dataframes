@@ -1436,6 +1436,14 @@ def test_get_dtypes_array_struct_table(nested_df):
                 "customer_id": pd.StringDtype(storage="pyarrow"),
                 "day": pd.ArrowDtype(pa.date32()),
                 "flag": pd.Int64Dtype(),
+                "label": pd.ArrowDtype(
+                    pa.struct(
+                        [
+                            ("key", pa.string()),
+                            ("value", pa.string()),
+                        ]
+                    ),
+                ),
                 "event_sequence": pd.ArrowDtype(
                     pa.list_(
                         pa.struct(
@@ -1455,6 +1463,14 @@ def test_get_dtypes_array_struct_table(nested_df):
                                 ("category", pa.string()),
                             ]
                         ),
+                    ),
+                ),
+                "address": pd.ArrowDtype(
+                    pa.struct(
+                        [
+                            ("street", pa.string()),
+                            ("city", pa.string()),
+                        ]
                     ),
                 ),
             }
@@ -2179,10 +2195,10 @@ def test_binop_with_self_aggregate(session, scalars_dfs):
     df_columns = ["int64_col", "float64_col", "int64_too"]
 
     # Ensure that this takes the optimized single-query path by counting executions
-    execution_count_before = session._execution_count
+    execution_count_before = session._metrics.execution_count
     bf_df = scalars_df[df_columns]
     bf_result = (bf_df - bf_df.mean()).to_pandas()
-    execution_count_after = session._execution_count
+    execution_count_after = session._metrics.execution_count
 
     pd_df = scalars_pandas_df[df_columns]
     pd_result = pd_df - pd_df.mean()
@@ -4639,6 +4655,17 @@ def test_to_gbq_and_create_dataset(session, scalars_df_index, dataset_id_not_cre
 
     loaded_scalars_df_index = session.read_gbq(result_table)
     assert not loaded_scalars_df_index.empty
+
+
+def test_to_gbq_table_labels(scalars_df_index):
+    destination_table = "bigframes-dev.bigframes_tests_sys.table_labels"
+    result_table = scalars_df_index.to_gbq(
+        destination_table, labels={"test": "labels"}, if_exists="replace"
+    )
+    client = scalars_df_index._session.bqclient
+    table = client.get_table(result_table)
+    assert table.labels
+    assert table.labels["test"] == "labels"
 
 
 @pytest.mark.parametrize(

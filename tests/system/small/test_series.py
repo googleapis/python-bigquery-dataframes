@@ -459,6 +459,29 @@ def test_series_replace_list_scalar(scalars_dfs):
 
 
 @pytest.mark.parametrize(
+    ("replacement_dict",),
+    (
+        ({"Hello, World!": "Howdy, Planet!", "T": "R"},),
+        ({},),
+    ),
+    ids=[
+        "non-empty",
+        "empty",
+    ],
+)
+def test_series_replace_dict(scalars_dfs, replacement_dict):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_result = scalars_df[col_name].replace(replacement_dict).to_pandas()
+    pd_result = scalars_pandas_df[col_name].replace(replacement_dict)
+
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(
     ("method",),
     (
         ("linear",),
@@ -3054,6 +3077,16 @@ def test_mask_simple_udf(scalars_dfs):
 def test_astype(scalars_df_index, scalars_pandas_df_index, column, to_type):
     bf_result = scalars_df_index[column].astype(to_type).to_pandas()
     pd_result = scalars_pandas_df_index[column].astype(to_type)
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+@skip_legacy_pandas
+def test_astype_numeric_to_int(scalars_df_index, scalars_pandas_df_index):
+    column = "numeric_col"
+    to_type = "Int64"
+    bf_result = scalars_df_index[column].astype(to_type).to_pandas()
+    # Round to the nearest whole number to avoid TypeError
+    pd_result = scalars_pandas_df_index[column].round(0).astype(to_type)
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
