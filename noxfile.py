@@ -784,6 +784,9 @@ def notebook(session: nox.Session):
             else:
                 session.run(*args)
 
+        for process in processes:
+            process.join()
+
         for notebook, regions in notebooks_reg.items():
             for region in regions:
                 args = (
