@@ -829,7 +829,7 @@ def notebook(session: nox.Session):
 def _run_process(session: nox.Session, args, error_flag):
     try:
         session.run(*args)
-    except Exception as e:
+    except Exception:
         traceback_str = traceback.format_exc()
         print(traceback_str)
         error_flag.value = True
