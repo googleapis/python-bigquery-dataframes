@@ -21,6 +21,7 @@ import os
 import pathlib
 import re
 import shutil
+import time
 import traceback
 from typing import Dict, List
 import warnings
@@ -783,6 +784,9 @@ def notebook(session: nox.Session):
                 )
                 process.start()
                 processes.append(process)
+                # Adding a small delay between starting each
+                # process to avoid potential race conditions。
+                time.sleep(1)
             else:
                 session.run(*args)
 
@@ -806,6 +810,9 @@ def notebook(session: nox.Session):
                     )
                     process.start()
                     processes.append(process)
+                    # Adding a small delay between starting each
+                    # process to avoid potential race conditions。
+                    time.sleep(1)
                 else:
                     session.run(*args)
 
