@@ -52,52 +52,7 @@ def _qualify_memtable(
     if isinstance(node, sge.Table) and _MEMTABLE_PATTERN.match(node.name) is not None:
         node.args["db"] = dataset
         node.args["catalog"] = project
-        # make sure to quote table location
-        node = _force_quote_table(node)
     return node
-
-
-def _remove_null_ordering_from_unsupported_window(
-    node: sge.Expression,
-) -> sge.Expression:
-    """Remove null ordering in window frame clauses not supported by BigQuery.
-    BigQuery has only partial support for NULL FIRST/LAST in RANGE windows so
-    we remove it from any window frame clause that doesn't support it.
-    Here's the support matrix:
-    ✅ sum(x) over (order by y desc nulls last)
-    🚫 sum(x) over (order by y asc nulls last)
-    ✅ sum(x) over (order by y asc nulls first)
-    🚫 sum(x) over (order by y desc nulls first)
-    """
-    if isinstance(node, sge.Window):
-        order = node.args.get("order")
-        if order is not None:
-            for key in order.args["expressions"]:
-                kargs = key.args
-                if kargs.get("desc") is True and kargs.get("nulls_first", False):
-                    kargs["nulls_first"] = False
-                elif kargs.get("desc") is False and not kargs.setdefault(
-                    "nulls_first", True
-                ):
-                    kargs["nulls_first"] = True
-    return node
-
-
-def _force_quote_table(table: sge.Table) -> sge.Table:
-    """Force quote all the parts of a bigquery path.
-    The BigQuery identifier quoting semantics are bonkers
-    https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#identifiers
-    my-table is OK, but not mydataset.my-table
-    mytable-287 is OK, but not mytable-287a
-    Just quote everything.
-    """
-    for key in ("this", "db", "catalog"):
-        if (val := table.args[key]) is not None:
-            if isinstance(val, sg.exp.Identifier) and not val.quoted:
-                val.args["quoted"] = True
-            else:
-                table.args[key] = sg.to_identifier(val, quoted=True)
-    return table
 
 
 class BigQueryCompiler(SQLGlotCompiler):
@@ -231,7 +186,7 @@ class BigQueryCompiler(SQLGlotCompiler):
             _qualify_memtable,
             dataset=session_dataset_id,
             project=session_project,
-        ).transform(_remove_null_ordering_from_unsupported_window)
+        )
 
         if geocols:
             # if there are any geospatial columns, we have to convert them to WKB,
