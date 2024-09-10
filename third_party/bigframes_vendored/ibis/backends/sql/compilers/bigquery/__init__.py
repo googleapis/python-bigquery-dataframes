@@ -8,28 +8,25 @@ import math
 import re
 from typing import Any, TYPE_CHECKING
 
-from bigframes_vendored.ibis.backends.bigquery.datatypes import (
-    BigQueryType,
-    BigQueryUDFType,
-)
+import bigframes_vendored.ibis.backends.bigquery.datatypes as bq_datatypes
 from bigframes_vendored.ibis.backends.sql.compilers.base import (
     AggGen,
     NULL,
     SQLGlotCompiler,
     STAR,
 )
-from bigframes_vendored.ibis.backends.sql.rewrites import (
+from ibis import util
+from ibis.backends.sql.datatypes import BigQueryType, BigQueryUDFType
+from ibis.backends.sql.rewrites import (
     exclude_unsupported_window_frame_from_ops,
     exclude_unsupported_window_frame_from_rank,
     exclude_unsupported_window_frame_from_row_number,
-    split_select_distinct_with_order_by,
 )
-from ibis import util
-from ibis.backends.sql.compilers.bigquery.udf.core import PythonToJavaScriptTranslator
 import ibis.common.exceptions as com
 from ibis.common.temporal import DateUnit, IntervalUnit, TimestampUnit, TimeUnit
 import ibis.expr.datatypes as dt
 import ibis.expr.operations as ops
+import numpy as np
 import sqlglot as sg
 from sqlglot.dialects import BigQuery
 import sqlglot.expressions as sge
@@ -38,6 +35,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     import ibis.expr.types as ir
+
 
 _NAME_REGEX = re.compile(r'[^!"$()*,./;?@[\\\]^`{}~\n]+')
 
@@ -63,12 +61,9 @@ def _remove_null_ordering_from_unsupported_window(
     node: sge.Expression,
 ) -> sge.Expression:
     """Remove null ordering in window frame clauses not supported by BigQuery.
-
     BigQuery has only partial support for NULL FIRST/LAST in RANGE windows so
     we remove it from any window frame clause that doesn't support it.
-
     Here's the support matrix:
-
     ✅ sum(x) over (order by y desc nulls last)
     🚫 sum(x) over (order by y asc nulls last)
     ✅ sum(x) over (order by y asc nulls first)
@@ -90,14 +85,10 @@ def _remove_null_ordering_from_unsupported_window(
 
 def _force_quote_table(table: sge.Table) -> sge.Table:
     """Force quote all the parts of a bigquery path.
-
     The BigQuery identifier quoting semantics are bonkers
     https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#identifiers
-
     my-table is OK, but not mydataset.my-table
-
     mytable-287 is OK, but not mytable-287a
-
     Just quote everything.
     """
     for key in ("this", "db", "catalog"):
@@ -122,7 +113,6 @@ class BigQueryCompiler(SQLGlotCompiler):
         exclude_unsupported_window_frame_from_rank,
         *SQLGlotCompiler.rewrites,
     )
-    post_rewrites = (split_select_distinct_with_order_by,)
 
     supports_qualify = True
 
@@ -213,7 +203,6 @@ class BigQueryCompiler(SQLGlotCompiler):
         session_project: str | None = None,
     ) -> Any:
         """Compile an Ibis expression.
-
         Parameters
         ----------
         expr
@@ -227,18 +216,16 @@ class BigQueryCompiler(SQLGlotCompiler):
             Optional dataset ID to qualify memtable references.
         session_project
             Optional project ID to qualify memtable references.
-
         Returns
         -------
         Any
             The output of compilation. The type of this value depends on the
             backend.
-
         """
         sql = super().to_sqlglot(expr, limit=limit, params=params)
 
         table_expr = expr.as_table()
-        geocols = table_expr.schema().geospatial
+        geocols = getattr(table_expr.schema(), "geospatial", None)
 
         result = sql.transform(
             _qualify_memtable,
@@ -278,64 +265,6 @@ class BigQueryCompiler(SQLGlotCompiler):
 
         sources.append(result)
         return sources
-
-    def _compile_python_udf(self, udf_node: ops.ScalarUDF) -> sge.Create:
-        name = type(udf_node).__name__
-        type_mapper = self.udf_type_mapper
-
-        body = PythonToJavaScriptTranslator(udf_node.__func__).compile()
-        config = udf_node.__config__
-        libraries = config.get("libraries", [])
-
-        signature = [
-            sge.ColumnDef(
-                this=sg.to_identifier(name, quoted=self.quoted),
-                kind=type_mapper.from_ibis(param.annotation.pattern.dtype),
-            )
-            for name, param in udf_node.__signature__.parameters.items()
-        ]
-
-        lines = ['"""']
-
-        if config.get("strict", True):
-            lines.append('"use strict";')
-
-        lines += [
-            body,
-            "",
-            f"return {udf_node.__func_name__}({', '.join(udf_node.argnames)});",
-            '"""',
-        ]
-
-        func = sge.Create(
-            kind="FUNCTION",
-            this=sge.UserDefinedFunction(
-                this=sg.to_identifier(name), expressions=signature, wrapped=True
-            ),
-            # not exactly what I had in mind, but it works
-            #
-            # quoting is too simplistic to handle multiline strings
-            expression=sge.Var(this="\n".join(lines)),
-            exists=False,
-            properties=sge.Properties(
-                expressions=[
-                    sge.TemporaryProperty(),
-                    sge.ReturnsProperty(this=type_mapper.from_ibis(udf_node.dtype)),
-                    sge.StabilityProperty(
-                        this="IMMUTABLE" if config.get("determinism") else "VOLATILE"
-                    ),
-                    sge.LanguageProperty(this=sg.to_identifier("js")),
-                ]
-                + [
-                    sge.Property(
-                        this=sg.to_identifier("library"), value=self.f.array(*libraries)
-                    )
-                ]
-                * bool(libraries)
-            ),
-        )
-
-        return func
 
     @staticmethod
     def _minimize_spec(start, end, spec):

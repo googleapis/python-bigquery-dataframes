@@ -11,8 +11,8 @@ import os
 import re
 from typing import Any, Optional, TYPE_CHECKING
 
-import bigframes_vendored.ibis.backends.sql.compilers as sc
 from bigframes_vendored.ibis.backends.bigquery.datatypes import BigQueryType
+import bigframes_vendored.ibis.backends.sql.compilers as sc
 import google.api_core.exceptions
 import google.auth.credentials
 import google.cloud.bigquery as bq

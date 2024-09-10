@@ -610,7 +610,6 @@ class SQLGlotCompiler(abc.ABC):
             op,
             params=params,
             rewrites=self.rewrites,
-            post_rewrites=self.post_rewrites,
             fuse_selects=options.sql.fuse_selects,
         )
 
@@ -1263,10 +1262,10 @@ class SQLGlotCompiler(abc.ABC):
                 yield value.as_(name, quoted=self.quoted, copy=False)
 
     def visit_Select(
-        self, op, *, parent, selections, predicates, qualified, sort_keys, distinct
+        self, op, *, parent, selections, predicates, qualified, sort_keys
     ):
         # if we've constructed a useless projection return the parent relation
-        if not (selections or predicates or qualified or sort_keys or distinct):
+        if not (selections or predicates or qualified or sort_keys):
             return parent
 
         result = parent
@@ -1292,9 +1291,6 @@ class SQLGlotCompiler(abc.ABC):
 
         if sort_keys:
             result = result.order_by(*sort_keys, copy=False)
-
-        if distinct:
-            result = result.distinct()
 
         return result
 
