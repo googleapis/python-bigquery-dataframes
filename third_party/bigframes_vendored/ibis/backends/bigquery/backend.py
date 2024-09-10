@@ -8,7 +8,6 @@ import concurrent.futures
 import contextlib
 import glob
 import os
-import re
 from typing import Any, Optional, TYPE_CHECKING
 
 from bigframes_vendored.ibis.backends.bigquery.datatypes import BigQueryType
@@ -79,8 +78,6 @@ def _create_client_info_gapic(application_name):
     from google.api_core.gapic_v1.client_info import ClientInfo
 
     return ClientInfo(user_agent=_create_user_agent(application_name))
-
-
 
 
 def _force_quote_table(table: sge.Table) -> sge.Table:

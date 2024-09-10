@@ -995,8 +995,14 @@ def eq_nulls_match_op(
     y: ibis_types.Value,
 ):
     """Variant of eq_op where nulls match each other. Only use where dtypes are known to be same."""
-    left = x.cast(ibis_dtypes.str).fillna(ibis_types.literal("$NULL_SENTINEL$"))
-    right = y.cast(ibis_dtypes.str).fillna(ibis_types.literal("$NULL_SENTINEL$"))
+    literal = ibis_types.literal("$NULL_SENTINEL$")
+    if hasattr(x, "fill_null"):
+        left = x.cast(ibis_dtypes.str).fill_null(literal)
+        right = y.cast(ibis_dtypes.str).fill_null(literal)
+    else:
+        left = x.cast(ibis_dtypes.str).fillna(literal)
+        right = y.cast(ibis_dtypes.str).fillna(literal)
+
     return left == right
 
 
@@ -1379,7 +1385,10 @@ def fillna_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
-    return x.fillna(typing.cast(ibis_types.Scalar, y))
+    if hasattr(x, "fill_null"):
+        return x.fill_null(typing.cast(ibis_types.Scalar, y))
+    else:
+        return x.fillna(typing.cast(ibis_types.Scalar, y))
 
 
 @scalar_op_compiler.register_binary_op(ops.round_op)
