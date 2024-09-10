@@ -1124,7 +1124,7 @@ class SQLGlotCompiler(abc.ABC):
 
     ### Ordering and window functions
 
-    def visit_SortKey(self, op, *, expr, ascending: bool, nulls_first: bool):
+    def visit_SortKey(self, op, *, expr, ascending: bool, nulls_first: bool = False):
         return sge.Ordered(this=expr, desc=not ascending, nulls_first=nulls_first)
 
     def visit_ApproxMedian(self, op, *, arg, where):
