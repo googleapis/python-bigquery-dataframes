@@ -153,7 +153,12 @@ def read_gbq_function(
 
     func.__signature__ = inspect.signature(func).replace(  # type: ignore
         parameters=[
-            inspect.Parameter(name, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            # TODO(shobs): Find a better way to support functions with param
+            # named "name". This causes an issue in the ibis compilation.
+            inspect.Parameter(
+                f"bigframes_{name}" if name == "name" else name,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
             for name in ibis_signature.parameter_names
         ]
     )

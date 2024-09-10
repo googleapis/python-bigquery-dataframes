@@ -499,6 +499,20 @@ class RemoteFunctionSession:
                 cloud_function_memory_mib=cloud_function_memory_mib,
             )
 
+            # TODO(shobs): Find a better way to support udfs with param named "name".
+            # This causes an issue in the ibis compilation.
+            func.__signature__ = inspect.signature(func).replace(  # type: ignore
+                parameters=[
+                    inspect.Parameter(
+                        f"bigframes_{param.name}"
+                        if param.name == "name"
+                        else param.name,
+                        param.kind,
+                    )
+                    for param in inspect.signature(func).parameters.values()
+                ]
+            )
+
             # TODO: Move ibis logic to compiler step
             node = ibis.udf.scalar.builtin(
                 func,
