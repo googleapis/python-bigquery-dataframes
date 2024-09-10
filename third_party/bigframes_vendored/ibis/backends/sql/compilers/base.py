@@ -1261,9 +1261,7 @@ class SQLGlotCompiler(abc.ABC):
             else:
                 yield value.as_(name, quoted=self.quoted, copy=False)
 
-    def visit_Select(
-        self, op, *, parent, selections, predicates, qualified, sort_keys
-    ):
+    def visit_Select(self, op, *, parent, selections, predicates, qualified, sort_keys):
         # if we've constructed a useless projection return the parent relation
         if not (selections or predicates or qualified or sort_keys):
             return parent
