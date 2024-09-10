@@ -100,6 +100,8 @@ class RowOrdering:
     ordering_value_columns: typing.Tuple[OrderingExpression, ...] = ()
     integer_encoding: IntegerEncoding = IntegerEncoding(False)
     string_encoding: StringEncoding = StringEncoding(False)
+    # Only needed when this row ordering is used as a modifier, this will reverse the base ordering
+    reverse_base: bool = False
 
     @property
     def all_ordering_columns(self) -> Sequence[OrderingExpression]:
@@ -131,6 +133,7 @@ class RowOrdering:
         """Reverses the ordering."""
         return RowOrdering(
             tuple([col.with_reverse() for col in self.ordering_value_columns]),
+            reverse_base=not self.reverse_base,
         )
 
     def with_column_remap(self, mapping: typing.Mapping[str, str]) -> RowOrdering:
@@ -139,6 +142,7 @@ class RowOrdering:
         ]
         return RowOrdering(
             tuple(new_value_columns),
+            reverse_base=self.reverse_base,
         )
 
     def with_non_sequential(self):
@@ -152,6 +156,7 @@ class RowOrdering:
                 integer_encoding=IntegerEncoding(
                     self.integer_encoding.is_encoded, is_sequential=False
                 ),
+                reverse_base=self.reverse_base,
             )
 
         return self
@@ -176,6 +181,7 @@ class RowOrdering:
         )
         return RowOrdering(
             new_ordering,
+            reverse_base=self.reverse_base,
         )
 
     def _truncate_ordering(

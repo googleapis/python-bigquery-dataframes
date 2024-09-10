@@ -1202,6 +1202,7 @@ class OrderedIR(BaseIbisIR):
                 tuple(new_exprs),
                 self._ordering.integer_encoding,
                 self._ordering.string_encoding,
+                self._ordering.reverse_base,
                 self._ordering.total_ordering_columns,
             )
         else:
