@@ -347,6 +347,7 @@ class ArrayValue:
             conditions=conditions,
             type=type,
         )
+        # Maps input ids to output ids for caller convenience
         l_size = len(self.node.schema)
         l_mapping = {
             lcol: ocol

@@ -1086,9 +1086,12 @@ class Block:
                 unpivot_columns=[tuple(self.value_columns)],
                 passthrough_columns=[*self.index_columns, offset_col],
             )
+            # these corresponed to passthrough_columns provided to unpivot
+            index_cols = passthrough_cols[:-1]
+            og_offset_col = passthrough_cols[-1]
             index_aggregations = [
                 (ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.free_var(col_id)), col_id)
-                for col_id in passthrough_cols[:-1]
+                for col_id in index_cols
             ]
             # TODO: may need add NullaryAggregation in main_aggregation
             # when agg add support for axis=1, needed for agg("size", axis=1)
@@ -1099,14 +1102,15 @@ class Block:
                 ex.UnaryAggregation(operation, ex.free_var(value_col_ids[0])),
                 value_col_ids[0],
             )
+            # Drop row identity after aggregating over it
             result_expr = stacked_expr.aggregate(
                 [*index_aggregations, main_aggregation],
-                by_column_ids=[passthrough_cols[-1]],
+                by_column_ids=[og_offset_col],
                 dropna=dropna,
-            )
+            ).drop_columns([og_offset_col])
             return Block(
-                result_expr.drop_columns([passthrough_cols[-1]]),
-                index_columns=passthrough_cols[:-1],
+                result_expr,
+                index_columns=index_cols,
                 column_labels=[None],
                 index_labels=self.index.names,
             )
