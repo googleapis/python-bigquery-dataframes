@@ -47,7 +47,7 @@ else:
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
 
-    from ibis.backends.sql.datatypes import SqlglotType
+    from bigframes_vendored.ibis.backends.bigquery.datatypes import SqlglotType
     import ibis.expr.schema as sch
     import ibis.expr.types as ir
 
@@ -267,7 +267,10 @@ class SQLGlotCompiler(abc.ABC):
         one_to_zero_index,
         add_one_to_nth_value_input,
     )
-    """A sequence of rewrites to apply to the expression tree before compilation."""
+    """A sequence of rewrites to apply to the expression tree before SQL-specific transforms."""
+
+    post_rewrites: tuple[type[pats.Replace], ...] = ()
+    """A sequence of rewrites to apply to the expression tree after SQL-specific transforms."""
 
     no_limit_value: sge.Null | None = None
     """The value to use to indicate no limit."""
@@ -607,6 +610,7 @@ class SQLGlotCompiler(abc.ABC):
             op,
             params=params,
             rewrites=self.rewrites,
+            post_rewrites=self.post_rewrites,
             fuse_selects=options.sql.fuse_selects,
         )
 
@@ -1121,7 +1125,7 @@ class SQLGlotCompiler(abc.ABC):
 
     ### Ordering and window functions
 
-    def visit_SortKey(self, op, *, expr, ascending: bool, nulls_first: bool = False):
+    def visit_SortKey(self, op, *, expr, ascending: bool, nulls_first: bool):
         return sge.Ordered(this=expr, desc=not ascending, nulls_first=nulls_first)
 
     def visit_ApproxMedian(self, op, *, arg, where):
@@ -1259,10 +1263,10 @@ class SQLGlotCompiler(abc.ABC):
                 yield value.as_(name, quoted=self.quoted, copy=False)
 
     def visit_Select(
-        self, op, *, parent, selections, predicates, qualified=False, sort_keys=False
+        self, op, *, parent, selections, predicates, qualified, sort_keys, distinct
     ):
         # if we've constructed a useless projection return the parent relation
-        if not (selections or predicates or qualified or sort_keys):
+        if not (selections or predicates or qualified or sort_keys or distinct):
             return parent
 
         result = parent
@@ -1288,6 +1292,9 @@ class SQLGlotCompiler(abc.ABC):
 
         if sort_keys:
             result = result.order_by(*sort_keys, copy=False)
+
+        if distinct:
+            result = result.distinct()
 
         return result
 
@@ -1644,6 +1651,16 @@ class SQLGlotCompiler(abc.ABC):
 
         # generate the SQL string
         return parsed.sql(dialect)
+
+    def _make_sample_backwards_compatible(self, *, sample, parent):
+        # sample was changed to be owned by the table being sampled in 25.17.0
+        #
+        # this is a small workaround for backwards compatibility
+        if "this" in sample.__class__.arg_types:
+            sample.args["this"] = parent
+        else:
+            parent.args["sample"] = sample
+        return sg.select(STAR).from_(parent)
 
 
 # `__init_subclass__` is uncalled for subclasses - we manually call it here to

@@ -1,3 +1,5 @@
+# Contains code from https://github.com/ibis-project/ibis/blob/main/ibis/backends/sql/rewrites.py
+
 """Lower the ibis expression graph to a SQL-like relational algebra."""
 
 from __future__ import annotations

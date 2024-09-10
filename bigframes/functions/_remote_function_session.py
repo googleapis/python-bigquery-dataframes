@@ -176,7 +176,7 @@ class RemoteFunctionSession:
                 getting and setting IAM roles on cloud resources. If this param is
                 not provided then resource manager client from the session would be
                 used.
-            dataset (str, Optional.):
+            dataset (str, Optional):
                 Dataset in which to create a BigQuery remote function. It should be in
                 `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
                 parameter is not provided then session dataset id is used.
@@ -387,7 +387,7 @@ class RemoteFunctionSession:
                 # https://docs.python.org/3/library/inspect.html#inspect.signature
                 signature_kwargs: Mapping[str, Any] = {"eval_str": True}
             else:
-                signature_kwargs = {}
+                signature_kwargs = {}  # type: ignore
 
             signature = inspect.signature(
                 func,

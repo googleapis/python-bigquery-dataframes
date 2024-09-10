@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from typing import cast, Optional, TYPE_CHECKING
 import warnings
@@ -107,6 +108,7 @@ def read_gbq_function(
     function_name: str,
     *,
     session: Session,
+    is_row_processor: bool = False,
 ):
     """
     Read an existing BigQuery function and prepare it for use in future queries.
@@ -149,6 +151,13 @@ def read_gbq_function(
         expr = node(*ignored_args, **ignored_kwargs)  # type: ignore
         return ibis_client.execute(expr)
 
+    func.__signature__ = inspect.signature(func).replace(  # type: ignore
+        parameters=[
+            inspect.Parameter(name, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            for name in ibis_signature.parameter_names
+        ]
+    )
+
     # TODO: Move ibis logic to compiler step
 
     func.__name__ = routine_ref.routine_id
@@ -187,5 +196,6 @@ def read_gbq_function(
     func.output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(  # type: ignore
         ibis_signature.output_type
     )
+    func.is_row_processor = is_row_processor  # type: ignore
     func.ibis_node = node  # type: ignore
     return func

@@ -8,25 +8,28 @@ import math
 import re
 from typing import Any, TYPE_CHECKING
 
-import bigframes_vendored.ibis.backends.bigquery.datatypes as bq_datatypes
+from bigframes_vendored.ibis.backends.bigquery.datatypes import (
+    BigQueryType,
+    BigQueryUDFType,
+)
 from bigframes_vendored.ibis.backends.sql.compilers.base import (
     AggGen,
     NULL,
     SQLGlotCompiler,
     STAR,
 )
-from ibis import util
-from ibis.backends.sql.datatypes import BigQueryType, BigQueryUDFType
-from ibis.backends.sql.rewrites import (
+from bigframes_vendored.ibis.backends.sql.rewrites import (
     exclude_unsupported_window_frame_from_ops,
     exclude_unsupported_window_frame_from_rank,
     exclude_unsupported_window_frame_from_row_number,
+    split_select_distinct_with_order_by,
 )
+from ibis import util
+from ibis.backends.sql.compilers.bigquery.udf.core import PythonToJavaScriptTranslator
 import ibis.common.exceptions as com
 from ibis.common.temporal import DateUnit, IntervalUnit, TimestampUnit, TimeUnit
 import ibis.expr.datatypes as dt
 import ibis.expr.operations as ops
-import numpy as np
 import sqlglot as sg
 from sqlglot.dialects import BigQuery
 import sqlglot.expressions as sge
@@ -35,7 +38,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     import ibis.expr.types as ir
-
 
 _NAME_REGEX = re.compile(r'[^!"$()*,./;?@[\\\]^`{}~\n]+')
 
@@ -120,6 +122,7 @@ class BigQueryCompiler(SQLGlotCompiler):
         exclude_unsupported_window_frame_from_rank,
         *SQLGlotCompiler.rewrites,
     )
+    post_rewrites = (split_select_distinct_with_order_by,)
 
     supports_qualify = True
 
@@ -235,7 +238,7 @@ class BigQueryCompiler(SQLGlotCompiler):
         sql = super().to_sqlglot(expr, limit=limit, params=params)
 
         table_expr = expr.as_table()
-        geocols = getattr(table_expr.schema(), "geospatial", None)
+        geocols = table_expr.schema().geospatial
 
         result = sql.transform(
             _qualify_memtable,
@@ -275,6 +278,64 @@ class BigQueryCompiler(SQLGlotCompiler):
 
         sources.append(result)
         return sources
+
+    def _compile_python_udf(self, udf_node: ops.ScalarUDF) -> sge.Create:
+        name = type(udf_node).__name__
+        type_mapper = self.udf_type_mapper
+
+        body = PythonToJavaScriptTranslator(udf_node.__func__).compile()
+        config = udf_node.__config__
+        libraries = config.get("libraries", [])
+
+        signature = [
+            sge.ColumnDef(
+                this=sg.to_identifier(name, quoted=self.quoted),
+                kind=type_mapper.from_ibis(param.annotation.pattern.dtype),
+            )
+            for name, param in udf_node.__signature__.parameters.items()
+        ]
+
+        lines = ['"""']
+
+        if config.get("strict", True):
+            lines.append('"use strict";')
+
+        lines += [
+            body,
+            "",
+            f"return {udf_node.__func_name__}({', '.join(udf_node.argnames)});",
+            '"""',
+        ]
+
+        func = sge.Create(
+            kind="FUNCTION",
+            this=sge.UserDefinedFunction(
+                this=sg.to_identifier(name), expressions=signature, wrapped=True
+            ),
+            # not exactly what I had in mind, but it works
+            #
+            # quoting is too simplistic to handle multiline strings
+            expression=sge.Var(this="\n".join(lines)),
+            exists=False,
+            properties=sge.Properties(
+                expressions=[
+                    sge.TemporaryProperty(),
+                    sge.ReturnsProperty(this=type_mapper.from_ibis(udf_node.dtype)),
+                    sge.StabilityProperty(
+                        this="IMMUTABLE" if config.get("determinism") else "VOLATILE"
+                    ),
+                    sge.LanguageProperty(this=sg.to_identifier("js")),
+                ]
+                + [
+                    sge.Property(
+                        this=sg.to_identifier("library"), value=self.f.array(*libraries)
+                    )
+                ]
+                * bool(libraries)
+            ),
+        )
+
+        return func
 
     @staticmethod
     def _minimize_spec(start, end, spec):
@@ -876,7 +937,25 @@ class BigQueryCompiler(SQLGlotCompiler):
 
     @staticmethod
     def _gen_valid_name(name: str) -> str:
-        return "_".join(map(str.strip, _NAME_REGEX.findall(name))) or "tmp"
+        candidate = "_".join(map(str.strip, _NAME_REGEX.findall(name))) or "tmp"
+        # column names cannot be longer than 300 characters
+        #
+        # https://cloud.google.com/bigquery/docs/schemas#column_names
+        #
+        # it's easy to rename columns, so raise an exception telling the user
+        # to do so
+        #
+        # we could potentially relax this and support arbitrary-length columns
+        # by compressing the information using hashing, but there's no reason
+        # to solve that problem until someone encounters this error and cannot
+        # rename their columns
+        limit = 300
+        if len(candidate) > limit:
+            raise com.IbisError(
+                f"BigQuery does not allow column names longer than {limit:d} characters. "
+                "Please rename your columns to have fewer characters."
+            )
+        return candidate
 
     def visit_CountStar(self, op, *, arg, where):
         if where is not None:

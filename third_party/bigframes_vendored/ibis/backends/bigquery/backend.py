@@ -12,6 +12,7 @@ import re
 from typing import Any, Optional, TYPE_CHECKING
 
 import bigframes_vendored.ibis.backends.sql.compilers as sc
+from bigframes_vendored.ibis.backends.bigquery.datatypes import BigQueryType
 import google.api_core.exceptions
 import google.auth.credentials
 import google.cloud.bigquery as bq
@@ -27,7 +28,6 @@ from ibis.backends.bigquery.client import (
 )
 from ibis.backends.bigquery.datatypes import BigQuerySchema
 from ibis.backends.sql import SQLBackend
-from ibis.backends.sql.datatypes import BigQueryType
 import ibis.common.exceptions as com
 import ibis.expr.operations as ops
 import ibis.expr.schema as sch
@@ -130,7 +130,6 @@ def _remove_null_ordering_from_unsupported_window(
 def _force_quote_table(table: sge.Table) -> sge.Table:
     """Force quote all the parts of a bigquery path.
 
-    The BigQuery identifier quoting semantics are bonkers
     https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#identifiers
 
     my-table is OK, but not mydataset.my-table
@@ -924,7 +923,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         | pl.LazyFrame
         | None = None,
         *,
-        schema: ibis.Schema | None = None,
+        schema: sch.SchemaLike | None = None,
         database: str | None = None,
         temp: bool = False,
         overwrite: bool = False,
@@ -973,6 +972,8 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         """
         if obj is None and schema is None:
             raise com.IbisError("One of the `schema` or `obj` parameter is required")
+        if schema is not None:
+            schema = ibis.schema(schema)
 
         if isinstance(obj, ir.Table) and schema is not None:
             if not schema.equals(obj.schema()):
@@ -1136,10 +1137,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         )
         self.raw_sql(stmt.sql(self.name))
 
-    def _load_into_cache(self, name, expr):
-        self.create_table(name, expr, schema=expr.schema(), temp=True)
-
-    def _clean_up_cached_table(self, name):
+    def _drop_cached_table(self, name):
         self.drop_table(
             name,
             database=(self._session_dataset.project, self._session_dataset.dataset_id),
