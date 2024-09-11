@@ -382,11 +382,6 @@ class RemoteFunctionSession:
             if not callable(func):
                 raise TypeError("f must be callable, got {}".format(func))
 
-            # To respect the user code/environment let's use a copy of the
-            # original udf, especially since we would be setting some properties
-            # on it
-            func = cloudpickle.loads(cloudpickle.dumps(func))
-
             if sys.version_info >= (3, 10):
                 # Add `eval_str = True` so that deferred annotations are turned into their
                 # corresponding type objects. Need Python 3.10 for eval_str parameter.
@@ -463,6 +458,11 @@ class RemoteFunctionSession:
                 cloud_function_docker_repository,
                 session=session,  # type: ignore
             )
+
+            # To respect the user code/environment let's use a copy of the
+            # original udf, especially since we would be setting some properties
+            # on it
+            func = cloudpickle.loads(cloudpickle.dumps(func))
 
             # In the unlikely case where the user is trying to re-deploy the same
             # function, cleanup the attributes we add below, first. This prevents
