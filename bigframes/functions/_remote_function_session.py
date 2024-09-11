@@ -510,9 +510,7 @@ class RemoteFunctionSession:
             func.__signature__ = inspect.signature(func).replace(  # type: ignore
                 parameters=[
                     inspect.Parameter(
-                        f"bigframes_{param.name}"
-                        if param.name == "name"
-                        else param.name,
+                        f"bigframes_{param.name}",
                         param.kind,
                     )
                     for param in inspect.signature(func).parameters.values()
