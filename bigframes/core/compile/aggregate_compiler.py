@@ -523,12 +523,13 @@ def _(
 ) -> ibis_types.BooleanValue:
     # BQ will return null for empty column, result would be false in pandas.
     result = _apply_window_if_present(_is_true(column).all(), window)
+    literal = ibis_types.literal(True)
 
     return cast(
         ibis_types.BooleanScalar,
-        result.fill_null(ibis_types.literal(False))
+        result.fill_null(literal)
         if hasattr(result, "fill_null")
-        else result.fillna(ibis_types.literal(False)),
+        else result.fillna(literal),
     )
 
 
@@ -540,12 +541,13 @@ def _(
 ) -> ibis_types.BooleanValue:
     # BQ will return null for empty column, result would be false in pandas.
     result = _apply_window_if_present(_is_true(column).any(), window)
+    literal = ibis_types.literal(False)
 
     return cast(
         ibis_types.BooleanScalar,
-        result.fill_null(ibis_types.literal(False))
+        result.fill_null(literal)
         if hasattr(result, "fill_null")
-        else result.fillna(ibis_types.literal(False)),
+        else result.fillna(literal),
     )
 
 
