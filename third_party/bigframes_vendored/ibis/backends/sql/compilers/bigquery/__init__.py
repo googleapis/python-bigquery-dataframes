@@ -55,6 +55,32 @@ def _qualify_memtable(
     return node
 
 
+def _remove_null_ordering_from_unsupported_window(
+    node: sge.Expression,
+) -> sge.Expression:
+    """Remove null ordering in window frame clauses not supported by BigQuery.
+    BigQuery has only partial support for NULL FIRST/LAST in RANGE windows so
+    we remove it from any window frame clause that doesn't support it.
+    Here's the support matrix:
+    ✅ sum(x) over (order by y desc nulls last)
+    🚫 sum(x) over (order by y asc nulls last)
+    ✅ sum(x) over (order by y asc nulls first)
+    🚫 sum(x) over (order by y desc nulls first)
+    """
+    if isinstance(node, sge.Window):
+        order = node.args.get("order")
+        if order is not None:
+            for key in order.args["expressions"]:
+                kargs = key.args
+                if kargs.get("desc") is True and kargs.get("nulls_first", False):
+                    kargs["nulls_first"] = False
+                elif kargs.get("desc") is False and not kargs.setdefault(
+                    "nulls_first", True
+                ):
+                    kargs["nulls_first"] = True
+    return node
+
+
 class BigQueryCompiler(SQLGlotCompiler):
     dialect = BigQuery
     type_mapper = BigQueryType
@@ -186,7 +212,7 @@ class BigQueryCompiler(SQLGlotCompiler):
             _qualify_memtable,
             dataset=session_dataset_id,
             project=session_project,
-        )
+        ).transform(_remove_null_ordering_from_unsupported_window)
 
         if geocols:
             # if there are any geospatial columns, we have to convert them to WKB,
