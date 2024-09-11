@@ -308,7 +308,7 @@ class Compiler:
     @_compile_node.register
     def compile_window(self, node: nodes.WindowOpNode, ordered: bool = True):
         result = self.compile_ordered_ir(node.child).project_window_op(
-            node.column_name,
+            node.schema.names[node.input_offset],
             node.op,
             node.window_spec,
             node.output_name,

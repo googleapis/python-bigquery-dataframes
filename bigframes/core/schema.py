@@ -74,6 +74,12 @@ class ArraySchema:
             tuple(SchemaItem(name, self.get_type(name)) for name in columns)
         )
 
+    def offset(self, name: str) -> int:
+        for offset, schema_name in enumerate(self.names):
+            if name == schema_name:
+                return offset
+        raise ValueError(f"Name {name} not found in schema")
+
     def append(self, item: SchemaItem):
         return ArraySchema(tuple([*self.items, item]))
 

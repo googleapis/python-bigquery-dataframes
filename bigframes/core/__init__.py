@@ -288,11 +288,10 @@ class ArrayValue:
         column_name: str,
         op: agg_ops.UnaryWindowOp,
         window_spec: WindowSpec,
-        output_name=None,
         *,
         never_skip_nulls=False,
         skip_reproject_unsafe: bool = False,
-    ) -> ArrayValue:
+    ) -> typing.Tuple[ArrayValue, str]:
         """
         Creates a new expression based on this expression with unary operation applied to one column.
         column_name: the id of the input column present in the expression
@@ -302,7 +301,6 @@ class ArrayValue:
         never_skip_nulls: will disable null skipping for operators that would otherwise do so
         skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
         """
-        # TODO: Support non-deterministic windowing
         if window_spec.row_bounded or not op.order_independent:
             if self.node.order_ambiguous and not self.session._strictly_ordered:
                 if not self.session._allows_ambiguity:
@@ -314,18 +312,15 @@ class ArrayValue:
                         "Window ordering may be ambiguous, this can cause unstable results.",
                         bigframes.exceptions.AmbiguousWindowWarning,
                     )
-
-        return ArrayValue(
-            nodes.WindowOpNode(
-                child=self.node,
-                column_name=column_name,
-                op=op,
-                window_spec=window_spec,
-                output_name=output_name,
-                never_skip_nulls=never_skip_nulls,
-                skip_reproject_unsafe=skip_reproject_unsafe,
-            )
+        node = nodes.WindowOpNode(
+            child=self.node,
+            input_offset=self.schema.offset(column_name),
+            op=op,
+            window_spec=window_spec,
+            never_skip_nulls=never_skip_nulls,
+            skip_reproject_unsafe=skip_reproject_unsafe,
         )
+        return ArrayValue(node), node.output_name
 
     def _reproject_to_table(self) -> ArrayValue:
         """

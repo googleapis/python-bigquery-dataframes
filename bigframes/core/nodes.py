@@ -752,11 +752,11 @@ class AggregateNode(UnaryNode):
 
 @dataclass(frozen=True)
 class WindowOpNode(UnaryNode):
-    column_name: str
+    input_offset: int
     op: agg_ops.UnaryWindowOp
     window_spec: window.WindowSpec
-    output_name: typing.Optional[str] = None
     never_skip_nulls: bool = False
+    # Mostly unused legacy field still used for complexity estimation
     skip_reproject_unsafe: bool = False
 
     def __hash__(self):
@@ -768,12 +768,8 @@ class WindowOpNode(UnaryNode):
 
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
-        input_type = self.child.schema.get_type(self.column_name)
+        input_type = self.child.schema.dtypes[self.input_offset]
         new_item_dtype = self.op.output_type(input_type)
-        if self.output_name is None:
-            return self.child.schema.update_dtype(self.column_name, new_item_dtype)
-        if self.output_name in self.child.schema.names:
-            return self.child.schema.update_dtype(self.output_name, new_item_dtype)
         return self.child.schema.append(
             schemata.SchemaItem(self.output_name, new_item_dtype)
         )
@@ -786,6 +782,10 @@ class WindowOpNode(UnaryNode):
     def relation_ops_created(self) -> int:
         # Assume that if not reprojecting, that there is a sequence of window operations sharing the same window
         return 0 if self.skip_reproject_unsafe else 4
+
+    @property
+    def output_name(self) -> str:
+        return auto_gen_name(self.child.schema.names)
 
 
 # TODO: Remove this op
@@ -857,3 +857,18 @@ class ExplodeNode(UnaryNode):
     @functools.cached_property
     def variables_introduced(self) -> int:
         return len(self.column_ids) + 1
+
+
+def auto_gen_name(existing_names: typing.Sequence[str]) -> str:
+    """
+    Automatically, deterministically generates a locally unique name given a list of existing names.
+
+    This is a temporary measure until string names are completely removed from BFET.
+    """
+    i = 0
+    while True:
+        name_attempt = f"bigframe_luid_{i}"
+        if name_attempt in existing_names:
+            i = i + 1
+        else:
+            return name_attempt

@@ -971,12 +971,10 @@ class Block:
             for key in window_spec.grouping_keys:
                 block, not_null_id = block.apply_unary_op(key, ops.notnull_op)
                 block = block.filter_by_id(not_null_id).drop_columns([not_null_id])
-        result_id = guid.generate_guid()
-        expr = block._expr.project_window_op(
+        expr, result_id = block._expr.project_window_op(
             column,
             op,
             window_spec,
-            result_id,
             skip_reproject_unsafe=skip_reproject_unsafe,
             never_skip_nulls=never_skip_nulls,
         )
