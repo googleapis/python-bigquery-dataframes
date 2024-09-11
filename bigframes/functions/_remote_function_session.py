@@ -22,6 +22,7 @@ import threading
 from typing import Any, cast, Dict, Mapping, Optional, Sequence, TYPE_CHECKING, Union
 import warnings
 
+import cloudpickle
 import google.api_core.exceptions
 from google.cloud import (
     bigquery,
@@ -380,6 +381,11 @@ class RemoteFunctionSession:
 
             if not callable(func):
                 raise TypeError("f must be callable, got {}".format(func))
+
+            # To respect the user code/environment let's use a copy of the
+            # original udf, especially since we would be setting some properties
+            # on it
+            func = cloudpickle.loads(cloudpickle.dumps(func))
 
             if sys.version_info >= (3, 10):
                 # Add `eval_str = True` so that deferred annotations are turned into their
