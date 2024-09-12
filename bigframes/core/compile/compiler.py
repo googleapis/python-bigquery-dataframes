@@ -81,7 +81,8 @@ class Compiler:
             return bigframes.core.compile.single_column.join_by_column_ordered(
                 left=left_ordered,
                 right=right_ordered,
-                join=node.join,
+                type=node.type,
+                conditions=node.conditions,
             )
         else:
             left_unordered = self.compile_unordered_ir(node.left_child)
@@ -89,7 +90,8 @@ class Compiler:
             return bigframes.core.compile.single_column.join_by_column_unordered(
                 left=left_unordered,
                 right=right_unordered,
-                join=node.join,
+                type=node.type,
+                conditions=node.conditions,
             )
 
     @_compile_node.register
@@ -263,6 +265,11 @@ class Compiler:
             return self.compile_ordered_ir(node.child).reversed()
         else:
             return self.compile_unordered_ir(node.child)
+
+    @_compile_node.register
+    def compile_selection(self, node: nodes.SelectionNode, ordered: bool = True):
+        result = self.compile_node(node.child, ordered)
+        return result.selection(node.input_output_pairs)
 
     @_compile_node.register
     def compile_projection(self, node: nodes.ProjectionNode, ordered: bool = True):

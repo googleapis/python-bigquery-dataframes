@@ -134,9 +134,22 @@ class BaseIbisIR(abc.ABC):
     ) -> T:
         """Apply an expression to the ArrayValue and assign the output to a column."""
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
-        values = [
+        new_values = [
             op_compiler.compile_expression(expression, bindings).name(id)
             for expression, id in expression_id_pairs
+        ]
+        result = self._select(tuple([*self._columns, *new_values]))  # type: ignore
+        return result
+
+    def selection(
+        self: T,
+        input_output_pairs: typing.Tuple[typing.Tuple[str, str], ...],
+    ) -> T:
+        """Apply an expression to the ArrayValue and assign the output to a column."""
+        bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
+        values = [
+            op_compiler.compile_expression(ex.free_var(input), bindings).name(id)
+            for input, id in input_output_pairs
         ]
         result = self._select(tuple(values))  # type: ignore
         return result
@@ -388,8 +401,9 @@ class UnorderedIR(BaseIbisIR):
             columns=columns,
         )
 
-    def explode(self, column_ids: typing.Sequence[str]) -> UnorderedIR:
+    def explode(self, offsets: typing.Sequence[int]) -> UnorderedIR:
         table = self._to_ibis_expr()
+        column_ids = tuple(table.columns[offset] for offset in offsets)
 
         # The offset array ensures null represents empty arrays after unnesting.
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
@@ -699,8 +713,9 @@ class OrderedIR(BaseIbisIR):
             ordering=self._ordering,
         )
 
-    def explode(self, column_ids: typing.Sequence[str]) -> OrderedIR:
+    def explode(self, offsets: typing.Sequence[int]) -> OrderedIR:
         table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
+        column_ids = tuple(table.columns[offset] for offset in offsets)
 
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
         offset_array = (
@@ -708,7 +723,10 @@ class OrderedIR(BaseIbisIR):
                 ibis.greatest(
                     0,
                     ibis.least(
-                        *[table[column_id].length() - 1 for column_id in column_ids]
+                        *[
+                            table[table.columns[offset]].length() - 1
+                            for offset in offsets
+                        ]
                     ),
                 )
             )
@@ -778,10 +796,10 @@ class OrderedIR(BaseIbisIR):
         if ordering.is_sequential and (ordering.total_order_col is not None):
             expr_builder = self.builder()
             expr_builder.columns = [
+                *self.columns,
                 self._compile_expression(
                     ordering.total_order_col.scalar_expression
                 ).name(col_id),
-                *self.columns,
             ]
             return expr_builder.build()
         # Cannot nest analytic expressions, so reproject to cte first if needed.

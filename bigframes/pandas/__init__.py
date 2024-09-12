@@ -69,6 +69,7 @@ import bigframes.series
 import bigframes.session
 import bigframes.session._io.bigquery
 import bigframes.session.clients
+import bigframes.version
 
 try:
     import resource
@@ -692,10 +693,11 @@ def remote_function(
 remote_function.__doc__ = inspect.getdoc(bigframes.session.Session.remote_function)
 
 
-def read_gbq_function(function_name: str):
+def read_gbq_function(function_name: str, is_row_processor: bool = False):
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq_function,
         function_name=function_name,
+        is_row_processor=is_row_processor,
     )
 
 
@@ -837,6 +839,7 @@ DataFrame = bigframes.dataframe.DataFrame
 Index = bigframes.core.indexes.Index
 MultiIndex = bigframes.core.indexes.MultiIndex
 Series = bigframes.series.Series
+__version__ = bigframes.version.__version__
 
 # Other public pandas attributes
 NamedAgg = namedtuple("NamedAgg", ["column", "aggfunc"])
@@ -910,6 +913,7 @@ __all___ = [
     "Index",
     "MultiIndex",
     "Series",
+    "__version__",
     # Other public pandas attributes
     "NamedAgg",
     "options",
