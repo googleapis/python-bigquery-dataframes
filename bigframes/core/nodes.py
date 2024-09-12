@@ -178,6 +178,25 @@ class BigFrameNode:
         """Apply a function to each child node."""
         ...
 
+    @property
+    def defines_namespace(self) -> bool:
+        """
+        If true, this node establishes a new column id namespace.
+
+        If false, this node consumes and produces ids in the namespace
+        """
+        return False
+
+    @functools.cached_property
+    def defined_variables(self) -> set[str]:
+        """Full set of variables defined in the namespace, even if not selected."""
+        self_defined_variables = set(self.schema.names)
+        if self.defines_namespace:
+            return self_defined_variables
+        return self_defined_variables.union(
+            *(child.defined_variables for child in self.child_nodes)
+        )
+
 
 @dataclass(frozen=True)
 class UnaryNode(BigFrameNode):
@@ -261,6 +280,10 @@ class JoinNode(BigFrameNode):
         return replace(
             self, left_child=t(self.left_child), right_child=t(self.right_child)
         )
+
+    @property
+    def defines_namespace(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True)
@@ -646,6 +669,13 @@ class SelectionNode(UnaryNode):
         # This operation only renames variables, doesn't actually create new ones
         return 0
 
+    # TODO: Reuse parent namespace
+    # Currently, Selection node allows renaming an reusing existing names, so it must establish a
+    # new namespace.
+    @property
+    def defines_namespace(self) -> bool:
+        return True
+
 
 @dataclass(frozen=True)
 class ProjectionNode(UnaryNode):
@@ -707,6 +737,10 @@ class RowCountNode(UnaryNode):
     def variables_introduced(self) -> int:
         return 1
 
+    @property
+    def defines_namespace(self) -> bool:
+        return True
+
 
 @dataclass(frozen=True)
 class AggregateNode(UnaryNode):
@@ -750,6 +784,10 @@ class AggregateNode(UnaryNode):
 
     @property
     def explicitly_ordered(self) -> bool:
+        return True
+
+    @property
+    def defines_namespace(self) -> bool:
         return True
 
 
@@ -860,3 +898,7 @@ class ExplodeNode(UnaryNode):
     @functools.cached_property
     def variables_introduced(self) -> int:
         return len(self.column_ids) + 1
+
+    @property
+    def defines_namespace(self) -> bool:
+        return True
