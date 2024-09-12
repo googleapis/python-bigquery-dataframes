@@ -209,7 +209,7 @@ class UnaryNode(BigFrameNode):
 class JoinNode(BigFrameNode):
     left_child: BigFrameNode
     right_child: BigFrameNode
-    conditions: typing.Tuple[typing.Tuple[str, str], ...]
+    conditions: typing.Tuple[typing.Tuple[COL_OFFSET, COL_OFFSET], ...]
     type: typing.Literal["inner", "outer", "left", "right", "cross"]
 
     @property

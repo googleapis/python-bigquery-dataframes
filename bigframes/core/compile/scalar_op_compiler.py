@@ -65,6 +65,7 @@ class ScalarOpCompiler:
         ],
     ] = {}
 
+    # TODO: Just pass list of Values without names once deprecate UnboundVariableExpression compilation
     @functools.singledispatchmethod
     def compile_expression(
         self,
@@ -83,6 +84,7 @@ class ScalarOpCompiler:
             expression.value, expression.dtype
         )
 
+    # TODO: Make UnboundVariableExpression uncompilable and use deref instead.
     @compile_expression.register
     def _(
         self,
@@ -93,6 +95,17 @@ class ScalarOpCompiler:
             raise ValueError(f"Could not resolve unbound variable {expression.id}")
         else:
             return bindings[expression.id]
+
+    @compile_expression.register
+    def _(
+        self,
+        expression: ex.DereferenceOffsetExpression,
+        bindings: typing.Dict[str, ibis_types.Value],
+    ) -> ibis_types.Value:
+        if expression.col_offset >= len(bindings):
+            raise ValueError(f"Column offset out of bounds {expression.col_offset}")
+        else:
+            return bindings[list(bindings.keys())[expression.col_offset]]
 
     @compile_expression.register
     def _(

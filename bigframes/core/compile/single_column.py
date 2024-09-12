@@ -31,7 +31,7 @@ import bigframes.core.ordering as orderings
 def join_by_column_ordered(
     left: compiled.OrderedIR,
     right: compiled.OrderedIR,
-    conditions: Tuple[Tuple[str, str], ...],
+    conditions: Tuple[Tuple[int, int], ...],
     type: Literal["inner", "outer", "left", "right", "cross"],
 ) -> compiled.OrderedIR:
     """Join two expressions by column equality.
@@ -77,8 +77,8 @@ def join_by_column_ordered(
         col_id_overrides=r_mapping,
     )
     join_conditions = [
-        value_to_join_key(left_table[l_mapping[left_index]])
-        == value_to_join_key(right_table[r_mapping[right_index]])
+        value_to_join_key(left_table[left_table.columns[left_index]])
+        == value_to_join_key(right_table[right_table.columns[right_index]])
         for left_index, right_index in conditions
     ]
 
@@ -124,7 +124,7 @@ def join_by_column_ordered(
 def join_by_column_unordered(
     left: compiled.UnorderedIR,
     right: compiled.UnorderedIR,
-    conditions: Tuple[Tuple[str, str], ...],
+    conditions: Tuple[Tuple[int, int], ...],
     type: Literal["inner", "outer", "left", "right", "cross"],
 ) -> compiled.UnorderedIR:
     """Join two expressions by column equality.
@@ -153,8 +153,8 @@ def join_by_column_unordered(
         col_id_overrides=r_mapping,
     )
     join_conditions = [
-        value_to_join_key(left_table[l_mapping[left_index]])
-        == value_to_join_key(right_table[r_mapping[right_index]])
+        value_to_join_key(left_table[left_table.columns[left_index]])
+        == value_to_join_key(right_table[right_table.columns[right_index]])
         for left_index, right_index in conditions
     ]
 

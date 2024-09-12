@@ -153,16 +153,24 @@ class ArrayValue:
     # Operations
     def filter_by_id(self, predicate_id: str, keep_null: bool = False) -> ArrayValue:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
-        predicate: ex.Expression = ex.free_var(predicate_id)
+        predicate: ex.Expression = ex.deref(self.get_offset_for_name(predicate_id))
         if keep_null:
             predicate = ops.fillna_op.as_expr(predicate, ex.const(True))
         return self.filter(predicate)
 
     def filter(self, predicate: ex.Expression):
-        return ArrayValue(nodes.FilterNode(child=self.node, predicate=predicate))
+        return ArrayValue(
+            nodes.FilterNode(
+                child=self.node, predicate=self.bind_expression_variables(predicate)
+            )
+        )
 
     def order_by(self, by: Sequence[OrderingExpression]) -> ArrayValue:
-        return ArrayValue(nodes.OrderByNode(child=self.node, by=tuple(by)))
+        return ArrayValue(
+            nodes.OrderByNode(
+                child=self.node, by=tuple(map(self.bind_order_expression_variables, by))
+            )
+        )
 
     def reversed(self) -> ArrayValue:
         return ArrayValue(nodes.ReversedNode(child=self.node))
@@ -191,6 +199,9 @@ class ArrayValue:
         )
 
     def compute_values(self, assignments: Sequence[Tuple[ex.Expression, str]]):
+        assignments = tuple(
+            (self.bind_expression_variables(ex), id) for ex, id in assignments
+        )
         return ArrayValue(
             nodes.ProjectionNode(child=self.node, assignments=tuple(assignments))
         )
@@ -344,7 +355,10 @@ class ArrayValue:
         join_node = nodes.JoinNode(
             left_child=self.node,
             right_child=other.node,
-            conditions=conditions,
+            conditions=tuple(
+                (self.get_offset_for_name(l_name), self.get_offset_for_name(r_name))
+                for l_name, r_name in conditions
+            ),
             type=type,
         )
         # Maps input ids to output ids for caller convenience
@@ -393,5 +407,24 @@ class ArrayValue:
         """
         return ArrayValue(nodes.RandomSampleNode(self.node, fraction))
 
+    # Helpers to resolve string column ids to offsets
     def get_offset_for_name(self, name: str):
         return self.schema.names.index(name)
+
+    def bind_expression_variables(self, expr: ex.Expression) -> ex.Expression:
+        """Binds free variables in an expression to ArrayValue columns"""
+        mapping = {
+            name: ex.DereferenceOffsetExpression(offset)
+            for offset, name in enumerate(self.column_ids)
+        }
+        return expr.bind_variables(mapping)
+
+    def bind_order_expression_variables(
+        self, expr: OrderingExpression
+    ) -> OrderingExpression:
+        """Binds free variables in an expression to ArrayValue columns"""
+        mapping = {
+            name: ex.DereferenceOffsetExpression(offset)
+            for offset, name in enumerate(self.column_ids)
+        }
+        return expr.bind_variables(mapping)

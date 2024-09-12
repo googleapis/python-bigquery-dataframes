@@ -33,6 +33,10 @@ def free_var(id: str) -> UnboundVariableExpression:
     return UnboundVariableExpression(id)
 
 
+def deref(offset: int) -> DereferenceOffsetExpression:
+    return DereferenceOffsetExpression(offset)
+
+
 @dataclasses.dataclass(frozen=True)
 class Aggregation(abc.ABC):
     """Represents windowing or aggregation over a column."""
@@ -250,3 +254,43 @@ class OpExpression(Expression):
     def is_bijective(self) -> bool:
         # TODO: Mark individual functions as bijective?
         return False
+
+
+@dataclasses.dataclass(frozen=True)
+class DereferenceOffsetExpression(Expression):
+    """A expression representing a column reference."""
+
+    col_offset: int  # zero-based offset
+
+    @property
+    def unbound_variables(self) -> typing.Tuple[str, ...]:
+        return ()
+
+    def rename(self, name_mapping: Mapping[str, str]) -> Expression:
+        return self
+
+    @property
+    def is_const(self) -> bool:
+        return False
+
+    def output_type(
+        self, input_types: dict[str, bigframes.dtypes.Dtype]
+    ) -> dtypes.ExpressionType:
+        if self.col_offset >= len(input_types):
+            raise ValueError(
+                f"Offset {self.col_offset} out of bounds for schema {input_types}."
+            )
+        return list(input_types.values())[self.col_offset]
+
+    def bind_variables(
+        self, bindings: Mapping[str, Expression], check_bind_all: bool = True
+    ) -> Expression:
+        return self
+
+    @property
+    def is_bijective(self) -> bool:
+        return True
+
+    @property
+    def is_identity(self) -> bool:
+        return True
