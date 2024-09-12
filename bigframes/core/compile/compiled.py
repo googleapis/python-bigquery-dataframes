@@ -716,7 +716,7 @@ class OrderedIR(BaseIbisIR):
             0,
             ibis.greatest(
                 1,  # We always want at least 1 element to fill in NULLs for empty arrays.
-                ibis.least(*[table[table.columns[offset]].length() - 1 for offset in offsets]),
+                ibis.least(*[table[column_id].length() for column_id in column_ids]),
             ),
         ).name(offset_array_id)
         table_w_offset_array = table.select(
