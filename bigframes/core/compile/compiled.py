@@ -400,8 +400,9 @@ class UnorderedIR(BaseIbisIR):
             columns=columns,
         )
 
-    def explode(self, column_ids: typing.Sequence[str]) -> UnorderedIR:
+    def explode(self, offsets: typing.Sequence[int]) -> UnorderedIR:
         table = self._to_ibis_expr()
+        column_ids = tuple(table.columns[offset] for offset in offsets)
 
         # The offset array ensures null represents empty arrays after unnesting.
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
@@ -706,15 +707,16 @@ class OrderedIR(BaseIbisIR):
             ordering=self._ordering,
         )
 
-    def explode(self, column_ids: typing.Sequence[str]) -> OrderedIR:
+    def explode(self, offsets: typing.Sequence[int]) -> OrderedIR:
         table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
+        column_ids = tuple(table.columns[offset] for offset in offsets)
 
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
         offset_array = ibis.range(
             0,
             ibis.greatest(
                 1,  # We always want at least 1 element to fill in NULLs for empty arrays.
-                ibis.least(*[table[column_id].length() for column_id in column_ids]),
+                ibis.least(*[table[table.columns[offset]].length() - 1 for offset in offsets]),
             ),
         ).name(offset_array_id)
         table_w_offset_array = table.select(
@@ -780,10 +782,10 @@ class OrderedIR(BaseIbisIR):
         if ordering.is_sequential and (ordering.total_order_col is not None):
             expr_builder = self.builder()
             expr_builder.columns = [
+                *self.columns,
                 self._compile_expression(
                     ordering.total_order_col.scalar_expression
                 ).name(col_id),
-                *self.columns,
             ]
             return expr_builder.build()
         # Cannot nest analytic expressions, so reproject to cte first if needed.
