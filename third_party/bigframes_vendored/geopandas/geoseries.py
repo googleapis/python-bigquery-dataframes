@@ -22,10 +22,10 @@ class GeoSeries:
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
-            >>> from shapely.geometry import Point
-            >>> import geopandas
+            >>> import geopandas.array
+            >>> import shapely
 
-            >>> series = bigframes.pandas.Series(
+            >>> series = bpd.Series(
             ...     [shapely.Point(1, 1), shapely.Point(2, 2), shapely.Point(3, 3)],
             ...     dtype=geopandas.array.GeometryDtype()
             ... )
@@ -49,10 +49,10 @@ class GeoSeries:
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
-            >>> from shapely.geometry import Point
-            >>> import geopandas
+            >>> import geopandas.array
+            >>> import shapely
 
-            >>> series = bigframes.pandas.Series(
+            >>> series = bpd.Series(
             ...     [shapely.Point(1, 1), shapely.Point(2, 2), shapely.Point(3, 3)],
             ...     dtype=geopandas.array.GeometryDtype()
             ... )
