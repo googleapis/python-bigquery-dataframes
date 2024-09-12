@@ -1997,7 +1997,6 @@ class Block:
 
         coalesced_ids = []
         for left_id, right_id in zip(left_join_ids, right_join_ids):
-            coalesced_id = guid.generate_guid()
             joined_expr, coalesced_id = joined_expr.project_to_id(
                 ops.coalesce_op.as_expr(
                     get_column_left[left_id], get_column_right[right_id]

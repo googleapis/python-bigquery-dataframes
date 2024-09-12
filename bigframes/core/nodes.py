@@ -796,7 +796,7 @@ class WindowOpNode(UnaryNode):
     column_name: str
     op: agg_ops.UnaryWindowOp
     window_spec: window.WindowSpec
-    output_name: typing.Optional[str] = None
+    output_name: str
     never_skip_nulls: bool = False
     skip_reproject_unsafe: bool = False
 
@@ -811,10 +811,6 @@ class WindowOpNode(UnaryNode):
     def schema(self) -> schemata.ArraySchema:
         input_type = self.child.schema.get_type(self.column_name)
         new_item_dtype = self.op.output_type(input_type)
-        if self.output_name is None:
-            return self.child.schema.update_dtype(self.column_name, new_item_dtype)
-        if self.output_name in self.child.schema.names:
-            return self.child.schema.update_dtype(self.output_name, new_item_dtype)
         return self.child.schema.append(
             schemata.SchemaItem(self.output_name, new_item_dtype)
         )
