@@ -29,7 +29,7 @@ class GeoSeries:
             ...     [shapely.Point(1, 1), shapely.Point(2, 2), shapely.Point(3, 3)],
             ...     dtype=geopandas.array.GeometryDtype()
             ... )
-            >>> s.x
+            >>> series.geo.x
             0    1.0
             1    2.0
             2    3.0
@@ -56,7 +56,7 @@ class GeoSeries:
             ...     [shapely.Point(1, 1), shapely.Point(2, 2), shapely.Point(3, 3)],
             ...     dtype=geopandas.array.GeometryDtype()
             ... )
-            >>> s.y
+            >>> series.geo.y
             0    1.0
             1    2.0
             2    3.0
