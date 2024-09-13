@@ -4569,7 +4569,7 @@ def test_recursion_limit(scalars_df_index):
 
 
 @pytest.mark.skipif(
-    reason="Skip until query complexity error can be reliably triggered"
+    reason="b/366477265: Skip until query complexity error can be reliably triggered."
 )
 def test_query_complexity_error(scalars_df_index):
     # This test requires automatic caching/query decomposition to be turned off

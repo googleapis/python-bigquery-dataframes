@@ -305,19 +305,8 @@ class KBinsDiscretizer(
         array_split_points = {}
         if self.strategy == "uniform":
             for column in columns:
-                column_min = X[column].min()
-                column_max = X[column].max()
-
-                # Use Python value rather than Numpy value to serialization.
-                if hasattr(column_min, "item"):
-                    min_value = column_min.item()
-                else:
-                    min_value = column_min
-
-                if hasattr(column_max, "item"):
-                    max_value = column_max.item()
-                else:
-                    max_value = column_max
+                min_value = X[column].min()
+                max_value = X[column].max()
 
                 bin_size = (max_value - min_value) / self.n_bins
                 array_split_points[column] = [

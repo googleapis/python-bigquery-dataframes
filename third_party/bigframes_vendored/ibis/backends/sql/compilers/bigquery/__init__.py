@@ -437,7 +437,7 @@ class BigQueryCompiler(SQLGlotCompiler):
     def visit_StringContains(self, op, *, haystack, needle):
         return self.f.strpos(haystack, needle) > 0
 
-    def visti_StringFind(self, op, *, arg, substr, start, end):
+    def visit_StringFind(self, op, *, arg, substr, start, end):
         if start is not None:
             raise NotImplementedError(
                 "`start` not implemented for BigQuery string find"
