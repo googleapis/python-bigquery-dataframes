@@ -428,4 +428,5 @@ class ArrayValue:
             attempted_id = f"col_{i}"
             if attempted_id not in self.node.defined_variables:
                 genned_ids.append(attempted_id)
+            i = i + 1
         return genned_ids
