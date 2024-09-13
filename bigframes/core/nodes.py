@@ -500,9 +500,9 @@ class CachedTableNode(LeafNode):
             raise ValueError(
                 f"Requested schema {logical_names} cannot be derived from table schema {self.table.physical_schema}"
             )
-        if not set(self.hidden_columns).issubset(physical_names):
+        if not set(self._hidden_columns).issubset(physical_names):
             raise ValueError(
-                f"Requested hidden columns {self.hidden_columns} cannot be derived from table schema {self.table.physical_schema}"
+                f"Requested hidden columns {self._hidden_columns} cannot be derived from table schema {self.table.physical_schema}"
             )
 
     @property
@@ -521,7 +521,7 @@ class CachedTableNode(LeafNode):
         return len(self.schema.items) + OVERHEAD_VARIABLES
 
     @property
-    def hidden_columns(self) -> typing.Tuple[str, ...]:
+    def _hidden_columns(self) -> typing.Tuple[str, ...]:
         """Physical columns used to define ordering but not directly exposed as value columns."""
         if self.ordering is None:
             return ()
