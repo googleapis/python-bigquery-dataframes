@@ -2040,11 +2040,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
 
         if axis_n == 0:
-            subset = subset if utils.is_list_like(subset) else [subset]  # type:ignore
-
             # subset needs to be converted into column IDs, not column labels.
             if subset is None:
                 subset_ids = None
+            elif not utils.is_list_like(subset):
+                subset_ids = [self._block.label_to_col_id[subset]]
             else:
                 subset_ids = [
                     id for label in subset for id in self._block.label_to_col_id[label]
