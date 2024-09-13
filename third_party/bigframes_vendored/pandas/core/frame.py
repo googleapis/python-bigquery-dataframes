@@ -1614,8 +1614,6 @@ class DataFrame(generic.NDFrame):
         *,
         axis: int | str = 0,
         how: str = "any",
-        subset=None,
-        inplace: bool = False,
         ignore_index=False,
     ) -> DataFrame:
         """Remove missing values.
@@ -1686,12 +1684,6 @@ class DataFrame(generic.NDFrame):
 
                 * 'any' : If any NA values are present, drop that row or column.
                 * 'all' : If all values are NA, drop that row or column.
-            subset (column label or sequence of labels, optional):
-                Labels along other axis to consider, e.g. if you are dropping
-                rows these would be a list of columns to include.
-                Only supports axis=0.
-            inplace (bool, default ``False``):
-                Not supported.
             ignore_index (bool, default ``False``):
                 If ``True``, the resulting axis will be labeled 0, 1, …, n - 1.
 
