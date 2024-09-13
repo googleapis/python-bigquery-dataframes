@@ -78,7 +78,7 @@ class ClientsProvider:
     ):
         credentials_project = None
         if credentials is None:
-            credentials, credentials_project = _get_default_credentials_with_project()
+            credentials, credentials_project = _get_default_credentials_with_project() # type: ignore
 
         # Prefer the project in this order:
         # 1. Project explicitly specified by the user

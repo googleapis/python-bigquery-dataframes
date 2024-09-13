@@ -36,6 +36,7 @@ from typing import (
 )
 import warnings
 
+import bigframes.dataframe
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 from bigframes_vendored.pandas.core.reshape import concat
@@ -1524,8 +1525,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @bigframes.core.cm_nested
     def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame:
-        block = self._block.rename(columns=columns)
-        nested_data_context_manager.add_changes(DataFrame.rename.__qualname__, columns)
+        """
+        Rename is special in the context of nested data, as we allow column name changes for struct columns!
+        Thus we cannot just call it but have to forward it to the context manager via the add_changes method
+        """
+        res = True
+        if nested_data_context_manager.active:
+            nested_data_context_manager.add_changes(DataFrame.rename.__qualname__, columns, fct=bigframes.dataframe.DataFrame.rename)
+            if False: #TODO: action_not_allowed, for instance OHE on intermediate, struct like col!
+                res = False
+        else: # no context manager? Just return the new data frame
+            block = self._block.rename(columns=columns)
+        
         return DataFrame(block)
 
     def rename_axis(
@@ -2885,43 +2896,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 ns=ns, fracs=fracs, random_state=random_state, sort=sort
             )[0]
         )
-
-    def explode_nested(self, sep_explode: str, columns: list|None=None):
-        return self._explode_nested(
-            sep_explode=sep_explode, columns=columns
-        )
-
-    def _explode_nested(self, sep_explode: str, sep_struct: str|None=None, columns: list|None=None) -> DataFrame|dict:
-        sep_struct = sep_struct if sep_struct is not None else "."        
-        # has_nested = True
-        #if columns is not None:
-        #    columns = [c.replace(sep_struct, sep_explode) for c in columns]
-        ncols = [""]
-        df_flattened = self.copy()
-        while ncols:
-            prefix = ""
-            #has_nested = False
-            schema = df_flattened.dtypes.to_dict()
-            assert(isinstance(schema, dict))
-            ncols = []
-            for col, dtp in schema.items():
-                print(prefix)
-                if bigframes.dtypes.is_struct_like(dtp):
-                    ncols.append(col)
-                cols_considered = ncols if columns is None else columns
-                ncols = [cc for cc in cols_considered if cc.startswith(tuple(ncols))]
-                if ncols:
-                    prefix = col if not prefix else prefix + sep_struct + col
-                    #has_nested = True
-                    continue
-            if ncols:
-                df_flattened = df_flattened.struct.explode(ncols[0], separator=sep_explode)
-                
-        print(df_flattened.dtypes)
-        print(df_flattened.head(2))
-            # select those columns prefixing any string of the "columns" list     
-
-        return df_flattened
         
         
     #TODO: create explod_recursion to arbitrary depth of nestings

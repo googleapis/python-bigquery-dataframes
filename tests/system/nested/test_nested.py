@@ -108,16 +108,19 @@ if __name__ == "__main__":
     #set_project(project="gmbigframes", location="europe-west3")
     #table = "gmbigframes.nested.tiny"  #"vf-de-aib-prd-cmr-chn-lab.staging.scs_mini"
     set_project(project="vf-de-ca-lab", location="europe-west3")
-    table="andreas_beschorner.nested_dbg" # table="andreas_beschorner.nested_tiny"
+    table="andreas_beschorner.nested_dbg"
+    table = "andreas_beschorner.nested_complex" # table="andreas_beschorner.nested_tiny"
     #dfp = create_simple_nested(True)
     #testdf = DataFrame({"a": [1]}, index=None)
 
-    with core.nested_data_context_manager:
+    with core.nested_data_context_manager as ncm:
         #df = bfpd.read_gbq(f"SELECT * FROM {table} limit 10")
+        #ncm.add_df(df)
         #df = bfpd.DataFrame(dfp)
         df = create_complex_nested(False)
-        print(df)
-        df_n = df.explode_nested(sep_explode=core.nested_data_context_manager.sep_layers, columns=["person.address"])
+
+        ncm.add(df, layer_separator=ncm.sep_layers, struct_separator=ncm.sep_structs)
+        print(ncm.lineage(df))
         #df_n.to_gbq("andreas_beschorner.nested_complex_half")
         #df = df.rename(columns={"event_sequence.POSO": "event_sequence.pso"})
         pass
