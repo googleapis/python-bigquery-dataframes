@@ -22,6 +22,7 @@ import threading
 from typing import Any, cast, Dict, Mapping, Optional, Sequence, TYPE_CHECKING, Union
 import warnings
 
+import cloudpickle
 import google.api_core.exceptions
 from google.cloud import (
     bigquery,
@@ -176,7 +177,7 @@ class RemoteFunctionSession:
                 getting and setting IAM roles on cloud resources. If this param is
                 not provided then resource manager client from the session would be
                 used.
-            dataset (str, Optional.):
+            dataset (str, Optional):
                 Dataset in which to create a BigQuery remote function. It should be in
                 `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
                 parameter is not provided then session dataset id is used.
@@ -387,7 +388,7 @@ class RemoteFunctionSession:
                 # https://docs.python.org/3/library/inspect.html#inspect.signature
                 signature_kwargs: Mapping[str, Any] = {"eval_str": True}
             else:
-                signature_kwargs = {}
+                signature_kwargs = {}  # type: ignore
 
             signature = inspect.signature(
                 func,
@@ -458,6 +459,11 @@ class RemoteFunctionSession:
                 session=session,  # type: ignore
             )
 
+            # To respect the user code/environment let's use a copy of the
+            # original udf, especially since we would be setting some properties
+            # on it
+            func = cloudpickle.loads(cloudpickle.dumps(func))
+
             # In the unlikely case where the user is trying to re-deploy the same
             # function, cleanup the attributes we add below, first. This prevents
             # the pickle from having dependencies that might not otherwise be
@@ -497,6 +503,18 @@ class RemoteFunctionSession:
                 is_row_processor=is_row_processor,
                 cloud_function_vpc_connector=cloud_function_vpc_connector,
                 cloud_function_memory_mib=cloud_function_memory_mib,
+            )
+
+            # TODO(shobs): Find a better way to support udfs with param named "name".
+            # This causes an issue in the ibis compilation.
+            func.__signature__ = inspect.signature(func).replace(  # type: ignore
+                parameters=[
+                    inspect.Parameter(
+                        f"bigframes_{param.name}",
+                        param.kind,
+                    )
+                    for param in inspect.signature(func).parameters.values()
+                ]
             )
 
             # TODO: Move ibis logic to compiler step

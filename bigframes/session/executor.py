@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import math
-from typing import cast, Iterable, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import cast, Literal, Mapping, Optional, Sequence, Tuple, Union
 import warnings
 import weakref
 
@@ -381,8 +381,8 @@ class BigQueryCachingExecutor:
     def _cache_with_session_awareness(
         self,
         array_value: bigframes.core.ArrayValue,
-        session_forest: Iterable[nodes.BigFrameNode],
     ) -> None:
+        session_forest = [obj._block._expr.node for obj in array_value.session.objects]
         # These node types are cheap to re-compute
         target, cluster_cols = bigframes.session.planner.session_aware_cache_plan(
             array_value.node, list(session_forest)
@@ -457,9 +457,7 @@ def generate_head_plan(node: nodes.BigFrameNode, n: int):
     predicate = ops.lt_op.as_expr(ex.free_var(offsets_id), ex.const(n))
     plan_w_head = nodes.FilterNode(plan_w_offsets, predicate)
     # Finally, drop the offsets column
-    return nodes.ProjectionNode(
-        plan_w_head, tuple((ex.free_var(i), i) for i in node.schema.names)
-    )
+    return nodes.SelectionNode(plan_w_head, tuple((i, i) for i in node.schema.names))
 
 
 def generate_row_count_plan(node: nodes.BigFrameNode):
