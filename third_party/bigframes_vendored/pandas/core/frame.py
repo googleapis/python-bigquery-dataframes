@@ -1667,9 +1667,9 @@ class DataFrame(generic.NDFrame):
         Define in which columns to look for missing values.
 
             >>> df.dropna(subset=['name', 'toy'])
-                   name        toy       born
-            1    Batman  Batmobile 1940-04-25
-            2  Catwoman   Bullwhip        NaT
+                   name        toy        born
+            1    Batman  Batmobile  1940-04-25
+            2  Catwoman   Bullwhip        <NA>
             <BLANKLINE>
             [2 rows x 3 columns]
 
