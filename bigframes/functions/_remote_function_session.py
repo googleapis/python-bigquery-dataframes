@@ -22,6 +22,7 @@ import threading
 from typing import Any, cast, Dict, Mapping, Optional, Sequence, TYPE_CHECKING, Union
 import warnings
 
+import bigframes_vendored.constants as constants
 import cloudpickle
 import google.api_core.exceptions
 from google.cloud import (
@@ -31,7 +32,7 @@ from google.cloud import (
     resourcemanager_v3,
 )
 
-from bigframes import clients, constants
+from bigframes import clients
 
 if TYPE_CHECKING:
     from bigframes.session import Session
@@ -521,7 +522,8 @@ class RemoteFunctionSession:
             node = ibis.udf.scalar.builtin(
                 func,
                 name=rf_name,
-                schema=f"{dataset_ref.project}.{dataset_ref.dataset_id}",
+                catalog=dataset_ref.project,
+                database=dataset_ref.dataset_id,
                 signature=(ibis_signature.input_types, ibis_signature.output_type),
             )
             func.bigframes_cloud_function = (

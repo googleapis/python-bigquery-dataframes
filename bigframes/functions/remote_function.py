@@ -24,12 +24,12 @@ import ibis
 if TYPE_CHECKING:
     from bigframes.session import Session
 
+import bigframes_vendored.constants as constants
 import google.api_core.exceptions
 import google.api_core.retry
 from google.cloud import bigquery
 import google.iam.v1
 
-import bigframes.constants as constants
 import bigframes.core.compile.ibis_types
 import bigframes.dtypes
 import bigframes.functions.remote_function_template
@@ -170,7 +170,8 @@ def read_gbq_function(
     node = ibis.udf.scalar.builtin(
         func,
         name=routine_ref.routine_id,
-        schema=f"{routine_ref.project}.{routine_ref.dataset_id}",
+        catalog=routine_ref.project,
+        database=routine_ref.dataset_id,
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )
     func.bigframes_remote_function = str(routine_ref)  # type: ignore
