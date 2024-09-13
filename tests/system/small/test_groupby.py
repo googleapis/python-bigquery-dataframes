@@ -268,6 +268,21 @@ def test_dataframe_groupby_agg_kw_tuples(scalars_df_index, scalars_pandas_df_ind
 
 
 @pytest.mark.parametrize(
+    ("kwargs"),
+    [
+        ({"hello": "world"}),
+        ({"too_many_fields": ("one", "two", "three")}),
+    ],
+)
+def test_dataframe_groupby_agg_kw_error(scalars_df_index, kwargs):
+    col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
+    with pytest.raises(
+        TypeError, match=r"kwargs values must be 2-tuples of column, aggfunc"
+    ):
+        (scalars_df_index[col_names].groupby("string_col").agg(**kwargs))
+
+
+@pytest.mark.parametrize(
     ("as_index"),
     [
         (True),
