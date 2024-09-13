@@ -247,6 +247,26 @@ def test_dataframe_groupby_agg_named(scalars_df_index, scalars_pandas_df_index):
     pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
 
 
+def test_dataframe_groupby_agg_kw_tuples(scalars_df_index, scalars_pandas_df_index):
+    col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
+    bf_result = (
+        scalars_df_index[col_names]
+        .groupby("string_col")
+        .agg(
+            agg1=("int64_too", "sum"),
+            agg2=("float64_col", "max"),
+        )
+    )
+    pd_result = (
+        scalars_pandas_df_index[col_names]
+        .groupby("string_col")
+        .agg(agg1=("int64_too", "sum"), agg2=("float64_col", "max"))
+    )
+    bf_result_computed = bf_result.to_pandas()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
+
+
 @pytest.mark.parametrize(
     ("as_index"),
     [
