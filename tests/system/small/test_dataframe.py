@@ -3664,6 +3664,21 @@ def test_df_reindex_columns(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_df_reindex_columns_with_same_order(scalars_df_index, scalars_pandas_df_index):
+    # First, make sure the two dataframes have the same columns in order.
+    columns = ["int64_col", "int64_too"]
+    bf = scalars_df_index[columns]
+    pd_df = scalars_pandas_df_index[columns]
+
+    bf_result = bf.reindex(columns=columns).to_pandas()
+    pd_result = pd_df.reindex(columns=columns)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_df_equals_identical(scalars_df_index, scalars_pandas_df_index):
     unsupported = [
         "geography_col",
@@ -4568,6 +4583,9 @@ def test_recursion_limit(scalars_df_index):
     scalars_df_index.to_pandas()
 
 
+@pytest.mark.skipif(
+    reason="b/366477265: Skip until query complexity error can be reliably triggered."
+)
 def test_query_complexity_error(scalars_df_index):
     # This test requires automatic caching/query decomposition to be turned off
     bf_df = scalars_df_index
@@ -4655,6 +4673,17 @@ def test_to_gbq_and_create_dataset(session, scalars_df_index, dataset_id_not_cre
 
     loaded_scalars_df_index = session.read_gbq(result_table)
     assert not loaded_scalars_df_index.empty
+
+
+def test_to_gbq_table_labels(scalars_df_index):
+    destination_table = "bigframes-dev.bigframes_tests_sys.table_labels"
+    result_table = scalars_df_index.to_gbq(
+        destination_table, labels={"test": "labels"}, if_exists="replace"
+    )
+    client = scalars_df_index._session.bqclient
+    table = client.get_table(result_table)
+    assert table.labels
+    assert table.labels["test"] == "labels"
 
 
 @pytest.mark.parametrize(

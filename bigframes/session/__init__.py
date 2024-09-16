@@ -37,6 +37,7 @@ from typing import (
 import warnings
 import weakref
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.backends.bigquery  # noqa
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
@@ -58,7 +59,6 @@ import pyarrow as pa
 
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
-import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.compile
@@ -1008,10 +1008,12 @@ class Session(
             blob = bucket.blob(blob_name)
             blob.reload()
             file_size = blob.size
-        else:  # local file path
+        elif os.path.exists(filepath):  # local file path
             file_size = os.path.getsize(filepath)
+        else:
+            file_size = None
 
-        if file_size > max_size:
+        if file_size is not None and file_size > max_size:
             # Convert to GB
             file_size = round(file_size / (1024**3), 1)
             max_size = int(max_size / 1024**3)
@@ -1223,6 +1225,7 @@ class Session(
     def read_gbq_function(
         self,
         function_name: str,
+        is_row_processor: bool = False,
     ):
         """Loads a BigQuery function from BigQuery.
 
@@ -1239,11 +1242,21 @@ class Session(
 
         **Examples:**
 
-        Use the ``cw_lower_case_ascii_only`` function from Community UDFs.
-        (https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/cw_lower_case_ascii_only.sqlx)
-
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
+
+        Use the [cw_lower_case_ascii_only](https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/README.md#cw_lower_case_ascii_onlystr-string)
+        function from Community UDFs.
+
+            >>> func = bpd.read_gbq_function("bqutil.fn.cw_lower_case_ascii_only")
+
+        You can run it on scalar input. Usually you would do so to verify that
+        it works as expected before applying to all values in a Series.
+
+            >>> func('AURÉLIE')
+            'aurÉlie'
+
+        You can apply it to a BigQuery DataFrames Series.
 
             >>> df = bpd.DataFrame({'id': [1, 2, 3], 'name': ['AURÉLIE', 'CÉLESTINE', 'DAPHNÉ']})
             >>> df
@@ -1254,7 +1267,6 @@ class Session(
             <BLANKLINE>
             [3 rows x 2 columns]
 
-            >>> func = bpd.read_gbq_function("bqutil.fn.cw_lower_case_ascii_only")
             >>> df1 = df.assign(new_name=df['name'].apply(func))
             >>> df1
                id       name   new_name
@@ -1264,13 +1276,45 @@ class Session(
             <BLANKLINE>
             [3 rows x 3 columns]
 
+        You can even use a function with multiple inputs. For example,
+        [cw_regexp_replace_5](https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/README.md#cw_regexp_replace_5haystack-string-regexp-string-replacement-string-offset-int64-occurrence-int64)
+        from Community UDFs.
+
+            >>> func = bpd.read_gbq_function("bqutil.fn.cw_regexp_replace_5")
+            >>> func('TestStr123456', 'Str', 'Cad$', 1, 1)
+            'TestCad$123456'
+
+            >>> df = bpd.DataFrame({
+            ...     "haystack" : ["TestStr123456", "TestStr123456Str", "TestStr123456Str"],
+            ...     "regexp" : ["Str", "Str", "Str"],
+            ...     "replacement" : ["Cad$", "Cad$", "Cad$"],
+            ...     "offset" : [1, 1, 1],
+            ...     "occurrence" : [1, 2, 1]
+            ... })
+            >>> df
+                       haystack regexp replacement  offset  occurrence
+            0     TestStr123456    Str        Cad$       1           1
+            1  TestStr123456Str    Str        Cad$       1           2
+            2  TestStr123456Str    Str        Cad$       1           1
+            <BLANKLINE>
+            [3 rows x 5 columns]
+            >>> df.apply(func, axis=1)
+            0       TestCad$123456
+            1    TestStr123456Cad$
+            2    TestCad$123456Str
+            dtype: string
+
         Args:
             function_name (str):
-                the function's name in BigQuery in the format
+                The function's name in BigQuery in the format
                 `project_id.dataset_id.function_name`, or
                 `dataset_id.function_name` to load from the default project, or
                 `function_name` to load from the default project and the dataset
                 associated with the current session.
+            is_row_processor (bool, default False):
+                Whether the function is a row processor. This is set to True
+                for a function which receives an entire row of a DataFrame as
+                a pandas Series.
 
         Returns:
             callable: A function object pointing to the BigQuery function read
@@ -1284,6 +1328,7 @@ class Session(
         return bigframes_rf.read_gbq_function(
             function_name=function_name,
             session=self,
+            is_row_processor=is_row_processor,
         )
 
     def _prepare_copy_job_config(self) -> bigquery.CopyJobConfig:

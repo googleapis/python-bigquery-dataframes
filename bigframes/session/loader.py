@@ -18,9 +18,11 @@ import copy
 import dataclasses
 import datetime
 import itertools
+import os
 import typing
 from typing import Dict, Hashable, IO, Iterable, List, Optional, Sequence, Tuple, Union
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
 import google.auth.credentials
@@ -35,7 +37,7 @@ import numpy as np
 import pandas
 
 import bigframes.clients
-import bigframes.constants as constants
+import bigframes.constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.compile
@@ -421,11 +423,16 @@ class GbqDataLoader:
                 load_job = self._bqclient.load_table_from_uri(
                     filepath_or_buffer, table, job_config=job_config
                 )
-            else:
+            elif os.path.exists(filepath_or_buffer):  # local file path
                 with open(filepath_or_buffer, "rb") as source_file:
                     load_job = self._bqclient.load_table_from_file(
                         source_file, table, job_config=job_config
                     )
+            else:
+                raise NotImplementedError(
+                    f"BigQuery engine only supports a local file path or GCS path. "
+                    f"{constants.FEEDBACK_LINK}"
+                )
         else:
             load_job = self._bqclient.load_table_from_file(
                 filepath_or_buffer, table, job_config=job_config
@@ -438,7 +445,8 @@ class GbqDataLoader:
         # hours of the anonymous dataset.
         table_expiration = bigquery.Table(table_id)
         table_expiration.expires = (
-            datetime.datetime.now(datetime.timezone.utc) + constants.DEFAULT_EXPIRATION
+            datetime.datetime.now(datetime.timezone.utc)
+            + bigframes.constants.DEFAULT_EXPIRATION
         )
         self._bqclient.update_table(table_expiration, ["expires"])
 

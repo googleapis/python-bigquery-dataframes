@@ -324,7 +324,7 @@ def test_create_load_text_embedding_generator_model(
     ("text-embedding-004", "text-multilingual-embedding-002"),
 )
 @pytest.mark.flaky(retries=2)
-def test_gemini_text_embedding_generator_predict_default_params_success(
+def test_text_embedding_generator_predict_default_params_success(
     llm_text_df, model_name, session, bq_connection
 ):
     text_embedding_model = llm.TextEmbeddingGenerator(
@@ -340,7 +340,13 @@ def test_gemini_text_embedding_generator_predict_default_params_success(
 
 @pytest.mark.parametrize(
     "model_name",
-    ("gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514"),
+    (
+        "gemini-pro",
+        "gemini-1.5-pro-preview-0514",
+        "gemini-1.5-flash-preview-0514",
+        "gemini-1.5-pro-001",
+        "gemini-1.5-flash-001",
+    ),
 )
 def test_create_load_gemini_text_generator_model(
     dataset_id, model_name, session, bq_connection
@@ -362,7 +368,13 @@ def test_create_load_gemini_text_generator_model(
 
 @pytest.mark.parametrize(
     "model_name",
-    ("gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514"),
+    (
+        "gemini-pro",
+        "gemini-1.5-pro-preview-0514",
+        "gemini-1.5-flash-preview-0514",
+        "gemini-1.5-pro-001",
+        "gemini-1.5-flash-001",
+    ),
 )
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_predict_default_params_success(
@@ -379,7 +391,13 @@ def test_gemini_text_generator_predict_default_params_success(
 
 @pytest.mark.parametrize(
     "model_name",
-    ("gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514"),
+    (
+        "gemini-pro",
+        "gemini-1.5-pro-preview-0514",
+        "gemini-1.5-flash-preview-0514",
+        "gemini-1.5-pro-001",
+        "gemini-1.5-flash-001",
+    ),
 )
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_predict_with_params_success(
@@ -421,6 +439,7 @@ def test_claude3_text_generator_create_load(
     assert reloaded_model.model_name == model_name
 
 
+@pytest.mark.skip("b/366290533 too many requests are exhausting bqml capacity")
 @pytest.mark.parametrize(
     "model_name",
     ("claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet", "claude-3-opus"),
@@ -440,6 +459,7 @@ def test_claude3_text_generator_predict_default_params_success(
     )
 
 
+@pytest.mark.skip("b/366290533 too many requests are exhausting bqml capacity")
 @pytest.mark.parametrize(
     "model_name",
     ("claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet", "claude-3-opus"),

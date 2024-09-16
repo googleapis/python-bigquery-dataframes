@@ -1603,6 +1603,13 @@ def test_df_apply_axis_1(session, scalars_dfs):
         # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
         # , ignore this mismatch by using check_dtype=False.
         pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+        # Let's make sure the read_gbq_function path works for this function
+        serialize_row_reuse = session.read_gbq_function(
+            serialize_row_remote.bigframes_remote_function, is_row_processor=True
+        )
+        bf_result = scalars_df[columns].apply(serialize_row_reuse, axis=1).to_pandas()
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -1719,8 +1726,10 @@ def test_df_apply_axis_1_complex(session, pd_df):
 
         def serialize_row(row):
             custom = {
-                "name": row.name,
-                "index": [idx for idx in row.index],
+                "name": row.name.item() if hasattr(row.name, "item") else row.name,
+                "index": [
+                    idx.item() if hasattr(idx, "item") else idx for idx in row.index
+                ],
                 "values": [
                     val.item() if hasattr(val, "item") else val for val in row.values
                 ],
@@ -2082,6 +2091,13 @@ def test_df_apply_axis_1_multiple_params(session):
             ]
         )
 
+        pandas.testing.assert_series_equal(
+            expected_result, bf_result, check_dtype=False, check_index_type=False
+        )
+
+        # Let's make sure the read_gbq_function path works for this function
+        foo_reuse = session.read_gbq_function(foo.bigframes_remote_function)
+        bf_result = bf_df.apply(foo_reuse, axis=1).to_pandas()
         pandas.testing.assert_series_equal(
             expected_result, bf_result, check_dtype=False, check_index_type=False
         )
