@@ -19,10 +19,9 @@ import itertools
 import typing
 from typing import Collection, Literal, Optional, Sequence
 
-import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
+import bigframes_vendored.ibis.backends.bigquery.backend as ibis_bigquery
 import google.cloud.bigquery
 import ibis
-import ibis.backends.bigquery as ibis_bigquery
 import ibis.backends.bigquery.datatypes
 import ibis.common.deferred  # type: ignore
 import ibis.expr.datatypes as ibis_dtypes
@@ -401,23 +400,19 @@ class UnorderedIR(BaseIbisIR):
             columns=columns,
         )
 
-    def explode(self, column_ids: typing.Sequence[str]) -> UnorderedIR:
+    def explode(self, offsets: typing.Sequence[int]) -> UnorderedIR:
         table = self._to_ibis_expr()
+        column_ids = tuple(table.columns[offset] for offset in offsets)
 
         # The offset array ensures null represents empty arrays after unnesting.
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
-        offset_array = (
-            vendored_ibis_ops.GenerateArray(
-                ibis.greatest(
-                    0,
-                    ibis.least(
-                        *[table[column_id].length() - 1 for column_id in column_ids]
-                    ),
-                )
-            )
-            .to_expr()
-            .name(offset_array_id),
-        )
+        offset_array = ibis.range(
+            0,
+            ibis.greatest(
+                1,  # We always want at least 1 element to fill in NULLs for empty arrays.
+                ibis.least(*[table[column_id].length() for column_id in column_ids]),
+            ),
+        ).name(offset_array_id)
         table_w_offset_array = table.select(
             offset_array,
             *self._column_names,
@@ -712,22 +707,18 @@ class OrderedIR(BaseIbisIR):
             ordering=self._ordering,
         )
 
-    def explode(self, column_ids: typing.Sequence[str]) -> OrderedIR:
+    def explode(self, offsets: typing.Sequence[int]) -> OrderedIR:
         table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
+        column_ids = tuple(table.columns[offset] for offset in offsets)
 
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
-        offset_array = (
-            vendored_ibis_ops.GenerateArray(
-                ibis.greatest(
-                    0,
-                    ibis.least(
-                        *[table[column_id].length() - 1 for column_id in column_ids]
-                    ),
-                )
-            )
-            .to_expr()
-            .name(offset_array_id),
-        )
+        offset_array = ibis.range(
+            0,
+            ibis.greatest(
+                1,  # We always want at least 1 element to fill in NULLs for empty arrays.
+                ibis.least(*[table[column_id].length() for column_id in column_ids]),
+            ),
+        ).name(offset_array_id)
         table_w_offset_array = table.select(
             offset_array,
             *self._column_names,
@@ -791,10 +782,10 @@ class OrderedIR(BaseIbisIR):
         if ordering.is_sequential and (ordering.total_order_col is not None):
             expr_builder = self.builder()
             expr_builder.columns = [
+                *self.columns,
                 self._compile_expression(
                     ordering.total_order_col.scalar_expression
                 ).name(col_id),
-                *self.columns,
             ]
             return expr_builder.build()
         # Cannot nest analytic expressions, so reproject to cte first if needed.
@@ -865,7 +856,7 @@ class OrderedIR(BaseIbisIR):
 
         clauses = []
         if op.skips_nulls and not never_skip_nulls:
-            clauses.append((column.isnull(), ibis.NA))
+            clauses.append((column.isnull(), ibis.null()))
         if window_spec.min_periods:
             if op.skips_nulls:
                 # Most operations do not count NULL values towards min_periods
@@ -886,7 +877,7 @@ class OrderedIR(BaseIbisIR):
             clauses.append(
                 (
                     observation_count < ibis_types.literal(window_spec.min_periods),
-                    ibis.NA,
+                    ibis.null(),
                 )
             )
         if clauses:
@@ -1317,9 +1308,10 @@ class OrderedIR(BaseIbisIR):
                     bounds.preceding, bounds.following, how="range"
                 )
             if isinstance(bounds, RowsWindowBounds):
-                window = window.preceding_following(
-                    bounds.preceding, bounds.following, how="rows"
-                )
+                if bounds.preceding is not None or bounds.following is not None:
+                    window = window.preceding_following(
+                        bounds.preceding, bounds.following, how="rows"
+                    )
             else:
                 raise ValueError(f"unrecognized window bounds {bounds}")
         return window

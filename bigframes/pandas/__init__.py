@@ -36,6 +36,7 @@ from typing import (
     Union,
 )
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
 import bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
 import bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
@@ -53,7 +54,6 @@ from pandas._typing import (
 )
 
 import bigframes._config as config
-import bigframes.constants as constants
 import bigframes.core.blocks
 import bigframes.core.expression as ex
 import bigframes.core.global_session as global_session
@@ -69,6 +69,7 @@ import bigframes.series
 import bigframes.session
 import bigframes.session._io.bigquery
 import bigframes.session.clients
+import bigframes.version
 
 try:
     import resource
@@ -838,6 +839,7 @@ DataFrame = bigframes.dataframe.DataFrame
 Index = bigframes.core.indexes.Index
 MultiIndex = bigframes.core.indexes.MultiIndex
 Series = bigframes.series.Series
+__version__ = bigframes.version.__version__
 
 # Other public pandas attributes
 NamedAgg = namedtuple("NamedAgg", ["column", "aggfunc"])
@@ -911,6 +913,7 @@ __all___ = [
     "Index",
     "MultiIndex",
     "Series",
+    "__version__",
     # Other public pandas attributes
     "NamedAgg",
     "options",
