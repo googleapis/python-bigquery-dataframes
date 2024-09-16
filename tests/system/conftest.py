@@ -32,7 +32,6 @@ import google.cloud.storage as storage  # type: ignore
 import ibis.backends
 import numpy as np
 import pandas as pd
-import pyarrow as pa
 import pytest
 import pytz
 import test_utils.prefixer
