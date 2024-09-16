@@ -42,7 +42,7 @@ from ...utils import assert_series_equal
         pytest.param("date_time_list_col", pd.ArrowDtype(pa.list_(pa.timestamp("us")))),
         pytest.param("numeric_list_col", pd.ArrowDtype(pa.list_(pa.decimal128(38, 9)))),
         pytest.param("string_list_col", pd.ArrowDtype(pa.list_(pa.string()))),
-    ]
+    ],
 )
 def test_getitem(key, column_name, dtype, repeated_df, repeated_pandas_df):
     if packaging.version.Version(pd.__version__) < packaging.version.Version("2.2.0"):
@@ -77,7 +77,7 @@ def test_getitem(key, column_name, dtype, repeated_df, repeated_pandas_df):
 )
 def test_getitem_notsupported(key, expectation, repeated_df):
     with expectation as e:
-        assert repeated_df['int_list_col'].list[key] == e
+        assert repeated_df["int_list_col"].list[key] == e
 
 
 @pytest.mark.parametrize(
@@ -90,7 +90,7 @@ def test_getitem_notsupported(key, expectation, repeated_df):
         pytest.param("date_time_list_col", pd.ArrowDtype(pa.list_(pa.timestamp("us")))),
         pytest.param("numeric_list_col", pd.ArrowDtype(pa.list_(pa.decimal128(38, 9)))),
         pytest.param("string_list_col", pd.ArrowDtype(pa.list_(pa.string()))),
-    ]
+    ],
 )
 def test_len(column_name, dtype, repeated_df, repeated_pandas_df):
     if packaging.version.Version(pd.__version__) < packaging.version.Version("2.2.0"):

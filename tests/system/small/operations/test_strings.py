@@ -631,7 +631,7 @@ def test_getitem_w_string(scalars_dfs, index):
         pytest.param("string_list_col"),
         # date, date_time and numeric are excluded because their default types are different
         # in Pandas and BigFrames
-    ]
+    ],
 )
 def test_getitem_w_array(index, column_name, repeated_df, repeated_pandas_df):
     bf_result = repeated_df[column_name].str[index].to_pandas()
