@@ -2044,10 +2044,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if subset is None:
                 subset_ids = None
             elif not utils.is_list_like(subset):
-                subset_ids = [self._block.label_to_col_id[subset]]
+                subset_ids = [id_ for id_ in self._block.label_to_col_id[subset]]
             else:
                 subset_ids = [
-                    id for label in subset for id in self._block.label_to_col_id[label]
+                    id_
+                    for label in subset
+                    for id_ in self._block.label_to_col_id[label]
                 ]
 
             result = block_ops.dropna(self._block, self._block.value_columns, how=how, subset=subset_ids)  # type: ignore
