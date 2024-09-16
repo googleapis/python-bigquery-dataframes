@@ -18,8 +18,6 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-import bigframes.pandas as bpd
-
 from ...utils import assert_series_equal
 
 
