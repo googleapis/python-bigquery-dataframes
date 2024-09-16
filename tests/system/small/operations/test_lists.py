@@ -41,7 +41,13 @@ def test_getitem(key, repeated_series, repeated_pandas_series):
     bf_result = repeated_series.list[key].to_pandas()
     pd_result = repeated_pandas_series.list[key]
 
-    assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False, check_names=False)
+    assert_series_equal(
+        pd_result,
+        bf_result,
+        check_dtype=False,
+        check_index_type=False,
+        check_names=False,
+    )
 
 
 @pytest.mark.parametrize(
@@ -71,4 +77,10 @@ def test_len(repeated_series, repeated_pandas_series):
     bf_result = repeated_series.list.len().to_pandas()
     pd_result = repeated_pandas_series.list.len()
 
-    assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False, check_names=False)
+    assert_series_equal(
+        pd_result,
+        bf_result,
+        check_dtype=False,
+        check_index_type=False,
+        check_names=False,
+    )

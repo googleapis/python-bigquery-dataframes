@@ -372,9 +372,11 @@ def scalars_table_tokyo(test_data_tables_tokyo) -> str:
 def nested_table_id(test_data_tables) -> str:
     return test_data_tables["nested"]
 
+
 @pytest.fixture(scope="session")
 def repeated_table_id(test_data_tables) -> str:
     return test_data_tables["repeated"]
+
 
 @pytest.fixture(scope="session")
 def penguins_table_id(test_data_tables) -> str:
@@ -415,6 +417,7 @@ def nested_pandas_df() -> pd.DataFrame:
     df = df.set_index("rowindex")
     return df
 
+
 @pytest.fixture(scope="session")
 def repeated_df(
     repeated_table_id: str, session: bigframes.Session
@@ -422,9 +425,10 @@ def repeated_df(
     """Returns a DataFrame containing columns of list type."""
     return session.read_gbq(repeated_table_id, index_col="rowindex")
 
+
 @pytest.fixture(scope="session")
 def repeated_series(
-    repeated_df: bigframes.dataframe.DataFrame
+    repeated_df: bigframes.dataframe.DataFrame,
 ) -> bigframes.series.Series:
     """Returns a Series of lists"""
     return repeated_df["list_col"]
@@ -441,10 +445,12 @@ def repeated_pandas_df() -> pd.DataFrame:
     df = df.set_index("rowindex")
     return df
 
+
 @pytest.fixture(scope="session")
 def repeated_pandas_series(repeated_pandas_df: pd.DataFrame) -> pd.Series:
     """pd.DataFrame pointing at test data."""
     return repeated_pandas_df["list_col"].astype(pd.ArrowDtype(pa.list_(pa.int64())))
+
 
 @pytest.fixture(scope="session")
 def scalars_df_default_index(
