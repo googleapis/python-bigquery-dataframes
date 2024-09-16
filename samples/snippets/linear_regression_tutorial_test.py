@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-def test_linear_regression():
+def test_linear_regression() -> None:
     # [START bigquery_dataframes_bqml_linear_regression]
     from bigframes.ml.linear_model import LinearRegression
     import bigframes.pandas as bpd
