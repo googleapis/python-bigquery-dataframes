@@ -1,0 +1,12 @@
+[
+    {
+        "name": "rowindex",
+        "type": "INTEGER",
+        "mode": "REQUIRED"
+    },
+    {
+        "name": "list_col",
+        "type": "INTEGER",
+        "mode": "REPEATED"
+    }
+]

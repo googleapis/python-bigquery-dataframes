@@ -32,19 +32,16 @@ from ...utils import assert_series_equal
         pytest.param(slice(0, 2, None), id="default_step_slice"),
     ],
 )
-def test_getitem(key):
+def test_getitem(key, repeated_series, repeated_pandas_series):
     if packaging.version.Version(pd.__version__) < packaging.version.Version("2.2.0"):
         pytest.skip(
             "https://pandas.pydata.org/docs/whatsnew/v2.2.0.html#series-list-accessor-for-pyarrow-list-data"
         )
-    data = [[1], [2, 3], [4, 5, 6]]
-    s = bpd.Series(data, dtype=pd.ArrowDtype(pa.list_(pa.int64())))
-    pd_s = pd.Series(data, dtype=pd.ArrowDtype(pa.list_(pa.int64())))
 
-    bf_result = s.list[key].to_pandas()
-    pd_result = pd_s.list[key]
+    bf_result = repeated_series.list[key].to_pandas()
+    pd_result = repeated_pandas_series.list[key]
 
-    assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)
+    assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False, check_names=False)
 
 
 @pytest.mark.parametrize(
@@ -60,24 +57,18 @@ def test_getitem(key):
         (slice(0, 2, 2), pytest.raises(NotImplementedError)),
     ],
 )
-def test_getitem_notsupported(key, expectation):
-    data = [[1], [2, 3], [4, 5, 6]]
-    s = bpd.Series(data, dtype=pd.ArrowDtype(pa.list_(pa.int64())))
-
+def test_getitem_notsupported(key, expectation, repeated_series):
     with expectation as e:
-        assert s.list[key] == e
+        assert repeated_series.list[key] == e
 
 
-def test_len():
+def test_len(repeated_series, repeated_pandas_series):
     if packaging.version.Version(pd.__version__) < packaging.version.Version("2.2.0"):
         pytest.skip(
             "https://pandas.pydata.org/docs/whatsnew/v2.2.0.html#series-list-accessor-for-pyarrow-list-data"
         )
-    data = [[], [1], [1, 2], [1, 2, 3]]
-    s = bpd.Series(data, dtype=pd.ArrowDtype(pa.list_(pa.int64())))
-    pd_s = pd.Series(data, dtype=pd.ArrowDtype(pa.list_(pa.int64())))
 
-    bf_result = s.list.len().to_pandas()
-    pd_result = pd_s.list.len()
+    bf_result = repeated_series.list.len().to_pandas()
+    pd_result = repeated_pandas_series.list.len()
 
-    assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)
+    assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False, check_names=False)

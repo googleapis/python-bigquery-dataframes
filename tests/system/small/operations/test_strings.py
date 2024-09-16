@@ -622,13 +622,14 @@ def test_getitem_w_string(scalars_dfs, index):
         pytest.param(slice(0, 0, None), id="single_one_slice"),
     ],
 )
-def test_getitem_w_array(index):
-    data = [[1], [2, 3], [], [4, 5, 6]]
-    s = bpd.Series(data)
-    pd_s = pd.Series(data)
+def test_getitem_w_array(index, repeated_series, repeated_pandas_df):
+    bf_result = repeated_series.str[index].to_pandas()
+    # We use repeated_pandas_df['list_col'] instead of repeated_pandas_series. 
+    # Reason: The series fixture contains lists that are strongly-typed as PyArrow lists. 
+    # Using str accessor on this type would fail the type check. However, the default 
+    # type for lists is Object in pandas, and it happily accepts str accessors.
+    pd_result = repeated_pandas_df['list_col'].str[index]
 
-    bf_result = s.str[index].to_pandas()
-    pd_result = pd_s.str[index]
     # Skip dtype checks here because pandas returns `int64` while BF returns `Int64`.
     assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)
 
