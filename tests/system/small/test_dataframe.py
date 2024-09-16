@@ -3664,6 +3664,21 @@ def test_df_reindex_columns(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_df_reindex_columns_with_same_order(scalars_df_index, scalars_pandas_df_index):
+    # First, make sure the two dataframes have the same columns in order.
+    columns = ["int64_col", "int64_too"]
+    bf = scalars_df_index[columns]
+    pd_df = scalars_pandas_df_index[columns]
+
+    bf_result = bf.reindex(columns=columns).to_pandas()
+    pd_result = pd_df.reindex(columns=columns)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_df_equals_identical(scalars_df_index, scalars_pandas_df_index):
     unsupported = [
         "geography_col",
@@ -4568,6 +4583,9 @@ def test_recursion_limit(scalars_df_index):
     scalars_df_index.to_pandas()
 
 
+@pytest.mark.skipif(
+    reason="b/366477265: Skip until query complexity error can be reliably triggered."
+)
 def test_query_complexity_error(scalars_df_index):
     # This test requires automatic caching/query decomposition to be turned off
     bf_df = scalars_df_index

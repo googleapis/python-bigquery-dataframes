@@ -25,10 +25,10 @@ from typing import cast, Iterable, List, Optional, Set, Tuple, Union, Dict, Type
 import abc
 import json
 
+from bigframes_vendored import constants
 import bigframes_vendored.sklearn.compose._column_transformer
 from google.cloud import bigquery
 
-from bigframes import constants
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, impute, preprocessing, utils
 import bigframes.pandas as bpd
