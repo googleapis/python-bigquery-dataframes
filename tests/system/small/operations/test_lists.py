@@ -32,14 +32,26 @@ from ...utils import assert_series_equal
         pytest.param(slice(0, 2, None), id="default_step_slice"),
     ],
 )
-def test_getitem(key, repeated_series, repeated_pandas_series):
+@pytest.mark.parametrize(
+    ("column_name", "dtype"),
+    [
+        pytest.param("int_list_col", pd.ArrowDtype(pa.list_(pa.int64()))),
+        pytest.param("bool_list_col", pd.ArrowDtype(pa.list_(pa.bool_()))),
+        pytest.param("float_list_col", pd.ArrowDtype(pa.list_(pa.float64()))),
+        pytest.param("date_list_col", pd.ArrowDtype(pa.list_(pa.date32()))),
+        pytest.param("date_time_list_col", pd.ArrowDtype(pa.list_(pa.timestamp("us")))),
+        pytest.param("numeric_list_col", pd.ArrowDtype(pa.list_(pa.decimal128(38, 9)))),
+        pytest.param("string_list_col", pd.ArrowDtype(pa.list_(pa.string()))),
+    ]
+)
+def test_getitem(key, column_name, dtype, repeated_df, repeated_pandas_df):
     if packaging.version.Version(pd.__version__) < packaging.version.Version("2.2.0"):
         pytest.skip(
             "https://pandas.pydata.org/docs/whatsnew/v2.2.0.html#series-list-accessor-for-pyarrow-list-data"
         )
 
-    bf_result = repeated_series.list[key].to_pandas()
-    pd_result = repeated_pandas_series.list[key]
+    bf_result = repeated_df[column_name].list[key].to_pandas()
+    pd_result = repeated_pandas_df[column_name].astype(dtype).list[key]
 
     assert_series_equal(
         pd_result,
@@ -63,19 +75,31 @@ def test_getitem(key, repeated_series, repeated_pandas_series):
         (slice(0, 2, 2), pytest.raises(NotImplementedError)),
     ],
 )
-def test_getitem_notsupported(key, expectation, repeated_series):
+def test_getitem_notsupported(key, expectation, repeated_df):
     with expectation as e:
-        assert repeated_series.list[key] == e
+        assert repeated_df['int_list_col'].list[key] == e
 
 
-def test_len(repeated_series, repeated_pandas_series):
+@pytest.mark.parametrize(
+    ("column_name", "dtype"),
+    [
+        pytest.param("int_list_col", pd.ArrowDtype(pa.list_(pa.int64()))),
+        pytest.param("bool_list_col", pd.ArrowDtype(pa.list_(pa.bool_()))),
+        pytest.param("float_list_col", pd.ArrowDtype(pa.list_(pa.float64()))),
+        pytest.param("date_list_col", pd.ArrowDtype(pa.list_(pa.date32()))),
+        pytest.param("date_time_list_col", pd.ArrowDtype(pa.list_(pa.timestamp("us")))),
+        pytest.param("numeric_list_col", pd.ArrowDtype(pa.list_(pa.decimal128(38, 9)))),
+        pytest.param("string_list_col", pd.ArrowDtype(pa.list_(pa.string()))),
+    ]
+)
+def test_len(column_name, dtype, repeated_df, repeated_pandas_df):
     if packaging.version.Version(pd.__version__) < packaging.version.Version("2.2.0"):
         pytest.skip(
             "https://pandas.pydata.org/docs/whatsnew/v2.2.0.html#series-list-accessor-for-pyarrow-list-data"
         )
 
-    bf_result = repeated_series.list.len().to_pandas()
-    pd_result = repeated_pandas_series.list.len()
+    bf_result = repeated_df[column_name].list.len().to_pandas()
+    pd_result = repeated_pandas_df[column_name].astype(dtype).list.len()
 
     assert_series_equal(
         pd_result,

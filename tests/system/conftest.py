@@ -427,14 +427,6 @@ def repeated_df(
 
 
 @pytest.fixture(scope="session")
-def repeated_series(
-    repeated_df: bigframes.dataframe.DataFrame,
-) -> bigframes.series.Series:
-    """Returns a Series of lists"""
-    return repeated_df["list_col"]
-
-
-@pytest.fixture(scope="session")
 def repeated_pandas_df() -> pd.DataFrame:
     """Returns a DataFrame containing columns of list type."""
 
@@ -444,12 +436,6 @@ def repeated_pandas_df() -> pd.DataFrame:
     )
     df = df.set_index("rowindex")
     return df
-
-
-@pytest.fixture(scope="session")
-def repeated_pandas_series(repeated_pandas_df: pd.DataFrame) -> pd.Series:
-    """pd.DataFrame pointing at test data."""
-    return repeated_pandas_df["list_col"].astype(pd.ArrowDtype(pa.list_(pa.int64())))
 
 
 @pytest.fixture(scope="session")

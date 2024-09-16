@@ -615,22 +615,28 @@ def test_getitem_w_string(scalars_dfs, index):
 @pytest.mark.parametrize(
     ("index"),
     [
-        pytest.param(2, id="int"),
+        pytest.param(0, id="int"),
         pytest.param(slice(None, None, None), id="default_start_slice"),
         pytest.param(slice(0, None, 1), id="default_stop_slice"),
         pytest.param(slice(0, 2, None), id="default_step_slice"),
         pytest.param(slice(0, 0, None), id="single_one_slice"),
     ],
 )
-def test_getitem_w_array(index, repeated_series, repeated_pandas_df):
-    bf_result = repeated_series.str[index].to_pandas()
-    # We use repeated_pandas_df['list_col'] instead of repeated_pandas_series.
-    # Reason: The series fixture contains lists that are strongly-typed as PyArrow lists.
-    # Using str accessor on this type would fail the type check. However, the default
-    # type for lists is Object in pandas, and it happily accepts str accessors.
-    pd_result = repeated_pandas_df["list_col"].str[index]
+@pytest.mark.parametrize(
+    "column_name",
+    [
+        pytest.param("int_list_col"),
+        pytest.param("bool_list_col"),
+        pytest.param("float_list_col"),
+        pytest.param("string_list_col"),
+        # date, date_time and numeric are excluded because their default types are different
+        # in Pandas and BigFrames
+    ]
+)
+def test_getitem_w_array(index, column_name, repeated_df, repeated_pandas_df):
+    bf_result = repeated_df[column_name].str[index].to_pandas()
+    pd_result = repeated_pandas_df[column_name].str[index]
 
-    # Skip dtype checks here because pandas returns `int64` while BF returns `Int64`.
     assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)
 
 
