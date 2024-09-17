@@ -2622,7 +2622,7 @@ def test_df_describe(scalars_dfs):
 def test_df_describe_non_numerical(scalars_dfs, include):
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    non_numerical_columns = ["string_col"]
+    non_numerical_columns = ["string_col", "bytes_col", "bool_col"]
 
     modified_bf = scalars_df[non_numerical_columns]
     bf_result = modified_bf.describe(include=include).to_pandas()

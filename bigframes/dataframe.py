@@ -32,6 +32,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Union,
 )
@@ -2316,11 +2317,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     _NON_NUMERICAL_DESCRIBE_AGGS = ("count", "nunique")
 
     def describe(self, include: None | Literal["all"] = None) -> DataFrame:
+
+        allowed_non_numerical_types = {
+            bigframes.dtypes.STRING_DTYPE,
+            bigframes.dtypes.BOOL_DTYPE,
+            bigframes.dtypes.BYTES_DTYPE,
+        }
+
         if include is None:
             numeric_df = self._drop_non_numeric(permissive=False)
             if len(numeric_df.columns) == 0:
                 # Describe eligible non-numerical columns
-                result = self._drop_non_string().agg(self._NON_NUMERICAL_DESCRIBE_AGGS)
+                result = self._filter_columns_by_type(allowed_non_numerical_types).agg(
+                    self._NON_NUMERICAL_DESCRIBE_AGGS
+                )
             else:
                 # Otherwise, only describe numerical columns
                 result = numeric_df.agg(self._NUMERICAL_DISCRIBE_AGGS)
@@ -2333,21 +2343,24 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     self._NUMERICAL_DISCRIBE_AGGS
                 ),
             )
-            string_result = typing.cast(
+
+            non_numeric_result = typing.cast(
                 DataFrame,
-                self._drop_non_string().agg(self._NON_NUMERICAL_DESCRIBE_AGGS),
+                self._filter_columns_by_type(allowed_non_numerical_types).agg(
+                    self._NON_NUMERICAL_DESCRIBE_AGGS
+                ),
             )
 
             if len(numeric_result.columns) == 0:
-                return string_result
-            elif len(string_result.columns) == 0:
+                return non_numeric_result
+            elif len(non_numeric_result.columns) == 0:
                 return numeric_result
             else:
                 import bigframes.core.reshape as rs
 
                 # Use reindex after join to preserve the original column order.
                 return rs.concat(
-                    [numeric_result, string_result], axis=1
+                    [non_numeric_result, numeric_result], axis=1
                 )._reindex_columns(self.columns)
 
         else:
@@ -2548,34 +2561,24 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(pivot_block)
 
+    def _filter_columns_by_type(self, types: Set[bigframes.dtypes.Dtype]) -> DataFrame:
+        target_cols = [
+            col_id
+            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
+            if dtype in types
+        ]
+        return DataFrame(self._block.select_columns(target_cols))
+
     def _drop_non_numeric(self, permissive=True) -> DataFrame:
         numerical_types = (
             set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
             if permissive
             else set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE)
         )
-        non_numeric_cols = [
-            col_id
-            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
-            if dtype not in numerical_types
-        ]
-        return DataFrame(self._block.drop_columns(non_numeric_cols))
-
-    def _drop_non_string(self) -> DataFrame:
-        string_cols = [
-            col_id
-            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
-            if dtype == bigframes.dtypes.STRING_DTYPE
-        ]
-        return DataFrame(self._block.select_columns(string_cols))
+        return self._filter_columns_by_type(numerical_types)
 
     def _drop_non_bool(self) -> DataFrame:
-        non_bool_cols = [
-            col_id
-            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
-            if dtype not in bigframes.dtypes.BOOL_BIGFRAMES_TYPES
-        ]
-        return DataFrame(self._block.drop_columns(non_bool_cols))
+        return self._filter_columns_by_type(set(bigframes.dtypes.BOOL_BIGFRAMES_TYPES))
 
     def _raise_on_non_numeric(self, op: str):
         if not all(
