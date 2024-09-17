@@ -29,7 +29,7 @@ import google.cloud.exceptions
 import google.cloud.functions_v2 as functions_v2
 import google.cloud.resourcemanager_v3 as resourcemanager_v3
 import google.cloud.storage as storage  # type: ignore
-import ibis.backends.base
+import ibis.backends
 import numpy as np
 import pandas as pd
 import pytest
@@ -39,6 +39,7 @@ import test_utils.prefixer
 import bigframes
 import bigframes.dataframe
 import bigframes.pandas as bpd
+import bigframes.series
 import tests.system.utils
 
 # Use this to control the number of cloud functions being deleted in a single
@@ -105,7 +106,7 @@ def bigquery_client_tokyo(session_tokyo: bigframes.Session) -> bigquery.Client:
 
 
 @pytest.fixture(scope="session")
-def ibis_client(session: bigframes.Session) -> ibis.backends.base.BaseBackend:
+def ibis_client(session: bigframes.Session) -> ibis.backends.BaseBackend:
     return session.ibis_client
 
 
@@ -294,6 +295,7 @@ def load_test_data_tables(
         ("scalars", "scalars_schema.json", "scalars.jsonl"),
         ("scalars_too", "scalars_schema.json", "scalars.jsonl"),
         ("nested", "nested_schema.json", "nested.jsonl"),
+        ("repeated", "repeated_schema.json", "repeated.jsonl"),
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
         ("time_series", "time_series_schema.json", "time_series.jsonl"),
         ("hockey_players", "hockey_players.json", "hockey_players.jsonl"),
@@ -371,6 +373,11 @@ def nested_table_id(test_data_tables) -> str:
 
 
 @pytest.fixture(scope="session")
+def repeated_table_id(test_data_tables) -> str:
+    return test_data_tables["repeated"]
+
+
+@pytest.fixture(scope="session")
 def penguins_table_id(test_data_tables) -> str:
     return test_data_tables["penguins"]
 
@@ -404,6 +411,26 @@ def nested_pandas_df() -> pd.DataFrame:
 
     df = pd.read_json(
         DATA_DIR / "nested.jsonl",
+        lines=True,
+    )
+    df = df.set_index("rowindex")
+    return df
+
+
+@pytest.fixture(scope="session")
+def repeated_df(
+    repeated_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """Returns a DataFrame containing columns of list type."""
+    return session.read_gbq(repeated_table_id, index_col="rowindex")
+
+
+@pytest.fixture(scope="session")
+def repeated_pandas_df() -> pd.DataFrame:
+    """Returns a DataFrame containing columns of list type."""
+
+    df = pd.read_json(
+        DATA_DIR / "repeated.jsonl",
         lines=True,
     )
     df = df.set_index("rowindex")
