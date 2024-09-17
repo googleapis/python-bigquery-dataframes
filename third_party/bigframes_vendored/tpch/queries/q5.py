@@ -23,7 +23,7 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     orders = session.read_gbq(
-        f"{project_id}.{dataset_id}.ORDERES",
+        f"{project_id}.{dataset_id}.ORDERS",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     supplier = session.read_gbq(
