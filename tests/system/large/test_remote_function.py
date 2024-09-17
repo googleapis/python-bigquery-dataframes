@@ -1726,12 +1726,18 @@ def test_df_apply_axis_1_complex(session, pd_df):
 
         def serialize_row(row):
             custom = {
-                "name": row.name.item() if hasattr(row.name, "item") else row.name,
-                "index": [
-                    idx.item() if hasattr(idx, "item") else idx for idx in row.index
-                ],
+                "name": tuple(
+                    [
+                        # Use Python value rather than Numpy value to serialization.
+                        name.item() if hasattr(name, "item") else name
+                        for name in list(row.name)
+                    ]
+                ),
+                "index": [idx for idx in row.index],
                 "values": [
-                    val.item() if hasattr(val, "item") else val for val in row.values
+                    # Use Python value rather than Numpy value to serialization.
+                    val.item() if hasattr(val, "item") else val
+                    for val in row.values
                 ],
             }
             return str(
@@ -1743,6 +1749,8 @@ def test_df_apply_axis_1_complex(session, pd_df):
                     "custom": custom,
                 }
             )
+
+        pd_result = pd_df.apply(serialize_row, axis=1)
 
         serialize_row_remote = session.remote_function(
             bigframes.series.Series, str, reuse=False
