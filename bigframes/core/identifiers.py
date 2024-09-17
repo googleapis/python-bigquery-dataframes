@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import bigframes_vendored.constants
+# Later, plan on migrating ids to use integers to reduce memory usage allow use of bitmaps to represent column sets
 
-import bigframes.version
+from typing import Generator
+
+ID_TYPE = str
 
 
-def test_feedback_link_includes_version():
-    version = bigframes.version.__version__
-    assert len(version) > 0
-    assert version in bigframes_vendored.constants.FEEDBACK_LINK
+def standard_identifiers() -> Generator[ID_TYPE, None, None]:
+    i = 0
+    while True:
+        yield f"col_{i}"
+        i = i + 1

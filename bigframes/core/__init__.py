@@ -17,9 +17,8 @@ from dataclasses import dataclass
 import datetime
 import functools
 import io
-import itertools
 import typing
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, List, Optional, Sequence, Tuple
 import warnings
 
 import google.cloud.bigquery
@@ -37,6 +36,7 @@ from bigframes.core.ordering import OrderingExpression
 import bigframes.core.ordering as orderings
 import bigframes.core.rewrite
 import bigframes.core.schema as schemata
+import bigframes.core.tree_properties
 import bigframes.core.utils
 from bigframes.core.window_spec import WindowSpec
 import bigframes.dtypes
@@ -106,6 +106,7 @@ class ArrayValue:
 
     @property
     def column_ids(self) -> typing.Sequence[str]:
+        """Returns column ids as strings."""
         return self.schema.names
 
     @property
@@ -124,6 +125,20 @@ class ArrayValue:
     @functools.cached_property
     def _compiled_schema(self) -> schemata.ArraySchema:
         return bigframes.core.compile.test_only_ibis_inferred_schema(self.node)
+
+    @property
+    def explicitly_ordered(self) -> bool:
+        # see BigFrameNode.explicitly_ordered
+        return self.node.explicitly_ordered
+
+    @property
+    def order_ambiguous(self) -> bool:
+        # see BigFrameNode.order_ambiguous
+        return self.node.order_ambiguous
+
+    @property
+    def supports_fast_peek(self) -> bool:
+        return bigframes.core.tree_properties.can_fast_peek(self.node)
 
     def as_cached(
         self: ArrayValue,
@@ -168,10 +183,11 @@ class ArrayValue:
     def reversed(self) -> ArrayValue:
         return ArrayValue(nodes.ReversedNode(child=self.node))
 
-    def promote_offsets(self, col_id: str) -> ArrayValue:
+    def promote_offsets(self) -> Tuple[ArrayValue, str]:
         """
         Convenience function to promote copy of column offsets to a value column. Can be used to reset index.
         """
+        col_id = self._gen_namespaced_uid()
         if self.node.order_ambiguous and not (self.session._strictly_ordered):
             if not self.session._allows_ambiguity:
                 raise ValueError(
@@ -183,7 +199,10 @@ class ArrayValue:
                     bigframes.exceptions.AmbiguousWindowWarning,
                 )
 
-        return ArrayValue(nodes.PromoteOffsetsNode(child=self.node, col_id=col_id))
+        return (
+            ArrayValue(nodes.PromoteOffsetsNode(child=self.node, col_id=col_id)),
+            col_id,
+        )
 
     def concat(self, other: typing.Sequence[ArrayValue]) -> ArrayValue:
         """Append together multiple ArrayValue objects."""
@@ -191,18 +210,19 @@ class ArrayValue:
             nodes.ConcatNode(children=tuple([self.node, *[val.node for val in other]]))
         )
 
-    def project_to_id(self, expression: ex.Expression, output_id: str):
-        return ArrayValue(
-            nodes.ProjectionNode(
-                child=self.node,
-                assignments=(
-                    (
-                        expression,
-                        output_id,
-                    ),
-                ),
-            )
+    def compute_values(self, assignments: Sequence[ex.Expression]):
+        col_ids = self._gen_namespaced_uids(len(assignments))
+        ex_id_pairs = tuple((ex, id) for ex, id in zip(assignments, col_ids))
+        return (
+            ArrayValue(nodes.ProjectionNode(child=self.node, assignments=ex_id_pairs)),
+            col_ids,
         )
+
+    def project_to_id(self, expression: ex.Expression):
+        array_val, ids = self.compute_values(
+            [expression],
+        )
+        return array_val, ids[0]
 
     def assign(self, source_id: str, destination_id: str) -> ArrayValue:
         if destination_id in self.column_ids:  # Mutate case
@@ -225,19 +245,22 @@ class ArrayValue:
 
     def create_constant(
         self,
-        destination_id: str,
         value: typing.Any,
         dtype: typing.Optional[bigframes.dtypes.Dtype],
-    ) -> ArrayValue:
+    ) -> Tuple[ArrayValue, str]:
+        destination_id = self._gen_namespaced_uid()
         if pandas.isna(value):
             # Need to assign a data type when value is NaN.
             dtype = dtype or bigframes.dtypes.DEFAULT_DTYPE
 
-        return ArrayValue(
-            nodes.ProjectionNode(
-                child=self.node,
-                assignments=((ex.const(value, dtype), destination_id),),
-            )
+        return (
+            ArrayValue(
+                nodes.ProjectionNode(
+                    child=self.node,
+                    assignments=((ex.const(value, dtype), destination_id),),
+                )
+            ),
+            destination_id,
         )
 
     def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
@@ -288,11 +311,10 @@ class ArrayValue:
         column_name: str,
         op: agg_ops.UnaryWindowOp,
         window_spec: WindowSpec,
-        output_name=None,
         *,
         never_skip_nulls=False,
         skip_reproject_unsafe: bool = False,
-    ) -> ArrayValue:
+    ) -> Tuple[ArrayValue, str]:
         """
         Creates a new expression based on this expression with unary operation applied to one column.
         column_name: the id of the input column present in the expression
@@ -315,16 +337,20 @@ class ArrayValue:
                         bigframes.exceptions.AmbiguousWindowWarning,
                     )
 
-        return ArrayValue(
-            nodes.WindowOpNode(
-                child=self.node,
-                column_name=column_name,
-                op=op,
-                window_spec=window_spec,
-                output_name=output_name,
-                never_skip_nulls=never_skip_nulls,
-                skip_reproject_unsafe=skip_reproject_unsafe,
-            )
+        output_name = self._gen_namespaced_uid()
+        return (
+            ArrayValue(
+                nodes.WindowOpNode(
+                    child=self.node,
+                    column_name=column_name,
+                    op=op,
+                    window_spec=window_spec,
+                    output_name=output_name,
+                    never_skip_nulls=never_skip_nulls,
+                    skip_reproject_unsafe=skip_reproject_unsafe,
+                )
+            ),
+            output_name,
         )
 
     def _reproject_to_table(self) -> ArrayValue:
@@ -341,124 +367,33 @@ class ArrayValue:
             )
         )
 
-    def unpivot(
-        self,
-        row_labels: typing.Sequence[typing.Hashable],
-        unpivot_columns: typing.Sequence[
-            typing.Tuple[str, typing.Tuple[typing.Optional[str], ...]]
-        ],
-        *,
-        passthrough_columns: typing.Sequence[str] = (),
-        index_col_ids: typing.Sequence[str] = ["index"],
-        join_side: typing.Literal["left", "right"] = "left",
-    ) -> ArrayValue:
-        """
-        Unpivot ArrayValue columns.
-
-        Args:
-            row_labels: Identifies the source of the row. Must be equal to length to source column list in unpivot_columns argument.
-            unpivot_columns: Mapping of column id to list of input column ids. Lists of input columns may use None.
-            passthrough_columns: Columns that will not be unpivoted. Column id will be preserved.
-            index_col_id (str): The column id to be used for the row labels.
-
-        Returns:
-            ArrayValue: The unpivoted ArrayValue
-        """
-        # There will be N labels, used to disambiguate which of N source columns produced each output row
-        explode_offsets_id = bigframes.core.guid.generate_guid("unpivot_offsets_")
-        labels_array = self._create_unpivot_labels_array(
-            row_labels, index_col_ids, explode_offsets_id
-        )
-
-        # Unpivot creates N output rows for each input row, labels disambiguate these N rows
-        joined_array = self._cross_join_w_labels(labels_array, join_side)
-
-        # Build the output rows as a case statment that selects between the N input columns
-        unpivot_exprs = []
-        # Supports producing multiple stacked ouput columns for stacking only part of hierarchical index
-        for col_id, input_ids in unpivot_columns:
-            # row explode offset used to choose the input column
-            # we use offset instead of label as labels are not necessarily unique
-            cases = itertools.chain(
-                *(
-                    (
-                        ops.eq_op.as_expr(explode_offsets_id, ex.const(i)),
-                        ex.free_var(id_or_null)
-                        if (id_or_null is not None)
-                        else ex.const(None),
-                    )
-                    for i, id_or_null in enumerate(input_ids)
-                )
-            )
-            col_expr = ops.case_when_op.as_expr(*cases)
-            unpivot_exprs.append((col_expr, col_id))
-
-        unpivot_col_ids = [id for id, _ in unpivot_columns]
-        return ArrayValue(
-            nodes.ProjectionNode(
-                child=joined_array.node,
-                assignments=(*unpivot_exprs,),
-            )
-        ).select_columns([*index_col_ids, *unpivot_col_ids, *passthrough_columns])
-
-    def _cross_join_w_labels(
-        self, labels_array: ArrayValue, join_side: typing.Literal["left", "right"]
-    ) -> ArrayValue:
-        """
-        Convert each row in self to N rows, one for each label in labels array.
-        """
-        table_join_side = (
-            join_def.JoinSide.LEFT if join_side == "left" else join_def.JoinSide.RIGHT
-        )
-        labels_join_side = table_join_side.inverse()
-        labels_mappings = tuple(
-            join_def.JoinColumnMapping(labels_join_side, id, id)
-            for id in labels_array.schema.names
-        )
-        table_mappings = tuple(
-            join_def.JoinColumnMapping(table_join_side, id, id)
-            for id in self.schema.names
-        )
-        join = join_def.JoinDefinition(
-            conditions=(), mappings=(*labels_mappings, *table_mappings), type="cross"
-        )
-        if join_side == "left":
-            joined_array = self.relational_join(labels_array, join_def=join)
-        else:
-            joined_array = labels_array.relational_join(self, join_def=join)
-        return joined_array
-
-    def _create_unpivot_labels_array(
-        self,
-        former_column_labels: typing.Sequence[typing.Hashable],
-        col_ids: typing.Sequence[str],
-        offsets_id: str,
-    ) -> ArrayValue:
-        """Create an ArrayValue from a list of label tuples."""
-        rows = []
-        for row_offset in range(len(former_column_labels)):
-            row_label = former_column_labels[row_offset]
-            row_label = (row_label,) if not isinstance(row_label, tuple) else row_label
-            row = {
-                col_ids[i]: (row_label[i] if pandas.notnull(row_label[i]) else None)
-                for i in range(len(col_ids))
-            }
-            row[offsets_id] = row_offset
-            rows.append(row)
-
-        return ArrayValue.from_pyarrow(pa.Table.from_pylist(rows), session=self.session)
-
     def relational_join(
         self,
         other: ArrayValue,
-        join_def: join_def.JoinDefinition,
-    ) -> ArrayValue:
+        conditions: typing.Tuple[typing.Tuple[str, str], ...] = (),
+        type: typing.Literal["inner", "outer", "left", "right", "cross"] = "inner",
+    ) -> typing.Tuple[ArrayValue, typing.Tuple[dict[str, str], dict[str, str]]]:
         join_node = nodes.JoinNode(
             left_child=self.node,
             right_child=other.node,
-            join=join_def,
+            conditions=conditions,
+            type=type,
         )
-        return ArrayValue(join_node)
+        # Maps input ids to output ids for caller convenience
+        l_size = len(self.node.schema)
+        l_mapping = {
+            lcol: ocol
+            for lcol, ocol in zip(
+                self.node.schema.names, join_node.schema.names[:l_size]
+            )
+        }
+        r_mapping = {
+            rcol: ocol
+            for rcol, ocol in zip(
+                other.node.schema.names, join_node.schema.names[l_size:]
+            )
+        }
+        return ArrayValue(join_node), (l_mapping, r_mapping)
 
     def try_align_as_projection(
         self,
@@ -479,9 +414,8 @@ class ArrayValue:
         for column_id in column_ids:
             assert bigframes.dtypes.is_array_like(self.get_column_type(column_id))
 
-        return ArrayValue(
-            nodes.ExplodeNode(child=self.node, column_ids=tuple(column_ids))
-        )
+        offsets = tuple(self.get_offset_for_name(id) for id in column_ids)
+        return ArrayValue(nodes.ExplodeNode(child=self.node, column_ids=offsets))
 
     def _uniform_sampling(self, fraction: float) -> ArrayValue:
         """Sampling the table on given fraction.
@@ -490,3 +424,24 @@ class ArrayValue:
             The row numbers of result is non-deterministic, avoid to use.
         """
         return ArrayValue(nodes.RandomSampleNode(self.node, fraction))
+
+    def get_offset_for_name(self, name: str):
+        return self.schema.names.index(name)
+
+    # Deterministically generate namespaced ids for new variables
+    # These new ids are only unique within the current namespace.
+    # Many operations, such as joins, create new namespaces. See: BigFrameNode.defines_namespace
+    # When migrating to integer ids, these will generate the next available integer, in order to densely pack ids
+    # this will help represent variables sets as compact bitsets
+    def _gen_namespaced_uid(self) -> str:
+        return self._gen_namespaced_uids(1)[0]
+
+    def _gen_namespaced_uids(self, n: int) -> List[str]:
+        i = len(self.node.defined_variables)
+        genned_ids: List[str] = []
+        while len(genned_ids) < n:
+            attempted_id = f"col_{i}"
+            if attempted_id not in self.node.defined_variables:
+                genned_ids.append(attempted_id)
+            i = i + 1
+        return genned_ids
