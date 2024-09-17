@@ -287,14 +287,15 @@ def run_benchmark_from_config(benchmark: str, iterations: int):
         benchmark_configs = []
         with open(config_path, "r") as f:
             for line in f:
-                config = json.loads(line)
-                python_args = [f"--{key}={value}" for key, value in config.items()]
-                suffix = (
-                    config["benchmark_suffix"]
-                    if "benchmark_suffix" in config
-                    else "_".join(f"{key}_{value}" for key, value in config.items())
-                )
-                benchmark_configs.append((suffix, python_args))
+                if line.strip():
+                    config = json.loads(line)
+                    python_args = [f"--{key}={value}" for key, value in config.items()]
+                    suffix = (
+                        config["benchmark_suffix"]
+                        if "benchmark_suffix" in config
+                        else "_".join(f"{key}_{value}" for key, value in config.items())
+                    )
+                    benchmark_configs.append((suffix, python_args))
     else:
         benchmark_configs = [(None, [])]
 
