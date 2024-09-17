@@ -876,13 +876,19 @@ def benchmark(session: nox.Session):
         nargs="?",
         const=True,
         default=False,
-        help="Determines whether to output results to a CSV file. If no location is provided, a temporary location is automatically generated.",
+        help=(
+            "Determines whether to output results to a CSV file. If no location is provided, "
+            "a temporary location is automatically generated."
+        ),
     )
     parser.add_argument(
         "-b",
         "--benchmark-filter",
         nargs="+",
-        help="List of file or directory names to include in the benchmarks. If not provided, all benchmarks are run.",
+        help=(
+            "List of file or directory names to include in the benchmarks. If not provided, "
+            "all benchmarks are run."
+        ),
     )
 
     args = parser.parse_args(session.posargs)

@@ -385,20 +385,30 @@ def main():
         benchmark_metrics = collect_benchmark_result(
             args.publish_benchmarks, args.iterations
         )
+        # Output results to CSV without specifying a location
         if args.output_csv == "True":
             current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
             temp_file = tempfile.NamedTemporaryFile(
                 prefix=f"benchmark_{current_time}_", delete=False, suffix=".csv"
             )
             benchmark_metrics.to_csv(temp_file.name, index=False)
-            print(f"DataFrame is saved to a temporary location: {temp_file.name}")
+            print(
+                f"Benchmark result is saved to a temporary location: {temp_file.name}"
+            )
             temp_file.close()
+        # Output results to CSV with specified a custom location
         elif args.output_csv != "False":
             benchmark_metrics.to_csv(args.output_csv, index=False)
-            print(f"DataFrame is saved to: {args.output_csv}")
+            print(f"Benchmark result is saved to: {args.output_csv}")
 
+        # Publish the benchmark metrics to BigQuery under the 'bigframes-metrics' project.
+        # The 'BENCHMARK_AND_PUBLISH' environment variable should be set to 'true' only
+        # in specific Kokoro sessions.
         if os.getenv("BENCHMARK_AND_PUBLISH", "false") == "true":
             publish_to_bigquery(benchmark_metrics, args.notebook)
+        # If the 'GCLOUD_BENCH_PUBLISH_PROJECT' environment variable is set, publish the
+        # benchmark metrics to a specified BigQuery table in the provided project. This is
+        # intended for local testing where the default behavior is not to publish results.
         elif project := os.getenv("GCLOUD_BENCH_PUBLISH_PROJECT", ""):
             publish_to_bigquery(benchmark_metrics, args.notebook, project)
     elif args.notebook:
