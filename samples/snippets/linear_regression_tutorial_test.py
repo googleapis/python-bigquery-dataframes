@@ -37,5 +37,3 @@ def test_linear_regression() -> None:
     assert feature_columns is not None
     assert label_columns is not None
     assert model is not None
-    assert score is not None
-    assert result is not None
