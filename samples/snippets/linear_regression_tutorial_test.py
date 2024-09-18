@@ -21,16 +21,12 @@ def test_linear_regression() -> None:
     # Load data from BigQuery
     bq_df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
 
-    # Filter down to the data to the Adelie Penguin species
-    # adelie_data = bq_df[bq_df.species == "Adelie Penguin (Pygoscelis adeliae)"]
-
-    # Drop the species column
-    # adelie_data = adelie_data.drop(columns=["species"])
-
     # Drop rows with nulls to get training data
+    # use new subset thing
     training_data = bq_df.dropna()
 
     # Specify your feature (or input) columns and the label (or output) column:
+    # drop - keep all columns except body_mass_g
     feature_columns = training_data[
         ["island", "culmen_length_mm", "culmen_depth_mm", "flipper_length_mm", "sex"]
     ]
