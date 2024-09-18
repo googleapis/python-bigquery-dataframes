@@ -926,7 +926,7 @@ class GeminiTextGenerator(base.BaseEstimator):
 
         (X,) = utils.convert_to_dataframe(X)
 
-        if len(X.columns) != 1:
+        if len(X.columns) == 1:
             # BQML identified the column by name
             col_label = cast(blocks.Label, X.columns[0])
             X = X.rename(columns={col_label: "prompt"})
