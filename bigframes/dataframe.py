@@ -2304,7 +2304,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._block.melt(id_col_ids, val_col_ids, var_name, value_name)
         )
 
-    _NUMERICAL_DISCRIBE_AGGS = (
+    _NUMERIC_DESCRIBE_AGGS = (
         "count",
         "mean",
         "std",
@@ -2314,7 +2314,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         "75%",
         "max",
     )
-    _NON_NUMERICAL_DESCRIBE_AGGS = ("count", "nunique")
+    _NON_NUMERIC_DESCRIBE_AGGS = ("count", "nunique")
 
     def describe(self, include: None | Literal["all"] = None) -> DataFrame:
 
@@ -2328,26 +2328,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             numeric_df = self._drop_non_numeric(permissive=False)
             if len(numeric_df.columns) == 0:
                 # Describe eligible non-numerical columns
-                result = self._filter_columns_by_type(allowed_non_numerical_types).agg(
-                    self._NON_NUMERICAL_DESCRIBE_AGGS
+                result = self.select_dtypes(include=allowed_non_numerical_types).agg(
+                    self._NON_NUMERIC_DESCRIBE_AGGS
                 )
             else:
                 # Otherwise, only describe numerical columns
-                result = numeric_df.agg(self._NUMERICAL_DISCRIBE_AGGS)
+                result = numeric_df.agg(self._NUMERIC_DESCRIBE_AGGS)
             return typing.cast(DataFrame, result)
 
         elif include == "all":
             numeric_result = typing.cast(
                 DataFrame,
                 self._drop_non_numeric(permissive=False).agg(
-                    self._NUMERICAL_DISCRIBE_AGGS
+                    self._NUMERIC_DESCRIBE_AGGS
                 ),
             )
 
             non_numeric_result = typing.cast(
                 DataFrame,
-                self._filter_columns_by_type(allowed_non_numerical_types).agg(
-                    self._NON_NUMERICAL_DESCRIBE_AGGS
+                self.select_dtypes(include=allowed_non_numerical_types).agg(
+                    self._NON_NUMERIC_DESCRIBE_AGGS
                 ),
             )
 
@@ -2561,24 +2561,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(pivot_block)
 
-    def _filter_columns_by_type(self, types: Set[bigframes.dtypes.Dtype]) -> DataFrame:
-        target_cols = [
-            col_id
-            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
-            if dtype in types
-        ]
-        return DataFrame(self._block.select_columns(target_cols))
-
     def _drop_non_numeric(self, permissive=True) -> DataFrame:
         numerical_types = (
             set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
             if permissive
             else set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE)
         )
-        return self._filter_columns_by_type(numerical_types)
+        return self.select_dtypes(include=numerical_types)
 
     def _drop_non_bool(self) -> DataFrame:
-        return self._filter_columns_by_type(set(bigframes.dtypes.BOOL_BIGFRAMES_TYPES))
+        return self.select_dtypes(include=bigframes.dtypes.BOOL_BIGFRAMES_TYPES)
 
     def _raise_on_non_numeric(self, op: str):
         if not all(
