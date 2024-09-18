@@ -81,6 +81,7 @@ class BigQueryOptions:
         skip_bq_connection_check: bool = False,
         *,
         ordering_mode: Literal["strict", "partial"] = "strict",
+        enable_time_travel: bool = True,
     ):
         self._credentials = credentials
         self._project = project
@@ -93,6 +94,7 @@ class BigQueryOptions:
         self._session_started = False
         # Determines the ordering strictness for the session.
         self._ordering_mode = _validate_ordering_mode(ordering_mode)
+        self._enable_time_travel = True
 
     @property
     def application_name(self) -> Optional[str]:
@@ -253,3 +255,18 @@ class BigQueryOptions:
     @ordering_mode.setter
     def ordering_mode(self, ordering_mode: Literal["strict", "partial"]) -> None:
         self._ordering_mode = _validate_ordering_mode(ordering_mode)
+
+    @property
+    def enable_time_travel(self) -> bool:
+        """An option to enable or disable time travel data retention window
+
+        Args:
+            value (bool):
+                A boolean value, where a value is True if the time travel is
+                enabled, otherwise False.
+        """
+        return self.enable_time_travel
+
+    @enable_time_travel.setter
+    def enable_time_travel(self, value: bool = True) -> None:
+        self._enable_time_travel = value
