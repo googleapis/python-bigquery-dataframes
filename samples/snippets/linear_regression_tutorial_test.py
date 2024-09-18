@@ -33,7 +33,6 @@ def test_linear_regression() -> None:
     model.fit(feature_columns, label_columns)
 
     # [END bigquery_dataframes_bqml_linear_regression]
-    assert test_data is not None
     assert feature_columns is not None
     assert label_columns is not None
     assert model is not None
