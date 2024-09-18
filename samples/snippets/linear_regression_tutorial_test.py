@@ -28,8 +28,6 @@ def test_linear_regression() -> None:
     feature_columns = training_data.drop(columns=["body_mass_g"])
     label_columns = training_data[["body_mass_g"]]
 
-    test_data = bq_df[bq_df.body_mass_g.isnull()]
-
     # Create the linear model
     model = LinearRegression()
     model.fit(feature_columns, label_columns)
