@@ -2317,7 +2317,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def describe(self, include: None | Literal["all"] = None) -> DataFrame:
 
-        allowed_non_numerical_types = {
+        allowed_non_numeric_types = {
             bigframes.dtypes.STRING_DTYPE,
             bigframes.dtypes.BOOL_DTYPE,
             bigframes.dtypes.BYTES_DTYPE,
@@ -2326,12 +2326,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if include is None:
             numeric_df = self._drop_non_numeric(permissive=False)
             if len(numeric_df.columns) == 0:
-                # Describe eligible non-numerical columns
-                result = self.select_dtypes(include=allowed_non_numerical_types).agg(
+                # Describe eligible non-numeric columns
+                result = self.select_dtypes(include=allowed_non_numeric_types).agg(
                     self._NON_NUMERIC_DESCRIBE_AGGS
                 )
             else:
-                # Otherwise, only describe numerical columns
+                # Otherwise, only describe numeric columns
                 result = numeric_df.agg(self._NUMERIC_DESCRIBE_AGGS)
             return typing.cast(DataFrame, result)
 
@@ -2345,7 +2345,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
             non_numeric_result = typing.cast(
                 DataFrame,
-                self.select_dtypes(include=allowed_non_numerical_types).agg(
+                self.select_dtypes(include=allowed_non_numeric_types).agg(
                     self._NON_NUMERIC_DESCRIBE_AGGS
                 ),
             )
@@ -2561,12 +2561,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(pivot_block)
 
     def _drop_non_numeric(self, permissive=True) -> DataFrame:
-        numerical_types = (
+        numeric_types = (
             set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
             if permissive
             else set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE)
         )
-        return self.select_dtypes(include=numerical_types)
+        return self.select_dtypes(include=numeric_types)
 
     def _drop_non_bool(self) -> DataFrame:
         return self.select_dtypes(include=bigframes.dtypes.BOOL_BIGFRAMES_TYPES)
