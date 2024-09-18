@@ -22,14 +22,11 @@ def test_linear_regression() -> None:
     bq_df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
 
     # Drop rows with nulls to get training data
-    # use new subset thing
-    training_data = bq_df.dropna()
+    training_data = bq_df.dropna(subset=["body_mass_g"])
 
     # Specify your feature (or input) columns and the label (or output) column:
-    # drop - keep all columns except body_mass_g
-    feature_columns = training_data[
-        ["island", "culmen_length_mm", "culmen_depth_mm", "flipper_length_mm", "sex"]
-    ]
+    feature_columns = training_data.drop(columns=["body_mass_g"])
+
     label_columns = training_data[["body_mass_g"]]
 
     test_data = bq_df[bq_df.body_mass_g.isnull()]
