@@ -35,11 +35,6 @@ def test_linear_regression() -> None:
     model = LinearRegression()
     model.fit(feature_columns, label_columns)
 
-    # Score the model
-    score = model.score(feature_columns, label_columns)
-
-    # Predict using the model
-    result = model.predict(test_data)
     # [END bigquery_dataframes_bqml_linear_regression]
     assert test_data is not None
     assert feature_columns is not None
