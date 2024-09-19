@@ -219,7 +219,7 @@ class GbqDataLoader:
         api_name: str,
         use_cache: bool = True,
         filters: third_party_pandas_gbq.FiltersType = (),
-        enable_time_travel: bool = True,
+        enable_time_travel=bigframes.options.bigquery.enable_time_travel,
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
