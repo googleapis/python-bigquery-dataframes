@@ -566,7 +566,7 @@ class Session(
         df = self._loader.read_gbq_table(
             table,
             api_name="read_gbq_table_steaming",
-            enable_snapshot=False,
+            enable_time_travel=False,
             index_col=bigframes.enums.DefaultIndexKind.NULL,
         )
 

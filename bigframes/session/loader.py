@@ -219,7 +219,7 @@ class GbqDataLoader:
         api_name: str,
         use_cache: bool = True,
         filters: third_party_pandas_gbq.FiltersType = (),
-        enable_snapshot: bool = True,
+        enable_time_travel: bool = True,
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
@@ -338,7 +338,7 @@ class GbqDataLoader:
             else (*columns, *[col for col in index_cols if col not in columns])
         )
 
-        enable_snapshot = enable_snapshot and bf_read_gbq_table.validate_table(
+        enable_time_travel = enable_time_travel and bf_read_gbq_table.validate_table(
             self._bqclient, table_ref, all_columns, time_travel_timestamp, filter_str
         )
 
@@ -366,7 +366,7 @@ class GbqDataLoader:
             table,
             schema=schema,
             predicate=filter_str,
-            at_time=time_travel_timestamp if enable_snapshot else None,
+            at_time=time_travel_timestamp if enable_time_travel else None,
             primary_key=index_cols if is_index_unique else (),
             session=self._session,
         )
