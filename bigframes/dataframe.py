@@ -2566,10 +2566,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if permissive
             else set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE)
         )
-        return self.select_dtypes(include=numeric_types)
+        non_numeric_cols = [
+            col_id
+            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
+            if dtype not in numeric_types
+        ]
+        return DataFrame(self._block.drop_columns(non_numeric_cols))
 
     def _drop_non_bool(self) -> DataFrame:
-        return self.select_dtypes(include=bigframes.dtypes.BOOL_BIGFRAMES_TYPES)
+        non_bool_cols = [
+            col_id
+            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
+            if dtype not in bigframes.dtypes.BOOL_BIGFRAMES_TYPES
+        ]
+        return DataFrame(self._block.drop_columns(non_bool_cols))
 
     def _raise_on_non_numeric(self, op: str):
         if not all(
