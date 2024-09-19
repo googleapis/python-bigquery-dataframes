@@ -264,6 +264,11 @@ class BigQueryOptions:
             value (bool):
                 A boolean value, where a value is True if the time travel is
                 enabled, otherwise False.
+
+        Returns:
+            bool:
+                A boolean value, where a value is True if the time travel is
+                enabled, otherwise False.
         """
         return self.enable_time_travel
 
