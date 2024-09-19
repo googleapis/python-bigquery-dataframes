@@ -17,6 +17,7 @@ from dataclasses import dataclass
 import itertools
 from typing import Optional, Set, Tuple, Union
 
+import bigframes.core.identifiers as ids
 import bigframes.core.ordering as orderings
 
 
@@ -41,7 +42,9 @@ def unbound(
         WindowSpec
     """
     return WindowSpec(
-        grouping_keys=grouping_keys, min_periods=min_periods, ordering=ordering
+        grouping_keys=tuple(map(ids.NameReference, grouping_keys)),
+        min_periods=min_periods,
+        ordering=ordering,
     )
 
 
@@ -72,7 +75,7 @@ def rows(
     """
     bounds = RowsWindowBounds(preceding=preceding, following=following)
     return WindowSpec(
-        grouping_keys=grouping_keys,
+        grouping_keys=tuple(map(ids.NameReference, grouping_keys)),
         bounds=bounds,
         min_periods=min_periods,
         ordering=ordering,
@@ -95,7 +98,9 @@ def cumulative_rows(
     """
     bounds = RowsWindowBounds(following=0)
     return WindowSpec(
-        grouping_keys=grouping_keys, bounds=bounds, min_periods=min_periods
+        grouping_keys=tuple(map(ids.NameReference, grouping_keys)),
+        bounds=bounds,
+        min_periods=min_periods,
     )
 
 
@@ -115,7 +120,9 @@ def inverse_cumulative_rows(
     """
     bounds = RowsWindowBounds(preceding=0)
     return WindowSpec(
-        grouping_keys=grouping_keys, bounds=bounds, min_periods=min_periods
+        grouping_keys=tuple(map(ids.NameReference, grouping_keys)),
+        bounds=bounds,
+        min_periods=min_periods,
     )
 
 
@@ -148,7 +155,7 @@ class WindowSpec:
     ordering: List of columns ids and ordering direction to override base ordering
     """
 
-    grouping_keys: Tuple[str, ...] = tuple()
+    grouping_keys: Tuple[ids.ColumnReference, ...] = tuple()
     ordering: Tuple[orderings.OrderingExpression, ...] = tuple()
     bounds: Union[RowsWindowBounds, RangeWindowBounds, None] = None
     min_periods: int = 0
@@ -164,11 +171,11 @@ class WindowSpec:
         return isinstance(self.bounds, RowsWindowBounds)
 
     @property
-    def all_referenced_columns(self) -> Set[str]:
+    def all_referenced_columns(self) -> Set[ids.ColumnReference]:
         """
         Return list of all variables reference ind the window.
         """
         ordering_vars = itertools.chain.from_iterable(
-            item.scalar_expression.unbound_variables for item in self.ordering
+            item.scalar_expression.referenced_columns for item in self.ordering
         )
         return set(itertools.chain(self.grouping_keys, ordering_vars))

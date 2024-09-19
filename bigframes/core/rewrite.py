@@ -19,12 +19,13 @@ import itertools
 from typing import Mapping, Optional, Sequence, Tuple
 
 import bigframes.core.expression as scalar_exprs
+import bigframes.core.identifiers as ids
 import bigframes.core.join_def as join_defs
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
 import bigframes.operations as ops
 
-Selection = Tuple[Tuple[scalar_exprs.Expression, str], ...]
+Selection = Tuple[Tuple[scalar_exprs.Expression, ids.Identifier], ...]
 
 REWRITABLE_NODE_TYPES = (
     nodes.SelectionNode,
@@ -40,7 +41,7 @@ class SquashedSelect:
     """Squash nodes together until target node, separating out the projection, filter and reordering expressions."""
 
     root: nodes.BigFrameNode
-    columns: Tuple[Tuple[scalar_exprs.Expression, str], ...]
+    columns: Tuple[Tuple[scalar_exprs.Expression, ids.Identifier], ...]
     predicate: Optional[scalar_exprs.Expression]
     ordering: Tuple[order.OrderingExpression, ...]
     reverse_root: bool = False
@@ -72,10 +73,12 @@ class SquashedSelect:
             raise ValueError(f"Cannot rewrite node {node}")
 
     @property
-    def column_lookup(self) -> Mapping[str, scalar_exprs.Expression]:
+    def column_lookup(self) -> Mapping[ids.Identifier, scalar_exprs.Expression]:
         return {col_id: expr for expr, col_id in self.columns}
 
-    def select(self, input_output_pairs: Tuple[Tuple[str, str], ...]) -> SquashedSelect:
+    def select(
+        self, input_output_pairs: Tuple[Tuple[ids.ColumnReference, ids.Identifier], ...]
+    ) -> SquashedSelect:
         new_columns = tuple(
             (
                 scalar_exprs.free_var(input).bind_variables(self.column_lookup),
@@ -88,7 +91,7 @@ class SquashedSelect:
         )
 
     def project(
-        self, projection: Tuple[Tuple[scalar_exprs.Expression, str], ...]
+        self, projection: Tuple[Tuple[scalar_exprs.Expression, ids.Identifier], ...]
     ) -> SquashedSelect:
         existing_columns = self.columns
         new_columns = tuple(

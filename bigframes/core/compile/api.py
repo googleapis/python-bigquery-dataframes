@@ -18,6 +18,7 @@ from typing import Mapping, Sequence, Tuple, TYPE_CHECKING
 import google.cloud.bigquery as bigquery
 
 import bigframes.core.compile.compiler as compiler
+import bigframes.core.identifiers as ids
 
 if TYPE_CHECKING:
     import bigframes.core.nodes
@@ -83,7 +84,7 @@ def test_only_ibis_inferred_schema(node: bigframes.core.nodes.BigFrameNode):
 
     compiled = _STRICT_COMPILER.compile_unordered_ir(node)
     items = tuple(
-        bigframes.core.schema.SchemaItem(id, compiled.get_column_type(id))
+        bigframes.core.schema.SchemaItem(ids.simple(id), compiled.get_column_type(id))
         for id in compiled.column_ids
     )
     return bigframes.core.schema.ArraySchema(items)

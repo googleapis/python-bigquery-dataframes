@@ -23,6 +23,7 @@ import typing
 from typing import Callable, Tuple
 
 import google.cloud.bigquery as bq
+import pandas
 
 import bigframes.core.expression as ex
 import bigframes.core.guid
@@ -188,9 +189,9 @@ class BigFrameNode:
         return False
 
     @functools.cached_property
-    def defined_variables(self) -> set[str]:
+    def defined_variables(self) -> set[bfet_ids.Identifier]:
         """Full set of variables defined in the namespace, even if not selected."""
-        self_defined_variables = set(self.schema.names)
+        self_defined_variables = set(self.schema.ids)
         if self.defines_namespace:
             return self_defined_variables
         return self_defined_variables.union(
@@ -224,11 +225,18 @@ class UnaryNode(BigFrameNode):
         return self.child.order_ambiguous
 
 
+# Only equality condition supported at present
+@dataclass(frozen=True)
+class JoinCondition:
+    left_id: bfet_ids.ColumnReference
+    right_id: bfet_ids.ColumnReference
+
+
 @dataclass(frozen=True)
 class JoinNode(BigFrameNode):
     left_child: BigFrameNode
     right_child: BigFrameNode
-    conditions: typing.Tuple[typing.Tuple[str, str], ...]
+    conditions: typing.Tuple[JoinCondition, ...]
     type: typing.Literal["inner", "outer", "left", "right", "cross"]
 
     @property
@@ -257,12 +265,13 @@ class JoinNode(BigFrameNode):
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
         items = []
+        # TODO: Model this as "alias" of input ids
         schema_items = itertools.chain(
             self.left_child.schema.items, self.right_child.schema.items
         )
         identifiers = bfet_ids.standard_identifiers()
         for id, item in zip(identifiers, schema_items):
-            items.append(schemata.SchemaItem(id, item.dtype))
+            items.append(schemata.SchemaItem(bfet_ids.simple(id), item.dtype))
         return schemata.ArraySchema(tuple(items))
 
     @functools.cached_property
@@ -316,7 +325,7 @@ class ConcatNode(BigFrameNode):
     def schema(self) -> schemata.ArraySchema:
         # TODO: Output names should probably be aligned beforehand or be part of concat definition
         items = tuple(
-            schemata.SchemaItem(f"column_{i}", dtype)
+            schemata.SchemaItem(bfet_ids.simple(f"column_{i}"), dtype)
             for i, dtype in enumerate(self.children[0].schema.dtypes)
         )
         return schemata.ArraySchema(items)
@@ -556,7 +565,7 @@ class CachedTableNode(LeafNode):
 # Unary nodes
 @dataclass(frozen=True)
 class PromoteOffsetsNode(UnaryNode):
-    col_id: str
+    col_id: bfet_ids.Identifier
 
     def __hash__(self):
         return self._node_hash
@@ -646,20 +655,21 @@ class ReversedNode(UnaryNode):
 
 @dataclass(frozen=True)
 class SelectionNode(UnaryNode):
-    input_output_pairs: typing.Tuple[typing.Tuple[str, str], ...]
+    input_output_pairs: typing.Tuple[
+        typing.Tuple[bfet_ids.ColumnReference, bfet_ids.Identifier], ...
+    ]
 
     def __post_init__(self):
         for input, _ in self.input_output_pairs:
-            assert input in self.child.schema.names
+            assert input in self.child.schema.ids
 
     def __hash__(self):
         return self._node_hash
 
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
-        input_types = self.child.schema._mapping
         items = tuple(
-            schemata.SchemaItem(output, input_types[input])
+            schemata.SchemaItem(output, self.child.schema.resolve_ref(input).dtype)
             for input, output in self.input_output_pairs
         )
         return schemata.ArraySchema(items)
@@ -681,13 +691,12 @@ class SelectionNode(UnaryNode):
 class ProjectionNode(UnaryNode):
     """Assigns new variables (without modifying existing ones)"""
 
-    assignments: typing.Tuple[typing.Tuple[ex.Expression, str], ...]
+    assignments: typing.Tuple[typing.Tuple[ex.Expression, bfet_ids.Identifier], ...]
 
     def __post_init__(self):
-        input_types = self.child.schema._mapping
         for expression, id in self.assignments:
             # throws TypeError if invalid
-            _ = expression.output_type(input_types)
+            _ = expression.output_type(self.child.schema)
         # Cannot assign to existing variables - append only!
         assert all(name not in self.child.schema.names for _, name in self.assignments)
 
@@ -696,10 +705,10 @@ class ProjectionNode(UnaryNode):
 
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
-        input_types = self.child.schema._mapping
         items = tuple(
             schemata.SchemaItem(
-                id, bigframes.dtypes.dtype_for_etype(ex.output_type(input_types))
+                id,
+                bigframes.dtypes.dtype_for_etype(ex.output_type(self.child.schema)),
             )
             for ex, id in self.assignments
         )
@@ -719,6 +728,8 @@ class ProjectionNode(UnaryNode):
 # Row count can be compute from table metadata sometimes, so it is a bit special.
 @dataclass(frozen=True)
 class RowCountNode(UnaryNode):
+    output_col: bfet_ids.Identifier = bfet_ids.simple("count")
+
     @property
     def row_preserving(self) -> bool:
         return False
@@ -730,7 +741,7 @@ class RowCountNode(UnaryNode):
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
         return schemata.ArraySchema(
-            (schemata.SchemaItem("count", bigframes.dtypes.INT_DTYPE),)
+            (schemata.SchemaItem(self.output_col, bigframes.dtypes.INT_DTYPE),)
         )
 
     @property
@@ -744,8 +755,8 @@ class RowCountNode(UnaryNode):
 
 @dataclass(frozen=True)
 class AggregateNode(UnaryNode):
-    aggregations: typing.Tuple[typing.Tuple[ex.Aggregation, str], ...]
-    by_column_ids: typing.Tuple[str, ...] = tuple([])
+    aggregations: typing.Tuple[typing.Tuple[ex.Aggregation, bfet_ids.Identifier], ...]
+    by_column_ids: typing.Tuple[bfet_ids.ColumnReference, ...] = tuple([])
     dropna: bool = True
 
     @property
@@ -762,13 +773,11 @@ class AggregateNode(UnaryNode):
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
         by_items = tuple(
-            schemata.SchemaItem(id, self.child.schema.get_type(id))
-            for id in self.by_column_ids
+            self.child.schema.resolve_ref(ref) for ref in self.by_column_ids
         )
-        input_types = self.child.schema._mapping
         agg_items = tuple(
             schemata.SchemaItem(
-                id, bigframes.dtypes.dtype_for_etype(agg.output_type(input_types))
+                id, bigframes.dtypes.dtype_for_etype(agg.output_type(self.child.schema))
             )
             for agg, id in self.aggregations
         )
@@ -793,10 +802,10 @@ class AggregateNode(UnaryNode):
 
 @dataclass(frozen=True)
 class WindowOpNode(UnaryNode):
-    column_name: str
+    column_name: bfet_ids.ColumnReference
     op: agg_ops.UnaryWindowOp
     window_spec: window.WindowSpec
-    output_name: str
+    output_name: bfet_ids.Identifier
     never_skip_nulls: bool = False
     skip_reproject_unsafe: bool = False
 
@@ -863,7 +872,7 @@ class RandomSampleNode(UnaryNode):
 
 @dataclass(frozen=True)
 class ExplodeNode(UnaryNode):
-    column_ids: typing.Tuple[COL_OFFSET, ...]
+    column_ids: typing.Tuple[bfet_ids.ColumnReference, ...]
 
     @property
     def row_preserving(self) -> bool:
@@ -874,16 +883,17 @@ class ExplodeNode(UnaryNode):
 
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
+        exploded_items = set(map(self.child.schema.resolve_ref, self.column_ids))
         items = tuple(
             schemata.SchemaItem(
-                name,
+                item.column,
                 bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
-                    self.child.schema.get_type(name).pyarrow_dtype.value_type
+                    typing.cast(pandas.ArrowDtype, item.dtype).pyarrow_dtype.value_type
                 ),
             )
-            if offset in self.column_ids
-            else schemata.SchemaItem(name, self.child.schema.get_type(name))
-            for offset, name in enumerate(self.child.schema.names)
+            if item in exploded_items
+            else item
+            for item in self.child.schema.items
         )
         return schemata.ArraySchema(items)
 

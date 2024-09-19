@@ -36,6 +36,7 @@ import bigframes.core.compile.ibis_types
 import bigframes.core.compile.scalar_op_compiler as op_compilers
 import bigframes.core.expression as ex
 import bigframes.core.guid
+import bigframes.core.identifiers as ids
 from bigframes.core.ordering import (
     ascending_over,
     encode_order_string,
@@ -274,19 +275,19 @@ class UnorderedIR(BaseIbisIR):
         )
         return typing.cast(str, sql)
 
-    def row_count(self) -> OrderedIR:
+    def row_count(self, name: str) -> OrderedIR:
         original_table = self._to_ibis_expr()
         ibis_table = original_table.agg(
             [
-                original_table.count().name("count"),
+                original_table.count().name(name),
             ]
         )
         return OrderedIR(
             ibis_table,
-            (ibis_table["count"],),
+            (ibis_table[name],),
             ordering=TotalOrdering(
-                ordering_value_columns=(ascending_over("count"),),
-                total_ordering_columns=frozenset(["count"]),
+                ordering_value_columns=(ascending_over(name),),
+                total_ordering_columns=frozenset([name]),
             ),
         )
 
@@ -400,9 +401,8 @@ class UnorderedIR(BaseIbisIR):
             columns=columns,
         )
 
-    def explode(self, offsets: typing.Sequence[int]) -> UnorderedIR:
+    def explode(self, column_ids: typing.Sequence[str]) -> UnorderedIR:
         table = self._to_ibis_expr()
-        column_ids = tuple(table.columns[offset] for offset in offsets)
 
         # The offset array ensures null represents empty arrays after unnesting.
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
@@ -707,9 +707,8 @@ class OrderedIR(BaseIbisIR):
             ordering=self._ordering,
         )
 
-    def explode(self, offsets: typing.Sequence[int]) -> OrderedIR:
+    def explode(self, column_ids: typing.Sequence[str]) -> OrderedIR:
         table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
-        column_ids = tuple(table.columns[offset] for offset in offsets)
 
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
         offset_array = ibis.range(
@@ -811,10 +810,10 @@ class OrderedIR(BaseIbisIR):
     ## Methods that only work with ordering
     def project_window_op(
         self,
-        column_name: str,
+        column_name: ids.ColumnReference,
         op: agg_ops.UnaryWindowOp,
         window_spec: WindowSpec,
-        output_name: str,
+        output_name: ids.Identifier,
         *,
         never_skip_nulls=False,
     ) -> OrderedIR:
@@ -1181,6 +1180,8 @@ class OrderedIR(BaseIbisIR):
                 )
                 new_exprs.append(new_expr)
             elif isinstance(expr.scalar_expression, ex.UnboundVariableExpression):
+                raise ValueError("Unbound variable is not compilable.")
+            elif isinstance(expr.scalar_expression, ex.DerefExpression):
                 order_col = expr.scalar_expression.id
                 new_exprs.append(expr)
                 if order_col not in self.column_ids:

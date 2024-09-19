@@ -19,6 +19,8 @@ from typing import Literal, NamedTuple
 
 import bigframes.core.identifiers as ids
 
+ID_TYPE = str
+
 
 class JoinSide(enum.Enum):
     LEFT = 0
@@ -34,21 +36,21 @@ JoinType = Literal["inner", "outer", "left", "right", "cross"]
 
 
 class JoinCondition(NamedTuple):
-    left_id: ids.ID_TYPE
-    right_id: ids.ID_TYPE
+    left_id: ids.ColumnReference
+    right_id: ids.ColumnReference
 
 
 @dataclasses.dataclass(frozen=True)
 class JoinColumnMapping:
     source_table: JoinSide
-    source_id: ids.ID_TYPE
-    destination_id: ids.ID_TYPE
+    source_id: ids.ColumnReference
+    destination_id: str
 
 
 @dataclasses.dataclass(frozen=True)
 class CoalescedColumnMapping:
     """Special column mapping used only by implicit joiner only"""
 
-    left_source_id: ids.ID_TYPE
-    right_source_id: ids.ID_TYPE
-    destination_id: ids.ID_TYPE
+    left_source_id: ids.ColumnReference
+    right_source_id: ids.ColumnReference
+    destination_id: str

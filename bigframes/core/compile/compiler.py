@@ -17,6 +17,7 @@ import dataclasses
 import functools
 import io
 import typing
+from typing import Tuple
 
 import ibis
 import ibis.backends
@@ -30,6 +31,7 @@ import bigframes.core.compile.default_ordering as default_ordering
 import bigframes.core.compile.ibis_types
 import bigframes.core.compile.schema_translator
 import bigframes.core.compile.single_column
+import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as bf_ordering
 
@@ -82,7 +84,7 @@ class Compiler:
                 left=left_ordered,
                 right=right_ordered,
                 type=node.type,
-                conditions=node.conditions,
+                conditions=self.compile_conditions(node.conditions),
             )
         else:
             left_unordered = self.compile_unordered_ir(node.left_child)
@@ -91,7 +93,7 @@ class Compiler:
                 left=left_unordered,
                 right=right_unordered,
                 type=node.type,
-                conditions=node.conditions,
+                conditions=self.compile_conditions(node.conditions),
             )
 
     @_compile_node.register
@@ -247,7 +249,9 @@ class Compiler:
     def compile_promote_offsets(
         self, node: nodes.PromoteOffsetsNode, ordered: bool = True
     ):
-        result = self.compile_ordered_ir(node.child).promote_offsets(node.col_id)
+        result = self.compile_ordered_ir(node.child).promote_offsets(
+            self.compile_id(node.col_id)
+        )
         return result if ordered else result.to_unordered()
 
     @_compile_node.register
@@ -271,12 +275,17 @@ class Compiler:
     @_compile_node.register
     def compile_selection(self, node: nodes.SelectionNode, ordered: bool = True):
         result = self.compile_node(node.child, ordered)
-        return result.selection(node.input_output_pairs)
+        selections = tuple(
+            (self.compile_id(input), self.compile_id(output))
+            for input, output in node.input_output_pairs
+        )
+        return result.selection(selections)
 
     @_compile_node.register
     def compile_projection(self, node: nodes.ProjectionNode, ordered: bool = True):
         result = self.compile_node(node.child, ordered)
-        return result.projection(node.assignments)
+        exprs = tuple((expr, self.compile_id(id)) for expr, id in node.assignments)
+        return result.projection(exprs)
 
     @_compile_node.register
     def compile_concat(self, node: nodes.ConcatNode, ordered: bool = True):
@@ -291,7 +300,9 @@ class Compiler:
 
     @_compile_node.register
     def compile_rowcount(self, node: nodes.RowCountNode, ordered: bool = True):
-        result = self.compile_unordered_ir(node.child).row_count()
+        result = self.compile_unordered_ir(node.child).row_count(
+            self.compile_id(node.output_col)
+        )
         return result if ordered else result.to_unordered()
 
     @_compile_node.register
@@ -299,13 +310,15 @@ class Compiler:
         has_ordered_aggregation_ops = any(
             aggregate.op.can_order_by for aggregate, _ in node.aggregations
         )
+        aggregations = [(agg, self.compile_id(id)) for agg, id in node.aggregations]
+        by_ids = ([self.compile_id(id) for id in node.by_column_ids],)
         if ordered and has_ordered_aggregation_ops:
             return self.compile_ordered_ir(node.child).aggregate(
-                node.aggregations, node.by_column_ids, node.dropna
+                aggregations, by_ids, node.dropna
             )
         else:
             result = self.compile_unordered_ir(node.child).aggregate(
-                node.aggregations, node.by_column_ids, node.dropna
+                aggregations, by_ids, node.dropna
             )
             return result if ordered else result.to_unordered()
 
@@ -315,7 +328,7 @@ class Compiler:
             node.column_name,
             node.op,
             node.window_spec,
-            node.output_name,
+            self.compile_id(node.output_name),
             never_skip_nulls=node.never_skip_nulls,
         )
         return result if ordered else result.to_unordered()
@@ -326,8 +339,20 @@ class Compiler:
 
     @_compile_node.register
     def compile_explode(self, node: nodes.ExplodeNode, ordered: bool = True):
-        return self.compile_node(node.child, ordered).explode(node.column_ids)
+        return self.compile_node(node.child, ordered).explode(
+            self.compile_id(id) for id in node.column_ids
+        )
 
     @_compile_node.register
     def compile_random_sample(self, node: nodes.RandomSampleNode, ordered: bool = True):
         return self.compile_node(node.child, ordered)._uniform_sampling(node.fraction)
+
+    def compile_id(self, id: typing.Union[ids.Identifier, ids.ColumnReference]) -> str:
+        """Convert identifier object to locally unique string."""
+        # With rewrites, names may no longer be always locally unique
+        # For these, we will need resolved names with a disambiguator
+        # eg. return f"{id.name}_{id.id}"
+        return id.name
+
+    def compile_conditions(self, condition: nodes.JoinCondition) -> Tuple[str, str]:
+        return (self.compile_id(condition.left_id), self.compile_id(condition.right_id))

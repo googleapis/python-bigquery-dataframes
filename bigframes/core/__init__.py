@@ -29,6 +29,7 @@ import pyarrow.feather as pa_feather
 import bigframes.core.compile
 import bigframes.core.expression as ex
 import bigframes.core.guid
+import bigframes.core.identifiers as ids
 import bigframes.core.join_def as join_def
 import bigframes.core.local_data as local_data
 import bigframes.core.nodes as nodes
@@ -110,6 +111,11 @@ class ArrayValue:
         return self.schema.names
 
     @property
+    def _col_ids(self) -> typing.Sequence[ids.Identifier]:
+        """Returns column ids as id objects."""
+        return self.schema.ids
+
+    @property
     def session(self) -> Session:
         required_session = self.node.session
         from bigframes import get_global_session
@@ -160,7 +166,7 @@ class ArrayValue:
         return bigframes.core.compile.test_only_try_evaluate(self.node)
 
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
-        return self.schema.get_type(key)
+        return self.schema.get_type(self._ref(key))
 
     def row_count(self) -> ArrayValue:
         """Get number of rows in ArrayValue as a single-entry ArrayValue."""
@@ -201,7 +207,7 @@ class ArrayValue:
 
         return (
             ArrayValue(nodes.PromoteOffsetsNode(child=self.node, col_id=col_id)),
-            col_id,
+            col_id.name,
         )
 
     def concat(self, other: typing.Sequence[ArrayValue]) -> ArrayValue:
@@ -228,14 +234,19 @@ class ArrayValue:
         if destination_id in self.column_ids:  # Mutate case
             exprs = [
                 (
-                    (source_id if (col_id == destination_id) else col_id),
+                    self._ref(
+                        source_id if (col_id.name == destination_id) else col_id.name
+                    ),
                     col_id,
                 )
-                for col_id in self.column_ids
+                for col_id in self._col_ids
             ]
         else:  # append case
-            self_projection = ((col_id, col_id) for col_id in self.column_ids)
-            exprs = [*self_projection, (source_id, destination_id)]
+            self_projection = ((col_id.ref, col_id) for col_id in self._col_ids)
+            exprs = [
+                *self_projection,
+                (self._ref(source_id), ids.simple(destination_id)),
+            ]
         return ArrayValue(
             nodes.SelectionNode(
                 child=self.node,
@@ -260,12 +271,12 @@ class ArrayValue:
                     assignments=((ex.const(value, dtype), destination_id),),
                 )
             ),
-            destination_id,
+            destination_id.name,
         )
 
     def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
         # This basically just drops and reorders columns - logically a no-op except as a final step
-        selections = ((col_id, col_id) for col_id in column_ids)
+        selections = ((self._ref(col_id), ids.simple(col_id)) for col_id in column_ids)
         return ArrayValue(
             nodes.SelectionNode(
                 child=self.node,
@@ -275,7 +286,9 @@ class ArrayValue:
 
     def drop_columns(self, columns: Iterable[str]) -> ArrayValue:
         new_projection = (
-            (col_id, col_id) for col_id in self.column_ids if col_id not in columns
+            (self._ref(col_id.name), col_id)
+            for col_id in self._col_ids
+            if col_id.name not in columns
         )
         return ArrayValue(
             nodes.SelectionNode(
@@ -300,8 +313,10 @@ class ArrayValue:
         return ArrayValue(
             nodes.AggregateNode(
                 child=self.node,
-                aggregations=tuple(aggregations),
-                by_column_ids=tuple(by_column_ids),
+                aggregations=tuple(
+                    (agg, ids.simple(name)) for agg, name in aggregations
+                ),
+                by_column_ids=tuple(map(ids.NameReference, by_column_ids)),
                 dropna=dropna,
             )
         )
@@ -342,7 +357,7 @@ class ArrayValue:
             ArrayValue(
                 nodes.WindowOpNode(
                     child=self.node,
-                    column_name=column_name,
+                    column_name=self._ref(column_name),
                     op=op,
                     window_spec=window_spec,
                     output_name=output_name,
@@ -350,7 +365,7 @@ class ArrayValue:
                     skip_reproject_unsafe=skip_reproject_unsafe,
                 )
             ),
-            output_name,
+            output_name.name,
         )
 
     def _reproject_to_table(self) -> ArrayValue:
@@ -376,7 +391,10 @@ class ArrayValue:
         join_node = nodes.JoinNode(
             left_child=self.node,
             right_child=other.node,
-            conditions=conditions,
+            conditions=tuple(
+                nodes.JoinCondition(self._ref(l_cond), self._ref(r_cond))
+                for l_cond, r_cond in conditions
+            ),
             type=type,
         )
         # Maps input ids to output ids for caller convenience
@@ -414,7 +432,7 @@ class ArrayValue:
         for column_id in column_ids:
             assert bigframes.dtypes.is_array_like(self.get_column_type(column_id))
 
-        offsets = tuple(self.get_offset_for_name(id) for id in column_ids)
+        offsets = tuple(self._ref(id) for id in column_ids)
         return ArrayValue(nodes.ExplodeNode(child=self.node, column_ids=offsets))
 
     def _uniform_sampling(self, fraction: float) -> ArrayValue:
@@ -425,23 +443,24 @@ class ArrayValue:
         """
         return ArrayValue(nodes.RandomSampleNode(self.node, fraction))
 
-    def get_offset_for_name(self, name: str):
-        return self.schema.names.index(name)
-
     # Deterministically generate namespaced ids for new variables
     # These new ids are only unique within the current namespace.
     # Many operations, such as joins, create new namespaces. See: BigFrameNode.defines_namespace
     # When migrating to integer ids, these will generate the next available integer, in order to densely pack ids
     # this will help represent variables sets as compact bitsets
-    def _gen_namespaced_uid(self) -> str:
+    def _gen_namespaced_uid(self) -> ids.Identifier:
         return self._gen_namespaced_uids(1)[0]
 
-    def _gen_namespaced_uids(self, n: int) -> List[str]:
+    def _gen_namespaced_uids(self, n: int) -> List[ids.Identifier]:
         i = len(self.node.defined_variables)
-        genned_ids: List[str] = []
+        genned_ids: List[ids.Identifier] = []
         while len(genned_ids) < n:
-            attempted_id = f"col_{i}"
+            attempted_id = ids.SimpleIdentifier(f"col_{i}")
             if attempted_id not in self.node.defined_variables:
                 genned_ids.append(attempted_id)
             i = i + 1
         return genned_ids
+
+    # have this as separate function, in order to switch over to offset references easily if needed
+    def _ref(self, name) -> ids.ColumnReference:
+        return ids.NameReference(name)

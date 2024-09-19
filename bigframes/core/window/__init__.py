@@ -81,7 +81,10 @@ class Window(vendored_pandas_rolling.Window):
             original_index_ids = block.index_columns
             block = block.reset_index(drop=False)
             index_ids = (
-                *[col for col in self._window_spec.grouping_keys],
+                *[
+                    block.expr.schema.resolve_ref(col).column.name
+                    for col in self._window_spec.grouping_keys
+                ],
                 *original_index_ids,
             )
             block = block.set_index(col_ids=index_ids)

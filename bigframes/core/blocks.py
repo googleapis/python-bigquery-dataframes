@@ -966,7 +966,9 @@ class Block:
         block = self
         if skip_null_groups:
             for key in window_spec.grouping_keys:
-                block, not_null_id = block.apply_unary_op(key, ops.notnull_op)
+                block, not_null_id = block.apply_unary_op(
+                    self.expr.schema.resolve_ref(key).column.name, ops.notnull_op
+                )
                 block = block.filter_by_id(not_null_id).drop_columns([not_null_id])
         expr, result_id = block._expr.project_window_op(
             column,
@@ -2506,11 +2508,15 @@ SELECT {select_columns_csv} FROM T1
             self.expr.schema.select([*self.index_columns])
             .append(
                 bf_schema.SchemaItem(
-                    row_json_column_name, bigframes.dtypes.STRING_DTYPE
+                    bigframes.core.identifiers.simple(row_json_column_name),
+                    bigframes.dtypes.STRING_DTYPE,
                 )
             )
             .append(
-                bf_schema.SchemaItem(ordering_column_name, bigframes.dtypes.INT_DTYPE)
+                bf_schema.SchemaItem(
+                    bigframes.core.identifiers.simple(ordering_column_name),
+                    bigframes.dtypes.INT_DTYPE,
+                )
             )
         )
 
@@ -2632,8 +2638,8 @@ def try_row_join(
     # Create a new array value, mapping from both, then left, and then right
     join_keys = tuple(
         join_defs.CoalescedColumnMapping(
-            left_source_id=left_id,
-            right_source_id=right_id,
+            left_source_id=left_expr._ref(left_id),
+            right_source_id=right_expr._ref(right_id),
             destination_id=guid.generate_guid(),
         )
         for left_id, right_id in zip(left.index_columns, right.index_columns)
@@ -2641,7 +2647,7 @@ def try_row_join(
     left_mappings = [
         join_defs.JoinColumnMapping(
             source_table=join_defs.JoinSide.LEFT,
-            source_id=id,
+            source_id=left_expr._ref(id),
             destination_id=guid.generate_guid(),
         )
         for id in left.value_columns
@@ -2649,7 +2655,7 @@ def try_row_join(
     right_mappings = [
         join_defs.JoinColumnMapping(
             source_table=join_defs.JoinSide.RIGHT,
-            source_id=id,
+            source_id=right_expr._ref(id),
             destination_id=guid.generate_guid(),
         )
         for id in right.value_columns
@@ -2662,8 +2668,16 @@ def try_row_join(
     )
     if combined_expr is None:
         return None
-    get_column_left = {m.source_id: m.destination_id for m in left_mappings}
-    get_column_right = {m.source_id: m.destination_id for m in right_mappings}
+    # This is very convoluted
+    # TODO: Simplify through aliasing modeling
+    get_column_left = {
+        left_expr.schema.resolve_ref(m.source_id).column.name: m.destination_id
+        for m in left_mappings
+    }
+    get_column_right = {
+        right_expr.schema.resolve_ref(m.source_id).column.name: m.destination_id
+        for m in right_mappings
+    }
     block = Block(
         combined_expr,
         column_labels=[*left.column_labels, *right.column_labels],
@@ -2720,9 +2734,7 @@ def join_mono_indexed(
     combined_expr, (get_column_left, get_column_right) = left_expr.relational_join(
         right_expr,
         type=how,
-        conditions=(
-            join_defs.JoinCondition(left.index_columns[0], right.index_columns[0]),
-        ),
+        conditions=((left.index_columns[0], right.index_columns[0]),),
     )
 
     left_index = get_column_left[left.index_columns[0]]
@@ -2783,8 +2795,7 @@ def join_multi_indexed(
         right_expr,
         type=how,
         conditions=tuple(
-            join_defs.JoinCondition(left, right)
-            for left, right in zip(left_join_ids, right_join_ids)
+            (left, right) for left, right in zip(left_join_ids, right_join_ids)
         ),
     )
 

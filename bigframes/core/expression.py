@@ -20,6 +20,8 @@ import itertools
 import typing
 from typing import Mapping, Union
 
+import bigframes.core.identifiers as ids
+import bigframes.core.schema as schemata
 import bigframes.dtypes as dtypes
 import bigframes.operations
 import bigframes.operations.aggregations as agg_ops
@@ -40,9 +42,7 @@ class Aggregation(abc.ABC):
     op: agg_ops.WindowOp = dataclasses.field()
 
     @abc.abstractmethod
-    def output_type(
-        self, input_types: dict[str, dtypes.ExpressionType]
-    ) -> dtypes.ExpressionType:
+    def output_type(self, input_schema: schemata.ArraySchema) -> dtypes.ExpressionType:
         ...
 
 
@@ -50,9 +50,7 @@ class Aggregation(abc.ABC):
 class NullaryAggregation(Aggregation):
     op: agg_ops.NullaryWindowOp = dataclasses.field()
 
-    def output_type(
-        self, input_types: dict[str, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
+    def output_type(self, input_schema: schemata.ArraySchema) -> dtypes.ExpressionType:
         return self.op.output_type()
 
 
@@ -63,10 +61,8 @@ class UnaryAggregation(Aggregation):
         UnboundVariableExpression, ScalarConstantExpression
     ] = dataclasses.field()
 
-    def output_type(
-        self, input_types: dict[str, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
-        return self.op.output_type(self.arg.output_type(input_types))
+    def output_type(self, input_schema: schemata.ArraySchema) -> dtypes.ExpressionType:
+        return self.op.output_type(self.arg.output_type(input_schema))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -79,11 +75,9 @@ class BinaryAggregation(Aggregation):
         UnboundVariableExpression, ScalarConstantExpression
     ] = dataclasses.field()
 
-    def output_type(
-        self, input_types: dict[str, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
+    def output_type(self, input_schema: schemata.ArraySchema) -> dtypes.ExpressionType:
         return self.op.output_type(
-            self.left.output_type(input_types), self.right.output_type(input_types)
+            self.left.output_type(input_schema), self.right.output_type(input_schema)
         )
 
 
@@ -95,6 +89,10 @@ class Expression(abc.ABC):
     def unbound_variables(self) -> typing.Tuple[str, ...]:
         return ()
 
+    @property
+    def referenced_columns(self) -> typing.Tuple[ids.ColumnReference, ...]:
+        return ()
+
     def rename(self, name_mapping: Mapping[str, str]) -> Expression:
         return self
 
@@ -104,9 +102,7 @@ class Expression(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def output_type(
-        self, input_types: dict[str, dtypes.ExpressionType]
-    ) -> dtypes.ExpressionType:
+    def output_type(self, input_schema: schemata.ArraySchema) -> dtypes.ExpressionType:
         ...
 
     @abc.abstractmethod
@@ -141,9 +137,7 @@ class ScalarConstantExpression(Expression):
     def is_const(self) -> bool:
         return True
 
-    def output_type(
-        self, input_types: dict[str, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
+    def output_type(self, input_schema: schemata.ArraySchema) -> dtypes.ExpressionType:
         return self.dtype
 
     def bind_variables(
@@ -177,13 +171,8 @@ class UnboundVariableExpression(Expression):
     def is_const(self) -> bool:
         return False
 
-    def output_type(
-        self, input_types: dict[str, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
-        if self.id in input_types:
-            return input_types[self.id]
-        else:
-            raise ValueError(f"Type of variable {self.id} has not been fixed.")
+    def output_type(self, input_schema: schemata.ArraySchema) -> dtypes.ExpressionType:
+        raise ValueError(f"Type of variable {self.id} has not been fixed.")
 
     def bind_variables(
         self, bindings: Mapping[str, Expression], check_bind_all: bool = True
@@ -192,6 +181,44 @@ class UnboundVariableExpression(Expression):
             return bindings[self.id]
         elif check_bind_all:
             raise ValueError(f"Variable {self.id} remains unbound")
+        return self
+
+    @property
+    def is_bijective(self) -> bool:
+        return True
+
+    @property
+    def is_identity(self) -> bool:
+        return True
+
+
+@dataclasses.dataclass(frozen=True)
+class DerefExpression(Expression):
+    """A variable expression representing an unbound variable."""
+
+    ref: ids.ColumnReference
+
+    @property
+    def unbound_variables(self) -> typing.Tuple[str, ...]:
+        return ()
+
+    @property
+    def referenced_columns(self) -> typing.Tuple[ids.ColumnReference, ...]:
+        return (self.ref,)
+
+    def rename(self, name_mapping: Mapping[str, str]) -> Expression:
+        return self
+
+    @property
+    def is_const(self) -> bool:
+        return False
+
+    def output_type(self, input_schema: schemata.ArraySchema) -> dtypes.ExpressionType:
+        return input_schema.resolve_ref(self.ref).dtype
+
+    def bind_variables(
+        self, bindings: Mapping[str, Expression], check_bind_all: bool = True
+    ) -> Expression:
         return self
 
     @property
@@ -218,6 +245,14 @@ class OpExpression(Expression):
             )
         )
 
+    @property
+    def referenced_columns(self) -> typing.Tuple[ids.ColumnReference, ...]:
+        return tuple(
+            itertools.chain.from_iterable(
+                map(lambda x: x.referenced_columns, self.inputs)
+            )
+        )
+
     def rename(self, name_mapping: Mapping[str, str]) -> Expression:
         return OpExpression(
             self.op, tuple(input.rename(name_mapping) for input in self.inputs)
@@ -227,12 +262,8 @@ class OpExpression(Expression):
     def is_const(self) -> bool:
         return all(child.is_const for child in self.inputs)
 
-    def output_type(
-        self, input_types: dict[str, dtypes.ExpressionType]
-    ) -> dtypes.ExpressionType:
-        operand_types = tuple(
-            map(lambda x: x.output_type(input_types=input_types), self.inputs)
-        )
+    def output_type(self, input_schema: schemata.ArraySchema) -> dtypes.ExpressionType:
+        operand_types = tuple(map(lambda x: x.output_type(input_schema), self.inputs))
         return self.op.output_type(*operand_types)
 
     def bind_variables(
