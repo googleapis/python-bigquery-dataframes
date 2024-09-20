@@ -33,6 +33,7 @@ import typing
 from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 import warnings
 
+import bigframes_vendored.constants as constants
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas as pd
@@ -40,7 +41,6 @@ import pyarrow as pa
 
 import bigframes._config.sampling_options as sampling_options
 import bigframes.constants
-import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.compile.googlesql as googlesql
 import bigframes.core.expression as ex
@@ -51,9 +51,8 @@ import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
 import bigframes.core.schema as bf_schema
 import bigframes.core.sql as sql
-import bigframes.core.tree_properties as tree_properties
 import bigframes.core.utils as utils
-import bigframes.core.window_spec as window_specs
+import bigframes.core.window_spec as windows
 import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.features
@@ -207,7 +206,7 @@ class Block:
         row_count_expr = self.expr.row_count()
 
         # Support in-memory engines for hermetic unit tests.
-        if self.expr.node.session is None:
+        if self.expr.session is None:
             try:
                 row_count = row_count_expr._try_evaluate_local().squeeze()
                 return (row_count, len(self.value_columns))
@@ -285,7 +284,7 @@ class Block:
 
     @property
     def explicitly_ordered(self) -> bool:
-        return self.expr.node.explicitly_ordered
+        return self.expr.explicitly_ordered
 
     def cols_matching_label(self, partial_label: Label) -> typing.Sequence[str]:
         """
@@ -339,8 +338,7 @@ class Block:
             self.session._default_index_type
             == bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
         ):
-            new_index_col_id = guid.generate_guid()
-            expr = expr.promote_offsets(new_index_col_id)
+            expr, new_index_col_id = expr.promote_offsets()
             new_index_cols = [new_index_col_id]
         elif self.session._default_index_type == bigframes.enums.DefaultIndexKind.NULL:
             new_index_cols = []
@@ -468,7 +466,7 @@ class Block:
     ):
         actual_schema = tuple(bq_result_schema)
         ibis_schema = self.expr._compiled_schema
-        internal_schema = self.expr.node.schema
+        internal_schema = self.expr.schema
         if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
             return
         if internal_schema.to_bigquery() != actual_schema:
@@ -563,7 +561,7 @@ class Block:
     def try_peek(
         self, n: int = 20, force: bool = False
     ) -> typing.Optional[pd.DataFrame]:
-        if force or tree_properties.can_fast_peek(self.expr.node):
+        if force or self.expr.supports_fast_peek:
             iterator, _ = self.session._peek(self.expr, n)
             df = self._to_dataframe(iterator)
             self._copy_index_to_pandas(df)
@@ -849,9 +847,7 @@ class Block:
         """
         Apply a scalar expression to the block. Creates a new column to store the result.
         """
-        # TODO(tbergeron): handle labels safely so callers don't need to
-        result_id = guid.generate_guid()
-        array_val = self._expr.project_to_id(expr, result_id)
+        array_val, result_id = self._expr.project_to_id(expr)
         block = Block(
             array_val,
             index_columns=self.index_columns,
@@ -903,7 +899,7 @@ class Block:
         self,
         columns: typing.Sequence[str],
         op: agg_ops.WindowOp,
-        window_spec: window_specs.WindowSpec,
+        window_spec: windows.WindowSpec,
         *,
         skip_null_groups: bool = False,
         never_skip_nulls: bool = False,
@@ -962,7 +958,7 @@ class Block:
         self,
         column: str,
         op: agg_ops.WindowOp,
-        window_spec: window_specs.WindowSpec,
+        window_spec: windows.WindowSpec,
         *,
         result_label: Label = None,
         skip_null_groups: bool = False,
@@ -974,12 +970,10 @@ class Block:
             for key in window_spec.grouping_keys:
                 block, not_null_id = block.apply_unary_op(key, ops.notnull_op)
                 block = block.filter_by_id(not_null_id).drop_columns([not_null_id])
-        result_id = guid.generate_guid()
-        expr = block._expr.project_window_op(
+        expr, result_id = block._expr.project_window_op(
             column,
             op,
             window_spec,
-            result_id,
             skip_reproject_unsafe=skip_reproject_unsafe,
             never_skip_nulls=never_skip_nulls,
         )
@@ -1008,8 +1002,7 @@ class Block:
         label: Label = None,
         dtype: typing.Optional[bigframes.dtypes.Dtype] = None,
     ) -> typing.Tuple[Block, str]:
-        result_id = guid.generate_guid()
-        expr = self.expr.create_constant(result_id, scalar_constant, dtype=dtype)
+        expr, result_id = self.expr.create_constant(scalar_constant, dtype=dtype)
         # Create index copy with label inserted
         # See: https://pandas.pydata.org/docs/reference/api/pandas.Index.insert.html
         labels = self.column_labels.insert(len(self.column_labels), label)
@@ -1066,10 +1059,9 @@ class Block:
                 )
                 for col_id in self.value_columns
             ]
-            index_id = guid.generate_guid()
-            result_expr = self.expr.aggregate(
+            result_expr, index_id = self.expr.aggregate(
                 aggregations, dropna=dropna
-            ).create_constant(index_id, None, None)
+            ).create_constant(None, None)
             # Transpose as last operation so that final block has valid transpose cache
             return Block(
                 result_expr,
@@ -1080,8 +1072,7 @@ class Block:
         else:  # axis_n == 1
             # using offsets as identity to group on.
             # TODO: Allow to promote identity/total_order columns instead for better perf
-            offset_col = guid.generate_guid()
-            expr_with_offsets = self.expr.promote_offsets(offset_col)
+            expr_with_offsets, offset_col = self.expr.promote_offsets()
             stacked_expr, (_, value_col_ids, passthrough_cols,) = unpivot(
                 expr_with_offsets,
                 row_labels=self.column_labels,
@@ -1227,8 +1218,7 @@ class Block:
 
         names: typing.List[Label] = []
         if len(by_column_ids) == 0:
-            label_id = guid.generate_guid()
-            result_expr = result_expr.create_constant(label_id, 0, pd.Int64Dtype())
+            result_expr, label_id = result_expr.create_constant(0, pd.Int64Dtype())
             index_columns = (label_id,)
             names = [None]
         else:
@@ -1278,8 +1268,7 @@ class Block:
             for stat in stats_to_fetch
         ]
         expr = self.expr.aggregate(aggregations)
-        offset_index_id = guid.generate_guid()
-        expr = expr.promote_offsets(offset_index_id)
+        expr, offset_index_id = expr.promote_offsets()
         block = Block(
             expr,
             index_columns=[offset_index_id],
@@ -1306,8 +1295,7 @@ class Block:
             )
         ]
         expr = self.expr.aggregate(aggregations)
-        offset_index_id = guid.generate_guid()
-        expr = expr.promote_offsets(offset_index_id)
+        expr, offset_index_id = expr.promote_offsets()
         block = Block(
             expr,
             index_columns=[offset_index_id],
@@ -1409,9 +1397,10 @@ class Block:
             expr = self.expr.explode(column_ids)
 
         if ignore_index:
-            new_index_ids = guid.generate_guid()
+            expr = expr.drop_columns(self.index_columns)
+            expr, new_index_ids = expr.promote_offsets()
             return Block(
-                expr.drop_columns(self.index_columns).promote_offsets(new_index_ids),
+                expr,
                 column_labels=self.column_labels,
                 # Initiates default index creation using the block constructor.
                 index_columns=[new_index_ids],
@@ -1478,7 +1467,7 @@ class Block:
         value_columns: typing.Sequence[str],
         n: int,
     ):
-        window_spec = window_specs.cumulative_rows(grouping_keys=tuple(by_column_ids))
+        window_spec = windows.cumulative_rows(grouping_keys=tuple(by_column_ids))
 
         block, result_id = self.apply_window_op(
             value_columns[0],
@@ -1596,8 +1585,7 @@ class Block:
         return computed_df, count, query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
-        result_id = guid.generate_guid()
-        expr = self._expr.promote_offsets(result_id)
+        expr, result_id = self._expr.promote_offsets()
         return (
             Block(
                 expr,
@@ -1614,13 +1602,11 @@ class Block:
             expr = self._expr
             new_index_cols = []
             for index_col in self._index_columns:
-                new_col = guid.generate_guid()
-                expr = expr.project_to_id(
+                expr, new_col = expr.project_to_id(
                     expression=ops.add_op.as_expr(
                         ex.const(prefix),
                         ops.AsTypeOp(to_type="string").as_expr(index_col),
                     ),
-                    output_id=new_col,
                 )
                 new_index_cols.append(new_col)
             expr = expr.select_columns((*new_index_cols, *self.value_columns))
@@ -1640,13 +1626,11 @@ class Block:
             expr = self._expr
             new_index_cols = []
             for index_col in self._index_columns:
-                new_col = guid.generate_guid()
-                expr = expr.project_to_id(
+                expr, new_col = expr.project_to_id(
                     expression=ops.add_op.as_expr(
                         ops.AsTypeOp(to_type="string").as_expr(index_col),
                         ex.const(suffix),
                     ),
-                    output_id=new_col,
                 )
                 new_index_cols.append(new_col)
             expr = expr.select_columns((*new_index_cols, *self.value_columns))
@@ -1788,8 +1772,7 @@ class Block:
         )
 
         if create_offsets_index:
-            index_id = guid.generate_guid()
-            unpivot_expr = unpivot_expr.promote_offsets(index_id)
+            unpivot_expr, index_id = unpivot_expr.promote_offsets()
             index_cols = [index_id]
         else:
             index_cols = []
@@ -2183,12 +2166,10 @@ class Block:
 
         coalesced_ids = []
         for left_id, right_id in zip(left_join_ids, right_join_ids):
-            coalesced_id = guid.generate_guid()
-            joined_expr = joined_expr.project_to_id(
+            joined_expr, coalesced_id = joined_expr.project_to_id(
                 ops.coalesce_op.as_expr(
                     get_column_left[left_id], get_column_right[right_id]
                 ),
-                coalesced_id,
             )
             coalesced_ids.append(coalesced_id)
 
@@ -2247,8 +2228,7 @@ class Block:
             expr = joined_expr
             index_columns = []
         else:
-            offset_index_id = guid.generate_guid()
-            expr = joined_expr.promote_offsets(offset_index_id)
+            expr, offset_index_id = joined_expr.promote_offsets()
             index_columns = [offset_index_id]
 
         return Block(expr, index_columns=index_columns, column_labels=labels)
@@ -2535,10 +2515,7 @@ class Block:
         if (not force) and self.session._executor._is_trivially_executable(self.expr):
             return
         elif session_aware:
-            bfet_roots = [obj._block._expr.node for obj in self.session.objects]
-            self.session._executor._cache_with_session_awareness(
-                self.expr, session_forest=bfet_roots
-            )
+            self.session._executor._cache_with_session_awareness(self.expr)
         else:
             self.session._executor._cache_with_cluster_cols(
                 self.expr, cluster_cols=self.index_columns
@@ -2557,10 +2534,7 @@ class Block:
             return self._stats_cache[column_name][op_name]
 
         period = 1
-        window = window_specs.rows(
-            preceding=period,
-            following=None,
-        )
+        window_spec = windows.rows()
 
         # any NaN value means not monotonic
         block, last_notna_id = self.apply_unary_op(column_ids[0], ops.notnull_op)
@@ -2576,7 +2550,7 @@ class Block:
         last_result_id = None
         for column_id in column_ids[::-1]:
             block, lag_result_id = block.apply_window_op(
-                column_id, agg_ops.ShiftOp(period), window
+                column_id, agg_ops.ShiftOp(period), window_spec
             )
             block, strict_monotonic_id = block.apply_binary_op(
                 column_id, lag_result_id, ops.gt_op if increasing else ops.lt_op
@@ -2619,8 +2593,7 @@ class Block:
         # expression.
         # TODO(shobs): Replace direct SQL manipulation by structured expression
         # manipulation
-        ordering_column_name = guid.generate_guid()
-        expr = self.expr.promote_offsets(ordering_column_name)
+        expr, ordering_column_name = self.expr.promote_offsets()
         expr_sql = self.session._to_sql(expr)
 
         # Names of the columns to serialize for the row.
@@ -3046,8 +3019,8 @@ def coalesce_columns(
             expr = expr.drop_columns([left_id])
         elif how == "outer":
             coalesced_id = guid.generate_guid()
-            expr = expr.project_to_id(
-                ops.coalesce_op.as_expr(left_id, right_id), coalesced_id
+            expr, coalesced_id = expr.project_to_id(
+                ops.coalesce_op.as_expr(left_id, right_id)
             )
             expr = expr.drop_columns([left_id, right_id])
             result_ids.append(coalesced_id)
@@ -3224,7 +3197,7 @@ def unpivot(
     explode_offsets_id = labels_mapping[labels_array.column_ids[-1]]
 
     # Build the output rows as a case statment that selects between the N input columns
-    unpivot_exprs: List[Tuple[ex.Expression, str]] = []
+    unpivot_exprs: List[ex.Expression] = []
     # Supports producing multiple stacked ouput columns for stacking only part of hierarchical index
     for input_ids in unpivot_columns:
         # row explode offset used to choose the input column
@@ -3241,11 +3214,11 @@ def unpivot(
             )
         )
         col_expr = ops.case_when_op.as_expr(*cases)
-        unpivot_exprs.append((col_expr, guid.generate_guid()))
+        unpivot_exprs.append(col_expr)
 
-    unpivot_col_ids = [id for _, id in unpivot_exprs]
+    joined_array, unpivot_col_ids = joined_array.compute_values(unpivot_exprs)
 
-    return joined_array.compute_values(unpivot_exprs).select_columns(
+    return joined_array.select_columns(
         [*index_col_ids, *unpivot_col_ids, *new_passthrough_cols]
     ), (tuple(index_col_ids), tuple(unpivot_col_ids), tuple(new_passthrough_cols))
 

@@ -15,11 +15,12 @@ from __future__ import annotations
 
 import functools
 import typing
-from typing import Sequence
+from typing import Optional, Sequence
 
+import bigframes_vendored.constants as constants
 import pandas as pd
 
-import bigframes.constants as constants
+import bigframes.constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
@@ -117,7 +118,7 @@ def quantile(
     )
     quantile_cols = []
     labels = []
-    if len(columns) * len(qs) > constants.MAX_COLUMNS:
+    if len(columns) * len(qs) > bigframes.constants.MAX_COLUMNS:
         raise NotImplementedError("Too many aggregates requested.")
     for col in columns:
         for q in qs:
@@ -386,10 +387,9 @@ def value_counts(
 
 def pct_change(block: blocks.Block, periods: int = 1) -> blocks.Block:
     column_labels = block.column_labels
-    window_spec = windows.rows(
-        preceding=periods if periods > 0 else None,
-        following=-periods if periods < 0 else None,
-    )
+
+    # Window framing clause is not allowed for analytic function lag.
+    window_spec = windows.unbound()
 
     original_columns = block.value_columns
     block, shift_columns = block.multi_apply_window_op(
@@ -488,11 +488,19 @@ def dropna(
     block: blocks.Block,
     column_ids: typing.Sequence[str],
     how: typing.Literal["all", "any"] = "any",
+    subset: Optional[typing.Sequence[str]] = None,
 ):
     """
     Drop na entries from block
     """
-    predicates = [ops.notnull_op.as_expr(column_id) for column_id in column_ids]
+    if subset is None:
+        subset = column_ids
+
+    predicates = [
+        ops.notnull_op.as_expr(column_id)
+        for column_id in column_ids
+        if column_id in subset
+    ]
     if len(predicates) == 0:
         return block
     if how == "any":
