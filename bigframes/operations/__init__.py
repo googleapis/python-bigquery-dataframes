@@ -592,7 +592,7 @@ class FloorDtOp(UnaryOp):
 
 
 @dataclasses.dataclass(frozen=True)
-class DatetimeToIntegerLabelOp(UnaryOp):
+class DatetimeToIntegerLabelOp(BinaryOp):
     name: typing.ClassVar[str] = "datetime_to_integer_label"
     freq: DateOffset
     closed: typing.Optional[typing.Literal["right", "left"]]

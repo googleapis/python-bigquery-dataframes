@@ -1912,6 +1912,10 @@ class Block:
                 )
             level = level or 0
             col_id = self.index.resolve_level(level)[0]
+            block = self.reset_index(drop=False)
+            block = block.drop_columns(
+                [col for col in self.index.column_ids if col != col_id]
+            )
         elif level is not None:
             raise ValueError("The Grouper cannot specify both a key and a level!")
         else:
@@ -1924,7 +1928,7 @@ class Block:
                 raise KeyError(f"The grouper name {on} is not found")
 
             col_id = matches[0]
-
+            block = self
         if level is None:
             dtype = self._column_type(col_id)
         elif isinstance(level, int):
@@ -1954,10 +1958,33 @@ class Block:
                     f". Got '{origin}' instead."
                 ) from err
 
-        block, label_col_id = self.apply_unary_op(
-            col_id,
+        agg_specs = [
+            (
+                ex.UnaryAggregation(agg_ops.min_op, ex.free_var(col_id)),
+                guid.generate_guid(),
+            ),
+        ]
+        output_col_ids = [agg_spec[1] for agg_spec in agg_specs]
+        origin_block = Block(
+            block.expr.aggregate(agg_specs, dropna=True),
+            column_labels=["origin"],
+            index_columns=[],
+        )
+
+        col_level = block.value_columns.index(col_id)
+
+        block = block.merge(
+            origin_block, how="cross", left_join_ids=[], right_join_ids=[], sort=True
+        )
+
+        # col_level should be the datetime column
+        # block.value_columns[-1] should be the origin column
+        block, label_col_id = block.apply_binary_op(
+            block.value_columns[col_level],
+            block.value_columns[-1],
             op=ops.DatetimeToIntegerLabelOp(freq=freq, closed=closed, origin=origin),
         )
+        block = block.drop_columns([block.value_columns[-2]])
 
         # Generate all resample labels
         agg_specs = [
@@ -1969,20 +1996,11 @@ class Block:
                 ex.UnaryAggregation(agg_ops.max_op, ex.free_var(label_col_id)),
                 guid.generate_guid(),
             ),
-            (
-                ex.UnaryAggregation(agg_ops.min_op, ex.free_var(col_id)),
-                guid.generate_guid(),
-            ),
         ]
         output_col_ids = [agg_spec[1] for agg_spec in agg_specs]
         result_expr = block.expr.aggregate(agg_specs, dropna=True)
         label_start = result_expr.select_columns([output_col_ids[0]])
         label_stop = result_expr.select_columns([output_col_ids[1]])
-        origin_block = Block(
-            result_expr.select_columns([output_col_ids[2]]),
-            column_labels=["origin"],
-            index_columns=[],
-        )
 
         label_block = block._generate_sequence(
             start=label_start,
@@ -1992,9 +2010,9 @@ class Block:
         # Merge all labels with aligned block.
         # The index will be dropped.
         block = label_block.merge(
-            block.reset_index(),
+            block,
             how="left",
-            left_join_ids=label_block.value_columns,
+            left_join_ids=[label_block.value_columns[0]],
             right_join_ids=[label_col_id],
             sort=True,
         )
@@ -2012,7 +2030,13 @@ class Block:
             op=ops.IntegerLabelToDatetimeOp(freq=freq, label=label, origin=origin),
         )
 
-        block = block.drop_columns([block.value_columns[0], block.value_columns[-2]])
+        block = block.drop_columns(
+            [
+                block.value_columns[0],
+                block.value_columns[col_level + 1],
+                block.value_columns[-2],
+            ]
+        )
 
         return block.set_index([int_result_id])
 
