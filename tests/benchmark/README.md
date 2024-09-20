@@ -34,9 +34,9 @@ Here's how you can run benchmarks locally:
   nox -r -s benchmark -- --output-csv
   ```
 
-- **Running Multiple Iterations**: To run a benchmark multiple times and obtain an average result, use the -i or --iteration option followed by the number of iterations:
+- **Running Multiple Iterations**: To run a benchmark multiple times and obtain an average result, use the -i or --iterations option followed by the number of iterations:
   ```bash
-  nox -r -s benchmark -- --iteration 5
+  nox -r -s benchmark -- --iterations 5
   ```
 
 - **Filtering Benchmarks**: If you want to run only specific benchmarks, such as TPC-H, or specific queries within a benchmark, like tpch/q1, you can use the --benchmark-filter or -b option followed by the folder, file name, or both:
