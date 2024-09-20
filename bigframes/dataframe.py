@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime
 import inspect
+import itertools
 import re
 import sys
 import textwrap
@@ -70,6 +71,7 @@ import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
+import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.plotting as plotting
 import bigframes.operations.structs
@@ -1913,6 +1915,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _reindex_columns(self, columns):
         block = self._block
         new_column_index, indexer = self.columns.reindex(columns)
+
+        if indexer is None:
+            # The new index is the same as the old one. Do nothing.
+            return self
+
         result_cols = []
         for label, index in zip(columns, indexer):
             if index >= 0:
@@ -2020,8 +2027,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         *,
         axis: int | str = 0,
-        inplace: bool = False,
         how: str = "any",
+        subset: typing.Union[None, blocks.Label, Sequence[blocks.Label]] = None,
+        inplace: bool = False,
         ignore_index=False,
     ) -> DataFrame:
         if inplace:
@@ -2033,8 +2041,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         axis_n = utils.get_axis_number(axis)
 
+        if subset is not None and axis_n != 0:
+            raise NotImplementedError(
+                f"subset only supported when axis=0. {constants.FEEDBACK_LINK}"
+            )
+
         if axis_n == 0:
-            result = block_ops.dropna(self._block, self._block.value_columns, how=how)  # type: ignore
+            # subset needs to be converted into column IDs, not column labels.
+            if subset is None:
+                subset_ids = None
+            elif not utils.is_list_like(subset):
+                subset_ids = [id_ for id_ in self._block.label_to_col_id[subset]]
+            else:
+                subset_ids = [
+                    id_
+                    for label in subset
+                    for id_ in self._block.label_to_col_id[label]
+                ]
+
+            result = block_ops.dropna(self._block, self._block.value_columns, how=how, subset=subset_ids)  # type: ignore
             if ignore_index:
                 result = result.reset_index()
             return DataFrame(result)
@@ -2202,14 +2227,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self, func: str | typing.Sequence[str]
     ) -> DataFrame | bigframes.series.Series:
         if utils.is_list_like(func):
-            if any(
-                dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
-                for dtype in self.dtypes
-            ):
-                raise NotImplementedError(
-                    f"Multiple aggregations only supported on numeric columns. {constants.FEEDBACK_LINK}"
-                )
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
+
+            for dtype, agg in itertools.product(self.dtypes, aggregations):
+                if not bigframes.operations.aggregations.is_agg_op_supported(
+                    dtype, agg
+                ):
+                    raise NotImplementedError(
+                        f"Type {dtype} does not support aggregation {agg}. "
+                        f"Share your usecase with the BigQuery DataFrames team at the {constants.FEEDBACK_LINK}"
+                    )
+
             return DataFrame(
                 self._block.summarize(
                     self._block.value_columns,
@@ -2275,16 +2303,67 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._block.melt(id_col_ids, val_col_ids, var_name, value_name)
         )
 
-    def describe(self) -> DataFrame:
-        df_numeric = self._drop_non_numeric(permissive=False)
-        if len(df_numeric.columns) == 0:
-            raise NotImplementedError(
-                f"df.describe() currently only supports numeric values. {constants.FEEDBACK_LINK}"
+    _NUMERIC_DESCRIBE_AGGS = (
+        "count",
+        "mean",
+        "std",
+        "min",
+        "25%",
+        "50%",
+        "75%",
+        "max",
+    )
+    _NON_NUMERIC_DESCRIBE_AGGS = ("count", "nunique")
+
+    def describe(self, include: None | Literal["all"] = None) -> DataFrame:
+
+        allowed_non_numeric_types = {
+            bigframes.dtypes.STRING_DTYPE,
+            bigframes.dtypes.BOOL_DTYPE,
+            bigframes.dtypes.BYTES_DTYPE,
+        }
+
+        if include is None:
+            numeric_df = self._drop_non_numeric(permissive=False)
+            if len(numeric_df.columns) == 0:
+                # Describe eligible non-numeric columns
+                result = self.select_dtypes(include=allowed_non_numeric_types).agg(
+                    self._NON_NUMERIC_DESCRIBE_AGGS
+                )
+            else:
+                # Otherwise, only describe numeric columns
+                result = numeric_df.agg(self._NUMERIC_DESCRIBE_AGGS)
+            return typing.cast(DataFrame, result)
+
+        elif include == "all":
+            numeric_result = typing.cast(
+                DataFrame,
+                self._drop_non_numeric(permissive=False).agg(
+                    self._NUMERIC_DESCRIBE_AGGS
+                ),
             )
-        result = df_numeric.agg(
-            ["count", "mean", "std", "min", "25%", "50%", "75%", "max"]
-        )
-        return typing.cast(DataFrame, result)
+
+            non_numeric_result = typing.cast(
+                DataFrame,
+                self.select_dtypes(include=allowed_non_numeric_types).agg(
+                    self._NON_NUMERIC_DESCRIBE_AGGS
+                ),
+            )
+
+            if len(numeric_result.columns) == 0:
+                return non_numeric_result
+            elif len(non_numeric_result.columns) == 0:
+                return numeric_result
+            else:
+                import bigframes.core.reshape as rs
+
+                # Use reindex after join to preserve the original column order.
+                return rs.concat(
+                    [non_numeric_result, numeric_result], axis=1
+                )._reindex_columns(self.columns)
+
+        else:
+            raise ValueError(f"Unsupported include type: {include}")
 
     def skew(self, *, numeric_only: bool = False):
         if not numeric_only:
@@ -2482,7 +2561,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(pivot_block)
 
     def _drop_non_numeric(self, permissive=True) -> DataFrame:
-        types_to_keep = (
+        numeric_types = (
             set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
             if permissive
             else set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE)
@@ -2490,7 +2569,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         non_numeric_cols = [
             col_id
             for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
-            if dtype not in types_to_keep
+            if dtype not in numeric_types
         ]
         return DataFrame(self._block.drop_columns(non_numeric_cols))
 
@@ -3382,7 +3461,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         }
 
         if ordering_id is not None:
-            array_value = array_value.promote_offsets(ordering_id)
+            array_value, internal_ordering_id = array_value.promote_offsets()
+            id_overrides[internal_ordering_id] = ordering_id
         return array_value, id_overrides
 
     def map(self, func, na_action: Optional[str] = None) -> DataFrame:
