@@ -43,14 +43,19 @@ Here's how you can run benchmarks locally:
   ```bash
   # Runs all benchmarks in the 'tpch' directory
   nox -r -s benchmark -- --benchmark-filter tpch
+
   # Runs all benchmarks in 'db_benchmark' and specific queries q1 and q2 from TPC-H
   nox -r -s benchmark -- --benchmark-filter db_benchmark tpch/q1.py tpch/q2.py
   ```
 - **Uploading Results to BigQuery**: To upload benchmark results to BigQuery, set the environment variable GCLOUD_BENCH_PUBLISH_PROJECT to the Google Cloud project where you want to store the results. This enables automatic uploading of the benchmark data to your specified project in BigQuery:
   ```bash
   export GCLOUD_BENCH_PUBLISH_PROJECT='your-google-cloud-project-id'
-  # Run all non-notebook benchmarks and uploads the results to your-google-cloud-project-id.benchmark_report.benchmark
+
+  # Run all non-notebook benchmarks and uploads the results to
+  # your-google-cloud-project-id.benchmark_report.benchmark
   nox -r -s benchmark
-  # Run all notebook benchmarks and uploads the results to your-google-cloud-project-id.benchmark_report.notebook_benchmark
+
+  # Run all notebook benchmarks and uploads the results to
+  # your-google-cloud-project-id.benchmark_report.notebook_benchmark
   nox -r -s notebook
   ```
