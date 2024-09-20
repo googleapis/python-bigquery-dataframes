@@ -62,6 +62,7 @@ import bigframes.core.groupby as groupby
 import bigframes.core.guid
 import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
+import bigframes.core.local
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
@@ -1222,6 +1223,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        local_engine: bool = False,
     ) -> pandas.DataFrame:
         """Write DataFrame to pandas DataFrame.
 
@@ -1251,6 +1253,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 downsampled rows and all columns of this DataFrame.
         """
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
+        if local_engine is True:
+            return self._block._execute_local_engine()
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
