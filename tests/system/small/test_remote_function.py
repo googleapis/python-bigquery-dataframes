@@ -499,6 +499,37 @@ def test_dataframe_applymap(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
+def test_dataframe_applymap_explicit_filter(
+    session_with_bq_connection, scalars_dfs, dataset_id_permanent
+):
+    def add_one(x):
+        return x + 1
+
+    remote_add_one = session_with_bq_connection.remote_function(
+        [int], int, dataset_id_permanent, name=get_rf_name(add_one)
+    )(add_one)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_cols = ["int64_col", "int64_too"]
+
+    bf_int64_df = scalars_df[int64_cols]
+    bf_int64_df_filtered = bf_int64_df[bf_int64_df["int64_col"].notnull()]
+    bf_result = bf_int64_df_filtered.applymap(remote_add_one).to_pandas()
+
+    pd_int64_df = scalars_pandas_df[int64_cols]
+    pd_int64_df_filtered = pd_int64_df[pd_int64_df["int64_col"].notnull()]
+    pd_result = pd_int64_df_filtered.applymap(add_one)
+    # TODO(shobs): Figure why pandas .applymap() changes the dtype, i.e.
+    # pd_int64_df_filtered.dtype is Int64Dtype()
+    # pd_int64_df_filtered.applymap(lambda x: x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as input.
+    for col in pd_result:
+        pd_result[col] = pd_result[col].astype(pd_int64_df_filtered[col].dtype)
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
 def test_dataframe_applymap_na_ignore(
     session_with_bq_connection, scalars_dfs, dataset_id_permanent
 ):
