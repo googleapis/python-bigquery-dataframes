@@ -17,17 +17,10 @@ import sklearn.compose as sklearn_compose  # type: ignore
 import sklearn.preprocessing as sklearn_preprocessing  # type: ignore
 
 from bigframes.ml import compose, preprocessing
-from bigframes.ml.compose import ColumnTransformer
-
-from tests.unit.ml.compose_custom_transformers import (
-    IdentityTransformer,
-    Length1Transformer,
-    Length2Transformer,
-)
+from bigframes.ml.compose import ColumnTransformer, SQLScalarColumnTransformer
 
 from google.cloud import bigquery
 from unittest import mock
-from bigframes.ml.preprocessing import LabelEncoder
 
 
 def test_columntransformer_init_expectedtransforms():
@@ -188,9 +181,13 @@ def test_columntransformer_repr_matches_sklearn():
 
 
 def test_columntransformer_init_with_customtransforms():
-    ident_transformer = IdentityTransformer()
-    len1_transformer = Length1Transformer(-2)
-    len2_transformer = Length2Transformer(99)
+    ident_transformer = SQLScalarColumnTransformer("{0}", target_column="ident_{0}")
+    len1_transformer = SQLScalarColumnTransformer(
+        "CASE WHEN {0} IS NULL THEN -2 ELSE LENGTH({0}) END", target_column="len1_{0}"
+    )
+    len2_transformer = SQLScalarColumnTransformer(
+        "CASE WHEN {0} IS NULL THEN 99 ELSE LENGTH({0}) END", target_column="len2_{0}"
+    )
     label_transformer = preprocessing.LabelEncoder()
     column_transformer = compose.ColumnTransformer(
         [
@@ -215,9 +212,13 @@ def test_columntransformer_init_with_customtransforms():
 
 
 def test_columntransformer_repr_customtransforms():
-    ident_transformer = IdentityTransformer()
-    len1_transformer = Length1Transformer(-2)
-    len2_transformer = Length2Transformer(99)
+    ident_transformer = SQLScalarColumnTransformer("{0}", target_column="ident_{0}")
+    len1_transformer = SQLScalarColumnTransformer(
+        "CASE WHEN {0} IS NULL THEN -2 ELSE LENGTH({0}) END", target_column="len1_{0}"
+    )
+    len2_transformer = SQLScalarColumnTransformer(
+        "CASE WHEN {0} IS NULL THEN 99 ELSE LENGTH({0}) END", target_column="len2_{0}"
+    )
     label_transformer = preprocessing.LabelEncoder()
     column_transformer = compose.ColumnTransformer(
         [
@@ -232,18 +233,29 @@ def test_columntransformer_repr_customtransforms():
         ]
     )
 
-    assert (
-        column_transformer.__repr__()
-        == """ColumnTransformer(transformers=[('ident_trafo', IdentityTransformer(),
+    expected = """ColumnTransformer(transformers=[('ident_trafo',
+                                 SQLScalarColumnTransformer(sql='{0}',
+                                                            target_column='ident_{0}'),
                                  ['culmen_length_mm', 'flipper_length_mm']),
                                 ('len1_trafo',
-                                 Length1Transformer(default_value=-2),
+                                 SQLScalarColumnTransformer(sql='CASE WHEN {0} '
+                                                                'IS NULL THEN '
+                                                                '-2 ELSE '
+                                                                'LENGTH({0}) '
+                                                                'END',
+                                                            target_column='len1_{0}'),
                                  ['species']),
                                 ('len2_trafo',
-                                 Length2Transformer(default_value=99),
+                                 SQLScalarColumnTransformer(sql='CASE WHEN {0} '
+                                                                'IS NULL THEN '
+                                                                '99 ELSE '
+                                                                'LENGTH({0}) '
+                                                                'END',
+                                                            target_column='len2_{0}'),
                                  ['species']),
                                 ('label', LabelEncoder(), 'species')])"""
-    )
+    actual = column_transformer.__repr__()
+    assert expected == actual
 
 
 IDENT_SQL = "column /*CT.IDENT()*/"
@@ -253,79 +265,31 @@ UNKNOWN_CT_SQL = "column /*CT.UNKNOWN()*/"
 FOREIGN_SQL = "column"
 
 
-def test_customtransformer_registry():
-
-    compose.CustomTransformer.register(IdentityTransformer)
-    compose.CustomTransformer.register(Length1Transformer)
-    compose.CustomTransformer.register(Length2Transformer)
-
-    transformer_cls = compose.CustomTransformer.find_matching_transformer(IDENT_SQL)
-    assert transformer_cls == IdentityTransformer
-
-    transformer_cls = compose.CustomTransformer.find_matching_transformer(LEN1_SQL)
-    assert transformer_cls == Length1Transformer
-
-    transformer_cls = compose.CustomTransformer.find_matching_transformer(LEN2_SQL)
-    assert transformer_cls == Length2Transformer
-
-    transformer_cls = compose.CustomTransformer.find_matching_transformer(
-        UNKNOWN_CT_SQL
-    )
-    assert transformer_cls is None
-
-    transformer_cls = compose.CustomTransformer.find_matching_transformer(FOREIGN_SQL)
-    assert transformer_cls is None
-
-
 def test_customtransformer_compile_sql():
-
-    ident_trafo = IdentityTransformer()
+    ident_trafo = SQLScalarColumnTransformer("{0}", target_column="ident_{0}")
     sqls = ident_trafo._compile_to_sql(X=None, columns=["col1", "col2"])
     assert sqls == [
-        "col1 /*CT.IDENT()*/ AS ident_col1",
-        "col2 /*CT.IDENT()*/ AS ident_col2",
+        "col1 AS ident_col1",
+        "col2 AS ident_col2",
     ]
 
-    len1_trafo = Length1Transformer(-5)
+    len1_trafo = SQLScalarColumnTransformer(
+        "CASE WHEN {0} IS NULL THEN -5 ELSE LENGTH({0}) END", target_column="len1_{0}"
+    )
     sqls = len1_trafo._compile_to_sql(X=None, columns=["col1", "col2"])
     assert sqls == [
-        "CASE WHEN col1 IS NULL THEN -5 ELSE LENGTH(col1) END /*CT.LEN1()*/ AS len1_col1",
-        "CASE WHEN col2 IS NULL THEN -5 ELSE LENGTH(col2) END /*CT.LEN1()*/ AS len1_col2",
+        "CASE WHEN col1 IS NULL THEN -5 ELSE LENGTH(col1) END AS len1_col1",
+        "CASE WHEN col2 IS NULL THEN -5 ELSE LENGTH(col2) END AS len1_col2",
     ]
 
-    len2_trafo = Length2Transformer(99)
+    len2_trafo = SQLScalarColumnTransformer(
+        "CASE WHEN {0} IS NULL THEN 99 ELSE LENGTH({0}) END", target_column="len2_{0}"
+    )
     sqls = len2_trafo._compile_to_sql(X=None, columns=["col1", "col2"])
     assert sqls == [
-        "CASE WHEN col1 IS NULL THEN 99 ELSE LENGTH(col1) END /*CT.LEN2([99])*/ AS len2_col1",
-        "CASE WHEN col2 IS NULL THEN 99 ELSE LENGTH(col2) END /*CT.LEN2([99])*/ AS len2_col2",
+        "CASE WHEN col1 IS NULL THEN 99 ELSE LENGTH(col1) END AS len2_col1",
+        "CASE WHEN col2 IS NULL THEN 99 ELSE LENGTH(col2) END AS len2_col2",
     ]
-
-
-def test_customtransformer_parse_sql():
-
-    ident_trafo, col_label = IdentityTransformer._parse_from_sql(IDENT_SQL)
-    assert col_label == "column"
-    assert ident_trafo
-    assert isinstance(ident_trafo, IdentityTransformer)
-
-    len1_trafo, col_label = Length1Transformer._parse_from_sql(LEN1_SQL)
-    assert col_label == "column"
-    assert len1_trafo
-    assert isinstance(len1_trafo, Length1Transformer)
-    assert len1_trafo.default_value == -5
-
-    len2_trafo, col_label = Length2Transformer._parse_from_sql(LEN2_SQL)
-    assert col_label == "column"
-    assert len2_trafo
-    assert isinstance(len2_trafo, Length2Transformer)
-    assert len2_trafo.default_value == 99
-
-    fake_len2_sql = LEN2_SQL.replace("/*CT.LEN2([99])*/", "/*CT.LEN2([77])*/")
-    len2_trafo, col_label = Length2Transformer._parse_from_sql(fake_len2_sql)
-    assert col_label == "column"
-    assert len2_trafo
-    assert isinstance(len2_trafo, Length2Transformer)
-    assert len2_trafo.default_value == 77
 
 
 def create_bq_model_mock(transform_columns, feature_columns=None):
@@ -436,7 +400,7 @@ def test_columntransformer_extract_from_bq_model_good(bq_model_good):
     col_trans = ColumnTransformer._extract_from_bq_model(bq_model_good)
     assert len(col_trans.transformers) == 6
     # normalize the representation for string comparing
-    col_trans.transformers.sort()
+    col_trans.transformers.sort(key=lambda trafo: str(trafo))
     actual = col_trans.__repr__()
     expected = """ColumnTransformer(transformers=[('label_encoder',
                                  LabelEncoder(max_categories=1000001,
@@ -446,16 +410,6 @@ def test_columntransformer_extract_from_bq_model_good(bq_model_good):
                                  LabelEncoder(max_categories=1000001,
                                               min_frequency=0),
                                  'species'),
-                                ('sql_scalar_column_transformer',
-                                 SQLScalarColumnTransformer(sql='culmen_length_mm '
-                                                                '/*CT.IDENT()*/',
-                                                            target_column='ident_culmen_length_mm'),
-                                 '?'),
-                                ('sql_scalar_column_transformer',
-                                 SQLScalarColumnTransformer(sql='flipper_length_mm '
-                                                                '/*CT.IDENT()*/',
-                                                            target_column='ident_flipper_length_mm'),
-                                 '?'),
                                 ('sql_scalar_column_transformer',
                                  SQLScalarColumnTransformer(sql='CASE WHEN '
                                                                 'species IS '
@@ -475,6 +429,16 @@ def test_columntransformer_extract_from_bq_model_good(bq_model_good):
                                                                 'END '
                                                                 '/*CT.LEN2([99])*/',
                                                             target_column='len2_species'),
+                                 '?'),
+                                ('sql_scalar_column_transformer',
+                                 SQLScalarColumnTransformer(sql='culmen_length_mm '
+                                                                '/*CT.IDENT()*/',
+                                                            target_column='ident_culmen_length_mm'),
+                                 '?'),
+                                ('sql_scalar_column_transformer',
+                                 SQLScalarColumnTransformer(sql='flipper_length_mm '
+                                                                '/*CT.IDENT()*/',
+                                                            target_column='ident_flipper_length_mm'),
                                  '?')])"""
     assert expected == actual
 
@@ -483,7 +447,7 @@ def test_columntransformer_extract_from_bq_model_merge(bq_model_merge):
     col_trans = ColumnTransformer._extract_from_bq_model(bq_model_merge)
     assert isinstance(col_trans, ColumnTransformer)
     col_trans = col_trans._merge(bq_model_merge)
-    assert isinstance(col_trans, LabelEncoder)
+    assert isinstance(col_trans, preprocessing.LabelEncoder)
     assert (
         col_trans.__repr__()
         == """LabelEncoder(max_categories=1000001, min_frequency=0)"""
@@ -531,9 +495,13 @@ def test_columntransformer_extract_output_names(bq_model_good):
 
 
 def test_columntransformer_compile_to_sql():
-    ident_transformer = IdentityTransformer()
-    len1_transformer = Length1Transformer(-2)
-    len2_transformer = Length2Transformer(99)
+    ident_transformer = SQLScalarColumnTransformer("{0}", target_column="ident_{0}")
+    len1_transformer = SQLScalarColumnTransformer(
+        "CASE WHEN {0} IS NULL THEN -2 ELSE LENGTH({0}) END", target_column="len1_{0}"
+    )
+    len2_transformer = SQLScalarColumnTransformer(
+        "CASE WHEN {0} IS NULL THEN 99 ELSE LENGTH({0}) END", target_column="len2_{0}"
+    )
     label_transformer = preprocessing.LabelEncoder()
     column_transformer = compose.ColumnTransformer(
         [
@@ -549,9 +517,9 @@ def test_columntransformer_compile_to_sql():
     )
     sqls = column_transformer._compile_to_sql(None)
     assert sqls == [
-        "culmen_length_mm /*CT.IDENT()*/ AS ident_culmen_length_mm",
-        "flipper_length_mm /*CT.IDENT()*/ AS ident_flipper_length_mm",
-        "CASE WHEN species IS NULL THEN -2 ELSE LENGTH(species) END /*CT.LEN1()*/ AS len1_species",
-        "CASE WHEN species IS NULL THEN 99 ELSE LENGTH(species) END /*CT.LEN2([99])*/ AS len2_species",
+        "culmen_length_mm AS ident_culmen_length_mm",
+        "flipper_length_mm AS ident_flipper_length_mm",
+        "CASE WHEN species IS NULL THEN -2 ELSE LENGTH(species) END AS len1_species",
+        "CASE WHEN species IS NULL THEN 99 ELSE LENGTH(species) END AS len2_species",
         "ML.LABEL_ENCODER(species, 1000000, 0) OVER() AS labelencoded_species",
     ]
