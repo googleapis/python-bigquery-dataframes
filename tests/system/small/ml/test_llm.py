@@ -178,6 +178,7 @@ def test_text_generator_predict_with_params_success(
     )
 
 
+@pytest.mark.skip("deprecated")
 def test_create_embedding_generator_model(
     palm2_embedding_generator_model, dataset_id, bq_connection
 ):
@@ -194,6 +195,7 @@ def test_create_embedding_generator_model(
     assert reloaded_model.connection_name == bq_connection
 
 
+@pytest.mark.skip("deprecated")
 def test_create_embedding_generator_model_002(
     palm2_embedding_generator_model_002, dataset_id, bq_connection
 ):
@@ -261,6 +263,7 @@ def test_create_text_embedding_generator_multilingual_model_defaults(bq_connecti
         assert model._bqml_model is not None
 
 
+@pytest.mark.skip("deprecated")
 @pytest.mark.flaky(retries=2)
 def test_embedding_generator_predict_success(
     palm2_embedding_generator_model, llm_text_df
