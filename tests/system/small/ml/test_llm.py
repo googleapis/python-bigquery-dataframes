@@ -463,6 +463,33 @@ def test_gemini_text_generator_predict_with_params_success(
     )
 
 
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "gemini-pro",
+        "gemini-1.5-pro-preview-0514",
+        "gemini-1.5-flash-preview-0514",
+        "gemini-1.5-pro-001",
+        "gemini-1.5-flash-001",
+    ),
+)
+@pytest.mark.flaky(retries=2)
+def test_gemini_text_generator_multi_cols_predict_success(
+    llm_text_df, model_name, session, bq_connection
+):
+    llm_text_df["additional_col"] = 1
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
+    df = gemini_text_generator_model.predict(llm_text_df).to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        df,
+        columns=utils.ML_GENERATE_TEXT_OUTPUT + ["additional_col"],
+        index=3,
+        col_exact=False,
+    )
+
+
 @pytest.mark.flaky(retries=2)
 def test_llm_palm_score(llm_fine_tune_df_default_index):
     model = llm.PaLM2TextGenerator(model_name="text-bison")
