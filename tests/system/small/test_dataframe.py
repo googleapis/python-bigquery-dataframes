@@ -4668,6 +4668,7 @@ def test_to_gbq_table_labels(scalars_df_index):
     assert table.labels["test"] == "labels"
 
 
+@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("on", "rule", "origin"),
     [
@@ -4696,6 +4697,7 @@ def test__resample_with_column(
     )
 
 
+@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("append", "level", "col", "rule"),
     [
@@ -4723,6 +4725,7 @@ def test__resample_with_index(
     assert_pandas_df_equal(bf_result, pd_result)
 
 
+@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("rule", "origin", "data"),
     [

@@ -3906,6 +3906,7 @@ def test_series_explode_null(data):
     )
 
 
+@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("append", "level", "col", "rule"),
     [
