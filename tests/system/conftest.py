@@ -39,6 +39,7 @@ import test_utils.prefixer
 import bigframes
 import bigframes.dataframe
 import bigframes.pandas as bpd
+import bigframes.series
 import tests.system.utils
 
 # Use this to control the number of cloud functions being deleted in a single
@@ -146,16 +147,6 @@ def session() -> Generator[bigframes.Session, None, None]:
 
 
 @pytest.fixture(scope="session")
-def session_us_east5() -> Generator[bigframes.Session, None, None]:
-    context = bigframes.BigQueryOptions(
-        location="us-east5",
-    )
-    session = bigframes.Session(context=context)
-    yield session
-    session.close()  # close generated session at cleanup time
-
-
-@pytest.fixture(scope="session")
 def session_load() -> Generator[bigframes.Session, None, None]:
     context = bigframes.BigQueryOptions(location="US", project="bigframes-load-testing")
     session = bigframes.Session(context=context)
@@ -185,6 +176,11 @@ def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, Non
     session = bigframes.Session(context=context)
     yield session
     session.close()  # close generated session at cleanup type
+
+
+@pytest.fixture(scope="session")
+def bq_connection(bigquery_client: bigquery.Client) -> str:
+    return f"{bigquery_client.project}.{bigquery_client.location}.bigframes-rf-conn"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -294,6 +290,7 @@ def load_test_data_tables(
         ("scalars", "scalars_schema.json", "scalars.jsonl"),
         ("scalars_too", "scalars_schema.json", "scalars.jsonl"),
         ("nested", "nested_schema.json", "nested.jsonl"),
+        ("repeated", "repeated_schema.json", "repeated.jsonl"),
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
         ("time_series", "time_series_schema.json", "time_series.jsonl"),
         ("hockey_players", "hockey_players.json", "hockey_players.jsonl"),
@@ -371,6 +368,11 @@ def nested_table_id(test_data_tables) -> str:
 
 
 @pytest.fixture(scope="session")
+def repeated_table_id(test_data_tables) -> str:
+    return test_data_tables["repeated"]
+
+
+@pytest.fixture(scope="session")
 def penguins_table_id(test_data_tables) -> str:
     return test_data_tables["penguins"]
 
@@ -404,6 +406,26 @@ def nested_pandas_df() -> pd.DataFrame:
 
     df = pd.read_json(
         DATA_DIR / "nested.jsonl",
+        lines=True,
+    )
+    df = df.set_index("rowindex")
+    return df
+
+
+@pytest.fixture(scope="session")
+def repeated_df(
+    repeated_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """Returns a DataFrame containing columns of list type."""
+    return session.read_gbq(repeated_table_id, index_col="rowindex")
+
+
+@pytest.fixture(scope="session")
+def repeated_pandas_df() -> pd.DataFrame:
+    """Returns a DataFrame containing columns of list type."""
+
+    df = pd.read_json(
+        DATA_DIR / "repeated.jsonl",
         lines=True,
     )
     df = df.set_index("rowindex")
@@ -699,6 +721,25 @@ def missing_values_penguins_df():
 @pytest.fixture(scope="session")
 def new_penguins_df(session, new_penguins_pandas_df):
     return session.read_pandas(new_penguins_pandas_df)
+
+
+@pytest.fixture(scope="session")
+def llm_text_pandas_df():
+    """Additional data matching the penguins dataset, with a new index"""
+    return pd.DataFrame(
+        {
+            "prompt": [
+                "What is BigQuery?",
+                "What is BQML?",
+                "What is BigQuery DataFrame?",
+            ],
+        }
+    )
+
+
+@pytest.fixture(scope="session")
+def llm_text_df(session, llm_text_pandas_df):
+    return session.read_pandas(llm_text_pandas_df)
 
 
 @pytest.fixture(scope="session")
