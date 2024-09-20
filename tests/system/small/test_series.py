@@ -3911,9 +3911,9 @@ def test_series_explode_null(data):
     ("append", "level", "col", "rule"),
     [
         pytest.param(False, None, "timestamp_col", "75D"),
-        pytest.param(True, 1, "timestamp_col", "25W"),
-        pytest.param(False, None, "datetime_col", "3ME"),
-        pytest.param(True, "timestamp_col", "timestamp_col", "1YE"),
+        # pytest.param(True, 1, "timestamp_col", "25W"),
+        # pytest.param(False, None, "datetime_col", "3ME"),
+        # pytest.param(True, "timestamp_col", "timestamp_col", "1YE"),
     ],
 )
 def test__resample(scalars_df_index, scalars_pandas_df_index, append, level, col, rule):

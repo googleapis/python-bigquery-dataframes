@@ -108,8 +108,8 @@ class Compiler:
         # Perform a cross join to avoid errors
         joined_table = start_table.cross_join(end_table)
 
-        labels_array_table = generate_array(
-            joined_table[start_column], joined_table[end_column], node.step
+        labels_array_table = ibis.range(
+            joined_table[start_column], joined_table[end_column] + node.step, node.step
         ).name("labels")
         labels = (
             typing.cast(ibis.expr.types.ArrayValue, labels_array_table)
@@ -363,10 +363,3 @@ class Compiler:
     @_compile_node.register
     def compile_random_sample(self, node: nodes.RandomSampleNode, ordered: bool = True):
         return self.compile_node(node.child, ordered)._uniform_sampling(node.fraction)
-
-
-@ibis.udf.scalar.builtin
-def generate_array(
-    start: int, end: int, step: int
-) -> compiled.ibis_dtypes.Array(compiled.ibis_dtypes.Int64):  # type: ignore
-    """Generates an array of values from start to end with increments of step."""
