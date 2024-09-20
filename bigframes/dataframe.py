@@ -2309,7 +2309,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if len(numeric_df.columns) == 0:
                 # Describe eligible non-numeric columns
                 return self._describe_non_numeric()
-            
+
             # Otherwise, only describe numeric columns
             return self._describe_numeric()
 
@@ -2331,7 +2331,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         else:
             raise ValueError(f"Unsupported include type: {include}")
-        
+
     def _describe_numeric(self) -> DataFrame:
         return typing.cast(
             DataFrame,
