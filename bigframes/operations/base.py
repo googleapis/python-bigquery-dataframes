@@ -180,7 +180,12 @@ class SeriesMethods:
             (self_col, other_col, block) = self._align(other_series, how=alignment)
 
             name = self._name
-            if other_series.name != self._name and alignment == "outer":
+            # Drop name if both objects have name attr, but they don't match
+            if (
+                hasattr(other, "name")
+                and other_series.name != self._name
+                and alignment == "outer"
+            ):
                 name = None
             expr = op.as_expr(
                 other_col if reverse else self_col, self_col if reverse else other_col
