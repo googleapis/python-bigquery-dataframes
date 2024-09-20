@@ -748,7 +748,7 @@ def integer_label_to_datetime_op_fixed_frequency(
 
     x_label = (
         (x * us + first)
-        .cast("int")
+        .cast(ibis_dtypes.int64)
         .to_timestamp(unit="us")
         .cast(ibis_dtypes.Timestamp(timezone="UTC"))
         .cast(y.type())
@@ -766,10 +766,10 @@ def integer_label_to_datetime_op_non_fixed_frequency(
         first = (
             y.cast(ibis_dtypes.Timestamp(timezone="UTC")).min().truncate("week")
             + ibis.interval(days=6)
-        ).cast("int")
+        ).cast(ibis_dtypes.int64)
         x_label = (
             (x * us + first)
-            .cast("int")
+            .cast(ibis_dtypes.int64)
             .to_timestamp(unit="us")
             .cast(ibis_dtypes.Timestamp(timezone="UTC"))
             .cast(y.type())
@@ -832,7 +832,7 @@ def datetime_to_integer_label_fixed_frequency(
     x: ibis_types.Value, op: ops.DatetimeToIntegerLabelOp
 ):
     us = op.freq.nanos / 1000
-    x_int = x.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast("int")
+    x_int = x.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast(ibis_dtypes.int64)
     first = calculate_resample_first(x, op.origin)
     x_int_label = (x_int - first) // us
     return x_int_label
@@ -846,7 +846,7 @@ def datetime_to_integer_label_non_fixed_frequency(
     if rule_code == "W-SUN":
         us = n * 7 * 24 * 60 * 60 * 1000000
         x = x.truncate("week") + ibis.interval(days=6)
-        x_int = x.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast("int")
+        x_int = x.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast(ibis_dtypes.int64)
         first = x_int.min()
         x_int_label = (
             ibis.case()
@@ -895,10 +895,15 @@ def calculate_resample_first(x: ibis_types.Value, origin):
         return ibis.literal(0)
     elif origin == "start_day":
         return (
-            x.min().cast("date").cast(ibis_dtypes.Timestamp(timezone="UTC")).cast("int")
+            x.min()
+            .cast(ibis_dtypes.date)
+            .cast(ibis_dtypes.Timestamp(timezone="UTC"))
+            .cast(ibis_dtypes.int64)
         )
     elif origin == "start":
-        return x.min().cast(ibis_dtypes.Timestamp(timezone="UTC")).cast("int")
+        return (
+            x.min().cast(ibis_dtypes.Timestamp(timezone="UTC")).cast(ibis_dtypes.int64)
+        )
     else:
         raise ValueError(f"Origin {origin} not supported")
 
