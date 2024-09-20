@@ -415,24 +415,6 @@ def bq_model_no_merge():
 
 
 @pytest.fixture
-def bq_model_unknown_CT():
-    return create_bq_model_mock(
-        [
-            {
-                "name": "unknownct_culmen_length_mm",
-                "type": {"typeKind": "INT64"},
-                "transformSql": "culmen_length_mm /*CT.UNKNOWN()*/",
-            },
-            {
-                "name": "labelencoded_county",
-                "type": {"typeKind": "INT64"},
-                "transformSql": "ML.LABEL_ENCODER(county, 1000000, 0) OVER()",
-            },
-        ]
-    )
-
-
-@pytest.fixture
 def bq_model_unknown_ML():
     return create_bq_model_mock(
         [
@@ -450,35 +432,13 @@ def bq_model_unknown_ML():
     )
 
 
-@pytest.fixture
-def bq_model_foreign():
-    return create_bq_model_mock(
-        [
-            {
-                "name": "foreign_culmen_length_mm",
-                "type": {"typeKind": "INT64"},
-                "transformSql": "culmen_length_mm+1",
-            },
-            {
-                "name": "labelencoded_county",
-                "type": {"typeKind": "INT64"},
-                "transformSql": "ML.LABEL_ENCODER(county, 1000000, 0) OVER()",
-            },
-        ]
-    )
-
-
 def test_columntransformer_extract_from_bq_model_good(bq_model_good):
     col_trans = ColumnTransformer._extract_from_bq_model(bq_model_good)
     assert len(col_trans.transformers) == 6
     # normalize the representation for string comparing
     col_trans.transformers.sort()
     actual = col_trans.__repr__()
-    expected = """ColumnTransformer(transformers=[('identity_transformer', IdentityTransformer(),
-                                 'culmen_length_mm'),
-                                ('identity_transformer', IdentityTransformer(),
-                                 'flipper_length_mm'),
-                                ('label_encoder',
+    expected = """ColumnTransformer(transformers=[('label_encoder',
                                  LabelEncoder(max_categories=1000001,
                                               min_frequency=0),
                                  'county'),
@@ -486,12 +446,36 @@ def test_columntransformer_extract_from_bq_model_good(bq_model_good):
                                  LabelEncoder(max_categories=1000001,
                                               min_frequency=0),
                                  'species'),
-                                ('length1_transformer',
-                                 Length1Transformer(default_value=-5),
-                                 'species'),
-                                ('length2_transformer',
-                                 Length2Transformer(default_value=99),
-                                 'species')])"""
+                                ('sql_scalar_column_transformer',
+                                 SQLScalarColumnTransformer(sql='culmen_length_mm '
+                                                                '/*CT.IDENT()*/',
+                                                            target_column='ident_culmen_length_mm'),
+                                 '?'),
+                                ('sql_scalar_column_transformer',
+                                 SQLScalarColumnTransformer(sql='flipper_length_mm '
+                                                                '/*CT.IDENT()*/',
+                                                            target_column='ident_flipper_length_mm'),
+                                 '?'),
+                                ('sql_scalar_column_transformer',
+                                 SQLScalarColumnTransformer(sql='CASE WHEN '
+                                                                'species IS '
+                                                                'NULL THEN -5 '
+                                                                'ELSE '
+                                                                'LENGTH(species) '
+                                                                'END '
+                                                                '/*CT.LEN1()*/',
+                                                            target_column='len1_species'),
+                                 '?'),
+                                ('sql_scalar_column_transformer',
+                                 SQLScalarColumnTransformer(sql='CASE WHEN '
+                                                                'species IS '
+                                                                'NULL THEN 99 '
+                                                                'ELSE '
+                                                                'LENGTH(address) '
+                                                                'END '
+                                                                '/*CT.LEN2([99])*/',
+                                                            target_column='len2_species'),
+                                 '?')])"""
     assert expected == actual
 
 
@@ -511,19 +495,13 @@ def test_columntransformer_extract_from_bq_model_no_merge(bq_model_no_merge):
     col_trans = ColumnTransformer._extract_from_bq_model(bq_model_no_merge)
     col_trans = col_trans._merge(bq_model_no_merge)
     assert isinstance(col_trans, ColumnTransformer)
-    assert (
-        col_trans.__repr__()
-        == """ColumnTransformer(transformers=[('identity_transformer', IdentityTransformer(),
-                                 'culmen_length_mm')])"""
-    )
-
-
-def test_columntransformer_extract_from_bq_model_unknown_CT(bq_model_unknown_CT):
-    try:
-        _ = ColumnTransformer._extract_from_bq_model(bq_model_unknown_CT)
-        assert False
-    except ValueError as e:
-        assert "Missing custom transformer" == e.args[0]
+    expected = """ColumnTransformer(transformers=[('sql_scalar_column_transformer',
+                                 SQLScalarColumnTransformer(sql='culmen_length_mm '
+                                                                '/*CT.IDENT()*/',
+                                                            target_column='ident_culmen_length_mm'),
+                                 '?')])"""
+    actual = col_trans.__repr__()
+    assert expected == actual
 
 
 def test_columntransformer_extract_from_bq_model_unknown_ML(bq_model_unknown_ML):
@@ -532,17 +510,6 @@ def test_columntransformer_extract_from_bq_model_unknown_ML(bq_model_unknown_ML)
         assert False
     except NotImplementedError as e:
         assert "Unsupported transformer type" in e.args[0]
-
-
-def test_columntransformer_extract_from_bq_model_foreign(bq_model_foreign):
-    col_trans = ColumnTransformer._extract_from_bq_model(bq_model_foreign)
-    assert (
-        col_trans.__repr__()
-        == """ColumnTransformer(transformers=[('label_encoder',
-                                 LabelEncoder(max_categories=1000001,
-                                              min_frequency=0),
-                                 'county')])"""
-    )
 
 
 def test_columntransformer_extract_output_names(bq_model_good):
@@ -588,3 +555,7 @@ def test_columntransformer_compile_to_sql():
         "CASE WHEN species IS NULL THEN 99 ELSE LENGTH(species) END /*CT.LEN2([99])*/ AS len2_species",
         "ML.LABEL_ENCODER(species, 1000000, 0) OVER() AS labelencoded_species",
     ]
+
+
+if __name__ == "__main__":
+    pytest.main(["test_compose.py", "-s"])

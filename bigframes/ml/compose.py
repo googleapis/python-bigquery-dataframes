@@ -54,6 +54,31 @@ CUSTOM_TRANSFORMER_SQL_RX = re.compile(
 )
 
 
+class SQLScalarColumnTransformer(base.BaseTransformer):
+    def __init__(self, sql: str, target_column="transformed_{0}"):
+        super().__init__()
+        self.sql = sql
+        self.target_column = target_column
+
+    def _compile_to_sql(
+        self, X: bpd.DataFrame, columns: Optional[Iterable[str]] = None
+    ) -> List[str]:
+        if columns is None:
+            columns = X.columns
+        result = []
+        for column in columns:
+            current_sql = self.sql.format(column)
+            current_target_column = self.target_column.format(column)
+            result.append(f"{current_sql} AS {current_target_column}")
+        return result
+
+    def _keys(self):
+        return (self.sql, self.target_column)
+
+    def __lt__(self, other):
+        return self.target_column < other.target_column
+
+
 class CustomTransformer(base.BaseTransformer):
     _CTID = None
     _custom_transformer_classes = {}
@@ -256,26 +281,24 @@ class ColumnTransformer(
                     break
 
             if not found_transformer:
-                transformer_cls = CustomTransformer.find_matching_transformer(
-                    transform_sql
-                )
-                if transformer_cls:
-                    transformers_set.add(
-                        (
-                            camel_to_snake(transformer_cls.__name__),
-                            *transformer_cls._parse_from_sql(transform_sql),  # type: ignore
-                        )
-                    )
-                    found_transformer = True
-
-            if not found_transformer:
-                if not transform_sql.startswith("ML.") and "/*CT." not in transform_sql:
-                    continue  # ignore other patterns, only report unhandled known patterns
                 if transform_sql.startswith("ML."):
                     raise NotImplementedError(
                         f"Unsupported transformer type. {constants.FEEDBACK_LINK}"
                     )
-                raise ValueError("Missing custom transformer")
+
+                target_column = transform_col_dict["name"]
+                transformer = SQLScalarColumnTransformer(
+                    transform_sql, target_column=target_column
+                )
+                input_column_name = "?"
+                transformers_set.add(
+                    (
+                        camel_to_snake(transformer.__class__.__name__),
+                        transformer,
+                        input_column_name,
+                    )
+                )
+                found_transformer = True
 
             output_names.append(transform_col_dict["name"])
 
@@ -294,8 +317,8 @@ class ColumnTransformer(
 
         assert len(transformers) > 0
         _, transformer_0, column_0 = transformers[0]
-        if isinstance(transformer_0, CustomTransformer):
-            return self  # CustomTransformers only work inside ColumnTransformer
+        if isinstance(transformer_0, SQLScalarColumnTransformer):
+            return self  # SQLScalarColumnTransformer only work inside ColumnTransformer
         feature_columns_sorted = sorted(
             [
                 cast(str, feature_column.name)
