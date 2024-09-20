@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import datetime
 import functools
 import itertools
 import os
@@ -33,6 +34,7 @@ from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, 
 import warnings
 
 import google.cloud.bigquery as bigquery
+import numpy
 import pandas as pd
 import pyarrow as pa
 
@@ -1869,6 +1871,150 @@ class Block:
             .drop_levels([result.index_columns[-1]])
             .with_transpose_cache(self)
         )
+
+    def _generate_sequence(
+        self,
+        start,
+        stop,
+        step: int = 1,
+    ):
+        range_expr = self.expr.from_range(
+            start,
+            stop,
+            step,
+        )
+
+        return Block(
+            range_expr,
+            column_labels=["min"],
+            index_columns=[],
+        )
+
+    def _generate_resample_label(
+        self,
+        rule: str,
+        closed: Optional[Literal["right", "left"]] = None,
+        label: Optional[Literal["right", "left"]] = None,
+        on: Optional[Label] = None,
+        level: typing.Union[LevelType, typing.Sequence[LevelType]] = None,
+        origin: Union[
+            Union[pd.Timestamp, datetime.datetime, numpy.datetime64, int, float, str],
+            Literal["epoch", "start", "start_day", "end", "end_day"],
+        ] = "start_day",
+    ) -> Block:
+        if on is None:
+            if len(self.index_columns) == 0:
+                raise TypeError("Index type not valid. Expected Datetime Type.")
+            if len(self.index_columns) > 1 and (level is None):
+                raise ValueError(
+                    "Multiple indices are not supported for this operation"
+                    " when 'level' is not set."
+                )
+            level = level or 0
+            col_id = self.index.resolve_level(level)[0]
+        elif level is not None:
+            raise ValueError("The Grouper cannot specify both a key and a level!")
+        else:
+            matches = self.label_to_col_id.get(on, [])
+            if len(matches) > 1:
+                raise ValueError(
+                    f"Multiple columns matching id {on} were found. {constants.FEEDBACK_LINK}"
+                )
+            if len(matches) == 0:
+                raise KeyError(f"The grouper name {on} is not found")
+
+            col_id = matches[0]
+
+        if level is None:
+            dtype = self._column_type(col_id)
+        elif isinstance(level, int):
+            dtype = self.index.dtypes[level]
+        else:
+            dtype = self.index.dtypes[self.index.names.index(level)]
+
+        if dtype not in (
+            bigframes.dtypes.DATETIME_DTYPE,
+            bigframes.dtypes.TIMESTAMP_DTYPE,
+        ):
+            raise TypeError(
+                f"Invalid column type: {dtype}. Expected types are "
+                f"{bigframes.dtypes.DATETIME_DTYPE}, or "
+                f"{bigframes.dtypes.TIMESTAMP_DTYPE}."
+            )
+
+        freq = pd.tseries.frequencies.to_offset(rule)
+        assert freq is not None
+
+        if origin not in ("epoch", "start", "start_day"):
+            try:
+                origin = pd.Timestamp(origin)
+            except (ValueError, TypeError) as err:
+                raise ValueError(
+                    "'origin' should be equal to 'epoch', 'start' or 'start_day'"
+                    f". Got '{origin}' instead."
+                ) from err
+
+        block, label_col_id = self.apply_unary_op(
+            col_id,
+            op=ops.DatetimeToIntegerLabelOp(freq=freq, closed=closed, origin=origin),
+        )
+
+        # Generate all resample labels
+        agg_specs = [
+            (
+                ex.UnaryAggregation(agg_ops.min_op, ex.free_var(label_col_id)),
+                guid.generate_guid(),
+            ),
+            (
+                ex.UnaryAggregation(agg_ops.max_op, ex.free_var(label_col_id)),
+                guid.generate_guid(),
+            ),
+            (
+                ex.UnaryAggregation(agg_ops.min_op, ex.free_var(col_id)),
+                guid.generate_guid(),
+            ),
+        ]
+        output_col_ids = [agg_spec[1] for agg_spec in agg_specs]
+        result_expr = block.expr.aggregate(agg_specs, dropna=True)
+        label_start = result_expr.select_columns([output_col_ids[0]])
+        label_stop = result_expr.select_columns([output_col_ids[1]])
+        origin_block = Block(
+            result_expr.select_columns([output_col_ids[2]]),
+            column_labels=["origin"],
+            index_columns=[],
+        )
+
+        label_block = block._generate_sequence(
+            start=label_start,
+            stop=label_stop,
+        )
+
+        # Merge all labels with aligned block.
+        # The index will be dropped.
+        block = label_block.merge(
+            block.reset_index(),
+            how="left",
+            left_join_ids=label_block.value_columns,
+            right_join_ids=[label_col_id],
+            sort=True,
+        )
+
+        # drop the label column
+        block = block.drop_columns([block.value_columns[-1]])
+
+        block = block.merge(
+            origin_block, how="cross", left_join_ids=[], right_join_ids=[], sort=True
+        )
+
+        block, int_result_id = block.apply_binary_op(
+            block.value_columns[0],
+            block.value_columns[-1],
+            op=ops.IntegerLabelToDatetimeOp(freq=freq, label=label, origin=origin),
+        )
+
+        block = block.drop_columns([block.value_columns[0], block.value_columns[-2]])
+
+        return block.set_index([int_result_id])
 
     def _create_stack_column(self, col_label: typing.Tuple, stack_labels: pd.Index):
         dtype = None

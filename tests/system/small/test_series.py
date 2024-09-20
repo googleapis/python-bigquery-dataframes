@@ -3904,3 +3904,22 @@ def test_series_explode_null(data):
         s.to_pandas().explode(),
         check_dtype=False,
     )
+
+
+@pytest.mark.parametrize(
+    ("append", "level", "col", "rule"),
+    [
+        pytest.param(False, None, "timestamp_col", "75D"),
+        pytest.param(True, 1, "timestamp_col", "25W"),
+        pytest.param(False, None, "datetime_col", "3ME"),
+        pytest.param(True, "timestamp_col", "timestamp_col", "1YE"),
+    ],
+)
+def test__resample(scalars_df_index, scalars_pandas_df_index, append, level, col, rule):
+    scalars_df_index = scalars_df_index.set_index(col, append=append)["int64_col"]
+    scalars_pandas_df_index = scalars_pandas_df_index.set_index(col, append=append)[
+        "int64_col"
+    ]
+    bf_result = scalars_df_index._resample(rule=rule, level=level).min().to_pandas()
+    pd_result = scalars_pandas_df_index.resample(rule=rule, level=level).min()
+    pd.testing.assert_series_equal(bf_result, pd_result)

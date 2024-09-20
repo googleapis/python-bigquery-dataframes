@@ -2911,6 +2911,48 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         blocks = self._block._split(ns=ns, fracs=fracs, random_state=random_state)
         return [DataFrame(block) for block in blocks]
 
+    @validations.requires_ordering()
+    def _resample(
+        self,
+        rule: str,
+        *,
+        on: blocks.Label = None,
+        level: Optional[LevelsType] = None,
+        origin: Union[
+            Union[
+                pandas.Timestamp, datetime.datetime, numpy.datetime64, int, float, str
+            ],
+            Literal["epoch", "start", "start_day", "end", "end_day"],
+        ] = "start_day",
+    ) -> bigframes.core.groupby.DataFrameGroupBy:
+        """Internal function to support resample. Resample time-series data.
+
+        Args:
+            rule (str):
+                The offset string representing target conversion.
+            on (str, default None):
+                For a DataFrame, column to use instead of index for resampling. Column
+                must be datetime-like.
+            level (str or int, default None):
+                For a MultiIndex, level (name or number) to use for resampling.
+                level must be datetime-like.
+            origin(str, default 'start_day'):
+                The timestamp on which to adjust the grouping. Must be one of the following:
+                'epoch': origin is 1970-01-01
+                'start': origin is the first value of the timeseries
+                'start_day': origin is the first day at midnight of the timeseries
+        Returns:
+            DataFrameGroupBy: DataFrameGroupBy object.
+        """
+        block = self._block._generate_resample_label(
+            rule=rule,
+            on=on,
+            level=level,
+            origin=origin,
+        )
+        df = DataFrame(block)
+        return df.groupby(level=0)
+
     @classmethod
     def from_dict(
         cls,

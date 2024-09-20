@@ -729,6 +729,180 @@ def floor_dt_op_impl(x: ibis_types.Value, op: ops.FloorDtOp):
     return result.cast(result_type)
 
 
+@scalar_op_compiler.register_binary_op(ops.IntegerLabelToDatetimeOp, pass_op=True)
+def integer_label_to_datetime_op_impl(
+    x: ibis_types.Value, y: ibis_types.Value, op: ops.IntegerLabelToDatetimeOp
+):
+    try:
+        return integer_label_to_datetime_op_fixed_frequency(x, y, op)
+    except ValueError:
+        return integer_label_to_datetime_op_non_fixed_frequency(x, y, op)
+
+
+def integer_label_to_datetime_op_fixed_frequency(
+    x: ibis_types.Value, y: ibis_types.Value, op: ops.IntegerLabelToDatetimeOp
+):
+    us = op.freq.nanos / 1000
+
+    first = calculate_resample_first(y, op.origin)
+
+    x_label = (
+        (x * us + first)
+        .cast("int")
+        .to_timestamp(unit="us")
+        .cast(ibis_dtypes.Timestamp(timezone="UTC"))
+        .cast(y.type())
+    )
+    return x_label
+
+
+def integer_label_to_datetime_op_non_fixed_frequency(
+    x: ibis_types.Value, y: ibis_types.Value, op: ops.IntegerLabelToDatetimeOp
+):
+    rule_code = op.freq.rule_code
+    n = op.freq.n
+    if rule_code == "W-SUN":
+        us = n * 7 * 24 * 60 * 60 * 1000000
+        first = (
+            y.cast(ibis_dtypes.Timestamp(timezone="UTC")).min().truncate("week")
+            + ibis.interval(days=6)
+        ).cast("int")
+        x_label = (
+            (x * us + first)
+            .cast("int")
+            .to_timestamp(unit="us")
+            .cast(ibis_dtypes.Timestamp(timezone="UTC"))
+            .cast(y.type())
+        )
+    elif rule_code == "ME":
+        twelve = ibis.literal(12)
+        one = ibis.literal(1)
+        y_min = y.min()
+        first = y_min.year() * twelve + y_min.month() - one
+
+        x = x * n + first
+        year = x // twelve
+        month = (x % twelve) + one
+
+        next_year = (month == twelve).ifelse(year + one, year)
+        next_month = (month == twelve).ifelse(one, month + one)
+        next_month_date = ibis.timestamp(next_year, next_month, one, 0, 0, 0)
+
+        x_label = next_month_date - ibis.interval(days=1)
+    elif rule_code == "QE-DEC":
+        twelve = ibis.literal(12)
+        four = ibis.literal(4)
+        one = ibis.literal(1)
+        three = ibis.literal(3)
+        y_min = y.min()
+        first = y_min.year() * four + y_min.quarter() - one
+
+        x = x * n + first
+        year = x // four
+        month = ((x % four) + one) * three
+
+        next_year = (month == twelve).ifelse(year + one, year)
+        next_month = (month == twelve).ifelse(one, month + one)
+        next_month_date = ibis.timestamp(next_year, next_month, one, 0, 0, 0)
+
+        x_label = next_month_date - ibis.interval(days=1)
+    elif rule_code == "YE-DEC":
+        one = ibis.literal(1)
+        y_min = y.min()
+        first = y_min.year()
+        x = x * n + first
+        next_year = x + one
+        next_month_date = ibis.timestamp(next_year, 1, 1, 0, 0, 0)
+        x_label = next_month_date - ibis.interval(days=1)
+
+    return x_label.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast(y.type())
+
+
+@scalar_op_compiler.register_unary_op(ops.DatetimeToIntegerLabelOp, pass_op=True)
+def datetime_to_integer_label_op_impl(
+    x: ibis_types.Value, op: ops.DatetimeToIntegerLabelOp
+):
+    try:  # us - day
+        return datetime_to_integer_label_fixed_frequency(x, op)
+    except ValueError:  # week - year
+        return datetime_to_integer_label_non_fixed_frequency(x, op)
+
+
+def datetime_to_integer_label_fixed_frequency(
+    x: ibis_types.Value, op: ops.DatetimeToIntegerLabelOp
+):
+    us = op.freq.nanos / 1000
+    x_int = x.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast("int")
+    first = calculate_resample_first(x, op.origin)
+    x_int_label = (x_int - first) // us
+    return x_int_label
+
+
+def datetime_to_integer_label_non_fixed_frequency(
+    x: ibis_types.Value, op: ops.DatetimeToIntegerLabelOp
+):
+    rule_code = op.freq.rule_code
+    n = op.freq.n
+    if rule_code == "W-SUN":
+        us = n * 7 * 24 * 60 * 60 * 1000000
+        x = x.truncate("week") + ibis.interval(days=6)
+        x_int = x.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast("int")
+        first = x_int.min()
+        x_int_label = (
+            ibis.case()
+            .when(x_int == first, 0)
+            .else_((x_int - first - 1) // us + 1)
+            .end()
+        )
+    elif rule_code == "ME":
+        year = x.year()
+        month = x.month()
+        x_int = year * 12 + month - 1
+        first = x_int.min()
+        x_int_label = (
+            ibis.case()
+            .when(x_int == first, 0)
+            .else_((x_int - first - 1) // n + 1)
+            .end()
+        )
+    elif rule_code == "QE-DEC":
+        year = x.year()
+        quarter = x.quarter()
+        x_int = year * 4 + quarter - 1
+        first = x_int.min()
+        x_int_label = (
+            ibis.case()
+            .when(x_int == first, 0)
+            .else_((x_int - first - 1) // n + 1)
+            .end()
+        )
+    elif rule_code == "YE-DEC":
+        x_int = x.year()
+        first = x_int.min()
+        x_int_label = (
+            ibis.case()
+            .when(x_int == first, 0)
+            .else_((x_int - first - 1) // n + 1)
+            .end()
+        )
+    else:
+        raise ValueError(rule_code)
+    return x_int_label
+
+
+def calculate_resample_first(x: ibis_types.Value, origin):
+    if origin == "epoch":
+        return ibis.literal(0)
+    elif origin == "start_day":
+        return (
+            x.min().cast("date").cast(ibis_dtypes.Timestamp(timezone="UTC")).cast("int")
+        )
+    elif origin == "start":
+        return x.min().cast(ibis_dtypes.Timestamp(timezone="UTC")).cast("int")
+    else:
+        raise ValueError(f"Origin {origin} not supported")
+
+
 @scalar_op_compiler.register_unary_op(ops.time_op)
 def time_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.TimestampValue, x).time()

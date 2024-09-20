@@ -95,6 +95,40 @@ class Compiler:
             )
 
     @_compile_node.register
+    def compile_fromrange(self, node: nodes.FromRangeNode, ordered: bool = True):
+        # Both start and end are single elements and do not inherently have an order
+        start = self.compile_unordered_ir(node.start)
+        end = self.compile_unordered_ir(node.end)
+        start_table = start._to_ibis_expr()
+        end_table = end._to_ibis_expr()
+
+        start_column = start_table.schema().names[0]
+        end_column = end_table.schema().names[0]
+
+        # Perform a cross join to avoid errors
+        joined_table = start_table.cross_join(end_table)
+
+        labels_array_table = generate_array(
+            joined_table[start_column], joined_table[end_column], node.step
+        ).name("labels")
+        labels = (
+            typing.cast(ibis.expr.types.ArrayValue, labels_array_table)
+            .unnest()
+            .as_table()
+        )
+        if ordered:
+            return compiled.OrderedIR(
+                labels,
+                columns=[labels[labels.columns[0]]],
+                ordering=bf_ordering.TotalOrdering().from_offset_col(labels.columns[0]),
+            )
+        else:
+            return compiled.UnorderedIR(
+                labels,
+                columns=[labels[labels.columns[0]]],
+            )
+
+    @_compile_node.register
     def compile_readlocal(self, node: nodes.ReadLocalNode, ordered: bool = True):
         array_as_pd = pd.read_feather(io.BytesIO(node.feather_bytes))
         ordered_ir = compiled.OrderedIR.from_pandas(array_as_pd, node.schema)
@@ -329,3 +363,10 @@ class Compiler:
     @_compile_node.register
     def compile_random_sample(self, node: nodes.RandomSampleNode, ordered: bool = True):
         return self.compile_node(node.child, ordered)._uniform_sampling(node.fraction)
+
+
+@ibis.udf.scalar.builtin
+def generate_array(
+    start: int, end: int, step: int
+) -> compiled.ibis_dtypes.Array(compiled.ibis_dtypes.Int64):  # type: ignore
+    """Generates an array of values from start to end with increments of step."""
