@@ -341,8 +341,9 @@ class RemoteFunctionClient:
                         ingress_settings, list(_INGRESS_SETTINGS_MAP)
                     )
                 )
-            function.service_config.ingress_settings = _INGRESS_SETTINGS_MAP.get(
-                ingress_settings
+            function.service_config.ingress_settings = cast(
+                functions_v2.ServiceConfig.IngressSettings,
+                _INGRESS_SETTINGS_MAP[ingress_settings],
             )
             function.kms_key_name = self._cloud_function_kms_key_name
             create_function_request.function = function
