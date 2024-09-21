@@ -14,6 +14,7 @@
 
 import pandas as pd
 import pandas.testing
+import pytest
 
 import bigframes.pandas as bpd
 
@@ -42,4 +43,78 @@ def test_polars_local_engine_filter():
 
     bf_result = bf_df.filter(bf_df["colB"] >= 1).to_pandas(local_engine=True)
     pd_result = pd_df.filter(pd_df["colB"] >= 1)  # type: ignore
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_polars_local_engine_reset_index():
+    pd_df = pd.DataFrame({"colA": [1, None, 3], "colB": [3, 1, 2]}, index=[3, 1, 2])
+    bf_df = bpd.DataFrame(pd_df)
+
+    bf_result = bf_df.reset_index().to_pandas(local_engine=True)
+    pd_result = pd_df.reset_index()
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_polars_local_engine_join_binop():
+    pd_df_1 = pd.DataFrame({"colA": [1, None, 3], "colB": [3, 1, 2]}, index=[1, 2, 3])
+    pd_df_2 = pd.DataFrame(
+        {"colA": [100, 200, 300], "colB": [30, 10, 40]}, index=[2, 1, 4]
+    )
+    bf_df_1 = bpd.DataFrame(pd_df_1)
+    bf_df_2 = bpd.DataFrame(pd_df_2)
+
+    bf_result = (bf_df_1 + bf_df_2).to_pandas(local_engine=True)
+    pd_result = pd_df_1 + pd_df_2
+    # Sort by index because ordering logic isn't quite consistent yet
+    pandas.testing.assert_frame_equal(bf_result.sort_index(), pd_result.sort_index())
+
+
+@pytest.mark.parametrize(
+    "join_type",
+    ["inner", "left", "right", "outer"],
+)
+def test_polars_local_engine_joins(join_type):
+    pd_df_1 = pd.DataFrame({"colA": [1, None, 3], "colB": [3, 1, 2]}, index=[1, 2, 3])
+    pd_df_2 = pd.DataFrame(
+        {"colC": [100, 200, 300], "colD": [30, 10, 40]}, index=[2, 1, 4]
+    )
+    bf_df_1 = bpd.DataFrame(pd_df_1)
+    bf_df_2 = bpd.DataFrame(pd_df_2)
+
+    # Sort by index because ordering logic isn't quite consistent yet
+    bf_result = bf_df_1.join(bf_df_2, how=join_type).to_pandas(local_engine=True)
+    pd_result = pd_df_1.join(pd_df_2, how=join_type)
+    # Sort by index because ordering logic isn't quite consistent yet
+    pandas.testing.assert_frame_equal(bf_result.sort_index(), pd_result.sort_index())
+
+
+def test_polars_local_engine_agg():
+    pd_df = pd.DataFrame(
+        {"colA": [True, False, True, False, True], "colB": [1, 2, 3, 4, 5]}
+    )
+    bf_df = bpd.DataFrame(pd_df)
+
+    bf_result = bf_df.agg(["sum", "count"]).to_pandas(local_engine=True)
+    pd_result = pd_df.agg(["sum", "count"])
+    # local engine appears to produce uint32
+    pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)  # type: ignore
+
+
+def test_polars_local_engine_groupby_sum():
+    pd_df = pd.DataFrame(
+        {"colA": [True, False, True, False, True], "colB": [1, 2, 3, 4, 5]}
+    )
+    bf_df = bpd.DataFrame(pd_df)
+
+    bf_result = bf_df.groupby("colA").sum().to_pandas(local_engine=True)
+    pd_result = pd_df.groupby("colA").sum()
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_polars_local_engine_cumsum():
+    pd_df = pd.DataFrame({"colA": [1, 2, 3], "colB": [10, 20, 30]})
+    bf_df = bpd.DataFrame(pd_df)
+
+    bf_result = bf_df.cumsum().to_pandas(local_engine=True)
+    pd_result = pd_df.cumsum()
     pandas.testing.assert_frame_equal(bf_result, pd_result)

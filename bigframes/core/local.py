@@ -15,29 +15,44 @@ from __future__ import annotations
 
 import dataclasses
 import functools
+import itertools
+from typing import cast, Sequence
 
 import pandas as pd
 import polars as pl
 
 import bigframes.core
 import bigframes.core.expression as ex
+import bigframes.core.guid as guid
 import bigframes.core.nodes as nodes
 import bigframes.operations as ops
+import bigframes.operations.aggregations as agg_ops
 
 SUPPORTED_NODES = (
     nodes.ReadLocalNode,
     nodes.SelectionNode,
-    nodes.ProjectionNode,
+    nodes.ProjectionNode,  # Partial op support only
     nodes.OrderByNode,
     nodes.ReversedNode,
     nodes.ReprojectOpNode,
     nodes.FilterNode,
     nodes.RowCountNode,
+    nodes.PromoteOffsetsNode,
+    nodes.JoinNode,  # Ordering support is unstrict
+    nodes.AggregateNode,  # Partial agg op support only
+    nodes.WindowOpNode,  # Not all window definitions supported
+    # TODO: explode, random sample
 )
 
 
 @dataclasses.dataclass(frozen=True)
 class PolarsExpressionCompiler:
+    """
+    Simple compiler for converting bigframes expressions to polars expressions.
+
+    Should be extended to dispatch based on bigframes schema types.
+    """
+
     @functools.singledispatchmethod
     def compile_expression(self, expression: ex.Expression) -> pl.Expr:
         ...
@@ -70,7 +85,47 @@ class PolarsExpressionCompiler:
             return args[0] + args[1]
         if isinstance(op, ops.ge_op.__class__):
             return args[0] >= args[1]
+        if isinstance(op, ops.eq_op.__class__):
+            return args[0] == args[1]
+        if isinstance(op, ops.coalesce_op.__class__):
+            return pl.coalesce(*args)
+        if isinstance(op, ops.CaseWhenOp):
+            expr = pl.when(args[0]).then(args[1])
+            for pred, result in zip(args[2::2], args[3::2]):
+                return expr.when(pred).then(result)
+            return expr
         raise NotImplementedError(f"Polars compiler hasn't implemented {op}")
+
+
+@dataclasses.dataclass(frozen=True)
+class PolarsAggregateCompiler:
+    scalar_compiler = PolarsExpressionCompiler()
+
+    def get_args(
+        self,
+        agg: ex.Aggregation,
+    ) -> Sequence[pl.Expr]:
+        if isinstance(agg, ex.NullaryAggregation):
+            return []
+        elif isinstance(agg, ex.UnaryAggregation):
+            arg = self.scalar_compiler.compile_expression(agg.arg)
+            return [arg]
+        elif isinstance(agg, ex.BinaryAggregation):
+            larg = self.scalar_compiler.compile_expression(agg.left)
+            rarg = self.scalar_compiler.compile_expression(agg.right)
+            return [larg, rarg]
+
+        raise NotImplementedError(
+            f"Aggregation {agg} not yet supported in polars engine."
+        )
+
+    def compile_agg_op(self, op: agg_ops.WindowOp, inputs: Sequence[str] = []):
+        if isinstance(op, agg_ops.SumOp):
+            return pl.sum(*inputs)
+        if isinstance(op, agg_ops.CountOp):
+            return pl.count(*inputs)
+        if isinstance(op, agg_ops.CorrOp):
+            return pl.corr(*inputs)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -80,9 +135,9 @@ class PolarsLocalExecutor:
     """
 
     expr_compiler = PolarsExpressionCompiler()
+    agg_compiler = PolarsAggregateCompiler()
 
     # TODO: Support more node types
-    # TODO: Use lazy frame instead?
     def can_execute(self, node: nodes.BigFrameNode) -> bool:
         if not isinstance(node, SUPPORTED_NODES):
             return False
@@ -146,6 +201,140 @@ class PolarsLocalExecutor:
         return pl.DataFrame({"count": [rows]})
 
     @_execute_node.register
+    def compile_offsets(self, node: nodes.PromoteOffsetsNode):
+        return self.execute_node(node.child).with_columns(
+            [pl.int_range(pl.len(), dtype=pl.Int64).alias(node.col_id)]
+        )
+
+    @_execute_node.register
+    def compile_join(self, node: nodes.JoinNode):
+        # TODO: Join ordering might not be entirely strict, so force explicit ordering
+        l_renames = {
+            old: new
+            for old, new in zip(node.left_child.schema.names, node.schema.names)
+        }
+        r_renames = {
+            old: new
+            for old, new in zip(
+                node.right_child.schema.names, node.schema.names[len(l_renames) :]
+            )
+        }
+        left = self.execute_node(node.left_child).rename(l_renames)
+        right = self.execute_node(node.right_child).rename(r_renames)
+        if node.type != "cross":
+            left_on = [l_renames[l_name] for l_name, _ in node.conditions]
+            right_on = [r_renames[r_name] for _, r_name in node.conditions]
+            return left.join(
+                right, how=node.type, left_on=left_on, right_on=right_on, coalesce=False
+            )
+        return left.join(right, how=node.type)
+
+    @_execute_node.register
+    def compile_concat(self, node: nodes.ConcatNode):
+        return pl.concat(self.execute_node(child) for child in node.child_nodes)
+
+    @_execute_node.register
     def compile_reproject(self, node: nodes.ReprojectOpNode):
         # NOOP
         return self.execute_node(node.child)
+
+    @_execute_node.register
+    def compile_agg(self, node: nodes.AggregateNode):
+        df = self.execute_node(node.child)
+
+        # Need to materialize columns to broadcast constants
+        agg_inputs = [
+            list(
+                map(
+                    lambda x: x.alias(guid.generate_guid()),
+                    self.agg_compiler.get_args(agg),
+                )
+            )
+            for agg, _ in node.aggregations
+        ]
+
+        df_agg_inputs = df.with_columns(itertools.chain(*agg_inputs))
+
+        agg_exprs = [
+            self.agg_compiler.compile_agg_op(
+                agg.op, list(map(lambda x: x.meta.output_name(), inputs))
+            ).alias(id)
+            for (agg, id), inputs in zip(node.aggregations, agg_inputs)
+        ]
+
+        if len(node.by_column_ids) > 0:
+            group_exprs = [pl.col(id) for id in node.by_column_ids]
+            grouped_df = df_agg_inputs.group_by(group_exprs)
+            return grouped_df.agg(agg_exprs).sort(group_exprs)
+        else:
+            return df_agg_inputs.select(agg_exprs)
+
+    @_execute_node.register
+    def compile_explode(self, node: nodes.ExplodeNode):
+        df = self.execute_node(node.child)
+        return df.explode(node.column_ids)
+
+    @_execute_node.register
+    def compile_sample(self, node: nodes.RandomSampleNode):
+        df = self.execute_node(node.child)
+        # Sample is not available on lazyframe
+        return df.collect().sample(fraction=node.fraction).lazy()
+
+    @_execute_node.register
+    def compile_window(self, node: nodes.WindowOpNode):
+        df = self.execute_node(node.child)
+        agg_expr = self.agg_compiler.compile_agg_op(node.op, [node.column_name]).alias(
+            node.output_name
+        )
+        # Three window types: completely unbound, grouped and row bounded
+
+        window = node.window_spec
+
+        if window.min_periods > 0:
+            raise NotImplementedError("min_period not yet supported for polars engine")
+
+        if window.bounds is None:
+            # polars will automatically broadcast the aggregate to the matching input rows
+            if len(window.grouping_keys) == 0:  # unbound window
+                pass
+            else:  # partition-only window
+                agg_expr = agg_expr.over(partition_by=window.grouping_keys)
+            return df.with_columns([agg_expr])
+
+        else:  # row-bounded window
+            # Polars API semi-bounded, and any grouped rolling window challenging
+            # https://github.com/pola-rs/polars/issues/4799
+            # https://github.com/pola-rs/polars/issues/8976
+            index_col_name = "_bf_pl_engine_offsets"
+            indexed_df = df.with_row_index(index_col_name)
+            if len(window.grouping_keys) == 0:  # rolling-only window
+                # https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.rolling.html
+                finite = (
+                    window.bounds.preceding is not None
+                    and window.bounds.following is not None
+                )
+                offset_n = (
+                    None
+                    if window.bounds.preceding is None
+                    else -window.bounds.preceding
+                )
+                # collecting height is a massive kludge
+                period_n = (
+                    df.collect().height
+                    if not finite
+                    else cast(int, window.bounds.preceding)
+                    + cast(int, window.bounds.following)
+                    + 1
+                )
+                results = indexed_df.rolling(
+                    index_column=index_col_name,
+                    period=f"{period_n}i",
+                    offset=f"{offset_n}i" if offset_n else None,
+                ).agg(agg_expr)
+            else:  # groupby-rolling window
+                raise NotImplementedError(
+                    "Groupby rolling windows not yet implemented in polars engine"
+                )
+            # polars is columnar, so this is efficient
+            # TODO: why can't just add collumns?
+            return pl.concat([df, results], how="horizontal")
