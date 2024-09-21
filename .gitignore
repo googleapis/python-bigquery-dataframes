@@ -51,6 +51,8 @@ docs.metadata
 # Virtual environment
 env/
 venv/
+venv1/
+venv2/
 
 # Test logs
 coverage.xml
