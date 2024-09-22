@@ -174,14 +174,14 @@ class ColumnTransformer(
                     )
 
                 target_column = transform_col_dict["name"]
-                transformer = SQLScalarColumnTransformer(
+                sql_transformer = SQLScalarColumnTransformer(
                     transform_sql, target_column=target_column
                 )
                 input_column_name = "?"
                 transformers_set.add(
                     (
-                        camel_to_snake(transformer.__class__.__name__),
-                        transformer,
+                        camel_to_snake(sql_transformer.__class__.__name__),
+                        sql_transformer,
                         input_column_name,
                     )
                 )
