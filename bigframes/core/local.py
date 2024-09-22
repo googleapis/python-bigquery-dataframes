@@ -19,6 +19,8 @@ import itertools
 from typing import cast, Sequence
 
 import pandas as pd
+
+# TODO: This will probably be an optional dependency, be careful about how to import.
 import polars as pl
 
 import bigframes.core
@@ -27,22 +29,6 @@ import bigframes.core.guid as guid
 import bigframes.core.nodes as nodes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
-
-SUPPORTED_NODES = (
-    nodes.ReadLocalNode,
-    nodes.SelectionNode,
-    nodes.ProjectionNode,  # Partial op support only
-    nodes.OrderByNode,
-    nodes.ReversedNode,
-    nodes.ReprojectOpNode,
-    nodes.FilterNode,
-    nodes.RowCountNode,
-    nodes.PromoteOffsetsNode,
-    nodes.JoinNode,  # Ordering support is unstrict
-    nodes.AggregateNode,  # Partial agg op support only
-    nodes.WindowOpNode,  # Not all window definitions supported
-    # TODO: explode, random sample
-)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -120,30 +106,46 @@ class PolarsAggregateCompiler:
         )
 
     def compile_agg_op(self, op: agg_ops.WindowOp, inputs: Sequence[str] = []):
+        if isinstance(op, agg_ops.ProductOp):
+            # TODO: Need schema to cast back to original type if posisble (eg float back to int)
+            return pl.col(*inputs).log().sum().exp()
         if isinstance(op, agg_ops.SumOp):
             return pl.sum(*inputs)
+        if isinstance(op, agg_ops.MinOp):
+            return pl.min(*inputs)
+        if isinstance(op, agg_ops.MaxOp):
+            return pl.max(*inputs)
         if isinstance(op, agg_ops.CountOp):
             return pl.count(*inputs)
         if isinstance(op, agg_ops.CorrOp):
             return pl.corr(*inputs)
+        raise NotImplementedError(
+            f"Aggregate op {op} not yet supported in polars engine."
+        )
 
 
 @dataclasses.dataclass(frozen=True)
 class PolarsLocalExecutor:
     """
-    A simple local executor for a subset of node types.
+    Compiles ArrayValue to polars LazyFrame and executes.
+
+    This feature is in development and is incomplete.
+    While most node types are supported, this has the following limitations:
+    1. GBQ data sources not supported.
+    2. Join Ordering is not entirely
+    3. Incomplete scalar op support
+    4. Incomplete aggregate op support
+    5. Incomplete analytic op support
+    6. Some complex windowing types not supported (eg. groupby + rolling)
+    7. UDF not supported.
+    8. Returned types may not be entirely consistent with BigQuery backend
     """
 
     expr_compiler = PolarsExpressionCompiler()
     agg_compiler = PolarsAggregateCompiler()
 
-    # TODO: Support more node types
-    def can_execute(self, node: nodes.BigFrameNode) -> bool:
-        if not isinstance(node, SUPPORTED_NODES):
-            return False
-        return all(map(self.can_execute, node.child_nodes))
-
     def execute_local(self, array_value: bigframes.core.ArrayValue) -> pd.DataFrame:
+        # TODO: Find the best way to get this into pandas as efficiently as possible
         return self.execute_node(array_value.node).collect().to_pandas()
 
     def execute_node(self, node: nodes.BigFrameNode) -> pl.LazyFrame:
@@ -272,7 +274,8 @@ class PolarsLocalExecutor:
     @_execute_node.register
     def compile_explode(self, node: nodes.ExplodeNode):
         df = self.execute_node(node.child)
-        return df.explode(node.column_ids)
+        cols = [pl.col(df.columns[i]) for i in node.column_ids]
+        return df.explode(cols)
 
     @_execute_node.register
     def compile_sample(self, node: nodes.RandomSampleNode):

@@ -118,3 +118,18 @@ def test_polars_local_engine_cumsum():
     bf_result = bf_df.cumsum().to_pandas(local_engine=True)
     pd_result = pd_df.cumsum()
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_polars_local_engine_explode():
+    pd_df = pd.DataFrame(
+        {
+            "colA": [[1, 2, 3], [4, 5, 6, 7], None],
+            "colB": [[10, 20, 30], [40, 50, 60, 70], None],
+            "colC": [True, False, True],
+        }
+    )
+    bf_df = bpd.DataFrame(pd_df)
+
+    bf_result = bf_df.explode(["colA", "colB"]).to_pandas(local_engine=True)
+    pd_result = pd_df.explode(["colA", "colB"])
+    pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)

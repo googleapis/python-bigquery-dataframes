@@ -713,11 +713,11 @@ class Session(
         except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
             return None
 
-        inline_types = inline_df._block.expr.schema.dtypes
+        # inline_types = inline_df._block.expr.schema.dtypes
         # Ibis has problems escaping bytes literals, which will cause syntax errors server-side.
-        if all(dtype in INLINABLE_DTYPES for dtype in inline_types):
-            return inline_df
-        return None
+        # if all(dtype in INLINABLE_DTYPES for dtype in inline_types):
+        return inline_df
+        # return None
 
     def read_csv(
         self,
