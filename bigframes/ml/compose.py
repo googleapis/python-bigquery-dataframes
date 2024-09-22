@@ -82,7 +82,7 @@ class ColumnTransformer(
         transformers: Iterable[
             Tuple[
                 str,
-                Union[preprocessing.PreprocessingType, impute.SimpleImputer],
+                Union[preprocessing.PreprocessingType, impute.SimpleImputer, SQLScalarColumnTransformer],
                 Union[str, Iterable[str]],
             ]
         ],
@@ -101,13 +101,13 @@ class ColumnTransformer(
     def transformers_(
         self,
     ) -> List[
-        Tuple[str, Union[preprocessing.PreprocessingType, impute.SimpleImputer], str]
+        Tuple[str, Union[preprocessing.PreprocessingType, impute.SimpleImputer, SQLScalarColumnTransformer], str]
     ]:
         """The collection of transformers as tuples of (name, transformer, column)."""
         result: List[
             Tuple[
                 str,
-                Union[preprocessing.PreprocessingType, impute.SimpleImputer],
+                Union[preprocessing.PreprocessingType, impute.SimpleImputer, SQLScalarColumnTransformer],
                 str,
             ]
         ] = []
@@ -136,7 +136,7 @@ class ColumnTransformer(
         transformers_set: Set[
             Tuple[
                 str,
-                Union[preprocessing.PreprocessingType, impute.SimpleImputer],
+                Union[preprocessing.PreprocessingType, impute.SimpleImputer, SQLScalarColumnTransformer],
                 Union[str, List[str]],
             ]
         ] = set()
@@ -194,7 +194,7 @@ class ColumnTransformer(
     def _merge(
         self, bq_model: bigquery.Model
     ) -> Union[
-        ColumnTransformer, Union[preprocessing.PreprocessingType, impute.SimpleImputer]
+        ColumnTransformer, Union[preprocessing.PreprocessingType, impute.SimpleImputer, SQLScalarColumnTransformer]
     ]:
         """Try to merge the column transformer to a simple transformer. Depends on all the columns in bq_model are transformed with the same transformer."""
         transformers = self.transformers
