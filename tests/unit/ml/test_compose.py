@@ -22,6 +22,7 @@ import bigframes.pandas as bpd
 
 from google.cloud import bigquery
 from unittest import mock
+from bigframes.ml.core import BqmlModel
 
 
 def test_columntransformer_init_expectedtransforms():
@@ -187,7 +188,6 @@ def mock_X():
     return mock_df
 
 
-
 def test_columntransformer_init_with_sqltransformers():
     ident_transformer = SQLScalarColumnTransformer("{0}", target_column="ident_{0}")
     len1_transformer = SQLScalarColumnTransformer(
@@ -293,7 +293,7 @@ def test_customtransformer_compile_sql(mock_X):
     ]
 
 
-def create_bq_model_mock(transform_columns, feature_columns=None):
+def create_bq_model_mock(mocker, transform_columns, feature_columns=None):
     class _NameClass:
         def __init__(self, name):
             self.name = name
@@ -302,15 +302,19 @@ def create_bq_model_mock(transform_columns, feature_columns=None):
     mock_bq_model = bigquery.Model("model_project.model_dataset.model_id")
     type(mock_bq_model)._properties = mock.PropertyMock(return_value=properties)
     if feature_columns:
-        type(mock_bq_model).feature_columns = mock.PropertyMock(
-            return_value=[_NameClass(col) for col in feature_columns]
+        result = [_NameClass(col) for col in feature_columns]
+        mocker.patch(
+            "google.cloud.bigquery.model.Model.feature_columns",
+            new_callable=mock.PropertyMock(return_value=result),
         )
+
     return mock_bq_model
 
 
 @pytest.fixture
-def bq_model_good():
+def bq_model_good(mocker):
     return create_bq_model_mock(
+        mocker,
         [
             {
                 "name": "ident_culmen_length_mm",
@@ -342,13 +346,14 @@ def bq_model_good():
                 "type": {"typeKind": "INT64"},
                 "transformSql": "ML.LABEL_ENCODER(species, 1000000, 0) OVER()",
             },
-        ]
+        ],
     )
 
 
 @pytest.fixture
-def bq_model_merge():
+def bq_model_merge(mocker):
     return create_bq_model_mock(
+        mocker,
         [
             {
                 "name": "labelencoded_county",
@@ -366,8 +371,9 @@ def bq_model_merge():
 
 
 @pytest.fixture
-def bq_model_no_merge():
+def bq_model_no_merge(mocker):
     return create_bq_model_mock(
+        mocker,
         [
             {
                 "name": "ident_culmen_length_mm",
@@ -380,8 +386,9 @@ def bq_model_no_merge():
 
 
 @pytest.fixture
-def bq_model_unknown_ML():
+def bq_model_unknown_ML(mocker):
     return create_bq_model_mock(
+        mocker,
         [
             {
                 "name": "unknownml_culmen_length_mm",
@@ -393,8 +400,9 @@ def bq_model_unknown_ML():
                 "type": {"typeKind": "INT64"},
                 "transformSql": "ML.LABEL_ENCODER(county, 1000000, 0) OVER()",
             },
-        ]
+        ],
     )
+
 
 def test_columntransformer_extract_from_bq_model_good(bq_model_good):
     col_trans = ColumnTransformer._extract_from_bq_model(bq_model_good)
@@ -446,25 +454,28 @@ def test_columntransformer_extract_from_bq_model_good(bq_model_good):
 def test_columntransformer_extract_from_bq_model_merge(bq_model_merge):
     col_trans = ColumnTransformer._extract_from_bq_model(bq_model_merge)
     assert isinstance(col_trans, ColumnTransformer)
-    col_trans = col_trans._merge(bq_model_merge)
-    assert isinstance(col_trans, preprocessing.LabelEncoder)
+    merged_col_trans = col_trans._merge(bq_model_merge)
+    assert isinstance(merged_col_trans, preprocessing.LabelEncoder)
     assert (
-        col_trans.__repr__()
+        merged_col_trans.__repr__()
         == """LabelEncoder(max_categories=1000001, min_frequency=0)"""
     )
-    assert col_trans._output_names == ["labelencoded_county", "labelencoded_species"]
+    assert merged_col_trans._output_names == [
+        "labelencoded_county",
+        "labelencoded_species",
+    ]
 
 
 def test_columntransformer_extract_from_bq_model_no_merge(bq_model_no_merge):
     col_trans = ColumnTransformer._extract_from_bq_model(bq_model_no_merge)
-    col_trans = col_trans._merge(bq_model_no_merge)
-    assert isinstance(col_trans, ColumnTransformer)
+    merged_col_trans = col_trans._merge(bq_model_no_merge)
+    assert isinstance(merged_col_trans, ColumnTransformer)
     expected = """ColumnTransformer(transformers=[('sql_scalar_column_transformer',
                                  SQLScalarColumnTransformer(sql='culmen_length_mm '
                                                                 '/*CT.IDENT()*/',
                                                             target_column='ident_culmen_length_mm'),
                                  '?')])"""
-    actual = col_trans.__repr__()
+    actual = merged_col_trans.__repr__()
     assert expected == actual
 
 
@@ -477,7 +488,7 @@ def test_columntransformer_extract_from_bq_model_unknown_ML(bq_model_unknown_ML)
 
 
 def test_columntransformer_extract_output_names(bq_model_good):
-    class BQMLModel:
+    class BQMLModel(BqmlModel):
         def __init__(self, bq_model):
             self._model = bq_model
 
@@ -494,7 +505,7 @@ def test_columntransformer_extract_output_names(bq_model_good):
     ]
 
 
-def test_columntransformer_compile_to_sql():
+def test_columntransformer_compile_to_sql(mock_X):
     ident_transformer = SQLScalarColumnTransformer("{0}", target_column="ident_{0}")
     len1_transformer = SQLScalarColumnTransformer(
         "CASE WHEN {0} IS NULL THEN -2 ELSE LENGTH({0}) END", target_column="len1_{0}"
@@ -515,7 +526,7 @@ def test_columntransformer_compile_to_sql():
             ("label", label_transformer, "species"),
         ]
     )
-    sqls = column_transformer._compile_to_sql(None)
+    sqls = column_transformer._compile_to_sql(mock_X)
     assert sqls == [
         "culmen_length_mm AS ident_culmen_length_mm",
         "flipper_length_mm AS ident_flipper_length_mm",
@@ -523,7 +534,3 @@ def test_columntransformer_compile_to_sql():
         "CASE WHEN species IS NULL THEN 99 ELSE LENGTH(species) END AS len2_species",
         "ML.LABEL_ENCODER(species, 1000000, 0) OVER() AS labelencoded_species",
     ]
-
-    
-if __name__ == "__main__":
-    pytest.main(["test_compose.py", "-s"])
