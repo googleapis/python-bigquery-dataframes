@@ -82,7 +82,11 @@ class ColumnTransformer(
         transformers: Iterable[
             Tuple[
                 str,
-                Union[preprocessing.PreprocessingType, impute.SimpleImputer, SQLScalarColumnTransformer],
+                Union[
+                    preprocessing.PreprocessingType,
+                    impute.SimpleImputer,
+                    SQLScalarColumnTransformer,
+                ],
                 Union[str, Iterable[str]],
             ]
         ],
@@ -101,13 +105,25 @@ class ColumnTransformer(
     def transformers_(
         self,
     ) -> List[
-        Tuple[str, Union[preprocessing.PreprocessingType, impute.SimpleImputer, SQLScalarColumnTransformer], str]
+        Tuple[
+            str,
+            Union[
+                preprocessing.PreprocessingType,
+                impute.SimpleImputer,
+                SQLScalarColumnTransformer,
+            ],
+            str,
+        ]
     ]:
         """The collection of transformers as tuples of (name, transformer, column)."""
         result: List[
             Tuple[
                 str,
-                Union[preprocessing.PreprocessingType, impute.SimpleImputer, SQLScalarColumnTransformer],
+                Union[
+                    preprocessing.PreprocessingType,
+                    impute.SimpleImputer,
+                    SQLScalarColumnTransformer,
+                ],
                 str,
             ]
         ] = []
@@ -136,7 +152,11 @@ class ColumnTransformer(
         transformers_set: Set[
             Tuple[
                 str,
-                Union[preprocessing.PreprocessingType, impute.SimpleImputer, SQLScalarColumnTransformer],
+                Union[
+                    preprocessing.PreprocessingType,
+                    impute.SimpleImputer,
+                    SQLScalarColumnTransformer,
+                ],
                 Union[str, List[str]],
             ]
         ] = set()
@@ -177,7 +197,7 @@ class ColumnTransformer(
                 sql_transformer = SQLScalarColumnTransformer(
                     transform_sql, target_column=target_column
                 )
-                input_column_name = "?"
+                input_column_name = f"?{target_column}"
                 transformers_set.add(
                     (
                         camel_to_snake(sql_transformer.__class__.__name__),
@@ -191,10 +211,13 @@ class ColumnTransformer(
 
         return transformer
 
-    def _merge(
-        self, bq_model: bigquery.Model
-    ) -> Union[
-        ColumnTransformer, Union[preprocessing.PreprocessingType, impute.SimpleImputer, SQLScalarColumnTransformer]
+    def _merge(self, bq_model: bigquery.Model) -> Union[
+        ColumnTransformer,
+        Union[
+            preprocessing.PreprocessingType,
+            impute.SimpleImputer,
+            SQLScalarColumnTransformer,
+        ],
     ]:
         """Try to merge the column transformer to a simple transformer. Depends on all the columns in bq_model are transformed with the same transformer."""
         transformers = self.transformers

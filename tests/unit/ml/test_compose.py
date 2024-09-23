@@ -332,7 +332,7 @@ def bq_model_good(mocker):
             {
                 "name": "len2_species",
                 "type": {"typeKind": "INT64"},
-                "transformSql": "CASE WHEN species IS NULL THEN 99 ELSE LENGTH(address) END /*CT.LEN2([99])*/",
+                "transformSql": "CASE WHEN species IS NULL THEN 99 ELSE LENGTH(species) END /*CT.LEN2([99])*/",
             },
             {
                 "name": "labelencoded_county",
@@ -425,27 +425,27 @@ def test_columntransformer_extract_from_bq_model_good(bq_model_good):
                                                                 'END '
                                                                 '/*CT.LEN1()*/',
                                                             target_column='len1_species'),
-                                 '?'),
+                                 '?len1_species'),
                                 ('sql_scalar_column_transformer',
                                  SQLScalarColumnTransformer(sql='CASE WHEN '
                                                                 'species IS '
                                                                 'NULL THEN 99 '
                                                                 'ELSE '
-                                                                'LENGTH(address) '
+                                                                'LENGTH(species) '
                                                                 'END '
                                                                 '/*CT.LEN2([99])*/',
                                                             target_column='len2_species'),
-                                 '?'),
+                                 '?len2_species'),
                                 ('sql_scalar_column_transformer',
                                  SQLScalarColumnTransformer(sql='culmen_length_mm '
                                                                 '/*CT.IDENT()*/',
                                                             target_column='ident_culmen_length_mm'),
-                                 '?'),
+                                 '?ident_culmen_length_mm'),
                                 ('sql_scalar_column_transformer',
                                  SQLScalarColumnTransformer(sql='flipper_length_mm '
                                                                 '/*CT.IDENT()*/',
                                                             target_column='ident_flipper_length_mm'),
-                                 '?')])"""
+                                 '?ident_flipper_length_mm')])"""
     assert expected == actual
 
 
@@ -472,7 +472,7 @@ def test_columntransformer_extract_from_bq_model_no_merge(bq_model_no_merge):
                                  SQLScalarColumnTransformer(sql='culmen_length_mm '
                                                                 '/*CT.IDENT()*/',
                                                             target_column='ident_culmen_length_mm'),
-                                 '?')])"""
+                                 '?ident_culmen_length_mm')])"""
     actual = merged_col_trans.__repr__()
     assert expected == actual
 
