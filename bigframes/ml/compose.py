@@ -47,10 +47,10 @@ _BQML_TRANSFROM_TYPE_MAPPING = types.MappingProxyType(
 
 
 class SQLScalarColumnTransformer:
-    def __init__(self, sql: str, target_column="transformed_{0}"):
+    def __init__(self, sql: str, target_column: str = "transformed_{0}"):
         super().__init__()
-        self.sql = sql
-        self.target_column = target_column
+        self._sql = sql
+        self._target_column = target_column
 
     def _compile_to_sql(
         self, X: bpd.DataFrame, columns: Optional[Iterable[str]] = None
@@ -59,13 +59,13 @@ class SQLScalarColumnTransformer:
             columns = X.columns
         result = []
         for column in columns:
-            current_sql = self.sql.format(column)
-            current_target_column = self.target_column.format(column)
+            current_sql = self._sql.format(column)
+            current_target_column = self._target_column.format(column)
             result.append(f"{current_sql} AS {current_target_column}")
         return result
 
     def __repr__(self):
-        return f"SQLScalarColumnTransformer(sql='{self.sql}', target_column='{self.target_column}')"
+        return f"SQLScalarColumnTransformer(sql='{self._sql}', target_column='{self._target_column}')"
 
 
 # Type hints for transformers contained in ColumnTransformer
