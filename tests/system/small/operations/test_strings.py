@@ -641,9 +641,6 @@ def test_getitem_w_array(index, column_name, repeated_df, repeated_pandas_df):
 
 
 def test_getitem_w_struct_array():
-    if packaging.version.Version(pd.__version__) <= packaging.version.Version("1.5.3"):
-        pytest.skip("https://github.com/googleapis/python-bigquery/issues/1992")
-
     pa_struct = pa.struct(
         [
             ("name", pa.string()),
