@@ -11,18 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
+from unittest import mock
 
+from google.cloud import bigquery
+import pytest
 import sklearn.compose as sklearn_compose  # type: ignore
 import sklearn.preprocessing as sklearn_preprocessing  # type: ignore
 
 from bigframes.ml import compose, preprocessing
 from bigframes.ml.compose import ColumnTransformer, SQLScalarColumnTransformer
-import bigframes.pandas as bpd
-
-from google.cloud import bigquery
-from unittest import mock
 from bigframes.ml.core import BqmlModel
+import bigframes.pandas as bpd
 
 
 def test_columntransformer_init_expectedtransforms():
