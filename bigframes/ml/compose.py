@@ -211,7 +211,9 @@ class ColumnTransformer(
 
         return transformer
 
-    def _merge(self, bq_model: bigquery.Model) -> Union[
+    def _merge(
+        self, bq_model: bigquery.Model
+    ) -> Union[
         ColumnTransformer,
         Union[
             preprocessing.PreprocessingType,
