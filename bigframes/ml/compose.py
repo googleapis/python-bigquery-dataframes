@@ -46,7 +46,7 @@ _BQML_TRANSFROM_TYPE_MAPPING = types.MappingProxyType(
 )
 
 
-class SQLScalarColumnTransformer(base.BaseTransformer):
+class SQLScalarColumnTransformer:
     def __init__(self, sql: str, target_column="transformed_{0}"):
         super().__init__()
         self.sql = sql
@@ -64,8 +64,8 @@ class SQLScalarColumnTransformer(base.BaseTransformer):
             result.append(f"{current_sql} AS {current_target_column}")
         return result
 
-    def _keys(self):
-        return (self.sql, self.target_column)
+    def __repr__(self):
+        return f"SQLScalarColumnTransformer(sql='{self.sql}', target_column='{self.target_column}')"
 
 
 @log_adapter.class_logger

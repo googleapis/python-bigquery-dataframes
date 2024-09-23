@@ -241,24 +241,13 @@ def test_columntransformer_repr_sqltransformers():
     )
 
     expected = """ColumnTransformer(transformers=[('ident_trafo',
-                                 SQLScalarColumnTransformer(sql='{0}',
-                                                            target_column='ident_{0}'),
+                                 SQLScalarColumnTransformer(sql='{0}', target_column='ident_{0}'),
                                  ['culmen_length_mm', 'flipper_length_mm']),
                                 ('len1_trafo',
-                                 SQLScalarColumnTransformer(sql='CASE WHEN {0} '
-                                                                'IS NULL THEN '
-                                                                '-2 ELSE '
-                                                                'LENGTH({0}) '
-                                                                'END',
-                                                            target_column='len1_{0}'),
+                                 SQLScalarColumnTransformer(sql='CASE WHEN {0} IS NULL THEN -2 ELSE LENGTH({0}) END', target_column='len1_{0}'),
                                  ['species']),
                                 ('len2_trafo',
-                                 SQLScalarColumnTransformer(sql='CASE WHEN {0} '
-                                                                'IS NULL THEN '
-                                                                '99 ELSE '
-                                                                'LENGTH({0}) '
-                                                                'END',
-                                                            target_column='len2_{0}'),
+                                 SQLScalarColumnTransformer(sql='CASE WHEN {0} IS NULL THEN 99 ELSE LENGTH({0}) END', target_column='len2_{0}'),
                                  ['species']),
                                 ('label', LabelEncoder(), 'species')])"""
     actual = column_transformer.__repr__()
@@ -416,34 +405,16 @@ def test_columntransformer_extract_from_bq_model_good(bq_model_good):
                                               min_frequency=0),
                                  'species'),
                                 ('sql_scalar_column_transformer',
-                                 SQLScalarColumnTransformer(sql='CASE WHEN '
-                                                                'species IS '
-                                                                'NULL THEN -5 '
-                                                                'ELSE '
-                                                                'LENGTH(species) '
-                                                                'END '
-                                                                '/*CT.LEN1()*/',
-                                                            target_column='len1_species'),
+                                 SQLScalarColumnTransformer(sql='CASE WHEN species IS NULL THEN -5 ELSE LENGTH(species) END /*CT.LEN1()*/', target_column='len1_species'),
                                  '?len1_species'),
                                 ('sql_scalar_column_transformer',
-                                 SQLScalarColumnTransformer(sql='CASE WHEN '
-                                                                'species IS '
-                                                                'NULL THEN 99 '
-                                                                'ELSE '
-                                                                'LENGTH(species) '
-                                                                'END '
-                                                                '/*CT.LEN2([99])*/',
-                                                            target_column='len2_species'),
+                                 SQLScalarColumnTransformer(sql='CASE WHEN species IS NULL THEN 99 ELSE LENGTH(species) END /*CT.LEN2([99])*/', target_column='len2_species'),
                                  '?len2_species'),
                                 ('sql_scalar_column_transformer',
-                                 SQLScalarColumnTransformer(sql='culmen_length_mm '
-                                                                '/*CT.IDENT()*/',
-                                                            target_column='ident_culmen_length_mm'),
+                                 SQLScalarColumnTransformer(sql='culmen_length_mm /*CT.IDENT()*/', target_column='ident_culmen_length_mm'),
                                  '?ident_culmen_length_mm'),
                                 ('sql_scalar_column_transformer',
-                                 SQLScalarColumnTransformer(sql='flipper_length_mm '
-                                                                '/*CT.IDENT()*/',
-                                                            target_column='ident_flipper_length_mm'),
+                                 SQLScalarColumnTransformer(sql='flipper_length_mm /*CT.IDENT()*/', target_column='ident_flipper_length_mm'),
                                  '?ident_flipper_length_mm')])"""
     assert expected == actual
 
@@ -468,9 +439,7 @@ def test_columntransformer_extract_from_bq_model_no_merge(bq_model_no_merge):
     merged_col_trans = col_trans._merge(bq_model_no_merge)
     assert isinstance(merged_col_trans, ColumnTransformer)
     expected = """ColumnTransformer(transformers=[('sql_scalar_column_transformer',
-                                 SQLScalarColumnTransformer(sql='culmen_length_mm '
-                                                                '/*CT.IDENT()*/',
-                                                            target_column='ident_culmen_length_mm'),
+                                 SQLScalarColumnTransformer(sql='culmen_length_mm /*CT.IDENT()*/', target_column='ident_culmen_length_mm'),
                                  '?ident_culmen_length_mm')])"""
     actual = merged_col_trans.__repr__()
     assert expected == actual
