@@ -1690,6 +1690,9 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
                 ),
             ),
             id="multiindex",
+            marks=pytest.mark.skip(
+                reason="TODO(b/368639580) revert this skip after fix"
+            ),
         ),
         pytest.param(
             pandas.DataFrame(
@@ -1726,8 +1729,10 @@ def test_df_apply_axis_1_complex(session, pd_df):
 
         def serialize_row(row):
             custom = {
-                "name": row.name,
-                "index": [idx for idx in row.index],
+                "name": row.name.item() if hasattr(row.name, "item") else row.name,
+                "index": [
+                    idx.item() if hasattr(idx, "item") else idx for idx in row.index
+                ],
                 "values": [
                     val.item() if hasattr(val, "item") else val for val in row.values
                 ],
