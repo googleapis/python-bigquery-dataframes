@@ -14,7 +14,6 @@
 
 import re
 
-import packaging.version
 import pandas as pd
 import pyarrow as pa
 import pytest
