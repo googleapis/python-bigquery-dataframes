@@ -708,10 +708,10 @@ class Session(
             raise pa.ArrowInvalid(
                 f"Could not convert with a BigQuery type: `{e}`. "
             ) from e
-        except ValueError:  # Thrown by ibis for some unhandled types
-            return None
-        except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
-            return None
+        # except ValueError:  # Thrown by ibis for some unhandled types
+        #    return None
+        # except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
+        #    return None
 
         # inline_types = inline_df._block.expr.schema.dtypes
         # Ibis has problems escaping bytes literals, which will cause syntax errors server-side.

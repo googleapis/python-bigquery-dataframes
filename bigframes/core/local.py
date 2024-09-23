@@ -145,8 +145,13 @@ class PolarsLocalExecutor:
     agg_compiler = PolarsAggregateCompiler()
 
     def execute_local(self, array_value: bigframes.core.ArrayValue) -> pd.DataFrame:
-        # TODO: Find the best way to get this into pandas as efficiently as possible
-        return self.execute_node(array_value.node).collect().to_pandas()
+        import bigframes.session._io.pandas
+
+        pl_df = self.execute_node(array_value.node).collect()
+        field_types = {i.column: i.dtype for i in array_value.schema.items}
+        return bigframes.session._io.pandas.arrow_to_pandas(
+            pl_df.to_arrow(), dtypes=field_types
+        )
 
     def execute_node(self, node: nodes.BigFrameNode) -> pl.LazyFrame:
         """Compile node into CompileArrayValue. Caches result."""

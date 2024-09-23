@@ -19,40 +19,42 @@ import pytest
 import bigframes.pandas as bpd
 
 
-def test_polars_local_engine_add():
-    pd_df = pd.DataFrame({"colA": [1, 2, 3], "colB": [10, 20, 30]})
+# These tests should be unit tests, but Session object is tightly coupled to BigQuery client.
+def test_polars_local_engine_add(scalars_pandas_df_index: pd.DataFrame):
+    pd_df = scalars_pandas_df_index.drop(columns=["geography_col"])
     bf_df = bpd.DataFrame(pd_df)
 
-    bf_result = (bf_df["colA"] + bf_df["colB"]).to_pandas(local_engine=True)
-    pd_result = pd_df.colA + pd_df.colB
+    bf_result = (bf_df["int64_col"] + bf_df["int64_too"]).to_pandas(local_engine=True)
+    pd_result = pd_df.int64_col + pd_df.int64_too
     pandas.testing.assert_series_equal(bf_result, pd_result)
 
 
-def test_polars_local_engine_order_by():
-    pd_df = pd.DataFrame({"colA": [1, None, 3], "colB": [3, 1, 2]})
+def test_polars_local_engine_order_by(scalars_pandas_df_index: pd.DataFrame):
+    pd_df = scalars_pandas_df_index.drop(columns=["geography_col"])
     bf_df = bpd.DataFrame(pd_df)
 
-    bf_result = bf_df.sort_values("colB").to_pandas(local_engine=True)
-    pd_result = pd_df.sort_values("colB")
+    bf_result = bf_df.sort_values("string_col").to_pandas(local_engine=True)
+    pd_result = pd_df.sort_values("string_col")
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
-def test_polars_local_engine_filter():
-    pd_df = pd.DataFrame({"colA": [1, None, 3], "colB": [3, 1, 2]})
+def test_polars_local_engine_filter(scalars_pandas_df_index: pd.DataFrame):
+    pd_df = scalars_pandas_df_index.drop(columns=["geography_col"])
     bf_df = bpd.DataFrame(pd_df)
 
-    bf_result = bf_df.filter(bf_df["colB"] >= 1).to_pandas(local_engine=True)
-    pd_result = pd_df.filter(pd_df["colB"] >= 1)  # type: ignore
+    bf_result = bf_df.filter(bf_df["int64_too"] >= 1).to_pandas(local_engine=True)
+    pd_result = pd_df.filter(pd_df["int64_too"] >= 1)  # type: ignore
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
-def test_polars_local_engine_reset_index():
-    pd_df = pd.DataFrame({"colA": [1, None, 3], "colB": [3, 1, 2]}, index=[3, 1, 2])
+def test_polars_local_engine_reset_index(scalars_pandas_df_index: pd.DataFrame):
+    pd_df = scalars_pandas_df_index.drop(columns=["geography_col"])
     bf_df = bpd.DataFrame(pd_df)
 
     bf_result = bf_df.reset_index().to_pandas(local_engine=True)
     pd_result = pd_df.reset_index()
-    pandas.testing.assert_frame_equal(bf_result, pd_result)
+    # pd default index is int64, bf is Int64
+    pandas.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
 
 
 def test_polars_local_engine_join_binop():
