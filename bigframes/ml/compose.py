@@ -47,7 +47,54 @@ _BQML_TRANSFROM_TYPE_MAPPING = types.MappingProxyType(
 
 
 class SQLScalarColumnTransformer:
+    """
+    Wrapper for plain SQL code contained in a ColumnTransformer.
+
+    **Examples:**
+
+        >>> from bigframes.ml.compose import ColumnTransformer, SQLScalarColumnTransformer
+        >>> import bigframes.pandas as bpd
+
+        >>> df = bpd.DataFrame({'name': ["James", None, "Mary"], 'city': ["New York", "Boston", None]})
+        >>> col_trans = ColumnTransformer([
+        ...     ("strlen",
+        ...      SQLScalarColumnTransformer("CASE WHEN {0} IS NULL THEN 15 ELSE LENGTH({0}) END"),
+        ...      ['name', 'city']),
+        ... ])
+        >>> col_trans = col_trans.fit(df)
+        >>> df_transformed = col_trans.transform(df)
+        >>> df_transformed
+           transformed_name  transformed_city
+        0                 5                 8
+        1                15                 6
+        2                 4                15
+        <BLANKLINE>
+        [3 rows x 2 columns]
+
+    """
+
     def __init__(self, sql: str, target_column: str = "transformed_{0}"):
+        """
+        Create a single column transformer in plain sql.
+        This transformer can only be used inside ColumnTransformer.
+
+        **Examples:**
+
+            col_trans = ColumnTransformer([
+                ("identity", SQLScalarColumnTransformer("{0}", target_column="{0}"), ["col1", col5"]),
+                ("increment", SQLScalarColumnTransformer("{0}+1", target_column="inc_{0}"), ["col2"]),
+                ...
+            ])
+
+        Args:
+            sql (string):
+                sql code to transform the column.
+                for the column name the placeholder '{0}' can be used.
+            target_column (string):
+                name of the target column.
+                the placeholder '{0}' can be used for the input column name.
+                default value is 'transformed_{0}'.
+        """
         super().__init__()
         self._sql = sql
         self._target_column = target_column
