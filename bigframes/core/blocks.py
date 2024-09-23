@@ -1947,7 +1947,6 @@ class Block:
                 guid.generate_guid(),
             ),
         ]
-        output_col_ids = [agg_spec[1] for agg_spec in agg_specs]
         origin_block = Block(
             block.expr.aggregate(agg_specs, dropna=True),
             column_labels=["origin"],
@@ -1970,20 +1969,20 @@ class Block:
         block = block.drop_columns([block.value_columns[-2]])
 
         # Generate all resample labels
-        agg_specs = [
+        min_agg_specs = [
             (
                 ex.UnaryAggregation(agg_ops.min_op, ex.free_var(label_col_id)),
                 guid.generate_guid(),
             ),
+        ]
+        max_agg_specs = [
             (
                 ex.UnaryAggregation(agg_ops.max_op, ex.free_var(label_col_id)),
                 guid.generate_guid(),
             ),
         ]
-        output_col_ids = [agg_spec[1] for agg_spec in agg_specs]
-        result_expr = block.expr.aggregate(agg_specs, dropna=True)
-        label_start = result_expr.select_columns([output_col_ids[0]])
-        label_stop = result_expr.select_columns([output_col_ids[1]])
+        label_start = block.expr.aggregate(min_agg_specs, dropna=True)
+        label_stop = block.expr.aggregate(max_agg_specs, dropna=True)
 
         label_block = block._generate_sequence(
             start=label_start,
@@ -1992,6 +1991,10 @@ class Block:
 
         # Merge all labels with aligned block.
         # The index will be dropped.
+        label_block = label_block.merge(
+            origin_block, how="cross", left_join_ids=[], right_join_ids=[], sort=True
+        )
+
         block = label_block.merge(
             block,
             how="left",
@@ -2000,23 +2003,17 @@ class Block:
             sort=True,
         )
 
-        # drop the label column
-        block = block.drop_columns([block.value_columns[-1]])
-
-        block = block.merge(
-            origin_block, how="cross", left_join_ids=[], right_join_ids=[], sort=True
-        )
-
         block, int_result_id = block.apply_binary_op(
             block.value_columns[0],
-            block.value_columns[-1],
+            block.value_columns[1],
             op=ops.IntegerLabelToDatetimeOp(freq=freq, label=label, origin=origin),
         )
 
         block = block.drop_columns(
             [
                 block.value_columns[0],
-                block.value_columns[col_level + 1],
+                block.value_columns[1],
+                block.value_columns[col_level + 2],
                 block.value_columns[-2],
             ]
         )
