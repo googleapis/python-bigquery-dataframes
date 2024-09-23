@@ -298,7 +298,9 @@ def create_bq_model_mock(mocker, transform_columns, feature_columns=None):
     mock_bq_model = bigquery.Model("model_project.model_dataset.model_id")
     type(mock_bq_model)._properties = mock.PropertyMock(return_value=properties)
     if feature_columns:
-        result = [bigquery.standard_sql.StandardSqlField(col, None) for col in feature_columns]
+        result = [
+            bigquery.standard_sql.StandardSqlField(col, None) for col in feature_columns
+        ]
         mocker.patch(
             "google.cloud.bigquery.model.Model.feature_columns",
             new_callable=mock.PropertyMock(return_value=result),
@@ -530,6 +532,3 @@ def test_columntransformer_compile_to_sql(mock_X):
         "CASE WHEN species IS NULL THEN 99 ELSE LENGTH(species) END AS len2_species",
         "ML.LABEL_ENCODER(species, 1000000, 0) OVER() AS labelencoded_species",
     ]
-
-if __name__ == "__main__":
-    pytest.main(["test_compose.py", "-s"])
