@@ -36,6 +36,7 @@ def test_linear_regression(random_model_id: str) -> None:
         your_model_id,  # For example: "bqml_tutorial.penguins_model"
         replace=True,
     )
+
     # [END bigquery_dataframes_bqml_linear_regression]
     assert feature_columns is not None
     assert label_columns is not None
