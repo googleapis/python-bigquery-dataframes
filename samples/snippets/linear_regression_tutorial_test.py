@@ -32,6 +32,10 @@ def test_linear_regression(random_model_id: str) -> None:
     # Create the linear model
     model = LinearRegression()
     model.fit(feature_columns, label_columns)
+    model.to_gbq(
+        your_model_id,  # For example: "bqml_tutorial.london_station_clusters"
+        replace=True,
+    )
 
     # [END bigquery_dataframes_bqml_linear_regression]
     assert feature_columns is not None
