@@ -226,11 +226,10 @@ def test_text_embedding_generator_predict_default_params_success(
         model_name=model_name, connection_name=bq_connection, session=session
     )
     df = text_embedding_model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_embedding_result" in df.columns
-    series = df["ml_generate_embedding_result"]
-    value = series[0]
-    assert len(value) == 768
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_EMBEDDING_OUTPUT, index=3, col_exact=False
+    )
+    assert len(df["ml_generate_embedding_result"][0]) == 768
 
 
 @pytest.mark.parametrize(
@@ -247,11 +246,10 @@ def test_text_embedding_generator_multi_cols_predict_success(
         model_name=model_name, connection_name=bq_connection, session=session
     )
     df = text_embedding_model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 5)
-    assert "ml_generate_embedding_result" in df.columns
-    series = df["ml_generate_embedding_result"]
-    value = series[0]
-    assert len(value) == 768
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_EMBEDDING_OUTPUT, index=3, col_exact=False
+    )
+    assert len(df["ml_generate_embedding_result"][0]) == 768
 
 
 @pytest.mark.parametrize(

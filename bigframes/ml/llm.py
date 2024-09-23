@@ -244,7 +244,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                Input DataFrame or Series, can contain one or more columns. If multiple columns in the DataFrame, it must contain a "prompt" column for prediction.
+                Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, it must contain a "prompt" column for prediction.
                 Prompts can include preamble, questions, suggestions, instructions, or examples.
 
             temperature (float, default 0.0):
@@ -518,7 +518,7 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                Input DataFrame or Series, can contain one or more columns. If multiple columns in the DataFrame, it must contain a "content" column for prediction.
+                Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, it must contain a "content" column for prediction.
 
         Returns:
             bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
@@ -671,7 +671,7 @@ class TextEmbeddingGenerator(base.BaseEstimator):
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                Input DataFrame or Series, can contain one or more columns. If multiple columns in the DataFrame, it must contain a "content" column for prediction.
+                Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, it must contain a "content" column for prediction.
 
         Returns:
             bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
@@ -881,7 +881,7 @@ class GeminiTextGenerator(base.BaseEstimator):
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                Input DataFrame or Series, can contain one or more columns. If multiple columns in the DataFrame, it must contain a "prompt" column for prediction.
+                Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, it must contain a "prompt" column for prediction.
                 Prompts can include preamble, questions, suggestions, instructions, or examples.
 
             temperature (float, default 0.9):
@@ -1165,7 +1165,7 @@ class Claude3TextGenerator(base.BaseEstimator):
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                Input DataFrame or Series, can contain one or more columns. If multiple columns in the DataFrame, it must contain a "prompt" column for prediction.
+                Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, it must contain a "prompt" column for prediction.
                 Prompts can include preamble, questions, suggestions, instructions, or examples.
 
             max_output_tokens (int, default 128):
