@@ -290,6 +290,7 @@ def approx_top_count(
     Returns `NULL` if there are zero input rows.
 
     **Examples:**
+
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
         >>> bpd.options.display.progress_bar = None
@@ -302,6 +303,7 @@ def approx_top_count(
             The Series with any data type that the `GROUP BY` clause supports.
         number (int):
             An integer specifying the number of times the value was returned.
+
     Returns:
         bigframes.series.Series: A new Series with the result data.
     """
