@@ -532,8 +532,10 @@ class Block:
         self, n: int = 20, force: bool = False
     ) -> typing.Optional[pd.DataFrame]:
         if force or self.expr.supports_fast_peek:
-            pa_table = self.session._executor.peek(self.expr, n)
-            df = io_pandas.arrow_to_pandas(pa_table, self.expr.schema)
+            result = self.session._executor.peek(self.expr, n)
+            df = io_pandas.arrow_to_pandas(
+                pa.Table.from_batches(result.arrow_batches), self.expr.schema
+            )
             self._copy_index_to_pandas(df)
             return df
         else:
@@ -2560,7 +2562,7 @@ class BlockIndexProperties:
             expr, ordered=ordered if ordered is not None else True
         )
         df = io_pandas.arrow_to_pandas(
-            pa.Table.from_batches(execute_result.arrow_batches), self._expr.schema
+            pa.Table.from_batches(execute_result.arrow_batches), expr.schema
         )
         df = df.set_index(index_columns)
         index = df.index

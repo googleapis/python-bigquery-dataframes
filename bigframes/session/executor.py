@@ -255,7 +255,7 @@ class BigQueryCachingExecutor:
         self,
         array_value: bigframes.core.ArrayValue,
         n_rows: int,
-    ) -> pyarrow.Table:
+    ) -> ExecuteResult:
         """
         A 'peek' efficiently accesses a small number of rows in the dataframe.
         """
@@ -267,7 +267,13 @@ class BigQueryCachingExecutor:
 
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
-        return self._run_execute_query(sql=sql)[0].to_arrow()
+        iterator, query_job = self._run_execute_query(sql=sql)
+        return ExecuteResult(
+            success=True,
+            arrow_batches=iterator.to_arrow_iterable(),
+            query_job=query_job,
+            total_rows=iterator.total_rows,
+        )
 
     # This is used exclusively to optimize __repr__
     # TODO: We need to model this
