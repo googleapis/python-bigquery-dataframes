@@ -585,12 +585,12 @@ class Block:
             self.expr, ordered=materialize_options.ordered, get_size_bytes=True
         )
         assert execute_result.total_bytes is not None
-        table_size = execute_result.total_bytes / _BYTES_TO_MEGABYTES
+        table_mb = execute_result.total_bytes / _BYTES_TO_MEGABYTES
         sample_config = materialize_options.downsampling
         max_download_size = sample_config.max_download_size
         fraction = (
-            max_download_size / table_size
-            if (max_download_size is not None) and (table_size != 0)
+            max_download_size / table_mb
+            if (max_download_size is not None) and (table_mb != 0)
             else 2
         )
 
@@ -599,7 +599,7 @@ class Block:
         if fraction < 1:
             if not sample_config.enable_downsampling:
                 raise RuntimeError(
-                    f"The data size ({table_size:.2f} MB) exceeds the maximum download limit of "
+                    f"The data size ({table_mb:.2f} MB) exceeds the maximum download limit of "
                     f"{max_download_size} MB. You can:\n\t* Enable downsampling in global options:\n"
                     "\t\t`bigframes.options.sampling.enable_downsampling = True`\n"
                     "\t* Update the global `max_download_size` option. Please make sure "
@@ -610,7 +610,7 @@ class Block:
                 )
 
             warnings.warn(
-                f"The data size ({table_size:.2f} MB) exceeds the maximum download limit of"
+                f"The data size ({table_mb:.2f} MB) exceeds the maximum download limit of"
                 f"({max_download_size} MB). It will be downsampled to {max_download_size} MB for download."
                 "\nPlease refer to the documentation for configuring the downloading limit.",
                 UserWarning,

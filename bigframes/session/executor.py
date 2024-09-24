@@ -153,10 +153,10 @@ class BigQueryCachingExecutor:
             page_size=page_size,
             max_results=max_results,
         )
-        use_read_api = iterator.total_rows > _READ_API_MIN_ROWS
 
+        # Though we provide the read client, iterator may or may not use it based on what is efficient for the result
         arrow_iterator = iterator.to_arrow_iterable(
-            bqstorage_client=self.bqstoragereadclient if use_read_api else None
+            bqstorage_client=self.bqstoragereadclient
         )
 
         if get_size_bytes is True:
@@ -270,7 +270,10 @@ class BigQueryCachingExecutor:
         iterator, query_job = self._run_execute_query(sql=sql)
         return ExecuteResult(
             success=True,
-            arrow_batches=iterator.to_arrow_iterable(),
+            # Probably don't need read client for small peek results, but let client decide
+            arrow_batches=iterator.to_arrow_iterable(
+                bqstorage_client=self.bqstoragereadclient
+            ),
             query_job=query_job,
             total_rows=iterator.total_rows,
         )
@@ -310,7 +313,10 @@ class BigQueryCachingExecutor:
         iterator, query_job = self._run_execute_query(sql=sql)
         return ExecuteResult(
             success=True,
-            arrow_batches=iterator.to_arrow_iterable(),
+            # Probably don't need read client for small head results, but let client decide
+            arrow_batches=iterator.to_arrow_iterable(
+                bqstorage_client=self.bqstoragereadclient
+            ),
             query_job=query_job,
             total_rows=iterator.total_rows,
         )
