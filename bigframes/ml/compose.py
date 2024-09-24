@@ -47,7 +47,7 @@ _BQML_TRANSFROM_TYPE_MAPPING = types.MappingProxyType(
 
 
 class SQLScalarColumnTransformer:
-    """
+    r"""
     Wrapper for plain SQL code contained in a ColumnTransformer.
 
     Create a single column transformer in plain sql.
@@ -58,7 +58,7 @@ class SQLScalarColumnTransformer:
 
         SQLScalarColumnTransformer("{0}+1")
 
-    The default target column gets the prefix 'transformed_'
+    The default target column gets the prefix 'transformed\_'
     but can also be changed when creating an instance:
 
         SQLScalarColumnTransformer("{0}+1", "inc_{0}")
