@@ -50,11 +50,24 @@ class SQLScalarColumnTransformer:
     """
     Wrapper for plain SQL code contained in a ColumnTransformer.
 
+    Create a single column transformer in plain sql.
+    This transformer can only be used inside ColumnTransformer.
+
+    When creating an instance '{0}' can be used as placeholder
+    for the column to transform:
+
+        SQLScalarColumnTransformer("{0}+1")
+
+    The default target column gets the prefix 'transformed\_'
+    but can also be changed when creating an instance:
+
+        SQLScalarColumnTransformer("{0}+1", "inc_{0}")
+
     **Examples:**
 
         >>> from bigframes.ml.compose import ColumnTransformer, SQLScalarColumnTransformer
         >>> import bigframes.pandas as bpd
-
+        <BLANKLINE>
         >>> df = bpd.DataFrame({'name': ["James", None, "Mary"], 'city': ["New York", "Boston", None]})
         >>> col_trans = ColumnTransformer([
         ...     ("strlen",
@@ -71,30 +84,18 @@ class SQLScalarColumnTransformer:
         <BLANKLINE>
         [3 rows x 2 columns]
 
+    SQLScalarColumnTransformer can be combined with other transformers, like StandardScaler:
+
+        >>> col_trans = ColumnTransformer([
+        ...     ("identity", SQLScalarColumnTransformer("{0}", target_column="{0}"), ["col1", col5"]),
+        ...     ("increment", SQLScalarColumnTransformer("{0}+1", target_column="inc_{0}"), "col2"),
+        ...     ("stdscale", preprocessing.StandardScaler(), "col3"),
+        ...     ...
+        ... ])
+
     """
 
     def __init__(self, sql: str, target_column: str = "transformed_{0}"):
-        """
-        Create a single column transformer in plain sql.
-        This transformer can only be used inside ColumnTransformer.
-
-        **Examples:**
-
-            col_trans = ColumnTransformer([
-                ("identity", SQLScalarColumnTransformer("{0}", target_column="{0}"), ["col1", col5"]),
-                ("increment", SQLScalarColumnTransformer("{0}+1", target_column="inc_{0}"), ["col2"]),
-                ...
-            ])
-
-        Args:
-            sql (string):
-                sql code to transform the column.
-                for the column name the placeholder '{0}' can be used.
-            target_column (string):
-                name of the target column.
-                the placeholder '{0}' can be used for the input column name.
-                default value is 'transformed_{0}'.
-        """
         super().__init__()
         self._sql = sql
         self._target_column = target_column
