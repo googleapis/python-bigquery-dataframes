@@ -22,7 +22,7 @@ import warnings
 def deprecated(reason):
     """
     Decorator which can be used to mark functions
-    as deprecated. It will result in a FutureWarning being emitted
+    as deprecated. It will result in a DeprecationWarning being emitted
     when the class/function is used.
     """
 
