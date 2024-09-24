@@ -763,7 +763,7 @@ def notebook(session: nox.Session):
             "asia-southeast1",
             "eu",
             "europe-west4",
-            # "southamerica-west1",
+            "southamerica-west1",
             "us",
             "us-central1",
         ]
