@@ -383,3 +383,11 @@ def test_llm_gemini_pro_score_params(llm_fine_tune_df_default_index):
         ],
         index=6,
     )
+
+
+def test_palm2_text_embedding_deprecated():
+    with pytest.deprecated_call():
+        try:
+            llm.PaLM2TextEmbeddingGenerator()
+        except (Exception):
+            pass

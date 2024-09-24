@@ -23,7 +23,7 @@ import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 
 import bigframes
-from bigframes import clients
+from bigframes import clients, deprecation
 from bigframes.core import blocks, log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
@@ -407,6 +407,9 @@ class PaLM2TextGenerator(base.BaseEstimator):
         return new_model.session.read_gbq_model(model_name)
 
 
+@deprecation.deprecated(
+    "Use TexEmbeddingGenerator(https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead. "
+)
 @log_adapter.class_logger
 class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
     """PaLM2 text embedding generator LLM model.
