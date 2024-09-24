@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import pytz
-#import test_utils.prefixer
+import test_utils.prefixer
 
 import bigframes
 import bigframes.dataframe
@@ -61,25 +61,7 @@ DATA_DIR = CURRENT_DIR.parent / "data"
 PERMANENT_DATASET = "bigframes_testing"
 PERMANENT_DATASET_TOKYO = "bigframes_testing_tokyo"
 TOKYO_LOCATION = "asia-northeast1"
-
-
-import datetime
-class Prefixer:
-    def __init__(self, root, path):
-        self.root = root
-        self.path = path
-        self.norm = f'temp_prfx_{root.lower()}_{path.replace("/","").lower()}'
-    def should_cleanup(self, dataset_id):
-        result = dataset_id.startswith(self.norm) 
-        print(f"\nSHOULD_CLEANUP(dataset_id={dataset_id}) -> {result}")
-        return 
-    def create_prefix(self):
-        NOW = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        result = f"{self.norm}_{NOW}"
-        print(f"\nCREATED PREFIX {result}")
-        return result 
-    
-prefixer = Prefixer("bigframes", "tests/system")
+prefixer = test_utils.prefixer.Prefixer("bigframes", "tests/system")
 
 
 def _hash_digest_file(hasher, filepath):
