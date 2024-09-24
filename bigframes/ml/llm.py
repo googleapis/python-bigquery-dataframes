@@ -408,7 +408,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
 
 @deprecation.deprecated(
-    "Use TexEmbeddingGenerator(https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead. "
+    "Use TextEmbeddingGenerator(https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead. "
 )
 @log_adapter.class_logger
 class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
