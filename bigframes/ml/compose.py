@@ -58,7 +58,7 @@ class SQLScalarColumnTransformer:
 
         SQLScalarColumnTransformer("{0}+1")
 
-    The default target column gets the prefix 'transformed\_'
+    The default target column gets the prefix 'transformed_'
     but can also be changed when creating an instance:
 
         SQLScalarColumnTransformer("{0}+1", "inc_{0}")
