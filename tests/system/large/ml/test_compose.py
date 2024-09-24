@@ -36,6 +36,32 @@ def test_columntransformer_standalone_fit_and_transform(
                 preprocessing.MinMaxScaler(),
                 ["culmen_length_mm"],
             ),
+            (
+                "increment",
+                compose.SQLScalarColumnTransformer("{0}+1"),
+                ["culmen_length_mm", "flipper_length_mm"],
+            ),
+            (
+                "length",
+                compose.SQLScalarColumnTransformer(
+                    "CASE WHEN {0} IS NULL THEN -1 ELSE LENGTH({0}) END",
+                    target_column="len_{0}",
+                ),
+                "species",
+            ),
+            (
+                "ohe",
+                compose.SQLScalarColumnTransformer(
+                    "CASE WHEN {0}='Adelie Penguin (Pygoscelis adeliae)' THEN 1 ELSE 0 END",
+                    target_column="ohe_adelie",
+                ),
+                "species",
+            ),
+            (
+                "identity",
+                compose.SQLScalarColumnTransformer("{0}", target_column="{0}"),
+                ["culmen_length_mm", "flipper_length_mm"],
+            ),
         ]
     )
 
@@ -51,6 +77,12 @@ def test_columntransformer_standalone_fit_and_transform(
             "standard_scaled_culmen_length_mm",
             "min_max_scaled_culmen_length_mm",
             "standard_scaled_flipper_length_mm",
+            "transformed_culmen_length_mm",
+            "transformed_flipper_length_mm",
+            "len_species",
+            "ohe_adelie",
+            "culmen_length_mm",
+            "flipper_length_mm",
         ],
         index=[1633, 1672, 1690],
         col_exact=False,
