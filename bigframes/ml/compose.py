@@ -114,6 +114,12 @@ class SQLScalarColumnTransformer:
     def __repr__(self):
         return f"SQLScalarColumnTransformer(sql='{self._sql}', target_column='{self._target_column}')"
 
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__dict__ == other.__dict__
+        else:
+            return False
+
 
 # Type hints for transformers contained in ColumnTransformer
 SingleColTransformer = Union[
