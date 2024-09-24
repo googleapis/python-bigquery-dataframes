@@ -500,3 +500,6 @@ def test_columntransformer_compile_to_sql(mock_X):
         "CASE WHEN species IS NULL THEN 99 ELSE LENGTH(species) END AS len2_species",
         "ML.LABEL_ENCODER(species, 1000000, 0) OVER() AS labelencoded_species",
     ]
+
+if __name__ == "__main__":
+    pytest.main(["test_compose.py", "-s"])
