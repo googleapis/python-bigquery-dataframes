@@ -238,6 +238,7 @@ def test_columntransformer_save_load(new_penguins_df, dataset_id):
             "len_species",
             "culmen_length_mm",
             "flipper_length_mm",
+            "Flex species Name",
         ],
         index=[1633, 1672, 1690],
         col_exact=False,
