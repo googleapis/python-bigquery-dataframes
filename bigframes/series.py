@@ -181,10 +181,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def _session(self) -> bigframes.Session:
         return self._get_block().expr.session
-
+    
     @property
     def _struct_fields(self) -> list[str]:
-        if not bigframes.dtypes.is_struct_like(self.dtype):
+        if not bigframes.dtypes.is_struct_like(self._dtype):
             return []
 
         struct_type = typing.cast(pa.StructType, self._dtype.pyarrow_dtype)
@@ -1252,7 +1252,15 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     __getitem__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__getitem__)
 
     def __getattr__(self, key: str):
-        if hasattr(pandas.Series, key):
+        # Protect against recursion errors with uninitialized Series objects. 
+        # We use "_block" attribute to check whether the instance is initialized.
+        # See:
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/728
+        # and
+        # https://nedbatchelder.com/blog/201010/surprising_getattr_recursion.html
+        if key == "_block":
+            raise AttributeError(key)
+        elif hasattr(pandas.Series, key):
             raise AttributeError(
                 textwrap.dedent(
                     f"""
@@ -1265,6 +1273,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return self.struct.field(key)
         else:
             raise AttributeError(key)
+
 
     def _apply_aggregation(
         self, op: agg_ops.UnaryAggregateOp | agg_ops.NullaryAggregateOp
