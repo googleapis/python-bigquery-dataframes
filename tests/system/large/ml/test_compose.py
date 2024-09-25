@@ -163,6 +163,14 @@ def test_columntransformer_save_load(new_penguins_df, dataset_id):
                 compose.SQLScalarColumnTransformer("{0}", target_column="{0}"),
                 ["culmen_length_mm", "flipper_length_mm"],
             ),
+            (
+                "flexname",
+                compose.SQLScalarColumnTransformer(
+                    "CASE WHEN {0} IS NULL THEN -1 ELSE LENGTH({0}) END",
+                    target_column="Flex {0} Name",
+                ),
+                "species",
+            ),
         ]
     )
     transformer.fit(
@@ -204,6 +212,14 @@ def test_columntransformer_save_load(new_penguins_df, dataset_id):
                 "culmen_length_mm", target_column="culmen_length_mm"
             ),
             "?culmen_length_mm",
+        ),
+        (
+            "sql_scalar_column_transformer",
+            compose.SQLScalarColumnTransformer(
+                "CASE WHEN species IS NULL THEN -1 ELSE LENGTH(species) END ",
+                target_column="Flex species Name",
+            ),
+            "?Flex species Name",
         ),
     ]
     assert set(reloaded_transformer.transformers) == set(expected)
