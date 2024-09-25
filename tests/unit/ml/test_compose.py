@@ -390,6 +390,36 @@ def bq_model_unknown_ML(mocker):
     )
 
 
+@pytest.fixture
+def bq_model_flexnames(mocker):
+    return create_bq_model_mock(
+        mocker,
+        [
+            {
+                "name": "Flex Name culmen_length_mm",
+                "type": {"typeKind": "INT64"},
+                "transformSql": "culmen_length_mm",
+            },
+            {
+                "name": "transformed_Culmen Length MM",
+                "type": {"typeKind": "INT64"},
+                "transformSql": "`Culmen Length MM`*/",
+            },
+            # test workaround for bug in get_model
+            {
+                "name": "Flex Name flipper_length_mm",
+                "type": {"typeKind": "INT64"},
+                "transformSql": "flipper_length_mm AS `Flex Name flipper_length_mm`",
+            },
+            {
+                "name": "transformed_Flipper Length MM",
+                "type": {"typeKind": "INT64"},
+                "transformSql": "`Flipper Length MM` AS `transformed_Flipper Length MM`*/",
+            },
+        ],
+    )
+
+
 def test_columntransformer_extract_from_bq_model_good(bq_model_good):
     col_trans = ColumnTransformer._extract_from_bq_model(bq_model_good)
     assert len(col_trans.transformers) == 6
@@ -500,3 +530,56 @@ def test_columntransformer_compile_to_sql(mock_X):
         "CASE WHEN species IS NULL THEN 99 ELSE LENGTH(species) END AS len2_species",
         "ML.LABEL_ENCODER(species, 1000000, 0) OVER() AS labelencoded_species",
     ]
+
+
+def test_columntransformer_flexible_column_names(mock_X):
+    ident_transformer = SQLScalarColumnTransformer("{0}", target_column="ident {0}")
+    len1_transformer = SQLScalarColumnTransformer(
+        "CASE WHEN {0} IS NULL THEN -2 ELSE LENGTH({0}) END", target_column="len1_{0}"
+    )
+    len2_transformer = SQLScalarColumnTransformer(
+        "CASE WHEN {0} IS NULL THEN 99 ELSE LENGTH({0}) END", target_column="len2_{0}"
+    )
+    column_transformer = compose.ColumnTransformer(
+        [
+            (
+                "ident_trafo",
+                ident_transformer,
+                ["culmen_length_mm", "flipper_length_mm"],
+            ),
+            ("len1_trafo", len1_transformer, ["species shortname"]),
+            ("len2_trafo", len2_transformer, ["`species longname`"]),
+        ]
+    )
+    sqls = column_transformer._compile_to_sql(mock_X)
+    assert sqls == [
+        "culmen_length_mm AS `ident culmen_length_mm`",
+        "flipper_length_mm AS `ident flipper_length_mm`",
+        "CASE WHEN `species shortname` IS NULL THEN -2 ELSE LENGTH(`species shortname`) END AS `len1_species shortname`",
+        "CASE WHEN `species longname` IS NULL THEN 99 ELSE LENGTH(`species longname`) END AS `len2_species longname`",
+    ]
+
+
+def test_columntransformer_extract_from_bq_model_flexnames(bq_model_flexnames):
+    col_trans = ColumnTransformer._extract_from_bq_model(bq_model_flexnames)
+    assert len(col_trans.transformers) == 4
+    # normalize the representation for string comparing
+    col_trans.transformers.sort(key=lambda trafo: str(trafo))
+    actual = col_trans.__repr__()
+    expected = """ColumnTransformer(transformers=[('sql_scalar_column_transformer',
+                                 SQLScalarColumnTransformer(sql='`Culmen Length MM`*/', target_column='transformed_Culmen Length MM'),
+                                 '?transformed_Culmen Length MM'),
+                                ('sql_scalar_column_transformer',
+                                 SQLScalarColumnTransformer(sql='`Flipper Length MM` AS `transformed_Flipper Length MM`*/', target_column='transformed_Flipper Length MM'),
+                                 '?transformed_Flipper Length MM'),
+                                ('sql_scalar_column_transformer',
+                                 SQLScalarColumnTransformer(sql='culmen_length_mm', target_column='Flex Name culmen_length_mm'),
+                                 '?Flex Name culmen_length_mm'),
+                                ('sql_scalar_column_transformer',
+                                 SQLScalarColumnTransformer(sql='flipper_length_mm ', target_column='Flex Name flipper_length_mm'),
+                                 '?Flex Name flipper_length_mm')])"""
+    assert expected == actual
+
+
+if __name__ == "__main__":
+    pytest.main(["test_compose.py", "-s"])

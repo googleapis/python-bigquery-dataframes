@@ -98,7 +98,15 @@ class SQLScalarColumnTransformer:
     def __init__(self, sql: str, target_column: str = "transformed_{0}"):
         super().__init__()
         self._sql = sql
-        self._target_column = target_column
+        self._target_column = target_column.replace("`", "")
+
+    PLAIN_COLNAME_RX = re.compile("^[a-z][a-z0-9_]*$", re.IGNORECASE)
+
+    def escape(self, colname: str):
+        colname = colname.replace("`", "")
+        if self.PLAIN_COLNAME_RX.match(colname):
+            return colname
+        return f"`{colname}`"
 
     def _compile_to_sql(
         self, X: bpd.DataFrame, columns: Optional[Iterable[str]] = None
@@ -107,8 +115,8 @@ class SQLScalarColumnTransformer:
             columns = X.columns
         result = []
         for column in columns:
-            current_sql = self._sql.format(column)
-            current_target_column = self._target_column.format(column)
+            current_sql = self._sql.format(self.escape(column))
+            current_target_column = self.escape(self._target_column.format(column))
             result.append(f"{current_sql} AS {current_target_column}")
         return result
 
@@ -188,6 +196,8 @@ class ColumnTransformer(
 
         return result
 
+    AS_FLEXNAME_SUFFIX_RX = re.compile("^(.*)\\bAS\\s*`[^`]+`\\s*$", re.IGNORECASE)
+
     @classmethod
     def _extract_from_bq_model(
         cls,
@@ -215,6 +225,10 @@ class ColumnTransformer(
             if "transformSql" not in transform_col_dict:
                 continue
             transform_sql: str = transform_col_dict["transformSql"]
+
+            # workaround for bug in bq_model returning " AS `...`" suffix for flexible names
+            if cls.AS_FLEXNAME_SUFFIX_RX.match(transform_sql):
+                transform_sql = cls.AS_FLEXNAME_SUFFIX_RX.match(transform_sql).group(1)
 
             output_names.append(transform_col_dict["name"])
             found_transformer = False
