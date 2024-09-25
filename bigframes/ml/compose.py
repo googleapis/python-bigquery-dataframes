@@ -87,10 +87,10 @@ class SQLScalarColumnTransformer:
     SQLScalarColumnTransformer can be combined with other transformers, like StandardScaler:
 
         >>> col_trans = ColumnTransformer([
-        ...     ("identity", SQLScalarColumnTransformer("{0}", target_column="{0}"), ["col1", col5"]),
+        ...     ("identity", SQLScalarColumnTransformer("{0}", target_column="{0}"), ["col1", "col5"]),
         ...     ("increment", SQLScalarColumnTransformer("{0}+1", target_column="inc_{0}"), "col2"),
         ...     ("stdscale", preprocessing.StandardScaler(), "col3"),
-        ...     ...
+        ...     # ...
         ... ])
 
     """
@@ -227,8 +227,9 @@ class ColumnTransformer(
             transform_sql: str = transform_col_dict["transformSql"]
 
             # workaround for bug in bq_model returning " AS `...`" suffix for flexible names
-            if cls.AS_FLEXNAME_SUFFIX_RX.match(transform_sql):
-                transform_sql = cls.AS_FLEXNAME_SUFFIX_RX.match(transform_sql).group(1)
+            flex_name_match = cls.AS_FLEXNAME_SUFFIX_RX.match(transform_sql)
+            if flex_name_match:
+                transform_sql = flex_name_match.group(1)
 
             output_names.append(transform_col_dict["name"])
             found_transformer = False
