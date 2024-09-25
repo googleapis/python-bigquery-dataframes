@@ -4,6 +4,51 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.19.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.18.0...v1.19.0) (2024-09-24)
+
+
+### Features
+
+* Add ml.model_selection.KFold class ([#1001](https://github.com/googleapis/python-bigquery-dataframes/issues/1001)) ([952cab9](https://github.com/googleapis/python-bigquery-dataframes/commit/952cab92e548b70d077b20bf10f5307751d2ae76))
+* Support bool and bytes types in `describe(include='all')` ([#994](https://github.com/googleapis/python-bigquery-dataframes/issues/994)) ([cc48f58](https://github.com/googleapis/python-bigquery-dataframes/commit/cc48f58cbd94f8110ee863eb57d3fe8dc5a17778))
+* Support ingress settings in `remote_function` ([#1011](https://github.com/googleapis/python-bigquery-dataframes/issues/1011)) ([8e9919b](https://github.com/googleapis/python-bigquery-dataframes/commit/8e9919b53899b6951a10d02643d1d0e53e15665f))
+
+
+### Bug Fixes
+
+* Fix miscasting issues with case_when ([#1003](https://github.com/googleapis/python-bigquery-dataframes/issues/1003)) ([038139d](https://github.com/googleapis/python-bigquery-dataframes/commit/038139dfa4fa89167c52c1cb559c2eb5fe2f0411))
+
+
+### Performance Improvements
+
+* Join op discards child ordering in unordered mode ([#923](https://github.com/googleapis/python-bigquery-dataframes/issues/923)) ([1b5b0ee](https://github.com/googleapis/python-bigquery-dataframes/commit/1b5b0eea92631b7dd1b688cf1da617fc7ce862dc))
+
+
+### Dependencies
+
+* Update ibis version in prerelease tests ([#1012](https://github.com/googleapis/python-bigquery-dataframes/issues/1012)) ([f89785f](https://github.com/googleapis/python-bigquery-dataframes/commit/f89785fcfc51c541253ca8c1e8baf80fbfaea3b6))
+
+## [1.18.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.17.0...v1.18.0) (2024-09-18)
+
+
+### Features
+
+* Add "include" param to describe for string types ([#973](https://github.com/googleapis/python-bigquery-dataframes/issues/973)) ([deac6d2](https://github.com/googleapis/python-bigquery-dataframes/commit/deac6d2d6e459b26c05f6e5ff328ea03a3cff45f))
+* Add `subset` parameter to `DataFrame.dropna` to select which columns to consider ([#981](https://github.com/googleapis/python-bigquery-dataframes/issues/981)) ([f7c03dc](https://github.com/googleapis/python-bigquery-dataframes/commit/f7c03dcaf7ee4d62497f6653851e390795fc60a2))
+
+
+### Bug Fixes
+
+* DataFrameGroupby.agg now works with unnamed tuples ([#985](https://github.com/googleapis/python-bigquery-dataframes/issues/985)) ([0f047b4](https://github.com/googleapis/python-bigquery-dataframes/commit/0f047b4fae2a10b2a465c506bea561f8bb8d4262))
+* Fix a bug that raises exception when re-indexing columns with their original order ([#988](https://github.com/googleapis/python-bigquery-dataframes/issues/988)) ([596b03b](https://github.com/googleapis/python-bigquery-dataframes/commit/596b03bb3ea27cead9b90200b9ef3cdcd99ca184))
+* Make the `Series.apply` outcome `assign`able to the original dataframe in partial ordering mode ([#874](https://github.com/googleapis/python-bigquery-dataframes/issues/874)) ([c94ead9](https://github.com/googleapis/python-bigquery-dataframes/commit/c94ead996e3bfa98edd51ff678a3d43a10ee980f))
+
+
+### Dependencies
+
+* Limit ibis-framework version to 9.2.0 ([#989](https://github.com/googleapis/python-bigquery-dataframes/issues/989)) ([06c1b33](https://github.com/googleapis/python-bigquery-dataframes/commit/06c1b3396d77d1de4f927328bae70cd7b3eb0b0b))
+* Update to ibis-framework 9.x and newer sqlglot ([#827](https://github.com/googleapis/python-bigquery-dataframes/issues/827)) ([89ea44f](https://github.com/googleapis/python-bigquery-dataframes/commit/89ea44fb66314b134fc0a10d816c1659978d4182))
+
 ## [1.17.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.16.0...v1.17.0) (2024-09-11)
 
 

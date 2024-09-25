@@ -16,6 +16,7 @@
 
 from __future__ import absolute_import
 
+import argparse
 import multiprocessing
 import os
 import pathlib
@@ -542,7 +543,7 @@ def docfx(session):
     )
 
 
-def prerelease(session: nox.sessions.Session, tests_path):
+def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=()):
     constraints_path = str(
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
@@ -587,7 +588,7 @@ def prerelease(session: nox.sessions.Session, tests_path):
     session.install(
         "--upgrade",
         "--pre",
-        "ibis-framework>=8.0.0,<9.0.0dev",
+        "ibis-framework>=9.0.0,<=9.2.0",
     )
     already_installed.add("ibis-framework")
 
@@ -661,6 +662,7 @@ def prerelease(session: nox.sessions.Session, tests_path):
         "--cov-report=term-missing",
         "--cov-fail-under=0",
         tests_path,
+        *extra_pytest_options,
         *session.posargs,
     )
 
@@ -674,7 +676,24 @@ def unit_prerelease(session: nox.sessions.Session):
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
 def system_prerelease(session: nox.sessions.Session):
     """Run the system test suite with prerelease dependencies."""
-    prerelease(session, os.path.join("tests", "system", "small"))
+    small_tests_dir = os.path.join("tests", "system", "small")
+
+    # Let's exclude remote function tests from the prerelease tests, since the
+    # some of the package dependencies propagate to the cloud run functions'
+    # requirements.txt, and the prerelease package versions may not be available
+    # in the standard pip install.
+    # This would mean that we will only rely on the standard remote function
+    # tests.
+    small_remote_function_tests = os.path.join(
+        small_tests_dir, "test_remote_function.py"
+    )
+    assert os.path.exists(small_remote_function_tests)
+
+    prerelease(
+        session,
+        os.path.join("tests", "system", "small"),
+        (f"--ignore={small_remote_function_tests}",),
+    )
 
 
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
@@ -718,6 +737,8 @@ def notebook(session: nox.Session):
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
         "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
+        # TODO(b/366290533): to protect BQML quota
+        "notebooks/generative_ai/bq_dataframes_llm_claude3_museum_art.ipynb",
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
         "notebooks/vertex_sdk/sdk2_bigframes_sklearn.ipynb",  # Needs BUCKET_URI.
         "notebooks/vertex_sdk/sdk2_bigframes_tensorflow.ipynb",  # Needs BUCKET_URI.
@@ -804,7 +825,7 @@ def notebook(session: nox.Session):
         processes = []
         for notebook, regions in notebooks_reg.items():
             for region in regions:
-                args = (
+                region_args = (
                     "python",
                     "scripts/run_and_publish_benchmark.py",
                     "--notebook",
@@ -814,7 +835,7 @@ def notebook(session: nox.Session):
                 if multi_process_mode:
                     process = multiprocessing.Process(
                         target=_run_process,
-                        args=(session, args, error_flag),
+                        args=(session, region_args, error_flag),
                     )
                     process.start()
                     processes.append(process)
@@ -822,7 +843,7 @@ def notebook(session: nox.Session):
                     # process to avoid potential race conditions。
                     time.sleep(1)
                 else:
-                    session.run(*args)
+                    session.run(*region_args)
 
         for process in processes:
             process.join()
@@ -861,7 +882,51 @@ def benchmark(session: nox.Session):
     session.install("-e", ".[all]")
     base_path = os.path.join("tests", "benchmark")
 
-    benchmark_script_list = list(pathlib.Path(base_path).rglob("*.py"))
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-i",
+        "--iterations",
+        type=int,
+        default=1,
+        help="Number of iterations to run each benchmark.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output-csv",
+        nargs="?",
+        const=True,
+        default=False,
+        help=(
+            "Determines whether to output results to a CSV file. If no location is provided, "
+            "a temporary location is automatically generated."
+        ),
+    )
+    parser.add_argument(
+        "-b",
+        "--benchmark-filter",
+        nargs="+",
+        help=(
+            "List of file or directory names to include in the benchmarks. If not provided, "
+            "all benchmarks are run."
+        ),
+    )
+
+    args = parser.parse_args(session.posargs)
+
+    benchmark_script_list: List[pathlib.Path] = []
+    if args.benchmark_filter:
+        for filter_item in args.benchmark_filter:
+            full_path = os.path.join(base_path, filter_item)
+            if os.path.isdir(full_path):
+                benchmark_script_list.extend(pathlib.Path(full_path).rglob("*.py"))
+            elif os.path.isfile(full_path) and full_path.endswith(".py"):
+                benchmark_script_list.append(pathlib.Path(full_path))
+            else:
+                raise ValueError(
+                    f"Item {filter_item} does not match any valid file or directory"
+                )
+    else:
+        benchmark_script_list = list(pathlib.Path(base_path).rglob("*.py"))
 
     try:
         for benchmark in benchmark_script_list:
@@ -871,12 +936,15 @@ def benchmark(session: nox.Session):
                 "python",
                 "scripts/run_and_publish_benchmark.py",
                 f"--benchmark-path={benchmark}",
+                f"--iterations={args.iterations}",
             )
     finally:
         session.run(
             "python",
             "scripts/run_and_publish_benchmark.py",
             f"--publish-benchmarks={base_path}",
+            f"--iterations={args.iterations}",
+            f"--output-csv={args.output_csv}",
         )
 
 

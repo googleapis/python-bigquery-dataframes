@@ -643,7 +643,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        self._cached()
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -2303,55 +2302,63 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._block.melt(id_col_ids, val_col_ids, var_name, value_name)
         )
 
-    _NUMERICAL_DISCRIBE_AGGS = (
-        "count",
-        "mean",
-        "std",
-        "min",
-        "25%",
-        "50%",
-        "75%",
-        "max",
-    )
-    _NON_NUMERICAL_DESCRIBE_AGGS = ("count", "nunique")
-
     def describe(self, include: None | Literal["all"] = None) -> DataFrame:
         if include is None:
             numeric_df = self._drop_non_numeric(permissive=False)
             if len(numeric_df.columns) == 0:
-                # Describe eligible non-numerical columns
-                result = self._drop_non_string().agg(self._NON_NUMERICAL_DESCRIBE_AGGS)
-            else:
-                # Otherwise, only describe numerical columns
-                result = numeric_df.agg(self._NUMERICAL_DISCRIBE_AGGS)
-            return typing.cast(DataFrame, result)
+                # Describe eligible non-numeric columns
+                return self._describe_non_numeric()
+
+            # Otherwise, only describe numeric columns
+            return self._describe_numeric()
 
         elif include == "all":
-            numeric_result = typing.cast(
-                DataFrame,
-                self._drop_non_numeric(permissive=False).agg(
-                    self._NUMERICAL_DISCRIBE_AGGS
-                ),
-            )
-            string_result = typing.cast(
-                DataFrame,
-                self._drop_non_string().agg(self._NON_NUMERICAL_DESCRIBE_AGGS),
-            )
+            numeric_result = self._describe_numeric()
+            non_numeric_result = self._describe_non_numeric()
 
             if len(numeric_result.columns) == 0:
-                return string_result
-            elif len(string_result.columns) == 0:
+                return non_numeric_result
+            elif len(non_numeric_result.columns) == 0:
                 return numeric_result
             else:
                 import bigframes.core.reshape as rs
 
                 # Use reindex after join to preserve the original column order.
                 return rs.concat(
-                    [numeric_result, string_result], axis=1
+                    [non_numeric_result, numeric_result], axis=1
                 )._reindex_columns(self.columns)
 
         else:
             raise ValueError(f"Unsupported include type: {include}")
+
+    def _describe_numeric(self) -> DataFrame:
+        return typing.cast(
+            DataFrame,
+            self._drop_non_numeric(permissive=False).agg(
+                [
+                    "count",
+                    "mean",
+                    "std",
+                    "min",
+                    "25%",
+                    "50%",
+                    "75%",
+                    "max",
+                ]
+            ),
+        )
+
+    def _describe_non_numeric(self) -> DataFrame:
+        return typing.cast(
+            DataFrame,
+            self.select_dtypes(
+                include={
+                    bigframes.dtypes.STRING_DTYPE,
+                    bigframes.dtypes.BOOL_DTYPE,
+                    bigframes.dtypes.BYTES_DTYPE,
+                }
+            ).agg(["count", "nunique"]),
+        )
 
     def skew(self, *, numeric_only: bool = False):
         if not numeric_only:
@@ -2549,7 +2556,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(pivot_block)
 
     def _drop_non_numeric(self, permissive=True) -> DataFrame:
-        numerical_types = (
+        numeric_types = (
             set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
             if permissive
             else set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE)
@@ -2557,17 +2564,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         non_numeric_cols = [
             col_id
             for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
-            if dtype not in numerical_types
+            if dtype not in numeric_types
         ]
         return DataFrame(self._block.drop_columns(non_numeric_cols))
-
-    def _drop_non_string(self) -> DataFrame:
-        string_cols = [
-            col_id
-            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
-            if dtype == bigframes.dtypes.STRING_DTYPE
-        ]
-        return DataFrame(self._block.select_columns(string_cols))
 
     def _drop_non_bool(self) -> DataFrame:
         non_bool_cols = [
@@ -3469,11 +3468,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError(f"na_action={na_action} not supported")
 
         # TODO(shobs): Support **kwargs
-        # Reproject as workaround to applying filter too late. This forces the
-        # filter to be applied before passing data to remote function,
-        # protecting from bad inputs causing errors.
-        reprojected_df = DataFrame(self._block._force_reproject())
-        return reprojected_df._apply_unary_op(
+        return self._apply_unary_op(
             ops.RemoteFunctionOp(func=func, apply_on_null=(na_action is None))
         )
 
@@ -3568,13 +3563,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     )
 
                 series_list = [self[col] for col in self.columns]
-                # Reproject as workaround to applying filter too late. This forces the
-                # filter to be applied before passing data to remote function,
-                # protecting from bad inputs causing errors.
-                reprojected_series = bigframes.series.Series(
-                    series_list[0]._block._force_reproject()
-                )
-                result_series = reprojected_series._apply_nary_op(
+                result_series = series_list[0]._apply_nary_op(
                     ops.NaryRemoteFunctionOp(func=func), series_list[1:]
                 )
             result_series.name = None
