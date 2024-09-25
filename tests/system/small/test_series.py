@@ -3912,3 +3912,38 @@ def test_series_explode_null(data):
         s.to_pandas().explode(),
         check_dtype=False,
     )
+
+
+def test_series_struct_get_field_by_attribute(
+    nested_structs_df, nested_structs_pandas_df, nested_structs_pandas_type
+):
+    bf_series = nested_structs_df["person"]
+    df_series = nested_structs_pandas_df["person"].astype(nested_structs_pandas_type)
+
+    pd.testing.assert_series_equal(
+        bf_series.address.city.to_pandas(),
+        df_series.struct.field("address").struct.field("city"),
+        check_dtype=False,
+        check_index=False,
+    )
+    pd.testing.assert_series_equal(
+        bf_series.address.country.to_pandas(),
+        df_series.struct.field("address").struct.field("country"),
+        check_dtype=False,
+        check_index=False,
+    )
+
+
+def test_series_struct_fields_in_dir(nested_structs_df):
+    series = nested_structs_df["person"]
+
+    assert "age" in dir(series)
+    assert "address" in dir(series)
+    assert "city" in dir(series.address)
+    assert "country" in dir(series.address)
+
+
+def test_series_struct_class_attributes_shadow_struct_fields(nested_structs_df):
+    series = nested_structs_df["person"]
+
+    assert series.name == "person"

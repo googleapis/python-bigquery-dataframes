@@ -30,6 +30,7 @@ import google.cloud.bigquery as bigquery
 import numpy
 import pandas
 import pandas.core.dtypes.common
+import pyarrow as pa
 import typing_extensions
 
 import bigframes.core
@@ -180,6 +181,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def _session(self) -> bigframes.Session:
         return self._get_block().expr.session
+
+    @property
+    def _struct_fields(self) -> list[str]:
+        if not bigframes.dtypes.is_struct_like(self.dtype):
+            return []
+
+        struct_type = typing.cast(pa.StructType, self._dtype.pyarrow_dtype)
+        return [struct_type.field(i).name for i in range(struct_type.num_fields)]
 
     @validations.requires_ordering()
     def transpose(self) -> Series:
@@ -1096,6 +1105,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def __neg__(self) -> Series:
         return self._apply_unary_op(ops.neg_op)
 
+    def __dir__(self) -> list[str]:
+        return dir(type(self)) + self._struct_fields
+
     def eq(self, other: object) -> Series:
         # TODO: enforce stricter alignment
         return self._apply_binary_op(other, ops.eq_op)
@@ -1249,6 +1261,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     """
                 )
             )
+        elif key in self._struct_fields:
+            return self.struct.field(key)
         else:
             raise AttributeError(key)
 
