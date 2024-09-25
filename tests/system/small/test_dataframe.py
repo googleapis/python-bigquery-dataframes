@@ -1477,7 +1477,7 @@ def test_get_dtypes_array_struct_table(nested_df):
                     pa.list_(
                         pa.struct(
                             [
-                                (
+                                pa.field(
                                     "data",
                                     pa.list_(
                                         pa.struct(
@@ -1487,6 +1487,7 @@ def test_get_dtypes_array_struct_table(nested_df):
                                             ],
                                         ),
                                     ),
+                                    nullable=False,
                                 ),
                                 ("timestamp", pa.timestamp("us", "UTC")),
                                 ("category", pa.string()),
