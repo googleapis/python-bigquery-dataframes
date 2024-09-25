@@ -16,6 +16,7 @@ import datetime as dt
 import math
 import re
 import tempfile
+from packaging.version import Version
 
 import geopandas as gpd  # type: ignore
 import numpy
@@ -3917,6 +3918,9 @@ def test_series_explode_null(data):
 def test_series_struct_get_field_by_attribute(
     nested_structs_df, nested_structs_pandas_df, nested_structs_pandas_type
 ):
+    if Version(pd.__version__) < Version("2.2.0"):
+        pytest.skip("struct accessor is not supported before pandas 2.2")
+    
     bf_series = nested_structs_df["person"]
     df_series = nested_structs_pandas_df["person"].astype(nested_structs_pandas_type)
 

@@ -22,7 +22,7 @@ import itertools
 import numbers
 import textwrap
 import typing
-from typing import Any, cast, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, cast, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.series as vendored_pandas_series
@@ -183,7 +183,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._get_block().expr.session
 
     @property
-    def _struct_fields(self) -> list[str]:
+    def _struct_fields(self) -> List[str]:
         if not bigframes.dtypes.is_struct_like(self._dtype):
             return []
 
@@ -1105,7 +1105,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def __neg__(self) -> Series:
         return self._apply_unary_op(ops.neg_op)
 
-    def __dir__(self) -> list[str]:
+    def __dir__(self) -> List[str]:
         return dir(type(self)) + self._struct_fields
 
     def eq(self, other: object) -> Series:
