@@ -442,8 +442,7 @@ def cover(session):
         "--show-missing",
         "--include=tests/unit/*",
         "--include=tests/system/small/*",
-        # TODO(b/353775058) resume coverage to 100 when the issue is fixed.
-        "--fail-under=99",
+        "--fail-under=100",
     )
 
     session.run("coverage", "erase")
