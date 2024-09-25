@@ -66,14 +66,16 @@ class ArraySchema:
         )
 
     def to_pyarrow(self) -> pyarrow.Schema:
-        fields = [
-            pyarrow.field(
-                item.column,
-                bigframes.dtypes.bigframes_dtype_to_arrow_dtype(item.dtype),
-                nullable=True,
+        fields = []
+        for item in self.items:
+            pa_type = bigframes.dtypes.bigframes_dtype_to_arrow_dtype(item.dtype)
+            fields.append(
+                pyarrow.field(
+                    item.column,
+                    pa_type,
+                    nullable=not pyarrow.types.is_list(pa_type),
+                )
             )
-            for item in self.items
-        ]
         return pyarrow.schema(fields)
 
     def drop(self, columns: typing.Iterable[str]) -> ArraySchema:
@@ -84,6 +86,14 @@ class ArraySchema:
     def select(self, columns: typing.Iterable[str]) -> ArraySchema:
         return ArraySchema(
             tuple(SchemaItem(name, self.get_type(name)) for name in columns)
+        )
+
+    def rename(self, mapping: typing.Mapping[str, str]) -> ArraySchema:
+        return ArraySchema(
+            tuple(
+                SchemaItem(mapping.get(item.column, item.column), item.dtype)
+                for item in self.items
+            )
         )
 
     def append(self, item: SchemaItem):

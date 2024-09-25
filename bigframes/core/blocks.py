@@ -468,13 +468,8 @@ class Block:
         ordered: bool = True,
     ) -> Tuple[pa.Table, bigquery.QueryJob]:
         """Run query and download results as a pyarrow Table."""
-        # pa.Table.from_pandas puts index columns last, so update the expression to match.
-        expr = self.expr.select_columns(
-            list(self.value_columns) + list(self.index_columns)
-        )
-
-        execute_result = self.session._executor.execute(expr, ordered=ordered)
-        pa_table = self._convert_result_to_arrow_table(execute_result)
+        execute_result = self.session._executor.execute(self.expr, ordered=ordered)
+        pa_table = execute_result.to_arrow_table()
 
         pa_index_labels = []
         for index_level, index_label in enumerate(self._index_labels):
@@ -483,6 +478,8 @@ class Block:
             else:
                 pa_index_labels.append(f"__index_level_{index_level}__")
 
+        # pa.Table.from_pandas puts index columns last, so update to match.
+        pa_table = pa_table.select([*self.value_columns, *self.index_columns])
         pa_table = pa_table.rename_columns(list(self.column_labels) + pa_index_labels)
         return pa_table, execute_result.query_job
 
@@ -568,7 +565,7 @@ class Block:
             page_size=page_size,
             max_results=max_results,
         )
-        for record_batch in execute_result.arrow_batches:
+        for record_batch in execute_result.arrow_batches():
             df = io_pandas.arrow_to_pandas(record_batch, self.expr.schema)
             self._copy_index_to_pandas(df)
             yield df
@@ -639,7 +636,8 @@ class Block:
             )
         else:
             total_rows = execute_result.total_rows
-            df = self._convert_result_to_pandas(execute_result)
+            arrow = self.session._executor.execute(self.expr).to_arrow_table()
+            df = io_pandas.arrow_to_pandas(arrow, schema=self.expr.schema)
             self._copy_index_to_pandas(df)
 
         return df, execute_result.query_job
@@ -1559,9 +1557,10 @@ class Block:
         head_result = self.session._executor.head(self.expr, max_results)
         count = self.session._executor.get_row_count(self.expr)
 
-        computed_df = self._convert_result_to_pandas(head_result)
-        self._copy_index_to_pandas(computed_df)
-        return computed_df, count, head_result.query_job
+        arrow = self.session._executor.execute(self.expr).to_arrow_table()
+        df = io_pandas.arrow_to_pandas(arrow, schema=self.expr.schema)
+        self._copy_index_to_pandas(df)
+        return df, count, head_result.query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
         expr, result_id = self._expr.promote_offsets()
@@ -2517,13 +2516,6 @@ SELECT {select_columns_csv} FROM T1
     ) -> pa.Table:
         return pa.Table.from_batches(
             execute_result.arrow_batches, self.expr.schema.to_pyarrow()
-        )
-
-    def _convert_result_to_pandas(
-        self, execute_result: bigframes.session.executor.ExecuteResult
-    ) -> pd.DataFrame:
-        return io_pandas.arrow_to_pandas(
-            self._convert_result_to_arrow_table(execute_result), schema=self.expr.schema
         )
 
 

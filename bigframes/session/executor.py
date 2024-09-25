@@ -17,7 +17,17 @@ from __future__ import annotations
 import dataclasses
 import math
 import os
-from typing import cast, Iterator, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import (
+    Callable,
+    cast,
+    Iterator,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 import warnings
 import weakref
 
@@ -53,11 +63,17 @@ _MAX_CLUSTER_COLUMNS = 4
 
 @dataclasses.dataclass(frozen=True)
 class ExecuteResult:
-    success: bool
-    arrow_batches: Iterator[pyarrow.RecordBatch]
+    arrow_batches: Callable[[], Iterator[pyarrow.RecordBatch]]
+    schema: bigframes.core.schema.ArraySchema
     query_job: Optional[bigquery.QueryJob] = None
     total_bytes: Optional[int] = None
     total_rows: Optional[int] = None
+
+    def to_arrow_table(self) -> pyarrow.Table:
+        # Need to provide schema if no result rows, as arrow can't infer
+        return pyarrow.Table.from_batches(
+            self.arrow_batches(), self.schema.to_pyarrow()
+        )
 
 
 class BigQueryCachingExecutor:
@@ -135,12 +151,12 @@ class BigQueryCachingExecutor:
         sql = self.to_sql(
             array_value, ordered=ordered, col_id_overrides=col_id_overrides
         )
+        adjusted_schema = array_value.schema.rename(col_id_overrides)
         job_config = bigquery.QueryJobConfig()
         # Use explicit destination to avoid 10GB limit of temporary table
         if use_explicit_destination:
-            schema = array_value.schema.to_bigquery()
             destination_table = self.storage_manager.create_temp_table(
-                schema, cluster_cols=[]
+                adjusted_schema.to_bigquery(), cluster_cols=[]
             )
             job_config.destination = destination_table
         # TODO(swast): plumb through the api_name of the user-facing api that
@@ -153,9 +169,8 @@ class BigQueryCachingExecutor:
         )
 
         # Though we provide the read client, iterator may or may not use it based on what is efficient for the result
-        arrow_iterator = iterator.to_arrow_iterable(
-            bqstorage_client=self.bqstoragereadclient
-        )
+        def iterator_supplier():
+            return iterator.to_arrow_iterable(bqstorage_client=self.bqstoragereadclient)
 
         if get_size_bytes is True:
             size_bytes = self.bqclient.get_table(query_job.destination).num_bytes
@@ -168,8 +183,8 @@ class BigQueryCachingExecutor:
             validate_result_schema(array_value, iterator.schema)
 
         return ExecuteResult(
-            success=True,
-            arrow_batches=arrow_iterator,
+            arrow_batches=iterator_supplier,
+            schema=adjusted_schema,
             query_job=query_job,
             total_bytes=size_bytes,
             total_rows=iterator.total_rows,
@@ -267,11 +282,11 @@ class BigQueryCachingExecutor:
         # caused this query.
         iterator, query_job = self._run_execute_query(sql=sql)
         return ExecuteResult(
-            success=True,
             # Probably don't need read client for small peek results, but let client decide
-            arrow_batches=iterator.to_arrow_iterable(
+            arrow_batches=lambda: iterator.to_arrow_iterable(
                 bqstorage_client=self.bqstoragereadclient
             ),
+            schema=array_value.schema,
             query_job=query_job,
             total_rows=iterator.total_rows,
         )
@@ -310,11 +325,11 @@ class BigQueryCachingExecutor:
         # caused this query.
         iterator, query_job = self._run_execute_query(sql=sql)
         return ExecuteResult(
-            success=True,
             # Probably don't need read client for small head results, but let client decide
-            arrow_batches=iterator.to_arrow_iterable(
+            arrow_batches=lambda: iterator.to_arrow_iterable(
                 bqstorage_client=self.bqstoragereadclient
             ),
+            schema=array_value.schema,
             query_job=query_job,
             total_rows=iterator.total_rows,
         )
