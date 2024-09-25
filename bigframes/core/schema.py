@@ -19,6 +19,7 @@ import functools
 import typing
 
 import google.cloud.bigquery
+import pyarrow
 
 import bigframes.core.guid
 import bigframes.dtypes
@@ -63,6 +64,17 @@ class ArraySchema:
             bigframes.dtypes.convert_to_schema_field(item.column, item.dtype)
             for item in self.items
         )
+
+    def to_pyarrow(self) -> pyarrow.Schema:
+        fields = [
+            pyarrow.field(
+                item.column,
+                bigframes.dtypes.bigframes_dtype_to_arrow_dtype(item.dtype),
+                nullable=True,
+            )
+            for item in self.items
+        ]
+        return pyarrow.schema(fields)
 
     def drop(self, columns: typing.Iterable[str]) -> ArraySchema:
         return ArraySchema(

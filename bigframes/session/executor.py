@@ -48,8 +48,6 @@ import bigframes.session.temp_storage
 QUERY_COMPLEXITY_LIMIT = 1e7
 # Number of times to factor out subqueries before giving up.
 MAX_SUBTREE_FACTORINGS = 5
-# A bytes limit would probably be more appropriate,
-_READ_API_MIN_ROWS = 1000
 _MAX_CLUSTER_COLUMNS = 4
 
 

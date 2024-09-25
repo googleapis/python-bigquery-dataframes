@@ -356,6 +356,8 @@ _BIGFRAMES_TO_ARROW = {
     for mapping in SIMPLE_TYPES
     if mapping.arrow_dtype is not None
 }
+# unidirectional mapping
+_BIGFRAMES_TO_ARROW[GEO_DTYPE] = pa.string()
 
 
 def bigframes_dtype_to_arrow_dtype(

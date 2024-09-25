@@ -28,7 +28,17 @@ import itertools
 import random
 import textwrap
 import typing
-from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import (
+    Iterable,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+)
 import warnings
 
 import bigframes_vendored.constants as constants
@@ -56,6 +66,9 @@ import bigframes.features
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.pandas as io_pandas
+
+if TYPE_CHECKING:
+    import bigframes.session.executor
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -461,7 +474,7 @@ class Block:
         )
 
         execute_result = self.session._executor.execute(expr, ordered=ordered)
-        pa_table = pa.Table.from_batches(execute_result.arrow_batches)
+        pa_table = self._convert_result_to_arrow_table(execute_result)
 
         pa_index_labels = []
         for index_level, index_label in enumerate(self._index_labels):
@@ -555,10 +568,8 @@ class Block:
             page_size=page_size,
             max_results=max_results,
         )
-        for arrow_table in execute_result.arrow_batches:
-            df = bigframes.session._io.pandas.arrow_to_pandas(
-                arrow_table, self.expr.schema
-            )
+        for record_batch in execute_result.arrow_batches:
+            df = io_pandas.arrow_to_pandas(record_batch, self.expr.schema)
             self._copy_index_to_pandas(df)
             yield df
 
@@ -628,9 +639,7 @@ class Block:
             )
         else:
             total_rows = execute_result.total_rows
-            df = io_pandas.arrow_to_pandas(
-                pa.Table.from_batches(execute_result.arrow_batches), self._expr.schema
-            )
+            df = self._convert_result_to_pandas(execute_result)
             self._copy_index_to_pandas(df)
 
         return df, execute_result.query_job
@@ -1550,9 +1559,7 @@ class Block:
         head_result = self.session._executor.head(self.expr, max_results)
         count = self.session._executor.get_row_count(self.expr)
 
-        computed_df = io_pandas.arrow_to_pandas(
-            pa.Table.from_batches(head_result.arrow_batches), self.expr.schema
-        )
+        computed_df = self._convert_result_to_pandas(head_result)
         self._copy_index_to_pandas(computed_df)
         return computed_df, count, head_result.query_job
 
@@ -2505,6 +2512,20 @@ SELECT {select_columns_csv} FROM T1
         )
         return block
 
+    def _convert_result_to_arrow_table(
+        self, execute_result: bigframes.session.executor.ExecuteResult
+    ) -> pa.Table:
+        return pa.Table.from_batches(
+            execute_result.arrow_batches, self.expr.schema.to_pyarrow()
+        )
+
+    def _convert_result_to_pandas(
+        self, execute_result: bigframes.session.executor.ExecuteResult
+    ) -> pd.DataFrame:
+        return io_pandas.arrow_to_pandas(
+            self._convert_result_to_arrow_table(execute_result), schema=self.expr.schema
+        )
+
 
 class BlockIndexProperties:
     """Accessor for the index-related block properties."""
@@ -2555,19 +2576,8 @@ class BlockIndexProperties:
             raise bigframes.exceptions.NullIndexError(
                 "Cannot materialize index, as this object does not have an index. Set index column(s) using set_index."
             )
-        # Project down to only the index column. So the query can be cached to visualize other data.
-        index_columns = list(self._block.index_columns)
-        expr = self._expr.select_columns(index_columns)
-        execute_result = self.session._executor.execute(
-            expr, ordered=ordered if ordered is not None else True
-        )
-        df = io_pandas.arrow_to_pandas(
-            pa.Table.from_batches(execute_result.arrow_batches), expr.schema
-        )
-        df = df.set_index(index_columns)
-        index = df.index
-        index.names = list(self._block._index_labels)  # type:ignore
-        return index
+        ordered = ordered if ordered is not None else True
+        return self._block.select_columns([]).to_pandas(ordered=ordered)[0].index
 
     def resolve_level(self, level: LevelsType) -> typing.Sequence[str]:
         if utils.is_list_like(level):

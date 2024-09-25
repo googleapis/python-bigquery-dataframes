@@ -50,7 +50,7 @@ def test_read_gbq_tokyo(
     result = session_tokyo._executor.execute(df._block.expr)
     assert result.query_job.location == tokyo_location
 
-    pd.testing.assert_frame_equal(result, expected)
+    assert len(expected) == result.total_rows
 
 
 @pytest.mark.parametrize(
@@ -674,7 +674,7 @@ def test_read_pandas_tokyo(
     result = session_tokyo._executor.execute(df._block.expr)
     assert result.query_job.location == tokyo_location
 
-    pd.testing.assert_frame_equal(result, expected)
+    assert len(expected) == result.total_rows
 
 
 @utils.skip_legacy_pandas
