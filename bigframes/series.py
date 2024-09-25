@@ -181,7 +181,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def _session(self) -> bigframes.Session:
         return self._get_block().expr.session
-    
+
     @property
     def _struct_fields(self) -> list[str]:
         if not bigframes.dtypes.is_struct_like(self._dtype):
@@ -1252,7 +1252,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     __getitem__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__getitem__)
 
     def __getattr__(self, key: str):
-        # Protect against recursion errors with uninitialized Series objects. 
+        # Protect against recursion errors with uninitialized Series objects.
         # We use "_block" attribute to check whether the instance is initialized.
         # See:
         # https://github.com/googleapis/python-bigquery-dataframes/issues/728
@@ -1273,7 +1273,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return self.struct.field(key)
         else:
             raise AttributeError(key)
-
 
     def _apply_aggregation(
         self, op: agg_ops.UnaryAggregateOp | agg_ops.NullaryAggregateOp
