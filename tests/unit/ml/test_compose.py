@@ -579,7 +579,3 @@ def test_columntransformer_extract_from_bq_model_flexnames(bq_model_flexnames):
                                  SQLScalarColumnTransformer(sql='flipper_length_mm ', target_column='Flex Name flipper_length_mm'),
                                  '?Flex Name flipper_length_mm')])"""
     assert expected == actual
-
-
-if __name__ == "__main__":
-    pytest.main(["test_compose.py", "-s"])
