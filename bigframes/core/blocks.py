@@ -543,9 +543,7 @@ class Block:
     ) -> typing.Optional[pd.DataFrame]:
         if force or self.expr.supports_fast_peek:
             result = self.session._executor.peek(self.expr, n)
-            df = io_pandas.arrow_to_pandas(
-                pa.Table.from_batches(result.arrow_batches()), self.expr.schema
-            )
+            df = io_pandas.arrow_to_pandas(result.to_arrow_table(), self.expr.schema)
             self._copy_index_to_pandas(df)
             return df
         else:

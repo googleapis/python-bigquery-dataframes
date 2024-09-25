@@ -306,8 +306,8 @@ class CutOp(UnaryWindowOp):
             )
             pa_type = pa.struct(
                 [
-                    ("left_exclusive", interval_dtype),
-                    ("right_inclusive", interval_dtype),
+                    pa.field("left_exclusive", interval_dtype, nullabe=False),
+                    pa.field("right_inclusive", interval_dtype, nullabe=False),
                 ]
             )
             return pd.ArrowDtype(pa_type)

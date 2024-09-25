@@ -71,8 +71,11 @@ class ExecuteResult:
 
     def to_arrow_table(self) -> pyarrow.Table:
         # Need to provide schema if no result rows, as arrow can't infer
+        # If ther are rows, it is safest to infer schema from batches.
+        # Any discrepencies between predicted schema and actual schema will produce errors.
         return pyarrow.Table.from_batches(
-            self.arrow_batches(), self.schema.to_pyarrow()
+            self.arrow_batches(),
+            self.schema.to_pyarrow() if not self.total_rows else None,
         )
 
 
