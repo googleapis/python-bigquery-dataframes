@@ -172,9 +172,9 @@ def test_text_generator_predict_multiple_cols_success(
     palm2_text_generator_model, llm_text_df: bpd.DataFrame
 ):
     df = llm_text_df.assign(additional_col=1)
-    df = palm2_text_generator_model.predict(df).to_pandas()
+    pd_df = palm2_text_generator_model.predict(df).to_pandas()
     utils.check_pandas_df_schema_and_index(
-        df,
+        pd_df,
         columns=utils.ML_GENERATE_TEXT_OUTPUT + ["additional_col"],
         index=3,
         col_exact=False,
