@@ -111,19 +111,22 @@ def get_pd_series(row):
             raise ValueError(f"Don't know how to handle type '{value_type}'")
         if value is None:
             return None
-        return value_converter(value)
+        py_value = value_converter(value)
+        pd_value = pd.Series([py_value], dtype=value_type)[0]
+
+        # if it is a numpy object then return the underlying value
+        pd_value = pd_value.item() if hasattr(pd_value, "item") else pd_value
+        return pd_value
 
     index_values = [
-        pd.Series([convert_value(col_values[i], col_types[i])], dtype=col_types[i])[0]
-        for i in range(index_length)
+        convert_value(col_values[i], col_types[i]) for i in range(index_length)
     ]
 
     data_col_names = col_names[index_length:]
     data_col_types = col_types[index_length:]
     data_col_values = col_values[index_length:]
     data_col_values = [
-        pd.Series([convert_value(a, data_col_types[i])], dtype=data_col_types[i])[0]
-        for i, a in enumerate(data_col_values)
+        convert_value(a, data_col_types[i]) for i, a in enumerate(data_col_values)
     ]
 
     row_index = index_values[0] if len(index_values) == 1 else tuple(index_values)

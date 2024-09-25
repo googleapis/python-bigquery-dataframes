@@ -1751,12 +1751,7 @@ def test_df_apply_axis_1_complex(session, pd_df):
         bf_result = bf_df.apply(serialize_row_remote, axis=1).to_pandas()
         pd_result = pd_df.apply(serialize_row, axis=1)
 
-        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
-        # , ignore this mismatch by using check_dtype=False.
-        #
-        # bf_result.index[0].dtype is 'string[pyarrow]' while
-        # pd_result.index[0].dtype is 'object', ignore this mismatch by using
-        # check_index_type=False.
+        # Ignore known dtype disparities between pandas and bigframes.
         pandas.testing.assert_series_equal(
             pd_result, bf_result, check_dtype=False, check_index_type=False
         )
