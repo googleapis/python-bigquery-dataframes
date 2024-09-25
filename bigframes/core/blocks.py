@@ -544,7 +544,7 @@ class Block:
         if force or self.expr.supports_fast_peek:
             result = self.session._executor.peek(self.expr, n)
             df = io_pandas.arrow_to_pandas(
-                pa.Table.from_batches(result.arrow_batches), self.expr.schema
+                pa.Table.from_batches(result.arrow_batches()), self.expr.schema
             )
             self._copy_index_to_pandas(df)
             return df
@@ -2510,13 +2510,6 @@ SELECT {select_columns_csv} FROM T1
             index_labels=self._index_labels,
         )
         return block
-
-    def _convert_result_to_arrow_table(
-        self, execute_result: bigframes.session.executor.ExecuteResult
-    ) -> pa.Table:
-        return pa.Table.from_batches(
-            execute_result.arrow_batches, self.expr.schema.to_pyarrow()
-        )
 
 
 class BlockIndexProperties:
