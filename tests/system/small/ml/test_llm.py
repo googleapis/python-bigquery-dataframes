@@ -253,7 +253,7 @@ def test_text_embedding_generator_multi_cols_predict_success(
         index=3,
         col_exact=False,
     )
-    assert len(df["ml_generate_embedding_result"][0]) == 768
+    assert len(pd_df["ml_generate_embedding_result"][0]) == 768
 
 
 @pytest.mark.parametrize(
