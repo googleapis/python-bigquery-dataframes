@@ -30,7 +30,6 @@ import bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
 import bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
 import bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetimes
 import pandas
-from pandas import ArrowDtype, BooleanDtype, Float64Dtype, Int64Dtype, NA, StringDtype
 
 import bigframes._config as config
 import bigframes.core.blocks
@@ -527,6 +526,14 @@ def clean_up_by_session_id(
         session.bqclient, session.cloudfunctionsclient, dataset, session_id
     )
 
+
+# pandas dtype attributes
+NA = pandas.NA
+BooleanDtype = pandas.BooleanDtype
+Float64Dtype = pandas.Float64Dtype
+Int64Dtype = pandas.Int64Dtype
+StringDtype = pandas.StringDtype
+ArrowDtype = pandas.ArrowDtype
 
 # Class aliases
 # TODO(swast): Make these real classes so we can refer to these in type
