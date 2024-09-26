@@ -3797,3 +3797,46 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise bigframes.exceptions.NullIndexError(
                 f"DataFrame cannot perform {opname} as it has no index. Set an index using set_index."
             )
+
+    def _parse_cols(self, text):
+        # Regular expression pattern to match variables in brackets not escaped by double brackets
+        pattern = r"(?<!\{)\{(?!\{)(.*?)(?<!\})\}(?!\})"
+        # Find all matches in the text
+        matches = re.findall(pattern, text)
+        return matches
+
+    def _nle2str(self, nle: str, cols: List[str]) -> str:
+        dict = {}
+        for col in cols:
+            dict[col] = f"{col.capitalize()}"
+        return nle.format(**dict)
+
+    def sem_filter(self, user_instruction: str, model, helpermodel=None):
+        col_li = self._parse_cols(user_instruction)
+        for column in col_li:
+            if column not in self.columns:
+                raise ValueError(f"Column {column} not found in DataFrame")
+
+        formatted_usr_instr = self._nle2str(user_instruction, col_li)
+
+        assert len(col_li) == 1
+        column = col_li[0]
+
+        # TODO: BQ ML doesn't return the prob of model, though Vertex AI results have `avgLogprobs`
+        # https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#response
+        sys_instruction = (
+            "The user will povide a claim and some relevant context.\n"
+            "Your job is to determine whether the claim is true for the given context.\n"
+            'You must answer with a single word, "True" or "False", '
+            "and a single float (from 0.00 to 1.00) reflecting confidence of your answer.\n"
+        )
+
+        # TODO: Check BQ ML handles all claims in one chat or multiple chat?
+        prompt_df = self.copy()
+        prompt_df["prompt"] = (
+            f"System Instruction: {sys_instruction}\nContext: \n"
+            + prompt_df[column]
+            + f"\n\nClaim: {formatted_usr_instr}\n"
+        )
+        raw_outputs = model.predict(prompt_df["prompt"])
+        return raw_outputs
