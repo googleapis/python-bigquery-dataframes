@@ -19,7 +19,7 @@ Utility functions for SQL construction.
 
 import datetime
 import math
-from typing import Iterable, Mapping, TYPE_CHECKING, Union
+from typing import Collection, Iterable, Mapping, TYPE_CHECKING, Union
 
 import bigframes.core.compile.googlesql as googlesql
 
@@ -116,6 +116,43 @@ def ordering_clause(
         part = f"`{ordering_expr.id}` {asc_desc} {null_clause}"
         parts.append(part)
     return f"ORDER BY {' ,'.join(parts)}"
+
+
+def create_vector_index_ddl(
+    *,
+    replace: bool,
+    index_name: str,
+    table_name: str,
+    column_name: str,
+    stored_column_names: Collection[str],
+    options: Mapping[str, Union[str | int | bool | float]] = {},
+) -> str:
+    """Encode the VECTOR INDEX statement for BigQuery Vector Search."""
+
+    if replace:
+        create = "CREATE OR REPLACE VECTOR INDEX "
+    else:
+        create = "CREATE VECTOR INDEX IF NOT EXISTS "
+
+    if len(stored_column_names) > 0:
+        escaped_stored = [f"`{name}`" for name in stored_column_names]
+        storing = f"STORING({', '.join(escaped_stored)}) "
+    else:
+        storing = ""
+    
+    options = ", ".join([
+        f"{option_name} = {simple_literal(option_value)}"
+        for option_name, option_value
+        in options.items()
+    ])
+
+    return f"""
+    {create} {index_name}
+    ON `{table_name}`(`{column_name}`)
+    {storing}
+    OPTIONS({options});
+    """
+
 
 
 def create_vector_search_sql(
