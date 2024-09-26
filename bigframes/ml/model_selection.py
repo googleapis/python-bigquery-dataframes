@@ -165,13 +165,13 @@ def cross_validate(
 
     result: dict[str, list] = {"test_score": [], "fit_time": [], "score_time": []}
     for X_train, X_test, y_train, y_test in cv.split(X, y):  # type: ignore
-        fit_start_time = time.time()
+        fit_start_time = time.perf_counter()
         estimator.fit(X_train, y_train)
-        fit_time = time.time() - fit_start_time
+        fit_time = time.perf_counter() - fit_start_time
 
-        score_start_time = time.time()
+        score_start_time = time.perf_counter()
         score = estimator.score(X_test, y_test)
-        score_time = time.time() - score_start_time
+        score_time = time.perf_counter() - score_start_time
 
         result["test_score"].append(score)
         result["fit_time"].append(fit_time)
