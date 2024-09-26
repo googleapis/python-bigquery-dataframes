@@ -23,7 +23,6 @@ import pytest
 import bigframes.bigquery as bbq
 import bigframes.pandas as bpd
 
-
 # Need at least 5,000 rows to create a vector index.
 VECTOR_DF = pd.DataFrame(
     {
@@ -43,10 +42,17 @@ VECTOR_DF = pd.DataFrame(
         # Three groups of animal, vegetable, and mineral, corresponding to
         # the embeddings above.
         "mystery_word": [
-            "aarvark", "broccoli", "calcium",
-            "dog", "eggplant", "ferrite",
-            "gopher", "huckleberry", "ice",
-        ] * 1_111,
+            "aarvark",
+            "broccoli",
+            "calcium",
+            "dog",
+            "eggplant",
+            "ferrite",
+            "gopher",
+            "huckleberry",
+            "ice",
+        ]
+        * 1_111,
     },
 )
 
@@ -62,7 +68,9 @@ def vector_table_id(
     bigquery_client.delete_table(table_id_not_created, not_found_ok=True)
 
 
-def test_create_vector_index_ivf(session, vector_table_id: str, bigquery_client: google.cloud.bigquery.Client):
+def test_create_vector_index_ivf(
+    session, vector_table_id: str, bigquery_client: google.cloud.bigquery.Client
+):
     bbq.create_vector_index(
         vector_table_id,
         "my_embedding",
@@ -92,7 +100,6 @@ def test_create_vector_index_ivf(session, vector_table_id: str, bigquery_client:
 
     # If no name is specified, use the table name as the index name
     assert indexes["index_name"].iloc[0] == table_name
-
 
 
 def test_vector_search_basic_params_with_df():

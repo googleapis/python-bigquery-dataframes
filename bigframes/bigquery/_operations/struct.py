@@ -61,7 +61,7 @@ def struct(value: dataframe.DataFrame) -> series.Series:
             bigframes.series.Series: A new Series with struct entries representing rows of the original DataFrame
     """
     import bigframes.series
-    
+
     block = value._block
     block, result_id = block.apply_nary_op(
         block.value_columns, ops.StructOp(column_names=tuple(block.column_labels))

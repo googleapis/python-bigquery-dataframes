@@ -32,6 +32,7 @@ if typing.TYPE_CHECKING:
     import bigframes.dataframe as dataframe
     import bigframes.series as series
 
+
 def array_length(series: series.Series) -> series.Series:
     """Compute the length of each array element in the Series.
 

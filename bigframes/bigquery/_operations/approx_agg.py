@@ -33,6 +33,7 @@ Approximate functions defined from
 https://cloud.google.com/bigquery/docs/reference/standard-sql/approximate_aggregate_functions
 """
 
+
 def approx_top_count(
     series: series.Series,
     number: int,
@@ -67,4 +68,3 @@ def approx_top_count(
     if number < 1:
         raise ValueError("The number of approx_top_count must be at least 1")
     return series._apply_aggregation(agg_ops.ApproxTopCountOp(number=number))
-

@@ -142,4 +142,3 @@ def json_extract_array(
         bigframes.series.Series: A new Series with the JSON or JSON-formatted STRING.
     """
     return series._apply_unary_op(ops.JSONExtractArray(json_path=json_path))
-
