@@ -567,6 +567,30 @@ def test_repr_w_all_rows(scalars_dfs):
     assert actual == expected
 
 
+def test_join_repr(scalars_dfs_maybe_ordered):
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+
+    scalars_df = (
+        scalars_df[["int64_col"]]
+        .join(scalars_df.set_index("int64_col")[["int64_too"]])
+        .sort_index()
+    )
+    scalars_pandas_df = (
+        scalars_pandas_df[["int64_col"]]
+        .join(scalars_pandas_df.set_index("int64_col")[["int64_too"]])
+        .sort_index()
+    )
+    # Pandas join result index name seems to depend on the index values in a way that bigframes can't match exactly
+    scalars_pandas_df.index.name = None
+
+    actual = repr(scalars_df)
+
+    with display_options.pandas_repr(bigframes.options.display):
+        expected = repr(scalars_pandas_df)
+
+    assert actual == expected
+
+
 def test_repr_html_w_all_rows(scalars_dfs):
     scalars_df, _ = scalars_dfs
     # get a pandas df of the expected format
@@ -936,19 +960,24 @@ def test_assign_callable_lambda(scalars_dfs):
 
 @skip_legacy_pandas
 @pytest.mark.parametrize(
-    ("axis", "how", "ignore_index"),
+    ("axis", "how", "ignore_index", "subset"),
     [
-        (0, "any", False),
-        (0, "any", True),
-        (1, "any", False),
-        (1, "all", False),
+        (0, "any", False, None),
+        (0, "any", True, None),
+        (0, "all", False, ["bool_col", "time_col"]),
+        (0, "any", False, ["bool_col", "time_col"]),
+        (0, "all", False, "time_col"),
+        (1, "any", False, None),
+        (1, "all", False, None),
     ],
 )
-def test_df_dropna(scalars_dfs, axis, how, ignore_index):
+def test_df_dropna(scalars_dfs, axis, how, ignore_index, subset):
     scalars_df, scalars_pandas_df = scalars_dfs
-    df = scalars_df.dropna(axis=axis, how=how, ignore_index=ignore_index)
+    df = scalars_df.dropna(axis=axis, how=how, ignore_index=ignore_index, subset=subset)
     bf_result = df.to_pandas()
-    pd_result = scalars_pandas_df.dropna(axis=axis, how=how, ignore_index=ignore_index)
+    pd_result = scalars_pandas_df.dropna(
+        axis=axis, how=how, ignore_index=ignore_index, subset=subset
+    )
 
     # Pandas uses int64 instead of Int64 (nullable) dtype.
     pd_result.index = pd_result.index.astype(pd.Int64Dtype())
@@ -2612,6 +2641,87 @@ def test_df_describe(scalars_dfs):
     ).all()
 
 
+@skip_legacy_pandas
+@pytest.mark.parametrize("include", [None, "all"])
+def test_df_describe_non_numeric(scalars_dfs, include):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    non_numeric_columns = ["string_col", "bytes_col", "bool_col"]
+
+    modified_bf = scalars_df[non_numeric_columns]
+    bf_result = modified_bf.describe(include=include).to_pandas()
+
+    modified_pd_df = scalars_pandas_df[non_numeric_columns]
+    pd_result = modified_pd_df.describe(include=include)
+
+    # Reindex results with the specified keys and their order, because
+    # the relative order is not important.
+    bf_result = bf_result.reindex(["count", "nunique"])
+    pd_result = pd_result.reindex(
+        ["count", "unique"]
+        # BF counter part of "unique" is called "nunique"
+    ).rename(index={"unique": "nunique"})
+
+    pd.testing.assert_frame_equal(
+        pd_result[non_numeric_columns].astype("Int64"),
+        bf_result[non_numeric_columns],
+        check_index_type=False,
+    )
+
+
+@skip_legacy_pandas
+def test_df_describe_mixed_types_include_all(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    numeric_columns = [
+        "int64_col",
+        "float64_col",
+    ]
+    non_numeric_columns = ["string_col"]
+    supported_columns = numeric_columns + non_numeric_columns
+
+    modified_bf = scalars_df[supported_columns]
+    bf_result = modified_bf.describe(include="all").to_pandas()
+
+    modified_pd_df = scalars_pandas_df[supported_columns]
+    pd_result = modified_pd_df.describe(include="all")
+
+    # Drop quartiles, as they are approximate
+    bf_min = bf_result.loc["min", :]
+    bf_p25 = bf_result.loc["25%", :]
+    bf_p50 = bf_result.loc["50%", :]
+    bf_p75 = bf_result.loc["75%", :]
+    bf_max = bf_result.loc["max", :]
+
+    # Reindex results with the specified keys and their order, because
+    # the relative order is not important.
+    bf_result = bf_result.reindex(["count", "nunique", "mean", "std", "min", "max"])
+    pd_result = pd_result.reindex(
+        ["count", "unique", "mean", "std", "min", "max"]
+        # BF counter part of "unique" is called "nunique"
+    ).rename(index={"unique": "nunique"})
+
+    pd.testing.assert_frame_equal(
+        pd_result[numeric_columns].astype("Float64"),
+        bf_result[numeric_columns],
+        check_index_type=False,
+    )
+
+    pd.testing.assert_frame_equal(
+        pd_result[non_numeric_columns].astype("Int64"),
+        bf_result[non_numeric_columns],
+        check_index_type=False,
+    )
+
+    # Double-check that quantiles are at least plausible.
+    assert (
+        (bf_min <= bf_p25)
+        & (bf_p25 <= bf_p50)
+        & (bf_p50 <= bf_p50)
+        & (bf_p75 <= bf_max)
+    ).all()
+
+
 def test_df_transpose():
     # Include some floats to ensure type coercion
     values = [[0, 3.5, True], [1, 4.5, False], [2, 6.5, None]]
@@ -3664,6 +3774,21 @@ def test_df_reindex_columns(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_df_reindex_columns_with_same_order(scalars_df_index, scalars_pandas_df_index):
+    # First, make sure the two dataframes have the same columns in order.
+    columns = ["int64_col", "int64_too"]
+    bf = scalars_df_index[columns]
+    pd_df = scalars_pandas_df_index[columns]
+
+    bf_result = bf.reindex(columns=columns).to_pandas()
+    pd_result = pd_df.reindex(columns=columns)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_df_equals_identical(scalars_df_index, scalars_pandas_df_index):
     unsupported = [
         "geography_col",
@@ -4568,6 +4693,9 @@ def test_recursion_limit(scalars_df_index):
     scalars_df_index.to_pandas()
 
 
+@pytest.mark.skipif(
+    reason="b/366477265: Skip until query complexity error can be reliably triggered."
+)
 def test_query_complexity_error(scalars_df_index):
     # This test requires automatic caching/query decomposition to be turned off
     bf_df = scalars_df_index

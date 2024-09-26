@@ -26,7 +26,7 @@ import google.cloud.bigquery as bq
 
 import bigframes.core.expression as ex
 import bigframes.core.guid
-from bigframes.core.join_def import JoinColumnMapping, JoinDefinition, JoinSide
+import bigframes.core.identifiers as bfet_ids
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.schema as schemata
 import bigframes.core.window_spec as window
@@ -40,6 +40,9 @@ if typing.TYPE_CHECKING:
 
 # A fixed number of variable to assume for overhead on some operations
 OVERHEAD_VARIABLES = 5
+
+
+COL_OFFSET = int
 
 
 @dataclass(frozen=True)
@@ -175,6 +178,25 @@ class BigFrameNode:
         """Apply a function to each child node."""
         ...
 
+    @property
+    def defines_namespace(self) -> bool:
+        """
+        If true, this node establishes a new column id namespace.
+
+        If false, this node consumes and produces ids in the namespace
+        """
+        return False
+
+    @functools.cached_property
+    def defined_variables(self) -> set[str]:
+        """Full set of variables defined in the namespace, even if not selected."""
+        self_defined_variables = set(self.schema.names)
+        if self.defines_namespace:
+            return self_defined_variables
+        return self_defined_variables.union(
+            *(child.defined_variables for child in self.child_nodes)
+        )
+
 
 @dataclass(frozen=True)
 class UnaryNode(BigFrameNode):
@@ -206,7 +228,8 @@ class UnaryNode(BigFrameNode):
 class JoinNode(BigFrameNode):
     left_child: BigFrameNode
     right_child: BigFrameNode
-    join: JoinDefinition
+    conditions: typing.Tuple[typing.Tuple[str, str], ...]
+    type: typing.Literal["inner", "outer", "left", "right", "cross"]
 
     @property
     def row_preserving(self) -> bool:
@@ -226,6 +249,7 @@ class JoinNode(BigFrameNode):
 
     @property
     def explicitly_ordered(self) -> bool:
+        # Do not consider user pre-join ordering intent - they need to re-order post-join in unordered mode.
         return False
 
     def __hash__(self):
@@ -233,19 +257,14 @@ class JoinNode(BigFrameNode):
 
     @functools.cached_property
     def schema(self) -> schemata.ArraySchema:
-        def join_mapping_to_schema_item(mapping: JoinColumnMapping):
-            result_id = mapping.destination_id
-            result_dtype = (
-                self.left_child.schema.get_type(mapping.source_id)
-                if mapping.source_table == JoinSide.LEFT
-                else self.right_child.schema.get_type(mapping.source_id)
-            )
-            return schemata.SchemaItem(result_id, result_dtype)
-
-        items = tuple(
-            join_mapping_to_schema_item(mapping) for mapping in self.join.mappings
+        items = []
+        schema_items = itertools.chain(
+            self.left_child.schema.items, self.right_child.schema.items
         )
-        return schemata.ArraySchema(items)
+        identifiers = bfet_ids.standard_identifiers()
+        for id, item in zip(identifiers, schema_items):
+            items.append(schemata.SchemaItem(id, item.dtype))
+        return schemata.ArraySchema(tuple(items))
 
     @functools.cached_property
     def variables_introduced(self) -> int:
@@ -262,6 +281,10 @@ class JoinNode(BigFrameNode):
         return replace(
             self, left_child=t(self.left_child), right_child=t(self.right_child)
         )
+
+    @property
+    def defines_namespace(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True)
@@ -285,7 +308,8 @@ class ConcatNode(BigFrameNode):
 
     @property
     def explicitly_ordered(self) -> bool:
-        return all(child.explicitly_ordered for child in self.children)
+        # Consider concat as an ordered operations (even though input frames may not be ordered)
+        return True
 
     def __hash__(self):
         return self._node_hash
@@ -478,9 +502,9 @@ class CachedTableNode(LeafNode):
             raise ValueError(
                 f"Requested schema {logical_names} cannot be derived from table schema {self.table.physical_schema}"
             )
-        if not set(self.hidden_columns).issubset(physical_names):
+        if not set(self._hidden_columns).issubset(physical_names):
             raise ValueError(
-                f"Requested hidden columns {self.hidden_columns} cannot be derived from table schema {self.table.physical_schema}"
+                f"Requested hidden columns {self._hidden_columns} cannot be derived from table schema {self.table.physical_schema}"
             )
 
     @property
@@ -499,7 +523,7 @@ class CachedTableNode(LeafNode):
         return len(self.schema.items) + OVERHEAD_VARIABLES
 
     @property
-    def hidden_columns(self) -> typing.Tuple[str, ...]:
+    def _hidden_columns(self) -> typing.Tuple[str, ...]:
         """Physical columns used to define ordering but not directly exposed as value columns."""
         if self.ordering is None:
             return ()
@@ -545,7 +569,7 @@ class PromoteOffsetsNode(UnaryNode):
 
     @property
     def schema(self) -> schemata.ArraySchema:
-        return self.child.schema.prepend(
+        return self.child.schema.append(
             schemata.SchemaItem(self.col_id, bigframes.dtypes.INT_DTYPE)
         )
 
@@ -626,6 +650,10 @@ class ReversedNode(UnaryNode):
 class SelectionNode(UnaryNode):
     input_output_pairs: typing.Tuple[typing.Tuple[str, str], ...]
 
+    def __post_init__(self):
+        for input, _ in self.input_output_pairs:
+            assert input in self.child.schema.names
+
     def __hash__(self):
         return self._node_hash
 
@@ -642,6 +670,13 @@ class SelectionNode(UnaryNode):
     def variables_introduced(self) -> int:
         # This operation only renames variables, doesn't actually create new ones
         return 0
+
+    # TODO: Reuse parent namespace
+    # Currently, Selection node allows renaming an reusing existing names, so it must establish a
+    # new namespace.
+    @property
+    def defines_namespace(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True)
@@ -704,6 +739,10 @@ class RowCountNode(UnaryNode):
     def variables_introduced(self) -> int:
         return 1
 
+    @property
+    def defines_namespace(self) -> bool:
+        return True
+
 
 @dataclass(frozen=True)
 class AggregateNode(UnaryNode):
@@ -749,13 +788,17 @@ class AggregateNode(UnaryNode):
     def explicitly_ordered(self) -> bool:
         return True
 
+    @property
+    def defines_namespace(self) -> bool:
+        return True
+
 
 @dataclass(frozen=True)
 class WindowOpNode(UnaryNode):
     column_name: str
     op: agg_ops.UnaryWindowOp
     window_spec: window.WindowSpec
-    output_name: typing.Optional[str] = None
+    output_name: str
     never_skip_nulls: bool = False
     skip_reproject_unsafe: bool = False
 
@@ -770,10 +813,6 @@ class WindowOpNode(UnaryNode):
     def schema(self) -> schemata.ArraySchema:
         input_type = self.child.schema.get_type(self.column_name)
         new_item_dtype = self.op.output_type(input_type)
-        if self.output_name is None:
-            return self.child.schema.update_dtype(self.column_name, new_item_dtype)
-        if self.output_name in self.child.schema.names:
-            return self.child.schema.update_dtype(self.output_name, new_item_dtype)
         return self.child.schema.append(
             schemata.SchemaItem(self.output_name, new_item_dtype)
         )
@@ -826,7 +865,7 @@ class RandomSampleNode(UnaryNode):
 
 @dataclass(frozen=True)
 class ExplodeNode(UnaryNode):
-    column_ids: typing.Tuple[str, ...]
+    column_ids: typing.Tuple[COL_OFFSET, ...]
 
     @property
     def row_preserving(self) -> bool:
@@ -844,9 +883,9 @@ class ExplodeNode(UnaryNode):
                     self.child.schema.get_type(name).pyarrow_dtype.value_type
                 ),
             )
-            if name in self.column_ids
+            if offset in self.column_ids
             else schemata.SchemaItem(name, self.child.schema.get_type(name))
-            for name in self.child.schema.names
+            for offset, name in enumerate(self.child.schema.names)
         )
         return schemata.ArraySchema(items)
 
@@ -857,3 +896,7 @@ class ExplodeNode(UnaryNode):
     @functools.cached_property
     def variables_introduced(self) -> int:
         return len(self.column_ids) + 1
+
+    @property
+    def defines_namespace(self) -> bool:
+        return True

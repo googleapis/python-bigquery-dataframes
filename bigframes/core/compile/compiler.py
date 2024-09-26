@@ -76,20 +76,35 @@ class Compiler:
     @_compile_node.register
     def compile_join(self, node: nodes.JoinNode, ordered: bool = True):
         if ordered:
-            left_ordered = self.compile_ordered_ir(node.left_child)
-            right_ordered = self.compile_ordered_ir(node.right_child)
-            return bigframes.core.compile.single_column.join_by_column_ordered(
-                left=left_ordered,
-                right=right_ordered,
-                join=node.join,
-            )
+            # In general, joins are an ordering destroying operation.
+            # With ordering_mode = "partial", make this explicit. In
+            # this case, we don't need to provide a deterministic ordering.
+            if self.strict:
+                left_ordered = self.compile_ordered_ir(node.left_child)
+                right_ordered = self.compile_ordered_ir(node.right_child)
+                return bigframes.core.compile.single_column.join_by_column_ordered(
+                    left=left_ordered,
+                    right=right_ordered,
+                    type=node.type,
+                    conditions=node.conditions,
+                )
+            else:
+                left_unordered = self.compile_unordered_ir(node.left_child)
+                right_unordered = self.compile_unordered_ir(node.right_child)
+                return bigframes.core.compile.single_column.join_by_column_unordered(
+                    left=left_unordered,
+                    right=right_unordered,
+                    type=node.type,
+                    conditions=node.conditions,
+                ).as_ordered_ir()
         else:
             left_unordered = self.compile_unordered_ir(node.left_child)
             right_unordered = self.compile_unordered_ir(node.right_child)
             return bigframes.core.compile.single_column.join_by_column_unordered(
                 left=left_unordered,
                 right=right_unordered,
-                join=node.join,
+                type=node.type,
+                conditions=node.conditions,
             )
 
     @_compile_node.register
@@ -108,7 +123,7 @@ class Compiler:
         )
         used_columns = (
             *node.schema.names,
-            *node.hidden_columns,
+            *node._hidden_columns,
         )
         # Physical schema might include unused columns, unsupported datatypes like JSON
         physical_schema = ibis.backends.bigquery.BigQuerySchema.to_ibis(
@@ -125,18 +140,20 @@ class Compiler:
                 raise ValueError(
                     "Cannot use partially ordered cached value. Result requires total ordering information."
                 )
-            return compiled.OrderedIR(
+            ir = compiled.OrderedIR(
                 ibis_table,
                 columns=tuple(
                     bigframes.core.compile.ibis_types.ibis_value_to_canonical_type(
                         ibis_table[col]
                     )
-                    for col in node.schema.names
+                    for col in [*node.schema.names, *node._hidden_columns]
                 ),
                 ordering=node.ordering,
-                hidden_ordering_columns=[ibis_table[c] for c in node.hidden_columns],
             )
-
+            ir = ir._select(
+                tuple(ir._get_ibis_column(name) for name in node.schema.names)
+            )
+            return ir
         else:
             return compiled.UnorderedIR(
                 ibis_table,

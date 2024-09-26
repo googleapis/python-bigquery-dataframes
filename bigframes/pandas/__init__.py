@@ -36,6 +36,7 @@ from typing import (
     Union,
 )
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.reshape.concat as vendored_pandas_concat
 import bigframes_vendored.pandas.core.reshape.encoding as vendored_pandas_encoding
 import bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
@@ -53,7 +54,6 @@ from pandas._typing import (
 )
 
 import bigframes._config as config
-import bigframes.constants as constants
 import bigframes.core.blocks
 import bigframes.core.expression as ex
 import bigframes.core.global_session as global_session
@@ -69,6 +69,7 @@ import bigframes.series
 import bigframes.session
 import bigframes.session._io.bigquery
 import bigframes.session.clients
+import bigframes.version
 
 try:
     import resource
@@ -668,6 +669,9 @@ def remote_function(
     cloud_function_max_instances: Optional[int] = None,
     cloud_function_vpc_connector: Optional[str] = None,
     cloud_function_memory_mib: Optional[int] = 1024,
+    cloud_function_ingress_settings: Literal[
+        "all", "internal-only", "internal-and-gclb"
+    ] = "all",
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -686,6 +690,7 @@ def remote_function(
         cloud_function_max_instances=cloud_function_max_instances,
         cloud_function_vpc_connector=cloud_function_vpc_connector,
         cloud_function_memory_mib=cloud_function_memory_mib,
+        cloud_function_ingress_settings=cloud_function_ingress_settings,
     )
 
 
@@ -838,6 +843,7 @@ DataFrame = bigframes.dataframe.DataFrame
 Index = bigframes.core.indexes.Index
 MultiIndex = bigframes.core.indexes.MultiIndex
 Series = bigframes.series.Series
+__version__ = bigframes.version.__version__
 
 # Other public pandas attributes
 NamedAgg = namedtuple("NamedAgg", ["column", "aggfunc"])
@@ -925,6 +931,7 @@ __all___ = [
     "Index",
     "MultiIndex",
     "Series",
+    "__version__",
     # Other public pandas attributes
     "NamedAgg",
     "options",
