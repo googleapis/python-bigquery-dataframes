@@ -614,7 +614,7 @@ __all__ = [
     "Float64Dtype",
     "Int64Dtype",
     "StringDtype",
-    "ArrowDtype"
+    "ArrowDtype",
     # Class aliases
     "DataFrame",
     "Index",
