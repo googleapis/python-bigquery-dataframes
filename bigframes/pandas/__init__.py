@@ -592,7 +592,7 @@ if resource is not None:
             pass
 
 # Use __all__ to let type checkers know what is part of the public API.
-__all___ = [
+__all__ = [
     # Functions
     "concat",
     "merge",
