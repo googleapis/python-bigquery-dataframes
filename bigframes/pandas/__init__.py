@@ -43,7 +43,7 @@ import bigframes.dataframe
 import bigframes.enums
 import bigframes.functions._utils as functions_utils
 import bigframes.operations as ops
-from bigframes.pandas.readers import (
+from bigframes.pandas.io.api import (
     read_csv,
     read_gbq,
     read_gbq_function,
