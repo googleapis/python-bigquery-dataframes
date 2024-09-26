@@ -216,11 +216,16 @@ def test_unordered_mode_no_ambiguity_warning(unordered_session):
             },
         ),
         (
-            "75min",
-            "start_day",
+            "5h",
+            "epoch",
             {
-                "timestamp_col": pd.date_range(
-                    start="2021-01-01 13:00:00", periods=30, freq="10min"
+                "timestamp_col": pd.DatetimeIndex(
+                    pd.date_range(
+                        start="2021-01-01 13:00:00", periods=15, freq="1h"
+                    ).tolist()
+                    + pd.date_range(
+                        start="2021-01-01 13:00:00", periods=15, freq="1h"
+                    ).tolist()
                 ),
                 "int64_col": range(30),
                 "int64_too": range(10, 40),
@@ -228,7 +233,7 @@ def test_unordered_mode_no_ambiguity_warning(unordered_session):
         ),
     ],
 )
-def test__resample_start_time(unordered_session, rule, origin, data):
+def test__resample_with_index(unordered_session, rule, origin, data):
     col = "timestamp_col"
     scalars_df_index = bpd.DataFrame(data, session=unordered_session).set_index(col)
     scalars_pandas_df_index = pd.DataFrame(data).set_index(col)
