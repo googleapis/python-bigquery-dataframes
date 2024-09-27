@@ -39,8 +39,8 @@ class ColumnId:
         return self.name
 
     @property
-    def local_normalize(self) -> ColumnId:
-        """For use in compiler only. Normalizes to ColumnId referring ot sql name."""
+    def local_normalized(self) -> ColumnId:
+        """For use in compiler only. Normalizes to ColumnId referring to sql name."""
         return self  # == ColumnId(name=self.sql)
 
     def __lt__(self, other: ColumnId) -> bool:

@@ -205,7 +205,7 @@ class BaseIbisIR(abc.ABC):
             ordering = TotalOrdering(
                 tuple([OrderingExpression(column_id) for column_id in by_column_ids]),
                 total_ordering_columns=frozenset(
-                    [ex.DerefOp(ref.id.local_normalize) for ref in by_column_ids]
+                    [ex.DerefOp(ref.id.local_normalized) for ref in by_column_ids]
                 ),
             )
             columns = tuple(result[key] for key in result.columns)
@@ -356,18 +356,13 @@ class UnorderedIR(BaseIbisIR):
         return table
 
     def filter(self, predicate: ex.Expression) -> UnorderedIR:
-        if any(
-            map(
-                is_window,
-                map(
-                    self._get_ibis_column,
-                    (col.sql for col in predicate.column_references),
-                ),
-            )
-        ):
-            # ibis doesn't support qualify syntax, so create CTE if filtering over window expression
-            # https://github.com/ibis-project/ibis/issues/9775
-            return self._reproject_to_table().filter(predicate)
+        for ref in predicate.column_references:
+            ibis_value = self._get_ibis_column(ref.sql)
+            if is_window(ibis_value):
+                # ibis doesn't support qualify syntax, so create CTE if filtering over window expression
+                # https://github.com/ibis-project/ibis/issues/9775
+                return self._reproject_to_table().filter(predicate)
+
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         condition = op_compiler.compile_expression(predicate, bindings)
         return self._filter(condition)
@@ -1095,18 +1090,13 @@ class OrderedIR(BaseIbisIR):
         return table
 
     def filter(self, predicate: ex.Expression) -> OrderedIR:
-        if any(
-            map(
-                is_window,
-                map(
-                    self._get_ibis_column,
-                    (ref.sql for ref in predicate.column_references),
-                ),
-            )
-        ):
-            # ibis doesn't support qualify syntax, so create CTE if filtering over window expression
-            # https://github.com/ibis-project/ibis/issues/9775
-            return self._reproject_to_table().filter(predicate)
+        for ref in predicate.column_references:
+            ibis_value = self._get_ibis_column(ref.sql)
+            if is_window(ibis_value):
+                # ibis doesn't support qualify syntax, so create CTE if filtering over window expression
+                # https://github.com/ibis-project/ibis/issues/9775
+                return self._reproject_to_table().filter(predicate)
+
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         condition = op_compiler.compile_expression(predicate, bindings)
         return self._filter(condition)
