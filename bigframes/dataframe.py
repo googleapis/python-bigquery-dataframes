@@ -3818,12 +3818,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         backup_model=None,
         confidence_threshold: float = 0.9,
     ):
+        return self._make_prediction(
+            user_instruction, primary_model, backup_model, confidence_threshold
+        )
+
+    def _make_prediction(
+        self,
+        user_instruction: str,
+        primary_model,
+        backup_model,
+        confidence_threshold: float,
+    ) -> DataFrame:
         col_li = self._parse_cols(user_instruction)
         for column in col_li:
             if column not in self.columns:
                 raise ValueError(f"Column {column} not found in DataFrame")
 
         formatted_usr_instr = self._nle2str(user_instruction, col_li)
+
+        # assert len(col_li) == 1
+        # column = col_li[0]
 
         # TODO: BQ ML doesn't return the prob of model, though Vertex AI results have `avgLogprobs`
         # https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#response
@@ -3853,7 +3867,36 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             + f"\n\nClaim: {formatted_usr_instr}\n"
         )
 
-        return typing.cast(DataFrame, primary_model.predict(prompt_df["prompt"]))
+        # return typing.cast(
+        #     DataFrame, primary_model.predict(prompt_df["prompt"])
+        # )
+
+        primary_predictions = typing.cast(
+            DataFrame, primary_model.predict(prompt_df["prompt"])
+        )
+        primary_results = (
+            primary_predictions["ml_generate_text_llm_result"]
+            .str.lower()
+            .str.contains("true")
+            .rename("primary_results")
+        )
+        primary_confidence_scores = (
+            primary_predictions["ml_generate_text_llm_result"]
+            .str.strip().str.extract(r".+ (\d+\.\d*)$")["0"]
+            .rename("primary_scores")
+            .astype(bigframes.dtypes.FLOAT_DTYPE)
+        )
+
+        import bigframes.core.reshape as rs
+
+        return rs.concat(
+            [
+                self,
+                primary_results,
+                primary_confidence_scores,
+            ],
+            axis=1,
+        )
 
     def sem_join(
         self,
