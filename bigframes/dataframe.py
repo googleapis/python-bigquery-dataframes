@@ -3825,8 +3825,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         formatted_usr_instr = self._nle2str(user_instruction, col_li)
 
-        assert len(col_li) == 1
-        column = col_li[0]
+        # assert len(col_li) == 1
+        # column = col_li[0]
 
         # TODO: BQ ML doesn't return the prob of model, though Vertex AI results have `avgLogprobs`
         # https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#response
@@ -3834,16 +3834,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "The user will povide a claim and some relevant context.\n"
             "Your job is to determine whether the claim is true for the given context.\n"
             'You must answer with a single word, "True" or "False", '
-            "followed by a whitespce and a single float (from 0.00 to 1.00) reflecting"
+            "followed by a whitespace and a single float (from 0.00 to 1.00) reflecting "
             "confidence of your answer.\n"
         )
 
         # TODO: BQ LM uses text model still. Can we use chat model for all rows so that
         # the model can have context with multiple rows.
         prompt_df = self.copy()
+
+        # Combine context from multiple columns.
+        for idx, col in enumerate(col_li):
+            if idx == 0:
+                prompt_df["context"] = f"{col} is `" + prompt_df[col] + "`\n"
+            else:
+
+                prompt_df["context"] += f"{col} is `" + prompt_df[col] + "`\n"
+
         prompt_df["prompt"] = (
             f"System Instruction: {sys_instruction}\nContext: \n"
-            + prompt_df[column]
+            + prompt_df["context"]
             + f"\n\nClaim: {formatted_usr_instr}\n"
         )
 
