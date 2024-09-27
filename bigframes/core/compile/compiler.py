@@ -230,9 +230,7 @@ class Compiler:
             ordering: bf_ordering.RowOrdering = bf_ordering.TotalOrdering(
                 ordering_value_columns,
                 integer_encoding=integer_encoding,
-                total_ordering_columns=frozenset(
-                    map(ex.deref_name, node.total_order_cols)
-                ),
+                total_ordering_columns=frozenset(map(ex.deref, node.total_order_cols)),
             )
             hidden_columns = ()
         elif self.strict:

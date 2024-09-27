@@ -291,7 +291,7 @@ class UnorderedIR(BaseIbisIR):
             (ibis_table["count"],),
             ordering=TotalOrdering(
                 ordering_value_columns=(ascending_over("count"),),
-                total_ordering_columns=frozenset([ex.deref_name("count")]),
+                total_ordering_columns=frozenset([ex.deref("count")]),
             ),
         )
 
@@ -899,7 +899,7 @@ class OrderedIR(BaseIbisIR):
                 # notnull is just used to convert null values to non-null (FALSE) values to be counted
                 denulled_value = typing.cast(ibis_types.BooleanColumn, column.notnull())
                 observation_count = agg_compiler.compile_analytic(
-                    ex.UnaryAggregation(agg_ops.count_op, ex.deref_name("_denulled")),
+                    ex.UnaryAggregation(agg_ops.count_op, ex.deref("_denulled")),
                     window,
                     bindings={**bindings, "_denulled": denulled_value},
                 )
@@ -1207,9 +1207,9 @@ class OrderedIR(BaseIbisIR):
         matching_ref = next(
             ref for ref in self._ordering.referenced_columns if ref.sql == column_id
         )
-        # check_bind_all since only remapping hidden column, not all columns
+        # allow_partial_bindings since only remapping hidden column, not all columns
         expr_builder.ordering = self._ordering.remap_column_refs(
-            {matching_ref: new_name}, check_bind_all=False
+            {matching_ref: new_name}, allow_partial_bindings=True
         )
         return expr_builder.build()
 
@@ -1225,7 +1225,7 @@ class OrderedIR(BaseIbisIR):
                 )
                 new_baked_cols.append(baked_column)
                 new_expr = OrderingExpression(
-                    ex.deref_name(baked_column.get_name()), expr.direction, expr.na_last
+                    ex.deref(baked_column.get_name()), expr.direction, expr.na_last
                 )
                 new_exprs.append(new_expr)
             elif isinstance(expr.scalar_expression, ex.DerefOp):

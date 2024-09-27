@@ -32,7 +32,7 @@ def const(
     return ScalarConstantExpression(value, dtype or dtypes.infer_literal_type(value))
 
 
-def deref_name(name: str) -> DerefOp:
+def deref(name: str) -> DerefOp:
     return DerefOp(ids.ColumnId(name))
 
 
@@ -120,21 +120,23 @@ class Expression(abc.ABC):
 
     @abc.abstractmethod
     def bind_refs(
-        self, bindings: Mapping[ids.ColumnId, Expression], check_bind_all: bool = True
+        self,
+        bindings: Mapping[ids.ColumnId, Expression],
+        allow_partial_bindings: bool = False,
     ) -> Expression:
         """Replace variables with expression given in `bindings`.
 
-        If check_bind_all is True, validate that all free variables are bound to a new value.
+        If allow_partial_bindings is False, validate that all free variables are bound to a new value.
         """
         ...
 
     @abc.abstractmethod
     def bind_variables(
-        self, bindings: Mapping[str, Expression], check_bind_all: bool = True
+        self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
     ) -> Expression:
         """Replace variables with expression given in `bindings`.
 
-        If check_bind_all is True, validate that all free variables are bound to a new value.
+        If allow_partial_bindings is False, validate that all free variables are bound to a new value.
         """
         ...
 
@@ -166,12 +168,14 @@ class ScalarConstantExpression(Expression):
         return self.dtype
 
     def bind_variables(
-        self, bindings: Mapping[str, Expression], check_bind_all: bool = True
+        self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
     ) -> Expression:
         return self
 
     def bind_refs(
-        self, bindings: Mapping[ids.ColumnId, Expression], check_bind_all: bool = True
+        self,
+        bindings: Mapping[ids.ColumnId, Expression],
+        allow_partial_bindings: bool = False,
     ) -> ScalarConstantExpression:
         return self
 
@@ -201,16 +205,18 @@ class UnboundVariableExpression(Expression):
         raise ValueError(f"Type of variable {self.id} has not been fixed.")
 
     def bind_refs(
-        self, bindings: Mapping[ids.ColumnId, Expression], check_bind_all: bool = True
+        self,
+        bindings: Mapping[ids.ColumnId, Expression],
+        allow_partial_bindings: bool = False,
     ) -> UnboundVariableExpression:
         return self
 
     def bind_variables(
-        self, bindings: Mapping[str, Expression], check_bind_all: bool = True
+        self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
     ) -> Expression:
         if self.id in bindings.keys():
             return bindings[self.id]
-        elif check_bind_all:
+        elif not allow_partial_bindings:
             raise ValueError(f"Variable {self.id} remains unbound")
         return self
 
@@ -246,16 +252,18 @@ class DerefOp(Expression):
             raise ValueError(f"Type of variable {self.id} has not been fixed.")
 
     def bind_variables(
-        self, bindings: Mapping[str, Expression], check_bind_all: bool = True
+        self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
     ) -> Expression:
         return self
 
     def bind_refs(
-        self, bindings: Mapping[ids.ColumnId, Expression], check_bind_all: bool = True
+        self,
+        bindings: Mapping[ids.ColumnId, Expression],
+        allow_partial_bindings: bool = False,
     ) -> Expression:
         if self.id in bindings.keys():
             return bindings[self.id]
-        elif check_bind_all:
+        elif not allow_partial_bindings:
             raise ValueError(f"Variable {self.id} remains unbound")
         return self
 
@@ -304,23 +312,27 @@ class OpExpression(Expression):
         return self.op.output_type(*operand_types)
 
     def bind_variables(
-        self, bindings: Mapping[str, Expression], check_bind_all: bool = True
+        self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
     ) -> OpExpression:
         return OpExpression(
             self.op,
             tuple(
-                input.bind_variables(bindings, check_bind_all=check_bind_all)
+                input.bind_variables(
+                    bindings, allow_partial_bindings=allow_partial_bindings
+                )
                 for input in self.inputs
             ),
         )
 
     def bind_refs(
-        self, bindings: Mapping[ids.ColumnId, Expression], check_bind_all: bool = True
+        self,
+        bindings: Mapping[ids.ColumnId, Expression],
+        allow_partial_bindings: bool = False,
     ) -> OpExpression:
         return OpExpression(
             self.op,
             tuple(
-                input.bind_refs(bindings, check_bind_all=check_bind_all)
+                input.bind_refs(bindings, allow_partial_bindings=allow_partial_bindings)
                 for input in self.inputs
             ),
         )

@@ -468,7 +468,7 @@ class Index(vendored_pandas_index.Index):
         result_ids = []
         for col in self._block.index_columns:
             block, result_id = block.project_expr(
-                op.bind_variables({unbound_variable: ex.deref_name(col)})
+                op.bind_variables({unbound_variable: ex.deref(col)})
             )
             result_ids.append(result_id)
 

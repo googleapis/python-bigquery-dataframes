@@ -273,7 +273,7 @@ class SeriesMethods:
         if ignore_self:
             value_ids: List[Union[ex.ScalarConstantExpression, ex.DerefOp]] = []
         else:
-            value_ids = [ex.deref_name(self._value_column)]
+            value_ids = [ex.deref(self._value_column)]
 
         block = self._block
         for other in others:
@@ -291,7 +291,7 @@ class SeriesMethods:
                 )
                 value_ids = [
                     *remapped_value_ids,  # type: ignore
-                    ex.deref_name(get_column_right[other._value_column]),
+                    ex.deref(get_column_right[other._value_column]),
                 ]
             else:
                 # Will throw if can't interpret as scalar.

@@ -51,7 +51,9 @@ def session_aware_cache_plan(
             # Projection defines the variables that are used in the filter expressions, need to substitute variables with their scalar expressions
             # that instead reference variables in the child node.
             bindings = {name: expr for expr, name in cur_node.assignments}
-            filters = [i.bind_refs(bindings, check_bind_all=False) for i in filters]
+            filters = [
+                i.bind_refs(bindings, allow_partial_bindings=False) for i in filters
+            ]
         elif isinstance(cur_node, nodes.SelectionNode):
             bindings = {output: input for input, output in cur_node.input_output_pairs}
             filters = [i.bind_refs(bindings) for i in filters]

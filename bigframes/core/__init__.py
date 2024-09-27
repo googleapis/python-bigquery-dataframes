@@ -170,7 +170,7 @@ class ArrayValue:
     # Operations
     def filter_by_id(self, predicate_id: str, keep_null: bool = False) -> ArrayValue:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
-        predicate: ex.Expression = ex.deref_name(predicate_id)
+        predicate: ex.Expression = ex.deref(predicate_id)
         if keep_null:
             predicate = ops.fillna_op.as_expr(predicate, ex.const(True))
         return self.filter(predicate)
@@ -233,19 +233,18 @@ class ArrayValue:
         if destination_id in self.column_ids:  # Mutate case
             exprs = [
                 (
-                    ex.deref_name(source_id if (col_id == destination_id) else col_id),
+                    ex.deref(source_id if (col_id == destination_id) else col_id),
                     ids.ColumnId(col_id),
                 )
                 for col_id in self.column_ids
             ]
         else:  # append case
             self_projection = (
-                (ex.deref_name(col_id), ids.ColumnId(col_id))
-                for col_id in self.column_ids
+                (ex.deref(col_id), ids.ColumnId(col_id)) for col_id in self.column_ids
             )
             exprs = [
                 *self_projection,
-                (ex.deref_name(source_id), ids.ColumnId(destination_id)),
+                (ex.deref(source_id), ids.ColumnId(destination_id)),
             ]
         return ArrayValue(
             nodes.SelectionNode(
@@ -267,9 +266,7 @@ class ArrayValue:
 
     def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
         # This basically just drops and reorders columns - logically a no-op except as a final step
-        selections = (
-            (ex.deref_name(col_id), ids.ColumnId(col_id)) for col_id in column_ids
-        )
+        selections = ((ex.deref(col_id), ids.ColumnId(col_id)) for col_id in column_ids)
         return ArrayValue(
             nodes.SelectionNode(
                 child=self.node,
@@ -300,7 +297,7 @@ class ArrayValue:
             nodes.AggregateNode(
                 child=self.node,
                 aggregations=agg_defs,
-                by_column_ids=tuple(map(ex.deref_name, by_column_ids)),
+                by_column_ids=tuple(map(ex.deref, by_column_ids)),
                 dropna=dropna,
             )
         )
@@ -341,7 +338,7 @@ class ArrayValue:
             ArrayValue(
                 nodes.WindowOpNode(
                     child=self.node,
-                    column_name=ex.deref_name(column_name),
+                    column_name=ex.deref(column_name),
                     op=op,
                     window_spec=window_spec,
                     output_name=ids.ColumnId(output_name),
@@ -376,8 +373,7 @@ class ArrayValue:
             left_child=self.node,
             right_child=other.node,
             conditions=tuple(
-                (ex.deref_name(l_col), ex.deref_name(r_col))
-                for l_col, r_col in conditions
+                (ex.deref(l_col), ex.deref(r_col)) for l_col, r_col in conditions
             ),
             type=type,
         )
@@ -416,7 +412,7 @@ class ArrayValue:
         for column_id in column_ids:
             assert bigframes.dtypes.is_array_like(self.get_column_type(column_id))
 
-        offsets = tuple(ex.deref_name(id) for id in column_ids)
+        offsets = tuple(ex.deref(id) for id in column_ids)
         return ArrayValue(nodes.ExplodeNode(child=self.node, column_ids=offsets))
 
     def _uniform_sampling(self, fraction: float) -> ArrayValue:

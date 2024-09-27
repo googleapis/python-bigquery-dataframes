@@ -56,20 +56,24 @@ class OrderingExpression:
     na_last: bool = True
 
     def remap_column_refs(
-        self, mapping: Mapping[ids.ColumnId, ids.ColumnId], check_bind_all: bool = True
+        self,
+        mapping: Mapping[ids.ColumnId, ids.ColumnId],
+        allow_partial_bindings: bool = False,
     ) -> OrderingExpression:
         return self.bind_refs(
             {old_id: expression.DerefOp(new_id) for old_id, new_id in mapping.items()},
-            check_bind_all=check_bind_all,
+            allow_partial_bindings=allow_partial_bindings,
         )
 
     def bind_refs(
         self,
         mapping: Mapping[ids.ColumnId, expression.Expression],
-        check_bind_all: bool = True,
+        allow_partial_bindings: bool = False,
     ) -> OrderingExpression:
         return OrderingExpression(
-            self.scalar_expression.bind_refs(mapping, check_bind_all=check_bind_all),
+            self.scalar_expression.bind_refs(
+                mapping, allow_partial_bindings=allow_partial_bindings
+            ),
             self.direction,
             self.na_last,
         )
@@ -142,10 +146,12 @@ class RowOrdering:
     def remap_column_refs(
         self,
         mapping: typing.Mapping[ids.ColumnId, ids.ColumnId],
-        check_bind_all: bool = True,
+        allow_partial_bindings: bool = False,
     ) -> RowOrdering:
         new_value_columns = [
-            col.remap_column_refs(mapping, check_bind_all=check_bind_all)
+            col.remap_column_refs(
+                mapping, allow_partial_bindings=allow_partial_bindings
+            )
             for col in self.all_ordering_columns
         ]
         return RowOrdering(
@@ -220,7 +226,7 @@ class TotalOrdering(RowOrdering):
         return TotalOrdering(
             (ascending_over(col),),
             integer_encoding=IntegerEncoding(True, is_sequential=True),
-            total_ordering_columns=frozenset({expression.deref_name(col)}),
+            total_ordering_columns=frozenset({expression.deref(col)}),
         )
 
     def with_non_sequential(self):
@@ -291,10 +297,12 @@ class TotalOrdering(RowOrdering):
     def remap_column_refs(
         self,
         mapping: typing.Mapping[ids.ColumnId, ids.ColumnId],
-        check_bind_all: bool = True,
+        allow_partial_bindings: bool = False,
     ):
         new_value_columns = [
-            col.remap_column_refs(mapping, check_bind_all=check_bind_all)
+            col.remap_column_refs(
+                mapping, allow_partial_bindings=allow_partial_bindings
+            )
             for col in self.all_ordering_columns
         ]
         new_total_order = frozenset(
@@ -345,12 +353,12 @@ def reencode_order_string(
 
 # Convenience functions
 def ascending_over(id: str, nulls_last: bool = True) -> OrderingExpression:
-    return OrderingExpression(expression.deref_name(id), na_last=nulls_last)
+    return OrderingExpression(expression.deref(id), na_last=nulls_last)
 
 
 def descending_over(id: str, nulls_last: bool = True) -> OrderingExpression:
     return OrderingExpression(
-        expression.deref_name(id), direction=OrderingDirection.DESC, na_last=nulls_last
+        expression.deref(id), direction=OrderingDirection.DESC, na_last=nulls_last
     )
 
 

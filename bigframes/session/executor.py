@@ -559,13 +559,13 @@ def generate_head_plan(node: nodes.BigFrameNode, n: int):
     plan_w_offsets = nodes.PromoteOffsetsNode(
         node, bigframes.core.identifiers.ColumnId(offsets_id)
     )
-    predicate = ops.lt_op.as_expr(ex.deref_name(offsets_id), ex.const(n))
+    predicate = ops.lt_op.as_expr(ex.deref(offsets_id), ex.const(n))
     plan_w_head = nodes.FilterNode(plan_w_offsets, predicate)
     # Finally, drop the offsets column
     return nodes.SelectionNode(
         plan_w_head,
         tuple(
-            (ex.deref_name(i), bigframes.core.identifiers.ColumnId(i))
+            (ex.deref(i), bigframes.core.identifiers.ColumnId(i))
             for i in node.schema.names
         ),
     )

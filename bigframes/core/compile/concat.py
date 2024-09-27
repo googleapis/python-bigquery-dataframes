@@ -86,7 +86,7 @@ def concat_ordered(
     combined_table = ibis.union(*tables)
     ordering = TotalOrdering(
         ordering_value_columns=tuple([ascending_over(ORDER_ID_COLUMN)]),
-        total_ordering_columns=frozenset([ex.deref_name(ORDER_ID_COLUMN)]),
+        total_ordering_columns=frozenset([ex.deref(ORDER_ID_COLUMN)]),
         string_encoding=StringEncoding(True, prefix_size + max_encoding_size),
     )
     return compiled.OrderedIR(

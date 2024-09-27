@@ -152,7 +152,7 @@ def _convert_expr_input(
     import bigframes.core.expression
 
     if isinstance(input, str):
-        return bigframes.core.expression.deref_name(input)
+        return bigframes.core.expression.deref(input)
     else:
         return input
 

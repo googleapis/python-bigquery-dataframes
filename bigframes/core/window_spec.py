@@ -43,7 +43,7 @@ def unbound(
         WindowSpec
     """
     return WindowSpec(
-        grouping_keys=tuple(map(ex.deref_name, grouping_keys)),
+        grouping_keys=tuple(map(ex.deref, grouping_keys)),
         min_periods=min_periods,
         ordering=ordering,
     )
@@ -76,7 +76,7 @@ def rows(
     """
     bounds = RowsWindowBounds(preceding=preceding, following=following)
     return WindowSpec(
-        grouping_keys=tuple(map(ex.deref_name, grouping_keys)),
+        grouping_keys=tuple(map(ex.deref, grouping_keys)),
         bounds=bounds,
         min_periods=min_periods,
         ordering=ordering,
@@ -99,7 +99,7 @@ def cumulative_rows(
     """
     bounds = RowsWindowBounds(following=0)
     return WindowSpec(
-        grouping_keys=tuple(map(ex.deref_name, grouping_keys)),
+        grouping_keys=tuple(map(ex.deref, grouping_keys)),
         bounds=bounds,
         min_periods=min_periods,
     )
@@ -121,7 +121,7 @@ def inverse_cumulative_rows(
     """
     bounds = RowsWindowBounds(preceding=0)
     return WindowSpec(
-        grouping_keys=tuple(map(ex.deref_name, grouping_keys)),
+        grouping_keys=tuple(map(ex.deref, grouping_keys)),
         bounds=bounds,
         min_periods=min_periods,
     )
