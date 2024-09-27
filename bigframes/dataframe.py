@@ -3835,10 +3835,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         df = self._make_prediction(
             user_instruction, primary_model, backup_model, confidence_threshold
         )
-        drop_columns = ["primary_results"]
-        if not logprobs:
-            drop_columns.append("primary_scores")
-        return df[df["primary_results"]].drop(drop_columns, axis=1)
+        return df[df['verdict_results'].str.lower().str.contains("true")]
 
     def _make_prediction(
         self,
@@ -3847,6 +3844,46 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         backup_model,
         confidence_threshold: float,
     ) -> DataFrame:
+
+        primary_res, primary_conf_scores = self._predict_with_model(user_instruction, primary_model)
+
+        if backup_model is None:
+            import bigframes.core.reshape as rs
+            return rs.concat(
+                [
+                    self,
+                    primary_res.rename("primary_results"),
+                    primary_conf_scores.rename("primary_confidence_scores"),
+                    primary_res.rename("verdict_results")
+                ],
+                axis=1,
+            )
+
+
+        low_conf_data = self[primary_conf_scores <= confidence_threshold]
+
+        (
+            backup_res,
+            backup_conf_scores,
+        ) = low_conf_data._predict_with_model(user_instruction, backup_model)
+
+        import bigframes.core.reshape as rs
+
+        return rs.concat(
+            [
+                self,
+                primary_res.rename("primary_results"),
+                primary_conf_scores.rename("primary_confidence_scores"),
+                backup_res.rename("backup_results"),
+                backup_conf_scores.rename("backup_confidence_scores"),
+                backup_res.combine_first(primary_res).rename("verdict_result")
+            ],
+            axis=1,
+        )
+
+    def _predict_with_model(
+        self, user_instruction: str, model
+    ) -> Tuple[bigframes.series.Series, bigframes.series.Series]:
         col_li = self._parse_cols(user_instruction)
         for column in col_li:
             if column not in self.columns:
@@ -3882,33 +3919,27 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             + f"\n\nClaim: {formatted_usr_instr}\n"
         )
 
+        # return typing.cast(
+        #     DataFrame, primary_model.predict(prompt_df["prompt"])
+        # )
+
         primary_predictions = typing.cast(
-            DataFrame, primary_model.predict(prompt_df["prompt"])
+            DataFrame, model.predict(prompt_df["prompt"])
         )
-        primary_results = (
-            primary_predictions["ml_generate_text_llm_result"]
-            .str.lower()
-            .str.contains("true")
-            .rename("primary_results")
-        )
-        primary_confidence_scores = (
+        results = (
             primary_predictions["ml_generate_text_llm_result"]
             .str.strip()
-            .str.extract(r".+ (\d+\.\d*)$")["0"]
-            .rename("primary_scores")
+            .str.extract(r"(.+) [\d|\.]+$")["0"]
+            .rename("results")
+        )
+        confidence_scores = (
+            primary_predictions["ml_generate_text_llm_result"]
+            .str.strip().str.extract(r".+ (\d+\.\d*)$")["0"]
+            .rename("confidence_scores")
             .astype(bigframes.dtypes.FLOAT_DTYPE)
         )
 
-        import bigframes.core.reshape as rs
-
-        return rs.concat(
-            [
-                self,
-                primary_results,
-                primary_confidence_scores,
-            ],
-            axis=1,
-        )
+        return results, confidence_scores
 
     def sem_join(
         self,
