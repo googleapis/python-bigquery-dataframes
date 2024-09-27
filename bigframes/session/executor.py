@@ -556,7 +556,9 @@ class BigQueryCachingExecutor:
 
 def generate_head_plan(node: nodes.BigFrameNode, n: int):
     offsets_id = bigframes.core.guid.generate_guid("offsets_")
-    plan_w_offsets = nodes.PromoteOffsetsNode(node, offsets_id)
+    plan_w_offsets = nodes.PromoteOffsetsNode(
+        node, bigframes.core.identifiers.ColumnId(offsets_id)
+    )
     predicate = ops.lt_op.as_expr(ex.deref_name(offsets_id), ex.const(n))
     plan_w_head = nodes.FilterNode(plan_w_offsets, predicate)
     # Finally, drop the offsets column

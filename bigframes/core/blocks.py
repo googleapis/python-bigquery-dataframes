@@ -913,7 +913,7 @@ class Block:
         for col_id in columns:
             label = self.col_id_to_label[col_id]
             block, result_id = block.project_expr(
-                expr.bind_refs({input_varname: ex.deref_name(col_id)}),
+                expr.bind_variables({input_varname: ex.deref_name(col_id)}),
                 label=label,
             )
             block = block.copy_values(result_id, col_id)

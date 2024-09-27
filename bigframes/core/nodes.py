@@ -864,6 +864,7 @@ class RandomSampleNode(UnaryNode):
         return 1
 
 
+# TODO: Explode should create a new column instead of overriding the existing one
 @dataclass(frozen=True)
 class ExplodeNode(UnaryNode):
     column_ids: typing.Tuple[ex.DerefOp, ...]
@@ -881,10 +882,10 @@ class ExplodeNode(UnaryNode):
             Field(
                 field.id,
                 bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
-                    self.child.get_type(field.dtype).pyarrow_dtype.value_type  # type: ignore
+                    self.child.get_type(field.id).pyarrow_dtype.value_type  # type: ignore
                 ),
             )
-            if field.id in self.column_ids
+            if field.id in set(map(lambda x: x.id, self.column_ids))
             else field
             for field in self.child.fields
         )

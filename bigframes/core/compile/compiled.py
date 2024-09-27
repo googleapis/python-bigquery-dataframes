@@ -776,7 +776,7 @@ class OrderedIR(BaseIbisIR):
             table_w_unnest[unnest_offset_id],
         ]
         l_mappings = {id: id for id in self._ordering.referenced_columns}
-        r_mappings = {unnest_offset_id: unnest_offset_id}
+        r_mappings = {ids.ColumnId(unnest_offset_id): ids.ColumnId(unnest_offset_id)}
         ordering = join_orderings(
             self._ordering,
             TotalOrdering.from_offset_col(unnest_offset_id),
@@ -811,7 +811,10 @@ class OrderedIR(BaseIbisIR):
         # Also ibis cannot window literals, so need to reproject those (even though this is legal in googlesql)
         # Seee: https://github.com/ibis-project/ibis/issues/9773
         can_directly_window = not any(
-            map(lambda x: is_literal(x) or is_window(x), self._ibis_order)
+            map(
+                lambda x: is_literal(x) or is_window(x),
+                itertools.chain(self._ibis_order, self._predicates),
+            )
         )
         if not can_directly_window:
             return self._reproject_to_table().promote_offsets(col_id)
@@ -825,8 +828,9 @@ class OrderedIR(BaseIbisIR):
             *self.columns,
             offsets.name(col_id),
         ]
+        # Reproject, so that offsets are just a scalar value that can be used elsewhere
         expr_builder.ordering = TotalOrdering.from_offset_col(col_id)
-        return expr_builder.build()
+        return expr_builder.build()._reproject_to_table()
 
     ## Methods that only work with ordering
     def project_window_op(
