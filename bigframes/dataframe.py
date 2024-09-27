@@ -70,7 +70,6 @@ import bigframes.core.window_spec as windows
 import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.formatting_helpers as formatter
-from bigframes.ml import llm
 import bigframes.operations as ops
 import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
@@ -3815,12 +3814,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def sem_filter(
         self,
         user_instruction: str,
-        primary_model=llm.GeminiTextGenerator(
-            model_name=llm._GEMINI_1P5_FLASH_001_ENDPOINT
-        ),
-        backup_model=llm.GeminiTextGenerator(
-            model_name=llm._GEMINI_1P5_PRO_001_ENDPOINT
-        ),
+        primary_model,
+        backup_model=None,
         confidence_threshold: float = 0.9,
     ):
         col_li = self._parse_cols(user_instruction)
@@ -3843,12 +3838,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "confidence of your answer.\n"
         )
 
-        # TODO: Check BQ ML handles all claims in one chat or multiple chat?
+        # TODO: BQ LM uses text model still. Can we use chat model for all rows so that
+        # the model can have context with multiple rows.
         prompt_df = self.copy()
         prompt_df["prompt"] = (
             f"System Instruction: {sys_instruction}\nContext: \n"
             + prompt_df[column]
             + f"\n\nClaim: {formatted_usr_instr}\n"
         )
+
         return typing.cast(DataFrame, primary_model.predict(prompt_df["prompt"]))
-        
