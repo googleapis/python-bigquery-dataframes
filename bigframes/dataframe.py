@@ -3835,7 +3835,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         df = self._make_prediction(
             user_instruction, primary_model, backup_model, confidence_threshold
         )
-        return df[df['verdict_result'].str.lower().str.contains("true")]
+        return df[df['verdict_results'].str.lower().str.contains("true")]
 
     def _make_prediction(
         self,
@@ -3854,7 +3854,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     self,
                     primary_res.rename("primary_results"),
                     primary_conf_scores.rename("primary_confidence_scores"),
-                    primary_res.rename("verdict_result")
+                    primary_res.rename("verdict_results")
                 ],
                 axis=1,
             )
