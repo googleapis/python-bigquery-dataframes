@@ -52,7 +52,7 @@ def session_aware_cache_plan(
             # that instead reference variables in the child node.
             bindings = {name: expr for expr, name in cur_node.assignments}
             filters = [
-                i.bind_refs(bindings, allow_partial_bindings=False) for i in filters
+                i.bind_refs(bindings, allow_partial_bindings=True) for i in filters
             ]
         elif isinstance(cur_node, nodes.SelectionNode):
             bindings = {output: input for input, output in cur_node.input_output_pairs}
