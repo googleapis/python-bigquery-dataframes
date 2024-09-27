@@ -133,6 +133,43 @@ class BlobMethods(base.SeriesMethods):
 
         return s.apply(bigframes_img_rm_bg)
 
+    def audio_transcribe(self):
+        import bigframes.pandas as bpd
+
+        s = bpd.Series(self._block)
+        session = self._block.session
+
+        @session.remote_function(
+            [str],
+            str,
+            packages=["google-cloud-storage", "openai-whisper", "parse"],
+            max_batching_rows=50,
+            cloud_function_memory_mib=32768,
+        )
+        def bigframes_audio_transcribe(uri_in):
+            import os
+
+            from google.cloud import storage
+            import parse
+            import whisper
+
+            storage_client = storage.Client()
+            file_name_full = uri_in[uri_in.rfind("/") + 1 :]
+
+            bucket_name, blob_path_in = parse.parse("gs://{0}/{1}", uri_in)
+            bucket = storage_client.bucket(bucket_name)
+            blob_in = bucket.blob(blob_path_in)
+
+            tmp_path = os.path.join("/tmp/", file_name_full)
+            blob_in.download_to_filename(tmp_path)
+
+            model = whisper.load_model("base")
+            result = model.transcribe(tmp_path)
+
+            return result["text"]
+
+        return s.apply(bigframes_audio_transcribe)
+
     # def img_rm_background1(self, dst_folder, random_file=False):
     #     import bigframes.pandas as bpd
     #     s = bpd.Series(self._block)
