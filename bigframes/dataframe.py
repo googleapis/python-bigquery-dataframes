@@ -3857,3 +3857,105 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         return typing.cast(DataFrame, primary_model.predict(prompt_df["prompt"]))
+
+    def _sem_join_helper(
+        self,
+        l1: bf_series.Series,
+        l2: bf_series.Series,
+        ids1: List[int],
+        ids2: List[int],
+        col1_label: str,
+        col2_label: str,
+        model,
+        user_instruction: str,
+    ):
+        """
+        Joins two series using a model.
+
+        Args:
+            l1 (Series): The first series.
+            l2 (Series): The second series.
+            ids1 (List[int]): The ids for the first series.
+            ids2 (List[int]): The ids for the second series.
+            col1_label (str): The label for the first column.
+            col2_label (str): The label for the second column.
+            model: The language model to use.
+            user_instruction (str): The user instruction for join.
+
+        Returns:
+            Tuple: The join results, filter outputs, all raw outputs, and all explanations.
+        """
+
+        cross_joined_df = bigframes.pandas.merge(
+            l1.to_frame(name=col1_label), l2.to_frame(name=col2_label), how="cross"
+        )
+        cross_joined_df["combined"] = (
+            f"{col1_label}: "
+            + cross_joined_df[col1_label]
+            + f"\n{col2_label}: "
+            + cross_joined_df[col2_label]
+        )
+        print(user_instruction)
+        return cross_joined_df
+
+    def sem_join(
+        self,
+        other: DataFrame,
+        join_instruction: str,
+        primary_model,
+        how: str = "inner",
+    ) -> DataFrame:
+        """
+        Applies semantic join over a dataframe.
+
+        Args:
+            other (Union[pd.DataFrame, pd.Series]): The other dataframe or series to join with.
+            join_instruction (str): The user instruction for join.
+            how (str): The type of join to perform. Defaults to "inner".
+
+        Returns:
+            DataFrame: The dataframe with the new joined columns.
+        """
+        if how != "inner":
+            raise NotImplementedError("Only inner join is currently supported")
+
+        cols = self._parse_cols(join_instruction)
+        left_on = None
+        right_on = None
+        for col in cols:
+            if ":left" in col:
+                left_on = col
+                real_left_on = col.split(":left")[0]
+            elif ":right" in col:
+                right_on = col
+                real_right_on = col.split(":right")[0]
+
+        if left_on is None:
+            for col in cols:
+                if col in self.columns:
+                    left_on = col
+                    real_left_on = col
+
+                    if col in other.columns:
+                        raise ValueError("Column found in both dataframes")
+                    break
+
+        if right_on is None:
+            for col in cols:
+                if col in other.columns:
+                    right_on = col
+                    real_right_on = col
+
+                    if col in self.columns:
+                        raise ValueError("Column found in both dataframes")
+                    break
+
+        assert left_on is not None, "Column not found in left dataframe"
+        assert right_on is not None, "Column not found in right dataframe"
+
+        l_s = self[real_left_on]
+        r_s = other[real_right_on]
+        cross_joined_df = bigframes.pandas.merge(
+            l_s.to_frame(name=left_on), r_s.to_frame(name=right_on), how="cross"
+        )
+        return cross_joined_df.sem_filter(join_instruction, primary_model=primary_model)
