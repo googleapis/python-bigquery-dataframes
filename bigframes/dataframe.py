@@ -3825,9 +3825,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         formatted_usr_instr = self._nle2str(user_instruction, col_li)
 
-        # assert len(col_li) == 1
-        # column = col_li[0]
-
         # TODO: BQ ML doesn't return the prob of model, though Vertex AI results have `avgLogprobs`
         # https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#response
         sys_instruction = (
@@ -3857,46 +3854,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         return typing.cast(DataFrame, primary_model.predict(prompt_df["prompt"]))
-
-    def _sem_join_helper(
-        self,
-        l1: bf_series.Series,
-        l2: bf_series.Series,
-        ids1: List[int],
-        ids2: List[int],
-        col1_label: str,
-        col2_label: str,
-        model,
-        user_instruction: str,
-    ):
-        """
-        Joins two series using a model.
-
-        Args:
-            l1 (Series): The first series.
-            l2 (Series): The second series.
-            ids1 (List[int]): The ids for the first series.
-            ids2 (List[int]): The ids for the second series.
-            col1_label (str): The label for the first column.
-            col2_label (str): The label for the second column.
-            model: The language model to use.
-            user_instruction (str): The user instruction for join.
-
-        Returns:
-            Tuple: The join results, filter outputs, all raw outputs, and all explanations.
-        """
-
-        cross_joined_df = bigframes.pandas.merge(
-            l1.to_frame(name=col1_label), l2.to_frame(name=col2_label), how="cross"
-        )
-        cross_joined_df["combined"] = (
-            f"{col1_label}: "
-            + cross_joined_df[col1_label]
-            + f"\n{col2_label}: "
-            + cross_joined_df[col2_label]
-        )
-        print(user_instruction)
-        return cross_joined_df
 
     def sem_join(
         self,
