@@ -3817,10 +3817,28 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         primary_model,
         backup_model=None,
         confidence_threshold: float = 0.9,
-    ):
-        return self._make_prediction(
+        logprobs: bool = False,
+    ) -> DataFrame:
+        """
+        Filters a list of documents based on a given user instruction using a language model.
+
+        Args:
+            user_instruction (str): The user instruction for filtering.
+            primary_model (bigframes.ml.llm.GeminiTextGenerator): The primary language model used for filtering.
+            backup_model (bigframes.ml.llm.GeminiTextGenerator): The backup_model language model used for filtering.
+            logprobs (Optional[bool]): Whether to return log probabilities. Defaults to False.
+
+        Returns:
+            DataFrame: The dataframe with the new joined columns.
+        """
+
+        df = self._make_prediction(
             user_instruction, primary_model, backup_model, confidence_threshold
         )
+        drop_columns = ["primary_results"]
+        if not logprobs:
+            drop_columns.append("primary_scores")
+        return df[df["primary_results"]].drop(drop_columns, axis=1)
 
     def _make_prediction(
         self,
@@ -3835,9 +3853,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 raise ValueError(f"Column {column} not found in DataFrame")
 
         formatted_usr_instr = self._nle2str(user_instruction, col_li)
-
-        # assert len(col_li) == 1
-        # column = col_li[0]
 
         # TODO: BQ ML doesn't return the prob of model, though Vertex AI results have `avgLogprobs`
         # https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#response
@@ -3867,10 +3882,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             + f"\n\nClaim: {formatted_usr_instr}\n"
         )
 
-        # return typing.cast(
-        #     DataFrame, primary_model.predict(prompt_df["prompt"])
-        # )
-
         primary_predictions = typing.cast(
             DataFrame, primary_model.predict(prompt_df["prompt"])
         )
@@ -3882,7 +3893,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         primary_confidence_scores = (
             primary_predictions["ml_generate_text_llm_result"]
-            .str.strip().str.extract(r".+ (\d+\.\d*)$")["0"]
+            .str.strip()
+            .str.extract(r".+ (\d+\.\d*)$")["0"]
             .rename("primary_scores")
             .astype(bigframes.dtypes.FLOAT_DTYPE)
         )
@@ -3904,6 +3916,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         join_instruction: str,
         primary_model,
         how: str = "inner",
+        logprobs: bool = False,
     ) -> DataFrame:
         """
         Applies semantic join over a dataframe.
@@ -3911,7 +3924,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Args:
             other (Union[pd.DataFrame, pd.Series]): The other dataframe or series to join with.
             join_instruction (str): The user instruction for join.
+            primary_model: The language model to use.
             how (str): The type of join to perform. Defaults to "inner".
+            logprobs (Optional[bool]): Whether to return log probabilities. Defaults to False.
 
         Returns:
             DataFrame: The dataframe with the new joined columns.
@@ -3958,4 +3973,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         cross_joined_df = bigframes.pandas.merge(
             l_s.to_frame(name=left_on), r_s.to_frame(name=right_on), how="cross"
         )
-        return cross_joined_df.sem_filter(join_instruction, primary_model=primary_model)
+        return cross_joined_df.sem_filter(
+            join_instruction, primary_model=primary_model, logprobs=logprobs
+        )
