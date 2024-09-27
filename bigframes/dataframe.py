@@ -70,6 +70,7 @@ import bigframes.core.window_spec as windows
 import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.formatting_helpers as formatter
+from bigframes.ml import llm
 import bigframes.operations as ops
 import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
@@ -3811,7 +3812,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             dict[col] = f"{col.capitalize()}"
         return nle.format(**dict)
 
-    def sem_filter(self, user_instruction: str, model, helpermodel=None):
+    def sem_filter(
+        self,
+        user_instruction: str,
+        primary_model=llm.GeminiTextGenerator(
+            model_name=llm._GEMINI_1P5_FLASH_001_ENDPOINT
+        ),
+        backup_model=llm.GeminiTextGenerator(
+            model_name=llm._GEMINI_1P5_PRO_001_ENDPOINT
+        ),
+        confidence_threshold: float = 0.9,
+    ):
         col_li = self._parse_cols(user_instruction)
         for column in col_li:
             if column not in self.columns:
@@ -3828,7 +3839,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "The user will povide a claim and some relevant context.\n"
             "Your job is to determine whether the claim is true for the given context.\n"
             'You must answer with a single word, "True" or "False", '
-            "and a single float (from 0.00 to 1.00) reflecting confidence of your answer.\n"
+            "followed by a whitespce and a single float (from 0.00 to 1.00) reflecting"
+            "confidence of your answer.\n"
         )
 
         # TODO: Check BQ ML handles all claims in one chat or multiple chat?
@@ -3838,5 +3850,5 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             + prompt_df[column]
             + f"\n\nClaim: {formatted_usr_instr}\n"
         )
-        raw_outputs = model.predict(prompt_df["prompt"])
-        return raw_outputs
+        return typing.cast(DataFrame, primary_model.predict(prompt_df["prompt"]))
+        
