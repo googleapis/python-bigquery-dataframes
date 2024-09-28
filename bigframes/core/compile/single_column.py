@@ -52,9 +52,8 @@ def join_by_column_ordered(
     """
 
     # Do not reset the generator
-    id_generator = ids.standard_identifiers()
-    l_value_mapping = dict(zip(left.column_ids, id_generator))
-    r_value_mapping = dict(zip(right.column_ids, id_generator))
+    l_value_mapping = dict(zip(left.column_ids, left.column_ids))
+    r_value_mapping = dict(zip(right.column_ids, right.column_ids))
 
     l_hidden_mapping = {
         id: guids.generate_guid("hidden_") for id in left._hidden_column_ids
@@ -143,18 +142,11 @@ def join_by_column_unordered(
         first the coalesced join keys, then, all the left columns, and
         finally, all the right columns.
     """
-    id_generator = ids.standard_identifiers()
-    l_mapping = dict(zip(left.column_ids, id_generator))
-    r_mapping = dict(zip(right.column_ids, id_generator))
-    left_table = left._to_ibis_expr(
-        col_id_overrides=l_mapping,
-    )
-    right_table = right._to_ibis_expr(
-        col_id_overrides=r_mapping,
-    )
+    left_table = left._to_ibis_expr()
+    right_table = right._to_ibis_expr()
     join_conditions = [
-        value_to_join_key(left_table[l_mapping[left_index]])
-        == value_to_join_key(right_table[r_mapping[right_index]])
+        value_to_join_key(left_table[left_index])
+        == value_to_join_key(right_table[right_index])
         for left_index, right_index in conditions
     ]
 
@@ -166,8 +158,8 @@ def join_by_column_unordered(
     )
     # We could filter out the original join columns, but predicates/ordering
     # might still reference them in implicit joins.
-    columns = [combined_table[l_mapping[col.get_name()]] for col in left.columns] + [
-        combined_table[r_mapping[col.get_name()]] for col in right.columns
+    columns = [combined_table[col.get_name()] for col in left.columns] + [
+        combined_table[col.get_name()] for col in right.columns
     ]
     return compiled.UnorderedIR(
         combined_table,
