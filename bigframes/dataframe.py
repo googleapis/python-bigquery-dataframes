@@ -3835,7 +3835,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         df = self._make_prediction(
             user_instruction, primary_model, backup_model, confidence_threshold
         )
-        return df[df['verdict_results'].str.lower().str.contains("true")]
+
+        drop_columns = ["verdict_results"]
+        if not logprobs:
+            drop_columns.append("primary_results")
+            drop_columns.append("primary_confidence_scores")
+            if backup_model is not None:
+                drop_columns.append("backup_results")
+                drop_columns.append("backup_confidence_scores")
+        return df[df["verdict_results"]].drop(drop_columns, axis=1)
 
     def _make_prediction(
         self,
@@ -3845,20 +3853,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         confidence_threshold: float,
     ) -> DataFrame:
 
-        primary_res, primary_conf_scores = self._predict_with_model(user_instruction, primary_model)
+        primary_res, primary_conf_scores = self._predict_with_model(
+            user_instruction, primary_model
+        )
 
         if backup_model is None:
             import bigframes.core.reshape as rs
+
             return rs.concat(
                 [
                     self,
                     primary_res.rename("primary_results"),
                     primary_conf_scores.rename("primary_confidence_scores"),
-                    primary_res.rename("verdict_results")
+                    primary_res.rename("verdict_results"),
                 ],
                 axis=1,
             )
-
 
         low_conf_data = self[primary_conf_scores <= confidence_threshold]
 
@@ -3876,7 +3886,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 primary_conf_scores.rename("primary_confidence_scores"),
                 backup_res.rename("backup_results"),
                 backup_conf_scores.rename("backup_confidence_scores"),
-                backup_res.combine_first(primary_res).rename("verdict_result")
+                backup_res.combine_first(primary_res).rename("verdict_results"),
             ],
             axis=1,
         )
@@ -3919,22 +3929,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             + f"\n\nClaim: {formatted_usr_instr}\n"
         )
 
-        # return typing.cast(
-        #     DataFrame, primary_model.predict(prompt_df["prompt"])
-        # )
-
-        primary_predictions = typing.cast(
-            DataFrame, model.predict(prompt_df["prompt"])
-        )
+        primary_predictions = typing.cast(DataFrame, model.predict(prompt_df["prompt"]))
         results = (
             primary_predictions["ml_generate_text_llm_result"]
-            .str.strip()
-            .str.extract(r"(.+) [\d|\.]+$")["0"]
+            .str.lower()
+            .str.contains("true")
             .rename("results")
         )
         confidence_scores = (
             primary_predictions["ml_generate_text_llm_result"]
-            .str.strip().str.extract(r".+ (\d+\.\d*)$")["0"]
+            .str.strip()
+            .str.extract(r".+ (\d+\.\d*)$")["0"]
             .rename("confidence_scores")
             .astype(bigframes.dtypes.FLOAT_DTYPE)
         )
@@ -4006,4 +4011,60 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return cross_joined_df.sem_filter(
             join_instruction, primary_model=primary_model, logprobs=logprobs
+        )
+
+    def sem_map(
+        self,
+        user_instruction: str,
+        primary_model,
+        backup_model=None,
+        logprobs: bool = False,
+    ) -> DataFrame:
+        """
+        Filters a list of documents based on a given user instruction using a language model.
+
+        Args:
+            user_instruction (str): The user instruction for filtering.
+            primary_model (bigframes.ml.llm.GeminiTextGenerator): The primary language model used for filtering.
+            backup_model (bigframes.ml.llm.GeminiTextGenerator): The backup_model language model used for filtering.
+            logprobs (Optional[bool]): Whether to return log probabilities. Defaults to False.
+
+        Returns:
+            DataFrame: The dataframe with the new mapped columns.
+        """
+        col_li = self._parse_cols(user_instruction)
+        for column in col_li:
+            if column not in self.columns:
+                raise ValueError(f"Column {column} not found in DataFrame")
+
+        formatted_usr_instr = self._nle2str(user_instruction, col_li)
+
+        sys_instruction = (
+            "The user will povide an instruction and some relevant context.\n"
+            "Your job is to answer the user's instruction given the context."
+        )
+
+        prompt_df = self.copy()
+
+        # Combine context from multiple columns.
+        for idx, col in enumerate(col_li):
+            if idx == 0:
+                prompt_df["context"] = f"{col} is `" + prompt_df[col] + "`\n"
+            else:
+
+                prompt_df["context"] += f"{col} is `" + prompt_df[col] + "`\n"
+
+        prompt_df["prompt"] = (
+            f"System Instruction: {sys_instruction}\nContext: \n"
+            + prompt_df["context"]
+            + f"\n\nInstruction: {formatted_usr_instr}\n"
+        )
+
+        predict_df = typing.cast(DataFrame, primary_model.predict(prompt_df["prompt"]))
+
+        import bigframes.core.reshape as rs
+
+        return rs.concat(
+            [self, predict_df["ml_generate_text_llm_result"].rename("_map")],
+            axis=1,
         )
