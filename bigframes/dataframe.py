@@ -3814,86 +3814,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def sem_filter(
         self,
         user_instruction: str,
-        primary_model,
-        backup_model=None,
+        model,
+        helper_model=None,
         confidence_threshold: float = 0.9,
         logprobs: bool = False,
     ) -> DataFrame:
         """
-        Filters a list of documents based on a given user instruction using a language model.
+        Applies semantic filter over a dataframe.
 
         Args:
             user_instruction (str): The user instruction for filtering.
-            primary_model (bigframes.ml.llm.GeminiTextGenerator): The primary language model used for filtering.
-            backup_model (bigframes.ml.llm.GeminiTextGenerator): The backup_model language model used for filtering.
+            model (bigframes.ml.llm.GeminiTextGenerator): The large language model used for filtering.
+            helper_model (bigframes.ml.llm.GeminiTextGenerator): The helper language model used for filtering.
             logprobs (Optional[bool]): Whether to return log probabilities. Defaults to False.
 
         Returns:
             DataFrame: The dataframe with the new joined columns.
         """
-
-        df = self._make_prediction(
-            user_instruction, primary_model, backup_model, confidence_threshold
-        )
-
-        drop_columns = ["verdict_results"]
-        if not logprobs:
-            drop_columns.append("primary_results")
-            drop_columns.append("primary_confidence_scores")
-            if backup_model is not None:
-                drop_columns.append("backup_results")
-                drop_columns.append("backup_confidence_scores")
-        return df[df["verdict_results"]].drop(drop_columns, axis=1)
-
-    def _make_prediction(
-        self,
-        user_instruction: str,
-        primary_model,
-        backup_model,
-        confidence_threshold: float,
-    ) -> DataFrame:
-
-        primary_res, primary_conf_scores = self._predict_with_model(
-            user_instruction, primary_model
-        )
-
-        if backup_model is None:
-            import bigframes.core.reshape as rs
-
-            return rs.concat(
-                [
-                    self,
-                    primary_res.rename("primary_results"),
-                    primary_conf_scores.rename("primary_confidence_scores"),
-                    primary_res.rename("verdict_results"),
-                ],
-                axis=1,
-            )
-
-        low_conf_data = self[primary_conf_scores <= confidence_threshold]
-
-        (
-            backup_res,
-            backup_conf_scores,
-        ) = low_conf_data._predict_with_model(user_instruction, backup_model)
-
-        import bigframes.core.reshape as rs
-
-        return rs.concat(
-            [
-                self,
-                primary_res.rename("primary_results"),
-                primary_conf_scores.rename("primary_confidence_scores"),
-                backup_res.rename("backup_results"),
-                backup_conf_scores.rename("backup_confidence_scores"),
-                backup_res.combine_first(primary_res).rename("verdict_results"),
-            ],
-            axis=1,
-        )
-
-    def _predict_with_model(
-        self, user_instruction: str, model
-    ) -> Tuple[bigframes.series.Series, bigframes.series.Series]:
         col_li = self._parse_cols(user_instruction)
         for column in col_li:
             if column not in self.columns:
@@ -3929,15 +3866,83 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             + f"\n\nClaim: {formatted_usr_instr}\n"
         )
 
-        primary_predictions = typing.cast(DataFrame, model.predict(prompt_df["prompt"]))
+        if helper_model is not None:
+            # Run small LM and get logits
+            prompt_series = prompt_df["prompt"]
+            helper_results, helper_confidence_scores = self._run_model_for_sem_filter(
+                prompt_series=prompt_series, model=helper_model
+            )
+
+            low_conf_prompt = prompt_series[
+                helper_confidence_scores <= confidence_threshold
+            ]
+            results, confidence_scores = self._run_model_for_sem_filter(
+                prompt_series=low_conf_prompt, model=model
+            )
+
+            print(
+                "Debug:\n"
+                f"{len(prompt_series) - len(low_conf_prompt)} rows resolved by helper model.\n"
+                f"{len(low_conf_prompt)} rows resolved by large model"
+            )
+
+            import bigframes.core.reshape as rs
+
+            res_df = rs.concat(
+                [
+                    self,
+                    results.combine_first(helper_results).rename("results"),
+                ],
+                axis=1,
+            )
+            if logprobs:
+                res_df = rs.concat(
+                    [
+                        res_df,
+                        helper_results.rename("helper_lm_results"),
+                        helper_confidence_scores.rename("helper_lm_confidence_scores"),
+                        results.rename("large_lm_results"),
+                        confidence_scores.rename("large_lm_confidence_scores"),
+                    ],
+                    axis=1,
+                )
+        else:
+            prompt_series = prompt_df["prompt"]
+            results, confidence_scores = self._run_model_for_sem_filter(
+                prompt_series=prompt_series, model=model
+            )
+
+            import bigframes.core.reshape as rs
+
+            res_df = rs.concat(
+                [
+                    self,
+                    results.rename("results"),
+                ],
+                axis=1,
+            )
+            if logprobs:
+                res_df = rs.concat(
+                    [
+                        res_df,
+                        confidence_scores.rename("confidence_scores"),
+                    ],
+                    axis=1,
+                )
+        return res_df[res_df["results"]].drop(["results"], axis=1)
+
+    def _run_model_for_sem_filter(
+        self, prompt_series: bf_series.Series, model
+    ) -> Tuple[bigframes.series.Series, bigframes.series.Series]:
+        predict_df = typing.cast(DataFrame, model.predict(prompt_series))
         results = (
-            primary_predictions["ml_generate_text_llm_result"]
+            predict_df["ml_generate_text_llm_result"]
             .str.lower()
             .str.contains("true")
             .rename("results")
         )
         confidence_scores = (
-            primary_predictions["ml_generate_text_llm_result"]
+            predict_df["ml_generate_text_llm_result"]
             .str.strip()
             .str.extract(r".+ (\d+\.\d*)$")["0"]
             .rename("confidence_scores")
@@ -3950,7 +3955,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         other: DataFrame,
         join_instruction: str,
-        primary_model,
+        model,
+        helper_model=None,
         how: str = "inner",
         logprobs: bool = False,
     ) -> DataFrame:
@@ -3960,7 +3966,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Args:
             other (Union[pd.DataFrame, pd.Series]): The other dataframe or series to join with.
             join_instruction (str): The user instruction for join.
-            primary_model: The language model to use.
+            model (bigframes.ml.llm.GeminiTextGenerator): The large language model used for filtering.
+            helper_model (bigframes.ml.llm.GeminiTextGenerator): The helper language model used for filtering.
             how (str): The type of join to perform. Defaults to "inner".
             logprobs (Optional[bool]): Whether to return log probabilities. Defaults to False.
 
@@ -4010,24 +4017,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             l_s.to_frame(name=left_on), r_s.to_frame(name=right_on), how="cross"
         )
         return cross_joined_df.sem_filter(
-            join_instruction, primary_model=primary_model, logprobs=logprobs
+            join_instruction, model=model, helper_model=helper_model, logprobs=logprobs
         )
 
     def sem_map(
         self,
         user_instruction: str,
-        primary_model,
-        backup_model=None,
-        logprobs: bool = False,
+        model,
     ) -> DataFrame:
         """
         Filters a list of documents based on a given user instruction using a language model.
 
         Args:
             user_instruction (str): The user instruction for filtering.
-            primary_model (bigframes.ml.llm.GeminiTextGenerator): The primary language model used for filtering.
-            backup_model (bigframes.ml.llm.GeminiTextGenerator): The backup_model language model used for filtering.
-            logprobs (Optional[bool]): Whether to return log probabilities. Defaults to False.
+            model (bigframes.ml.llm.GeminiTextGenerator): The large language model used for filtering.
 
         Returns:
             DataFrame: The dataframe with the new mapped columns.
@@ -4060,7 +4063,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             + f"\n\nInstruction: {formatted_usr_instr}\n"
         )
 
-        predict_df = typing.cast(DataFrame, primary_model.predict(prompt_df["prompt"]))
+        predict_df = typing.cast(DataFrame, model.predict(prompt_df["prompt"]))
 
         import bigframes.core.reshape as rs
 
