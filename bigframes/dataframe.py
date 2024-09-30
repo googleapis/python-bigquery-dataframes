@@ -3013,8 +3013,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ...     "int64_col": range(30),
         ...     "int64_too": range(10, 40),
         ... }
-        >>> s = bpd.DataFrame(data).set_index("timestamp_col")
-        >>> s._resample(rule="7s", origin="epoch").min()
 
         Resample on a DataFrame with index:
 

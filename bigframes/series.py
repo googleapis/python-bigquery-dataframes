@@ -1840,6 +1840,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         2021-01-01 13:00:10         10
         2021-01-01 13:00:17         17
         2021-01-01 13:00:24         24
+        <BLANKLINE>
+        [5 rows x 1 columns]
+
 
         Args:
             rule (str):
