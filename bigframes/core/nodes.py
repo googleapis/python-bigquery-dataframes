@@ -377,10 +377,8 @@ class FromRangeNode(BigFrameNode):
         return True
 
     @functools.cached_property
-    def schema(self) -> schemata.ArraySchema:
-        input_types = self.start.schema.dtypes[0]
-        items = (schemata.SchemaItem("labels", input_types),)
-        return schemata.ArraySchema(items)
+    def fields(self) -> Tuple[Field, ...]:
+        return (Field(bfet_ids.ColumnId("labels"), self.start.fields[0].dtype),)
 
     @functools.cached_property
     def variables_introduced(self) -> int:

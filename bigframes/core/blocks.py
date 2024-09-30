@@ -1927,7 +1927,7 @@ class Block:
 
         agg_specs = [
             (
-                ex.UnaryAggregation(agg_ops.min_op, ex.free_var(col_id)),
+                ex.UnaryAggregation(agg_ops.min_op, ex.deref(col_id)),
                 guid.generate_guid(),
             ),
         ]
@@ -1956,13 +1956,13 @@ class Block:
         # Generate integer label sequence.
         min_agg_specs = [
             (
-                ex.UnaryAggregation(agg_ops.min_op, ex.free_var(label_col_id)),
+                ex.UnaryAggregation(agg_ops.min_op, ex.deref(label_col_id)),
                 guid.generate_guid(),
             ),
         ]
         max_agg_specs = [
             (
-                ex.UnaryAggregation(agg_ops.max_op, ex.free_var(label_col_id)),
+                ex.UnaryAggregation(agg_ops.max_op, ex.deref(label_col_id)),
                 guid.generate_guid(),
             ),
         ]
