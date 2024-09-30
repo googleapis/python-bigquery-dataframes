@@ -142,8 +142,10 @@ def join_by_column_unordered(
         first the coalesced join keys, then, all the left columns, and
         finally, all the right columns.
     """
-    left_table = left._to_ibis_expr()
-    right_table = right._to_ibis_expr()
+    # Shouldn't need to select the column ids explicitly, but it seems that ibis has some
+    # bug resolving column ids otherwise, potentially because of the "JoinChain" op
+    left_table = left._to_ibis_expr().select(left.column_ids)
+    right_table = right._to_ibis_expr().select(right.column_ids)
     join_conditions = [
         value_to_join_key(left_table[left_index])
         == value_to_join_key(right_table[right_index])
