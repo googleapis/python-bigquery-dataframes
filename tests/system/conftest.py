@@ -32,6 +32,7 @@ import google.cloud.storage as storage  # type: ignore
 import ibis.backends
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pytest
 import pytz
 import test_utils.prefixer
@@ -154,9 +155,9 @@ def session_load() -> Generator[bigframes.Session, None, None]:
     session.close()  # close generated session at cleanup time
 
 
-@pytest.fixture(scope="session", params=["ordered", "unordered"])
+@pytest.fixture(scope="session", params=["strict", "partial"])
 def maybe_ordered_session(request) -> Generator[bigframes.Session, None, None]:
-    context = bigframes.BigQueryOptions(location="US", ordering_mode="partial")
+    context = bigframes.BigQueryOptions(location="US", ordering_mode=request.param)
     session = bigframes.Session(context=context)
     yield session
     session.close()  # close generated session at cleanup type
@@ -290,6 +291,7 @@ def load_test_data_tables(
         ("scalars", "scalars_schema.json", "scalars.jsonl"),
         ("scalars_too", "scalars_schema.json", "scalars.jsonl"),
         ("nested", "nested_schema.json", "nested.jsonl"),
+        ("nested_structs", "nested_structs_schema.json", "nested_structs.jsonl"),
         ("repeated", "repeated_schema.json", "repeated.jsonl"),
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
         ("time_series", "time_series_schema.json", "time_series.jsonl"),
@@ -368,6 +370,11 @@ def nested_table_id(test_data_tables) -> str:
 
 
 @pytest.fixture(scope="session")
+def nested_structs_table_id(test_data_tables) -> str:
+    return test_data_tables["nested_structs"]
+
+
+@pytest.fixture(scope="session")
 def repeated_table_id(test_data_tables) -> str:
     return test_data_tables["repeated"]
 
@@ -410,6 +417,43 @@ def nested_pandas_df() -> pd.DataFrame:
     )
     df = df.set_index("rowindex")
     return df
+
+
+@pytest.fixture(scope="session")
+def nested_structs_df(
+    nested_structs_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(nested_structs_table_id, index_col="id")
+
+
+@pytest.fixture(scope="session")
+def nested_structs_pandas_df() -> pd.DataFrame:
+    """pd.DataFrame pointing at test data."""
+
+    df = pd.read_json(
+        DATA_DIR / "nested_structs.jsonl",
+        lines=True,
+    )
+    df = df.set_index("id")
+    return df
+
+
+@pytest.fixture(scope="session")
+def nested_structs_pandas_type() -> pd.ArrowDtype:
+    address_struct_schema = pa.struct(
+        [pa.field("city", pa.string()), pa.field("country", pa.string())]
+    )
+
+    person_struct_schema = pa.struct(
+        [
+            pa.field("name", pa.string()),
+            pa.field("age", pa.int64()),
+            pa.field("address", address_struct_schema),
+        ]
+    )
+
+    return pd.ArrowDtype(person_struct_schema)
 
 
 @pytest.fixture(scope="session")

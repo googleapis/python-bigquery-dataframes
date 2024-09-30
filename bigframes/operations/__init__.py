@@ -150,11 +150,11 @@ class TernaryOp(ScalarOp):
 def _convert_expr_input(
     input: typing.Union[str, bigframes.core.expression.Expression]
 ) -> bigframes.core.expression.Expression:
-    """Allows creating free variables with just a string"""
+    """Allows creating column references with just a string"""
     import bigframes.core.expression
 
     if isinstance(input, str):
-        return bigframes.core.expression.UnboundVariableExpression(input)
+        return bigframes.core.expression.deref(input)
     else:
         return input
 
@@ -909,10 +909,12 @@ class StructOp(NaryOp):
         fields = []
 
         for i in range(num_input_types):
+            arrow_type = dtypes.bigframes_dtype_to_arrow_dtype(input_types[i])
             fields.append(
-                (
+                pa.field(
                     self.column_names[i],
-                    dtypes.bigframes_dtype_to_arrow_dtype(input_types[i]),
+                    arrow_type,
+                    nullable=(not pa.types.is_list(arrow_type)),
                 )
             )
         return pd.ArrowDtype(
