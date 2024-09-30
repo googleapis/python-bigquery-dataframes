@@ -1888,7 +1888,10 @@ class Block:
         # Validate and resolve the index or column to use for grouping
         if on is None:
             if len(self.index_columns) == 0:
-                raise TypeError("Index type not valid. Expected Datetime Type.")
+                raise ValueError(
+                    f"No index for resampling. Expected {bigframes.dtypes.DATETIME_DTYPE} or "
+                    f"{bigframes.dtypes.TIMESTAMP_DTYPE} index or 'on' parameter specifying a column."
+                )
             if len(self.index_columns) > 1 and (level is None):
                 raise ValueError(
                     "Multiple indices are not supported for this operation"

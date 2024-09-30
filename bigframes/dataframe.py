@@ -3000,6 +3000,48 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> bigframes.core.groupby.DataFrameGroupBy:
         """Internal function to support resample. Resample time-series data.
 
+        **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> import pandas as pd
+        >>> bpd.options.display.progress_bar = None
+
+        >>> data = {
+        ...     "timestamp_col": pd.date_range(
+        ...         start="2021-01-01 13:00:00", periods=30, freq="1s"
+        ...     ),
+        ...     "int64_col": range(30),
+        ...     "int64_too": range(10, 40),
+        ... }
+        >>> s = bpd.DataFrame(data).set_index("timestamp_col")
+        >>> s._resample(rule="7s", origin="epoch").min()
+
+        Resample on a DataFrame with index:
+
+        >>> df = bpd.DataFrame(data).set_index(col)
+        >>> df._resample(rule="7s").min()
+                             int64_col  int64_too
+        2021-01-01 12:59:55          0         10
+        2021-01-01 13:00:02          2         12
+        2021-01-01 13:00:09          9         19
+        2021-01-01 13:00:16         16         26
+        2021-01-01 13:00:23         23         33
+        <BLANKLINE>
+        [5 rows x 2 columns]
+
+        Resample with column and origin set to 'start':
+
+        >>> df = bpd.DataFrame(data)
+        >>> df._resample(rule="7s", origin="start").min()
+                             int64_col  int64_too
+        2021-01-01 13:00:00          0         10
+        2021-01-01 13:00:07          7         17
+        2021-01-01 13:00:14         14         24
+        2021-01-01 13:00:21         21         31
+        2021-01-01 13:00:28         28         38
+        <BLANKLINE>
+        [5 rows x 2 columns]
+
         Args:
             rule (str):
                 The offset string representing target conversion.

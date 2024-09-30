@@ -4850,6 +4850,12 @@ def test_dataframe_explode_xfail(col_names):
         pytest.param("datetime_col", "5M", "epoch"),
         pytest.param("datetime_col", "3Q", "start_day"),
         pytest.param("datetime_col", "3YE", "start"),
+        pytest.param(
+            "int64_col", "100D", "start", marks=pytest.mark.xfail(raises=TypeError)
+        ),
+        pytest.param(
+            "datetime_col", "100D", "end", marks=pytest.mark.xfail(raises=ValueError)
+        ),
     ],
 )
 def test__resample_with_column(

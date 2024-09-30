@@ -1820,12 +1820,30 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> bigframes.core.groupby.SeriesGroupBy:
         """Internal function to support resample. Resample time-series data.
 
+        **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> import pandas as pd
+        >>> bpd.options.display.progress_bar = None
+
+        >>> data = {
+        ...     "timestamp_col": pd.date_range(
+        ...         start="2021-01-01 13:00:00", periods=30, freq="1s"
+        ...     ),
+        ...     "int64_col": range(30),
+        ... }
+        >>> s = bpd.DataFrame(data).set_index("timestamp_col")
+        >>> s._resample(rule="7s", origin="epoch").min()
+                             int64_col
+        2021-01-01 12:59:56          0
+        2021-01-01 13:00:03          3
+        2021-01-01 13:00:10         10
+        2021-01-01 13:00:17         17
+        2021-01-01 13:00:24         24
+
         Args:
             rule (str):
                 The offset string representing target conversion.
-            on (str, default None):
-                For a DataFrame, column to use instead of index for resampling. Column
-                must be datetime-like.
             level (str or int, default None):
                 For a MultiIndex, level (name or number) to use for resampling.
                 level must be datetime-like.
