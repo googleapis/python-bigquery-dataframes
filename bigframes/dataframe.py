@@ -4071,3 +4071,143 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             [self, predict_df["ml_generate_text_llm_result"].rename("_map")],
             axis=1,
         )
+
+    def sem_agg(self, user_instruction: str, model, num_batch=5) -> DataFrame:
+        """
+        Applies semantic aggregation over a dataframe.
+
+        Args:
+            user_instruction (str): The user instruction for aggregation.
+            model (bigframes.ml.llm.GeminiTextGenerator): The large language model used for aggregations.
+            num_batch (int): The largest number of rows to be aggregated to fit LM prediction.
+
+        Returns:
+            DataFrame: The dataframe with the aggregated answer.
+        """
+        col_li = self._parse_cols(user_instruction)
+        for column in col_li:
+            if column not in self.columns:
+                raise ValueError(f"Column {column} not found in DataFrame")
+
+        formatted_usr_instr = self._nle2str(user_instruction, col_li)
+
+        leaf_instr_template = (
+            "Your job is to provide an answer to the user's instruction given the context below from multiple documents.\n"
+            "Remember that your job is to answer the user's instruction by combining all relevant information from all provided documents, into a single coherent answer.\n"
+            "Do NOT copy the format of the sources! Instead output your answer in a coherent, well-structured manner that best answers the user instruction.\n"
+            "You have limited space to provide your answer, so be concise and to the point.\n\n---\n\n"
+            "Follow the following format.\n\nContext: relevant facts from multiple documents\n\n"
+            "Instruction: the instruction provided by the user\n\nAnswer: Write your answer\n\n---\n\n"
+            "Context: "
+        )
+
+        node_instr_template = (
+            "Your job is to provide an answer to the user's instruction given the context below from multiple sources.\n"
+            "Note that each source may be formatted differently and contain information about several different documents.\n"
+            "Remember that your job is to answer the user's instruction by combining all relevant information from all provided sources, into a single coherent answer.\n"
+            "The sources may provide opposing viewpoints or complementary information.\n"
+            "Be sure to include information from ALL relevant sources in your answer.\n"
+            "Do NOT copy the format of the sources, instead output your answer in a coherent, well-structured manner that best answers the user instruction.\n"
+            "You have limited space to provide your answer, so be concise and to the point.\n"
+            "You may need to draw connections between sources to provide a complete answer.\n\n---\n\n"
+            "Follow the following format.\n\nContext: relevant facts from multiple sources\n\n"
+            "Instruction: the instruction provided by the user\n\nAnswer: Write your answer\n\n---\n\n"
+            "Context: "
+        )
+
+        # TODO: support multiple columns.
+        assert len(col_li) == 1
+        column = col_li[0]
+
+        df = self.copy()
+        num_cluster = 1
+        if "_lotus_partition_id" not in df.columns:
+            df["_lotus_partition_id"] = 0
+            # TODO: more efficient way?
+            df = (
+                df.reset_index(drop=True)
+                .reset_index()
+                .rename(columns={"index": "_lotus_group_id"})
+            )
+        else:
+            num_cluster = len(df["_lotus_partition_id"].unique())
+            df = (
+                df.sort_values("_lotus_partition_id")
+                .reset_index(drop=True)
+                .reset_index()
+                .rename(columns={"index": "_lotus_group_id"})
+            )
+
+        level = 0
+        df["_lotus_doc"] = df[column]
+
+        # TODO: dynamic batch size adjusted by `max_ctx_len` of model quota.
+        num_batch = 5
+        while len(df) > 1:
+            print(f"Loop {level}: aggregate {len(df)} rows")
+            # Generate group id
+            df["_lotus_doc_id"] = (df["_lotus_group_id"] % num_batch).astype(
+                bigframes.dtypes.STRING_DTYPE
+            )
+
+            df["_lotus_group_id"] = (df["_lotus_group_id"] / num_batch).astype(
+                bigframes.dtypes.INT_DTYPE
+            )
+            # Generate doc prompt
+            if level == 0:
+                df["_prompt_lotus_doc"] = (
+                    "\n\tDocument " + df["_lotus_doc_id"] + ": " + df["_lotus_doc"]
+                )
+            else:
+                df["_prompt_lotus_doc"] = (
+                    "\n\tSource " + df["_lotus_doc_id"] + ": " + df["_lotus_doc"]
+                )
+
+            import bigframes.bigquery as bbq
+
+            if len(df) > num_cluster:
+                # Aggregte within groups
+                agg_df = bbq.array_agg(
+                    df.groupby(by=["_lotus_group_id", "_lotus_partition_id"])
+                )
+            else:
+                # Aggregate cross groups
+                print("Starting aggregation cross groups.")
+                agg_df = bbq.array_agg(df.groupby(by=["_lotus_group_id"]))
+                agg_df["_lotus_partition_id"] = agg_df["_lotus_partition_id"].list[0]
+            agg_df_w_single = bbq.array_to_string(
+                agg_df[agg_df["_lotus_doc_id"].list.len() <= 1]["_lotus_doc"],
+                delimiter="",
+            )
+            prompt_s = bbq.array_to_string(
+                agg_df[agg_df["_lotus_doc_id"].list.len() > 1]["_prompt_lotus_doc"],
+                delimiter="",
+            )
+
+            if level == 0:
+                prompt_s = (
+                    f"{leaf_instr_template}"  # type: ignore
+                    + prompt_s
+                    + f"\n\nInstruction:  {formatted_usr_instr}\n\nAnswer:\n"
+                )
+            else:
+                prompt_s = (
+                    f"{node_instr_template}"  # type: ignore
+                    + prompt_s
+                    + f"\n\nInstruction:  {formatted_usr_instr}\n\nAnswer:\n"
+                )
+
+            # Run model
+            predict_df = typing.cast(DataFrame, model.predict(prompt_s))
+
+            agg_df["_lotus_doc"] = predict_df[
+                "ml_generate_text_llm_result"
+            ].combine_first(agg_df_w_single)
+
+            # TODO: more efficient way?
+            agg_df = agg_df.reset_index()
+            df = agg_df[["_lotus_group_id", "_lotus_partition_id", "_lotus_doc"]]
+
+            level += 1
+
+        return df["_lotus_doc"]
