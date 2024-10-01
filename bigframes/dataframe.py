@@ -3025,7 +3025,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Resample with column and origin set to 'start':
 
         >>> df = bpd.DataFrame(data)
-        >>> df._resample(rule="7s", origin="start").min()
+        >>> df._resample(rule="7s", on = "timestamp_col", origin="start").min()
                              int64_col  int64_too
         2021-01-01 13:00:00          0         10
         2021-01-01 13:00:07          7         17
