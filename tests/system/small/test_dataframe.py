@@ -4821,20 +4821,27 @@ def test_to_gbq_table_labels(scalars_df_index):
         pytest.param(["A", "C"], True, id="two_arrays_true"),
     ],
 )
-def test_dataframe_explode(col_names, ignore_index):
+def test_dataframe_explode(col_names, ignore_index, session):
     data = {
         "A": [[0, 1, 2], [], [3, 4]],
         "B": 3,
         "C": [["a", "b", "c"], np.nan, ["d", "e"]],
     }
-    df = bpd.DataFrame(data)
+
+    metrics = session._metrics
+    df = bpd.DataFrame(data, session=session)
     pd_df = df.to_pandas()
+    execs_pre = metrics.execution_count
     pd.testing.assert_frame_equal(
         df.explode(col_names, ignore_index=ignore_index).to_pandas(),
         pd_df.explode(col_names, ignore_index=ignore_index),
         check_index_type=False,
         check_dtype=False,
     )
+    execs_post = metrics.execution_count
+    # we test this property on this method in particular as compilation
+    # is non-deterministic and won't use the query cache as implemented
+    assert execs_post - execs_pre == 1
 
 
 @pytest.mark.parametrize(
