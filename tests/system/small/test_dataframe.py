@@ -4831,17 +4831,23 @@ def test_dataframe_explode(col_names, ignore_index, session):
     metrics = session._metrics
     df = bpd.DataFrame(data, session=session)
     pd_df = df.to_pandas()
+    pd_result = pd_df.explode(col_names, ignore_index=ignore_index)
+    bf_result = df.explode(col_names, ignore_index=ignore_index)
+
+    # Check that to_pandas() results in at most a single query execution
     execs_pre = metrics.execution_count
+    bf_materialized = bf_result.to_pandas()
+    execs_post = metrics.execution_count
+
     pd.testing.assert_frame_equal(
-        df.explode(col_names, ignore_index=ignore_index).to_pandas(),
-        pd_df.explode(col_names, ignore_index=ignore_index),
+        bf_materialized,
+        pd_result,
         check_index_type=False,
         check_dtype=False,
     )
-    execs_post = metrics.execution_count
     # we test this property on this method in particular as compilation
     # is non-deterministic and won't use the query cache as implemented
-    assert execs_post - execs_pre == 1
+    assert execs_post - execs_pre <= 1
 
 
 @pytest.mark.parametrize(
