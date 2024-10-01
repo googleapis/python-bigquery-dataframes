@@ -1417,18 +1417,10 @@ def _convert_ordering_to_table_values(
         expr = op_compiler.compile_expression(
             ordering_col.scalar_expression, value_lookup
         )
-        ordering_value = (
-            ibis.asc(expr) if ordering_col.direction.is_ascending else ibis.desc(expr)
-        )
-        # Bigquery SQL considers NULLS to be "smallest" values, but we need to override in these cases.
-        if (not ordering_col.na_last) and (not ordering_col.direction.is_ascending):
-            # Force nulls to be first
-            is_null_val = typing.cast(ibis_types.Column, expr.isnull())
-            ordering_values.append(ibis.desc(is_null_val))
-        elif (ordering_col.na_last) and (ordering_col.direction.is_ascending):
-            # Force nulls to be last
-            is_null_val = typing.cast(ibis_types.Column, expr.isnull())
-            ordering_values.append(ibis.asc(is_null_val))
+        if ordering_col.direction.is_ascending:
+            ordering_value = ibis.asc(expr, nulls_first=not ordering_col.na_last)
+        else:
+            ordering_value = ibis.desc(expr, nulls_first=not ordering_col.na_last)
         ordering_values.append(ordering_value)
     return ordering_values
 
