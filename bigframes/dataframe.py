@@ -3011,7 +3011,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         Resample on a DataFrame with index:
 
-        >>> df = bpd.DataFrame(data).set_index(col)
+        >>> df = bpd.DataFrame(data).set_index("timestamp_col")
         >>> df._resample(rule="7s").min()
                              int64_col  int64_too
         2021-01-01 12:59:55          0         10
