@@ -4081,6 +4081,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             model (bigframes.ml.llm.GeminiTextGenerator): The large language model used for aggregations.
             num_batch (int): The largest number of rows to be aggregated to fit LM prediction.
 
+
         Returns:
             DataFrame: The dataframe with the aggregated answer.
         """
@@ -4120,6 +4121,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         column = col_li[0]
 
         df = self.copy()
+        df["_lotus_doc"] = df[column]
         num_cluster = 1
         if "_lotus_partition_id" not in df.columns:
             df["_lotus_partition_id"] = 0
@@ -4138,11 +4140,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 .rename(columns={"index": "_lotus_group_id"})
             )
 
-        level = 0
-        df["_lotus_doc"] = df[column]
-
         # TODO: dynamic batch size adjusted by `max_ctx_len` of model quota.
-        num_batch = 5
+        level = 0
         while len(df) > 1:
             print(f"Loop {level}: aggregate {len(df)} rows")
             # Generate group id
