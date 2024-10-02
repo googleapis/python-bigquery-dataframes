@@ -12,28 +12,88 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
 import datetime
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence, Union
 import unittest.mock as mock
+import weakref
 
 import google.auth.credentials
 import google.cloud.bigquery
 import ibis
 import pandas
+import polars as pl
 import pyarrow as pa
 import pytest
 
 import bigframes
 import bigframes.clients
 import bigframes.core as core
+import bigframes.core.compile.polars
 import bigframes.core.ordering
 import bigframes.dataframe
 import bigframes.session.clients
+import bigframes.session.executor
+import bigframes.session.metrics
 
 """Utilities for creating test resources."""
 
 
 TEST_SCHEMA = (google.cloud.bigquery.SchemaField("col", "INTEGER"),)
+
+
+@dataclasses.dataclass
+class TestExecutor(bigframes.session.executor.Executor):
+    compiler = bigframes.core.compile.polars.PolarsCompiler()
+
+    def execute(
+        self,
+        array_value: bigframes.core.ArrayValue,
+        *,
+        ordered: bool = True,
+        col_id_overrides: Mapping[str, str] = {},
+        use_explicit_destination: bool = False,
+        get_size_bytes: bool = False,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+    ):
+        """
+        Execute the ArrayValue, storing the result to a temporary session-owned table.
+        """
+        lazy_frame: pl.LazyFrame = self.compiler.compile(array_value)
+        return bigframes.session.executor.ExecuteResult(
+            arrow_batches=lambda: lazy_frame.collect().to_arrow().to_batches(),
+            schema=array_value.schema,
+        )
+
+
+class TestSession(bigframes.session.Session):
+    def __init__(self):
+        self._location = None  # type: ignore
+        self._bq_kms_key_name = None  # type: ignore
+        self._clients_provider = None  # type: ignore
+        self.ibis_client = None  # type: ignore
+        self.bqclient.default_query_job_config = None  # type: ignore
+        self._bq_connection = None  # type: ignore
+        self._skip_bq_connection_check = True
+        self._session_id: str = "test_session"
+        self._objects: list[
+            weakref.ReferenceType[
+                Union[
+                    bigframes.core.indexes.Index,
+                    bigframes.series.Series,
+                    bigframes.dataframe.DataFrame,
+                ]
+            ]
+        ] = []
+        self._strictly_ordered: bool = True
+        self._allow_ambiguity = False  # type: ignore
+        self._default_index_type = bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
+        self._metrics = bigframes.session.metrics.ExecutionMetrics()
+        self._remote_function_session = None  # type: ignore
+        self._temp_storage_manager = None  # type: ignore
+        self._executor = TestExecutor()
+        self._loader = None  # type: ignore
 
 
 def create_bigquery_session(

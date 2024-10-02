@@ -18,10 +18,12 @@ import functools
 import itertools
 from typing import cast, Sequence
 
-import pandas as pd
-
-# TODO: This will probably be an optional dependency, be careful about how to import.
-import polars as pl
+# Polars is an optional dependency
+try:
+    import polars as pl
+except ImportError:
+    # Handle the case where the dependency is not installed
+    pl = None  # type: ignore
 
 import bigframes.core
 import bigframes.core.expression as ex
@@ -53,9 +55,9 @@ class PolarsExpressionCompiler:
     @compile_expression.register
     def _(
         self,
-        expression: ex.UnboundVariableExpression,
+        expression: ex.DerefOp,
     ) -> pl.Expr:
-        return pl.col(expression.id)
+        return pl.col(expression.id.sql)
 
     @compile_expression.register
     def _(
@@ -125,7 +127,7 @@ class PolarsAggregateCompiler:
 
 
 @dataclasses.dataclass(frozen=True)
-class PolarsLocalExecutor:
+class PolarsCompiler:
     """
     Compiles ArrayValue to polars LazyFrame and executes.
 
@@ -144,21 +146,15 @@ class PolarsLocalExecutor:
     expr_compiler = PolarsExpressionCompiler()
     agg_compiler = PolarsAggregateCompiler()
 
-    def execute_local(self, array_value: bigframes.core.ArrayValue) -> pd.DataFrame:
-        import bigframes.session._io.pandas
+    def compile(self, array_value: bigframes.core.ArrayValue) -> pl.LazyFrame:
+        return self.compile_node(array_value.node)
 
-        pl_df = self.execute_node(array_value.node).collect()
-        field_types = {i.column: i.dtype for i in array_value.schema.items}
-        return bigframes.session._io.pandas.arrow_to_pandas(
-            pl_df.to_arrow(), dtypes=field_types
-        )
-
-    def execute_node(self, node: nodes.BigFrameNode) -> pl.LazyFrame:
+    def compile_node(self, node: nodes.BigFrameNode) -> pl.LazyFrame:
         """Compile node into CompileArrayValue. Caches result."""
         return self._execute_node(node)
 
     @functools.singledispatchmethod
-    def _execute_node(self, node: nodes.BigFrameNode) -> pl.DataFrame:
+    def _execute_node(self, node: nodes.BigFrameNode) -> pl.LazyFrame:
         """Defines transformation but isn't cached, always use compile_node instead"""
         raise ValueError(f"Can't compile unrecognized node: {node}")
 
@@ -168,13 +164,13 @@ class PolarsLocalExecutor:
 
     @_execute_node.register
     def compile_filter(self, node: nodes.FilterNode):
-        return self.execute_node(node.child).filter(
+        return self.compile_node(node.child).filter(
             self.expr_compiler.compile_expression(node.predicate)
         )
 
     @_execute_node.register
     def compile_orderby(self, node: nodes.OrderByNode):
-        frame = self.execute_node(node.child)
+        frame = self.compile_node(node.child)
         for by in node.by:
             frame = frame.sort(
                 self.expr_compiler.compile_expression(by.scalar_expression),
@@ -186,11 +182,11 @@ class PolarsLocalExecutor:
 
     @_execute_node.register
     def compile_reversed(self, node: nodes.ReversedNode):
-        return self.execute_node(node.child).reverse()
+        return self.compile_node(node.child).reverse()
 
     @_execute_node.register
     def compile_selection(self, node: nodes.SelectionNode):
-        return self.execute_node(node.child).select(
+        return self.compile_node(node.child).select(
             **{new: orig for orig, new in node.input_output_pairs}
         )
 
@@ -200,37 +196,27 @@ class PolarsLocalExecutor:
             self.expr_compiler.compile_expression(ex).alias(name)
             for ex, name in node.assignments
         ]
-        return self.execute_node(node.child).with_columns(new_cols)
+        return self.compile_node(node.child).with_columns(new_cols)
 
     @_execute_node.register
     def compile_rowcount(self, node: nodes.RowCountNode):
-        rows = self.execute_node(node.child).count()[0]
+        rows = self.compile_node(node.child).count()[0]
         return pl.DataFrame({"count": [rows]})
 
     @_execute_node.register
     def compile_offsets(self, node: nodes.PromoteOffsetsNode):
-        return self.execute_node(node.child).with_columns(
+        return self.compile_node(node.child).with_columns(
             [pl.int_range(pl.len(), dtype=pl.Int64).alias(node.col_id)]
         )
 
     @_execute_node.register
     def compile_join(self, node: nodes.JoinNode):
         # TODO: Join ordering might not be entirely strict, so force explicit ordering
-        l_renames = {
-            old: new
-            for old, new in zip(node.left_child.schema.names, node.schema.names)
-        }
-        r_renames = {
-            old: new
-            for old, new in zip(
-                node.right_child.schema.names, node.schema.names[len(l_renames) :]
-            )
-        }
-        left = self.execute_node(node.left_child).rename(l_renames)
-        right = self.execute_node(node.right_child).rename(r_renames)
+        left = self.compile_node(node.left_child)
+        right = self.compile_node(node.right_child)
         if node.type != "cross":
-            left_on = [l_renames[l_name] for l_name, _ in node.conditions]
-            right_on = [r_renames[r_name] for _, r_name in node.conditions]
+            left_on = [l_name.id.sql for l_name, _ in node.conditions]
+            right_on = [r_name.id.sql for _, r_name in node.conditions]
             return left.join(
                 right, how=node.type, left_on=left_on, right_on=right_on, coalesce=False
             )
@@ -238,16 +224,16 @@ class PolarsLocalExecutor:
 
     @_execute_node.register
     def compile_concat(self, node: nodes.ConcatNode):
-        return pl.concat(self.execute_node(child) for child in node.child_nodes)
+        return pl.concat(self.compile_node(child) for child in node.child_nodes)
 
     @_execute_node.register
     def compile_reproject(self, node: nodes.ReprojectOpNode):
         # NOOP
-        return self.execute_node(node.child)
+        return self.compile_node(node.child)
 
     @_execute_node.register
     def compile_agg(self, node: nodes.AggregateNode):
-        df = self.execute_node(node.child)
+        df = self.compile_node(node.child)
 
         # Need to materialize columns to broadcast constants
         agg_inputs = [
@@ -278,22 +264,22 @@ class PolarsLocalExecutor:
 
     @_execute_node.register
     def compile_explode(self, node: nodes.ExplodeNode):
-        df = self.execute_node(node.child)
+        df = self.compile_node(node.child)
         cols = [pl.col(df.columns[i]) for i in node.column_ids]
         return df.explode(cols)
 
     @_execute_node.register
     def compile_sample(self, node: nodes.RandomSampleNode):
-        df = self.execute_node(node.child)
+        df = self.compile_node(node.child)
         # Sample is not available on lazyframe
         return df.collect().sample(fraction=node.fraction).lazy()
 
     @_execute_node.register
     def compile_window(self, node: nodes.WindowOpNode):
-        df = self.execute_node(node.child)
-        agg_expr = self.agg_compiler.compile_agg_op(node.op, [node.column_name]).alias(
-            node.output_name
-        )
+        df = self.compile_node(node.child)
+        agg_expr = self.agg_compiler.compile_agg_op(
+            node.op, [node.column_name.id.sql]
+        ).alias(node.output_name.sql)
         # Three window types: completely unbound, grouped and row bounded
 
         window = node.window_spec
