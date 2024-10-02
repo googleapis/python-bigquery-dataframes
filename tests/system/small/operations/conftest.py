@@ -13,8 +13,14 @@
 # limitations under the License.
 
 import pytest
+
 import bigframes.ml.llm as llm
+
 
 @pytest.fixture(scope="session")
 def gemini_flash_model(session, bq_connection) -> llm.GeminiTextGenerator:
-    return llm.GeminiTextGenerator(session=session, connection_name=bq_connection, model_name=llm._GEMINI_1P5_FLASH_001_ENDPOINT)
+    return llm.GeminiTextGenerator(
+        session=session,
+        connection_name=bq_connection,
+        model_name=llm._GEMINI_1P5_FLASH_001_ENDPOINT,
+    )

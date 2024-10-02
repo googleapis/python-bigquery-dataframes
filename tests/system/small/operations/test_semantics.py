@@ -35,7 +35,7 @@ def test_filter(session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame(
         data={"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]},
-        session=session
+        session=session,
     )
 
     actual_df = df.semantics.filter(
@@ -63,4 +63,3 @@ def test_filter_invalid_instruction_raise_error(instruction, gemini_flash_model)
 
     with pytest.raises(ValueError):
         df.semantics.filter(instruction, gemini_flash_model)
-
