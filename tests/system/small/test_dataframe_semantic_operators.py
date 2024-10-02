@@ -30,13 +30,9 @@ def test_sem_filter():
         {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}
     )
 
-    actual_df = (
-        df.sem_filter("{city} is the capital of {country}", _MODEL)
-        .to_pandas()
-        .reset_index(drop=True)
-    )
+    actual_df = df.sem_filter("{city} is the capital of {country}", _MODEL).to_pandas()
 
-    expected_df = pd.DataFrame({"country": ["Germany"], "city": ["Berlin"]})
+    expected_df = pd.DataFrame({"country": ["Germany"], "city": ["Berlin"]}, index=[1])
     pandas.testing.assert_frame_equal(
         actual_df, expected_df, check_dtype=False, check_index_type=False
     )
