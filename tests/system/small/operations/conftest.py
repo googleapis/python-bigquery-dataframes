@@ -22,5 +22,5 @@ def gemini_flash_model(session, bq_connection) -> llm.GeminiTextGenerator:
     return llm.GeminiTextGenerator(
         session=session,
         connection_name=bq_connection,
-        model_name=llm._GEMINI_1P5_FLASH_001_ENDPOINT,
+        model_name="gemini-1.5-flash-001",
     )
