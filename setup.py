@@ -69,8 +69,9 @@ extras = {
     # Optional test dependencies packages. If they're missed, may skip some tests.
     "tests": [
         "pandas-gbq >=0.19.0",
-        "polars >= 1.7.0",  # TODO: Determine reasonable bounds
     ],
+    # used for local engine, which is only needed for unit tests at present.
+    "polars": ["polars >= 1.7.0"],
     # Packages required for basic development flow.
     "dev": ["pytest", "pytest-mock", "pre-commit", "nox", "google-cloud-testutils"],
 }
