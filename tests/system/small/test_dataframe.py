@@ -1477,7 +1477,7 @@ def test_get_dtypes_array_struct_table(nested_df):
                     pa.list_(
                         pa.struct(
                             [
-                                (
+                                pa.field(
                                     "data",
                                     pa.list_(
                                         pa.struct(
@@ -1487,6 +1487,7 @@ def test_get_dtypes_array_struct_table(nested_df):
                                             ],
                                         ),
                                     ),
+                                    nullable=False,
                                 ),
                                 ("timestamp", pa.timestamp("us", "UTC")),
                                 ("category", pa.string()),
@@ -2195,17 +2196,15 @@ def test_series_binop_axis_index(
     [
         ((1000, 2000, 3000)),
         (pd.Index([1000, 2000, 3000])),
-        (bf_indexes.Index([1000, 2000, 3000])),
         (pd.Series((1000, 2000), index=["int64_too", "float64_col"])),
     ],
     ids=[
         "tuple",
         "pd_index",
-        "bf_index",
         "pd_series",
     ],
 )
-def test_listlike_binop_axis_1(scalars_dfs, input):
+def test_listlike_binop_axis_1_in_memory_data(scalars_dfs, input):
     scalars_df, scalars_pandas_df = scalars_dfs
 
     df_columns = ["int64_col", "float64_col", "int64_too"]
@@ -2214,6 +2213,21 @@ def test_listlike_binop_axis_1(scalars_dfs, input):
     if hasattr(input, "to_pandas"):
         input = input.to_pandas()
     pd_result = scalars_pandas_df[df_columns].add(input, axis=1)
+
+    assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_listlike_binop_axis_1_bf_index(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    df_columns = ["int64_col", "float64_col", "int64_too"]
+
+    bf_result = (
+        scalars_df[df_columns]
+        .add(bf_indexes.Index([1000, 2000, 3000]), axis=1)
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df[df_columns].add(pd.Index([1000, 2000, 3000]), axis=1)
 
     assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
 
@@ -4807,20 +4821,33 @@ def test_to_gbq_table_labels(scalars_df_index):
         pytest.param(["A", "C"], True, id="two_arrays_true"),
     ],
 )
-def test_dataframe_explode(col_names, ignore_index):
+def test_dataframe_explode(col_names, ignore_index, session):
     data = {
         "A": [[0, 1, 2], [], [3, 4]],
         "B": 3,
         "C": [["a", "b", "c"], np.nan, ["d", "e"]],
     }
-    df = bpd.DataFrame(data)
+
+    metrics = session._metrics
+    df = bpd.DataFrame(data, session=session)
     pd_df = df.to_pandas()
+    pd_result = pd_df.explode(col_names, ignore_index=ignore_index)
+    bf_result = df.explode(col_names, ignore_index=ignore_index)
+
+    # Check that to_pandas() results in at most a single query execution
+    execs_pre = metrics.execution_count
+    bf_materialized = bf_result.to_pandas()
+    execs_post = metrics.execution_count
+
     pd.testing.assert_frame_equal(
-        df.explode(col_names, ignore_index=ignore_index).to_pandas(),
-        pd_df.explode(col_names, ignore_index=ignore_index),
+        bf_materialized,
+        pd_result,
         check_index_type=False,
         check_dtype=False,
     )
+    # we test this property on this method in particular as compilation
+    # is non-deterministic and won't use the query cache as implemented
+    assert execs_post - execs_pre <= 1
 
 
 @pytest.mark.parametrize(
@@ -4863,3 +4890,120 @@ def test_dataframe_explode_reserve_order(ignore_index, ordered):
 def test_dataframe_explode_xfail(col_names):
     df = bpd.DataFrame({"A": [[0, 1, 2], [], [3, 4]]})
     df.explode(col_names)
+
+
+@skip_legacy_pandas
+@pytest.mark.parametrize(
+    ("on", "rule", "origin"),
+    [
+        pytest.param("datetime_col", "100D", "start"),
+        pytest.param("datetime_col", "30W", "start"),
+        pytest.param("datetime_col", "5M", "epoch"),
+        pytest.param("datetime_col", "3Q", "start_day"),
+        pytest.param("datetime_col", "3YE", "start"),
+        pytest.param(
+            "int64_col", "100D", "start", marks=pytest.mark.xfail(raises=TypeError)
+        ),
+        pytest.param(
+            "datetime_col", "100D", "end", marks=pytest.mark.xfail(raises=ValueError)
+        ),
+    ],
+)
+def test__resample_with_column(
+    scalars_df_index, scalars_pandas_df_index, on, rule, origin
+):
+    bf_result = (
+        scalars_df_index._resample(rule=rule, on=on, origin=origin)[
+            ["int64_col", "int64_too"]
+        ]
+        .max()
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df_index.resample(rule=rule, on=on, origin=origin)[
+        ["int64_col", "int64_too"]
+    ].max()
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+@skip_legacy_pandas
+@pytest.mark.parametrize(
+    ("append", "level", "col", "rule"),
+    [
+        pytest.param(False, None, "timestamp_col", "100d"),
+        pytest.param(True, 1, "timestamp_col", "1200h"),
+        pytest.param(False, None, "datetime_col", "100d"),
+    ],
+)
+def test__resample_with_index(
+    scalars_df_index, scalars_pandas_df_index, append, level, col, rule
+):
+    scalars_df_index = scalars_df_index.set_index(col, append=append)
+    scalars_pandas_df_index = scalars_pandas_df_index.set_index(col, append=append)
+    bf_result = (
+        scalars_df_index[["int64_col", "int64_too"]]
+        ._resample(rule=rule, level=level)
+        .min()
+        .to_pandas()
+    )
+    pd_result = (
+        scalars_pandas_df_index[["int64_col", "int64_too"]]
+        .resample(rule=rule, level=level)
+        .min()
+    )
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+@skip_legacy_pandas
+@pytest.mark.parametrize(
+    ("rule", "origin", "data"),
+    [
+        (
+            "5h",
+            "epoch",
+            {
+                "timestamp_col": pd.date_range(
+                    start="2021-01-01 13:00:00", periods=30, freq="1h"
+                ),
+                "int64_col": range(30),
+                "int64_too": range(10, 40),
+            },
+        ),
+        (
+            "75min",
+            "start_day",
+            {
+                "timestamp_col": pd.date_range(
+                    start="2021-01-01 13:00:00", periods=30, freq="10min"
+                ),
+                "int64_col": range(30),
+                "int64_too": range(10, 40),
+            },
+        ),
+        (
+            "7s",
+            "epoch",
+            {
+                "timestamp_col": pd.date_range(
+                    start="2021-01-01 13:00:00", periods=30, freq="1s"
+                ),
+                "int64_col": range(30),
+                "int64_too": range(10, 40),
+            },
+        ),
+    ],
+)
+def test__resample_start_time(rule, origin, data):
+    col = "timestamp_col"
+    scalars_df_index = bpd.DataFrame(data).set_index(col)
+    scalars_pandas_df_index = pd.DataFrame(data).set_index(col)
+    scalars_pandas_df_index.index.name = None
+
+    bf_result = scalars_df_index._resample(rule=rule, origin=origin).min().to_pandas()
+
+    pd_result = scalars_pandas_df_index.resample(rule=rule, origin=origin).min()
+
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )

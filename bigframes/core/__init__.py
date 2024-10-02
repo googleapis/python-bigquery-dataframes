@@ -29,6 +29,7 @@ import pyarrow.feather as pa_feather
 import bigframes.core.compile
 import bigframes.core.expression as ex
 import bigframes.core.guid
+import bigframes.core.identifiers as ids
 import bigframes.core.join_def as join_def
 import bigframes.core.local_data as local_data
 import bigframes.core.nodes as nodes
@@ -66,13 +67,32 @@ class ArrayValue:
 
         iobytes = io.BytesIO()
         pa_feather.write_feather(adapted_table, iobytes)
+        # Scan all columns by default, we define this list as it can be pruned while preserving source_def
+        scan_list = nodes.ScanList(
+            tuple(
+                nodes.ScanItem(ids.ColumnId(item.column), item.dtype, item.column)
+                for item in schema.items
+            )
+        )
+
         node = nodes.ReadLocalNode(
             iobytes.getvalue(),
             data_schema=schema,
             session=session,
             n_rows=arrow_table.num_rows,
+            scan_list=scan_list,
         )
         return cls(node)
+
+    @classmethod
+    def from_range(cls, start, end, step):
+        return cls(
+            nodes.FromRangeNode(
+                start=start.node,
+                end=end.node,
+                step=step,
+            )
+        )
 
     @classmethod
     def from_table(
@@ -93,14 +113,30 @@ class ArrayValue:
                 "Interpreting JSON column(s) as StringDtype. This behavior may change in future versions.",
                 bigframes.exceptions.PreviewWarning,
             )
+        # define data source only for needed columns, this makes row-hashing cheaper
+        table_def = nodes.GbqTable.from_table(table, columns=schema.names)
+
+        # create ordering from info
+        ordering = None
+        if offsets_col:
+            ordering = orderings.TotalOrdering.from_offset_col(offsets_col)
+        elif primary_key:
+            ordering = orderings.TotalOrdering.from_primary_key(primary_key)
+
+        # Scan all columns by default, we define this list as it can be pruned while preserving source_def
+        scan_list = nodes.ScanList(
+            tuple(
+                nodes.ScanItem(ids.ColumnId(item.column), item.dtype, item.column)
+                for item in schema.items
+            )
+        )
+        source_def = nodes.BigqueryDataSource(
+            table=table_def, at_time=at_time, sql_predicate=predicate, ordering=ordering
+        )
         node = nodes.ReadTableNode(
-            table=nodes.GbqTable.from_table(table),
-            total_order_cols=(offsets_col,) if offsets_col else tuple(primary_key),
-            order_col_is_sequential=(offsets_col is not None),
-            columns=schema,
-            at_time=at_time,
+            source=source_def,
+            scan_list=scan_list,
             table_session=session,
-            sql_predicate=predicate,
         )
         return cls(node)
 
@@ -146,12 +182,22 @@ class ArrayValue:
         ordering: Optional[orderings.RowOrdering],
     ) -> ArrayValue:
         """
-        Replace the node with an equivalent one that references a tabel where the value has been materialized to.
+        Replace the node with an equivalent one that references a table where the value has been materialized to.
         """
+        table = nodes.GbqTable.from_table(cache_table)
+        source = nodes.BigqueryDataSource(table, ordering=ordering)
+        # Assumption: GBQ cached table uses field name as bq column name
+        scan_list = nodes.ScanList(
+            tuple(
+                nodes.ScanItem(field.id, field.dtype, field.id.name)
+                for field in self.node.fields
+            )
+        )
         node = nodes.CachedTableNode(
             original_node=self.node,
-            table=nodes.GbqTable.from_table(cache_table),
-            ordering=ordering,
+            source=source,
+            table_session=self.session,
+            scan_list=scan_list,
         )
         return ArrayValue(node)
 
@@ -169,7 +215,7 @@ class ArrayValue:
     # Operations
     def filter_by_id(self, predicate_id: str, keep_null: bool = False) -> ArrayValue:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
-        predicate: ex.Expression = ex.free_var(predicate_id)
+        predicate: ex.Expression = ex.deref(predicate_id)
         if keep_null:
             predicate = ops.fillna_op.as_expr(predicate, ex.const(True))
         return self.filter(predicate)
@@ -200,7 +246,9 @@ class ArrayValue:
                 )
 
         return (
-            ArrayValue(nodes.PromoteOffsetsNode(child=self.node, col_id=col_id)),
+            ArrayValue(
+                nodes.PromoteOffsetsNode(child=self.node, col_id=ids.ColumnId(col_id))
+            ),
             col_id,
         )
 
@@ -212,7 +260,9 @@ class ArrayValue:
 
     def compute_values(self, assignments: Sequence[ex.Expression]):
         col_ids = self._gen_namespaced_uids(len(assignments))
-        ex_id_pairs = tuple((ex, id) for ex, id in zip(assignments, col_ids))
+        ex_id_pairs = tuple(
+            (ex, ids.ColumnId(id)) for ex, id in zip(assignments, col_ids)
+        )
         return (
             ArrayValue(nodes.ProjectionNode(child=self.node, assignments=ex_id_pairs)),
             col_ids,
@@ -228,14 +278,19 @@ class ArrayValue:
         if destination_id in self.column_ids:  # Mutate case
             exprs = [
                 (
-                    (source_id if (col_id == destination_id) else col_id),
-                    col_id,
+                    ex.deref(source_id if (col_id == destination_id) else col_id),
+                    ids.ColumnId(col_id),
                 )
                 for col_id in self.column_ids
             ]
         else:  # append case
-            self_projection = ((col_id, col_id) for col_id in self.column_ids)
-            exprs = [*self_projection, (source_id, destination_id)]
+            self_projection = (
+                (ex.deref(col_id), ids.ColumnId(col_id)) for col_id in self.column_ids
+            )
+            exprs = [
+                *self_projection,
+                (ex.deref(source_id), ids.ColumnId(destination_id)),
+            ]
         return ArrayValue(
             nodes.SelectionNode(
                 child=self.node,
@@ -248,24 +303,15 @@ class ArrayValue:
         value: typing.Any,
         dtype: typing.Optional[bigframes.dtypes.Dtype],
     ) -> Tuple[ArrayValue, str]:
-        destination_id = self._gen_namespaced_uid()
         if pandas.isna(value):
             # Need to assign a data type when value is NaN.
             dtype = dtype or bigframes.dtypes.DEFAULT_DTYPE
 
-        return (
-            ArrayValue(
-                nodes.ProjectionNode(
-                    child=self.node,
-                    assignments=((ex.const(value, dtype), destination_id),),
-                )
-            ),
-            destination_id,
-        )
+        return self.project_to_id(ex.const(value, dtype))
 
     def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
         # This basically just drops and reorders columns - logically a no-op except as a final step
-        selections = ((col_id, col_id) for col_id in column_ids)
+        selections = ((ex.deref(col_id), ids.ColumnId(col_id)) for col_id in column_ids)
         return ArrayValue(
             nodes.SelectionNode(
                 child=self.node,
@@ -274,14 +320,8 @@ class ArrayValue:
         )
 
     def drop_columns(self, columns: Iterable[str]) -> ArrayValue:
-        new_projection = (
-            (col_id, col_id) for col_id in self.column_ids if col_id not in columns
-        )
-        return ArrayValue(
-            nodes.SelectionNode(
-                child=self.node,
-                input_output_pairs=tuple(new_projection),
-            )
+        return self.select_columns(
+            [col_id for col_id in self.column_ids if col_id not in columns]
         )
 
     def aggregate(
@@ -297,11 +337,12 @@ class ArrayValue:
             by_column_id: column id of the aggregation key, this is preserved through the transform
             dropna: whether null keys should be dropped
         """
+        agg_defs = tuple((agg, ids.ColumnId(name)) for agg, name in aggregations)
         return ArrayValue(
             nodes.AggregateNode(
                 child=self.node,
-                aggregations=tuple(aggregations),
-                by_column_ids=tuple(by_column_ids),
+                aggregations=agg_defs,
+                by_column_ids=tuple(map(ex.deref, by_column_ids)),
                 dropna=dropna,
             )
         )
@@ -342,10 +383,10 @@ class ArrayValue:
             ArrayValue(
                 nodes.WindowOpNode(
                     child=self.node,
-                    column_name=column_name,
+                    column_name=ex.deref(column_name),
                     op=op,
                     window_spec=window_spec,
-                    output_name=output_name,
+                    output_name=ids.ColumnId(output_name),
                     never_skip_nulls=never_skip_nulls,
                     skip_reproject_unsafe=skip_reproject_unsafe,
                 )
@@ -373,26 +414,34 @@ class ArrayValue:
         conditions: typing.Tuple[typing.Tuple[str, str], ...] = (),
         type: typing.Literal["inner", "outer", "left", "right", "cross"] = "inner",
     ) -> typing.Tuple[ArrayValue, typing.Tuple[dict[str, str], dict[str, str]]]:
+        l_mapping = {  # Identity mapping, only rename right side
+            lcol.name: lcol.name for lcol in self.node.ids
+        }
+        r_mapping = {  # Rename conflicting names
+            rcol.name: rcol.name
+            if (rcol.name not in l_mapping)
+            else bigframes.core.guid.generate_guid()
+            for rcol in other.node.ids
+        }
+        other_node = other.node
+        if set(other_node.ids) & set(self.node.ids):
+            other_node = nodes.SelectionNode(
+                other_node,
+                tuple(
+                    (ex.deref(old_id), ids.ColumnId(new_id))
+                    for old_id, new_id in r_mapping.items()
+                ),
+            )
+
         join_node = nodes.JoinNode(
             left_child=self.node,
-            right_child=other.node,
-            conditions=conditions,
+            right_child=other_node,
+            conditions=tuple(
+                (ex.deref(l_mapping[l_col]), ex.deref(r_mapping[r_col]))
+                for l_col, r_col in conditions
+            ),
             type=type,
         )
-        # Maps input ids to output ids for caller convenience
-        l_size = len(self.node.schema)
-        l_mapping = {
-            lcol: ocol
-            for lcol, ocol in zip(
-                self.node.schema.names, join_node.schema.names[:l_size]
-            )
-        }
-        r_mapping = {
-            rcol: ocol
-            for rcol, ocol in zip(
-                other.node.schema.names, join_node.schema.names[l_size:]
-            )
-        }
         return ArrayValue(join_node), (l_mapping, r_mapping)
 
     def try_align_as_projection(
@@ -414,7 +463,7 @@ class ArrayValue:
         for column_id in column_ids:
             assert bigframes.dtypes.is_array_like(self.get_column_type(column_id))
 
-        offsets = tuple(self.get_offset_for_name(id) for id in column_ids)
+        offsets = tuple(ex.deref(id) for id in column_ids)
         return ArrayValue(nodes.ExplodeNode(child=self.node, column_ids=offsets))
 
     def _uniform_sampling(self, fraction: float) -> ArrayValue:
@@ -424,9 +473,6 @@ class ArrayValue:
             The row numbers of result is non-deterministic, avoid to use.
         """
         return ArrayValue(nodes.RandomSampleNode(self.node, fraction))
-
-    def get_offset_for_name(self, name: str):
-        return self.schema.names.index(name)
 
     # Deterministically generate namespaced ids for new variables
     # These new ids are only unique within the current namespace.

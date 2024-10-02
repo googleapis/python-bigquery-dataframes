@@ -4,6 +4,47 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.21.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.20.0...v1.21.0) (2024-10-02)
+
+
+### Features
+
+* Add deprecation warning to PaLM2TextGenerator model ([#1035](https://github.com/googleapis/python-bigquery-dataframes/issues/1035)) ([1183b0f](https://github.com/googleapis/python-bigquery-dataframes/commit/1183b0fb2be7af7386e4bd0d0d1312433db60454))
+* Add DeprecationWarning for PaLM2TextEmbeddingGenerator ([#1018](https://github.com/googleapis/python-bigquery-dataframes/issues/1018)) ([4af5bbb](https://github.com/googleapis/python-bigquery-dataframes/commit/4af5bbb9e42fdb0add17308475c7881d7035fbfd))
+* Add ml.model_selection.cross_validate support ([#1020](https://github.com/googleapis/python-bigquery-dataframes/issues/1020)) ([1a38063](https://github.com/googleapis/python-bigquery-dataframes/commit/1a380631f793f82637cd384601956ee4457dc58a))
+* Allow access of struct fields with dot operators on `Series` ([#1019](https://github.com/googleapis/python-bigquery-dataframes/issues/1019)) ([ef76f13](https://github.com/googleapis/python-bigquery-dataframes/commit/ef76f137fbbf9e8f8c5a63023554d22059ab4fbd))
+
+
+### Bug Fixes
+
+* Ensure no double execution for to_pandas ([#1032](https://github.com/googleapis/python-bigquery-dataframes/issues/1032)) ([4992cc2](https://github.com/googleapis/python-bigquery-dataframes/commit/4992cc27e46bc2b0a908c7d521785989735186f4))
+* Remove pre-caching of remote function results ([#1028](https://github.com/googleapis/python-bigquery-dataframes/issues/1028)) ([0359bc8](https://github.com/googleapis/python-bigquery-dataframes/commit/0359bc85839c37b5cd10c0c418b275ac0dc29c4a))
+
+
+### Documentation
+
+* Add ml cross-validation notebook ([#1037](https://github.com/googleapis/python-bigquery-dataframes/issues/1037)) ([057f3f0](https://github.com/googleapis/python-bigquery-dataframes/commit/057f3f0d694ddffe8745443a85b4fb43081893bb))
+
+## [1.20.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.19.0...v1.20.0) (2024-09-25)
+
+
+### Features
+
+* Add bigframes.bigquery.approx_top_count ([#1010](https://github.com/googleapis/python-bigquery-dataframes/issues/1010)) ([3263bd7](https://github.com/googleapis/python-bigquery-dataframes/commit/3263bd70cff01bc18f1ae4ac3d5aa7f9d70fd4b7))
+* Add bigframes.ml.compose.SQLScalarColumnTransformer to create custom SQL-based transformations ([#955](https://github.com/googleapis/python-bigquery-dataframes/issues/955)) ([1930b4e](https://github.com/googleapis/python-bigquery-dataframes/commit/1930b4efe60295751ceef89c2a824923a35b19af))
+* Allow multiple columns input for llm models ([#998](https://github.com/googleapis/python-bigquery-dataframes/issues/998)) ([2fe5e48](https://github.com/googleapis/python-bigquery-dataframes/commit/2fe5e48c56bbc359d3769824c83745d65a001dd7))
+
+
+### Bug Fixes
+
+* Fix __repr__ caching with partial ordering ([#1016](https://github.com/googleapis/python-bigquery-dataframes/issues/1016)) ([208a984](https://github.com/googleapis/python-bigquery-dataframes/commit/208a98475389f59d4e32e0cfbcc46824cac278a6))
+
+
+### Documentation
+
+* Limit pypi notebook to 7 days and add more info about differences with partial ordering mode ([#1013](https://github.com/googleapis/python-bigquery-dataframes/issues/1013)) ([3c54399](https://github.com/googleapis/python-bigquery-dataframes/commit/3c543990297ec3be0e30425ee841546217e26d2a))
+* Move and edit existing linear-regression tutorial snippet ([#991](https://github.com/googleapis/python-bigquery-dataframes/issues/991)) ([4cb62fd](https://github.com/googleapis/python-bigquery-dataframes/commit/4cb62fd74fc1ac3bb21da23b8639464a9ae3525d))
+
 ## [1.19.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.18.0...v1.19.0) (2024-09-24)
 
 
