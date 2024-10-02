@@ -23,7 +23,7 @@ from packaging.version import Version
 import pandas as pd
 import pyarrow as pa  # type: ignore
 import pytest
-import shapely
+import shapely  # type: ignore
 
 import bigframes.pandas
 import bigframes.series as series
