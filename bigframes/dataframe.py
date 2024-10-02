@@ -3875,3 +3875,60 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise bigframes.exceptions.NullIndexError(
                 f"DataFrame cannot perform {opname} as it has no index. Set an index using set_index."
             )
+
+    def sem_filter(self, instruction: str, model) -> DataFrame:
+        """
+        Filters the DataFrame with the semantics of the user instruction.
+
+        Args:
+            instruction:
+                An instruction on how to filter the data. This value can contain
+                column references by name, which should be wrapped in a pair of braces.
+                For example, if you have a column "food", you can refer to this column
+                in the instructions like:
+                "The {food} is healthy."
+
+            model:
+                A LLM model provided by Bigframes ML package.
+
+        Returns:
+            DataFrame filtered by the instruction.
+
+        Raises:
+            NotImplementedError: when the semantic operator experiment is off.
+            ValueError: when the instruction refers to a non-existing column.
+        """
+        if not bigframes.options.experiments.semantic_operators:
+            raise NotImplementedError()
+
+        # Validate column references
+        columns = re.findall(r"(?<!{)\{(?!{)(.*?)\}(?!\})", instruction)
+        for column in columns:
+            if column not in self.columns:
+                raise ValueError(f"Column {column} not found.")
+
+        # Replace column references with names.
+
+        instruction = instruction.format(**{col: col for col in columns})
+
+        prompt_df = self.copy()
+
+        # Combine context from multiple columns.
+        for idx, col in enumerate(columns):
+            if idx == 0:
+                prompt_df["context"] = f"{col} is `" + prompt_df[col] + "`\n"
+            else:
+                prompt_df["context"] += f"{col} is `" + prompt_df[col] + "`\n"
+
+        prompt_df["prompt"] = (
+            "Decide the folowing claim by only True and False: "
+            + instruction
+            + "\nContext:"
+            + prompt_df["context"]
+        )
+
+        results = typing.cast(DataFrame, model.predict(prompt_df["prompt"]))
+
+        return self[
+            results["ml_generate_text_llm_result"].str.lower().str.contains("true")
+        ]
