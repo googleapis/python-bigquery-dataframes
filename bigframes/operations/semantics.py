@@ -32,7 +32,7 @@ class Semantics:
 
         Args:
             instruction:
-                An instruction on how to filter the data. This value can contain
+                An instruction on how to filter the data. This value must contain
                 column references by name, which should be wrapped in a pair of braces.
                 For example, if you have a column "food", you can refer to this column
                 in the instructions like:
@@ -46,11 +46,16 @@ class Semantics:
 
         Raises:
             NotImplementedError: when the semantic operator experiment is off.
-            ValueError: when the instruction refers to a non-existing column.
+            ValueError: when the instruction refers to a non-existing column, or when no
+                columns are referred to.
         """
 
         # Validate column references
         columns = re.findall(r"(?<!{)\{(?!{)(.*?)\}(?!\})", instruction)
+
+        if not columns:
+            raise ValueError(f"No column references.")
+
         for column in columns:
             if column not in self._df.columns:
                 raise ValueError(f"Column {column} not found.")

@@ -20,8 +20,6 @@ import bigframes
 import bigframes.dataframe as dataframe
 import bigframes.ml.llm as llm
 
-_MODEL = llm.GeminiTextGenerator(model_name=llm._GEMINI_1P5_FLASH_001_ENDPOINT)
-
 
 def test_semantics_experiment_off_raise_error():
     bigframes.options.experiments.semantic_operators = False
@@ -33,17 +31,35 @@ def test_semantics_experiment_off_raise_error():
         df.semantics
 
 
-def test_filter():
+def test_filter(session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame(
-        {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}
+        data={"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]},
+        session=session,
     )
 
     actual_df = df.semantics.filter(
-        "{city} is the capital of {country}", _MODEL
+        "{city} is the capital of {country}", gemini_flash_model
     ).to_pandas()
 
     expected_df = pd.DataFrame({"country": ["Germany"], "city": ["Berlin"]}, index=[1])
     pandas.testing.assert_frame_equal(
         actual_df, expected_df, check_dtype=False, check_index_type=False
     )
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "No column reference",
+        "{city} is in the {non_existing_column}",
+    ],
+)
+def test_filter_invalid_instruction_raise_error(instruction, gemini_flash_model):
+    bigframes.options.experiments.semantic_operators = True
+    df = dataframe.DataFrame(
+        {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}
+    )
+
+    with pytest.raises(ValueError):
+        df.semantics.filter(instruction, gemini_flash_model)
