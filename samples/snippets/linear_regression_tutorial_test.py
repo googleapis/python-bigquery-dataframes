@@ -49,7 +49,6 @@ def test_linear_regression(random_model_id: str) -> None:
     # Score the model with input data defined in an earlier step.
     score = model.score(feature_columns, label_columns)
     # [END bigquery_dataframes_bqml_linear_evaluate]
-
     assert feature_columns is not None
     assert label_columns is not None
     assert model is not None
