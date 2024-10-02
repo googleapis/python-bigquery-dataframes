@@ -16,13 +16,14 @@
 
 from __future__ import annotations
 
+import datetime
 import functools
 import inspect
 import itertools
 import numbers
 import textwrap
 import typing
-from typing import Any, cast, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, cast, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.series as vendored_pandas_series
@@ -30,6 +31,7 @@ import google.cloud.bigquery as bigquery
 import numpy
 import pandas
 import pandas.core.dtypes.common
+import pyarrow as pa
 import typing_extensions
 
 import bigframes.core
@@ -181,11 +183,19 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def _session(self) -> bigframes.Session:
         return self._get_block().expr.session
 
+    @property
+    def _struct_fields(self) -> List[str]:
+        if not bigframes.dtypes.is_struct_like(self._dtype):
+            return []
+
+        struct_type = typing.cast(pa.StructType, self._dtype.pyarrow_dtype)
+        return [struct_type.field(i).name for i in range(struct_type.num_fields)]
+
     @validations.requires_ordering()
     def transpose(self) -> Series:
         return self
 
-    def _set_internal_query_job(self, query_job: bigquery.QueryJob):
+    def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
 
     def __len__(self):
@@ -451,23 +461,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def case_when(self, caselist) -> Series:
+        cases = list(itertools.chain(*caselist, (True, self)))
         return self._apply_nary_op(
             ops.case_when_op,
-            tuple(
-                itertools.chain(
-                    itertools.chain(*caselist),
-                    # Fallback to current value if no other matches.
-                    (
-                        # We make a Series with a constant value to avoid casts to
-                        # types other than boolean.
-                        Series(True, index=self.index, dtype=pandas.BooleanDtype()),
-                        self,
-                    ),
-                ),
-            ),
+            cases,
             # Self is already included in "others".
             ignore_self=True,
-        )
+        ).rename(self.name)
 
     @validations.requires_ordering()
     def cumsum(self) -> Series:
@@ -1112,6 +1112,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def __neg__(self) -> Series:
         return self._apply_unary_op(ops.neg_op)
 
+    def __dir__(self) -> List[str]:
+        return dir(type(self)) + self._struct_fields
+
     def eq(self, other: object) -> Series:
         # TODO: enforce stricter alignment
         return self._apply_binary_op(other, ops.eq_op)
@@ -1122,8 +1125,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def where(self, cond, other=None):
         value_id, cond_id, other_id, block = self._align3(cond, other)
-        block, result_id = block.apply_ternary_op(
-            value_id, cond_id, other_id, ops.where_op
+        block, result_id = block.project_expr(
+            ops.where_op.as_expr(value_id, cond_id, other_id)
         )
         return Series(block.select_column(result_id).with_column_labels([self.name]))
 
@@ -1135,8 +1138,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if upper is None:
             return self._apply_binary_op(lower, ops.maximum_op, alignment="left")
         value_id, lower_id, upper_id, block = self._align3(lower, upper)
-        block, result_id = block.apply_ternary_op(
-            value_id, lower_id, upper_id, ops.clip_op
+        block, result_id = block.project_expr(
+            ops.clip_op.as_expr(value_id, lower_id, upper_id),
         )
         return Series(block.select_column(result_id).with_column_labels([self.name]))
 
@@ -1248,15 +1251,23 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return self.iloc[indexer]
         if isinstance(indexer, Series):
             (left, right, block) = self._align(indexer, "left")
-            block = block.filter_by_id(right)
-            block = block.select_column(left)
+            block = block.filter(right)
+            block = block.select_column(left.id.name)
             return Series(block)
         return self.loc[indexer]
 
     __getitem__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__getitem__)
 
     def __getattr__(self, key: str):
-        if hasattr(pandas.Series, key):
+        # Protect against recursion errors with uninitialized Series objects.
+        # We use "_block" attribute to check whether the instance is initialized.
+        # See:
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/728
+        # and
+        # https://nedbatchelder.com/blog/201010/surprising_getattr_recursion.html
+        if key == "_block":
+            raise AttributeError(key)
+        elif hasattr(pandas.Series, key):
             raise AttributeError(
                 textwrap.dedent(
                     f"""
@@ -1265,13 +1276,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     """
                 )
             )
+        elif key in self._struct_fields:
+            return self.struct.field(key)
         else:
             raise AttributeError(key)
-
-    def _align3(self, other1: Series | scalars.Scalar, other2: Series | scalars.Scalar, how="left") -> tuple[str, str, str, blocks.Block]:  # type: ignore
-        """Aligns the series value with 2 other scalars or series objects. Returns new values and joined tabled expression."""
-        values, index = self._align_n([other1, other2], how)
-        return (values[0], values[1], values[2], index)
 
     def _apply_aggregation(
         self, op: agg_ops.UnaryAggregateOp | agg_ops.NullaryAggregateOp
@@ -1474,10 +1482,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ops.RemoteFunctionOp(func=func, apply_on_null=True)
         )
 
-        # return Series with materialized result so that any error in the remote
-        # function is caught early
-        materialized_series = result_series._cached(session_aware=False)
-        return materialized_series
+        return result_series
 
     def combine(
         self,
@@ -1501,18 +1506,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     ex.message += f"\n{_remote_function_recommendation_message}"
                 raise
 
-        # Reproject as workaround to applying filter too late. This forces the
-        # filter to be applied before passing data to remote function,
-        # protecting from bad inputs causing errors.
-        reprojected_series = Series(self._block._force_reproject())
-        result_series = reprojected_series._apply_binary_op(
+        result_series = self._apply_binary_op(
             other, ops.BinaryRemoteFunctionOp(func=func)
         )
 
-        # return Series with materialized result so that any error in the remote
-        # function is caught early
-        materialized_series = result_series._cached()
-        return materialized_series
+        return result_series
 
     @validations.requires_index
     def add_prefix(self, prefix: str, axis: int | str | None = None) -> Series:
@@ -1815,9 +1813,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         ns = (n,) if n is not None else ()
         fracs = (frac,) if frac is not None else ()
         return Series(
-            self._block._split(
-                ns=ns, fracs=fracs, random_state=random_state, sort=sort
-            )[0]
+            self._block.split(ns=ns, fracs=fracs, random_state=random_state, sort=sort)[
+                0
+            ]
         )
 
     def explode(self, *, ignore_index: Optional[bool] = False) -> Series:
@@ -1826,6 +1824,72 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 column_ids=[self._value_column], ignore_index=ignore_index
             )
         )
+
+    @validations.requires_ordering()
+    def _resample(
+        self,
+        rule: str,
+        *,
+        closed: Optional[Literal["right", "left"]] = None,
+        label: Optional[Literal["right", "left"]] = None,
+        level: Optional[LevelsType] = None,
+        origin: Union[
+            Union[
+                pandas.Timestamp, datetime.datetime, numpy.datetime64, int, float, str
+            ],
+            Literal["epoch", "start", "start_day", "end", "end_day"],
+        ] = "start_day",
+    ) -> bigframes.core.groupby.SeriesGroupBy:
+        """Internal function to support resample. Resample time-series data.
+
+        **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> import pandas as pd
+        >>> bpd.options.display.progress_bar = None
+
+        >>> data = {
+        ...     "timestamp_col": pd.date_range(
+        ...         start="2021-01-01 13:00:00", periods=30, freq="1s"
+        ...     ),
+        ...     "int64_col": range(30),
+        ... }
+        >>> s = bpd.DataFrame(data).set_index("timestamp_col")
+        >>> s._resample(rule="7s", origin="epoch").min()
+                             int64_col
+        2021-01-01 12:59:56          0
+        2021-01-01 13:00:03          3
+        2021-01-01 13:00:10         10
+        2021-01-01 13:00:17         17
+        2021-01-01 13:00:24         24
+        <BLANKLINE>
+        [5 rows x 1 columns]
+
+
+        Args:
+            rule (str):
+                The offset string representing target conversion.
+            level (str or int, default None):
+                For a MultiIndex, level (name or number) to use for resampling.
+                level must be datetime-like.
+            origin(str, default 'start_day'):
+                The timestamp on which to adjust the grouping. Must be one of the following:
+                'epoch': origin is 1970-01-01
+                'start': origin is the first value of the timeseries
+                'start_day': origin is the first day at midnight of the timeseries
+        Returns:
+            SeriesGroupBy: SeriesGroupBy object.
+        """
+        block = self._block._generate_resample_label(
+            rule=rule,
+            closed=closed,
+            label=label,
+            on=None,
+            level=level,
+            origin=origin,
+        )
+        series = Series(block)
+        return series.groupby(level=0)
 
     def __array_ufunc__(
         self, ufunc: numpy.ufunc, method: str, *inputs, **kwargs

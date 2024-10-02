@@ -500,7 +500,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(self._block.select_columns(selected_columns))
 
-    def _set_internal_query_job(self, query_job: bigquery.QueryJob):
+    def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
 
     def __getitem__(
@@ -644,7 +644,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        self._cached()
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -751,11 +750,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if reverse:
             expr = op.as_expr(
                 left_input=ex.const(other),
-                right_input=bigframes.core.guid.generate_guid(),
+                right_input=ex.free_var("var1"),
             )
         else:
             expr = op.as_expr(
-                left_input=bigframes.core.guid.generate_guid(),
+                left_input=ex.free_var("var1"),
                 right_input=ex.const(other),
             )
         return DataFrame(
@@ -2307,52 +2306,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._block.melt(id_col_ids, val_col_ids, var_name, value_name)
         )
 
-    _NUMERIC_DESCRIBE_AGGS = (
-        "count",
-        "mean",
-        "std",
-        "min",
-        "25%",
-        "50%",
-        "75%",
-        "max",
-    )
-    _NON_NUMERIC_DESCRIBE_AGGS = ("count", "nunique")
-
     def describe(self, include: None | Literal["all"] = None) -> DataFrame:
-
-        allowed_non_numeric_types = {
-            bigframes.dtypes.STRING_DTYPE,
-            bigframes.dtypes.BOOL_DTYPE,
-            bigframes.dtypes.BYTES_DTYPE,
-        }
-
         if include is None:
             numeric_df = self._drop_non_numeric(permissive=False)
             if len(numeric_df.columns) == 0:
                 # Describe eligible non-numeric columns
-                result = self.select_dtypes(include=allowed_non_numeric_types).agg(
-                    self._NON_NUMERIC_DESCRIBE_AGGS
-                )
-            else:
-                # Otherwise, only describe numeric columns
-                result = numeric_df.agg(self._NUMERIC_DESCRIBE_AGGS)
-            return typing.cast(DataFrame, result)
+                return self._describe_non_numeric()
+
+            # Otherwise, only describe numeric columns
+            return self._describe_numeric()
 
         elif include == "all":
-            numeric_result = typing.cast(
-                DataFrame,
-                self._drop_non_numeric(permissive=False).agg(
-                    self._NUMERIC_DESCRIBE_AGGS
-                ),
-            )
-
-            non_numeric_result = typing.cast(
-                DataFrame,
-                self.select_dtypes(include=allowed_non_numeric_types).agg(
-                    self._NON_NUMERIC_DESCRIBE_AGGS
-                ),
-            )
+            numeric_result = self._describe_numeric()
+            non_numeric_result = self._describe_non_numeric()
 
             if len(numeric_result.columns) == 0:
                 return non_numeric_result
@@ -2368,6 +2334,35 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         else:
             raise ValueError(f"Unsupported include type: {include}")
+
+    def _describe_numeric(self) -> DataFrame:
+        return typing.cast(
+            DataFrame,
+            self._drop_non_numeric(permissive=False).agg(
+                [
+                    "count",
+                    "mean",
+                    "std",
+                    "min",
+                    "25%",
+                    "50%",
+                    "75%",
+                    "max",
+                ]
+            ),
+        )
+
+    def _describe_non_numeric(self) -> DataFrame:
+        return typing.cast(
+            DataFrame,
+            self.select_dtypes(
+                include={
+                    bigframes.dtypes.STRING_DTYPE,
+                    bigframes.dtypes.BOOL_DTYPE,
+                    bigframes.dtypes.BYTES_DTYPE,
+                }
+            ).agg(["count", "nunique"]),
+        )
 
     def skew(self, *, numeric_only: bool = False):
         if not numeric_only:
@@ -2946,9 +2941,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ns = (n,) if n is not None else ()
         fracs = (frac,) if frac is not None else ()
         return DataFrame(
-            self._block._split(
-                ns=ns, fracs=fracs, random_state=random_state, sort=sort
-            )[0]
+            self._block.split(ns=ns, fracs=fracs, random_state=random_state, sort=sort)[
+                0
+            ]
         )
 
     def explode(
@@ -2985,8 +2980,90 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         At most one of ns and fracs can be passed in. If neither, default to ns = (1,).
         Return a list of sampled DataFrames.
         """
-        blocks = self._block._split(ns=ns, fracs=fracs, random_state=random_state)
+        blocks = self._block.split(ns=ns, fracs=fracs, random_state=random_state)
         return [DataFrame(block) for block in blocks]
+
+    @validations.requires_ordering()
+    def _resample(
+        self,
+        rule: str,
+        *,
+        on: blocks.Label = None,
+        level: Optional[LevelsType] = None,
+        origin: Union[
+            Union[
+                pandas.Timestamp, datetime.datetime, numpy.datetime64, int, float, str
+            ],
+            Literal["epoch", "start", "start_day", "end", "end_day"],
+        ] = "start_day",
+    ) -> bigframes.core.groupby.DataFrameGroupBy:
+        """Internal function to support resample. Resample time-series data.
+
+        **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> import pandas as pd
+        >>> bpd.options.display.progress_bar = None
+
+        >>> data = {
+        ...     "timestamp_col": pd.date_range(
+        ...         start="2021-01-01 13:00:00", periods=30, freq="1s"
+        ...     ),
+        ...     "int64_col": range(30),
+        ...     "int64_too": range(10, 40),
+        ... }
+
+        Resample on a DataFrame with index:
+
+        >>> df = bpd.DataFrame(data).set_index("timestamp_col")
+        >>> df._resample(rule="7s").min()
+                             int64_col  int64_too
+        2021-01-01 12:59:55          0         10
+        2021-01-01 13:00:02          2         12
+        2021-01-01 13:00:09          9         19
+        2021-01-01 13:00:16         16         26
+        2021-01-01 13:00:23         23         33
+        <BLANKLINE>
+        [5 rows x 2 columns]
+
+        Resample with column and origin set to 'start':
+
+        >>> df = bpd.DataFrame(data)
+        >>> df._resample(rule="7s", on = "timestamp_col", origin="start").min()
+                             int64_col  int64_too
+        2021-01-01 13:00:00          0         10
+        2021-01-01 13:00:07          7         17
+        2021-01-01 13:00:14         14         24
+        2021-01-01 13:00:21         21         31
+        2021-01-01 13:00:28         28         38
+        <BLANKLINE>
+        [5 rows x 2 columns]
+
+        Args:
+            rule (str):
+                The offset string representing target conversion.
+            on (str, default None):
+                For a DataFrame, column to use instead of index for resampling. Column
+                must be datetime-like.
+            level (str or int, default None):
+                For a MultiIndex, level (name or number) to use for resampling.
+                level must be datetime-like.
+            origin(str, default 'start_day'):
+                The timestamp on which to adjust the grouping. Must be one of the following:
+                'epoch': origin is 1970-01-01
+                'start': origin is the first value of the timeseries
+                'start_day': origin is the first day at midnight of the timeseries
+        Returns:
+            DataFrameGroupBy: DataFrameGroupBy object.
+        """
+        block = self._block._generate_resample_label(
+            rule=rule,
+            on=on,
+            level=level,
+            origin=origin,
+        )
+        df = DataFrame(block)
+        return df.groupby(level=0)
 
     @classmethod
     def from_dict(
@@ -3165,7 +3242,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 default_project=default_project,
             )
         )
-        _, query_job = self._session._export(
+        query_job = self._session._executor.export_gbq(
             export_array,
             destination=destination,
             col_id_overrides=id_overrides,
@@ -3477,11 +3554,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError(f"na_action={na_action} not supported")
 
         # TODO(shobs): Support **kwargs
-        # Reproject as workaround to applying filter too late. This forces the
-        # filter to be applied before passing data to remote function,
-        # protecting from bad inputs causing errors.
-        reprojected_df = DataFrame(self._block._force_reproject())
-        return reprojected_df._apply_unary_op(
+        return self._apply_unary_op(
             ops.RemoteFunctionOp(func=func, apply_on_null=(na_action is None))
         )
 
@@ -3576,21 +3649,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     )
 
                 series_list = [self[col] for col in self.columns]
-                # Reproject as workaround to applying filter too late. This forces the
-                # filter to be applied before passing data to remote function,
-                # protecting from bad inputs causing errors.
-                reprojected_series = bigframes.series.Series(
-                    series_list[0]._block._force_reproject()
-                )
-                result_series = reprojected_series._apply_nary_op(
+                result_series = series_list[0]._apply_nary_op(
                     ops.NaryRemoteFunctionOp(func=func), series_list[1:]
                 )
             result_series.name = None
-
-            # Return Series with materialized result so that any error in the remote
-            # function is caught early
-            materialized_series = result_series.cache()
-            return materialized_series
+            return result_series
 
         # Per-column apply
         results = {name: func(col, *args, **kwargs) for name, col in self.items()}
