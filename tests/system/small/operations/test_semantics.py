@@ -18,7 +18,6 @@ import pytest
 
 import bigframes
 import bigframes.dataframe as dataframe
-import bigframes.ml.llm as llm
 
 
 def test_semantics_experiment_off_raise_error():

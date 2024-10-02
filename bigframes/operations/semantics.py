@@ -54,7 +54,7 @@ class Semantics:
         columns = re.findall(r"(?<!{)\{(?!{)(.*?)\}(?!\})", instruction)
 
         if not columns:
-            raise ValueError(f"No column references.")
+            raise ValueError("No column references.")
 
         for column in columns:
             if column not in self._df.columns:
