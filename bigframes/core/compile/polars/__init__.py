@@ -187,13 +187,13 @@ class PolarsCompiler:
     @_execute_node.register
     def compile_selection(self, node: nodes.SelectionNode):
         return self.compile_node(node.child).select(
-            **{new: orig for orig, new in node.input_output_pairs}
+            **{new.sql: orig.id.sql for orig, new in node.input_output_pairs}
         )
 
     @_execute_node.register
     def compile_projection(self, node: nodes.ProjectionNode):
         new_cols = [
-            self.expr_compiler.compile_expression(ex).alias(name)
+            self.expr_compiler.compile_expression(ex).alias(name.sql)
             for ex, name in node.assignments
         ]
         return self.compile_node(node.child).with_columns(new_cols)
@@ -206,7 +206,7 @@ class PolarsCompiler:
     @_execute_node.register
     def compile_offsets(self, node: nodes.PromoteOffsetsNode):
         return self.compile_node(node.child).with_columns(
-            [pl.int_range(pl.len(), dtype=pl.Int64).alias(node.col_id)]
+            [pl.int_range(pl.len(), dtype=pl.Int64).alias(node.col_id.sql)]
         )
 
     @_execute_node.register
@@ -251,12 +251,12 @@ class PolarsCompiler:
         agg_exprs = [
             self.agg_compiler.compile_agg_op(
                 agg.op, list(map(lambda x: x.meta.output_name(), inputs))
-            ).alias(id)
+            ).alias(id.sql)
             for (agg, id), inputs in zip(node.aggregations, agg_inputs)
         ]
 
         if len(node.by_column_ids) > 0:
-            group_exprs = [pl.col(id) for id in node.by_column_ids]
+            group_exprs = [pl.col(ref.id.sql) for ref in node.by_column_ids]
             grouped_df = df_agg_inputs.group_by(group_exprs)
             return grouped_df.agg(agg_exprs).sort(group_exprs)
         else:
@@ -265,7 +265,7 @@ class PolarsCompiler:
     @_execute_node.register
     def compile_explode(self, node: nodes.ExplodeNode):
         df = self.compile_node(node.child)
-        cols = [pl.col(df.columns[i]) for i in node.column_ids]
+        cols = [pl.col(col.id.sql) for col in node.column_ids]
         return df.explode(cols)
 
     @_execute_node.register
@@ -292,7 +292,9 @@ class PolarsCompiler:
             if len(window.grouping_keys) == 0:  # unbound window
                 pass
             else:  # partition-only window
-                agg_expr = agg_expr.over(partition_by=window.grouping_keys)
+                agg_expr = agg_expr.over(
+                    partition_by=[ref.id.sql for ref in window.grouping_keys]
+                )
             return df.with_columns([agg_expr])
 
         else:  # row-bounded window

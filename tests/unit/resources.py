@@ -14,21 +14,17 @@
 
 import dataclasses
 import datetime
-from typing import Dict, List, Mapping, Optional, Sequence, Union
+from typing import Mapping, Optional, Sequence, Union
 import unittest.mock as mock
 import weakref
 
 import google.auth.credentials
 import google.cloud.bigquery
-import ibis
-import pandas
 import polars as pl
-import pyarrow as pa
 import pytest
 
 import bigframes
 import bigframes.clients
-import bigframes.core as core
 import bigframes.core.compile.polars
 import bigframes.core.ordering
 import bigframes.dataframe
@@ -61,9 +57,14 @@ class TestExecutor(bigframes.session.executor.Executor):
         Execute the ArrayValue, storing the result to a temporary session-owned table.
         """
         lazy_frame: pl.LazyFrame = self.compiler.compile(array_value)
+        pa_table = lazy_frame.collect().to_arrow()
+        # Currently, pyarrow types might not quite be exactly the ones in the bigframes schema.
+        # Nullability may be different, and might use large versions of list, string datatypes.
         return bigframes.session.executor.ExecuteResult(
-            arrow_batches=lambda: lazy_frame.collect().to_arrow().to_batches(),
+            arrow_batches=lambda: pa_table.to_batches(),
             schema=array_value.schema,
+            total_bytes=pa_table.nbytes,
+            total_rows=pa_table.num_rows,
         )
 
 
@@ -73,7 +74,6 @@ class TestSession(bigframes.session.Session):
         self._bq_kms_key_name = None  # type: ignore
         self._clients_provider = None  # type: ignore
         self.ibis_client = None  # type: ignore
-        self.bqclient.default_query_job_config = None  # type: ignore
         self._bq_connection = None  # type: ignore
         self._skip_bq_connection_check = True
         self._session_id: str = "test_session"
@@ -178,22 +178,7 @@ def create_dataframe(
     return bigframes.dataframe.DataFrame({"col": []}, session=session)
 
 
-def create_pandas_session(tables: Dict[str, pandas.DataFrame]) -> bigframes.Session:
+def create_polars_session() -> bigframes.Session:
     # TODO(tswast): Refactor to make helper available for all tests. Consider
     # providing a proper "local Session" for use by downstream developers.
-    session = mock.create_autospec(bigframes.Session, instance=True)
-    ibis_client = ibis.pandas.connect(tables)
-    type(session).ibis_client = mock.PropertyMock(return_value=ibis_client)
-    return session
-
-
-def create_arrayvalue(
-    df: pandas.DataFrame, total_ordering_columns: List[str]
-) -> core.ArrayValue:
-    session = create_pandas_session({"test_table": df})
-    return core.ArrayValue.from_pyarrow(
-        arrow_table=pa.Table.from_pandas(df, preserve_index=False),
-        session=session,
-    ).order_by(
-        [bigframes.core.ordering.ascending_over(col) for col in total_ordering_columns]
-    )
+    return TestSession()

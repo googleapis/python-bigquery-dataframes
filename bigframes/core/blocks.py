@@ -57,7 +57,6 @@ import bigframes.core.expression as scalars
 import bigframes.core.guid as guid
 import bigframes.core.identifiers
 import bigframes.core.join_def as join_defs
-import bigframes.core.local
 import bigframes.core.ordering as ordering
 import bigframes.core.schema as bf_schema
 import bigframes.core.sql as sql
@@ -584,13 +583,6 @@ class Block:
             # See: https://github.com/pandas-dev/pandas-stubs/issues/804
             df.index.names = self.index.names  # type: ignore
         df.columns = self.column_labels
-
-    def _execute_local_engine(self) -> pd.DataFrame:
-        executor = bigframes.core.local.PolarsLocalExecutor()
-        df = executor.execute_local(self.expr)
-        self._copy_index_to_pandas(df)
-        df.set_axis(self.column_labels, axis=1, copy=False)
-        return df
 
     def _materialize_local(
         self, materialize_options: MaterializationOptions = MaterializationOptions()

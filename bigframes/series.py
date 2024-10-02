@@ -345,7 +345,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
-        local_engine: bool = False,
     ) -> pandas.Series:
         """Writes Series to pandas Series.
 
@@ -374,11 +373,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             pandas.Series: A pandas Series with all rows of this Series if the data_sampling_threshold_mb
                 is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame.
         """
-        if local_engine is True:
-            df = self._block._execute_local_engine()
-            series = df.squeeze(axis=1)
-            series.name = self._name
-            return series
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
