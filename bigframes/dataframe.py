@@ -3908,7 +3908,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 raise ValueError(f"Column {column} not found.")
 
         # Replace column references with names.
-
         instruction = instruction.format(**{col: col for col in columns})
 
         prompt_df = self.copy()
