@@ -4210,3 +4210,31 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             level += 1
 
         return df["_lotus_doc"]
+
+    def sem_index(self, column: str, new_column: str, model) -> DataFrame:
+        """
+        Applies semantic indexing to a column in the DataFrame.
+
+        Args:
+            column (str): The name of the column containing the text data to be indexed.
+            new_column (str):
+                The name of the new column to store the generated semantic embeddings.
+            model (bigframes.ml.llm.TextEmbeddingGenerator):
+                The LLM to use for generating the text embeddings. If None, a default
+                model will be used.
+
+        Returns:
+            DataFrame: The DataFrame with the semantic embeddings added as a new column.
+        """
+        if column not in self.columns:
+            raise ValueError(f"Column {column} not found in DataFrame")
+
+        from bigframes.ml.llm import TextEmbeddingGenerator
+
+        if not isinstance(model, TextEmbeddingGenerator):
+            raise TypeError(f"Expected a test embedding model but got: {type(model)}")
+
+        df = self.copy()
+        predict_df = model.predict(self[column])
+        df[new_column] = predict_df["ml_generate_embedding_result"]
+        return df
