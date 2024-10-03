@@ -79,7 +79,7 @@ def test_map(session, gemini_flash_model):
         gemini_flash_model,
     ).to_pandas()
     # Result sanitation
-    actual_df['map_result'] = actual_df['map_result'].str.strip().str.lower()
+    actual_df["map_result"] = actual_df["map_result"].str.strip().str.lower()
 
     expected_df = pd.DataFrame(
         {
@@ -89,7 +89,11 @@ def test_map(session, gemini_flash_model):
         }
     )
     pandas.testing.assert_frame_equal(
-        actual_df, expected_df, check_dtype=False, check_index_type=False, check_column_type=False
+        actual_df,
+        expected_df,
+        check_dtype=False,
+        check_index_type=False,
+        check_column_type=False,
     )
 
 
