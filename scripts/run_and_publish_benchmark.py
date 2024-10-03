@@ -21,7 +21,7 @@ import re
 import subprocess
 import sys
 import tempfile
-from typing import Dict, List, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -49,36 +49,37 @@ def run_benchmark_subprocess(args, log_env_name_var, file_path=None, region=None
     if region:
         env["BIGQUERY_LOCATION"] = region
     env[LOGGING_NAME_ENV_VAR] = log_env_name_var
-    duration_pattern = re.compile(r"(\d+\.\d+)s call")
     try:
         if file_path:  # Notebooks
-            process = subprocess.Popen(args, stdout=subprocess.PIPE, text=True)
+            duration_pattern = re.compile(r"(\d+\.\d+)s call")
+            process = subprocess.Popen(args, env=env, stdout=subprocess.PIPE, text=True)
             assert process.stdout is not None
             for line in process.stdout:
                 print(line, end="")
                 match = duration_pattern.search(line)
                 if match:
-                    duration_without_s = match.group(1)
-                    print("duration_without_s", duration_without_s)
+                    duration = match.group(1)
                     with open(f"{file_path}.local_exec_time_seconds", "w") as f:
-                        f.write(f"{duration_without_s}\n")
-
+                        f.write(f"{duration}\n")
             process.wait()
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, args)
         else:  # Benchmarks
             file_path = log_env_name_var
             subprocess.run(args, env=env, check=True)
-    except Exception as e:
+    except Exception:
         directory = pathlib.Path(file_path).parent
         for file in directory.glob(f"{pathlib.Path(file_path).name}.*"):
             if file.suffix != ".backup":
                 print(f"Benchmark failed, deleting: {file}")
                 file.unlink()
-        raise e
+        error_file = directory / f"{pathlib.Path(file_path).name}.error"
+        error_file.touch()
 
 
-def collect_benchmark_result(benchmark_path: str, iterations: int) -> pd.DataFrame:
+def collect_benchmark_result(
+    benchmark_path: str, iterations: int
+) -> Tuple[pd.DataFrame, Union[str, None]]:
     """Generate a DataFrame report on HTTP queries, bytes processed, slot time and execution time from log files."""
     path = pathlib.Path(benchmark_path)
     try:
@@ -87,6 +88,7 @@ def collect_benchmark_result(benchmark_path: str, iterations: int) -> pd.DataFra
         millis_files = sorted(path.rglob("*.slotmillis"))
         bq_seconds_files = sorted(path.rglob("*.bq_exec_time_seconds"))
         local_seconds_files = sorted(path.rglob("*.local_exec_time_seconds"))
+        error_files = sorted(path.rglob("*.error"))
 
         if not (
             len(bytes_files)
@@ -147,6 +149,7 @@ def collect_benchmark_result(benchmark_path: str, iterations: int) -> pd.DataFra
             path.rglob("*.slotmillis"),
             path.rglob("*.local_exec_time_seconds"),
             path.rglob("*.bq_exec_time_seconds"),
+            path.rglob("*.error"),
         ):
             for log_file in files_to_remove:
                 log_file.unlink()
@@ -186,7 +189,7 @@ def collect_benchmark_result(benchmark_path: str, iterations: int) -> pd.DataFra
         )
 
     geometric_mean_queries = geometric_mean(benchmark_metrics["Query_Count"])
-    geometric_mean_bytes = geometric_mean(benchmark_metrics["Bytes_Processed"])
+    geometric_mean_bytes = geometric_mean2(benchmark_metrics["Bytes_Processed"])
     geometric_mean_slot_millis = geometric_mean(benchmark_metrics["Slot_Millis"])
     geometric_mean_local_seconds = geometric_mean(
         benchmark_metrics["Local_Execution_Time_Sec"]
@@ -203,7 +206,21 @@ def collect_benchmark_result(benchmark_path: str, iterations: int) -> pd.DataFra
         f"Geometric mean of BigQuery execution time: {geometric_mean_bq_seconds} seconds---"
     )
 
-    return benchmark_metrics.reset_index().rename(columns={"index": "Benchmark_Name"})
+    error_message = (
+        "\n"
+        + "\n".join(
+            [
+                f"Failed: {error_file.relative_to(path).with_suffix('')}"
+                for error_file in error_files
+            ]
+        )
+        if error_files
+        else None
+    )
+    return (
+        benchmark_metrics.reset_index().rename(columns={"index": "Benchmark_Name"}),
+        error_message,
+    )
 
 
 def geometric_mean(data):
@@ -215,6 +232,21 @@ def geometric_mean(data):
     if len(data) == 0:
         return np.nan
     log_data = np.log(data)
+    return round(np.exp(log_data.mean()), 1)
+
+
+def geometric_mean2(data):
+    """
+    Calculate the geometric mean of a dataset, rounding the result to one decimal place.
+    Returns NaN if the dataset is empty or contains only NaN values.
+    """
+    data = data.dropna()
+    if len(data) == 0:
+        return np.nan
+    log_data = np.log(data)
+    print(log_data)
+    print(log_data.mean())
+    print(np.exp(log_data.mean()))
     return round(np.exp(log_data.mean()), 1)
 
 
@@ -400,7 +432,7 @@ def main():
     args = parse_arguments()
 
     if args.publish_benchmarks:
-        benchmark_metrics = collect_benchmark_result(
+        benchmark_metrics, error_message = collect_benchmark_result(
             args.publish_benchmarks, args.iterations
         )
         # Output results to CSV without specifying a location
@@ -429,6 +461,9 @@ def main():
         # intended for local testing where the default behavior is not to publish results.
         elif project := os.getenv("GCLOUD_BENCH_PUBLISH_PROJECT", ""):
             publish_to_bigquery(benchmark_metrics, args.notebook, project)
+
+        if error_message:
+            raise Exception(error_message)
     elif args.notebook:
         run_notebook_benchmark(args.benchmark_path, args.region)
     else:
