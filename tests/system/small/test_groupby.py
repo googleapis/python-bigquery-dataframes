@@ -435,6 +435,20 @@ def test_dataframe_groupby_getitem_error(
         )
 
 
+def test_dataframe_groupby_getitem_multiple_columns_error(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    col_names = ["float64_col", "int64_col", "bool_col", "string_col"]
+    with pytest.raises(KeyError, match="\"Columns not found: 'col1', 'col2'\""):
+        (
+            scalars_df_index[col_names]
+            .groupby("string_col")["col1", "col2"]
+            .min()
+            .to_pandas()
+        )
+
+
 def test_dataframe_groupby_getitem_list(
     scalars_df_index,
     scalars_pandas_df_index,
