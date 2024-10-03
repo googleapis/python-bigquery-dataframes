@@ -887,8 +887,18 @@ def benchmark(session: nox.Session):
             "all benchmarks are run."
         ),
     )
+    parser.add_argument(
+        "-v",
+        "--bigframe-version",
+        type=str,
+        default=None,
+        help="Specify the version of bigframes to test against.",
+    )
 
     args = parser.parse_args(session.posargs)
+
+    if args.bigframe_version:
+        session.install(f"bigframes=={args.bigframe_version}")
 
     benchmark_script_list: List[pathlib.Path] = []
     if args.benchmark_filter:
@@ -922,6 +932,7 @@ def benchmark(session: nox.Session):
             f"--publish-benchmarks={base_path}",
             f"--iterations={args.iterations}",
             f"--output-csv={args.output_csv}",
+            f"--backtrace={args.bigframe_version is not None}",
         )
 
 

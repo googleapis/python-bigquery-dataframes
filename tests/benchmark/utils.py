@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import inspect
 import time
 
 import bigframes
@@ -94,9 +95,18 @@ def _str_to_bool(value):
 
 
 def _initialize_session(ordered: bool):
-    context = bigframes.BigQueryOptions(
-        location="US", ordering_mode="strict" if ordered else "partial"
-    )
+    options_signature = inspect.signature(bigframes.BigQueryOptions.__init__)
+    if "ordering_mode" in options_signature.parameters:
+        context = bigframes.BigQueryOptions(
+            location="US", ordering_mode="strict" if ordered else "partial"
+        )
+    # Older versions of bigframes
+    elif "_strictly_ordered" in options_signature.parameters:
+        context = bigframes.BigQueryOptions(location="US", _strictly_ordered=ordered)  # type: ignore
+    elif not ordered:
+        raise ValueError("Unordered mode not supported")
+    else:
+        context = bigframes.BigQueryOptions(location="US")
     session = bigframes.Session(context=context)
     print(f"Initialized {'ordered' if ordered else 'unordered'} session.")
     return session

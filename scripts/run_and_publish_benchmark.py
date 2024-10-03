@@ -26,6 +26,7 @@ from typing import Dict, List, Tuple, Union
 import numpy as np
 import pandas as pd
 import pandas_gbq
+import requests
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
@@ -245,25 +246,52 @@ def geometric_mean_excluding_zeros(data):
     return round(np.exp(log_data.mean()), 1)
 
 
-def get_repository_status():
+def get_pypi_release_time(package_name, version):
+    """
+    Fetch the release time of a specific version of a package from PyPI.
+    """
+    url = f"https://pypi.org/pypi/{package_name}/{version}/json"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        data = response.json()
+        release_time = data["urls"][0]["upload_time_iso_8601"]
+        return release_time
+    else:
+        raise ValueError(
+            f"Failed to retrieve package info for {package_name} version {version}"
+        )
+
+
+def get_repository_status(backtrace: bool = False):
     current_directory = os.getcwd()
     subprocess.run(
         ["git", "config", "--global", "--add", "safe.directory", current_directory],
         check=True,
     )
 
-    git_hash = subprocess.check_output(
-        ["git", "rev-parse", "--short", "HEAD"], text=True
-    ).strip()
-    bigframes_version = subprocess.check_output(
-        ["python", "-c", "import bigframes; print(bigframes.__version__)"], text=True
-    ).strip()
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        bigframes_version = subprocess.check_output(
+            ["python", "-c", "import bigframes; print(bigframes.__version__)"],
+            text=True,
+            cwd=tmpdirname,
+        ).strip()
+
+    if backtrace:
+        git_hash = "benchmark_backtrace"
+        benchmark_start_time = get_pypi_release_time("bigframes", bigframes_version)
+    else:
+        git_hash = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], text=True
+        ).strip()
+        benchmark_start_time = datetime.datetime.now().isoformat()
+
     release_version = (
         f"{bigframes_version}dev{datetime.datetime.now().strftime('%Y%m%d')}+{git_hash}"
     )
 
     return {
-        "benchmark_start_time": datetime.datetime.now().isoformat(),
+        "benchmark_start_time": benchmark_start_time,
         "git_hash": git_hash,
         "bigframes_version": bigframes_version,
         "release_version": release_version,
@@ -302,14 +330,16 @@ def find_config(start_path):
     return None
 
 
-def publish_to_bigquery(dataframe, notebook, project_name="bigframes-metrics"):
+def publish_to_bigquery(
+    dataframe, notebook, project_name="bigframes-metrics", backtrace=False
+):
     bigquery_table = (
         f"{project_name}.benchmark_report.notebook_benchmark"
         if notebook
         else f"{project_name}.benchmark_report.benchmark"
     )
 
-    repo_status = get_repository_status()
+    repo_status = get_repository_status(backtrace)
     for idx, col in enumerate(repo_status.keys()):
         dataframe.insert(idx, col, repo_status[col])
 
@@ -420,6 +450,14 @@ def parse_arguments():
         help="Determines whether to output results to a CSV file. If no location is provided, a temporary location is automatically generated.",
     )
 
+    parser.add_argument(
+        "--backtrace",
+        type=str,
+        choices=["True", "False"],
+        default="False",
+        help="Specify whether to perform backtrace benchmarking. Use 'True' to enable or 'False' to disable it.",
+    )
+
     return parser.parse_args()
 
 
@@ -450,7 +488,9 @@ def main():
         # The 'BENCHMARK_AND_PUBLISH' environment variable should be set to 'true' only
         # in specific Kokoro sessions.
         if os.getenv("BENCHMARK_AND_PUBLISH", "false") == "true":
-            publish_to_bigquery(benchmark_metrics, args.notebook)
+            publish_to_bigquery(
+                benchmark_metrics, args.notebook, backtrace=(args.backtrace == "True")
+            )
         # If the 'GCLOUD_BENCH_PUBLISH_PROJECT' environment variable is set, publish the
         # benchmark metrics to a specified BigQuery table in the provided project. This is
         # intended for local testing where the default behavior is not to publish results.
