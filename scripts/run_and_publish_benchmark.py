@@ -17,6 +17,7 @@ import datetime
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -30,7 +31,7 @@ LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 
 
-def run_benchmark_subprocess(args, log_env_name_var, filename=None, region=None):
+def run_benchmark_subprocess(args, log_env_name_var, file_path=None, region=None):
     """
     Runs a benchmark subprocess with configured environment variables. Adjusts PYTHONPATH,
     sets region-specific BigQuery location, and logs environment variables.
@@ -48,7 +49,33 @@ def run_benchmark_subprocess(args, log_env_name_var, filename=None, region=None)
     if region:
         env["BIGQUERY_LOCATION"] = region
     env[LOGGING_NAME_ENV_VAR] = log_env_name_var
-    subprocess.run(args, env=env, check=True)
+    duration_pattern = re.compile(r"(\d+\.\d+)s call")
+    try:
+        if file_path:  # Notebooks
+            process = subprocess.Popen(args, stdout=subprocess.PIPE, text=True)
+            assert process.stdout is not None
+            for line in process.stdout:
+                print(line, end="")
+                match = duration_pattern.search(line)
+                if match:
+                    duration_without_s = match.group(1)
+                    print("duration_without_s", duration_without_s)
+                    with open(f"{file_path}.local_exec_time_seconds", "w") as f:
+                        f.write(f"{duration_without_s}\n")
+
+            process.wait()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, args)
+        else:  # Benchmarks
+            file_path = log_env_name_var
+            subprocess.run(args, env=env, check=True)
+    except Exception as e:
+        directory = pathlib.Path(file_path).parent
+        for file in directory.glob(f"{pathlib.Path(file_path).name}.*"):
+            if file.suffix != ".backup":
+                print(f"Benchmark failed, deleting: {file}")
+                file.unlink()
+        raise e
 
 
 def collect_benchmark_result(benchmark_path: str, iterations: int) -> pd.DataFrame:
@@ -321,13 +348,15 @@ def run_notebook_benchmark(benchmark_file: str, region: str):
         "py.test",
         "--nbmake",
         "--nbmake-timeout=900",  # 15 minutes
+        "--durations=0",
+        "--color=yes",
     ]
     benchmark_args = (*pytest_command, benchmark_file)
 
     run_benchmark_subprocess(
         args=benchmark_args,
         log_env_name_var=log_env_name_var,
-        filename=export_file,
+        file_path=export_file,
         region=region,
     )
 
