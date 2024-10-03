@@ -34,6 +34,11 @@ class BlobMethods(base.SeriesMethods):
 
         return merged_df["md5_hash"]
 
+    def size(self):
+        merged_df = self._get_merged_df()
+
+        return merged_df["size"]
+
     def display(self, n=3):
         import bigframes.pandas as bpd
 
@@ -133,7 +138,7 @@ class BlobMethods(base.SeriesMethods):
 
         return s.apply(bigframes_img_rm_bg)
 
-    def audio_transcribe(self):
+    def audio_transcribe(self, *, max_batching_rows=1):
         import bigframes.pandas as bpd
 
         s = bpd.Series(self._block)
@@ -143,7 +148,7 @@ class BlobMethods(base.SeriesMethods):
             [str],
             str,
             packages=["google-cloud-storage", "openai-whisper", "parse"],
-            max_batching_rows=50,
+            max_batching_rows=max_batching_rows,
             cloud_function_memory_mib=32768,
         )
         def bigframes_audio_transcribe(uri_in):
