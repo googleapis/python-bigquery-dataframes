@@ -39,7 +39,7 @@ class Semantics:
             >>> bigframes.options.experiments.semantic_operators = True
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001") 
+            >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
 
             >>> df = bpd.DataFrame({"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]})
             >>> df.semantics.filter("{city} is the capital of {country}", model)
@@ -94,14 +94,14 @@ class Semantics:
             >>> bigframes.options.experiments.semantic_operators = True
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001") 
+            >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
 
             >>> df = bpd.DataFrame({"ingredient_1": ["Burger Bun", "Soy Bean"], "ingredient_2": ["Beef Patty", "Bittern"]})
             >>> df.semantics.map("What is the food made from {ingredient_1} and {ingredient_2}? One word only.", result_column_name="food", model=model)
               ingredient_1 ingredient_2      food
-            0   Burger Bun   Beef Patty  Burger 
+            0   Burger Bun   Beef Patty  Burger
             <BLANKLINE>
-            1     Soy Bean      Bittern    Tofu 
+            1     Soy Bean      Bittern    Tofu
             <BLANKLINE>
             <BLANKLINE>
             [2 rows x 3 columns]
