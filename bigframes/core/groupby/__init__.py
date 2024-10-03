@@ -89,13 +89,14 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         else:
             keys = [key]
 
-        columns = []
+        bad_keys = [key for key in keys if key not in self._block.column_labels]
 
-        for col_id, label in self._col_id_labels.items():
-            if label in keys:
-                columns.append(col_id)
-            else:
-                raise KeyError(f"Columns not found: {str(keys)[1:-1]}")
+        if len(bad_keys) > 0:
+            raise KeyError(f"Columns not found: {str(bad_keys)[1:-1]}")
+
+        columns = [
+            col_id for col_id, label in self._col_id_labels.items() if label in keys
+        ]
 
         if len(columns) > 1 or (not self._as_index):
             return DataFrameGroupBy(
