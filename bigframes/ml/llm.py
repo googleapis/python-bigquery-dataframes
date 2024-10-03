@@ -154,8 +154,11 @@ class PaLM2TextGenerator(base.BaseEstimator):
             )
 
         if self.model_name not in _TEXT_GENERATOR_ENDPOINTS:
-            raise ValueError(
-                f"Model name {self.model_name} is not supported. We only support {', '.join(_TEXT_GENERATOR_ENDPOINTS)}."
+            warnings.warn(
+                f"Model name '{self.model_name}' is not supported. "
+                f"We currently support the following models: {', '.join(_TEXT_GENERATOR_ENDPOINTS)}. "
+                "However, model names can change, and the supported models may be outdated. "
+                "You can try using this model name, but it might result in unexpected errors."
             )
 
         options = {
@@ -484,8 +487,11 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
             )
 
         if self.model_name not in _PALM2_EMBEDDING_GENERATOR_ENDPOINTS:
-            raise ValueError(
-                f"Model name {self.model_name} is not supported. We only support {', '.join(_PALM2_EMBEDDING_GENERATOR_ENDPOINTS)}."
+            warnings.warn(
+                f"Model name '{self.model_name}' is not supported. "
+                f"We currently support the following models: {', '.join(_PALM2_EMBEDDING_GENERATOR_ENDPOINTS)}. "
+                "However, model names can change, and the supported models may be outdated. "
+                "You can try using this model name, but it might result in unexpected errors."
             )
 
         endpoint = (
@@ -644,8 +650,11 @@ class TextEmbeddingGenerator(base.BaseEstimator):
             )
 
         if self.model_name not in _TEXT_EMBEDDING_ENDPOINTS:
-            raise ValueError(
-                f"Model name {self.model_name} is not supported. We only support {', '.join(_TEXT_EMBEDDING_ENDPOINTS)}."
+            warnings.warn(
+                f"Model name '{self.model_name}' is not supported. "
+                f"We currently support the following models: {', '.join(_TEXT_EMBEDDING_ENDPOINTS)}. "
+                "However, model names can change, and the supported models may be outdated. "
+                "You can try using this model name, but it might result in unexpected errors."
             )
 
         options = {
@@ -801,8 +810,11 @@ class GeminiTextGenerator(base.BaseEstimator):
             )
 
         if self.model_name not in _GEMINI_ENDPOINTS:
-            raise ValueError(
-                f"Model name {self.model_name} is not supported. We only support {', '.join(_GEMINI_ENDPOINTS)}."
+            warnings.warn(
+                f"Model name '{self.model_name}' is not supported. "
+                f"We currently support the following models: {', '.join(_GEMINI_ENDPOINTS)}. "
+                "However, model names can change, and the supported models may be outdated. "
+                "You can try using this model name, but it might result in unexpected errors."
             )
 
         options = {"endpoint": self.model_name}
@@ -1118,8 +1130,11 @@ class Claude3TextGenerator(base.BaseEstimator):
             )
 
         if self.model_name not in _CLAUDE_3_ENDPOINTS:
-            raise ValueError(
-                f"Model name {self.model_name} is not supported. We only support {', '.join(_CLAUDE_3_ENDPOINTS)}."
+            warnings.warn(
+                f"Model name '{self.model_name}' is not supported. "
+                f"We currently support the following models: {', '.join(_CLAUDE_3_ENDPOINTS)}. "
+                "However, model names can change, and the supported models may be outdated. "
+                "You can try using this model name, but it might result in unexpected errors."
             )
 
         options = {
