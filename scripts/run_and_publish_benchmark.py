@@ -86,25 +86,17 @@ def collect_benchmark_result(benchmark_path: str, iterations: int) -> pd.DataFra
         bytes_files = sorted(path.rglob("*.bytesprocessed"))
         millis_files = sorted(path.rglob("*.slotmillis"))
         bq_seconds_files = sorted(path.rglob("*.bq_exec_time_seconds"))
-
         local_seconds_files = sorted(path.rglob("*.local_exec_time_seconds"))
-        has_local_seconds = len(local_seconds_files) > 0
 
-        if has_local_seconds:
-            if not (
-                len(bytes_files)
-                == len(millis_files)
-                == len(local_seconds_files)
-                == len(bq_seconds_files)
-            ):
-                raise ValueError(
-                    "Mismatch in the number of report files for bytes, millis, and seconds."
-                )
-        else:
-            if not (len(bytes_files) == len(millis_files) == len(bq_seconds_files)):
-                raise ValueError(
-                    "Mismatch in the number of report files for bytes, millis, and seconds."
-                )
+        if not (
+            len(bytes_files)
+            == len(millis_files)
+            == len(local_seconds_files)
+            == len(bq_seconds_files)
+        ):
+            raise ValueError(
+                "Mismatch in the number of report files for bytes, millis, and seconds."
+            )
 
         for idx in range(len(bytes_files)):
             bytes_file = bytes_files[idx]
@@ -119,12 +111,11 @@ def collect_benchmark_result(benchmark_path: str, iterations: int) -> pd.DataFra
                     "File name mismatch among bytes, millis, and seconds reports."
                 )
 
-            if has_local_seconds:
-                local_seconds_file = local_seconds_files[idx]
-                if filename != local_seconds_file.relative_to(path).with_suffix(""):
-                    raise ValueError(
-                        "File name mismatch among bytes, millis, and seconds reports."
-                    )
+            local_seconds_file = local_seconds_files[idx]
+            if filename != local_seconds_file.relative_to(path).with_suffix(""):
+                raise ValueError(
+                    "File name mismatch among bytes, millis, and seconds reports."
+                )
 
             with open(bytes_file, "r") as file:
                 lines = file.read().splitlines()
@@ -135,12 +126,9 @@ def collect_benchmark_result(benchmark_path: str, iterations: int) -> pd.DataFra
                 lines = file.read().splitlines()
                 total_slot_millis = sum(int(line) for line in lines) / iterations
 
-            if has_local_seconds:
-                with open(local_seconds_file, "r") as file:
-                    lines = file.read().splitlines()
-                    local_seconds = sum(float(line) for line in lines) / iterations
-            else:
-                local_seconds = None
+            with open(local_seconds_file, "r") as file:
+                lines = file.read().splitlines()
+                local_seconds = sum(float(line) for line in lines) / iterations
 
             with open(bq_seconds_file, "r") as file:
                 lines = file.read().splitlines()
