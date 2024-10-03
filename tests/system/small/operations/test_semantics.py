@@ -64,6 +64,16 @@ def test_filter_invalid_instruction_raise_error(instruction, gemini_flash_model)
         df.semantics.filter(instruction, gemini_flash_model)
 
 
+def test_filter_invalid_model_raise_error():
+    bigframes.options.experiments.semantic_operators = True
+    df = dataframe.DataFrame(
+        {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}
+    )
+
+    with pytest.raises(ValueError):
+        df.semantics.filter("{city} is the capital of {country}", None)
+
+
 def test_map(session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame(
@@ -107,8 +117,27 @@ def test_map(session, gemini_flash_model):
 def test_map_invalid_instruction_raise_error(instruction, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame(
-        {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}
+        data={
+            "ingredient_1": ["Burger Bun", "Soy Bean"],
+            "ingredient_2": ["Beef Patty", "Bittern"],
+        }
     )
 
     with pytest.raises(ValueError):
         df.semantics.map(instruction, gemini_flash_model)
+
+
+def test_map_invalid_model_raise_error():
+    bigframes.options.experiments.semantic_operators = True
+    df = dataframe.DataFrame(
+        data={
+            "ingredient_1": ["Burger Bun", "Soy Bean"],
+            "ingredient_2": ["Beef Patty", "Bittern"],
+        },
+    )
+
+    with pytest.raises(ValueError):
+        df.semantics.map(
+            "What is the food made from {ingredient_1} and {ingredient_2}? One word only.",
+            None,
+        )

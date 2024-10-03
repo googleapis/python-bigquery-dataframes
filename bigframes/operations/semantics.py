@@ -49,6 +49,7 @@ class Semantics:
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
+        _validate_model(model)
 
         output_instruction = "Based on the provided context, reply to the following claim by only True or False:"
 
@@ -85,6 +86,8 @@ class Semantics:
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
+        _validate_model(model)
+
         output_instruction = (
             "Based on the provided contenxt, answer the following instruction:"
         )
@@ -124,3 +127,10 @@ class Semantics:
             prompt_df["prompt"] += f"{col} is `" + prompt_df[col] + "`\n"
 
         return prompt_df["prompt"]
+
+
+def _validate_model(model):
+    from bigframes.ml.llm import GeminiTextGenerator
+
+    if not isinstance(model, GeminiTextGenerator):
+        raise ValueError("Model is not GeminiText Generator")
