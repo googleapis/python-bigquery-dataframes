@@ -36,14 +36,12 @@ SESSION_STARTED_MESSAGE = (
 UNKNOWN_LOCATION_MESSAGE = "The location '{location}' is set to an unknown value. Did you mean '{possibility}'?"
 
 
-def _get_validated_location(location: Optional[str]) -> Optional[str]:
+def _get_validated_location(value: Optional[str]) -> Optional[str]:
 
-    if location is None:
-        return location
+    if value is None or value in bigframes.constants.ALL_BIGQUERY_LOCATIONS:
+        return value
 
-    location = str(location)
-    if location in bigframes.constants.ALL_BIGQUERY_LOCATIONS:
-        return location
+    location = str(value)
 
     location_lowercase = location.lower()
     if location_lowercase in bigframes.constants.BIGQUERY_REGIONS:
@@ -67,7 +65,7 @@ def _get_validated_location(location: Optional[str]) -> Optional[str]:
         category=bigframes.exceptions.UnknownLocationWarning,
     )
 
-    return location
+    return value
 
 
 def _validate_ordering_mode(value: str) -> bigframes.enums.OrderingMode:
