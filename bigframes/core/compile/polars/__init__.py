@@ -43,7 +43,7 @@ class PolarsExpressionCompiler:
 
     @functools.singledispatchmethod
     def compile_expression(self, expression: ex.Expression) -> pl.Expr:
-        ...
+        raise NotImplementedError(f"Cannot compile expression: {expression}")
 
     @compile_expression.register
     def _(

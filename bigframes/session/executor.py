@@ -137,7 +137,7 @@ class Executor(abc.ABC):
         uri: str,
         format: Literal["json", "csv", "parquet"],
         export_options: Mapping[str, Union[bool, str]],
-    ) -> ExecuteResult:
+    ) -> bigquery.QueryJob:
         """
         Export the ArrayValue to gcs.
         """

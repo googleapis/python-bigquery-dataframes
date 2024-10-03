@@ -250,6 +250,7 @@ def mypy(session):
                 "types-requests",
                 "types-setuptools",
                 "types-tabulate",
+                "polars",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
