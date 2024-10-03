@@ -62,3 +62,49 @@ def test_filter_invalid_instruction_raise_error(instruction, gemini_flash_model)
 
     with pytest.raises(ValueError):
         df.semantics.filter(instruction, gemini_flash_model)
+
+
+def test_map(session, gemini_flash_model):
+    bigframes.options.experiments.semantic_operators = True
+    df = dataframe.DataFrame(
+        data={
+            "ingredient_1": ["Burger Bun", "Soy Bean"],
+            "ingredient_2": ["Beef Patty", "Bittern"],
+        },
+        session=session,
+    )
+
+    actual_df = df.semantics.map(
+        "What is the food made from {ingredient_1} and {ingredient_2}? One word only.",
+        gemini_flash_model,
+    ).to_pandas()
+    # Result sanitation
+    actual_df['map_result'] = actual_df['map_result'].str.strip().str.lower()
+
+    expected_df = pd.DataFrame(
+        {
+            "ingredient_1": ["Burger Bun", "Soy Bean"],
+            "ingredient_2": ["Beef Patty", "Bittern"],
+            "map_result": ["burger", "tofu"],
+        }
+    )
+    pandas.testing.assert_frame_equal(
+        actual_df, expected_df, check_dtype=False, check_index_type=False, check_column_type=False
+    )
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "No column reference",
+        "What is the food made from {ingredient_1} and {non_existing_column}?}",
+    ],
+)
+def test_map_invalid_instruction_raise_error(instruction, gemini_flash_model):
+    bigframes.options.experiments.semantic_operators = True
+    df = dataframe.DataFrame(
+        {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}
+    )
+
+    with pytest.raises(ValueError):
+        df.semantics.map(instruction, gemini_flash_model)
