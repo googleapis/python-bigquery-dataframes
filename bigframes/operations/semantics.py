@@ -30,6 +30,9 @@ class Semantics:
         """
         Filters the DataFrame with the semantics of the user instruction.
 
+        Example:
+            df.semantics.filter("The {food} is healthy", my_model)
+
         Args:
             instruction:
                 An instruction on how to filter the data. This value must contain
@@ -63,17 +66,23 @@ class Semantics:
             results["ml_generate_text_llm_result"].str.lower().str.contains("true")
         ]
 
-    def map(self, instruction: str, model):
+    def map(self, instruction: str, result_column_name: str, model):
         """
-        Filters the DataFrame with the semantics of the user instruction.
+        Maps the DataFrame with the semantics of the user instruction.
+
+        Example:
+            df.semantics.filter("Get the ingredients of {food}.", result_column_name="ingredients", model=my_model)
 
         Args:
             instruction:
-                An instruction on how to filter the data. This value must contain
+                An instruction on how to map the data. This value must contain
                 column references by name, which should be wrapped in a pair of braces.
                 For example, if you have a column "food", you can refer to this column
                 in the instructions like:
-                "The {food} is healthy."
+                "Get the ingredients of {food}."
+
+            result_column_name:
+                The column name of the mapping result.
 
             model:
                 A GeminiTextGenerator provided by Bigframes ML package.
@@ -103,7 +112,7 @@ class Semantics:
 
         from bigframes.core.reshape import concat
 
-        return concat([self._df, results.rename("map_result")], axis=1)
+        return concat([self._df, results.rename(result_column_name)], axis=1)
 
     def _make_prompt(self, user_instruction: str, output_instruction: str):
         # Validate column references
@@ -119,7 +128,7 @@ class Semantics:
         # Replace column references with names.
         user_instruction = user_instruction.format(**{col: col for col in columns})
 
-        prompt_df = self._df.copy()
+        prompt_df = self._df[columns].copy()
         prompt_df["prompt"] = f"{output_instruction}\n{user_instruction}\nContext: "
 
         # Combine context from multiple columns.

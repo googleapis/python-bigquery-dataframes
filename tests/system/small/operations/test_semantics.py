@@ -86,16 +86,17 @@ def test_map(session, gemini_flash_model):
 
     actual_df = df.semantics.map(
         "What is the food made from {ingredient_1} and {ingredient_2}? One word only.",
+        "food",
         gemini_flash_model,
     ).to_pandas()
     # Result sanitation
-    actual_df["map_result"] = actual_df["map_result"].str.strip().str.lower()
+    actual_df["food"] = actual_df["food"].str.strip().str.lower()
 
     expected_df = pd.DataFrame(
         {
             "ingredient_1": ["Burger Bun", "Soy Bean"],
             "ingredient_2": ["Beef Patty", "Bittern"],
-            "map_result": ["burger", "tofu"],
+            "food": ["burger", "tofu"],
         }
     )
     pandas.testing.assert_frame_equal(
@@ -124,7 +125,7 @@ def test_map_invalid_instruction_raise_error(instruction, gemini_flash_model):
     )
 
     with pytest.raises(ValueError):
-        df.semantics.map(instruction, gemini_flash_model)
+        df.semantics.map(instruction, "food", gemini_flash_model)
 
 
 def test_map_invalid_model_raise_error():
@@ -139,5 +140,6 @@ def test_map_invalid_model_raise_error():
     with pytest.raises(ValueError):
         df.semantics.map(
             "What is the food made from {ingredient_1} and {ingredient_2}? One word only.",
+            "food",
             None,
         )
