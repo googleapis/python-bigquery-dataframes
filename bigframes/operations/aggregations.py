@@ -185,6 +185,23 @@ class ApproxQuartilesOp(UnaryAggregateOp):
 
 
 @dataclasses.dataclass(frozen=True)
+class ApproxTopCountOp(UnaryAggregateOp):
+    name: typing.ClassVar[str] = "approx_top_count"
+    number: int
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if not dtypes.is_orderable(input_types[0]):
+            raise TypeError(f"Type {input_types[0]} is not orderable")
+
+        input_type = input_types[0]
+        fields = [
+            pa.field("value", dtypes.bigframes_dtype_to_arrow_dtype(input_type)),
+            pa.field("count", pa.int64()),
+        ]
+        return pd.ArrowDtype(pa.list_(pa.struct(fields)))
+
+
+@dataclasses.dataclass(frozen=True)
 class MeanOp(UnaryAggregateOp):
     name: ClassVar[str] = "mean"
 
@@ -306,8 +323,8 @@ class CutOp(UnaryWindowOp):
             )
             pa_type = pa.struct(
                 [
-                    ("left_exclusive", interval_dtype),
-                    ("right_inclusive", interval_dtype),
+                    pa.field("left_exclusive", interval_dtype, nullable=True),
+                    pa.field("right_inclusive", interval_dtype, nullable=True),
                 ]
             )
             return pd.ArrowDtype(pa_type)
@@ -562,3 +579,14 @@ def lookup_agg_func(key: str) -> typing.Union[UnaryAggregateOp, NullaryAggregate
         return _AGGREGATIONS_LOOKUP[key]
     else:
         raise ValueError(f"Unrecognize aggregate function: {key}")
+
+
+def is_agg_op_supported(dtype: dtypes.Dtype, op: AggregateOp) -> bool:
+    if dtype in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
+        return True
+
+    if dtype in (dtypes.STRING_DTYPE, dtypes.BOOL_DTYPE, dtypes.BYTES_DTYPE):
+        return isinstance(op, (CountOp, NuniqueOp))
+
+    # For all other types, support no aggregation
+    return False

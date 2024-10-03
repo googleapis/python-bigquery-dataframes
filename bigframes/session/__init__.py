@@ -37,6 +37,7 @@ from typing import (
 import warnings
 import weakref
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.backends.bigquery  # noqa
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
@@ -58,7 +59,6 @@ import pyarrow as pa
 
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
-import bigframes.constants as constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.compile
@@ -70,7 +70,6 @@ import bigframes.core.pruning
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.exceptions
-import bigframes.formatting_helpers as formatting_helpers
 import bigframes.functions._remote_function_session as bigframes_rf_session
 import bigframes.functions.remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bf_io_bigquery
@@ -261,11 +260,11 @@ class Session(
         )
         self._executor = bigframes.session.executor.BigQueryCachingExecutor(
             bqclient=self._clients_provider.bqclient,
+            bqstoragereadclient=self._clients_provider.bqstoragereadclient,
             storage_manager=self._temp_storage_manager,
             strictly_ordered=self._strictly_ordered,
             metrics=self._metrics,
         )
-
         self._loader = bigframes.session.loader.GbqDataLoader(
             session=self,
             bqclient=self._clients_provider.bqclient,
@@ -1040,6 +1039,9 @@ class Session(
         cloud_function_max_instances: Optional[int] = None,
         cloud_function_vpc_connector: Optional[str] = None,
         cloud_function_memory_mib: Optional[int] = 1024,
+        cloud_function_ingress_settings: Literal[
+            "all", "internal-only", "internal-and-gclb"
+        ] = "all",
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1194,6 +1196,11 @@ class Session(
                 default memory of cloud functions be allocated, pass `None`. See
                 for more details
                 https://cloud.google.com/functions/docs/configuring/memory.
+            cloud_function_ingress_settings (str, Optional):
+                Ingress settings controls dictating what traffic can reach the
+                function. By default `all` will be used. It must be one of:
+                `all`, `internal-only`, `internal-and-gclb`. See for more details
+                https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
         Returns:
             callable: A remote function object pointing to the cloud assets created
             in the background to support the remote execution. The cloud assets can be
@@ -1220,6 +1227,7 @@ class Session(
             cloud_function_max_instances=cloud_function_max_instances,
             cloud_function_vpc_connector=cloud_function_vpc_connector,
             cloud_function_memory_mib=cloud_function_memory_mib,
+            cloud_function_ingress_settings=cloud_function_ingress_settings,
         )
 
     def read_gbq_function(
@@ -1363,20 +1371,6 @@ class Session(
 
         return bf_io_bigquery.start_query_with_client(self.bqclient, sql, job_config)
 
-    def _execute(
-        self,
-        array_value: core.ArrayValue,
-        *,
-        ordered: bool = True,
-        col_id_overrides: Mapping[str, str] = {},
-        use_explicit_destination: bool = False,
-    ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
-        return self._executor.execute(
-            array_value,
-            ordered=ordered,
-            col_id_overrides=col_id_overrides,
-        )
-
     def _export(
         self,
         array_value: core.ArrayValue,
@@ -1394,49 +1388,6 @@ class Session(
             if_exists=if_exists,
             cluster_cols=cluster_cols,
         )
-
-    def _dry_run(
-        self, array_value: core.ArrayValue, ordered: bool = True
-    ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
-        return self._executor.dry_run(array_value, ordered=ordered)
-
-    def _peek(
-        self, array_value: core.ArrayValue, n_rows: int
-    ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
-        """A 'peek' efficiently accesses a small number of rows in the dataframe."""
-        return self._executor.peek(array_value, n_rows)
-
-    def _to_sql(
-        self,
-        array_value: core.ArrayValue,
-        offset_column: typing.Optional[str] = None,
-        col_id_overrides: typing.Mapping[str, str] = {},
-        ordered: bool = False,
-        enable_cache: bool = True,
-    ) -> str:
-        return self._executor.to_sql(
-            array_value, offset_column, col_id_overrides, ordered, enable_cache
-        )
-
-    def _get_table_size(self, destination_table):
-        table = self.bqclient.get_table(destination_table)
-        return table.num_bytes
-
-    def _rows_to_dataframe(
-        self, row_iterator: bigquery.table.RowIterator
-    ) -> pandas.DataFrame:
-        # Can ignore inferred datatype until dtype emulation breaks 1:1 mapping between BQ types and bigframes types
-        dtypes_from_bq = bigframes.dtypes.bf_type_from_type_kind(row_iterator.schema)
-        arrow_table = row_iterator.to_arrow()
-        return bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes_from_bq)
-
-    def _start_generic_job(self, job: formatting_helpers.GenericJob):
-        if bigframes.options.display.progress_bar is not None:
-            formatting_helpers.wait_for_job(
-                job, bigframes.options.display.progress_bar
-            )  # Wait for the job to complete
-        else:
-            job.result()
 
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
