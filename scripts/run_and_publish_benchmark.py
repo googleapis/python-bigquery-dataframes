@@ -188,13 +188,19 @@ def collect_benchmark_result(
             f" bigquery execution time: {round(row['BigQuery_Execution_Time_Sec'], 1)} seconds"
         )
 
-    geometric_mean_queries = geometric_mean(benchmark_metrics["Query_Count"])
-    geometric_mean_bytes = geometric_mean2(benchmark_metrics["Bytes_Processed"])
-    geometric_mean_slot_millis = geometric_mean(benchmark_metrics["Slot_Millis"])
-    geometric_mean_local_seconds = geometric_mean(
+    geometric_mean_queries = geometric_mean_excluding_zeros(
+        benchmark_metrics["Query_Count"]
+    )
+    geometric_mean_bytes = geometric_mean_excluding_zeros(
+        benchmark_metrics["Bytes_Processed"]
+    )
+    geometric_mean_slot_millis = geometric_mean_excluding_zeros(
+        benchmark_metrics["Slot_Millis"]
+    )
+    geometric_mean_local_seconds = geometric_mean_excluding_zeros(
         benchmark_metrics["Local_Execution_Time_Sec"]
     )
-    geometric_mean_bq_seconds = geometric_mean(
+    geometric_mean_bq_seconds = geometric_mean_excluding_zeros(
         benchmark_metrics["BigQuery_Execution_Time_Sec"]
     )
 
@@ -223,30 +229,19 @@ def collect_benchmark_result(
     )
 
 
-def geometric_mean(data):
+def geometric_mean_excluding_zeros(data):
     """
-    Calculate the geometric mean of a dataset, rounding the result to one decimal place.
-    Returns NaN if the dataset is empty or contains only NaN values.
+    Calculate the geometric mean of a dataset, excluding any zero values.
+    Returns NaN if the dataset is empty, contains only NaN values, or if
+    all non-NaN values are zeros.
+
+    The result is rounded to one decimal place.
     """
     data = data.dropna()
+    data = data[data != 0]
     if len(data) == 0:
         return np.nan
     log_data = np.log(data)
-    return round(np.exp(log_data.mean()), 1)
-
-
-def geometric_mean2(data):
-    """
-    Calculate the geometric mean of a dataset, rounding the result to one decimal place.
-    Returns NaN if the dataset is empty or contains only NaN values.
-    """
-    data = data.dropna()
-    if len(data) == 0:
-        return np.nan
-    log_data = np.log(data)
-    print(log_data)
-    print(log_data.mean())
-    print(np.exp(log_data.mean()))
     return round(np.exp(log_data.mean()), 1)
 
 
