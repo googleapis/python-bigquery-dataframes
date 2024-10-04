@@ -701,7 +701,9 @@ class TextEmbeddingGenerator(base.BaseEstimator):
 
         x_len = len(X)
         if self._row_limit and x_len > self._row_limit:
-            raise ValueError(f"Input has {x_len} rows, which exceeds limit {self._row_limit}")
+            raise ValueError(
+                f"Input has {x_len} rows, which exceeds limit {self._row_limit}"
+            )
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -958,7 +960,9 @@ class GeminiTextGenerator(base.BaseEstimator):
 
         x_len = len(X)
         if self._row_limit and x_len > self._row_limit:
-            raise ValueError(f"Input has {x_len} rows, which exceeds limit {self._row_limit}")
+            raise ValueError(
+                f"Input has {x_len} rows, which exceeds limit {self._row_limit}"
+            )
 
         if len(X.columns) == 1:
             # BQML identified the column by name

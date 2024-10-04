@@ -265,11 +265,14 @@ def test_text_embedding_generator_predict_df_exceed_row_limit_raise_error(
     llm_text_df, model_name, session, bq_connection
 ):
     text_embedding_model = llm.TextEmbeddingGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session, row_limit=1
+        model_name=model_name,
+        connection_name=bq_connection,
+        session=session,
+        row_limit=1,
     )
 
     with pytest.raises(ValueError):
-         text_embedding_model.predict(llm_text_df)
+        text_embedding_model.predict(llm_text_df)
 
 
 @pytest.mark.parametrize(
@@ -374,6 +377,7 @@ def test_gemini_text_generator_multi_cols_predict_success(
         col_exact=False,
     )
 
+
 @pytest.mark.parametrize(
     "model_name",
     (
@@ -388,7 +392,10 @@ def test_gemini_text_generator_predict_df_exceed_row_limit_raise_error(
     llm_text_df, model_name, session, bq_connection
 ):
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session, row_limit=1
+        model_name=model_name,
+        connection_name=bq_connection,
+        session=session,
+        row_limit=1,
     )
     with pytest.raises(ValueError):
         gemini_text_generator_model.predict(llm_text_df)
