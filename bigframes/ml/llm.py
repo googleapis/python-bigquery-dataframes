@@ -87,7 +87,7 @@ _MODEL_NOT_SUPPORTED_WARNING = (
     "Model name '{model_name}' is not supported. "
     "We are currently aware of the following models: {known_models}. "
     "However, model names can change, and the supported models may be outdated. "
-    "You can try using this model name, but it might result in unexpected errors."
+    "You should use this model name only if you are sure that it is supported in BigQuery."
 )
 
 
