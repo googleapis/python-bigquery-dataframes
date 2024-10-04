@@ -259,6 +259,24 @@ def test_text_embedding_generator_multi_cols_predict_success(
 
 @pytest.mark.parametrize(
     "model_name",
+    ("text-embedding-004", "text-multilingual-embedding-002"),
+)
+def test_text_embedding_generator_predict_df_exceed_row_limit_raise_error(
+    llm_text_df, model_name, session, bq_connection
+):
+    text_embedding_model = llm.TextEmbeddingGenerator(
+        model_name=model_name,
+        connection_name=bq_connection,
+        session=session,
+        row_limit=1,
+    )
+
+    with pytest.raises(ValueError):
+        text_embedding_model.predict(llm_text_df)
+
+
+@pytest.mark.parametrize(
+    "model_name",
     (
         "gemini-pro",
         "gemini-1.5-pro-preview-0514",
@@ -358,6 +376,29 @@ def test_gemini_text_generator_multi_cols_predict_success(
         index=3,
         col_exact=False,
     )
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "gemini-pro",
+        "gemini-1.5-pro-preview-0514",
+        "gemini-1.5-flash-preview-0514",
+        "gemini-1.5-pro-001",
+        "gemini-1.5-flash-001",
+    ),
+)
+def test_gemini_text_generator_predict_df_exceed_row_limit_raise_error(
+    llm_text_df, model_name, session, bq_connection
+):
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        model_name=model_name,
+        connection_name=bq_connection,
+        session=session,
+        row_limit=1,
+    )
+    with pytest.raises(ValueError):
+        gemini_text_generator_model.predict(llm_text_df)
 
 
 @pytest.mark.flaky(retries=2)
