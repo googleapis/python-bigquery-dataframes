@@ -227,26 +227,52 @@ def test_self_join(session, gemini_flash_model):
 
 
 @pytest.mark.parametrize(
-    "instruction",
+    ("instruction", "error_pattern"),
     [
-        "No column reference",
-        pytest.param("{city} is in {continent}", id="non_existing_column"),
-        pytest.param("{city} is in {country}", id="ambiguous_column"),
-        pytest.param("{city_left} is in {country}", id="suffix_on_unique_column"),
-        pytest.param("{city_right} is in {country}", id="wrong_suffix"),
+        ("No column reference", "No column references"),
         pytest.param(
-            "{city} is in {continent_right}", id="suffix_on_non_existing_column"
+            "{city} is in {continent}", r"Column .+ not found", id="non_existing_column"
+        ),
+        pytest.param(
+            "{city} is in {country}",
+            r"Ambiguous column reference: .+",
+            id="ambiguous_column",
+        ),
+        pytest.param(
+            "{city_left} is in {country}",
+            r"Unnecessary suffix for .+",
+            id="suffix_on_left_unique_column",
+        ),
+        pytest.param(
+            "{city} is in {region_right}",
+            r"Unnecessary suffix for .+",
+            id="suffix_on_right_unique_column",
+        ),
+        pytest.param(
+            "{city_right} is in {country}", r"Column .+ not found", id="wrong_suffix"
+        ),
+        pytest.param(
+            "{city} is in {continent_right}",
+            r"Column .+ not found",
+            id="suffix_on_non_existing_column",
         ),
     ],
 )
-def test_join_invalid_instruction_raise_error(instruction, gemini_flash_model):
+def test_join_invalid_instruction_raise_error(
+    instruction, error_pattern, gemini_flash_model
+):
     bigframes.options.experiments.semantic_operators = True
     df1 = dataframe.DataFrame(
         {"city": ["Seattle", "Berlin"], "country": ["USA", "Germany"]}
     )
-    df2 = dataframe.DataFrame({"country": ["USA", "UK", "Germany"]})
+    df2 = dataframe.DataFrame(
+        {
+            "country": ["USA", "UK", "Germany"],
+            "region": ["North America", "Europe", "Europe"],
+        }
+    )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=error_pattern):
         df1.semantics.join(df2, instruction, gemini_flash_model)
 
 

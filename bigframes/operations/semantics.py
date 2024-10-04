@@ -224,14 +224,37 @@ class Semantics:
         for col in columns:
             if col in self._df.columns and col in other.columns:
                 raise ValueError(f"Ambiguous column reference: {col}")
+
             elif col in self._df.columns:
                 left_columns.append(col)
+
             elif col in other.columns:
                 right_columns.append(col)
-            elif col.endswith("_left") and col[: -len("_left")] in self._df.columns:
-                left_columns.append(col)
-            elif col.endswith("_right") and col[: -len("_right")] in other.columns:
-                right_columns.append(col)
+
+            elif col.endswith("_left"):
+                original_col_name = col[: -len("_left")]
+                if (
+                    original_col_name in self._df.columns
+                    and original_col_name in other.columns
+                ):
+                    left_columns.append(col)
+                elif original_col_name in self._df.columns:
+                    raise ValueError(f"Unnecessary suffix for {col}")
+                else:
+                    raise ValueError(f"Column {col} not found")
+
+            elif col.endswith("_right"):
+                original_col_name = col[: -len("_right")]
+                if (
+                    original_col_name in self._df.columns
+                    and original_col_name in other.columns
+                ):
+                    right_columns.append(col)
+                elif original_col_name in other.columns:
+                    raise ValueError(f"Unnecessary suffix for {col}")
+                else:
+                    raise ValueError(f"Column {col} not found")
+
             else:
                 raise ValueError(f"Column {col} not found")
 
