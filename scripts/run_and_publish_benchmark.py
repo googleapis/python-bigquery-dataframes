@@ -296,6 +296,9 @@ def get_repository_status(backtrace: bool = False):
 
     if backtrace:
         git_hash = "benchmark_backtrace"
+        # We use the PyPI release time for backtrace benchmarks to align with the version's
+        # release date. This ensures that combining backtrace data with regular benchmark
+        # results won't affect time-based analysis.
         benchmark_start_time = get_pypi_release_time("bigframes", bigframes_version)
     else:
         git_hash = subprocess.check_output(
