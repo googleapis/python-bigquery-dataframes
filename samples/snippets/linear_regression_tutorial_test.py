@@ -40,7 +40,7 @@ def test_linear_regression(random_model_id: str) -> None:
     # [START bigquery_dataframes_bqml_linear_evaluate]
     import bigframes.pandas as bpd
 
-    # Select model you'll use for evaluating. `read_gbq_model` loads model data from
+    # Select the model you will be evaluating. `read_gbq_model` loads model data from
     # BigQuery, but you could also use the `model` object from the previous steps.
     model = bpd.read_gbq_model(
         your_model_id,  # For example: "bqml_tutorial.penguins_model"
