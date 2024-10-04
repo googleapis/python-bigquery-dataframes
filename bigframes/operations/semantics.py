@@ -15,6 +15,7 @@
 
 import re
 import typing
+from typing import List
 
 import bigframes
 
@@ -148,8 +149,7 @@ class Semantics:
         return concat([self._df, results.rename(output_column)], axis=1)
 
     def _make_prompt(self, user_instruction: str, output_instruction: str):
-        # Validate column references
-        columns = re.findall(r"(?<!{)\{(?!{)(.*?)\}(?!\})", user_instruction)
+        columns = _parse_columns(user_instruction)
 
         if not columns:
             raise ValueError("No column references.")
@@ -170,9 +170,93 @@ class Semantics:
 
         return prompt_df["prompt"]
 
+    def join(self, other, instruction: str, model):
+        """
+        Joines two dataframes by applying the instruction over each pair of rows from
+        the left and right table.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> import bigframes
+            >>> bigframes.options.experiments.semantic_operators = True
+
+            >>> import bigframes.ml.llm as llm
+            >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
+
+            >>> cities = bpd.DataFrame({'city': ['Seattle', 'Ottawa', 'Berlin', 'Shanghai', 'New Delhi']})
+            >>> continents = bpd.DataFrame({'continent': ['North America', 'Africa', 'Asia']})
+
+            >>> cities.semantics.join(continents, "{city} is in {continent}", model)
+                    city      continent
+            0    Seattle  North America
+            1     Ottawa  North America
+            2   Shanghai           Asia
+            3  New Delhi           Asia
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+        Args:
+            other:
+                The other dataframe.
+
+            instruction:
+                An instruction on how left and right rows can be joined. This value must contain
+                column references by name. which should be wrapped in a pair of braces.
+                For example: "The {city} belongs to the {country}".
+                For column names that are shared between two dataframes, you need to add "_left"
+                and "_right" suffix for differentiation. This is especially important when you do
+                self joins. For example: "The {employee_name_left} reports to {employee_name_right}"
+                You must not add "_left" or "_right" suffix to non-overlapping columns.
+
+            model:
+                A GeminiTextGenerator provided by Bigframes ML package.
+
+        Returns:
+            The joined dataframe.
+        """
+        _validate_model(model)
+
+        columns = _parse_columns(instruction)
+
+        left_columns = []
+        right_columns = []
+
+        for col in columns:
+            if col in self._df.columns and col in other.columns:
+                raise ValueError(f"Ambiguous column reference: {col}")
+            elif col in self._df.columns:
+                left_columns.append(col)
+            elif col in other.columns:
+                right_columns.append(col)
+            elif col.endswith("_left") and col[: -len("_left")] in self._df.columns:
+                left_columns.append(col)
+            elif col.endswith("_right") and col[: -len("_right")] in other.columns:
+                right_columns.append(col)
+            else:
+                raise ValueError(f"Column {col} not found")
+
+        if not left_columns or not right_columns:
+            raise ValueError()
+
+        joined_df = self._df.merge(other, how="cross", suffixes=("_left", "_right"))
+
+        return joined_df.semantics.filter(instruction, model).reset_index(drop=True)
+
 
 def _validate_model(model):
     from bigframes.ml.llm import GeminiTextGenerator
 
     if not isinstance(model, GeminiTextGenerator):
         raise ValueError("Model is not GeminiText Generator")
+
+
+def _parse_columns(instruction: str) -> List[str]:
+    columns = re.findall(r"(?<!{)\{(?!{)(.*?)\}(?!\})", instruction)
+
+    if not columns:
+        raise ValueError("No column references")
+
+    return columns
