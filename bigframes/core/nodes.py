@@ -20,7 +20,7 @@ import datetime
 import functools
 import itertools
 import typing
-from typing import Callable, Iterable, Sequence, Tuple
+from typing import Callable, Iterable, Optional, Sequence, Tuple
 
 import google.cloud.bigquery as bq
 
@@ -250,6 +250,40 @@ class UnaryNode(BigFrameNode):
     @property
     def order_ambiguous(self) -> bool:
         return self.child.order_ambiguous
+
+
+@dataclass(frozen=True)
+class SliceNode(UnaryNode):
+    """Logical slice node conditionally becomes limit or filter over row numbers."""
+
+    start: Optional[int]
+    stop: Optional[int]
+    step: int = 1
+
+    def __hash__(self):
+        return self._node_hash
+
+    @property
+    def row_preserving(self) -> bool:
+        """Whether this node preserves input rows."""
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        """
+        Whether this node combines information across multiple rows instead of processing rows independently.
+        Used as an approximation for whether the expression may require shuffling to execute (and therefore be expensive).
+        """
+        return True
+
+    # these are overestimates, more accurate numbers available by converting to concrete limit or analytic+filter ops
+    @property
+    def variables_introduced(self) -> int:
+        return 2
+
+    @property
+    def relation_ops_created(self) -> int:
+        return 2
 
 
 @dataclass(frozen=True)
