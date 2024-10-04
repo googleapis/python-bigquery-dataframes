@@ -47,6 +47,23 @@ def test_filter(session, gemini_flash_model):
     )
 
 
+def test_filter_single_column_reference(session, gemini_flash_model):
+    bigframes.options.experiments.semantic_operators = True
+    df = dataframe.DataFrame(
+        data={"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]},
+        session=session,
+    )
+
+    actual_df = df.semantics.filter(
+        "{country} is in Europe", gemini_flash_model
+    ).to_pandas()
+
+    expected_df = pd.DataFrame({"country": ["Germany"], "city": ["Berlin"]}, index=[1])
+    pandas.testing.assert_frame_equal(
+        actual_df, expected_df, check_dtype=False, check_index_type=False
+    )
+
+
 @pytest.mark.parametrize(
     "instruction",
     [

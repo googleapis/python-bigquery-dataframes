@@ -81,7 +81,7 @@ class Semantics:
             results["ml_generate_text_llm_result"].str.lower().str.contains("true")
         ]
 
-    def map(self, instruction: str, result_column_name: str, model):
+    def map(self, instruction: str, output_column: str, model):
         """
         Maps the DataFrame with the semantics of the user instruction.
 
@@ -145,7 +145,7 @@ class Semantics:
 
         from bigframes.core.reshape import concat
 
-        return concat([self._df, results.rename(result_column_name)], axis=1)
+        return concat([self._df, results.rename(output_column)], axis=1)
 
     def _make_prompt(self, user_instruction: str, output_instruction: str):
         # Validate column references
