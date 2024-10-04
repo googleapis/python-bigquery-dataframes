@@ -4211,30 +4211,58 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return df["_lotus_doc"]
 
-    def sem_index(self, column: str, new_column: str, model) -> DataFrame:
+    def sem_search(
+        self,
+        column: str,
+        query: str,
+        K: int,
+        model,
+        score_column: typing.Optional[str] = None,
+    ) -> DataFrame:
         """
-        Applies semantic indexing to a column in the DataFrame.
+        Perform semantic search on the DataFrame.
 
         Args:
-            column (str): The name of the column containing the text data to be indexed.
-            new_column (str):
-                The name of the new column to store the generated semantic embeddings.
+            column (str): The column name to search on.
+            query (str): The query string.
+            K (int): The number of documents to retrieve.
             model (bigframes.ml.llm.TextEmbeddingGenerator):
                 The LLM to use for generating the text embeddings. If None, a default
                 model will be used.
+            score_column (Optional[str]):
+                The new column containing the similarity scores. If None, the scores
+                won't be saved. Defaults to None.
 
         Returns:
-            DataFrame: The DataFrame with the semantic embeddings added as a new column.
+            DataFrame: The DataFrame with the search results.
         """
         if column not in self.columns:
             raise ValueError(f"Column {column} not found in DataFrame")
 
-        from bigframes.ml.llm import TextEmbeddingGenerator
+        import bigframes.bigquery as bbq
+        import bigframes.ml.llm as llm
+        import bigframes.pandas as bpd
 
-        if not isinstance(model, TextEmbeddingGenerator):
+        if not isinstance(model, llm.TextEmbeddingGenerator):
             raise TypeError(f"Expected a test embedding model but got: {type(model)}")
 
-        df = self.copy()
-        predict_df = model.predict(self[column])
-        df[new_column] = predict_df["ml_generate_embedding_result"]
-        return df
+        embedding_result_column = "ml_generate_embedding_result"
+        searched_df = model.predict(self[column])
+        searched_table = searched_df.reset_index().to_gbq()
+
+        query_df = model.predict(bpd.DataFrame({"query_id": [query]}))
+        query_df.rename(columns={embedding_result_column: "query_id"})
+
+        search_res = bbq.vector_search(
+            base_table=searched_table,
+            column_to_search=embedding_result_column,
+            query=query_df[[embedding_result_column]],
+            top_k=K,
+        )
+        search_res = search_res.rename(columns={"content": column}).set_index("index")
+        if score_column is not None:
+            return search_res.rename(columns={"distance": score_column})[
+                [column, score_column]
+            ]
+        else:
+            return search_res[[column]]
