@@ -151,9 +151,6 @@ class Semantics:
     def _make_prompt(self, user_instruction: str, output_instruction: str):
         columns = _parse_columns(user_instruction)
 
-        if not columns:
-            raise ValueError("No column references.")
-
         for column in columns:
             if column not in self._df.columns:
                 raise ValueError(f"Column {column} not found.")
