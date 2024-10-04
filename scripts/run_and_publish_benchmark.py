@@ -21,6 +21,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import traceback
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
@@ -74,8 +75,10 @@ def run_benchmark_subprocess(args, log_env_name_var, file_path=None, region=None
             if file.suffix != ".backup":
                 print(f"Benchmark failed, deleting: {file}")
                 file.unlink()
+
         error_file = directory / f"{pathlib.Path(file_path).name}.error"
-        error_file.touch()
+        with error_file.open("w") as f:
+            f.write(traceback.format_exc())
 
 
 def collect_benchmark_result(
@@ -84,7 +87,7 @@ def collect_benchmark_result(
     """Generate a DataFrame report on HTTP queries, bytes processed, slot time and execution time from log files."""
     path = pathlib.Path(benchmark_path)
     try:
-        results_dict: Dict[str, List[Union[int, float, None]]] = {}
+        results_dict: Dict[str, List[Union[int, float, str, None]]] = {}
         bytes_files = sorted(path.rglob("*.bytesprocessed"))
         millis_files = sorted(path.rglob("*.slotmillis"))
         bq_seconds_files = sorted(path.rglob("*.bq_exec_time_seconds"))
@@ -100,6 +103,18 @@ def collect_benchmark_result(
             raise ValueError(
                 "Mismatch in the number of report files for bytes, millis, and seconds."
             )
+
+        for error_file in error_files:
+            filename = error_file.relative_to(path).with_suffix("")
+            with open(error_file, "r") as file:
+                results_dict[str(filename)] = [
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    file.read().strip(),
+                ]
 
         for idx in range(len(bytes_files)):
             bytes_file = bytes_files[idx]
@@ -143,6 +158,7 @@ def collect_benchmark_result(
                 total_slot_millis,
                 local_seconds,
                 bq_seconds,
+                None,
             ]
     finally:
         for files_to_remove in (
@@ -161,6 +177,7 @@ def collect_benchmark_result(
         "Slot_Millis",
         "Local_Execution_Time_Sec",
         "BigQuery_Execution_Time_Sec",
+        "Error",
     ]
 
     benchmark_metrics = pd.DataFrame.from_dict(
