@@ -167,7 +167,7 @@ class Semantics:
 
         return prompt_df["prompt"]
 
-    def join(self, other, instruction: str, model):
+    def join(self, other, instruction: str, model, max_rows: int = 1000):
         """
         Joines two dataframes by applying the instruction over each pair of rows from
         the left and right table.
@@ -211,10 +211,24 @@ class Semantics:
             model:
                 A GeminiTextGenerator provided by Bigframes ML package.
 
+            max_rows:
+                The maximum number of rows allowed to be sent to the model per call. If the result is too large, the method
+                call will end early with an error.
+
         Returns:
             The joined dataframe.
+
+        Raises:
+            ValueError if the amount of data that will be sent for LLM processing is larger than max_rows.
         """
         _validate_model(model)
+
+        joined_table_rows = len(self._df) * len(other)
+
+        if joined_table_rows > max_rows:
+            raise ValueError(
+                f"Number of rows that need processing is {joined_table_rows}, which exceeds row limit {max_rows}."
+            )
 
         columns = _parse_columns(instruction)
 

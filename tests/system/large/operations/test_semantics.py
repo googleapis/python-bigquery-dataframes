@@ -226,6 +226,25 @@ def test_self_join(session, gemini_flash_model):
     )
 
 
+def test_join_data_too_large_raise_error(session, gemini_flash_model):
+    bigframes.options.experiments.semantic_operators = True
+    cities = dataframe.DataFrame(
+        data={
+            "city": ["Seattle", "Berlin"],
+        },
+        session=session,
+    )
+    countries = dataframe.DataFrame(
+        data={"country": ["USA", "UK", "Germany"]},
+        session=session,
+    )
+
+    with pytest.raises(ValueError):
+        cities.semantics.join(
+            countries, "{city} belongs to {country}", gemini_flash_model, max_rows=1
+        )
+
+
 @pytest.mark.parametrize(
     ("instruction", "error_pattern"),
     [
