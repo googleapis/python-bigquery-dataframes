@@ -591,15 +591,19 @@ def test_join_repr(scalars_dfs_maybe_ordered):
     assert actual == expected
 
 
-def test_repr_html_w_all_rows(scalars_dfs):
+def test_repr_html_w_all_rows(scalars_dfs, session):
+    metrics = session._metrics
     scalars_df, _ = scalars_dfs
     # get a pandas df of the expected format
     df, _ = scalars_df._block.to_pandas()
     pandas_df = df.set_axis(scalars_df._block.column_labels, axis=1)
     pandas_df.index.name = scalars_df.index.name
 
+    executions_pre = metrics.execution_count
     # When there are 10 or fewer rows, the outputs should be identical except for the extra note.
     actual = scalars_df.head(10)._repr_html_()
+    executions_post = metrics.execution_count
+
     with display_options.pandas_repr(bigframes.options.display):
         pandas_repr = pandas_df.head(10)._repr_html_()
 
@@ -608,6 +612,7 @@ def test_repr_html_w_all_rows(scalars_dfs):
         + f"[{len(pandas_df.index)} rows x {len(pandas_df.columns)} columns in total]"
     )
     assert actual == expected
+    assert (executions_post - executions_pre) <= 2
 
 
 def test_df_column_name_with_space(scalars_dfs):
@@ -4821,20 +4826,33 @@ def test_to_gbq_table_labels(scalars_df_index):
         pytest.param(["A", "C"], True, id="two_arrays_true"),
     ],
 )
-def test_dataframe_explode(col_names, ignore_index):
+def test_dataframe_explode(col_names, ignore_index, session):
     data = {
         "A": [[0, 1, 2], [], [3, 4]],
         "B": 3,
         "C": [["a", "b", "c"], np.nan, ["d", "e"]],
     }
-    df = bpd.DataFrame(data)
+
+    metrics = session._metrics
+    df = bpd.DataFrame(data, session=session)
     pd_df = df.to_pandas()
+    pd_result = pd_df.explode(col_names, ignore_index=ignore_index)
+    bf_result = df.explode(col_names, ignore_index=ignore_index)
+
+    # Check that to_pandas() results in at most a single query execution
+    execs_pre = metrics.execution_count
+    bf_materialized = bf_result.to_pandas()
+    execs_post = metrics.execution_count
+
     pd.testing.assert_frame_equal(
-        df.explode(col_names, ignore_index=ignore_index).to_pandas(),
-        pd_df.explode(col_names, ignore_index=ignore_index),
+        bf_materialized,
+        pd_result,
         check_index_type=False,
         check_dtype=False,
     )
+    # we test this property on this method in particular as compilation
+    # is non-deterministic and won't use the query cache as implemented
+    assert execs_post - execs_pre <= 1
 
 
 @pytest.mark.parametrize(

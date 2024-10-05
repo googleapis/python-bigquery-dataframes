@@ -4,22 +4,29 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     https://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pathlib
 
-import benchmark.utils as utils
-import bigframes_vendored.tpch.queries.q22 as vendored_tpch_q22
+import pytest
 
-if __name__ == "__main__":
-    project_id, dataset_id, session, suffix = utils.get_configuration()
-    current_path = pathlib.Path(__file__).absolute()
+import bigframes._config.experiment_options as experiment_options
 
-    utils.get_execution_time(
-        vendored_tpch_q22.q, current_path, suffix, project_id, dataset_id, session
-    )
+
+def test_semantic_operators_default_false():
+    options = experiment_options.ExperimentOptions()
+
+    assert options.semantic_operators is False
+
+
+def test_semantic_operators_set_true_shows_warning():
+    options = experiment_options.ExperimentOptions()
+
+    with pytest.warns(UserWarning):
+        options.semantic_operators = True
+
+    assert options.semantic_operators is True

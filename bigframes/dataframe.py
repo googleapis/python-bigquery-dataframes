@@ -74,6 +74,7 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.plotting as plotting
+import bigframes.operations.semantics
 import bigframes.operations.structs
 import bigframes.series
 import bigframes.series as bf_series
@@ -689,7 +690,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        self._cached()
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -3875,3 +3875,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise bigframes.exceptions.NullIndexError(
                 f"DataFrame cannot perform {opname} as it has no index. Set an index using set_index."
             )
+
+    @property
+    def semantics(self):
+        return bigframes.operations.semantics.Semantics(self)
