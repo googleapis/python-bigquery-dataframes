@@ -500,6 +500,22 @@ class RemoteFunctionSession:
             try_delattr("is_row_processor")
             try_delattr("ibis_node")
 
+            # resolve the output type that can be supported in the bigframes,
+            # ibis, BQ remote functions and cloud functions integration
+            ibis_output_type_for_bqrf = ibis_signature.output_type
+            bqrf_can_handle_output_type = True
+            if isinstance(ibis_signature.output_type, ibis.expr.datatypes.Array):
+                # TODO(b/284515241): remove this special handling to support
+                # array output types once BQ remote functions support ARRAY.
+                # Until then, use json serialized strings at the cloud function
+                # and BQ level, and parse that to the intended output type at
+                # the bigframes level.
+                ibis_output_type_for_bqrf = ibis.expr.datatypes.String()
+                bqrf_can_handle_output_type = False
+            bqrf_output_type = third_party_ibis_bqtypes.BigQueryType.from_ibis(
+                ibis_output_type_for_bqrf
+            )
+
             (
                 rf_name,
                 cf_name,
@@ -510,9 +526,7 @@ class RemoteFunctionSession:
                     third_party_ibis_bqtypes.BigQueryType.from_ibis(type_)
                     for type_ in ibis_signature.input_types
                 ),
-                output_type=third_party_ibis_bqtypes.BigQueryType.from_ibis(
-                    ibis_signature.output_type
-                ),
+                output_type=bqrf_output_type,
                 reuse=reuse,
                 name=name,
                 package_requirements=packages,
@@ -523,6 +537,9 @@ class RemoteFunctionSession:
                 cloud_function_vpc_connector=cloud_function_vpc_connector,
                 cloud_function_memory_mib=cloud_function_memory_mib,
                 cloud_function_ingress_settings=cloud_function_ingress_settings,
+                cloud_function_returns_json_serialized_output=(
+                    not bqrf_can_handle_output_type
+                ),
             )
 
             # TODO(shobs): Find a better way to support udfs with param named "name".
@@ -543,7 +560,7 @@ class RemoteFunctionSession:
                 name=rf_name,
                 catalog=dataset_ref.project,
                 database=dataset_ref.dataset_id,
-                signature=(ibis_signature.input_types, ibis_signature.output_type),
+                signature=(ibis_signature.input_types, ibis_output_type_for_bqrf),
             )
             func.bigframes_cloud_function = (
                 remote_function_client.get_cloud_function_fully_qualified_name(cf_name)

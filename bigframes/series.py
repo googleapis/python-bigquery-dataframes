@@ -1476,6 +1476,20 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ops.RemoteFunctionOp(func=func, apply_on_null=True)
         )
 
+        # if the output is an array, reconstruct it from the json serialized
+        # string form
+        if bigframes.dtypes.is_array_like(func.output_dtype):
+            import bigframes.bigquery as bbq
+
+            result_array_series = bbq.json_extract_array(result_series)
+            result_array_items_series = result_array_series.explode()
+            result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
+                func.output_dtype.pyarrow_dtype.value_type
+            )
+            result_array_items_series = result_array_items_series.astype(result_dtype)
+            result_series = bbq.array_agg(result_array_items_series.groupby(level=0))
+            result_series.index.names = result_array_series.index.names
+
         return result_series
 
     def combine(

@@ -199,15 +199,9 @@ class RemoteFunctionClient:
         output_type: str,
         package_requirements=None,
         is_row_processor=False,
+        return_json_serialized_output=False,
     ):
-        """Generate the cloud function code for a given user defined function.
-
-        Args:
-            input_types (tuple[str]):
-                Types of the input arguments in BigQuery SQL data type names.
-            output_type (str):
-                Types of the output scalar as a BigQuery SQL data type name.
-        """
+        """Generate the cloud function code for a given user defined function."""
 
         # requirements.txt
         if package_requirements:
@@ -222,6 +216,7 @@ class RemoteFunctionClient:
             input_types=input_types,
             output_type=output_type,
             is_row_processor=is_row_processor,
+            return_json_serialized_output=return_json_serialized_output,
         )
         return entry_point
 
@@ -239,15 +234,9 @@ class RemoteFunctionClient:
         vpc_connector=None,
         memory_mib=1024,
         ingress_settings="all",
+        return_json_serialized_output=False,
     ):
-        """Create a cloud function from the given user defined function.
-
-        Args:
-            input_types (tuple[str]):
-                Types of the input arguments in BigQuery SQL data type names.
-            output_type (str):
-                Types of the output scalar as a BigQuery SQL data type name.
-        """
+        """Create a cloud function from the given user defined function."""
 
         # Build and deploy folder structure containing cloud function
         with tempfile.TemporaryDirectory() as directory:
@@ -258,6 +247,7 @@ class RemoteFunctionClient:
                 input_types=input_types,
                 output_type=output_type,
                 is_row_processor=is_row_processor,
+                return_json_serialized_output=return_json_serialized_output,
             )
             archive_path = shutil.make_archive(directory, "zip", directory)
 
@@ -394,6 +384,7 @@ class RemoteFunctionClient:
         cloud_function_vpc_connector,
         cloud_function_memory_mib,
         cloud_function_ingress_settings,
+        cloud_function_returns_json_serialized_output,
     ):
         """Provision a BigQuery remote function."""
         # Augment user package requirements with any internal package
@@ -441,6 +432,7 @@ class RemoteFunctionClient:
                 vpc_connector=cloud_function_vpc_connector,
                 memory_mib=cloud_function_memory_mib,
                 ingress_settings=cloud_function_ingress_settings,
+                return_json_serialized_output=cloud_function_returns_json_serialized_output,
             )
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")

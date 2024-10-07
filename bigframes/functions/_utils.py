@@ -15,6 +15,7 @@
 
 import hashlib
 import inspect
+import typing
 from typing import cast, List, NamedTuple, Optional, Sequence, Set
 
 import cloudpickle
@@ -202,13 +203,25 @@ def ibis_signature_from_python_signature(
     output_type: type,
 ) -> IbisSignature:
 
+    ibis_input_types = [
+        bigframes.core.compile.ibis_types.ibis_type_from_python_type(t)
+        for t in input_types
+    ]
+
+    try:
+        ibis_output_type = bigframes.core.compile.ibis_types.ibis_type_from_python_type(
+            output_type
+        )
+    except bigframes.core.compile.ibis_types.UnsupportedTypeError:
+        if typing.get_origin(output_type) is list:
+            ibis_output_type = bigframes.core.compile.ibis_types.ibis_array_output_type_from_python_type(
+                output_type
+            )
+        else:
+            raise
+
     return IbisSignature(
         parameter_names=list(signature.parameters.keys()),
-        input_types=[
-            bigframes.core.compile.ibis_types.ibis_type_from_python_type(t)
-            for t in input_types
-        ],
-        output_type=bigframes.core.compile.ibis_types.ibis_type_from_python_type(
-            output_type
-        ),
+        input_types=ibis_input_types,
+        output_type=ibis_output_type,
     )

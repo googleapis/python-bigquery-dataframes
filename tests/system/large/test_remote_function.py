@@ -2239,3 +2239,35 @@ def test_remote_function_ingress_settings_unsupported(session):
         @session.remote_function(reuse=False, cloud_function_ingress_settings="unknown")
         def square(x: int) -> int:
             return x * x
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_array_output(
+    session, scalars_dfs, dataset_id, bq_cf_connection
+):
+    try:
+
+        def square(x: int) -> list[int]:
+            return [x, x + 1, x + 2]
+
+        square_remote = session.remote_function(
+            dataset=dataset_id,
+            bigquery_connection=bq_cf_connection,
+            reuse=False,
+        )(square)
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_int64_col = scalars_df["int64_too"]
+        bf_result = bf_int64_col.apply(square_remote).to_pandas()
+
+        pd_int64_col = scalars_pandas_df["int64_too"]
+        pd_result = pd_int64_col.apply(square)
+
+        # ignore any dtype disparity
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, square_remote
+        )
