@@ -60,8 +60,9 @@ def test_agg_w_max_agg_rows(session, gemini_flash_model, max_agg_rows, cluster_c
         },
         session=session,
     )
+    instruction = "Find the shared first name of actors in {Movies}. One word answer."
     actual_s = df.semantics.agg(
-        "Find the shared first name of actors in {Movies}. One word answer.",
+        instruction,
         model=gemini_flash_model,
         max_agg_rows=max_agg_rows,
         cluster_column=cluster_column,
@@ -75,9 +76,21 @@ def test_agg_w_max_agg_rows(session, gemini_flash_model, max_agg_rows, cluster_c
 @pytest.mark.parametrize(
     "instruction",
     [
-        "No column reference",
-        "{city} is in the {non_existing_column}",
-        "{city} is in the {country}",
+        pytest.param(
+            "No column reference",
+            id="zero_column",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+        pytest.param(
+            "{city} is in the {non_existing_column}",
+            id="non_existing_column",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+        pytest.param(
+            "{city} is in the {country}",
+            id="two_columns",
+            marks=pytest.mark.xfail(raises=NotImplementedError),
+        ),
     ],
 )
 def test_agg_invalid_instruction_raise_error(instruction, gemini_flash_model):
@@ -85,9 +98,36 @@ def test_agg_invalid_instruction_raise_error(instruction, gemini_flash_model):
     df = dataframe.DataFrame(
         {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}
     )
+    df.semantics.agg(instruction, gemini_flash_model)
 
-    with pytest.raises(ValueError):
-        df.semantics.agg(instruction, gemini_flash_model)
+
+@pytest.mark.parametrize(
+    "cluster_column",
+    [
+        pytest.param(
+            "non_existing_column",
+            id="non_existing_column",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+        pytest.param(
+            "Movies", id="non_int_column", marks=pytest.mark.xfail(raises=TypeError)
+        ),
+    ],
+)
+def test_agg_invalid_cluster_column_raise_error(gemini_flash_model, cluster_column):
+    bigframes.options.experiments.semantic_operators = True
+    df = dataframe.DataFrame(
+        data={
+            "Movies": [
+                "Titanic",
+                "The Wolf of Wall Street",
+                "Killers of the Flower Moon",
+                "The Revenant",
+            ],
+        },
+    )
+    instruction = "Find the shared first name of actors in {Movies}. One word answer."
+    df.semantics.agg(instruction, gemini_flash_model, cluster_column=cluster_column)
 
 
 def test_filter(session, gemini_flash_model):

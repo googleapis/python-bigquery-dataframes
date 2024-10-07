@@ -101,7 +101,9 @@ class Semantics:
             if column not in self._df.columns:
                 raise ValueError(f"Column {column} not found.")
         if len(columns) > 1:
-            raise ValueError(f"Semantic aggregations are limited to a single column.")
+            raise NotImplementedError(
+                "Semantic aggregations are limited to a single column."
+            )
         column = columns[0]
 
         if max_agg_rows <= 1:
@@ -233,8 +235,11 @@ class Semantics:
         """
         self._validate_model(model)
         columns = self._parse_columns(instruction)
-        user_instruction = self._format_instruction(instruction, columns)
+        for column in columns:
+            if column not in self._df.columns:
+                raise ValueError(f"Column {column} not found.")
 
+        user_instruction = self._format_instruction(instruction, columns)
         output_instruction = "Based on the provided context, reply to the following claim by only True or False:"
 
         from bigframes.dataframe import DataFrame
