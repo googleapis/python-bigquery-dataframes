@@ -745,9 +745,9 @@ class SelectionNode(UnaryNode):
     def __hash__(self):
         return self._node_hash
 
-    @property
+    @functools.cached_property
     def fields(self) -> Iterable[Field]:
-        return (
+        return tuple(
             Field(output, self.child.get_type(input.id))
             for input, output in self.input_output_pairs
         )
@@ -793,14 +793,17 @@ class ProjectionNode(UnaryNode):
     def __hash__(self):
         return self._node_hash
 
-    @property
-    def fields(self) -> Iterable[Field]:
+    @functools.cached_property
+    def added_fields(self) -> Tuple[Field, ...]:
         input_types = self.child._dtype_lookup
-        new_fields = (
+        return tuple(
             Field(id, bigframes.dtypes.dtype_for_etype(ex.output_type(input_types)))
             for ex, id in self.assignments
         )
-        return itertools.chain(self.child.fields, new_fields)
+
+    @property
+    def fields(self) -> Iterable[Field]:
+        return itertools.chain(self.child.fields, self.added_fields)
 
     @property
     def variables_introduced(self) -> int:
@@ -863,7 +866,7 @@ class AggregateNode(UnaryNode):
     def non_local(self) -> bool:
         return True
 
-    @property
+    @functools.cached_property
     def fields(self) -> Iterable[Field]:
         by_items = (
             Field(ref.id, self.child.get_type(ref.id)) for ref in self.by_column_ids
@@ -877,7 +880,7 @@ class AggregateNode(UnaryNode):
             )
             for agg, id in self.aggregations
         )
-        return itertools.chain(by_items, agg_items)
+        return tuple(itertools.chain(by_items, agg_items))
 
     @property
     def variables_introduced(self) -> int:
@@ -924,9 +927,7 @@ class WindowOpNode(UnaryNode):
 
     @property
     def fields(self) -> Iterable[Field]:
-        input_type = self.child.get_type(self.column_name.id)
-        new_item_dtype = self.op.output_type(input_type)
-        return (*self.child.fields, Field(self.output_name, new_item_dtype))
+        return itertools.chain(self.child.fields, [self.added_field])
 
     @property
     def variables_introduced(self) -> int:
@@ -936,6 +937,12 @@ class WindowOpNode(UnaryNode):
     def relation_ops_created(self) -> int:
         # Assume that if not reprojecting, that there is a sequence of window operations sharing the same window
         return 0 if self.skip_reproject_unsafe else 4
+
+    @functools.cached_property
+    def added_field(self) -> Field:
+        input_type = self.child.get_type(self.column_name.id)
+        new_item_dtype = self.op.output_type(input_type)
+        return Field(self.output_name, new_item_dtype)
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         if self.output_name not in used_cols:
