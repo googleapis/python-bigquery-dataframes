@@ -98,7 +98,7 @@ class Semantics:
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
 
             >>> df = bpd.DataFrame({"ingredient_1": ["Burger Bun", "Soy Bean"], "ingredient_2": ["Beef Patty", "Bittern"]})
-            >>> df.semantics.map("What is the food made from {ingredient_1} and {ingredient_2}? One word only.", result_column_name="food", model=model)
+            >>> df.semantics.map("What is the food made from {ingredient_1} and {ingredient_2}? One word only.", output_column="food", model=model)
               ingredient_1 ingredient_2      food
             0   Burger Bun   Beef Patty  Burger
             <BLANKLINE>
