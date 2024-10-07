@@ -34,7 +34,7 @@ def test_semantics_experiment_off_raise_error():
 @pytest.mark.parametrize(
     ("max_agg_rows", "cluster_column"),
     [
-        pytest.param(1, None, id="one", marks=pytest.mark.xfail(raises=TypeError)),
+        pytest.param(1, None, id="one", marks=pytest.mark.xfail(raises=ValueError)),
         pytest.param(2, None, id="two"),
         pytest.param(3, None, id="three"),
         pytest.param(4, None, id="four"),

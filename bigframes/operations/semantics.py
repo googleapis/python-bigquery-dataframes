@@ -107,7 +107,7 @@ class Semantics:
         column = columns[0]
 
         if max_agg_rows <= 1:
-            raise TypeError(
+            raise ValueError(
                 f"Invalid value for `max_agg_rows`: {max_agg_rows}."
                 "It must be greater than 1."
             )
@@ -171,7 +171,7 @@ class Semantics:
                 agg_df[cluster_column] = agg_df[cluster_column].list[0]
 
             # Skip if the aggregated group only has a single item
-            agg_df_w_single: bigframes.series.Series = bbq.array_to_string(
+            single_row_df: bigframes.series.Series = bbq.array_to_string(
                 agg_df[agg_df[group_row_index].list.len() <= 1][column],
                 delimiter="",
             )
@@ -186,7 +186,7 @@ class Semantics:
                 bigframes.dataframe.DataFrame, model.predict(prompt_s)
             )
             agg_df[column] = predict_df["ml_generate_text_llm_result"].combine_first(
-                agg_df_w_single
+                single_row_df
             )
 
             agg_df = agg_df.reset_index()
