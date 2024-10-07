@@ -1521,6 +1521,13 @@ def test_shape(scalars_dfs):
     assert bf_result == pd_result
 
 
+def test_view_shape(session):
+    view_df = session.read_gbq("bigframes-dev.bigframes_tests_sys.base_table_view")
+    table_ref = session.read_gbq("bigframes-dev.bigframes_tests_sys.base_table")
+
+    assert view_df.shape == table_ref.shape
+
+
 def test_len(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = len(scalars_df)
