@@ -228,6 +228,11 @@ class ArrayValue:
     def slice(
         self, start: Optional[int], stop: Optional[int], step: Optional[int]
     ) -> ArrayValue:
+        if self.node.order_ambiguous and not (self.session._strictly_ordered):
+            warnings.warn(
+                "Window ordering may be ambiguous, this can cause unstable results.",
+                bigframes.exceptions.AmbiguousWindowWarning,
+            )
         return ArrayValue(
             nodes.SliceNode(
                 self.node,
