@@ -59,7 +59,7 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
 UNIT_TEST_EXTERNAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
-UNIT_TEST_EXTRAS: List[str] = []
+UNIT_TEST_EXTRAS: List[str] = ["polars"]
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
 # There are 4 different ibis-framework 9.x versions we want to test against.
@@ -249,6 +249,7 @@ def mypy(session):
                 "types-requests",
                 "types-setuptools",
                 "types-tabulate",
+                "polars",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
