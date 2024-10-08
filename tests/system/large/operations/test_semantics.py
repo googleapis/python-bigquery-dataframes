@@ -138,7 +138,7 @@ def test_agg_invalid_cluster_column_raise_error(gemini_flash_model, cluster_colu
         pytest.param(4, id="four"),
     ],
 )
-def test_cluster_by_w_n_clusters(session, text_embedding_generator, n_clusters):
+def test_cluster_by(session, text_embedding_generator, n_clusters):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame(
         ({"Product": ["Smartphone", "Laptop", "Coffee Maker", "T-shirt", "Jeans"]}),
@@ -183,7 +183,7 @@ def test_cluster_by_invalid_model(session, gemini_flash_model):
     )
 
     output_column = "cluster id"
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         df.semantics.cluster_by(
             "Product",
             output_column,
