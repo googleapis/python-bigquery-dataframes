@@ -51,8 +51,8 @@ class Field:
     dtype: bigframes.dtypes.Dtype
 
 
-@dataclass(frozen=True)
-class BigFrameNode:
+@dataclass(eq=False, frozen=True)
+class BigFrameNode(abc.ABC):
     """
     Immutable node for representing 2D typed array as a tree of operators.
 
@@ -95,12 +95,30 @@ class BigFrameNode:
             return sessions[0]
         return None
 
+    def _as_tuple(self) -> Tuple:
+        """Get all fields as tuple."""
+        return tuple(getattr(self, field.name) for field in fields(self))
+
+    def __hash__(self) -> int:
+        # Custom hash that uses cache to avoid costly recomputation
+        return self._cached_hash
+
+    def __eq__(self, other) -> bool:
+        # Custom eq that tries to short-circuit full structural comparison
+        if not isinstance(other, self.__class__):
+            return False
+        if self is other:
+            return True
+        if hash(self) != hash(other):
+            return False
+        return self._as_tuple() == other._as_tuple()
+
     # BigFrameNode trees can be very deep so its important avoid recalculating the hash from scratch
     # Each subclass of BigFrameNode should use this property to implement __hash__
     # The default dataclass-generated __hash__ method is not cached
     @functools.cached_property
-    def _node_hash(self):
-        return hash(tuple(hash(getattr(self, field.name)) for field in fields(self)))
+    def _cached_hash(self):
+        return hash(self._as_tuple())
 
     @property
     def roots(self) -> typing.Set[BigFrameNode]:
@@ -109,10 +127,10 @@ class BigFrameNode:
         )
         return set(roots)
 
-    # TODO: For deep trees, this can create a lot of overhead, maybe use zero-copy persistent datastructure?
+    # TODO: Store some local data lazily for select, aggregate nodes.
     @property
     @abc.abstractmethod
-    def fields(self) -> Tuple[Field, ...]:
+    def fields(self) -> Iterable[Field]:
         ...
 
     @property
@@ -226,7 +244,7 @@ class BigFrameNode:
         return self.transform_children(lambda x: x.prune(used_cols))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class UnaryNode(BigFrameNode):
     child: BigFrameNode
 
@@ -234,8 +252,8 @@ class UnaryNode(BigFrameNode):
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
         return (self.child,)
 
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
+    @property
+    def fields(self) -> Iterable[Field]:
         return self.child.fields
 
     @property
@@ -252,7 +270,7 @@ class UnaryNode(BigFrameNode):
         return self.child.order_ambiguous
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class JoinNode(BigFrameNode):
     left_child: BigFrameNode
     right_child: BigFrameNode
@@ -285,12 +303,9 @@ class JoinNode(BigFrameNode):
         # Do not consider user pre-join ordering intent - they need to re-order post-join in unordered mode.
         return False
 
-    def __hash__(self):
-        return self._node_hash
-
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
-        return tuple(itertools.chain(self.left_child.fields, self.right_child.fields))
+    @property
+    def fields(self) -> Iterable[Field]:
+        return itertools.chain(self.left_child.fields, self.right_child.fields)
 
     @functools.cached_property
     def variables_introduced(self) -> int:
@@ -320,7 +335,7 @@ class JoinNode(BigFrameNode):
         return self.transform_children(lambda x: x.prune(new_used))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ConcatNode(BigFrameNode):
     # TODO: Explcitly map column ids from each child
     children: Tuple[BigFrameNode, ...]
@@ -345,13 +360,10 @@ class ConcatNode(BigFrameNode):
         # Consider concat as an ordered operations (even though input frames may not be ordered)
         return True
 
-    def __hash__(self):
-        return self._node_hash
-
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
+    @property
+    def fields(self) -> Iterable[Field]:
         # TODO: Output names should probably be aligned beforehand or be part of concat definition
-        return tuple(
+        return (
             Field(bfet_ids.ColumnId(f"column_{i}"), field.dtype)
             for i, field in enumerate(self.children[0].fields)
         )
@@ -371,15 +383,12 @@ class ConcatNode(BigFrameNode):
         return self
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class FromRangeNode(BigFrameNode):
     # TODO: Enforce single-row, single column constraint
     start: BigFrameNode
     end: BigFrameNode
     step: int
-
-    def __hash__(self):
-        return self._node_hash
 
     @property
     def roots(self) -> typing.Set[BigFrameNode]:
@@ -398,8 +407,10 @@ class FromRangeNode(BigFrameNode):
         return True
 
     @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
-        return (Field(bfet_ids.ColumnId("labels"), self.start.fields[0].dtype),)
+    def fields(self) -> Iterable[Field]:
+        return (
+            Field(bfet_ids.ColumnId("labels"), next(iter(self.start.fields)).dtype),
+        )
 
     @functools.cached_property
     def variables_introduced(self) -> int:
@@ -419,7 +430,7 @@ class FromRangeNode(BigFrameNode):
 # Input Nodex
 # TODO: Most leaf nodes produce fixed column names based on the datasource
 # They should support renaming
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class LeafNode(BigFrameNode):
     @property
     def roots(self) -> typing.Set[BigFrameNode]:
@@ -451,7 +462,7 @@ class ScanList:
     items: typing.Tuple[ScanItem, ...]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ReadLocalNode(LeafNode):
     feather_bytes: bytes
     data_schema: schemata.ArraySchema
@@ -460,14 +471,11 @@ class ReadLocalNode(LeafNode):
     scan_list: ScanList
     session: typing.Optional[bigframes.session.Session] = None
 
-    def __hash__(self):
-        return self._node_hash
+    @property
+    def fields(self) -> Iterable[Field]:
+        return (Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
 
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
-        return tuple(Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
-
-    @functools.cached_property
+    @property
     def variables_introduced(self) -> int:
         """Defines the number of variables generated by the current node. Used to estimate query planning complexity."""
         return len(self.scan_list.items) + 1
@@ -547,7 +555,7 @@ class BigqueryDataSource:
 
 
 ## Put ordering in here or just add order_by node above?
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ReadTableNode(LeafNode):
     source: BigqueryDataSource
     # Subset of physical schema column
@@ -570,12 +578,9 @@ class ReadTableNode(LeafNode):
     def session(self):
         return self.table_session
 
-    def __hash__(self):
-        return self._node_hash
-
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
-        return tuple(Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
+    @property
+    def fields(self) -> Iterable[Field]:
+        return (Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
 
     @property
     def relation_ops_created(self) -> int:
@@ -616,14 +621,11 @@ class ReadTableNode(LeafNode):
         return ReadTableNode(self.source, new_scan_list, self.table_session)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class CachedTableNode(ReadTableNode):
     # The original BFET subtree that was cached
     # note: this isn't a "child" node.
     original_node: BigFrameNode = field()
-
-    def __hash__(self):
-        return self._node_hash
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         new_scan_list = ScanList(
@@ -635,20 +637,19 @@ class CachedTableNode(ReadTableNode):
 
 
 # Unary nodes
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class PromoteOffsetsNode(UnaryNode):
     col_id: bigframes.core.identifiers.ColumnId
-
-    def __hash__(self):
-        return self._node_hash
 
     @property
     def non_local(self) -> bool:
         return True
 
     @property
-    def fields(self) -> Tuple[Field, ...]:
-        return (*self.child.fields, Field(self.col_id, bigframes.dtypes.INT_DTYPE))
+    def fields(self) -> Iterable[Field]:
+        return itertools.chain(
+            self.child.fields, [Field(self.col_id, bigframes.dtypes.INT_DTYPE)]
+        )
 
     @property
     def relation_ops_created(self) -> int:
@@ -666,16 +667,13 @@ class PromoteOffsetsNode(UnaryNode):
             return self.transform_children(lambda x: x.prune(new_used))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class FilterNode(UnaryNode):
     predicate: ex.Expression
 
     @property
     def row_preserving(self) -> bool:
         return False
-
-    def __hash__(self):
-        return self._node_hash
 
     @property
     def variables_introduced(self) -> int:
@@ -687,12 +685,9 @@ class FilterNode(UnaryNode):
         return FilterNode(pruned_child, self.predicate)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class OrderByNode(UnaryNode):
     by: Tuple[OrderingExpression, ...]
-
-    def __hash__(self):
-        return self._node_hash
 
     @property
     def variables_introduced(self) -> int:
@@ -716,13 +711,10 @@ class OrderByNode(UnaryNode):
         return OrderByNode(pruned_child, self.by)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ReversedNode(UnaryNode):
     # useless field to make sure has distinct hash
     reversed: bool = True
-
-    def __hash__(self):
-        return self._node_hash
 
     @property
     def variables_introduced(self) -> int:
@@ -734,17 +726,14 @@ class ReversedNode(UnaryNode):
         return 0
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class SelectionNode(UnaryNode):
     input_output_pairs: typing.Tuple[
         typing.Tuple[ex.DerefOp, bigframes.core.identifiers.ColumnId], ...
     ]
 
-    def __hash__(self):
-        return self._node_hash
-
     @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
+    def fields(self) -> Iterable[Field]:
         return tuple(
             Field(output, self.child.get_type(input.id))
             for input, output in self.input_output_pairs
@@ -772,7 +761,7 @@ class SelectionNode(UnaryNode):
         return SelectionNode(pruned_child, pruned_selections)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ProjectionNode(UnaryNode):
     """Assigns new variables (without modifying existing ones)"""
 
@@ -788,17 +777,17 @@ class ProjectionNode(UnaryNode):
         # Cannot assign to existing variables - append only!
         assert all(name not in self.child.schema.names for _, name in self.assignments)
 
-    def __hash__(self):
-        return self._node_hash
-
     @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
+    def added_fields(self) -> Tuple[Field, ...]:
         input_types = self.child._dtype_lookup
-        new_fields = (
+        return tuple(
             Field(id, bigframes.dtypes.dtype_for_etype(ex.output_type(input_types)))
             for ex, id in self.assignments
         )
-        return (*self.child.fields, *new_fields)
+
+    @property
+    def fields(self) -> Iterable[Field]:
+        return itertools.chain(self.child.fields, self.added_fields)
 
     @property
     def variables_introduced(self) -> int:
@@ -819,7 +808,7 @@ class ProjectionNode(UnaryNode):
 
 # TODO: Merge RowCount into Aggregate Node?
 # Row count can be compute from table metadata sometimes, so it is a bit special.
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class RowCountNode(UnaryNode):
     @property
     def row_preserving(self) -> bool:
@@ -829,8 +818,8 @@ class RowCountNode(UnaryNode):
     def non_local(self) -> bool:
         return True
 
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
+    @property
+    def fields(self) -> Iterable[Field]:
         return (Field(bfet_ids.ColumnId("count"), bigframes.dtypes.INT_DTYPE),)
 
     @property
@@ -842,7 +831,7 @@ class RowCountNode(UnaryNode):
         return True
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class AggregateNode(UnaryNode):
     aggregations: typing.Tuple[
         typing.Tuple[ex.Aggregation, bigframes.core.identifiers.ColumnId], ...
@@ -854,15 +843,12 @@ class AggregateNode(UnaryNode):
     def row_preserving(self) -> bool:
         return False
 
-    def __hash__(self):
-        return self._node_hash
-
     @property
     def non_local(self) -> bool:
         return True
 
     @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
+    def fields(self) -> Iterable[Field]:
         by_items = (
             Field(ref.id, self.child.get_type(ref.id)) for ref in self.by_column_ids
         )
@@ -875,7 +861,7 @@ class AggregateNode(UnaryNode):
             )
             for agg, id in self.aggregations
         )
-        return (*by_items, *agg_items)
+        return tuple(itertools.chain(by_items, agg_items))
 
     @property
     def variables_introduced(self) -> int:
@@ -904,7 +890,7 @@ class AggregateNode(UnaryNode):
         return AggregateNode(pruned_child, pruned_aggs, self.by_column_ids, self.dropna)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class WindowOpNode(UnaryNode):
     column_name: ex.DerefOp
     op: agg_ops.UnaryWindowOp
@@ -913,18 +899,13 @@ class WindowOpNode(UnaryNode):
     never_skip_nulls: bool = False
     skip_reproject_unsafe: bool = False
 
-    def __hash__(self):
-        return self._node_hash
-
     @property
     def non_local(self) -> bool:
         return True
 
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
-        input_type = self.child.get_type(self.column_name.id)
-        new_item_dtype = self.op.output_type(input_type)
-        return (*self.child.fields, Field(self.output_name, new_item_dtype))
+    @property
+    def fields(self) -> Iterable[Field]:
+        return itertools.chain(self.child.fields, [self.added_field])
 
     @property
     def variables_introduced(self) -> int:
@@ -934,6 +915,12 @@ class WindowOpNode(UnaryNode):
     def relation_ops_created(self) -> int:
         # Assume that if not reprojecting, that there is a sequence of window operations sharing the same window
         return 0 if self.skip_reproject_unsafe else 4
+
+    @functools.cached_property
+    def added_field(self) -> Field:
+        input_type = self.child.get_type(self.column_name.id)
+        new_item_dtype = self.op.output_type(input_type)
+        return Field(self.output_name, new_item_dtype)
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         if self.output_name not in used_cols:
@@ -945,11 +932,8 @@ class WindowOpNode(UnaryNode):
 
 
 # TODO: Remove this op
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ReprojectOpNode(UnaryNode):
-    def __hash__(self):
-        return self._node_hash
-
     @property
     def variables_introduced(self) -> int:
         return 0
@@ -960,7 +944,7 @@ class ReprojectOpNode(UnaryNode):
         return 0
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class RandomSampleNode(UnaryNode):
     fraction: float
 
@@ -972,16 +956,13 @@ class RandomSampleNode(UnaryNode):
     def row_preserving(self) -> bool:
         return False
 
-    def __hash__(self):
-        return self._node_hash
-
     @property
     def variables_introduced(self) -> int:
         return 1
 
 
 # TODO: Explode should create a new column instead of overriding the existing one
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ExplodeNode(UnaryNode):
     column_ids: typing.Tuple[ex.DerefOp, ...]
 
@@ -989,12 +970,9 @@ class ExplodeNode(UnaryNode):
     def row_preserving(self) -> bool:
         return False
 
-    def __hash__(self):
-        return self._node_hash
-
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
-        return tuple(
+    @property
+    def fields(self) -> Iterable[Field]:
+        return (
             Field(
                 field.id,
                 bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
