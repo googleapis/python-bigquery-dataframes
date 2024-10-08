@@ -617,6 +617,7 @@ class Semantics:
         model,
         top_k: int = 3,
         score_column: Optional[str] = None,
+        max_rows: int = 1000,
     ):
         """
         Joins two dataframes based on the similarity of the specified columns.
@@ -656,9 +657,15 @@ class Semantics:
             score_column (Optional[str], default None):
                 The name of the the additional column containning the similarity scores. If None,
                 this column won't be attached to the result.
+            max_rows:
+                The maximum number of rows allowed to be processed per call. If the result is too large, the method
+                call will end early with an error.
 
         Returns:
-            DataFrame: the data frame with the join result
+            DataFrame: the data frame with the join result.
+
+        Raises:
+            ValueError: when the amount of data to be processed exceeds the specified max_rows.
         """
 
         if left_on not in self._df.columns:
@@ -670,6 +677,12 @@ class Semantics:
 
         if not isinstance(model, llm.TextEmbeddingGenerator):
             raise TypeError(f"Expect a text embedding model, but got: {type(model)}")
+
+        joined_table_rows = len(self._df) * len(other)
+        if joined_table_rows > max_rows:
+            raise ValueError(
+                f"Number of rows that need processing is {joined_table_rows}, which exceeds row limit {max_rows}."
+            )
 
         base_table = self._attach_embedding(other, right_on, model).to_gbq()
         query_table = self._attach_embedding(self._df, left_on, model)

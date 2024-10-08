@@ -612,3 +612,24 @@ def test_sim_join_invalid_model_raises_error(session):
         df1.semantics.sim_join(
             df2, left_on="creatures", right_on="creatures", model=None
         )
+
+
+def test_sim_join_data_too_large_raises_error(session, text_embedding_generator):
+    bigframes.options.experiments.semantic_operators = True
+    df1 = dataframe.DataFrame(
+        data={"creatures": ["salmon", "cat"]},
+        session=session,
+    )
+    df2 = dataframe.DataFrame(
+        data={"creatures": ["dog", "tuna"]},
+        session=session,
+    )
+
+    with pytest.raises(ValueError):
+        df1.semantics.sim_join(
+            df2,
+            left_on="creatures",
+            right_on="creatures",
+            model=text_embedding_generator,
+            max_rows=1,
+        )
