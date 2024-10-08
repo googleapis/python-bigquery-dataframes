@@ -11,16 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import pytest
-
-import bigframes.ml.llm as llm
-
-
-@pytest.fixture(scope="session")
-def gemini_flash_model(session, bq_connection) -> llm.GeminiTextGenerator:
-    return llm.GeminiTextGenerator(
-        session=session,
-        connection_name=bq_connection,
-        model_name="gemini-1.5-flash-001",
-    )
