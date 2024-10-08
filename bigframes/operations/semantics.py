@@ -622,6 +622,10 @@ class Semantics:
         """
         Joins two dataframes based on the similarity of the specified columns.
 
+        This method uses BigQuery's VECTOR_SEARCH function to match rows on the left side with the rows that have
+        nearest embedding vectors on the right. In the worst case scenario, the complexity is around O(M * N * log K).
+        Therefore, this is a potentially expensive operation.
+
         ** Examples: **
 
             >>> import bigframes.pandas as bpd
@@ -684,19 +688,24 @@ class Semantics:
                 f"Number of rows that need processing is {joined_table_rows}, which exceeds row limit {max_rows}."
             )
 
-        base_table = self._attach_embedding(other, right_on, model).to_gbq()
-        query_table = self._attach_embedding(self._df, left_on, model)
+        base_table_embedding_column = bigframes.core.guid.generate_guid()
+        base_table = self._attach_embedding(
+            other, right_on, base_table_embedding_column, model
+        ).to_gbq()
+        query_table = self._attach_embedding(self._df, left_on, "embedding", model)
 
         import bigframes.bigquery as bbq
 
         join_result = bbq.vector_search(
             base_table=base_table,
-            column_to_search="embedding",
+            column_to_search=base_table_embedding_column,
             query=query_table,
             top_k=top_k,
         )
 
-        join_result = join_result.drop(["embedding", "embedding_1"], axis=1)
+        join_result = join_result.drop(
+            ["embedding", base_table_embedding_column], axis=1
+        )
 
         if score_column is not None:
             join_result = join_result.rename(columns={"distance": score_column})
@@ -706,10 +715,12 @@ class Semantics:
         return join_result
 
     @staticmethod
-    def _attach_embedding(dataframe, column: str, model):
+    def _attach_embedding(dataframe, source_column: str, embedding_column: str, model):
         result_df = dataframe.copy()
-        embeddings = model.predict(dataframe[column])["ml_generate_embedding_result"]
-        result_df["embedding"] = embeddings
+        embeddings = model.predict(dataframe[source_column])[
+            "ml_generate_embedding_result"
+        ]
+        result_df[embedding_column] = embeddings
         return result_df
 
     def _make_prompt(
