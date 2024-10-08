@@ -511,7 +511,8 @@ def convert_complex_slice(
             start_cond = ops.le_op.as_expr(
                 reverse_offsets, scalar_exprs.const(-start - 1)
             )
-        elif start < 0 and step < 0:
+        else:
+            assert start < 0 and step < 0
             start_cond = ops.ge_op.as_expr(
                 reverse_offsets, scalar_exprs.const(-start - 1)
             )
@@ -525,7 +526,8 @@ def convert_complex_slice(
             stop_cond = ops.gt_op.as_expr(
                 reverse_offsets, scalar_exprs.const(-stop - 1)
             )
-        elif stop < 0 and step < 0:
+        else:
+            assert (stop < 0) and (step < 0)
             stop_cond = ops.lt_op.as_expr(
                 reverse_offsets, scalar_exprs.const(-stop - 1)
             )
@@ -539,7 +541,8 @@ def convert_complex_slice(
             )
         elif step < 0 and start >= 0:
             start_diff = ops.add_op.as_expr(forward_offsets, scalar_exprs.const(start))
-        elif step < 0 and start < 0:
+        else:
+            assert step < 0 and start < 0
             start_diff = ops.add_op.as_expr(
                 reverse_offsets, scalar_exprs.const(-start + 1)
             )
