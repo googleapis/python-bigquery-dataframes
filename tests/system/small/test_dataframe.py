@@ -1521,11 +1521,24 @@ def test_shape(scalars_dfs):
     assert bf_result == pd_result
 
 
-def test_view_shape(session):
-    view_df = session.read_gbq("bigframes-dev.bigframes_tests_sys.base_table_view")
-    table_ref = session.read_gbq("bigframes-dev.bigframes_tests_sys.base_table")
+@pytest.mark.parametrize(
+    "reference_table, test_table",
+    [
+        (
+            "bigframes-dev.bigframes_tests_sys.base_table",
+            "bigframes-dev.bigframes_tests_sys.base_table_view",
+        ),
+        (
+            "bigframes-dev.bigframes_tests_sys.csv_native_table",
+            "bigframes-dev.bigframes_tests_sys.csv_external_table",
+        ),
+    ],
+)
+def test_view_and_external_table_shape(session, reference_table, test_table):
+    reference_df = session.read_gbq(reference_table)
+    test_df = session.read_gbq(test_table)
 
-    assert view_df.shape == table_ref.shape
+    assert test_df.shape == reference_df.shape
 
 
 def test_len(scalars_dfs):
