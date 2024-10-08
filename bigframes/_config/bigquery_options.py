@@ -253,8 +253,9 @@ class BigQueryOptions:
 
         Returns:
             bool:
-              A boolean value, where True indicates that a location is set;
-              otherwise False.
+              A boolean value, where True indicates that regional endpoints
+              would be used for BigQuery and BigQuery storage APIs; otherwise
+              global endpoints would be used.
         """
         return self._use_regional_endpoints
 
