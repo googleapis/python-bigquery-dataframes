@@ -243,7 +243,7 @@ class BigQueryOptions:
 
         Requires that ``location`` is set. For supported regions, for example
         ``europe-west3``, you need to specify ``location='europe-west3'`` and
-        ``use_regional_endpoints=True``, and then BigQuery DataFrame would
+        ``use_regional_endpoints=True``, and then BigQuery DataFrames would
         connect to the BigQuery endpoint ``bigquery.europe-west3.rep.googleapis.com``.
         For not supported regions, for example ``asia-northeast1``, when you
         specify ``location='asia-northeast1'`` and ``use_regional_endpoints=True``,
