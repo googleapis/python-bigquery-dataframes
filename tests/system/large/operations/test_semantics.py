@@ -665,7 +665,7 @@ def test_sim_join_data_too_large_raises_error(session, text_embedding_generator)
         ),
     ],
 )
-def test_topk_invalid_instruction_raise_error(instruction, gemini_flash_model):
+def test_top_k_invalid_instruction_raise_error(instruction, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame(
         {
@@ -674,14 +674,14 @@ def test_topk_invalid_instruction_raise_error(instruction, gemini_flash_model):
             "index": ["a", "b", "c", "d"],
         }
     )
-    df.semantics.topk(instruction, model=gemini_flash_model, k=2)
+    df.semantics.top_k(instruction, model=gemini_flash_model, k=2)
 
 
-def test_topk_invalid_k_raise_error(gemini_flash_model):
+def test_top_k_invalid_k_raise_error(gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame({"Animals": ["Dog", "Cat", "Bird", "Horse"]})
     with pytest.raises(ValueError):
-        df.semantics.topk(
+        df.semantics.top_k(
             "{Animals} are more popular as pets",
             gemini_flash_model,
             k=0,

@@ -613,7 +613,7 @@ class Semantics:
 
         return typing.cast(bigframes.dataframe.DataFrame, search_result)
 
-    def topk(self, instruction: str, model, k=10):
+    def top_k(self, instruction: str, model, k=10):
         """
         Ranks each tuple and returns the k best according to the instruction.
 
@@ -631,7 +631,7 @@ class Semantics:
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
 
             >>> df = bpd.DataFrame({"Animals": ["Dog", "Bird", "Cat", "Horse"]})
-            >>> df.semantics.topk("{Animals} are more popular as pets", model=model, k=2)
+            >>> df.semantics.top_k("{Animals} are more popular as pets", model=model, k=2)
               Animals
             0     Dog
             2     Cat
