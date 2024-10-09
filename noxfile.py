@@ -16,10 +16,13 @@
 
 from __future__ import absolute_import
 
+import argparse
+import multiprocessing
 import os
 import pathlib
 import re
 import shutil
+import time
 from typing import Dict, List
 import warnings
 
@@ -59,8 +62,9 @@ UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
+# There are 4 different ibis-framework 9.x versions we want to test against.
 # 3.10 is needed for Windows tests.
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.12"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -304,6 +308,7 @@ def run_system(
     print_duration=False,
     extra_pytest_options=(),
     timeout_seconds=900,
+    num_workers=20,
 ):
     """Run the system test suite."""
     constraints_path = str(
@@ -323,7 +328,7 @@ def run_system(
     pytest_cmd = [
         "py.test",
         "--quiet",
-        "-n=20",
+        f"-n={num_workers}",
         # Any individual test taking longer than 15 mins will be terminated.
         f"--timeout={timeout_seconds}",
         # Log 20 slowest tests
@@ -384,9 +389,15 @@ def doctest(session: nox.sessions.Session):
     run_system(
         session=session,
         prefix_name="doctest",
-        extra_pytest_options=("--doctest-modules", "third_party"),
+        extra_pytest_options=(
+            "--doctest-modules",
+            "third_party",
+            "--ignore",
+            "third_party/bigframes_vendored/ibis",
+        ),
         test_folder="bigframes",
         check_cov=True,
+        num_workers=5,
     )
 
 
@@ -531,7 +542,7 @@ def docfx(session):
     )
 
 
-def prerelease(session: nox.sessions.Session, tests_path):
+def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=()):
     constraints_path = str(
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
@@ -576,7 +587,7 @@ def prerelease(session: nox.sessions.Session, tests_path):
     session.install(
         "--upgrade",
         "--pre",
-        "ibis-framework>=8.0.0,<9.0.0dev",
+        "ibis-framework>=9.0.0,<=9.2.0",
     )
     already_installed.add("ibis-framework")
 
@@ -650,6 +661,7 @@ def prerelease(session: nox.sessions.Session, tests_path):
         "--cov-report=term-missing",
         "--cov-fail-under=0",
         tests_path,
+        *extra_pytest_options,
         *session.posargs,
     )
 
@@ -663,7 +675,24 @@ def unit_prerelease(session: nox.sessions.Session):
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
 def system_prerelease(session: nox.sessions.Session):
     """Run the system test suite with prerelease dependencies."""
-    prerelease(session, os.path.join("tests", "system", "small"))
+    small_tests_dir = os.path.join("tests", "system", "small")
+
+    # Let's exclude remote function tests from the prerelease tests, since the
+    # some of the package dependencies propagate to the cloud run functions'
+    # requirements.txt, and the prerelease package versions may not be available
+    # in the standard pip install.
+    # This would mean that we will only rely on the standard remote function
+    # tests.
+    small_remote_function_tests = os.path.join(
+        small_tests_dir, "test_remote_function.py"
+    )
+    assert os.path.exists(small_remote_function_tests)
+
+    prerelease(
+        session,
+        os.path.join("tests", "system", "small"),
+        (f"--ignore={small_remote_function_tests}",),
+    )
 
 
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
@@ -701,12 +730,14 @@ def notebook(session: nox.Session):
         # appropriate values and omitting cleanup logic that may break
         # our test infrastructure.
         "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",  # Needs DATASET.
-        "notebooks/regression/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
+        "notebooks/ml/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
         # TODO(b/332737009): investigate why we get 404 errors, even though
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
         "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
+        # TODO(b/366290533): to protect BQML quota
+        "notebooks/generative_ai/bq_dataframes_llm_claude3_museum_art.ipynb",
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
         "notebooks/vertex_sdk/sdk2_bigframes_sklearn.ipynb",  # Needs BUCKET_URI.
         "notebooks/vertex_sdk/sdk2_bigframes_tensorflow.ipynb",  # Needs BUCKET_URI.
@@ -747,6 +778,12 @@ def notebook(session: nox.Session):
     for nb in notebooks + list(notebooks_reg):
         assert os.path.exists(nb), nb
 
+    # Determine whether to enable multi-process mode based on the environment
+    # variable. If BENCHMARK_AND_PUBLISH is "true", it indicates we're running
+    # a benchmark, so we disable multi-process mode. If BENCHMARK_AND_PUBLISH
+    # is "false", we enable multi-process mode for faster execution.
+    multi_process_mode = os.getenv("BENCHMARK_AND_PUBLISH", "false") == "false"
+
     try:
         # Populate notebook parameters and make a backup so that the notebooks
         # are runnable.
@@ -755,23 +792,52 @@ def notebook(session: nox.Session):
             CURRENT_DIRECTORY / "scripts" / "notebooks_fill_params.py",
             *notebooks,
         )
+
+        processes = []
         for notebook in notebooks:
-            session.run(
+            args = (
                 "python",
                 "scripts/run_and_publish_benchmark.py",
                 "--notebook",
                 f"--benchmark-path={notebook}",
             )
+            if multi_process_mode:
+                process = multiprocessing.Process(
+                    target=session.run,
+                    args=args,
+                )
+                process.start()
+                processes.append(process)
+                # Adding a small delay between starting each
+                # process to avoid potential race conditions。
+                time.sleep(1)
+            else:
+                session.run(*args)
 
         for notebook, regions in notebooks_reg.items():
             for region in regions:
-                session.run(
+                region_args = (
                     "python",
                     "scripts/run_and_publish_benchmark.py",
                     "--notebook",
                     f"--benchmark-path={notebook}",
                     f"--region={region}",
                 )
+                if multi_process_mode:
+                    process = multiprocessing.Process(
+                        target=session.run,
+                        args=region_args,
+                    )
+                    process.start()
+                    processes.append(process)
+                    # Adding a small delay between starting each
+                    # process to avoid potential race conditions。
+                    time.sleep(1)
+                else:
+                    session.run(*region_args)
+
+        for process in processes:
+            process.join()
     finally:
         # Prevent our notebook changes from getting checked in to git
         # accidentally.
@@ -793,7 +859,51 @@ def benchmark(session: nox.Session):
     session.install("-e", ".[all]")
     base_path = os.path.join("tests", "benchmark")
 
-    benchmark_script_list = list(pathlib.Path(base_path).rglob("*.py"))
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-i",
+        "--iterations",
+        type=int,
+        default=1,
+        help="Number of iterations to run each benchmark.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output-csv",
+        nargs="?",
+        const=True,
+        default=False,
+        help=(
+            "Determines whether to output results to a CSV file. If no location is provided, "
+            "a temporary location is automatically generated."
+        ),
+    )
+    parser.add_argument(
+        "-b",
+        "--benchmark-filter",
+        nargs="+",
+        help=(
+            "List of file or directory names to include in the benchmarks. If not provided, "
+            "all benchmarks are run."
+        ),
+    )
+
+    args = parser.parse_args(session.posargs)
+
+    benchmark_script_list: List[pathlib.Path] = []
+    if args.benchmark_filter:
+        for filter_item in args.benchmark_filter:
+            full_path = os.path.join(base_path, filter_item)
+            if os.path.isdir(full_path):
+                benchmark_script_list.extend(pathlib.Path(full_path).rglob("*.py"))
+            elif os.path.isfile(full_path) and full_path.endswith(".py"):
+                benchmark_script_list.append(pathlib.Path(full_path))
+            else:
+                raise ValueError(
+                    f"Item {filter_item} does not match any valid file or directory"
+                )
+    else:
+        benchmark_script_list = list(pathlib.Path(base_path).rglob("*.py"))
 
     try:
         for benchmark in benchmark_script_list:
@@ -803,12 +913,15 @@ def benchmark(session: nox.Session):
                 "python",
                 "scripts/run_and_publish_benchmark.py",
                 f"--benchmark-path={benchmark}",
+                f"--iterations={args.iterations}",
             )
     finally:
         session.run(
             "python",
             "scripts/run_and_publish_benchmark.py",
             f"--publish-benchmarks={base_path}",
+            f"--iterations={args.iterations}",
+            f"--output-csv={args.output_csv}",
         )
 
 

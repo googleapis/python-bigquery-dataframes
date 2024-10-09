@@ -19,10 +19,9 @@ import itertools
 import typing
 from typing import Collection, Literal, Optional, Sequence
 
-import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
+import bigframes_vendored.ibis.backends.bigquery.backend as ibis_bigquery
 import google.cloud.bigquery
 import ibis
-import ibis.backends.bigquery as ibis_bigquery
 import ibis.backends.bigquery.datatypes
 import ibis.common.deferred  # type: ignore
 import ibis.expr.datatypes as ibis_dtypes
@@ -37,6 +36,7 @@ import bigframes.core.compile.ibis_types
 import bigframes.core.compile.scalar_op_compiler as op_compilers
 import bigframes.core.expression as ex
 import bigframes.core.guid
+import bigframes.core.identifiers as ids
 from bigframes.core.ordering import (
     ascending_over,
     encode_order_string,
@@ -45,7 +45,6 @@ from bigframes.core.ordering import (
     RowOrdering,
     TotalOrdering,
 )
-import bigframes.core.schema as schemata
 import bigframes.core.sql
 from bigframes.core.window_spec import RangeWindowBounds, RowsWindowBounds, WindowSpec
 import bigframes.dtypes
@@ -143,12 +142,12 @@ class BaseIbisIR(abc.ABC):
 
     def selection(
         self: T,
-        input_output_pairs: typing.Tuple[typing.Tuple[str, str], ...],
+        input_output_pairs: typing.Tuple[typing.Tuple[ex.DerefOp, str], ...],
     ) -> T:
         """Apply an expression to the ArrayValue and assign the output to a column."""
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         values = [
-            op_compiler.compile_expression(ex.free_var(input), bindings).name(id)
+            op_compiler.compile_expression(input, bindings).name(id)
             for input, id in input_output_pairs
         ]
         result = self._select(tuple(values))  # type: ignore
@@ -185,7 +184,7 @@ class BaseIbisIR(abc.ABC):
         table: ibis_types.Table,
         order_by: typing.Sequence[ibis_types.Value] = [],
         aggregations: typing.Sequence[typing.Tuple[ex.Aggregation, str]] = [],
-        by_column_ids: typing.Sequence[str] = (),
+        by_column_ids: typing.Sequence[ex.DerefOp] = (),
         dropna: bool = True,
     ) -> OrderedIR:
         assert not self.is_ordered_ir or len(order_by) > 0
@@ -198,17 +197,21 @@ class BaseIbisIR(abc.ABC):
             for aggregate, col_out in aggregations
         }
         if by_column_ids:
-            result = table.group_by(by_column_ids).aggregate(**stats)
+            result = table.group_by((ref.id.sql for ref in by_column_ids)).aggregate(
+                **stats
+            )
             # Must have deterministic ordering, so order by the unique "by" column
             ordering = TotalOrdering(
-                tuple([ascending_over(column_id) for column_id in by_column_ids]),
-                total_ordering_columns=frozenset(by_column_ids),
+                tuple([OrderingExpression(column_id) for column_id in by_column_ids]),
+                total_ordering_columns=frozenset(
+                    [ex.DerefOp(ref.id.local_normalized) for ref in by_column_ids]
+                ),
             )
             columns = tuple(result[key] for key in result.columns)
             expr = OrderedIR(result, columns=columns, ordering=ordering)
             if dropna:
-                for column_id in by_column_ids:
-                    expr = expr._filter(expr._get_ibis_column(column_id).notnull())
+                for ref in by_column_ids:
+                    expr = expr._filter(expr._compile_expression(ref).notnull())
             return expr
         else:
             aggregates = {**stats, ORDER_ID_COLUMN: ibis_types.literal(0)}
@@ -287,7 +290,7 @@ class UnorderedIR(BaseIbisIR):
             (ibis_table["count"],),
             ordering=TotalOrdering(
                 ordering_value_columns=(ascending_over("count"),),
-                total_ordering_columns=frozenset(["count"]),
+                total_ordering_columns=frozenset([ex.deref("count")]),
             ),
         )
 
@@ -352,10 +355,13 @@ class UnorderedIR(BaseIbisIR):
         return table
 
     def filter(self, predicate: ex.Expression) -> UnorderedIR:
-        if any(map(is_window, map(self._get_ibis_column, predicate.unbound_variables))):
-            # ibis doesn't support qualify syntax, so create CTE if filtering over window expression
-            # https://github.com/ibis-project/ibis/issues/9775
-            return self._reproject_to_table().filter(predicate)
+        for ref in predicate.column_references:
+            ibis_value = self._get_ibis_column(ref.sql)
+            if is_window(ibis_value):
+                # ibis doesn't support qualify syntax, so create CTE if filtering over window expression
+                # https://github.com/ibis-project/ibis/issues/9775
+                return self._reproject_to_table().filter(predicate)
+
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         condition = op_compiler.compile_expression(predicate, bindings)
         return self._filter(condition)
@@ -369,7 +375,7 @@ class UnorderedIR(BaseIbisIR):
     def aggregate(
         self,
         aggregations: typing.Sequence[typing.Tuple[ex.Aggregation, str]],
-        by_column_ids: typing.Sequence[str] = (),
+        by_column_ids: typing.Sequence[ex.DerefOp] = (),
         dropna: bool = True,
     ) -> OrderedIR:
         """
@@ -401,23 +407,19 @@ class UnorderedIR(BaseIbisIR):
             columns=columns,
         )
 
-    def explode(self, column_ids: typing.Sequence[str]) -> UnorderedIR:
+    def explode(self, columns: typing.Sequence[ex.DerefOp]) -> UnorderedIR:
         table = self._to_ibis_expr()
+        column_ids = tuple(ref.id.sql for ref in columns)
 
         # The offset array ensures null represents empty arrays after unnesting.
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
-        offset_array = (
-            vendored_ibis_ops.GenerateArray(
-                ibis.greatest(
-                    0,
-                    ibis.least(
-                        *[table[column_id].length() - 1 for column_id in column_ids]
-                    ),
-                )
-            )
-            .to_expr()
-            .name(offset_array_id),
-        )
+        offset_array = ibis.range(
+            0,
+            ibis.greatest(
+                1,  # We always want at least 1 element to fill in NULLs for empty arrays.
+                ibis.least(*[table[column_id].length() for column_id in column_ids]),
+            ),
+        ).name(offset_array_id)
         table_w_offset_array = table.select(
             offset_array,
             *self._column_names,
@@ -445,6 +447,10 @@ class UnorderedIR(BaseIbisIR):
             table_w_unnest,
             columns=columns,
         )
+
+    def as_ordered_ir(self) -> OrderedIR:
+        """Convert to OrderedIr, but without any definite ordering."""
+        return OrderedIR(self._table, self._columns, predicates=self._predicates)
 
     ## Helpers
     def _set_or_replace_by_id(
@@ -556,7 +562,9 @@ class OrderedIR(BaseIbisIR):
 
         all_columns = value_col_ids | hidden_col_ids
         ordering_valid = all(
-            set(col.scalar_expression.unbound_variables).issubset(all_columns)
+            set(ref.sql for ref in col.scalar_expression.column_references).issubset(
+                all_columns
+            )
             for col in ordering.all_ordering_columns
         )
         if value_col_ids & hidden_col_ids:
@@ -576,9 +584,7 @@ class OrderedIR(BaseIbisIR):
 
     @classmethod
     def from_pandas(
-        cls,
-        pd_df: pandas.DataFrame,
-        schema: schemata.ArraySchema,
+        cls, pd_df: pandas.DataFrame, scan_cols: bigframes.core.nodes.ScanList
     ) -> OrderedIR:
         """
         Builds an in-memory only (SQL only) expr from a pandas dataframe.
@@ -594,10 +600,10 @@ class OrderedIR(BaseIbisIR):
         # derive the ibis schema from the original pandas schema
         ibis_schema = [
             (
-                name,
+                local_label,
                 bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype(dtype),
             )
-            for name, dtype in zip(schema.names, schema.dtypes)
+            for id, dtype, local_label in scan_cols.items
         ]
         ibis_schema.append((ORDER_ID_COLUMN, ibis_dtypes.int64))
 
@@ -605,7 +611,10 @@ class OrderedIR(BaseIbisIR):
 
         return cls(
             keys_memtable,
-            columns=[keys_memtable[column].name(column) for column in pd_df.columns],
+            columns=[
+                keys_memtable[local_label].name(col_id.sql)
+                for col_id, _, local_label in scan_cols.items
+            ],
             ordering=TotalOrdering.from_offset_col(ORDER_ID_COLUMN),
             hidden_ordering_columns=(keys_memtable[ORDER_ID_COLUMN],),
         )
@@ -657,7 +666,7 @@ class OrderedIR(BaseIbisIR):
     def aggregate(
         self,
         aggregations: typing.Sequence[typing.Tuple[ex.Aggregation, str]],
-        by_column_ids: typing.Sequence[str] = (),
+        by_column_ids: typing.Sequence[ex.DerefOp] = (),
         dropna: bool = True,
     ) -> OrderedIR:
         """
@@ -712,22 +721,18 @@ class OrderedIR(BaseIbisIR):
             ordering=self._ordering,
         )
 
-    def explode(self, column_ids: typing.Sequence[str]) -> OrderedIR:
+    def explode(self, columns: typing.Sequence[ex.DerefOp]) -> OrderedIR:
         table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
+        column_ids = tuple(ref.id.sql for ref in columns)
 
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
-        offset_array = (
-            vendored_ibis_ops.GenerateArray(
-                ibis.greatest(
-                    0,
-                    ibis.least(
-                        *[table[column_id].length() - 1 for column_id in column_ids]
-                    ),
-                )
-            )
-            .to_expr()
-            .name(offset_array_id),
-        )
+        offset_array = ibis.range(
+            0,
+            ibis.greatest(
+                1,  # We always want at least 1 element to fill in NULLs for empty arrays.
+                ibis.least(*[table[column_id].length() for column_id in column_ids]),
+            ),
+        ).name(offset_array_id)
         table_w_offset_array = table.select(
             offset_array,
             *self._column_names,
@@ -766,7 +771,7 @@ class OrderedIR(BaseIbisIR):
             table_w_unnest[unnest_offset_id],
         ]
         l_mappings = {id: id for id in self._ordering.referenced_columns}
-        r_mappings = {unnest_offset_id: unnest_offset_id}
+        r_mappings = {ids.ColumnId(unnest_offset_id): ids.ColumnId(unnest_offset_id)}
         ordering = join_orderings(
             self._ordering,
             TotalOrdering.from_offset_col(unnest_offset_id),
@@ -791,17 +796,20 @@ class OrderedIR(BaseIbisIR):
         if ordering.is_sequential and (ordering.total_order_col is not None):
             expr_builder = self.builder()
             expr_builder.columns = [
+                *self.columns,
                 self._compile_expression(
                     ordering.total_order_col.scalar_expression
                 ).name(col_id),
-                *self.columns,
             ]
             return expr_builder.build()
         # Cannot nest analytic expressions, so reproject to cte first if needed.
         # Also ibis cannot window literals, so need to reproject those (even though this is legal in googlesql)
         # Seee: https://github.com/ibis-project/ibis/issues/9773
         can_directly_window = not any(
-            map(lambda x: is_literal(x) or is_window(x), self._ibis_order)
+            map(
+                lambda x: is_literal(x) or is_window(x),
+                itertools.chain(self._ibis_order, self._predicates),
+            )
         )
         if not can_directly_window:
             return self._reproject_to_table().promote_offsets(col_id)
@@ -815,15 +823,17 @@ class OrderedIR(BaseIbisIR):
             *self.columns,
             offsets.name(col_id),
         ]
-        return expr_builder.build()
+        # Reproject, so that offsets are just a scalar value that can be used elsewhere
+        expr_builder.ordering = TotalOrdering.from_offset_col(col_id)
+        return expr_builder.build()._reproject_to_table()
 
     ## Methods that only work with ordering
     def project_window_op(
         self,
-        column_name: str,
+        column_name: ex.DerefOp,
         op: agg_ops.UnaryWindowOp,
         window_spec: WindowSpec,
-        output_name=None,
+        output_name: str,
         *,
         never_skip_nulls=False,
     ) -> OrderedIR:
@@ -832,14 +842,17 @@ class OrderedIR(BaseIbisIR):
         column_name: the id of the input column present in the expression
         op: the windowable operator to apply to the input column
         window_spec: a specification of the window over which to apply the operator
-        output_name: the id to assign to the output of the operator, by default will replace input col if distinct output id not provided
+        output_name: the id to assign to the output of the operator
         never_skip_nulls: will disable null skipping for operators that would otherwise do so
         """
         # Cannot nest analytic expressions, so reproject to cte first if needed.
         # Also ibis cannot window literals, so need to reproject those (even though this is legal in googlesql)
         # See: https://github.com/ibis-project/ibis/issues/9773
         used_exprs = map(
-            self._get_any_column, [column_name, *window_spec.all_referenced_columns]
+            self._compile_expression,
+            itertools.chain(
+                (column_name,), map(ex.DerefOp, window_spec.all_referenced_columns)
+            ),
         )
         can_directly_window = not any(
             map(lambda x: is_literal(x) or is_window(x), used_exprs)
@@ -853,24 +866,26 @@ class OrderedIR(BaseIbisIR):
                 never_skip_nulls=never_skip_nulls,
             )
 
-        column = typing.cast(ibis_types.Column, self._get_ibis_column(column_name))
+        column = typing.cast(ibis_types.Column, self._compile_expression(column_name))
         window = self._ibis_window_from_spec(
             window_spec, require_total_order=op.uses_total_row_ordering
         )
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
 
         window_op = agg_compiler.compile_analytic(
-            ex.UnaryAggregation(op, ex.free_var(column_name)), window, bindings=bindings
+            ex.UnaryAggregation(op, column_name),
+            window,
+            bindings=bindings,
         )
 
         clauses = []
         if op.skips_nulls and not never_skip_nulls:
-            clauses.append((column.isnull(), ibis.NA))
+            clauses.append((column.isnull(), ibis.null()))
         if window_spec.min_periods:
             if op.skips_nulls:
                 # Most operations do not count NULL values towards min_periods
                 observation_count = agg_compiler.compile_analytic(
-                    ex.UnaryAggregation(agg_ops.count_op, ex.free_var(column_name)),
+                    ex.UnaryAggregation(agg_ops.count_op, column_name),
                     window,
                     bindings=bindings,
                 )
@@ -879,14 +894,14 @@ class OrderedIR(BaseIbisIR):
                 # notnull is just used to convert null values to non-null (FALSE) values to be counted
                 denulled_value = typing.cast(ibis_types.BooleanColumn, column.notnull())
                 observation_count = agg_compiler.compile_analytic(
-                    ex.UnaryAggregation(agg_ops.count_op, ex.free_var("_denulled")),
+                    ex.UnaryAggregation(agg_ops.count_op, ex.deref("_denulled")),
                     window,
                     bindings={**bindings, "_denulled": denulled_value},
                 )
             clauses.append(
                 (
                     observation_count < ibis_types.literal(window_spec.min_periods),
-                    ibis.NA,
+                    ibis.null(),
                 )
             )
         if clauses:
@@ -896,7 +911,7 @@ class OrderedIR(BaseIbisIR):
             case_statement = case_statement.else_(window_op).end()  # type: ignore
             window_op = case_statement
 
-        result = self._set_or_replace_by_id(output_name or column_name, window_op)
+        result = self._set_or_replace_by_id(output_name, window_op)
         return result
 
     def _reproject_to_table(self) -> OrderedIR:
@@ -906,8 +921,9 @@ class OrderedIR(BaseIbisIR):
         )
         columns = [table[column_name] for column_name in self._column_names]
         ordering_col_ids = list(
-            itertools.chain.from_iterable(
-                ref.scalar_expression.unbound_variables
+            id.sql
+            for id in itertools.chain.from_iterable(
+                ref.scalar_expression.column_references
                 for ref in self._ordering.all_ordering_columns
             )
         )
@@ -1074,10 +1090,13 @@ class OrderedIR(BaseIbisIR):
         return table
 
     def filter(self, predicate: ex.Expression) -> OrderedIR:
-        if any(map(is_window, map(self._get_ibis_column, predicate.unbound_variables))):
-            # ibis doesn't support qualify syntax, so create CTE if filtering over window expression
-            # https://github.com/ibis-project/ibis/issues/9775
-            return self._reproject_to_table().filter(predicate)
+        for ref in predicate.column_references:
+            ibis_value = self._get_ibis_column(ref.sql)
+            if is_window(ibis_value):
+                # ibis doesn't support qualify syntax, so create CTE if filtering over window expression
+                # https://github.com/ibis-project/ibis/issues/9775
+                return self._reproject_to_table().filter(predicate)
+
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         condition = op_compiler.compile_expression(predicate, bindings)
         return self._filter(condition)
@@ -1093,8 +1112,9 @@ class OrderedIR(BaseIbisIR):
         """Safely assign by id while maintaining ordering integrity."""
         # TODO: Split into explicit set and replace methods
         ordering_col_ids = set(
-            itertools.chain.from_iterable(
-                col_ref.scalar_expression.unbound_variables
+            id.sql
+            for id in itertools.chain.from_iterable(
+                col_ref.scalar_expression.column_references
                 for col_ref in self._ordering.ordering_value_columns
             )
         )
@@ -1115,15 +1135,16 @@ class OrderedIR(BaseIbisIR):
         """Safely assign by id while maintaining ordering integrity."""
         # TODO: Split into explicit set and replace methods
         ordering_col_ids = set(
-            itertools.chain.from_iterable(
+            id.sql
+            for id in itertools.chain.from_iterable(
                 [
-                    col_ref.scalar_expression.unbound_variables
+                    col_ref.scalar_expression.column_references
                     for col_ref in self._ordering.ordering_value_columns
                 ]
             )
         )
         ir = self
-        mappings = {value.name: value for value in values}
+        mappings = {typing.cast(str, value.get_name()): value for value in values}
         for ordering_id in ordering_col_ids:
             # Drop case
             if (ordering_id not in mappings) and (ordering_id in ir.column_ids):
@@ -1161,17 +1182,25 @@ class OrderedIR(BaseIbisIR):
             )
         return typing.cast(ibis_types.Column, self._hidden_ordering_column_names[key])
 
-    def _hide_column(self, column_id) -> OrderedIR:
+    def _hide_column(self, column_id: str) -> OrderedIR:
         """Pushes columns to hidden columns list. Used to hide ordering columns that have been dropped or destructively mutated."""
         expr_builder = self.builder()
         # Need to rename column as caller might be creating a new row with the same name but different values.
         # Can avoid this if don't allow callers to determine ids and instead generate unique ones in this class.
-        new_name = bigframes.core.guid.generate_guid(prefix="bigframes_hidden_")
+        new_name = ids.ColumnId(
+            bigframes.core.guid.generate_guid(prefix="bigframes_hidden_")
+        )
         expr_builder.hidden_ordering_columns = [
             *self._hidden_ordering_columns,
-            self._get_ibis_column(column_id).name(new_name),
+            self._get_ibis_column(column_id).name(new_name.sql),
         ]
-        expr_builder.ordering = self._ordering.with_column_remap({column_id: new_name})
+        matching_ref = next(
+            ref for ref in self._ordering.referenced_columns if ref.sql == column_id
+        )
+        # allow_partial_bindings since only remapping hidden column, not all columns
+        expr_builder.ordering = self._ordering.remap_column_refs(
+            {matching_ref: new_name}, allow_partial_bindings=True
+        )
         return expr_builder.build()
 
     def _bake_ordering(self) -> OrderedIR:
@@ -1186,15 +1215,15 @@ class OrderedIR(BaseIbisIR):
                 )
                 new_baked_cols.append(baked_column)
                 new_expr = OrderingExpression(
-                    ex.free_var(baked_column.get_name()), expr.direction, expr.na_last
+                    ex.deref(baked_column.get_name()), expr.direction, expr.na_last
                 )
                 new_exprs.append(new_expr)
-            elif isinstance(expr.scalar_expression, ex.UnboundVariableExpression):
+            elif isinstance(expr.scalar_expression, ex.DerefOp):
                 order_col = expr.scalar_expression.id
                 new_exprs.append(expr)
-                if order_col not in self.column_ids:
+                if order_col.sql not in self.column_ids:
                     new_baked_cols.append(
-                        self._ibis_bindings[expr.scalar_expression.id]
+                        self._ibis_bindings[expr.scalar_expression.id.sql]
                     )
 
         if isinstance(self._ordering, TotalOrdering):
@@ -1280,7 +1309,7 @@ class OrderedIR(BaseIbisIR):
         group_by: typing.List[ibis_types.Value] = (
             [
                 typing.cast(
-                    ibis_types.Column, _as_identity(self._get_ibis_column(column))
+                    ibis_types.Column, _as_identity(self._compile_expression(column))
                 )
                 for column in window_spec.grouping_keys
             ]
@@ -1317,9 +1346,10 @@ class OrderedIR(BaseIbisIR):
                     bounds.preceding, bounds.following, how="range"
                 )
             if isinstance(bounds, RowsWindowBounds):
-                window = window.preceding_following(
-                    bounds.preceding, bounds.following, how="rows"
-                )
+                if bounds.preceding is not None or bounds.following is not None:
+                    window = window.preceding_following(
+                        bounds.preceding, bounds.following, how="rows"
+                    )
             else:
                 raise ValueError(f"unrecognized window bounds {bounds}")
         return window

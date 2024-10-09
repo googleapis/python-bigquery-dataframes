@@ -24,12 +24,12 @@ import ibis
 if TYPE_CHECKING:
     from bigframes.session import Session
 
+import bigframes_vendored.constants as constants
 import google.api_core.exceptions
 import google.api_core.retry
 from google.cloud import bigquery
 import google.iam.v1
 
-import bigframes.constants as constants
 import bigframes.core.compile.ibis_types
 import bigframes.dtypes
 import bigframes.functions.remote_function_template
@@ -108,6 +108,7 @@ def read_gbq_function(
     function_name: str,
     *,
     session: Session,
+    is_row_processor: bool = False,
 ):
     """
     Read an existing BigQuery function and prepare it for use in future queries.
@@ -143,16 +144,21 @@ def read_gbq_function(
 
     # The name "args" conflicts with the Ibis operator, so we use
     # non-standard names for the arguments here.
-    def func(*ignored_args, **ignored_kwargs):
+    def func(*bigframes_args, **bigframes_kwargs):
         f"""Remote function {str(routine_ref)}."""
         nonlocal node  # type: ignore
 
-        expr = node(*ignored_args, **ignored_kwargs)  # type: ignore
+        expr = node(*bigframes_args, **bigframes_kwargs)  # type: ignore
         return ibis_client.execute(expr)
 
     func.__signature__ = inspect.signature(func).replace(  # type: ignore
         parameters=[
-            inspect.Parameter(name, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            # TODO(shobs): Find a better way to support functions with param
+            # named "name". This causes an issue in the ibis compilation.
+            inspect.Parameter(
+                f"bigframes_{name}",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
             for name in ibis_signature.parameter_names
         ]
     )
@@ -164,7 +170,8 @@ def read_gbq_function(
     node = ibis.udf.scalar.builtin(
         func,
         name=routine_ref.routine_id,
-        schema=f"{routine_ref.project}.{routine_ref.dataset_id}",
+        catalog=routine_ref.project,
+        database=routine_ref.dataset_id,
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )
     func.bigframes_remote_function = str(routine_ref)  # type: ignore
@@ -194,5 +201,6 @@ def read_gbq_function(
     func.output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(  # type: ignore
         ibis_signature.output_type
     )
+    func.is_row_processor = is_row_processor  # type: ignore
     func.ibis_node = node  # type: ignore
     return func

@@ -15,12 +15,14 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import functools
 import typing
 from typing import Union
 
 import numpy as np
 import pandas as pd
+from pandas.tseries.offsets import DateOffset
 import pyarrow as pa
 
 import bigframes.dtypes
@@ -148,11 +150,11 @@ class TernaryOp(ScalarOp):
 def _convert_expr_input(
     input: typing.Union[str, bigframes.core.expression.Expression]
 ) -> bigframes.core.expression.Expression:
-    """Allows creating free variables with just a string"""
+    """Allows creating column references with just a string"""
     import bigframes.core.expression
 
     if isinstance(input, str):
-        return bigframes.core.expression.UnboundVariableExpression(input)
+        return bigframes.core.expression.deref(input)
     else:
         return input
 
@@ -589,6 +591,34 @@ class FloorDtOp(UnaryOp):
         return input_types[0]
 
 
+@dataclasses.dataclass(frozen=True)
+class DatetimeToIntegerLabelOp(BinaryOp):
+    name: typing.ClassVar[str] = "datetime_to_integer_label"
+    freq: DateOffset
+    closed: typing.Optional[typing.Literal["right", "left"]]
+    origin: Union[
+        Union[pd.Timestamp, datetime.datetime, np.datetime64, int, float, str],
+        typing.Literal["epoch", "start", "start_day", "end", "end_day"],
+    ]
+
+    def output_type(self, *input_types):
+        return dtypes.INT_DTYPE
+
+
+@dataclasses.dataclass(frozen=True)
+class IntegerLabelToDatetimeOp(BinaryOp):
+    name: typing.ClassVar[str] = "integer_label_to_datetime"
+    freq: DateOffset
+    label: typing.Optional[typing.Literal["right", "left"]]
+    origin: Union[
+        Union[pd.Timestamp, datetime.datetime, np.datetime64, int, float, str],
+        typing.Literal["epoch", "start", "start_day", "end", "end_day"],
+    ]
+
+    def output_type(self, *input_types):
+        return input_types[1]
+
+
 ## Array Ops
 @dataclasses.dataclass(frozen=True)
 class ArrayToStringOp(UnaryOp):
@@ -879,10 +909,12 @@ class StructOp(NaryOp):
         fields = []
 
         for i in range(num_input_types):
+            arrow_type = dtypes.bigframes_dtype_to_arrow_dtype(input_types[i])
             fields.append(
-                (
+                pa.field(
                     self.column_names[i],
-                    dtypes.bigframes_dtype_to_arrow_dtype(input_types[i]),
+                    arrow_type,
+                    nullable=(not pa.types.is_list(arrow_type)),
                 )
             )
         return pd.ArrowDtype(
@@ -892,7 +924,7 @@ class StructOp(NaryOp):
 
 # Just parameterless unary ops for now
 # TODO: Parameter mappings
-NUMPY_TO_OP: typing.Final = {
+NUMPY_TO_OP: dict[np.ufunc, UnaryOp] = {
     np.sin: sin_op,
     np.cos: cos_op,
     np.tan: tan_op,
@@ -917,7 +949,7 @@ NUMPY_TO_OP: typing.Final = {
 }
 
 
-NUMPY_TO_BINOP: typing.Final = {
+NUMPY_TO_BINOP: dict[np.ufunc, BinaryOp] = {
     np.add: add_op,
     np.subtract: sub_op,
     np.multiply: mul_op,

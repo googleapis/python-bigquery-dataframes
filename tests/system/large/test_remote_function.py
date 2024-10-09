@@ -1603,6 +1603,13 @@ def test_df_apply_axis_1(session, scalars_dfs):
         # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
         # , ignore this mismatch by using check_dtype=False.
         pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+        # Let's make sure the read_gbq_function path works for this function
+        serialize_row_reuse = session.read_gbq_function(
+            serialize_row_remote.bigframes_remote_function, is_row_processor=True
+        )
+        bf_result = scalars_df[columns].apply(serialize_row_reuse, axis=1).to_pandas()
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -1663,7 +1670,11 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
                     (3, 4): ["pq", "rs", "tu"],
                     (5.0, "six", 7): [8, 9, 10],
                     'raise Exception("hacked!")': [11, 12, 13],
-                }
+                },
+                # Default pandas index has non-numpy type, whereas bigframes is
+                # always numpy-based type, so let's use the index compatible
+                # with bigframes. See more details in b/369689696.
+                index=pandas.Index([0, 1, 2], dtype=pandas.Int64Dtype()),
             ),
             id="all-kinds-of-column-names",
         ),
@@ -1674,15 +1685,23 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
                     "y": [1.5, 3.75, 5],
                     "z": ["pq", "rs", "tu"],
                 },
-                index=pandas.MultiIndex.from_tuples(
-                    [
-                        ("a", 100),
-                        ("a", 200),
-                        ("b", 300),
-                    ]
+                index=pandas.MultiIndex.from_frame(
+                    pandas.DataFrame(
+                        {
+                            "idx0": pandas.Series(
+                                ["a", "a", "b"], dtype=pandas.StringDtype()
+                            ),
+                            "idx1": pandas.Series(
+                                [100, 200, 300], dtype=pandas.Int64Dtype()
+                            ),
+                        }
+                    )
                 ),
             ),
             id="multiindex",
+            marks=pytest.mark.skip(
+                reason="TODO: revert this skip after this pandas bug is fixed: https://github.com/pandas-dev/pandas/issues/59908"
+            ),
         ),
         pytest.param(
             pandas.DataFrame(
@@ -1691,6 +1710,10 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
                     [20, 3.75, "rs"],
                     [30, 8.0, "tu"],
                 ],
+                # Default pandas index has non-numpy type, whereas bigframes is
+                # always numpy-based type, so let's use the index compatible
+                # with bigframes. See more details in b/369689696.
+                index=pandas.Index([0, 1, 2], dtype=pandas.Int64Dtype()),
                 columns=pandas.MultiIndex.from_arrays(
                     [
                         ["first", "last_two", "last_two"],
@@ -1744,12 +1767,7 @@ def test_df_apply_axis_1_complex(session, pd_df):
         bf_result = bf_df.apply(serialize_row_remote, axis=1).to_pandas()
         pd_result = pd_df.apply(serialize_row, axis=1)
 
-        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
-        # , ignore this mismatch by using check_dtype=False.
-        #
-        # bf_result.index[0].dtype is 'string[pyarrow]' while
-        # pd_result.index[0].dtype is 'object', ignore this mismatch by using
-        # check_index_type=False.
+        # ignore known dtype difference between pandas and bigframes
         pandas.testing.assert_series_equal(
             pd_result, bf_result, check_dtype=False, check_index_type=False
         )
@@ -2085,6 +2103,13 @@ def test_df_apply_axis_1_multiple_params(session):
         pandas.testing.assert_series_equal(
             expected_result, bf_result, check_dtype=False, check_index_type=False
         )
+
+        # Let's make sure the read_gbq_function path works for this function
+        foo_reuse = session.read_gbq_function(foo.bigframes_remote_function)
+        bf_result = bf_df.apply(foo_reuse, axis=1).to_pandas()
+        pandas.testing.assert_series_equal(
+            expected_result, bf_result, check_dtype=False, check_index_type=False
+        )
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
@@ -2154,3 +2179,69 @@ def test_df_apply_axis_1_single_param_non_series(session):
         cleanup_remote_function_assets(
             session.bqclient, session.cloudfunctionsclient, foo
         )
+
+
+@pytest.mark.parametrize(
+    ("ingress_settings_args", "effective_ingress_settings"),
+    [
+        pytest.param(
+            {}, functions_v2.ServiceConfig.IngressSettings.ALLOW_ALL, id="no-set"
+        ),
+        pytest.param(
+            {"cloud_function_ingress_settings": "all"},
+            functions_v2.ServiceConfig.IngressSettings.ALLOW_ALL,
+            id="set-all",
+        ),
+        pytest.param(
+            {"cloud_function_ingress_settings": "internal-only"},
+            functions_v2.ServiceConfig.IngressSettings.ALLOW_INTERNAL_ONLY,
+            id="set-internal-only",
+        ),
+        pytest.param(
+            {"cloud_function_ingress_settings": "internal-and-gclb"},
+            functions_v2.ServiceConfig.IngressSettings.ALLOW_INTERNAL_AND_GCLB,
+            id="set-internal-and-gclb",
+        ),
+    ],
+)
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_ingress_settings(
+    session, scalars_dfs, ingress_settings_args, effective_ingress_settings
+):
+    try:
+
+        def square(x: int) -> int:
+            return x * x
+
+        square_remote = session.remote_function(reuse=False, **ingress_settings_args)(
+            square
+        )
+
+        # Assert that the GCF is created with the intended maximum timeout
+        gcf = session.cloudfunctionsclient.get_function(
+            name=square_remote.bigframes_cloud_function
+        )
+        assert gcf.service_config.ingress_settings == effective_ingress_settings
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_result = scalars_df["int64_too"].apply(square_remote).to_pandas()
+        pd_result = scalars_pandas_df["int64_too"].apply(square)
+
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, square_remote
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_ingress_settings_unsupported(session):
+    with pytest.raises(
+        ValueError, match="'unknown' not one of the supported ingress settings values"
+    ):
+
+        @session.remote_function(reuse=False, cloud_function_ingress_settings="unknown")
+        def square(x: int) -> int:
+            return x * x
