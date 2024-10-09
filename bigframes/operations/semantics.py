@@ -703,9 +703,7 @@ class Semantics:
         #  - 1.0: Selected as part of the top-k items
         #  - -1.0: Excluded from the top-k items
         status_column = guid.generate_guid("status")
-        df[status_column] = bigframes.series.Series(
-            None, dtype=dtypes.FLOAT_DTYPE
-        )
+        df[status_column] = bigframes.series.Series(None, dtype=dtypes.FLOAT_DTYPE)
 
         num_selected = 0
         while num_selected < k:
