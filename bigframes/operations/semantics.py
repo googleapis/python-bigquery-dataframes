@@ -686,6 +686,7 @@ class Semantics:
         user_instruction = self._format_instruction(instruction, columns)
 
         import bigframes.dataframe
+        import bigframes.series
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         n = df.shape[0]
@@ -702,7 +703,9 @@ class Semantics:
         #  - 1.0: Selected as part of the top-k items
         #  - -1.0: Excluded from the top-k items
         status_column = guid.generate_guid("status")
-        df[status_column] = None
+        df[status_column] = bigframes.series.Series(
+            None, dtype=dtypes.FLOAT_DTYPE
+        )
 
         num_selected = 0
         while num_selected < k:
