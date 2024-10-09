@@ -609,6 +609,96 @@ class Semantics:
 
         return typing.cast(bigframes.dataframe.DataFrame, search_result)
 
+    def sim_join(
+        self,
+        other,
+        left_on: str,
+        right_on: str,
+        model,
+        top_k: int = 3,
+        score_column: Optional[str] = None,
+    ):
+        """
+        Joins two dataframes based on the similarity of the specified columns.
+
+        ** Examples: **
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> import bigframes
+            >>> bigframes.options.experiments.semantic_operators = True
+
+            >>> import bigframes.ml.llm as llm
+            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-004")
+
+            >>> df1 = bpd.DataFrame({'animal': ['monkey', 'spider']})
+            >>> df2 = bpd.DataFrame({'animal': ['scorpion', 'baboon']})
+
+            >>> df1.semantics.sim_join(df2, left_on='animal', right_on='animal', model=model, top_k=1)
+            animal  animal_1
+            0  monkey    baboon
+            1  spider  scorpion
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Args:
+            other (DataFrame):
+                The other data frame to join with.
+            left_on (str):
+                The name of the column on left side for the join.
+            right_on (str):
+                The name of the column on the right side for the join.
+            top_k (int, default 3):
+                The number of nearest neighbors to return.
+            model (TextEmbeddingGenerator):
+                A TextEmbeddingGenerator provided by Bigframes ML package.
+            score_column (Optional[str], default None):
+                The name of the the additional column containning the similarity scores. If None,
+                this column won't be attached to the result.
+
+        Returns:
+            DataFrame: the data frame with the join result
+        """
+
+        if left_on not in self._df.columns:
+            raise ValueError(f"Left column {left_on} not found")
+        if right_on not in self._df.columns:
+            raise ValueError(f"Right column {right_on} not found")
+
+        import bigframes.ml.llm as llm
+
+        if not isinstance(model, llm.TextEmbeddingGenerator):
+            raise TypeError(f"Expect a text embedding model, but got: {type(model)}")
+
+        base_table = self._attach_embedding(other, right_on, model).to_gbq()
+        query_table = self._attach_embedding(self._df, left_on, model)
+
+        import bigframes.bigquery as bbq
+
+        join_result = bbq.vector_search(
+            base_table=base_table,
+            column_to_search="embedding",
+            query=query_table,
+            top_k=top_k,
+        )
+
+        join_result = join_result.drop(["embedding", "embedding_1"], axis=1)
+
+        if score_column is not None:
+            join_result = join_result.rename(columns={"distance": score_column})
+        else:
+            del join_result["distance"]
+
+        return join_result
+
+    @staticmethod
+    def _attach_embedding(dataframe, column: str, model):
+        result_df = dataframe.copy()
+        embeddings = model.predict(dataframe[column])["ml_generate_embedding_result"]
+        result_df["embedding"] = embeddings
+        return result_df
+
     def _make_prompt(
         self, columns: List[str], user_instruction: str, output_instruction: str
     ):
