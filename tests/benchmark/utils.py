@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import argparse
+import importlib.util
 import inspect
+import pathlib
 import time
 
 import bigframes
@@ -83,6 +85,27 @@ def get_execution_time(func, current_path, suffix, *args, **kwargs):
 
     with open(clock_time_file_path, "a") as log_file:
         log_file.write(f"{runtime}\n")
+
+
+def import_local_module(module_name, base_path=pathlib.Path.cwd() / "third_party"):
+    """
+    Dynamically imports the latest benchmark scripts from a specified local directory,
+    allowing these scripts to be used across different versions of libraries. This setup
+    ensures that benchmark tests can be conducted using the most up-to-date scripts,
+    irrespective of the library version being tested.
+    """
+    relative_path = pathlib.Path(*module_name.split("."))
+    module_file_path = base_path / relative_path.with_suffix(".py")
+    spec = importlib.util.spec_from_file_location(module_name, module_file_path)
+    if spec is None:
+        raise ImportError(f"Cannot load module {module_name} from {base_path}")
+
+    module = importlib.util.module_from_spec(spec)
+
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    return module
 
 
 def _str_to_bool(value):

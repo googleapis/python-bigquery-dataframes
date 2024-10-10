@@ -15,7 +15,6 @@
 import pathlib
 
 import benchmark.utils as utils
-import bigframes_vendored.db_benchmark.groupby_queries as vendored_dbbenchmark_groupby_queries
 
 if __name__ == "__main__":
     (
@@ -26,6 +25,9 @@ if __name__ == "__main__":
         suffix,
     ) = utils.get_configuration(include_table_id=True)
     current_path = pathlib.Path(__file__).absolute()
+    vendored_dbbenchmark_groupby_queries = utils.import_local_module(
+        "bigframes_vendored.db_benchmark.groupby_queries"
+    )
 
     utils.get_execution_time(
         vendored_dbbenchmark_groupby_queries.q2,
