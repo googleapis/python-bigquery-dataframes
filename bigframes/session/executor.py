@@ -40,7 +40,6 @@ import pyarrow
 
 import bigframes.core
 import bigframes.core.compile
-import bigframes.core.expression as ex
 import bigframes.core.guid
 import bigframes.core.identifiers
 import bigframes.core.nodes as nodes
@@ -49,7 +48,6 @@ import bigframes.core.schema
 import bigframes.core.tree_properties as tree_properties
 import bigframes.features
 import bigframes.formatting_helpers as formatting_helpers
-import bigframes.operations as ops
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
 import bigframes.session.planner
@@ -581,20 +579,8 @@ class BigQueryCachingExecutor:
 
 
 def generate_head_plan(node: nodes.BigFrameNode, n: int):
-    offsets_id = bigframes.core.guid.generate_guid("offsets_")
-    plan_w_offsets = nodes.PromoteOffsetsNode(
-        node, bigframes.core.identifiers.ColumnId(offsets_id)
-    )
-    predicate = ops.lt_op.as_expr(ex.deref(offsets_id), ex.const(n))
-    plan_w_head = nodes.FilterNode(plan_w_offsets, predicate)
     # Finally, drop the offsets column
-    return nodes.SelectionNode(
-        plan_w_head,
-        tuple(
-            (ex.deref(i), bigframes.core.identifiers.ColumnId(i))
-            for i in node.schema.names
-        ),
-    )
+    return nodes.SliceNode(node, start=None, stop=n)
 
 
 def generate_row_count_plan(node: nodes.BigFrameNode):

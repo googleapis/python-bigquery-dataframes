@@ -43,11 +43,6 @@ class SQLCompiler:
         col_id_overrides: Mapping[str, str] = {},
     ) -> str:
         """Compile node into sql where rows are unsorted, and no ordering information is preserved."""
-        new_node, limit = rewrites.pullup_limit_from_slice(node)
-        if limit is not None:
-            return self._compiler.compile_ordered_ir(new_node).to_sql(
-                col_id_overrides=col_id_overrides, ordered=True, limit=limit
-            )
         return self._compiler.compile_unordered_ir(node).to_sql(
             col_id_overrides=col_id_overrides
         )
@@ -59,6 +54,7 @@ class SQLCompiler:
         col_id_overrides: Mapping[str, str] = {},
     ) -> str:
         """Compile node into sql where rows are sorted with ORDER BY."""
+        # If we are ordering the query anyways, compiling the slice as a limit is probably a good idea.
         new_node, limit = rewrites.pullup_limit_from_slice(node)
         return self._compiler.compile_ordered_ir(new_node).to_sql(
             col_id_overrides=col_id_overrides, ordered=True, limit=limit
