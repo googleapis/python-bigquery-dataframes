@@ -191,12 +191,12 @@ def test_columntransformer_save_load(new_penguins_df, dataset_id):
             preprocessing.OneHotEncoder(max_categories=1000001, min_frequency=0),
             "species",
         ),
-        ("standard_scaler", preprocessing.StandardScaler(), "culmen lengthmm"),
-        ("standard_scaler", preprocessing.StandardScaler(), "flipper length mm"),
+        ("standard_scaler", preprocessing.StandardScaler(), "culmen_length_mm"),
+        ("standard_scaler", preprocessing.StandardScaler(), "flipper_length_mm"),
         (
             "sql_scalar_column_transformer",
             compose.SQLScalarColumnTransformer(
-                "CASE WHEN species IS NULL THEN -1 ELSE LENGTH(species) END",
+                "CASE WHEN `species` IS NULL THEN -1 ELSE LENGTH(`species`) END",
                 target_column="len_species",
             ),
             "?len_species",
@@ -204,21 +204,21 @@ def test_columntransformer_save_load(new_penguins_df, dataset_id):
         (
             "sql_scalar_column_transformer",
             compose.SQLScalarColumnTransformer(
-                "flipper_length_mm", target_column="flipper_length_mm"
+                "`flipper_length_mm`", target_column="flipper_length_mm"
             ),
             "?flipper_length_mm",
         ),
         (
             "sql_scalar_column_transformer",
             compose.SQLScalarColumnTransformer(
-                "culmen_length_mm", target_column="culmen_length_mm"
+                "`culmen_length_mm`", target_column="culmen_length_mm"
             ),
             "?culmen_length_mm",
         ),
         (
             "sql_scalar_column_transformer",
             compose.SQLScalarColumnTransformer(
-                "CASE WHEN species IS NULL THEN -1 ELSE LENGTH(species) END ",
+                "CASE WHEN `species` IS NULL THEN -1 ELSE LENGTH(`species`) END",
                 target_column="Flex species Name",
             ),
             "?Flex species Name",

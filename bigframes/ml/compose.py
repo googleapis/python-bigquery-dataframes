@@ -237,6 +237,7 @@ class ColumnTransformer(
                     transformers_set.add(
                         (
                             camel_to_snake(transformer_cls.__name__),
+                            # TODO: This is very fragile, use real SQL parser
                             *transformer_cls._parse_from_sql(transform_sql),  # type: ignore
                         )
                     )
@@ -251,7 +252,7 @@ class ColumnTransformer(
 
                 target_column = transform_col_dict["name"]
                 sql_transformer = SQLScalarColumnTransformer(
-                    transform_sql, target_column=target_column
+                    transform_sql.strip(), target_column=target_column
                 )
                 input_column_name = f"?{target_column}"
                 transformers_set.add(
