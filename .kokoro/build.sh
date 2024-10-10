@@ -50,19 +50,3 @@ if [[ -n "${NOX_SESSION:-}" ]]; then
 else
     python3 -m nox --stop-on-first-error
 fi
-
-# In the end, cleanup a few stale (more than 12 hours old) temporary cloud run
-# functions created by bigframems. This will keep the test GCP project within
-# the "Number of functions" quota
-# https://cloud.google.com/functions/quotas#resource_limits
-testGcpProject=${GOOGLE_CLOUD_PROJECT}
-if [[ -z "${testGcpProject}" ]]; then
-    testGcpProject=`gcloud config get project`
-fi
-if [[ -n "${testGcpProject}" ]]; then
-    python3 scripts/manage_cloud_functions.py \
-        --project-id ${testGcpProject} \
-        --recency-cutoff 12 \
-        cleanup \
-        --number 10
-fi
