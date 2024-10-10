@@ -385,6 +385,44 @@ def common_selection_root(
     return None
 
 
+def pullup_limit_from_slice(
+    root: nodes.BigFrameNode,
+) -> Tuple[nodes.BigFrameNode, Optional[int]]:
+    """
+    This is a BQ-sql specific optimization that can be helpful as ORDER BY LIMIT is more efficient than ROW_NUMBER() + WHERE.
+    """
+    if isinstance(root, nodes.SliceNode):
+        new_child, limit = pullup_limit_from_slice(root.child)
+        # head case
+        if (
+            (not root.start)
+            and ((root.stop is not None) and root.stop > 0)
+            and (root.step == 1)
+        ):
+            limit = root.stop
+            new_root, prior_limit = pullup_limit_from_slice(root.child)
+            if prior_limit is not None and prior_limit < limit:
+                limit = prior_limit
+            return new_root, limit
+        # tail case
+        if (
+            (root.start in [None, -1])
+            and ((root.stop is not None) and root.stop < 0)
+            and (root.step == -1)
+        ):
+            limit = -root.stop
+            new_root, prior_limit = pullup_limit_from_slice(root.child)
+            if prior_limit is not None and prior_limit < limit:
+                limit = prior_limit
+            return nodes.ReversedNode(new_root), limit
+    elif isinstance(root, nodes.UnaryNode) and root.row_preserving:
+        new_child, limit = pullup_limit_from_slice(root.child)
+        if limit is not None:
+            return root.transform_children(lambda _: new_child), limit
+    # Many ops don't support pulling up slice, like filter, agg, join, etc.
+    return root, None
+
+
 def replace_slice_ops(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
     # TODO: we want to pull up some slices into limit op if near root.
     if isinstance(root, nodes.SliceNode):

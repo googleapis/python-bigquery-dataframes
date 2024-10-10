@@ -45,7 +45,6 @@ import bigframes.core.guid
 import bigframes.core.identifiers
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
-import bigframes.core.rewrite as rewrites
 import bigframes.core.schema
 import bigframes.core.tree_properties as tree_properties
 import bigframes.features
@@ -437,7 +436,6 @@ class BigQueryCachingExecutor:
         if ENABLE_PRUNING:
             used_fields = frozenset(field.id for field in optimized_plan.fields)
             optimized_plan = optimized_plan.prune(used_fields)
-        optimized_plan = rewrites.replace_slice_ops(optimized_plan)
         return optimized_plan
 
     def _is_trivially_executable(self, array_value: bigframes.core.ArrayValue):
