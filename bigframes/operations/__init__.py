@@ -528,9 +528,9 @@ class RemoteFunctionOp(UnaryOp):
             if dtypes.is_array_like(self.func.output_dtype):
                 # TODO(b/284515241): remove this special handling to support
                 # array output types once BQ remote functions support ARRAY.
-                # Until then, use json serialized strings at the cloud function
-                # and BQ level, and parse that to the intended output type at
-                # the bigframes level.
+                # Until then, use json serialized strings at the remote function
+                # level, and parse that to the intended output type at the
+                # bigframes level.
                 return dtypes.STRING_DTYPE
             return self.func.output_dtype
         else:

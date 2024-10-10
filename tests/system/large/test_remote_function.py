@@ -2247,14 +2247,21 @@ def test_remote_function_ingress_settings_unsupported(session):
             return x * x
 
 
+@pytest.mark.parametrize(
+    "array_dtype",
+    [
+        int,
+        float,
+    ],
+)
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_array_output(
-    session, scalars_dfs, dataset_id, bq_cf_connection
+    session, scalars_dfs, dataset_id, bq_cf_connection, array_dtype
 ):
     try:
 
-        def featurizer(x: int) -> list[int]:
-            return [x, x + 1, x + 2]
+        def featurizer(x: int) -> list[array_dtype]:  # type: ignore
+            return [array_dtype(i) for i in [x, x + 1, x + 2]]
 
         featurizer_remote = session.remote_function(
             dataset=dataset_id,

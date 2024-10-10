@@ -21,21 +21,18 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions. "
 from __future__ import annotations
 
 import typing
-from typing import Literal, Optional, Union
+from typing import cast, Literal, Optional, Union
 
 import bigframes_vendored.constants as constants
 
 import bigframes.core.groupby as groupby
 import bigframes.core.sql
+import bigframes.dataframe as dataframe
+import bigframes.dtypes
 import bigframes.ml.utils as utils
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
-import bigframes.series
-
-if typing.TYPE_CHECKING:
-    import bigframes.dataframe as dataframe
-    import bigframes.series as series
-
+import bigframes.series as series
 
 # Array functions defined from
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions
@@ -241,12 +238,16 @@ def json_extract(
 
 
 def json_extract_array(
-    series: series.Series,
+    input: series.Series,
     json_path: str = "$",
+    value_dtype: Optional[
+        Union[bigframes.dtypes.Dtype, bigframes.dtypes.DtypeString]
+    ] = None,
 ) -> series.Series:
-    """Extracts a JSON array and converts it to a SQL array of JSON-formatted `STRING` or `JSON`
-    values. This function uses single quotes and brackets to escape invalid JSONPath
-    characters in JSON keys.
+    """Extracts a JSON array and converts it to a SQL array. By default the array
+    is of JSON-formatted `STRING` or `JSON` values, but a `value_dtype` can be
+    provided to coerce the data type of the values in the array. This function uses
+    single quotes and brackets to escape invalid JSONPath characters in JSON keys.
 
     **Examples:**
 
@@ -260,16 +261,33 @@ def json_extract_array(
         1        ['4' '5']
         dtype: list<item: string>[pyarrow]
 
+        >>> bbq.json_extract_array(s, value_dtype='Int64')
+        0    [1 2 3]
+        1      [4 5]
+        dtype: list<item: int64>[pyarrow]
+
     Args:
-        series (bigframes.series.Series):
+        input (bigframes.series.Series):
             The Series containing JSON data (as native JSON objects or JSON-formatted strings).
         json_path (str):
             The JSON path identifying the data that you want to obtain from the input.
+        value_dtype (dtype, Optional):
+            The data type supported by BigFrames DataFrame.
 
     Returns:
-        bigframes.series.Series: A new Series with the JSON or JSON-formatted STRING.
+        bigframes.series.Series: A new Series with the parsed arrays from the input.
     """
-    return series._apply_unary_op(ops.JSONExtractArray(json_path=json_path))
+    array_series = input._apply_unary_op(ops.JSONExtractArray(json_path=json_path))
+    if value_dtype not in [None, bigframes.dtypes.STRING_DTYPE]:
+        array_items_series = array_series.explode()
+        array_items_series = array_items_series.astype(value_dtype)
+        array_series = cast(
+            series.Series,
+            array_agg(
+                array_items_series.groupby(level=input.index.names, dropna=False)
+            ),
+        )
+    return array_series
 
 
 # Approximate aggrgate functions defined from
@@ -343,7 +361,7 @@ def struct(value: dataframe.DataFrame) -> series.Series:
         block.value_columns, ops.StructOp(column_names=tuple(block.column_labels))
     )
     block = block.select_column(result_id)
-    return bigframes.series.Series(block)
+    return series.Series(block)
 
 
 # Search functions defined from
@@ -463,10 +481,7 @@ def vector_search(
         raise ValueError(
             "You can't specify fraction_lists_to_search when use_brute_force is set to True."
         )
-    if (
-        isinstance(query, bigframes.series.Series)
-        and query_column_to_search is not None
-    ):
+    if isinstance(query, series.Series) and query_column_to_search is not None:
         raise ValueError(
             "You can't specify query_column_to_search when query is a Series."
         )

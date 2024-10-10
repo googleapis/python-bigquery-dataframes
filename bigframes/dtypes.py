@@ -637,7 +637,7 @@ RF_SUPPORTED_IO_PYTHON_TYPES = {bool, bytes, float, int, str}
 # https://cloud.google.com/bigquery/docs/remote-functions#limitations
 # TODO(b/284515241): remove this special handling when BigQuery remote functions
 # support array.
-RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES = {int, float, str}
+RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES = {float, int}
 
 RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS = {
     "BOOLEAN",
