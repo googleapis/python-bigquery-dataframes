@@ -37,6 +37,21 @@ def test_linear_regression(random_model_id: str) -> None:
         replace=True,
     )
     # [END bigquery_dataframes_bqml_linear_regression]
+    # [START bigquery_dataframes_bqml_linear_evaluate]
+    import bigframes.pandas as bpd
+
+    # Select the model you will be evaluating. `read_gbq_model` loads model data from
+    # BigQuery, but you could also use the `model` object from the previous steps.
+    model = bpd.read_gbq_model(
+        your_model_id,  # For example: "bqml_tutorial.penguins_model"
+    )
+
+    # Score the model with input data defined in an earlier step where
+    # the feature_columns are combined into a single dataframe to use as training
+    # data and the label_columns represent the outcome of the model's prediction
+    score = model.score(feature_columns, label_columns)
+    # [END bigquery_dataframes_bqml_linear_evaluate]
     assert feature_columns is not None
     assert label_columns is not None
     assert model is not None
+    assert score is not None
