@@ -19,6 +19,7 @@ import pandas as pd
 import pytest
 
 import bigframes.bigquery as bbq
+import bigframes.dtypes
 import bigframes.pandas as bpd
 
 
@@ -155,6 +156,16 @@ def test_json_extract_array_from_array_strings():
     s = bpd.Series(["[1, 2, 3]", "[]", "[4,5]"])
     actual = bbq.json_extract_array(s)
     expected = bpd.Series([["1", "2", "3"], [], ["4", "5"]])
+    pd.testing.assert_series_equal(
+        actual.to_pandas(),
+        expected.to_pandas(),
+    )
+
+
+def test_json_extract_float_array_from_array_strings():
+    s = bpd.Series(["[1, 2.5, 3]", "[]", "[4,5]"])
+    actual = bbq.json_extract_array(s, value_dtype=bigframes.dtypes.FLOAT_DTYPE)
+    expected = bpd.Series([[1, 2.5, 3], [], [4, 5]])
     pd.testing.assert_series_equal(
         actual.to_pandas(),
         expected.to_pandas(),
