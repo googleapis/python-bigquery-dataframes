@@ -90,12 +90,14 @@ def test_columntransformer_standalone_fit_and_transform(
 
 
 def test_columntransformer_standalone_fit_transform(new_penguins_df):
+    # rename column to ensure robustness to column names that must be escaped
+    new_penguins_df = new_penguins_df.rename(columns={"species": "123 'species'"})
     transformer = compose.ColumnTransformer(
         [
             (
                 "onehot",
                 preprocessing.OneHotEncoder(),
-                "species",
+                "123 'species'",
             ),
             (
                 "standard_scale",
@@ -108,7 +110,7 @@ def test_columntransformer_standalone_fit_transform(new_penguins_df):
                     "CASE WHEN {0} IS NULL THEN -1 ELSE LENGTH({0}) END",
                     target_column="len_{0}",
                 ),
-                "species",
+                "123 'species'",
             ),
             (
                 "identity",
@@ -119,16 +121,16 @@ def test_columntransformer_standalone_fit_transform(new_penguins_df):
     )
 
     result = transformer.fit_transform(
-        new_penguins_df[["species", "culmen_length_mm", "flipper_length_mm"]]
+        new_penguins_df[["123 'species'", "culmen_length_mm", "flipper_length_mm"]]
     ).to_pandas()
 
     utils.check_pandas_df_schema_and_index(
         result,
         columns=[
-            "onehotencoded_species",
+            "onehotencoded_123 'species'",
             "standard_scaled_culmen_length_mm",
             "standard_scaled_flipper_length_mm",
-            "len_species",
+            "len_123 'species'",
             "culmen_length_mm",
             "flipper_length_mm",
         ],
@@ -189,8 +191,8 @@ def test_columntransformer_save_load(new_penguins_df, dataset_id):
             preprocessing.OneHotEncoder(max_categories=1000001, min_frequency=0),
             "species",
         ),
-        ("standard_scaler", preprocessing.StandardScaler(), "culmen_length_mm"),
-        ("standard_scaler", preprocessing.StandardScaler(), "flipper_length_mm"),
+        ("standard_scaler", preprocessing.StandardScaler(), "culmen lengthmm"),
+        ("standard_scaler", preprocessing.StandardScaler(), "flipper length mm"),
         (
             "sql_scalar_column_transformer",
             compose.SQLScalarColumnTransformer(

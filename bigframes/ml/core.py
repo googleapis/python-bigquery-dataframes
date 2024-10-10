@@ -48,7 +48,7 @@ class BqmlModel(BaseBqml):
         self._session = session
         self._model = model
         self._model_manipulation_sql_generator = ml_sql.ModelManipulationSqlGenerator(
-            self.model_name
+            self._model.reference
         )
 
     def _apply_ml_tvf(
