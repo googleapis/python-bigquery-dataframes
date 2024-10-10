@@ -576,6 +576,6 @@ def test_columntransformer_extract_from_bq_model_flexnames(bq_model_flexnames):
                                  SQLScalarColumnTransformer(sql='culmen_length_mm', target_column='Flex Name culmen_length_mm'),
                                  '?Flex Name culmen_length_mm'),
                                 ('sql_scalar_column_transformer',
-                                 SQLScalarColumnTransformer(sql='flipper_length_mm ', target_column='Flex Name flipper_length_mm'),
+                                 SQLScalarColumnTransformer(sql='flipper_length_mm', target_column='Flex Name flipper_length_mm'),
                                  '?Flex Name flipper_length_mm')])"""
     assert expected == actual
