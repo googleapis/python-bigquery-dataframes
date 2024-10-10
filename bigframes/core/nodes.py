@@ -20,7 +20,7 @@ import datetime
 import functools
 import itertools
 import typing
-from typing import Callable, Iterable, Sequence, Tuple
+from typing import Callable, Iterable, Optional, Sequence, Tuple
 
 import google.cloud.bigquery as bq
 
@@ -271,6 +271,37 @@ class UnaryNode(BigFrameNode):
 
 
 @dataclass(frozen=True, eq=False)
+class SliceNode(UnaryNode):
+    """Logical slice node conditionally becomes limit or filter over row numbers."""
+
+    start: Optional[int]
+    stop: Optional[int]
+    step: int = 1
+
+    @property
+    def row_preserving(self) -> bool:
+        """Whether this node preserves input rows."""
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        """
+        Whether this node combines information across multiple rows instead of processing rows independently.
+        Used as an approximation for whether the expression may require shuffling to execute (and therefore be expensive).
+        """
+        return True
+
+    # these are overestimates, more accurate numbers available by converting to concrete limit or analytic+filter ops
+    @property
+    def variables_introduced(self) -> int:
+        return 2
+
+    @property
+    def relation_ops_created(self) -> int:
+        return 2
+
+
+@dataclass(frozen=True, eq=False)
 class JoinNode(BigFrameNode):
     left_child: BigFrameNode
     right_child: BigFrameNode
@@ -516,7 +547,7 @@ class GbqTable:
     table_id: str = field()
     physical_schema: Tuple[bq.SchemaField, ...] = field()
     n_rows: int = field()
-    is_physical_table: bool = field()
+    is_physically_stored: bool = field()
     cluster_cols: typing.Optional[Tuple[str, ...]]
 
     @staticmethod
@@ -532,7 +563,7 @@ class GbqTable:
             table_id=table.table_id,
             physical_schema=schema,
             n_rows=table.num_rows,
-            is_physical_table=(table.table_type == "TABLE"),
+            is_physically_stored=(table.table_type in ["TABLE", "MATERIALIZED_VIEW"]),
             cluster_cols=None
             if table.clustering_fields is None
             else tuple(table.clustering_fields),
@@ -610,7 +641,7 @@ class ReadTableNode(LeafNode):
 
     @property
     def row_count(self) -> typing.Optional[int]:
-        if self.source.sql_predicate is None and self.source.table.is_physical_table:
+        if self.source.sql_predicate is None and self.source.table.is_physically_stored:
             return self.source.table.n_rows
         return None
 
