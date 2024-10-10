@@ -105,7 +105,6 @@ nox.options.sessions = [
     "system-3.9",
     "system-3.12",
     "cover",
-    "cleanup",
 ]
 
 # Error if a python version is missing
