@@ -675,7 +675,7 @@ def test_sim_join_invalid_top_k_raises_error(session, text_embedding_generator):
         session=session,
     )
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         df1.semantics.sim_join(
             df2,
             left_on="creatures",
