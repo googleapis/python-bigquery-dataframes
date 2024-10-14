@@ -36,26 +36,36 @@ SESSION_STARTED_MESSAGE = (
 UNKNOWN_LOCATION_MESSAGE = "The location '{location}' is set to an unknown value. Did you mean '{possibility}'?"
 
 
-def _validate_location(value: Optional[str]):
+def _get_validated_location(value: Optional[str]) -> Optional[str]:
 
-    if value is None:
-        return
+    if value is None or value in bigframes.constants.ALL_BIGQUERY_LOCATIONS:
+        return value
 
-    if value not in bigframes.constants.ALL_BIGQUERY_LOCATIONS:
-        location = str(value)
-        possibility = min(
-            bigframes.constants.ALL_BIGQUERY_LOCATIONS,
-            key=lambda item: jellyfish.levenshtein_distance(location, item),
-        )
-        warnings.warn(
-            UNKNOWN_LOCATION_MESSAGE.format(location=location, possibility=possibility),
-            # There are many layers before we get to (possibly) the user's code:
-            # -> bpd.options.bigquery.location = "us-central-1"
-            # -> location.setter
-            # -> _validate_location
-            stacklevel=3,
-            category=bigframes.exceptions.UnknownLocationWarning,
-        )
+    location = str(value)
+
+    location_lowercase = location.lower()
+    if location_lowercase in bigframes.constants.BIGQUERY_REGIONS:
+        return location_lowercase
+
+    location_uppercase = location.upper()
+    if location_uppercase in bigframes.constants.BIGQUERY_MULTIREGIONS:
+        return location_uppercase
+
+    possibility = min(
+        bigframes.constants.ALL_BIGQUERY_LOCATIONS,
+        key=lambda item: jellyfish.levenshtein_distance(location, item),
+    )
+    warnings.warn(
+        UNKNOWN_LOCATION_MESSAGE.format(location=location, possibility=possibility),
+        # There are many layers before we get to (possibly) the user's code:
+        # -> bpd.options.bigquery.location = "us-central-1"
+        # -> location.setter
+        # -> _get_validated_location
+        stacklevel=3,
+        category=bigframes.exceptions.UnknownLocationWarning,
+    )
+
+    return value
 
 
 def _validate_ordering_mode(value: str) -> bigframes.enums.OrderingMode:
@@ -84,7 +94,7 @@ class BigQueryOptions:
     ):
         self._credentials = credentials
         self._project = project
-        self._location = location
+        self._location = _get_validated_location(location)
         self._bq_connection = bq_connection
         self._use_regional_endpoints = use_regional_endpoints
         self._application_name = application_name
@@ -101,6 +111,10 @@ class BigQueryOptions:
         The application name to amend to the user agent sent to Google APIs.
         The recommended format is  ``"application-name/major.minor.patch_version"``
         or ``"(gpn:PartnerName;)"`` for official Google partners.
+
+        Returns:
+            None or str:
+                Application name as a string if exists; otherwise None.
         """
         return self._application_name
 
@@ -114,7 +128,12 @@ class BigQueryOptions:
 
     @property
     def credentials(self) -> Optional[google.auth.credentials.Credentials]:
-        """The OAuth2 credentials to use for this client."""
+        """The OAuth2 credentials to use for this client.
+
+        Returns:
+            None or google.auth.credentials.Credentials:
+                google.auth.credentials.Credentials if exists; otherwise None.
+        """
         return self._credentials
 
     @credentials.setter
@@ -128,6 +147,10 @@ class BigQueryOptions:
         """Default location for job, datasets, and tables.
 
         For more information, see https://cloud.google.com/bigquery/docs/locations BigQuery locations.
+
+        Returns:
+            None or str:
+                Default location as a string; otherwise None.
         """
         return self._location
 
@@ -135,12 +158,16 @@ class BigQueryOptions:
     def location(self, value: Optional[str]):
         if self._session_started and self._location != value:
             raise ValueError(SESSION_STARTED_MESSAGE.format(attribute="location"))
-        _validate_location(value)
-        self._location = value
+        self._location = _get_validated_location(value)
 
     @property
     def project(self) -> Optional[str]:
-        """Google Cloud project ID to use for billing and as the default project."""
+        """Google Cloud project ID to use for billing and as the default project.
+
+        Returns:
+            None or str:
+                Google Cloud project ID as a string; otherwise None.
+        """
         return self._project
 
     @project.setter
@@ -163,6 +190,10 @@ class BigQueryOptions:
 
         If this option isn't provided, or project or location aren't provided,
         session will use its default project/location/connection_id as default connection.
+
+        Returns:
+            None or str:
+                Name of the BigQuery connection as a string; otherwise None.
         """
         return self._bq_connection
 
@@ -181,6 +212,12 @@ class BigQueryOptions:
         connection (default or user-provided) does not exist, or it does not have
         necessary permissions set up to support BigQuery DataFrames operations,
         then a runtime error will be reported.
+
+        Returns:
+            bool:
+                A boolean value, where True indicates a BigQuery connection is
+                not created or the connection does not have necessary
+                permissions set up; otherwise False.
         """
         return self._skip_bq_connection_check
 
@@ -196,13 +233,29 @@ class BigQueryOptions:
     def use_regional_endpoints(self) -> bool:
         """Flag to connect to regional API endpoints.
 
-        .. deprecated:: 0.13.0
-            Use of regional endpoints is a feature in Preview and
-            available only in selected regions and projects.
+        .. note::
+            Use of regional endpoints is a feature in Preview and available only
+            in regions "europe-west3", "europe-west9", "europe-west8",
+            "me-central2", "us-east4" and "us-west1".
 
-        Requires that ``location`` is set. For example, to connect to
-        asia-northeast1-bigquery.googleapis.com, specify
-        ``location='asia-northeast1'`` and ``use_regional_endpoints=True``.
+        .. deprecated:: 0.13.0
+            Use of locational endpoints is available only in selected projects.
+
+        Requires that ``location`` is set. For supported regions, for example
+        ``europe-west3``, you need to specify ``location='europe-west3'`` and
+        ``use_regional_endpoints=True``, and then BigQuery DataFrames would
+        connect to the BigQuery endpoint ``bigquery.europe-west3.rep.googleapis.com``.
+        For not supported regions, for example ``asia-northeast1``, when you
+        specify ``location='asia-northeast1'`` and ``use_regional_endpoints=True``,
+        a different endpoint (called locational endpoint, now deprecated, used
+        to provide weaker promise on the request remaining within the location
+        during transit) ``europe-west3-bigquery.googleapis.com`` would be used.
+
+        Returns:
+            bool:
+              A boolean value, where True indicates that regional endpoints
+              would be used for BigQuery and BigQuery storage APIs; otherwise
+              global endpoints would be used.
         """
         return self._use_regional_endpoints
 
@@ -235,6 +288,10 @@ class BigQueryOptions:
         Cloud KMS CryptoKey Encrypter/Decrypter IAM role in the key's project.
         For more information, see https://cloud.google.com/bigquery/docs/customer-managed-encryption#assign_role
         Assign the Encrypter/Decrypter.
+
+        Returns:
+            None or str:
+                Name of the customer managed encryption key as a string; otherwise None.
         """
         return self._kms_key_name
 
@@ -247,7 +304,12 @@ class BigQueryOptions:
 
     @property
     def ordering_mode(self) -> Literal["strict", "partial"]:
-        """Controls whether total row order is always maintained for DataFrame/Series."""
+        """Controls whether total row order is always maintained for DataFrame/Series.
+
+        Returns:
+            Literal:
+                A literal string value of either strict or partial ordering mode.
+        """
         return self._ordering_mode.value
 
     @ordering_mode.setter
