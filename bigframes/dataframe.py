@@ -2466,7 +2466,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             values = [values]
 
         # Unlike pivot, pivot_table has values always ordered.
-        values.sort(key=lambda val: typing.cast(SupportsRichComparison, val))
+        values.sort(key=lambda val: typing.cast("SupportsRichComparison", val))
 
         keys = index + columns
         agged = self.groupby(keys, dropna=True)[values].agg(aggfunc)
