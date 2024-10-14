@@ -137,12 +137,13 @@ def create_vector_index_ddl(
         storing = f"STORING({', '.join(escaped_stored)}) "
     else:
         storing = ""
-    
-    options = ", ".join([
-        f"{option_name} = {simple_literal(option_value)}"
-        for option_name, option_value
-        in options.items()
-    ])
+
+    options = ", ".join(
+        [
+            f"{option_name} = {simple_literal(option_value)}"
+            for option_name, option_value in options.items()
+        ]
+    )
 
     return f"""
     {create} {index_name}
@@ -150,7 +151,6 @@ def create_vector_index_ddl(
     {storing}
     OPTIONS({options});
     """
-
 
 
 def create_vector_search_sql(

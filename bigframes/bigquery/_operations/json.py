@@ -21,23 +21,15 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions
 
 from __future__ import annotations
 
-import typing
+from typing import Any, Sequence, Tuple
 
-import bigframes_vendored.constants as constants
-
-import bigframes.core.groupby as groupby
-import bigframes.core.sql
 import bigframes.operations as ops
-import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
-
-if typing.TYPE_CHECKING:
-    import bigframes.dataframe as dataframe
 
 
 def json_set(
     series: series.Series,
-    json_path_value_pairs: typing.Sequence[typing.Tuple[str, typing.Any]],
+    json_path_value_pairs: Sequence[Tuple[str, Any]],
 ) -> series.Series:
     """Produces a new JSON value within a Series by inserting or replacing values at
     specified paths.
@@ -57,7 +49,7 @@ def json_set(
     Args:
         series (bigframes.series.Series):
             The Series containing JSON data (as native JSON objects or JSON-formatted strings).
-        json_path_value_pairs (Sequence[Tuple[str, typing.Any]]):
+        json_path_value_pairs (Sequence[Tuple[str, Any]]):
             Pairs of JSON path and the new value to insert/replace.
 
     Returns:
@@ -142,4 +134,3 @@ def json_extract_array(
         bigframes.series.Series: A new Series with the JSON or JSON-formatted STRING.
     """
     return series._apply_unary_op(ops.JSONExtractArray(json_path=json_path))
-

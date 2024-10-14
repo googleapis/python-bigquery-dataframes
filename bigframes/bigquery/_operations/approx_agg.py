@@ -14,24 +14,14 @@
 
 from __future__ import annotations
 
-import typing
-
-import bigframes_vendored.constants as constants
-
-import bigframes.core.groupby as groupby
-import bigframes.core.sql
-import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
-
-if typing.TYPE_CHECKING:
-    import bigframes.dataframe as dataframe
-    import bigframes.series as series
-
+import bigframes.series as series
 
 """
 Approximate functions defined from
 https://cloud.google.com/bigquery/docs/reference/standard-sql/approximate_aggregate_functions
 """
+
 
 def approx_top_count(
     series: series.Series,
@@ -67,4 +57,3 @@ def approx_top_count(
     if number < 1:
         raise ValueError("The number of approx_top_count must be at least 1")
     return series._apply_aggregation(agg_ops.ApproxTopCountOp(number=number))
-

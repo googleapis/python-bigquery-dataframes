@@ -39,7 +39,7 @@ def create_vector_index(
     column_name: str,
     *,
     replace: bool = False,
-    index_name: Optional[str]= None,
+    index_name: Optional[str] = None,
     distance_type="cosine",
     stored_column_names: Collection[str] = (),
     index_type: str = "ivf",
@@ -52,21 +52,21 @@ def create_vector_index(
 
     This method calls the `CREATE VECTOR INDEX DDL statement
     <https://cloud.google.com/bigquery/docs/reference/standard-sql/data-definition-language#create_vector_index_statement>`_.
-    
+
     """
     import bigframes.pandas
 
     if index_name is None:
         index_name = table_id.split(".")[-1]
-    
+
     options = {
         "index_type": index_type.upper(),
         "distance_type": distance_type.upper(),
     }
-    
+
     if ivf_options is not None:
         options["ivf_options"] = json.dumps(ivf_options)
-    
+
     if tree_ah_options is not None:
         options["tree_ah_options"] = json.dumps(tree_ah_options)
 
@@ -86,7 +86,6 @@ def create_vector_index(
         read_gbq_query = session.read_gbq_query
 
     read_gbq_query(sql)
-    
 
 
 def vector_search(

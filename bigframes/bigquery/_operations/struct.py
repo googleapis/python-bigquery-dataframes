@@ -22,16 +22,11 @@ from __future__ import annotations
 
 import typing
 
-import bigframes_vendored.constants as constants
-
-import bigframes.core.groupby as groupby
-import bigframes.core.sql
 import bigframes.operations as ops
-import bigframes.operations.aggregations as agg_ops
+import bigframes.series as series
 
 if typing.TYPE_CHECKING:
     import bigframes.dataframe as dataframe
-    import bigframes.series as series
 
 
 def struct(value: dataframe.DataFrame) -> series.Series:
@@ -60,11 +55,9 @@ def struct(value: dataframe.DataFrame) -> series.Series:
         Returns:
             bigframes.series.Series: A new Series with struct entries representing rows of the original DataFrame
     """
-    import bigframes.series
-    
     block = value._block
     block, result_id = block.apply_nary_op(
         block.value_columns, ops.StructOp(column_names=tuple(block.column_labels))
     )
     block = block.select_column(result_id)
-    return bigframes.series.Series(block)
+    return series.Series(block)
