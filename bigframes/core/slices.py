@@ -27,7 +27,7 @@ def to_forward_offsets(
 
     # normalize start to positive number
     if start is None:
-        start = 0
+        start = 0 if (step > 0) else (input_rows - 1)
     elif start < 0:
         start = max(0, input_rows + start)
     else:
@@ -48,16 +48,16 @@ def remove_unused_parts(
 ) -> tuple[Optional[int], Optional[int], Optional[int]]:
     """Makes a slice component null if it doesn't impact slice semantics."""
     start, stop, step = slice
-    is_forward = step is None or step > 0
+    is_forward = (step is None) or (step > 0)
     if start is not None:
-        if is_forward and (start == 0) or start <= -input_rows:
+        if is_forward and ((start == 0) or (start <= -input_rows)):
             start = None
-        elif not is_forward and (start == -1) or (start >= (input_rows - 1)):
+        elif (not is_forward) and ((start == -1) or (start >= (input_rows - 1))):
             start = None
     if stop is not None:
         if is_forward and (stop >= input_rows):
             stop = None
-        elif not is_forward and (stop <= (-input_rows - 1)):
+        elif (not is_forward) and (stop <= (-input_rows - 1)):
             stop = None
     if step == 1:
         step = None

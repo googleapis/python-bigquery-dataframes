@@ -445,7 +445,11 @@ def rewrite_slice(node: nodes.SliceNode):
 def slice_as_filter(
     node: nodes.BigFrameNode, start: Optional[int], stop: Optional[int], step: int
 ) -> nodes.BigFrameNode:
-    if ((start is None) or (start >= 0)) and ((stop is None) or (stop >= 0)):
+    if (
+        ((start is None) or (start >= 0))
+        and ((stop is None) or (stop >= 0))
+        and (step > 0)
+    ):
         node_w_offset = add_offsets(node)
         predicate = convert_simple_slice(
             scalar_exprs.DerefOp(node_w_offset.col_id), start or 0, stop, step
@@ -528,7 +532,7 @@ def convert_complex_slice(
     if start or ((start is not None) and step < 0):
         if start > 0 and step > 0:
             start_cond = ops.ge_op.as_expr(forward_offsets, scalar_exprs.const(start))
-        elif start > 0 and step < 0:
+        elif start >= 0 and step < 0:
             start_cond = ops.le_op.as_expr(forward_offsets, scalar_exprs.const(start))
         elif start < 0 and step > 0:
             start_cond = ops.le_op.as_expr(
