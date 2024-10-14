@@ -21,9 +21,10 @@ import warnings
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
+import typing_extensions
 
 import bigframes
-from bigframes import clients
+from bigframes import clients, exceptions
 from bigframes.core import blocks, log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
@@ -82,10 +83,24 @@ _ML_GENERATE_TEXT_STATUS = "ml_generate_text_status"
 _ML_EMBED_TEXT_STATUS = "ml_embed_text_status"
 _ML_GENERATE_EMBEDDING_STATUS = "ml_generate_embedding_status"
 
+_MODEL_NOT_SUPPORTED_WARNING = (
+    "Model name '{model_name}' is not supported. "
+    "We are currently aware of the following models: {known_models}. "
+    "However, model names can change, and the supported models may be outdated. "
+    "You should use this model name only if you are sure that it is supported in BigQuery."
+)
 
+
+@typing_extensions.deprecated(
+    "PaLM2TextGenerator is going to be deprecated. Use GeminiTextGenerator(https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.GeminiTextGenerator) instead. ",
+    category=exceptions.ApiDeprecationWarning,
+)
 @log_adapter.class_logger
 class PaLM2TextGenerator(base.BaseEstimator):
     """PaLM2 text generator LLM model.
+
+    .. note::
+        PaLM2TextGenerator is going to be deprecated. Use GeminiTextGenerator(https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.GeminiTextGenerator) instead.
 
     Args:
         model_name (str, Default to "text-bison"):
@@ -146,8 +161,11 @@ class PaLM2TextGenerator(base.BaseEstimator):
             )
 
         if self.model_name not in _TEXT_GENERATOR_ENDPOINTS:
-            raise ValueError(
-                f"Model name {self.model_name} is not supported. We only support {', '.join(_TEXT_GENERATOR_ENDPOINTS)}."
+            warnings.warn(
+                _MODEL_NOT_SUPPORTED_WARNING.format(
+                    model_name=self.model_name,
+                    known_models=", ".join(_TEXT_GENERATOR_ENDPOINTS),
+                )
             )
 
         options = {
@@ -403,12 +421,16 @@ class PaLM2TextGenerator(base.BaseEstimator):
         return new_model.session.read_gbq_model(model_name)
 
 
+@typing_extensions.deprecated(
+    "PaLM2TextEmbeddingGenerator has been deprecated. Use TextEmbeddingGenerator(https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead. ",
+    category=exceptions.ApiDeprecationWarning,
+)
 @log_adapter.class_logger
 class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
     """PaLM2 text embedding generator LLM model.
 
     .. note::
-        Models in this class are outdated and going to be deprecated. To use the most updated text embedding models, go to the TextEmbeddingGenerator class.
+        PaLM2TextEmbeddingGenerator has been deprecated. Use TextEmbeddingGenerator(https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead.
 
 
     Args:
@@ -472,8 +494,11 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
             )
 
         if self.model_name not in _PALM2_EMBEDDING_GENERATOR_ENDPOINTS:
-            raise ValueError(
-                f"Model name {self.model_name} is not supported. We only support {', '.join(_PALM2_EMBEDDING_GENERATOR_ENDPOINTS)}."
+            warnings.warn(
+                _MODEL_NOT_SUPPORTED_WARNING.format(
+                    model_name=self.model_name,
+                    known_models=", ".join(_PALM2_EMBEDDING_GENERATOR_ENDPOINTS),
+                )
             )
 
         endpoint = (
@@ -632,8 +657,11 @@ class TextEmbeddingGenerator(base.BaseEstimator):
             )
 
         if self.model_name not in _TEXT_EMBEDDING_ENDPOINTS:
-            raise ValueError(
-                f"Model name {self.model_name} is not supported. We only support {', '.join(_TEXT_EMBEDDING_ENDPOINTS)}."
+            warnings.warn(
+                _MODEL_NOT_SUPPORTED_WARNING.format(
+                    model_name=self.model_name,
+                    known_models=", ".join(_TEXT_EMBEDDING_ENDPOINTS),
+                )
             )
 
         options = {
@@ -789,8 +817,11 @@ class GeminiTextGenerator(base.BaseEstimator):
             )
 
         if self.model_name not in _GEMINI_ENDPOINTS:
-            raise ValueError(
-                f"Model name {self.model_name} is not supported. We only support {', '.join(_GEMINI_ENDPOINTS)}."
+            warnings.warn(
+                _MODEL_NOT_SUPPORTED_WARNING.format(
+                    model_name=self.model_name,
+                    known_models=", ".join(_GEMINI_ENDPOINTS),
+                )
             )
 
         options = {"endpoint": self.model_name}
@@ -1106,8 +1137,11 @@ class Claude3TextGenerator(base.BaseEstimator):
             )
 
         if self.model_name not in _CLAUDE_3_ENDPOINTS:
-            raise ValueError(
-                f"Model name {self.model_name} is not supported. We only support {', '.join(_CLAUDE_3_ENDPOINTS)}."
+            warnings.warn(
+                _MODEL_NOT_SUPPORTED_WARNING.format(
+                    model_name=self.model_name,
+                    known_models=", ".join(_CLAUDE_3_ENDPOINTS),
+                )
             )
 
         options = {

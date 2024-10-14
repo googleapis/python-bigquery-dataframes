@@ -27,10 +27,10 @@ import bigframes_vendored.constants as constants
 import bigframes.core.groupby as groupby
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+import bigframes.series as series
 
 if typing.TYPE_CHECKING:
     import bigframes.dataframe as dataframe
-    import bigframes.series as series
 
 def array_length(series: series.Series) -> series.Series:
     """Compute the length of each array element in the Series.

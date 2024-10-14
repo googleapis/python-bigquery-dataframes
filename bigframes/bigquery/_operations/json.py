@@ -29,10 +29,10 @@ import bigframes.core.groupby as groupby
 import bigframes.core.sql
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+import bigframes.series as series
 
 if typing.TYPE_CHECKING:
     import bigframes.dataframe as dataframe
-    import bigframes.series as series
 
 
 def json_set(

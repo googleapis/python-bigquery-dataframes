@@ -23,7 +23,6 @@ import pathlib
 import re
 import shutil
 import time
-import traceback
 from typing import Dict, List
 import warnings
 
@@ -698,8 +697,8 @@ def system_prerelease(session: nox.sessions.Session):
 
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
 def notebook(session: nox.Session):
-    GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
-    if not GOOGLE_CLOUD_PROJECT:
+    google_cloud_project = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if not google_cloud_project:
         session.error(
             "Set GOOGLE_CLOUD_PROJECT environment variable to run notebook session."
         )
@@ -731,7 +730,7 @@ def notebook(session: nox.Session):
         # appropriate values and omitting cleanup logic that may break
         # our test infrastructure.
         "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",  # Needs DATASET.
-        "notebooks/regression/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
+        "notebooks/ml/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
         # TODO(b/332737009): investigate why we get 404 errors, even though
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
@@ -794,10 +793,6 @@ def notebook(session: nox.Session):
             *notebooks,
         )
 
-        # Shared flag using multiprocessing.Manager() to indicate if
-        # any process encounters an error. This flag may be updated
-        # across different processes.
-        error_flag = multiprocessing.Manager().Value("i", False)
         processes = []
         for notebook in notebooks:
             args = (
@@ -808,8 +803,8 @@ def notebook(session: nox.Session):
             )
             if multi_process_mode:
                 process = multiprocessing.Process(
-                    target=_run_process,
-                    args=(session, args, error_flag),
+                    target=session.run,
+                    args=args,
                 )
                 process.start()
                 processes.append(process)
@@ -819,10 +814,6 @@ def notebook(session: nox.Session):
             else:
                 session.run(*args)
 
-        for process in processes:
-            process.join()
-
-        processes = []
         for notebook, regions in notebooks_reg.items():
             for region in regions:
                 region_args = (
@@ -834,8 +825,8 @@ def notebook(session: nox.Session):
                 )
                 if multi_process_mode:
                     process = multiprocessing.Process(
-                        target=_run_process,
-                        args=(session, region_args, error_flag),
+                        target=session.run,
+                        args=region_args,
                     )
                     process.start()
                     processes.append(process)
@@ -847,11 +838,6 @@ def notebook(session: nox.Session):
 
         for process in processes:
             process.join()
-
-        # Check the shared error flag and raise an exception if any process
-        # reported an error
-        if error_flag.value:
-            raise Exception("Errors occurred in one or more subprocesses.")
     finally:
         # Prevent our notebook changes from getting checked in to git
         # accidentally.
@@ -866,15 +852,6 @@ def notebook(session: nox.Session):
             "--notebook",
             "--publish-benchmarks=notebooks/",
         )
-
-
-def _run_process(session: nox.Session, args, error_flag):
-    try:
-        session.run(*args)
-    except Exception:
-        traceback_str = traceback.format_exc()
-        print(traceback_str)
-        error_flag.value = True
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)
@@ -960,3 +937,31 @@ def release_dry_run(session):
     ):
         env["PROJECT_ROOT"] = "."
     session.run(".kokoro/release-nightly.sh", "--dry-run", env=env)
+
+
+@nox.session(python=DEFAULT_PYTHON_VERSION)
+def cleanup(session):
+    """Clean up stale and/or temporary resources in the test project."""
+    google_cloud_project = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if not google_cloud_project:
+        session.error(
+            "Set GOOGLE_CLOUD_PROJECT environment variable to run notebook session."
+        )
+
+    # Cleanup a few stale (more than 12 hours old) temporary cloud run
+    # functions created by bigframems. This will help keeping the test GCP
+    # project within the "Number of functions" quota
+    # https://cloud.google.com/functions/quotas#resource_limits
+    recency_cutoff_hours = 12
+    cleanup_count_per_location = 10
+
+    session.install("-e", ".")
+
+    session.run(
+        "python",
+        "scripts/manage_cloud_functions.py",
+        f"--project-id={google_cloud_project}",
+        f"--recency-cutoff={recency_cutoff_hours}",
+        "cleanup",
+        f"--number={cleanup_count_per_location}",
+    )
