@@ -74,6 +74,7 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.plotting as plotting
+import bigframes.operations.semantics
 import bigframes.operations.structs
 import bigframes.series
 import bigframes.series as bf_series
@@ -689,7 +690,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        self._cached()
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -768,7 +768,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         reverse: bool = False,
     ) -> DataFrame:
         bf_series = bigframes.core.convert.to_bf_series(
-            other, self.index, self._session
+            other, self.index if self._has_index else None, self._session
         )
         aligned_block, columns, expr_pairs = self._block._align_axis_0(
             bf_series._block, how=how
@@ -3179,6 +3179,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         clustering_columns: Union[pandas.Index, Iterable[typing.Hashable]] = (),
         labels: dict[str, str] = {},
     ) -> str:
+        index = index and self._has_index
         temp_table_ref = None
 
         if destination_table is None:
@@ -3722,7 +3723,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
     ) -> DataFrame:
-        block = self._block.slice(start=start, stop=stop, step=step)
+        block = self._block.slice(
+            start=start, stop=stop, step=step if (step is not None) else 1
+        )
         return DataFrame(block)
 
     def __array_ufunc__(
@@ -3875,3 +3878,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise bigframes.exceptions.NullIndexError(
                 f"DataFrame cannot perform {opname} as it has no index. Set an index using set_index."
             )
+
+    @property
+    def semantics(self):
+        return bigframes.operations.semantics.Semantics(self)
