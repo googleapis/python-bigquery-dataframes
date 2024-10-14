@@ -227,11 +227,6 @@ class PolarsCompiler:
         return pl.concat(self.compile_node(child) for child in node.child_nodes)
 
     @_execute_node.register
-    def compile_reproject(self, node: nodes.ReprojectOpNode):
-        # NOOP
-        return self.compile_node(node.child)
-
-    @_execute_node.register
     def compile_agg(self, node: nodes.AggregateNode):
         df = self.compile_node(node.child)
 
