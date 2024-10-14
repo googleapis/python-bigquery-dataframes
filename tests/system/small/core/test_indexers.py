@@ -33,7 +33,7 @@ def test_non_string_indexed_series_struct_accessor_warning(session, key, should_
         dtype=bpd.ArrowDtype(
             pa.struct([("project", pa.string()), ("version", pa.int64())])
         ),
-        session = session
+        session=session,
     )
 
     if should_warn:
@@ -59,7 +59,7 @@ def test_string_indexed_series_struct_accessor_no_warning(session, key):
             pa.struct([("project", pa.string()), ("version", pa.int64())])
         ),
         index=["p1"],
-        session = session
+        session=session,
     )
 
     s[key]
