@@ -25,7 +25,7 @@ import bigframes.pandas as bpd
         pytest.param("a", True, id="string_key_should_warn"),
     ],
 )
-def test_non_string_indexed_series_struct_accessor_warning(key, should_warn):
+def test_non_string_indexed_series_struct_accessor_warning(session, key, should_warn):
     s = bpd.Series(
         [
             {"project": "pandas", "version": 1},
@@ -33,6 +33,7 @@ def test_non_string_indexed_series_struct_accessor_warning(key, should_warn):
         dtype=bpd.ArrowDtype(
             pa.struct([("project", pa.string()), ("version", pa.int64())])
         ),
+        session = session
     )
 
     if should_warn:
@@ -49,7 +50,7 @@ def test_non_string_indexed_series_struct_accessor_warning(key, should_warn):
         pytest.param("a", id="string_key"),
     ],
 )
-def test_string_indexed_series_struct_accessor_no_warning(key):
+def test_string_indexed_series_struct_accessor_no_warning(session, key):
     s = bpd.Series(
         [
             {"project": "pandas", "version": 1},
@@ -58,6 +59,7 @@ def test_string_indexed_series_struct_accessor_no_warning(key):
             pa.struct([("project", pa.string()), ("version", pa.int64())])
         ),
         index=["p1"],
+        session = session
     )
 
     s[key]
