@@ -146,10 +146,14 @@ def test_bqml_standalone_transform(penguins_df_default_index, new_penguins_df):
             "ML.ONE_HOT_ENCODER(species, 'none', 1000000, 0) OVER() AS onehotencoded_species",
         ],
     )
+    start = model.session.slot_millis_sum
+    transformed = model.transform(new_penguins_df)
+    end = model.session.slot_millis_sum
 
-    transformed = model.transform(new_penguins_df).to_pandas()
+    assert end > start
+
     utils.check_pandas_df_schema_and_index(
-        transformed,
+        transformed.to_pandas(),
         columns=["scaled_culmen_length_mm", "onehotencoded_species"],
         index=[1633, 1672, 1690],
         col_exact=False,
