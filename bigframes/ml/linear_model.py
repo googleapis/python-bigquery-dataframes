@@ -58,15 +58,6 @@ class LinearRegression(
     def __init__(
         self,
         *,
-        data_split_method: Literal[
-            "auto_split",
-            "random",
-            "custom",
-            "seq",
-            "no_split",
-        ] = "no_split",
-        data_split_eval_fraction: Optional[float] = None,
-        data_split_col: Optional[str] = None,
         optimize_strategy: Literal[
             "auto_strategy", "batch_gradient_descent", "normal_equation"
         ] = "auto_strategy",
@@ -81,10 +72,16 @@ class LinearRegression(
         ls_init_learning_rate: Optional[float] = None,
         calculate_p_values: bool = False,
         enable_global_explain: bool = False,
+        data_split_method: Literal[
+            "auto_split",
+            "random",
+            "custom",
+            "seq",
+            "no_split",
+        ] = "no_split",
+        data_split_eval_fraction: Optional[float] = None,
+        data_split_col: Optional[str] = None,
     ):
-        self.data_split_method = data_split_method
-        self.data_split_eval_fraction = data_split_eval_fraction
-        self.data_split_col = data_split_col
         self.optimize_strategy = optimize_strategy
         self.fit_intercept = fit_intercept
         self.l1_reg = l1_reg
@@ -97,6 +94,9 @@ class LinearRegression(
         self.ls_init_learning_rate = ls_init_learning_rate
         self.calculate_p_values = calculate_p_values
         self.enable_global_explain = enable_global_explain
+        self.data_split_method = data_split_method
+        self.data_split_eval_fraction = data_split_eval_fraction
+        self.data_split_col = data_split_col
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
 
@@ -129,10 +129,6 @@ class LinearRegression(
             "calculate_p_values": self.calculate_p_values,
             "enable_global_explain": self.enable_global_explain,
         }
-        if self.data_split_eval_fraction is not None:
-            options["data_split_eval_fraction"] = self.data_split_eval_fraction
-        if self.data_split_col is not None:
-            options["data_split_col"] = self.data_split_col
         if self.l1_reg is not None:
             options["l1_reg"] = self.l1_reg
         if self.learning_rate is not None:
@@ -142,6 +138,10 @@ class LinearRegression(
         # Even presenting warm_start returns error for NORMAL_EQUATION optimizer
         if self.warm_start:
             options["warm_start"] = self.warm_start
+        if self.data_split_eval_fraction is not None:
+            options["data_split_eval_fraction"] = self.data_split_eval_fraction
+        if self.data_split_col is not None:
+            options["data_split_col"] = self.data_split_col
 
         return options
 
