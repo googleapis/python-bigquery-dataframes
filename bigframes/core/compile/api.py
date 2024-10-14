@@ -43,6 +43,7 @@ class SQLCompiler:
         col_id_overrides: Mapping[str, str] = {},
     ) -> str:
         """Compile node into sql where rows are unsorted, and no ordering information is preserved."""
+        # TODO: Enable limit pullup, but only if not being used to write to clustered table.
         return self._compiler.compile_unordered_ir(node).to_sql(
             col_id_overrides=col_id_overrides
         )

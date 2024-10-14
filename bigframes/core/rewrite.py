@@ -24,7 +24,7 @@ import bigframes.core.identifiers as ids
 import bigframes.core.join_def as join_defs
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
-import bigframes.core.tree_properties as traversals
+import bigframes.core.slices as slices
 import bigframes.operations as ops
 
 Selection = Tuple[Tuple[scalar_exprs.Expression, ids.ColumnId], ...]
@@ -421,42 +421,32 @@ def replace_slice_ops(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
     # TODO: we want to pull up some slices into limit op if near root.
     if isinstance(root, nodes.SliceNode):
         root = root.transform_children(replace_slice_ops)
-        return convert_slice_to_filter(cast(nodes.SliceNode, root))
+        return rewrite_slice(cast(nodes.SliceNode, root))
     else:
         return root.transform_children(replace_slice_ops)
 
 
-def get_simplified_slice(node: nodes.SliceNode):
-    """Attempts to simplify the slice."""
-    row_count = traversals.row_count(node)
-    start, stop, step = node.start, node.stop, node.step
-
-    if start is None:
-        start = 0 if step > 0 else -1
-    if row_count and step > 0:
-        if start and start < 0:
-            start = row_count + start
-        if stop and stop < 0:
-            stop = row_count + stop
-    return start, stop, step
-
-
-def convert_slice_to_filter(node: nodes.SliceNode):
-    start, stop, step = get_simplified_slice(node)
+def rewrite_slice(node: nodes.SliceNode):
+    slice_def = (node.start, node.stop, node.step)
 
     # no-op (eg. df[::1])
-    if (
-        ((start == 0) or (start is None))
-        and ((stop is None) or (stop == -1))
-        and (step == 1)
-    ):
+    if slices.is_noop(slice_def, node.child.row_count):
         return node.child
+
     # No filtering, just reverse (eg. df[::-1])
-    if ((start is None) or (start == -1)) and (not stop) and (step == -1):
+    if slices.is_reverse(slice_def, node.child.row_count):
         return nodes.ReversedNode(node.child)
-    # if start/stop/step are all non-negative, and do a simple predicate on forward offsets
+
+    if node.child.row_count:
+        slice_def = slices.to_forward_offsets(slice_def, node.child.row_count)
+    return slice_as_filter(node.child, *slice_def)
+
+
+def slice_as_filter(
+    node: nodes.BigFrameNode, start: Optional[int], stop: Optional[int], step: int
+) -> nodes.BigFrameNode:
     if ((start is None) or (start >= 0)) and ((stop is None) or (stop >= 0)):
-        node_w_offset = add_offsets(node.child)
+        node_w_offset = add_offsets(node)
         predicate = convert_simple_slice(
             scalar_exprs.DerefOp(node_w_offset.col_id), start or 0, stop, step
         )
@@ -465,17 +455,18 @@ def convert_slice_to_filter(node: nodes.SliceNode):
 
     # fallback cases, generate both forward and backward offsets
     if step < 0:
-        forward_offsets = add_offsets(node.child)
+        forward_offsets = add_offsets(node)
         reversed_offsets = add_offsets(nodes.ReversedNode(forward_offsets))
         dual_indexed = reversed_offsets
     else:
-        reversed_offsets = add_offsets(nodes.ReversedNode(node.child))
+        reversed_offsets = add_offsets(nodes.ReversedNode(node))
         forward_offsets = add_offsets(nodes.ReversedNode(reversed_offsets))
         dual_indexed = forward_offsets
+    default_start = 0 if step >= 0 else -1
     predicate = convert_complex_slice(
         scalar_exprs.DerefOp(forward_offsets.col_id),
         scalar_exprs.DerefOp(reversed_offsets.col_id),
-        start,
+        start if (start is not None) else default_start,
         stop,
         step,
     )

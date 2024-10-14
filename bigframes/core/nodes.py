@@ -30,6 +30,7 @@ import bigframes.core.identifiers
 import bigframes.core.identifiers as bfet_ids
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.schema as schemata
+import bigframes.core.slices as slices
 import bigframes.core.window_spec as window
 import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
@@ -315,27 +316,9 @@ class SliceNode(UnaryNode):
         child_length = self.child.row_count
         if child_length is None:
             return None
-        start, stop, step = self.start, self.stop, self.step
-        if start is None:
-            start = 0
-        elif start < 0:
-            start = max(0, child_length + start)
-        else:
-            start = min(start, child_length)
-
-        if stop is None:
-            stop = child_length
-        elif stop < 0:
-            stop = max(0, child_length + stop)
-        else:
-            stop = min(stop, child_length)
-
-        if step > 0:
-            length = max(0, (stop - start + step - 1) // step)
-        else:
-            length = max(0, (start - stop - step - 1) // -step)
-
-        return length
+        return slices.slice_output_rows(
+            (self.start, self.stop, self.step), child_length
+        )
 
 
 @dataclass(frozen=True, eq=False)
