@@ -49,6 +49,8 @@ def can_fast_head(node: nodes.BigFrameNode) -> bool:
 
 
 def has_fast_orderby_limit(node: nodes.BigFrameNode) -> bool:
+    """True iff ORDER BY LIMIT can be performed without a large full table scan."""
+    # TODO: In theory compatible with some Slice nodes, potentially by adding OFFSET
     if isinstance(node, nodes.LeafNode):
         return node.fast_ordered_limit
     if isinstance(node, (nodes.ProjectionNode, nodes.SelectionNode)):
@@ -57,12 +59,12 @@ def has_fast_orderby_limit(node: nodes.BigFrameNode) -> bool:
 
 
 def has_fast_offset_address(node: nodes.BigFrameNode) -> bool:
+    """True iff specific offsets can be scanned without a large full table scan."""
+    # TODO: In theory can push offset lookups through slice operators by translating indices
     if isinstance(node, nodes.LeafNode):
         return node.fast_offsets
     if isinstance(node, (nodes.ProjectionNode, nodes.SelectionNode)):
         return has_fast_offset_address(node.child)
-    if isinstance(node, nodes.SliceNode):
-        return node.is_limit
     return False
 
 
