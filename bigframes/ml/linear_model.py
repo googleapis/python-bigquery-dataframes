@@ -42,6 +42,9 @@ _BQML_PARAMS_MAPPING = {
     "warm_start": "warmStart",
     "calculate_p_values": "calculatePValues",
     "enable_global_explain": "enableGlobalExplain",
+    "data_split_method": "dataSplitMethod",
+    "data_split_eval_fraction": "dataSplitEvalFraction",
+    "data_split_col": "dataSplitColumn",
 }
 
 
@@ -55,6 +58,15 @@ class LinearRegression(
     def __init__(
         self,
         *,
+        data_split_method: Literal[
+            "auto_split",
+            "random",
+            "custom",
+            "seq",
+            "no_split",
+        ] = "no_split",
+        data_split_eval_fraction: Optional[float] = None,
+        data_split_col: Optional[str] = None,
         optimize_strategy: Literal[
             "auto_strategy", "batch_gradient_descent", "normal_equation"
         ] = "auto_strategy",
@@ -70,6 +82,9 @@ class LinearRegression(
         calculate_p_values: bool = False,
         enable_global_explain: bool = False,
     ):
+        self.data_split_method = data_split_method
+        self.data_split_eval_fraction = data_split_eval_fraction
+        self.data_split_col = data_split_col
         self.optimize_strategy = optimize_strategy
         self.fit_intercept = fit_intercept
         self.l1_reg = l1_reg
@@ -104,7 +119,7 @@ class LinearRegression(
         """The model options as they will be set for BQML"""
         options = {
             "model_type": "LINEAR_REG",
-            "data_split_method": "NO_SPLIT",
+            "data_split_method": self.data_split_method,
             "optimize_strategy": self.optimize_strategy,
             "fit_intercept": self.fit_intercept,
             "l2_reg": self.l2_reg,
@@ -114,6 +129,10 @@ class LinearRegression(
             "calculate_p_values": self.calculate_p_values,
             "enable_global_explain": self.enable_global_explain,
         }
+        if self.data_split_eval_fraction is not None:
+            options["data_split_eval_fraction"] = self.data_split_eval_fraction
+        if self.data_split_col is not None:
+            options["data_split_col"] = self.data_split_col
         if self.l1_reg is not None:
             options["l1_reg"] = self.l1_reg
         if self.learning_rate is not None:
