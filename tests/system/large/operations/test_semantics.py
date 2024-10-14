@@ -43,7 +43,7 @@ def test_semantics_experiment_off_raise_error():
         pytest.param(7, "Year", id="four_w_cluster_column"),
     ],
 )
-def test_agg_w_max_agg_rows(session, gemini_flash_model, max_agg_rows, cluster_column):
+def test_agg(session, gemini_flash_model, max_agg_rows, cluster_column):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame(
         data={
@@ -82,21 +82,33 @@ def test_agg_w_max_agg_rows(session, gemini_flash_model, max_agg_rows, cluster_c
             marks=pytest.mark.xfail(raises=ValueError),
         ),
         pytest.param(
-            "{city} is in the {non_existing_column}",
+            "{Movies} is good",
             id="non_existing_column",
             marks=pytest.mark.xfail(raises=ValueError),
         ),
         pytest.param(
-            "{city} is in the {country}",
+            "{Movies} is better than {Movies}",
             id="two_columns",
             marks=pytest.mark.xfail(raises=NotImplementedError),
+        ),
+        pytest.param(
+            "{Year}",
+            id="invalid_type",
+            marks=pytest.mark.xfail(raises=TypeError),
         ),
     ],
 )
 def test_agg_invalid_instruction_raise_error(instruction, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame(
-        {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}
+        data={
+            "Movies": [
+                "Titanic",
+                "The Wolf of Wall Street",
+                "Killers of the Flower Moon",
+            ],
+            "Year": [1997, 2013, 2023],
+        },
     )
     df.semantics.agg(instruction, gemini_flash_model)
 
@@ -229,15 +241,26 @@ def test_filter_single_column_reference(session, gemini_flash_model):
 @pytest.mark.parametrize(
     "instruction",
     [
-        "No column reference",
-        "{city} is in the {non_existing_column}",
+        pytest.param(
+            "No column reference",
+            id="zero_column",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+        pytest.param(
+            "{city} is in the {non_existing_column}",
+            id="non_existing_column",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+        pytest.param(
+            "{id}",
+            id="invalid_type",
+            marks=pytest.mark.xfail(raises=TypeError),
+        ),
     ],
 )
 def test_filter_invalid_instruction_raise_error(instruction, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    df = dataframe.DataFrame(
-        {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}
-    )
+    df = dataframe.DataFrame({"id": [1, 2], "city": ["Seattle", "Berlin"]})
 
     with pytest.raises(ValueError):
         df.semantics.filter(instruction, gemini_flash_model)
@@ -249,7 +272,7 @@ def test_filter_invalid_model_raise_error():
         {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         df.semantics.filter("{city} is the capital of {country}", None)
 
 
@@ -290,14 +313,28 @@ def test_map(session, gemini_flash_model):
 @pytest.mark.parametrize(
     "instruction",
     [
-        "No column reference",
-        "What is the food made from {ingredient_1} and {non_existing_column}?}",
+        pytest.param(
+            "No column reference",
+            id="zero_column",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+        pytest.param(
+            "What is the food made from {ingredient_1} and {non_existing_column}?}",
+            id="non_existing_column",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+        pytest.param(
+            "{id}",
+            id="invalid_type",
+            marks=pytest.mark.xfail(raises=TypeError),
+        ),
     ],
 )
 def test_map_invalid_instruction_raise_error(instruction, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame(
         data={
+            "id": [1, 2],
             "ingredient_1": ["Burger Bun", "Soy Bean"],
             "ingredient_2": ["Beef Patty", "Bittern"],
         }
@@ -316,7 +353,7 @@ def test_map_invalid_model_raise_error():
         },
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         df.semantics.map(
             "What is the food made from {ingredient_1} and {ingredient_2}? One word only.",
             "food",
@@ -462,7 +499,7 @@ def test_join_invalid_model_raise_error():
     cities = dataframe.DataFrame({"city": ["Seattle", "Berlin"]})
     countries = dataframe.DataFrame({"country": ["USA", "UK", "Germany"]})
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         cities.semantics.join(countries, "{city} is in {country}", None)
 
 
@@ -526,6 +563,19 @@ def test_search_invalid_model_raises_error(session):
 
     with pytest.raises(TypeError):
         df.semantics.search("creatures", "monkey", top_k=2, model=None)
+
+
+def test_search_invalid_top_k_raises_error(session, text_embedding_generator):
+    bigframes.options.experiments.semantic_operators = True
+    df = dataframe.DataFrame(
+        data={"creatures": ["salmon", "sea urchin", "baboons", "frog", "chimpanzee"]},
+        session=session,
+    )
+
+    with pytest.raises(ValueError):
+        df.semantics.search(
+            "creatures", "monkey", top_k=0, model=text_embedding_generator
+        )
 
 
 @pytest.mark.parametrize(
@@ -614,6 +664,27 @@ def test_sim_join_invalid_model_raises_error(session):
         )
 
 
+def test_sim_join_invalid_top_k_raises_error(session, text_embedding_generator):
+    bigframes.options.experiments.semantic_operators = True
+    df1 = dataframe.DataFrame(
+        data={"creatures": ["salmon", "cat"]},
+        session=session,
+    )
+    df2 = dataframe.DataFrame(
+        data={"creatures": ["dog", "tuna"]},
+        session=session,
+    )
+
+    with pytest.raises(ValueError):
+        df1.semantics.sim_join(
+            df2,
+            left_on="creatures",
+            right_on="creatures",
+            top_k=0,
+            model=text_embedding_generator,
+        )
+
+
 def test_sim_join_data_too_large_raises_error(session, text_embedding_generator):
     bigframes.options.experiments.semantic_operators = True
     df1 = dataframe.DataFrame(
@@ -632,4 +703,57 @@ def test_sim_join_data_too_large_raises_error(session, text_embedding_generator)
             right_on="creatures",
             model=text_embedding_generator,
             max_rows=1,
+        )
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        pytest.param(
+            "No column reference",
+            id="zero_column",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+        pytest.param(
+            "{Animals}",
+            id="non_existing_column",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+        pytest.param(
+            "{Animals} and {Animals}",
+            id="two_columns",
+            marks=pytest.mark.xfail(raises=NotImplementedError),
+        ),
+        pytest.param(
+            "{ID}",
+            id="invalid_dtypes",
+            marks=pytest.mark.xfail(raises=TypeError),
+        ),
+        pytest.param(
+            "{index}",
+            id="preserved",
+            marks=pytest.mark.xfail(raises=ValueError),
+        ),
+    ],
+)
+def test_top_k_invalid_instruction_raise_error(instruction, gemini_flash_model):
+    bigframes.options.experiments.semantic_operators = True
+    df = dataframe.DataFrame(
+        {
+            "Animals": ["Dog", "Cat", "Bird", "Horse"],
+            "ID": [1, 2, 3, 4],
+            "index": ["a", "b", "c", "d"],
+        }
+    )
+    df.semantics.top_k(instruction, model=gemini_flash_model, k=2)
+
+
+def test_top_k_invalid_k_raise_error(gemini_flash_model):
+    bigframes.options.experiments.semantic_operators = True
+    df = dataframe.DataFrame({"Animals": ["Dog", "Cat", "Bird", "Horse"]})
+    with pytest.raises(ValueError):
+        df.semantics.top_k(
+            "{Animals} are more popular as pets",
+            gemini_flash_model,
+            k=0,
         )
