@@ -138,7 +138,7 @@ def create_vector_index_ddl(
     else:
         storing = ""
 
-    options = ", ".join(
+    rendered_options = ", ".join(
         [
             f"{option_name} = {simple_literal(option_value)}"
             for option_name, option_value in options.items()
@@ -149,7 +149,7 @@ def create_vector_index_ddl(
     {create} {index_name}
     ON `{table_name}`(`{column_name}`)
     {storing}
-    OPTIONS({options});
+    OPTIONS({rendered_options});
     """
 
 
