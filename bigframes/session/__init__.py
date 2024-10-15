@@ -574,7 +574,6 @@ class Session(
 
             >>> sdf = bst.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
 
-
         Returns:
             bigframes.streaming.dataframe.StreamingDataFrame:
                A StreamingDataFrame representing results of the query or table.
