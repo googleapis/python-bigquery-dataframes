@@ -31,6 +31,7 @@ from bigframes.core import log_adapter
 import bigframes.core.compile.googlesql as sql_utils
 from bigframes.ml import base, core, globals, impute, preprocessing, utils
 import bigframes.pandas as bpd
+import pandas as pd
 
 _BQML_TRANSFROM_TYPE_MAPPING = types.MappingProxyType(
     {
@@ -332,7 +333,7 @@ class ColumnTransformer(
 
     def fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         y=None,  # ignored
     ) -> ColumnTransformer:
         (X,) = utils.convert_to_dataframe(X)
@@ -347,7 +348,7 @@ class ColumnTransformer(
         self._extract_output_names()
         return self
 
-    def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def transform(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 

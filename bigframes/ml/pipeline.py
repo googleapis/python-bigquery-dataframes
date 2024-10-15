@@ -36,6 +36,7 @@ from bigframes.ml import (
     utils,
 )
 import bigframes.pandas as bpd
+import pandas as pd
 
 
 @log_adapter.class_logger
@@ -101,8 +102,8 @@ class Pipeline(
 
     def fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Optional[Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]] = None,
     ) -> Pipeline:
         (X,) = utils.convert_to_dataframe(X)
 
@@ -115,13 +116,13 @@ class Pipeline(
         self._estimator._fit(X=X, y=y, transforms=transform_sqls)
         return self
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
         return self._estimator.predict(X)
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Optional[Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]] = None,
     ) -> bpd.DataFrame:
         (X,) = utils.convert_to_dataframe(X)
         if y is not None:

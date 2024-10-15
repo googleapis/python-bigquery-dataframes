@@ -27,6 +27,7 @@ import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
+import pandas as pd
 
 _BQML_PARAMS_MAPPING = {
     "booster": "boosterType",
@@ -142,8 +143,8 @@ class XGBRegressor(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         transforms: Optional[List[str]] = None,
     ) -> XGBRegressor:
         X, y = utils.convert_to_dataframe(X, y)
@@ -158,7 +159,7 @@ class XGBRegressor(
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
@@ -168,8 +169,8 @@ class XGBRegressor(
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ):
         X, y = utils.convert_to_dataframe(X, y)
 
@@ -291,8 +292,8 @@ class XGBClassifier(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         transforms: Optional[List[str]] = None,
     ) -> XGBClassifier:
         X, y = utils.convert_to_dataframe(X, y)
@@ -305,7 +306,7 @@ class XGBClassifier(
         )
         return self
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
         (X,) = utils.convert_to_dataframe(X)
@@ -314,8 +315,8 @@ class XGBClassifier(
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
@@ -427,8 +428,8 @@ class RandomForestRegressor(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         transforms: Optional[List[str]] = None,
     ) -> RandomForestRegressor:
         X, y = utils.convert_to_dataframe(X, y)
@@ -443,7 +444,7 @@ class RandomForestRegressor(
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
@@ -453,8 +454,8 @@ class RandomForestRegressor(
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ):
         """Calculate evaluation metrics of the model.
 
@@ -583,8 +584,8 @@ class RandomForestClassifier(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         transforms: Optional[List[str]] = None,
     ) -> RandomForestClassifier:
         X, y = utils.convert_to_dataframe(X, y)
@@ -599,7 +600,7 @@ class RandomForestClassifier(
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
@@ -609,8 +610,8 @@ class RandomForestClassifier(
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ):
         """Calculate evaluation metrics of the model.
 

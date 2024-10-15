@@ -24,6 +24,7 @@ from bigframes import clients
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
+import pandas as pd
 
 _REMOTE_MODEL_STATUS = "remote_model_status"
 
@@ -121,7 +122,7 @@ class VertexAIModel(base.BaseEstimator):
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ) -> bpd.DataFrame:
         """Predict the result from the input DataFrame.
 

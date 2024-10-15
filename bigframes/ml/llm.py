@@ -28,6 +28,7 @@ from bigframes import clients, exceptions
 from bigframes.core import blocks, log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
+import pandas as pd
 
 _BQML_PARAMS_MAPPING = {
     "max_iterations": "maxIterations",
@@ -214,8 +215,8 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
     def fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ) -> PaLM2TextGenerator:
         """Fine tune PaLM2TextGenerator model.
 
@@ -251,7 +252,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         *,
         temperature: float = 0.0,
         max_output_tokens: int = 128,
@@ -350,8 +351,8 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         task_type: Literal[
             "text_generation", "classification", "summarization", "question_answering"
         ] = "text_generation",
@@ -538,7 +539,7 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
@@ -694,7 +695,7 @@ class TextEmbeddingGenerator(base.BaseEstimator):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
@@ -861,8 +862,8 @@ class GeminiTextGenerator(base.BaseEstimator):
 
     def fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ) -> GeminiTextGenerator:
         """Fine tune GeminiTextGenerator model. Only support "gemini-pro" model for now.
 
@@ -901,7 +902,7 @@ class GeminiTextGenerator(base.BaseEstimator):
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         *,
         temperature: float = 0.9,
         max_output_tokens: int = 8192,
@@ -982,8 +983,8 @@ class GeminiTextGenerator(base.BaseEstimator):
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         task_type: Literal[
             "text_generation", "classification", "summarization", "question_answering"
         ] = "text_generation",
@@ -1189,7 +1190,7 @@ class Claude3TextGenerator(base.BaseEstimator):
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         *,
         max_output_tokens: int = 128,
         top_k: int = 40,

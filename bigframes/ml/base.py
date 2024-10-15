@@ -28,6 +28,7 @@ import bigframes_vendored.sklearn.base
 
 from bigframes.ml import core
 import bigframes.pandas as bpd
+import pandas as pd
 
 
 class BaseEstimator(bigframes_vendored.sklearn.base.BaseEstimator, abc.ABC):
@@ -157,8 +158,8 @@ class SupervisedTrainablePredictor(TrainablePredictor):
 
     def fit(
         self: _T,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ) -> _T:
         return self._fit(X, y)
 
@@ -172,8 +173,8 @@ class UnsupervisedTrainablePredictor(TrainablePredictor):
 
     def fit(
         self: _T,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Optional[Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]] = None,
     ) -> _T:
         return self._fit(X, y)
 
@@ -243,8 +244,8 @@ class Transformer(BaseTransformer):
 
     def fit_transform(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Optional[Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]] = None,
     ) -> bpd.DataFrame:
         return self.fit(X, y).transform(X)
 
@@ -264,6 +265,6 @@ class LabelTransformer(BaseTransformer):
 
     def fit_transform(
         self,
-        y: Union[bpd.DataFrame, bpd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ) -> bpd.DataFrame:
         return self.fit(y).transform(y)

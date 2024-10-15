@@ -24,6 +24,7 @@ import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
+import pandas as pd
 
 _BQML_PARAMS_MAPPING = {
     "horizon": "horizon",
@@ -180,8 +181,8 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         transforms: Optional[List[str]] = None,
     ):
         """Fit the model to training data.
@@ -276,7 +277,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
 
     def detect_anomalies(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         *,
         anomaly_prob_threshold: float = 0.95,
     ) -> bpd.DataFrame:
@@ -306,8 +307,8 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ) -> bpd.DataFrame:
         """Calculate evaluation metrics of the model.
 

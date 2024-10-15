@@ -27,15 +27,16 @@ import bigframes_vendored.sklearn.model_selection._validation as vendored_model_
 from bigframes.core import log_adapter
 from bigframes.ml import utils
 import bigframes.pandas as bpd
+import pandas as pd
 
 
 def train_test_split(
-    *arrays: Union[bpd.DataFrame, bpd.Series],
+    *arrays: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     test_size: Union[float, None] = None,
     train_size: Union[float, None] = None,
     random_state: Union[int, None] = None,
     stratify: Union[bpd.Series, None] = None,
-) -> List[Union[bpd.DataFrame, bpd.Series]]:
+) -> List[Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]]:
 
     # TODO(garrettwu): scikit-learn throws an error when the dataframes don't have the same
     # number of rows. We probably want to do something similar. Now the implementation is based
@@ -125,8 +126,8 @@ class KFold(vendored_model_selection_split.KFold):
 
     def split(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series, None] = None,
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series, None] = None,
     ) -> Generator[tuple[Union[bpd.DataFrame, bpd.Series, None]], None, None]:
         X_df = next(utils.convert_to_dataframe(X))
         y_df_or = next(utils.convert_to_dataframe(y)) if y is not None else None
@@ -153,8 +154,8 @@ class KFold(vendored_model_selection_split.KFold):
 
 def cross_validate(
     estimator,
-    X: Union[bpd.DataFrame, bpd.Series],
-    y: Union[bpd.DataFrame, bpd.Series, None] = None,
+    X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+    y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series, None] = None,
     *,
     cv: Optional[Union[int, KFold]] = None,
 ) -> dict[str, list]:

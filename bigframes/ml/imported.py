@@ -24,6 +24,7 @@ import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
+import pandas as pd
 
 
 @log_adapter.class_logger
@@ -64,7 +65,7 @@ class TensorFlowModel(base.Predictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
@@ -143,7 +144,7 @@ class ONNXModel(base.Predictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
@@ -259,7 +260,7 @@ class XGBoostModel(base.Predictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:

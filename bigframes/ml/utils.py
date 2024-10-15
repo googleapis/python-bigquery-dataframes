@@ -20,30 +20,36 @@ from google.cloud import bigquery
 
 from bigframes.core import blocks
 import bigframes.pandas as bpd
+import pandas as pd
 
 # Internal type alias
-ArrayType = Union[bpd.DataFrame, bpd.Series]
+InputArrayType = Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+OutputArrayType = Union[bpd.DataFrame, bpd.Series]
 
 
-def convert_to_dataframe(*input: ArrayType) -> Generator[bpd.DataFrame, None, None]:
+def convert_to_dataframe(*input: InputArrayType) -> Generator[bpd.DataFrame, None, None]:
     return (_convert_to_dataframe(frame) for frame in input)
 
 
-def _convert_to_dataframe(frame: ArrayType) -> bpd.DataFrame:
+def _convert_to_dataframe(frame: InputArrayType) -> bpd.DataFrame:
     if isinstance(frame, bpd.DataFrame):
         return frame
     if isinstance(frame, bpd.Series):
         return frame.to_frame()
+    if isinstance(frame, pd.DataFrame):
+        return bpd.read_pandas(frame)
+    if isinstance(frame, pd.Series):
+        return bpd.read_pandas(frame).to_frame()
     raise ValueError(
         f"Unsupported type {type(frame)} to convert to DataFrame. {constants.FEEDBACK_LINK}"
     )
 
 
-def convert_to_series(*input: ArrayType) -> Generator[bpd.Series, None, None]:
+def convert_to_series(*input: InputArrayType) -> Generator[bpd.Series, None, None]:
     return (_convert_to_series(frame) for frame in input)
 
 
-def _convert_to_series(frame: ArrayType) -> bpd.Series:
+def _convert_to_series(frame: InputArrayType) -> bpd.Series:
     if isinstance(frame, bpd.DataFrame):
         if len(frame.columns) != 1:
             raise ValueError(
@@ -55,15 +61,20 @@ def _convert_to_series(frame: ArrayType) -> bpd.Series:
         return typing.cast(bpd.Series, frame[label])
     if isinstance(frame, bpd.Series):
         return frame
+    if isinstance(frame, pd.DataFrame):
+        # Recursively call this method to re-use the length-checking logic
+        return _convert_to_series(bpd.read_pandas(frame))
+    if isinstance(frame, pd.Series):
+        return bpd.read_pandas(frame)
     raise ValueError(
         f"Unsupported type {type(frame)} to convert to Series. {constants.FEEDBACK_LINK}"
     )
 
 
 def convert_to_types(
-    inputs: Iterable[Union[ArrayType, None]],
-    type_instances: Iterable[Union[ArrayType, None]],
-) -> tuple[Union[ArrayType, None]]:
+    inputs: Iterable[Union[InputArrayType, None]],
+    type_instances: Iterable[Union[OutputArrayType, None]],
+) -> tuple[Union[InputArrayType, None]]:
     """Convert the DF, Series and None types of the input to corresponding type_instances types."""
     results = []
     for input, type_instance in zip(inputs, type_instances):
@@ -72,7 +83,7 @@ def convert_to_types(
 
 
 def _convert_to_type(
-    input: Union[ArrayType, None], type_instance: Union[ArrayType, None]
+    input: Union[InputArrayType, None], type_instance: Union[OutputArrayType, None]
 ):
     if type_instance is None:
         if input is not None:

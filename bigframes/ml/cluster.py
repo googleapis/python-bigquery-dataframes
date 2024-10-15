@@ -26,6 +26,7 @@ import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
+import pandas as pd
 
 _BQML_PARAMS_MAPPING = {
     "n_clusters": "numClusters",
@@ -101,7 +102,7 @@ class KMeans(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         y=None,  # ignored
         transforms: Optional[List[str]] = None,
     ) -> KMeans:
@@ -125,7 +126,7 @@ class KMeans(
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
@@ -135,7 +136,7 @@ class KMeans(
         return self._bqml_model.predict(X)
 
     def detect_anomalies(
-        self, X: Union[bpd.DataFrame, bpd.Series], *, contamination: float = 0.1
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series], *, contamination: float = 0.1
     ) -> bpd.DataFrame:
         """Detect the anomaly data points of the input.
 
@@ -181,7 +182,7 @@ class KMeans(
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         y=None,  # ignored
     ) -> bpd.DataFrame:
         if not self._bqml_model:
