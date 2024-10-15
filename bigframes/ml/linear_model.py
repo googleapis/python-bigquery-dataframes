@@ -228,6 +228,15 @@ class LogisticRegression(
         calculate_p_values: bool = False,
         enable_global_explain: bool = False,
         class_weight: Optional[Union[Literal["balanced"], Dict[str, float]]] = None,
+        data_split_method: Literal[
+            "auto_split",
+            "random",
+            "custom",
+            "seq",
+            "no_split",
+        ] = "no_split",
+        data_split_eval_fraction: Optional[float] = None,
+        data_split_col: Optional[str] = None,
     ):
         self.optimize_strategy = optimize_strategy
         self.fit_intercept = fit_intercept
@@ -242,6 +251,9 @@ class LogisticRegression(
         self.calculate_p_values = calculate_p_values
         self.enable_global_explain = enable_global_explain
         self.class_weight = class_weight
+        self.data_split_method = data_split_method
+        self.data_split_eval_fraction = data_split_eval_fraction
+        self.data_split_col = data_split_col
         self._auto_class_weight = class_weight == "balanced"
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
@@ -272,7 +284,7 @@ class LogisticRegression(
         """The model options as they will be set for BQML"""
         options = {
             "model_type": "LOGISTIC_REG",
-            "data_split_method": "NO_SPLIT",
+            "data_split_method": self.data_split_method,
             "fit_intercept": self.fit_intercept,
             "auto_class_weights": self._auto_class_weight,
             "optimize_strategy": self.optimize_strategy,
@@ -294,6 +306,10 @@ class LogisticRegression(
         # Even presenting warm_start returns error for NORMAL_EQUATION optimizer
         if self.warm_start:
             options["warm_start"] = self.warm_start
+        if self.data_split_eval_fraction is not None:
+            options["data_split_eval_fraction"] = self.data_split_eval_fraction
+        if self.data_split_col is not None:
+            options["data_split_col"] = self.data_split_col
 
         return options
 
