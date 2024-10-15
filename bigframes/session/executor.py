@@ -46,7 +46,6 @@ import bigframes.core.guid
 import bigframes.core.identifiers
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
-import bigframes.core.rewrite as rewrites
 import bigframes.core.schema
 import bigframes.core.tree_properties as tree_properties
 import bigframes.features
@@ -238,7 +237,7 @@ class BigQueryCachingExecutor(Executor):
             col_id_overrides = dict(col_id_overrides)
             col_id_overrides[internal_offset_col] = offset_column
         node = (
-            self._get_optimized_plan(array_value.node)
+            self._sub_cache_subtrees(array_value.node)
             if enable_cache
             else array_value.node
         )
@@ -372,7 +371,7 @@ class BigQueryCachingExecutor(Executor):
         array_value: bigframes.core.ArrayValue,
         n_rows: int,
     ) -> ExecuteResult:
-        plan = self._get_optimized_plan(array_value.node)
+        plan = self._sub_cache_subtrees(array_value.node)
         if not tree_properties.can_fast_peek(plan):
             warnings.warn("Peeking this value cannot be done efficiently.")
 
@@ -402,7 +401,7 @@ class BigQueryCachingExecutor(Executor):
             # No user-provided ordering, so just get any N rows, its faster!
             return self.peek(array_value, n_rows)
 
-        plan = self._get_optimized_plan(array_value.node)
+        plan = self._sub_cache_subtrees(array_value.node)
         if not tree_properties.can_fast_head(plan):
             # If can't get head fast, we are going to need to execute the whole query
             # Will want to do this in a way such that the result is reusable, but the first
@@ -410,7 +409,7 @@ class BigQueryCachingExecutor(Executor):
             # This currently requires clustering on offsets.
             self._cache_with_offsets(array_value)
             # Get a new optimized plan after caching
-            plan = self._get_optimized_plan(array_value.node)
+            plan = self._sub_cache_subtrees(array_value.node)
             assert tree_properties.can_fast_head(plan)
 
         head_plan = generate_head_plan(plan, n_rows)
@@ -434,7 +433,7 @@ class BigQueryCachingExecutor(Executor):
         if count is not None:
             return count
         else:
-            row_count_plan = self._get_optimized_plan(
+            row_count_plan = self._sub_cache_subtrees(
                 generate_row_count_plan(array_value.node)
             )
             sql = self.compiler.compile_unordered(row_count_plan)
@@ -446,7 +445,7 @@ class BigQueryCachingExecutor(Executor):
     ) -> Optional[int]:
         # optimized plan has cache materializations which will have row count metadata
         # that is more likely to be usable than original leaf nodes.
-        plan = self._get_optimized_plan(array_value.node)
+        plan = self._sub_cache_subtrees(array_value.node)
         return tree_properties.row_count(plan)
 
     # Helpers
@@ -511,21 +510,14 @@ class BigQueryCachingExecutor(Executor):
             self.metrics.count_job_stats(query_job)
         return results_iterator
 
-    def _get_optimized_plan(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
+    def _sub_cache_subtrees(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         """
         Takes the original expression tree and applies optimizations to accelerate execution.
 
         At present, the only optimization is to replace subtress with cached previous materializations.
         """
         # Apply any rewrites *after* applying cache, as cache is sensitive to exact tree structure
-        optimized_plan = tree_properties.replace_nodes(
-            node, (dict(self._cached_executions))
-        )
-        if ENABLE_PRUNING:
-            used_fields = frozenset(field.id for field in optimized_plan.fields)
-            optimized_plan = optimized_plan.prune(used_fields)
-        optimized_plan = rewrites.replace_slice_ops(optimized_plan)
-        return optimized_plan
+        return tree_properties.replace_nodes(node, (dict(self._cached_executions)))
 
     def _is_trivially_executable(self, array_value: bigframes.core.ArrayValue):
         """
@@ -535,7 +527,7 @@ class BigQueryCachingExecutor(Executor):
         # Once rewriting is available, will want to rewrite before
         # evaluating execution cost.
         return tree_properties.is_trivially_executable(
-            self._get_optimized_plan(array_value.node)
+            self._sub_cache_subtrees(array_value.node)
         )
 
     def _cache_with_cluster_cols(
@@ -544,7 +536,7 @@ class BigQueryCachingExecutor(Executor):
         """Executes the query and uses the resulting table to rewrite future executions."""
 
         sql, schema, ordering_info = self.compiler.compile_raw(
-            self._get_optimized_plan(array_value.node)
+            self._sub_cache_subtrees(array_value.node)
         )
         tmp_table = self._sql_as_cached_temp_table(
             sql,
@@ -561,7 +553,7 @@ class BigQueryCachingExecutor(Executor):
         """Executes the query and uses the resulting table to rewrite future executions."""
         offset_column = bigframes.core.guid.generate_guid("bigframes_offsets")
         w_offsets, offset_column = array_value.promote_offsets()
-        sql = self.compiler.compile_unordered(self._get_optimized_plan(w_offsets.node))
+        sql = self.compiler.compile_unordered(self._sub_cache_subtrees(w_offsets.node))
 
         tmp_table = self._sql_as_cached_temp_table(
             sql,
@@ -597,7 +589,7 @@ class BigQueryCachingExecutor(Executor):
         """Attempts to handle the complexity by caching duplicated subtrees and breaking the query into pieces."""
         # Apply existing caching first
         for _ in range(MAX_SUBTREE_FACTORINGS):
-            node_with_cache = self._get_optimized_plan(array_value.node)
+            node_with_cache = self._sub_cache_subtrees(array_value.node)
             if node_with_cache.planning_complexity < QUERY_COMPLEXITY_LIMIT:
                 return
 
@@ -654,7 +646,7 @@ class BigQueryCachingExecutor(Executor):
     ):
         actual_schema = tuple(bq_schema)
         ibis_schema = bigframes.core.compile.test_only_ibis_inferred_schema(
-            self._get_optimized_plan(array_value.node)
+            self._sub_cache_subtrees(array_value.node)
         )
         internal_schema = array_value.schema
         if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
