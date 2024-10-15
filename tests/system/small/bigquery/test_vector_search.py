@@ -63,7 +63,19 @@ def vector_table_id(
     # Use non-US location to ensure location autodetection works.
     table_id_not_created: str,
 ):
-    bigquery_client.load_table_from_dataframe(VECTOR_DF, table_id_not_created).result()
+    table = google.cloud.bigquery.Table(
+        table_id_not_created,
+        [
+            {"name": "rowid", "type": "INT64"},
+            {"name": "my_embedding", "type": "FLOAT64", "mode": "REPEATED"},
+            {"name": "mystery_word", "type": "STRING"},
+        ],
+    )
+    bigquery_client.create_table(table)
+    bigquery_client.load_table_from_json(
+        VECTOR_DF.to_dict(orient="records"),
+        table_id_not_created,
+    )
     yield table_id_not_created
     bigquery_client.delete_table(table_id_not_created, not_found_ok=True)
 
