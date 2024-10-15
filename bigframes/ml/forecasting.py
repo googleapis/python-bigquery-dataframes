@@ -19,12 +19,12 @@ from __future__ import annotations
 from typing import List, Optional, Union
 
 from google.cloud import bigquery
+import pandas as pd
 
 import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
-import pandas as pd
 
 _BQML_PARAMS_MAPPING = {
     "horizon": "horizon",

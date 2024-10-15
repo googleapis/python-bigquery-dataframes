@@ -21,11 +21,11 @@ import typing
 from typing import Iterable, List, Literal, Optional, Union
 
 import bigframes_vendored.sklearn.impute._base
+import pandas as pd
 
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
-import pandas as pd
 
 
 @log_adapter.class_logger
@@ -100,7 +100,9 @@ class SimpleImputer(
         self._extract_output_names()
         return self
 
-    def transform(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def transform(
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 

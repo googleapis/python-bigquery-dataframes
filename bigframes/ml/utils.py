@@ -17,17 +17,19 @@ from typing import Any, Generator, Iterable, Literal, Mapping, Optional, Union
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
+import pandas as pd
 
 from bigframes.core import blocks
 import bigframes.pandas as bpd
-import pandas as pd
 
 # Internal type alias
 InputArrayType = Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
 OutputArrayType = Union[bpd.DataFrame, bpd.Series]
 
 
-def convert_to_dataframe(*input: InputArrayType) -> Generator[bpd.DataFrame, None, None]:
+def convert_to_dataframe(
+    *input: InputArrayType,
+) -> Generator[bpd.DataFrame, None, None]:
     return (_convert_to_dataframe(frame) for frame in input)
 
 

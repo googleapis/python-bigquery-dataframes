@@ -25,10 +25,10 @@ import abc
 from typing import cast, Optional, TypeVar, Union
 
 import bigframes_vendored.sklearn.base
+import pandas as pd
 
 from bigframes.ml import core
 import bigframes.pandas as bpd
-import pandas as pd
 
 
 class BaseEstimator(bigframes_vendored.sklearn.base.BaseEstimator, abc.ABC):

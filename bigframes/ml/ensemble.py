@@ -22,12 +22,12 @@ from typing import Dict, List, Literal, Optional, Union
 import bigframes_vendored.sklearn.ensemble._forest
 import bigframes_vendored.xgboost.sklearn
 from google.cloud import bigquery
+import pandas as pd
 
 import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
-import pandas as pd
 
 _BQML_PARAMS_MAPPING = {
     "booster": "boosterType",
@@ -306,7 +306,9 @@ class XGBClassifier(
         )
         return self
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def predict(
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
         (X,) = utils.convert_to_dataframe(X)

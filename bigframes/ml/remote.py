@@ -19,12 +19,13 @@ from __future__ import annotations
 from typing import Mapping, Optional, Union
 import warnings
 
+import pandas as pd
+
 import bigframes
 from bigframes import clients
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
-import pandas as pd
 
 _REMOTE_MODEL_STATUS = "remote_model_status"
 

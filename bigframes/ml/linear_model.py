@@ -23,12 +23,12 @@ import bigframes_vendored.constants as constants
 import bigframes_vendored.sklearn.linear_model._base
 import bigframes_vendored.sklearn.linear_model._logistic
 from google.cloud import bigquery
+import pandas as pd
 
 import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
-import pandas as pd
 
 _BQML_PARAMS_MAPPING = {
     "optimize_strategy": "optimizationStrategy",
@@ -143,7 +143,9 @@ class LinearRegression(
         )
         return self
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def predict(
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 

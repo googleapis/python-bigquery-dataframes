@@ -25,11 +25,11 @@ import bigframes_vendored.sklearn.preprocessing._discretization
 import bigframes_vendored.sklearn.preprocessing._encoder
 import bigframes_vendored.sklearn.preprocessing._label
 import bigframes_vendored.sklearn.preprocessing._polynomial
+import pandas as pd
 
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
-import pandas as pd
 
 
 @log_adapter.class_logger
@@ -96,7 +96,9 @@ class StandardScaler(
         self._extract_output_names()
         return self
 
-    def transform(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def transform(
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
@@ -174,7 +176,9 @@ class MaxAbsScaler(
         self._extract_output_names()
         return self
 
-    def transform(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def transform(
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
@@ -252,7 +256,9 @@ class MinMaxScaler(
         self._extract_output_names()
         return self
 
-    def transform(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def transform(
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
@@ -375,7 +381,9 @@ class KBinsDiscretizer(
         self._extract_output_names()
         return self
 
-    def transform(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def transform(
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
@@ -491,7 +499,9 @@ class OneHotEncoder(
         self._extract_output_names()
         return self
 
-    def transform(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def transform(
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
@@ -599,7 +609,9 @@ class LabelEncoder(
         self._extract_output_names()
         return self
 
-    def transform(self, y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def transform(
+        self, y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
@@ -684,7 +696,9 @@ class PolynomialFeatures(
 
         return self
 
-    def transform(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def transform(
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 

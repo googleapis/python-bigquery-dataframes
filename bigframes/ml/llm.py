@@ -21,6 +21,7 @@ import warnings
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
+import pandas as pd
 import typing_extensions
 
 import bigframes
@@ -28,7 +29,6 @@ from bigframes import clients, exceptions
 from bigframes.core import blocks, log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
-import pandas as pd
 
 _BQML_PARAMS_MAPPING = {
     "max_iterations": "maxIterations",
@@ -539,7 +539,9 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def predict(
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
@@ -695,7 +697,9 @@ class TextEmbeddingGenerator(base.BaseEstimator):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def predict(
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:

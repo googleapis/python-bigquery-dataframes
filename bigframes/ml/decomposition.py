@@ -21,12 +21,12 @@ from typing import List, Literal, Optional, Union
 
 import bigframes_vendored.sklearn.decomposition._pca
 from google.cloud import bigquery
+import pandas as pd
 
 import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
-import pandas as pd
 
 _BQML_PARAMS_MAPPING = {"svd_solver": "pcaSolver"}
 
@@ -130,7 +130,9 @@ class PCA(
             ["principal_component_id", "explained_variance_ratio"]
         ]
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]) -> bpd.DataFrame:
+    def predict(
+        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+    ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -139,7 +141,10 @@ class PCA(
         return self._bqml_model.predict(X)
 
     def detect_anomalies(
-        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series], *, contamination: float = 0.1
+        self,
+        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        *,
+        contamination: float = 0.1,
     ) -> bpd.DataFrame:
         """Detect the anomaly data points of the input.
 
