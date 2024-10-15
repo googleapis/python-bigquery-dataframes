@@ -146,11 +146,12 @@ def test_bqml_standalone_transform(penguins_df_default_index, new_penguins_df):
             "ML.ONE_HOT_ENCODER(species, 'none', 1000000, 0) OVER() AS onehotencoded_species",
         ],
     )
-    start = model.session.slot_millis_sum
-    transformed = model.transform(new_penguins_df)
-    end = model.session.slot_millis_sum
+    start_execution_count = model.session._metrics.execution_count
 
-    assert end > start
+    transformed = model.transform(new_penguins_df)
+
+    end_execution_count = model.session._metrics.execution_count
+    assert end_execution_count - start_execution_count == 1
 
     utils.check_pandas_df_schema_and_index(
         transformed.to_pandas(),
