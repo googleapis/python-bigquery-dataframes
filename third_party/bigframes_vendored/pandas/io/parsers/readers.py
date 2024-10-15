@@ -145,16 +145,13 @@ class ReaderIOMixin:
             **kwargs:
                 keyword arguments for `pandas.read_csv` when not using the BigQuery engine.
 
-
         Returns:
             bigframes.pandas.DataFrame: A BigQuery DataFrames.
-
 
         Raises:
             bigframes.exceptions.DefaultIndexWarning:
                 Using the default index is discouraged, such as with clustered
                 or partitioned tables without primary keys.
-
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -240,6 +237,5 @@ class ReaderIOMixin:
             bigframes.exceptions.DefaultIndexWarning:
                 Using the default index is discouraged, such as with clustered
                 or partitioned tables without primary keys.
-
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
