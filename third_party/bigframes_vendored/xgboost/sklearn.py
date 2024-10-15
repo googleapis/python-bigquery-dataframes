@@ -94,6 +94,21 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
             Whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
         xgboost_version (Optional[str]):
             Specifies the Xgboost version for model training. Default to "0.9". Possible values: "0.9", "1.1".
+        data_split_method (str, default "no_split"):
+            The method to split input data into training and evaluation sets.
+            Possible values are "auto_split", "random", "custom", "seq" and
+            "no_split". Default to "no_split". For details see
+            [here](https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create-glm#data_split_method).
+        data_split_eval_fraction (float or None, default None):
+            Specifies the fraction of the data used for evaluation. Accurate to
+            two decimal places. Default to None, in which all the data would be
+            used for training and evaluation. For more details see
+            [here](https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create-glm#data_split_eval_fraction).
+        data_split_col (str or None, default None):
+            Identifies the column used to split the data when
+            ``data_split_method`` is set to "custom" or "seq". Default to None.
+            For more details see
+            [here](https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create-glm#data_split_col).
     """
 
 
@@ -141,4 +156,19 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
             Whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
         xgboost_version (Optional[str]):
             Specifies the Xgboost version for model training. Default to "0.9". Possible values: "0.9", "1.1".
+        data_split_method (str, default "no_split"):
+            The method to split input data into training and evaluation sets.
+            Possible values are "auto_split", "random", "custom", "seq" and
+            "no_split". Default to "no_split". For details see
+            [here](https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create-glm#data_split_method).
+        data_split_eval_fraction (float or None, default None):
+            Specifies the fraction of the data used for evaluation. Accurate to
+            two decimal places. Default to None, in which all the data would be
+            used for training and evaluation. For more details see
+            [here](https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create-glm#data_split_eval_fraction).
+        data_split_col (str or None, default None):
+            Identifies the column used to split the data when
+            ``data_split_method`` is set to "custom" or "seq". Default to None.
+            For more details see
+            [here](https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create-glm#data_split_col).
     """

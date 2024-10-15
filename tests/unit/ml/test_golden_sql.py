@@ -20,7 +20,7 @@ import pytest
 import pytest_mock
 
 import bigframes
-from bigframes.ml import core, linear_model
+from bigframes.ml import core, ensemble, linear_model
 import bigframes.pandas as bpd
 
 TEMP_MODEL_ID = bigquery.ModelReference.from_string(
@@ -111,12 +111,14 @@ def test_linear_regression_default_fit(
 
 
 def test_linear_regression_params_fit(bqml_model_factory, mock_session, mock_X, mock_y):
-    model = linear_model.LinearRegression(fit_intercept=False)
+    model = linear_model.LinearRegression(
+        fit_intercept=False, data_split_method="auto_split"
+    )
     model._bqml_model_factory = bqml_model_factory
     model.fit(mock_X, mock_y)
 
     mock_session._start_query_ml_ddl.assert_called_once_with(
-        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='LINEAR_REG',\n  data_split_method='no_split',\n  optimize_strategy='auto_strategy',\n  fit_intercept=False,\n  l2_reg=0.0,\n  max_iterations=20,\n  learn_rate_strategy='line_search',\n  min_rel_progress=0.01,\n  calculate_p_values=False,\n  enable_global_explain=False,\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_sql"
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='LINEAR_REG',\n  data_split_method='auto_split',\n  optimize_strategy='auto_strategy',\n  fit_intercept=False,\n  l2_reg=0.0,\n  max_iterations=20,\n  learn_rate_strategy='line_search',\n  min_rel_progress=0.01,\n  calculate_p_values=False,\n  enable_global_explain=False,\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_sql"
     )
 
 
@@ -166,12 +168,13 @@ def test_logistic_regression_params_fit(
         optimize_strategy="batch_gradient_descent",
         learning_rate_strategy="constant",
         learning_rate=0.2,
+        data_split_method="auto_split",
     )
     model._bqml_model_factory = bqml_model_factory
     model.fit(mock_X, mock_y)
 
     mock_session._start_query_ml_ddl.assert_called_once_with(
-        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='LOGISTIC_REG',\n  data_split_method='no_split',\n  fit_intercept=False,\n  auto_class_weights=True,\n  optimize_strategy='batch_gradient_descent',\n  l2_reg=0.2,\n  max_iterations=30,\n  learn_rate_strategy='constant',\n  min_rel_progress=0.02,\n  calculate_p_values=False,\n  enable_global_explain=False,\n  l1_reg=0.2,\n  learn_rate=0.2,\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_sql"
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='LOGISTIC_REG',\n  data_split_method='auto_split',\n  fit_intercept=False,\n  auto_class_weights=True,\n  optimize_strategy='batch_gradient_descent',\n  l2_reg=0.2,\n  max_iterations=30,\n  learn_rate_strategy='constant',\n  min_rel_progress=0.02,\n  calculate_p_values=False,\n  enable_global_explain=False,\n  l1_reg=0.2,\n  learn_rate=0.2,\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_sql"
     )
 
 
@@ -193,4 +196,108 @@ def test_logistic_regression_score(mock_session, bqml_model, mock_X, mock_y):
 
     mock_session.read_gbq.assert_called_once_with(
         "SELECT * FROM ML.EVALUATE(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_y_sql))"
+    )
+
+
+def test_xgb_regressor_default_fit(bqml_model_factory, mock_session, mock_X, mock_y):
+    model = ensemble.XGBRegressor()
+    model._bqml_model_factory = bqml_model_factory
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query_ml_ddl.assert_called_once_with(
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='BOOSTED_TREE_REGRESSOR',\n  data_split_method='no_split',\n  early_stop=True,\n  num_parallel_tree=1,\n  booster_type='gbtree',\n  tree_method='auto',\n  min_tree_child_weight=1,\n  colsample_bytree=1.0,\n  colsample_bylevel=1.0,\n  colsample_bynode=1.0,\n  min_split_loss=0.0,\n  max_tree_depth=6,\n  subsample=1.0,\n  l1_reg=0.0,\n  l2_reg=1.0,\n  learn_rate=0.3,\n  max_iterations=20,\n  min_rel_progress=0.01,\n  enable_global_explain=False,\n  xgboost_version='0.9',\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_sql"
+    )
+
+
+def test_xgb_regressor_params_fit(bqml_model_factory, mock_session, mock_X, mock_y):
+    model = ensemble.XGBRegressor(
+        data_split_method="seq",
+        data_split_eval_fraction=0.2,
+        data_split_col="split_col",
+    )
+    model._bqml_model_factory = bqml_model_factory
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query_ml_ddl.assert_called_once_with(
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='BOOSTED_TREE_REGRESSOR',\n  data_split_method='seq',\n  early_stop=True,\n  num_parallel_tree=1,\n  booster_type='gbtree',\n  tree_method='auto',\n  min_tree_child_weight=1,\n  colsample_bytree=1.0,\n  colsample_bylevel=1.0,\n  colsample_bynode=1.0,\n  min_split_loss=0.0,\n  max_tree_depth=6,\n  subsample=1.0,\n  l1_reg=0.0,\n  l2_reg=1.0,\n  learn_rate=0.3,\n  max_iterations=20,\n  min_rel_progress=0.01,\n  enable_global_explain=False,\n  xgboost_version='0.9',\n  data_split_eval_fraction=0.2,\n  data_split_col='split_col',\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_sql"
+    )
+
+
+def test_xgb_classifier_default_fit(bqml_model_factory, mock_session, mock_X, mock_y):
+    model = ensemble.XGBClassifier()
+    model._bqml_model_factory = bqml_model_factory
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query_ml_ddl.assert_called_once_with(
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='BOOSTED_TREE_CLASSIFIER',\n  data_split_method='no_split',\n  early_stop=True,\n  num_parallel_tree=1,\n  booster_type='gbtree',\n  tree_method='auto',\n  min_tree_child_weight=1,\n  colsample_bytree=1.0,\n  colsample_bylevel=1.0,\n  colsample_bynode=1.0,\n  min_split_loss=0.0,\n  max_tree_depth=6,\n  subsample=1.0,\n  l1_reg=0.0,\n  l2_reg=1.0,\n  learn_rate=0.3,\n  max_iterations=20,\n  min_rel_progress=0.01,\n  enable_global_explain=False,\n  xgboost_version='0.9',\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_sql"
+    )
+
+
+def test_xgb_classifier_params_fit(bqml_model_factory, mock_session, mock_X, mock_y):
+    model = ensemble.XGBClassifier(
+        data_split_method="seq",
+        data_split_eval_fraction=0.2,
+        data_split_col="split_col",
+    )
+    model._bqml_model_factory = bqml_model_factory
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query_ml_ddl.assert_called_once_with(
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='BOOSTED_TREE_CLASSIFIER',\n  data_split_method='seq',\n  early_stop=True,\n  num_parallel_tree=1,\n  booster_type='gbtree',\n  tree_method='auto',\n  min_tree_child_weight=1,\n  colsample_bytree=1.0,\n  colsample_bylevel=1.0,\n  colsample_bynode=1.0,\n  min_split_loss=0.0,\n  max_tree_depth=6,\n  subsample=1.0,\n  l1_reg=0.0,\n  l2_reg=1.0,\n  learn_rate=0.3,\n  max_iterations=20,\n  min_rel_progress=0.01,\n  enable_global_explain=False,\n  xgboost_version='0.9',\n  data_split_eval_fraction=0.2,\n  data_split_col='split_col',\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_sql"
+    )
+
+
+def test_randomforest_regressor_default_fit(
+    bqml_model_factory, mock_session, mock_X, mock_y
+):
+    model = ensemble.RandomForestRegressor()
+    model._bqml_model_factory = bqml_model_factory
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query_ml_ddl.assert_called_once_with(
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='RANDOM_FOREST_REGRESSOR',\n  early_stop=True,\n  num_parallel_tree=100,\n  tree_method='auto',\n  min_tree_child_weight=1,\n  colsample_bytree=1.0,\n  colsample_bylevel=1.0,\n  colsample_bynode=0.8,\n  min_split_loss=0.0,\n  max_tree_depth=15,\n  subsample=0.8,\n  l1_reg=0.0,\n  l2_reg=1.0,\n  min_rel_progress=0.01,\n  data_split_method='no_split',\n  enable_global_explain=False,\n  xgboost_version='0.9',\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_sql"
+    )
+
+
+def test_randomforest_regressor_params_fit(
+    bqml_model_factory, mock_session, mock_X, mock_y
+):
+    model = ensemble.RandomForestRegressor(
+        data_split_method="seq",
+        data_split_eval_fraction=0.2,
+        data_split_col="split_col",
+    )
+    model._bqml_model_factory = bqml_model_factory
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query_ml_ddl.assert_called_once_with(
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='RANDOM_FOREST_REGRESSOR',\n  early_stop=True,\n  num_parallel_tree=100,\n  tree_method='auto',\n  min_tree_child_weight=1,\n  colsample_bytree=1.0,\n  colsample_bylevel=1.0,\n  colsample_bynode=0.8,\n  min_split_loss=0.0,\n  max_tree_depth=15,\n  subsample=0.8,\n  l1_reg=0.0,\n  l2_reg=1.0,\n  min_rel_progress=0.01,\n  data_split_method='seq',\n  enable_global_explain=False,\n  xgboost_version='0.9',\n  data_split_eval_fraction=0.2,\n  data_split_col='split_col',\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_sql"
+    )
+
+
+def test_randomforest_classifier_default_fit(
+    bqml_model_factory, mock_session, mock_X, mock_y
+):
+    model = ensemble.RandomForestClassifier()
+    model._bqml_model_factory = bqml_model_factory
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query_ml_ddl.assert_called_once_with(
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='RANDOM_FOREST_CLASSIFIER',\n  early_stop=True,\n  num_parallel_tree=100,\n  tree_method='auto',\n  min_tree_child_weight=1,\n  colsample_bytree=1.0,\n  colsample_bylevel=1.0,\n  colsample_bynode=0.8,\n  min_split_loss=0.0,\n  max_tree_depth=15,\n  subsample=0.8,\n  l1_reg=0.0,\n  l2_reg=1.0,\n  min_rel_progress=0.01,\n  data_split_method='no_split',\n  enable_global_explain=False,\n  xgboost_version='0.9',\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_sql"
+    )
+
+
+def test_randomforest_classifier_params_fit(
+    bqml_model_factory, mock_session, mock_X, mock_y
+):
+    model = ensemble.RandomForestClassifier(
+        data_split_method="seq",
+        data_split_eval_fraction=0.2,
+        data_split_col="split_col",
+    )
+    model._bqml_model_factory = bqml_model_factory
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query_ml_ddl.assert_called_once_with(
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='RANDOM_FOREST_CLASSIFIER',\n  early_stop=True,\n  num_parallel_tree=100,\n  tree_method='auto',\n  min_tree_child_weight=1,\n  colsample_bytree=1.0,\n  colsample_bylevel=1.0,\n  colsample_bynode=0.8,\n  min_split_loss=0.0,\n  max_tree_depth=15,\n  subsample=0.8,\n  l1_reg=0.0,\n  l2_reg=1.0,\n  min_rel_progress=0.01,\n  data_split_method='seq',\n  enable_global_explain=False,\n  xgboost_version='0.9',\n  data_split_eval_fraction=0.2,\n  data_split_col='split_col',\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_sql"
     )
