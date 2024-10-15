@@ -273,8 +273,6 @@ class BqmlModelFactory:
     def _create_model_with_sql(self, session: bigframes.Session, sql: str) -> BqmlModel:
         # fit the model, synchronously
         _, job = session._start_query_ml_ddl(sql)
-        if session._metrics is not None:
-            session._metrics.count_job_stats(job)
 
         # real model path in the session specific hidden dataset and table prefix
         model_name_full = f"{job.destination.project}.{job.destination.dataset_id}.{job.destination.table_id}"

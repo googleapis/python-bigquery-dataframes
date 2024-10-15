@@ -1373,7 +1373,14 @@ class Session(
         # https://cloud.google.com/bigquery/docs/customer-managed-encryption#encrypt-model
         job_config.destination_encryption_configuration = None
 
-        return bf_io_bigquery.start_query_with_client(self.bqclient, sql, job_config)
+        results_iterator, query_job = bf_io_bigquery.start_query_with_client(
+            self.bqclient, sql, job_config
+        )
+
+        if self._metrics is not None:
+            self._metrics.count_job_stats(query_job)
+
+        return results_iterator, query_job
 
     def _export(
         self,
