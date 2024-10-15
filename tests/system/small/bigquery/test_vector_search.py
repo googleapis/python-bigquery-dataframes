@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import random
-from typing import Any, cast, Iterable, Mapping
+from typing import Any, cast, Dict, Iterable
 
 import google.cloud.bigquery
 import numpy as np
@@ -74,7 +74,7 @@ def vector_table_id(
     )
     bigquery_client.create_table(table)
     bigquery_client.load_table_from_json(
-        cast(Iterable[Mapping[str, Any]], VECTOR_DF.to_dict(orient="records")),
+        cast(Iterable[Dict[str, Any]], VECTOR_DF.to_dict(orient="records")),
         table_id_not_created,
     )
     yield table_id_not_created
