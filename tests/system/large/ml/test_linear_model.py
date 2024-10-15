@@ -31,7 +31,13 @@ def test_linear_regression_configure_fit_score(penguins_df_default_index, datase
         ]
     ]
     y_train = df[["body_mass_g"]]
+
+    start_execution_count = df._block._expr.session._metrics.execution_count
+
     model.fit(X_train, y_train)
+
+    end_execution_count = df._block._expr.session._metrics.execution_count
+    assert end_execution_count - start_execution_count == 2
 
     # Check score to ensure the model was fitted
     result = model.score(X_train, y_train).to_pandas()
