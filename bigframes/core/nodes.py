@@ -269,7 +269,11 @@ class UnaryNode(BigFrameNode):
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
     ) -> BigFrameNode:
-        return replace(self, child=t(self.child))
+        transformed = replace(self, child=t(self.child))
+        if self == transformed:
+            # reusing existing object speeds up eq, and saves a small amount of memory
+            return self
+        return transformed
 
     @property
     def order_ambiguous(self) -> bool:
@@ -379,9 +383,13 @@ class JoinNode(BigFrameNode):
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
     ) -> BigFrameNode:
-        return replace(
+        transformed = replace(
             self, left_child=t(self.left_child), right_child=t(self.right_child)
         )
+        if self == transformed:
+            # reusing existing object speeds up eq, and saves a small amount of memory
+            return self
+        return transformed
 
     @property
     def defines_namespace(self) -> bool:
@@ -446,7 +454,11 @@ class ConcatNode(BigFrameNode):
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
     ) -> BigFrameNode:
-        return replace(self, children=tuple(t(child) for child in self.children))
+        transformed = replace(self, children=tuple(t(child) for child in self.children))
+        if self == transformed:
+            # reusing existing object speeds up eq, and saves a small amount of memory
+            return self
+        return transformed
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         # TODO: Make concat prunable, probably by redefining
@@ -494,7 +506,11 @@ class FromRangeNode(BigFrameNode):
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
     ) -> BigFrameNode:
-        return replace(self, start=t(self.start), end=t(self.end))
+        transformed = replace(self, start=t(self.start), end=t(self.end))
+        if self == transformed:
+            # reusing existing object speeds up eq, and saves a small amount of memory
+            return self
+        return transformed
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         # TODO: Make FromRangeNode prunable (or convert to other node types)
