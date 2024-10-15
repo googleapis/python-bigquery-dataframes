@@ -46,9 +46,8 @@ def test_linear_regression(random_model_id: str) -> None:
         your_model_id,  # For example: "bqml_tutorial.penguins_model"
     )
 
-    # Score the model with input data defined in an earlier step where
-    # the feature_columns are combined into a single dataframe to use as training
-    # data and the label_columns represent the outcome of the model's prediction
+    # Score the model with input data defined in an earlier step to compare
+    # model predictions on feature_columns to true labels in label_columns.
     score = model.score(feature_columns, label_columns)
     # [END bigquery_dataframes_bqml_linear_evaluate]
     assert feature_columns is not None
