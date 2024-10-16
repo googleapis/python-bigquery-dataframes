@@ -19,6 +19,7 @@ import typing
 from typing import Collection, Literal, Mapping, Optional, Union
 
 import bigframes_vendored.constants as constants
+import google.cloud.bigquery as bigquery
 
 import bigframes.core.sql
 import bigframes.ml.utils as utils
@@ -57,7 +58,8 @@ def create_vector_index(
     import bigframes.pandas
 
     if index_name is None:
-        index_name = table_id.split(".")[-1]
+        table_ref = bigquery.TableReference.from_string(table_id)
+        index_name = table_ref.table_id
 
     options = {
         "index_type": index_type.upper(),

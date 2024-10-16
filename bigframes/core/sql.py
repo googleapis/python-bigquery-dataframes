@@ -19,7 +19,7 @@ Utility functions for SQL construction.
 
 import datetime
 import math
-from typing import Collection, Iterable, Mapping, TYPE_CHECKING, Union
+from typing import cast, Collection, Iterable, Mapping, TYPE_CHECKING, Union
 
 import bigframes.core.compile.googlesql as googlesql
 
@@ -133,7 +133,9 @@ def create_vector_index_ddl(
         create = "CREATE VECTOR INDEX IF NOT EXISTS "
 
     if len(stored_column_names) > 0:
-        escaped_stored = [f"`{name}`" for name in stored_column_names]
+        escaped_stored = [
+            f"{googlesql.identifier(name)}" for name in stored_column_names
+        ]
         storing = f"STORING({', '.join(escaped_stored)}) "
     else:
         storing = ""
@@ -146,8 +148,8 @@ def create_vector_index_ddl(
     )
 
     return f"""
-    {create} {index_name}
-    ON `{table_name}`(`{column_name}`)
+    {create} {googlesql.identifier(index_name)}
+    ON {googlesql.identifier(table_name)}({googlesql.identifier(column_name)})
     {storing}
     OPTIONS({rendered_options});
     """
@@ -172,7 +174,7 @@ def create_vector_search_sql(
         base.*,
         distance,
     FROM VECTOR_SEARCH(
-        TABLE `{base_table}`,
+        TABLE {googlesql.identifier(cast(str, base_table))},
         {simple_literal(column_to_search)},
         ({sql_string}),
         {simple_literal(query_column_to_search)},
@@ -187,7 +189,7 @@ def create_vector_search_sql(
         base.*,
         distance,
     FROM VECTOR_SEARCH(
-        TABLE `{base_table}`,
+        TABLE {googlesql.identifier(cast(str, base_table))},
         {simple_literal(column_to_search)},
         ({sql_string}),
         distance_type => {simple_literal(distance_type)},
