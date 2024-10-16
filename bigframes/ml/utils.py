@@ -73,19 +73,6 @@ def _convert_to_series(frame: ArrayType) -> bpd.Series:
     )
 
 
-def convert_to_bf_equivalent(
-    input: Union[ArrayType, None]
-) -> Union[BigFramesArrayType, None]:
-    """Convert bigframes and series to their BigFrames equilavents."""
-    if isinstance(input, pd.Series) or isinstance(input, bpd.Series):
-        return _convert_to_series(input)
-
-    if isinstance(input, pd.DataFrame) or isinstance(input, bpd.DataFrame):
-        return _convert_to_dataframe(input)
-
-    return None
-
-
 def parse_model_endpoint(model_endpoint: str) -> tuple[str, Optional[str]]:
     """Parse model endpoint string to model_name and version."""
     model_name = model_endpoint

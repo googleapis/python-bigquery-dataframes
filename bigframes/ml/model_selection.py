@@ -147,9 +147,29 @@ class KFold(vendored_model_selection_split.KFold):
             X_test = test_df[X_df.columns]
             y_test = test_df[y_df_or.columns] if y_df_or is not None else None
 
-            yield tuple(
-                map(utils.convert_to_bf_equivalent, [X_train, X_test, y_train, y_test])
+            yield (
+                KFold._convert_to_bf_type(X_train, X),
+                KFold._convert_to_bf_type(X_test, X),
+                KFold._convert_to_bf_type(y_train, y),
+                KFold._convert_to_bf_type(y_test, y),
             )
+
+    @staticmethod
+    def _convert_to_bf_type(
+        input,
+        type_instance: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series, None],
+    ) -> Union[bpd.DataFrame, bpd.Series, None]:
+        if isinstance(type_instance, pd.Series) or isinstance(
+            type_instance, bpd.Series
+        ):
+            return next(utils.convert_to_series(input))
+
+        if isinstance(type_instance, pd.DataFrame) or isinstance(
+            type_instance, bpd.DataFrame
+        ):
+            return next(utils.convert_to_dataframe(input))
+
+        return None
 
 
 def cross_validate(

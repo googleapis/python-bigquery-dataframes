@@ -78,31 +78,3 @@ def test_convert_pandas_to_series(data):
     pandas.testing.assert_series_equal(
         actual_result.to_pandas(), _SERIES, check_index_type=False, check_dtype=False
     )
-
-
-@pytest.mark.parametrize(
-    "input",
-    [
-        pytest.param(_DATA_FRAME, id="from-dataframe"),
-        pytest.param(_SERIES, id="from-series"),
-    ],
-)
-def test_convert_to_bf_equivalent(session, input):
-    bf_input = session.read_pandas(input)
-
-    actual_result = utils.convert_to_bf_equivalent(bf_input)
-
-    assert type(actual_result) is type(session.read_pandas(input))
-
-
-@pytest.mark.parametrize(
-    "input",
-    [
-        pytest.param(_DATA_FRAME, id="from-dataframe"),
-        pytest.param(_SERIES, id="from-series"),
-    ],
-)
-def test_convert_pandas_to_bf_equivalent(session, input):
-    actual_result = utils.convert_to_bf_equivalent(input)
-
-    assert type(actual_result) is type(session.read_pandas(input))
