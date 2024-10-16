@@ -2250,8 +2250,10 @@ def test_remote_function_ingress_settings_unsupported(session):
 @pytest.mark.parametrize(
     "array_dtype",
     [
+        bool,
         int,
         float,
+        str,
     ],
 )
 @pytest.mark.flaky(retries=2, delay=120)

@@ -705,6 +705,23 @@ class JSONExtractArray(UnaryOp):
         )
 
 
+@dataclasses.dataclass(frozen=True)
+class JSONExtractStringArray(UnaryOp):
+    name: typing.ClassVar[str] = "json_extract_string_array"
+    json_path: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return pd.ArrowDtype(
+            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(dtypes.STRING_DTYPE))
+        )
+
+
 # Binary Ops
 fillna_op = create_binary_op(name="fillna", type_signature=op_typing.COERCE)
 maximum_op = create_binary_op(name="maximum", type_signature=op_typing.COERCE)

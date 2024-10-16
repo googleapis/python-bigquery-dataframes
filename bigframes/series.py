@@ -1484,7 +1484,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
                 func.output_dtype.pyarrow_dtype.value_type
             )
-            result_series = bbq.json_extract_array(
+            result_series = bbq.json_extract_string_array(
                 result_series, value_dtype=result_dtype
             )
 
