@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import typing
-from typing import Any, Generator, Iterable, Literal, Mapping, Optional, Union
+from typing import Any, Generator, Literal, Mapping, Optional, Union
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
