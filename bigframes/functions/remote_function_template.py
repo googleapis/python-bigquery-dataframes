@@ -33,6 +33,7 @@ _pickle_protocol_version = 4
 # Placeholder variables for testing.
 input_types = ("STRING",)
 output_type = "STRING"
+return_json_serialized_output = False
 
 
 # Convert inputs to BigQuery JSON. See:
@@ -155,7 +156,7 @@ def udf(*args):
 # }
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#input_format
 def udf_http(request):
-    global input_types, output_type
+    global input_types, output_type, return_json_serialized_output
     import json
     import traceback
 
@@ -169,6 +170,8 @@ def udf_http(request):
             reply = convert_to_bq_json(
                 output_type, udf(*convert_call(input_types, call))
             )
+            if return_json_serialized_output:
+                reply = json.dumps(reply)
             replies.append(reply)
         return_json = json.dumps({"replies": replies})
         return return_json
@@ -177,7 +180,7 @@ def udf_http(request):
 
 
 def udf_http_row_processor(request):
-    global output_type
+    global output_type, return_json_serialized_output
     import json
     import math
     import traceback
@@ -207,6 +210,8 @@ def udf_http_row_processor(request):
                 # Numpy types are not json serializable, so use its Python
                 # value instead
                 reply = reply.item()
+            if return_json_serialized_output:
+                reply = json.dumps(reply)
             replies.append(reply)
         return_json = json.dumps({"replies": replies})
         return return_json
@@ -241,15 +246,9 @@ def generate_cloud_function_main_code(
     input_types: Tuple[str],
     output_type: str,
     is_row_processor=False,
+    return_json_serialized_output=False,
 ):
-    """Get main.py code for the cloud function for the given user defined function.
-
-    Args:
-        input_types (tuple[str]):
-            Types of the input arguments in BigQuery SQL data type names.
-        output_type (str):
-            Types of the output scalar as a BigQuery SQL data type name.
-    """
+    """Get main.py code for the cloud function for the given user defined function."""
 
     # Pickle the udf with all its dependencies
     udf_code_file, udf_pickle_file = generate_udf_code(def_, directory)
@@ -265,6 +264,7 @@ with open("{udf_pickle_file}", "rb") as f:
 
 input_types = {repr(input_types)}
 output_type = {repr(output_type)}
+return_json_serialized_output = {repr(return_json_serialized_output)}
 """
     ]
 
