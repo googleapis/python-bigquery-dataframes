@@ -394,7 +394,6 @@ def pullup_limit_from_slice(
     Only use this if writing to an unclustered table. Clustering is not compatible with ORDER BY.
     """
     if isinstance(root, nodes.SliceNode):
-        new_child, limit = pullup_limit_from_slice(root.child)
         # head case
         # More cases could be handled, but this is by far the most important, as it is used by df.head(), df[:N]
         if root.is_limit:
@@ -410,9 +409,9 @@ def pullup_limit_from_slice(
         isinstance(root, (nodes.SelectionNode, nodes.ProjectionNode))
         and root.row_preserving
     ):
-        new_child, limit = pullup_limit_from_slice(root.child)
-        if limit is not None:
-            return root.transform_children(lambda _: new_child), limit
+        new_child, prior_limit = pullup_limit_from_slice(root.child)
+        if prior_limit is not None:
+            return root.transform_children(lambda _: new_child), prior_limit
     # Most ops don't support pulling up slice, like filter, agg, join, etc.
     return root, None
 

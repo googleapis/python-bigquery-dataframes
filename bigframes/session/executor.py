@@ -572,7 +572,6 @@ class BigQueryCachingExecutor:
 
 
 def generate_head_plan(node: nodes.BigFrameNode, n: int):
-    # Finally, drop the offsets column
     return nodes.SliceNode(node, start=None, stop=n)
 
 

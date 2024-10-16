@@ -313,6 +313,7 @@ class SliceNode(UnaryNode):
     @property
     def is_limit(self) -> bool:
         """Returns whether this is equivalent to a ORDER BY ... LIMIT N."""
+        # TODO: Handle tail case.
         return (not self.start) and (self.step == 1) and (self.stop is not None)
 
     @property
@@ -682,7 +683,7 @@ class ReadTableNode(LeafNode):
 
     @property
     def fast_offsets(self) -> bool:
-        # Fast head is only supported when row offsets are available.
+        # Fast head is only supported when row offsets are available or data is clustered over ordering key.
         return (self.source.ordering is not None) and self.source.ordering.is_sequential
 
     @property

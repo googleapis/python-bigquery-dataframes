@@ -972,7 +972,8 @@ class OrderedIR(BaseIbisIR):
                 )
                 sql += f"\n{order_by_clause}"
             if limit is not None:
-                assert isinstance(limit, int)
+                if not isinstance(limit, int):
+                    raise TypeError(f"Limit param: {limit} must be an int.")
                 sql += f"\nLIMIT {limit}"
         else:
             sql = ibis_bigquery.Backend().compile(
