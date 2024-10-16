@@ -43,8 +43,8 @@ def test_convert_to_dataframe(session, data):
     "data",
     [pytest.param(_DATA_FRAME, id="dataframe"), pytest.param(_SERIES, id="series")],
 )
-def test_convert_pandas_to_dataframe(data):
-    (actual_result,) = utils.convert_to_dataframe(data)
+def test_convert_pandas_to_dataframe(data, session):
+    (actual_result,) = utils.convert_to_dataframe(data, session=session)
 
     pandas.testing.assert_frame_equal(
         actual_result.to_pandas(),
@@ -72,8 +72,8 @@ def test_convert_to_series(session, data):
     "data",
     [pytest.param(_DATA_FRAME, id="dataframe"), pytest.param(_SERIES, id="series")],
 )
-def test_convert_pandas_to_series(data):
-    (actual_result,) = utils.convert_to_series(data)
+def test_convert_pandas_to_series(data, session):
+    (actual_result,) = utils.convert_to_series(data, session=session)
 
     pandas.testing.assert_series_equal(
         actual_result.to_pandas(), _SERIES, check_index_type=False, check_dtype=False

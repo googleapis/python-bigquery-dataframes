@@ -323,7 +323,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -388,7 +388,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         if len(X.columns) != 1 or len(y.columns) != 1:
             raise ValueError(
@@ -550,7 +550,7 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
         """
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -706,7 +706,7 @@ class TextEmbeddingGenerator(base.BaseEstimator):
         """
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -955,7 +955,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -1024,7 +1024,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         if self._bqml_model.model_name.startswith("gemini-1.5"):
             raise NotImplementedError("Score is not supported for gemini-1.5 model.")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         if len(X.columns) != 1 or len(y.columns) != 1:
             raise ValueError(
@@ -1238,7 +1238,7 @@ class Claude3TextGenerator(base.BaseEstimator):
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name

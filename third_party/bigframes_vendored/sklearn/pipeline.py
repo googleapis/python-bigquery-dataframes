@@ -40,10 +40,10 @@ class Pipeline(BaseEstimator, metaclass=ABCMeta):
         data. Finally, fit the transformed data using the final estimator.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 A DataFrame or Series representing training data. Must match the
                 input requirements of the first step of the pipeline.
-            y (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 A DataFrame or Series representing training targets, if applicable.
 
         Returns:
@@ -60,9 +60,9 @@ def score(self, X, y):
     `score` method. Only valid if the final estimator implements `score`.
 
     Args:
-        X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
+        X (bigframes.dataframe.DataFrame or bigframes.series.Series):
             A DataFrame or Series as evaluation data.
-        y (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
+        y (bigframes.dataframe.DataFrame or bigframes.series.Series):
             A DataFrame or Series as evaluation labels.
 
     Returns:;
@@ -76,7 +76,7 @@ def predict(self, X):
     """Predict the pipeline result for each sample in X.
 
     Args:
-        X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
+        X (bigframes.dataframe.DataFrame or bigframes.series.Series):
             A DataFrame or Series to predict.
 
     Returns:

@@ -101,8 +101,8 @@ class Pipeline(
 
     def fit(
         self,
-        X: utils.ArrayType,
-        y: Optional[utils.ArrayType] = None,
+        X: utils.BigFramesArrayType,
+        y: Optional[utils.BigFramesArrayType] = None,
     ) -> Pipeline:
         (X,) = utils.convert_to_dataframe(X)
 
@@ -120,8 +120,8 @@ class Pipeline(
 
     def score(
         self,
-        X: utils.ArrayType,
-        y: Optional[utils.ArrayType] = None,
+        X: utils.BigFramesArrayType,
+        y: Optional[utils.BigFramesArrayType] = None,
     ) -> bpd.DataFrame:
         (X,) = utils.convert_to_dataframe(X)
         if y is not None:

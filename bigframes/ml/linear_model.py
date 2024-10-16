@@ -158,7 +158,7 @@ class LinearRegression(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)
@@ -302,7 +302,7 @@ class LogisticRegression(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
@@ -314,7 +314,7 @@ class LogisticRegression(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)

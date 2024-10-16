@@ -99,7 +99,7 @@ class StandardScaler(
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         df = self._bqml_model.transform(X)
         return typing.cast(
@@ -177,7 +177,7 @@ class MaxAbsScaler(
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         df = self._bqml_model.transform(X)
         return typing.cast(
@@ -255,7 +255,7 @@ class MinMaxScaler(
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         df = self._bqml_model.transform(X)
         return typing.cast(
@@ -378,7 +378,7 @@ class KBinsDiscretizer(
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         df = self._bqml_model.transform(X)
         return typing.cast(
@@ -494,7 +494,7 @@ class OneHotEncoder(
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         df = self._bqml_model.transform(X)
         return typing.cast(
@@ -602,7 +602,7 @@ class LabelEncoder(
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
-        (y,) = utils.convert_to_dataframe(y)
+        (y,) = utils.convert_to_dataframe(y, session=self._bqml_model.session)
 
         df = self._bqml_model.transform(y)
         return typing.cast(
@@ -687,7 +687,7 @@ class PolynomialFeatures(
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         df = self._bqml_model.transform(X)
         return typing.cast(

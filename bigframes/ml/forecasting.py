@@ -298,7 +298,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before detect_anomalies")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.detect_anomalies(
             X, options={"anomaly_prob_threshold": anomaly_prob_threshold}
@@ -331,7 +331,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)

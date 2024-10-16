@@ -351,7 +351,7 @@ class ColumnTransformer(
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         df = self._bqml_model.transform(X)
         return typing.cast(
