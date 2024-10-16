@@ -698,7 +698,10 @@ class ReadTableNode(LeafNode):
             cast(ex.DerefOp, col.scalar_expression).id.name for col in order_cols
         )
         cluster_col_ids = self.source.table.cluster_cols
-        return order_col_ids == cluster_col_ids
+        if cluster_col_ids is None:
+            return False
+
+        return order_col_ids == cluster_col_ids[: len(order_col_ids)]
 
     @property
     def order_ambiguous(self) -> bool:
