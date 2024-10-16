@@ -36,10 +36,10 @@ def convert_to_dataframe(
     """Converts the input to BigFrames DataFrame.
 
     Args:
-        session: 
+        session:
             The session to convert local pandas instances to BigFrames counter-parts.
             It is not used if the input itself is already a BigFrame data frame or series.
-    
+
     """
     return (_convert_to_dataframe(frame, session) for frame in input)
 
@@ -64,10 +64,10 @@ def convert_to_series(
     """Converts the input to BigFrames Series.
 
     Args:
-        session: 
+        session:
             The session to convert local pandas instances to BigFrames counter-parts.
             It is not used if the input itself is already a BigFrame data frame or series.
-    
+
     """
     return (_convert_to_series(frame, session) for frame in input)
 
