@@ -23,17 +23,17 @@ from bigframes.core import blocks
 import bigframes.pandas as bpd
 
 # Internal type alias
-InputArrayType = Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
-OutputArrayType = Union[bpd.DataFrame, bpd.Series]
+ArrayType = Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+BigFramesArrayType = Union[bpd.DataFrame, bpd.Series]
 
 
 def convert_to_dataframe(
-    *input: InputArrayType,
+    *input: ArrayType,
 ) -> Generator[bpd.DataFrame, None, None]:
     return (_convert_to_dataframe(frame) for frame in input)
 
 
-def _convert_to_dataframe(frame: InputArrayType) -> bpd.DataFrame:
+def _convert_to_dataframe(frame: ArrayType) -> bpd.DataFrame:
     if isinstance(frame, bpd.DataFrame):
         return frame
     if isinstance(frame, bpd.Series):
@@ -47,11 +47,11 @@ def _convert_to_dataframe(frame: InputArrayType) -> bpd.DataFrame:
     )
 
 
-def convert_to_series(*input: InputArrayType) -> Generator[bpd.Series, None, None]:
+def convert_to_series(*input: ArrayType) -> Generator[bpd.Series, None, None]:
     return (_convert_to_series(frame) for frame in input)
 
 
-def _convert_to_series(frame: InputArrayType) -> bpd.Series:
+def _convert_to_series(frame: ArrayType) -> bpd.Series:
     if isinstance(frame, bpd.DataFrame):
         if len(frame.columns) != 1:
             raise ValueError(
@@ -73,37 +73,17 @@ def _convert_to_series(frame: InputArrayType) -> bpd.Series:
     )
 
 
-def convert_to_types(
-    inputs: Iterable[Union[InputArrayType, None]],
-    type_instances: Iterable[Union[OutputArrayType, None]],
-) -> tuple[Union[InputArrayType, None]]:
-    """Convert the DF, Series and None types of the input to corresponding type_instances types."""
-    results = []
-    for input, type_instance in zip(inputs, type_instances):
-        results.append(_convert_to_type(input, type_instance))
-    return tuple(results)
-
-
-def _convert_to_type(
-    input: Union[InputArrayType, None], type_instance: Union[OutputArrayType, None]
-):
-    if type_instance is None:
-        if input is not None:
-            raise ValueError(
-                f"Trying to convert not None type to None. {constants.FEEDBACK_LINK}"
-            )
-        return None
-    if input is None:
-        raise ValueError(
-            f"Trying to convert None type to not None. {constants.FEEDBACK_LINK}"
-        )
-    if isinstance(type_instance, bpd.DataFrame):
-        return _convert_to_dataframe(input)
-    if isinstance(type_instance, bpd.Series):
+def convert_to_bf_equivalent(
+    input: Union[ArrayType, None]
+) -> Union[BigFramesArrayType, None]:
+    """Convert bigframes and series to their BigFrames equilavents."""
+    if isinstance(input, pd.Series) or isinstance(input, bpd.Series):
         return _convert_to_series(input)
-    raise ValueError(
-        f"Unsupport converting to {type(type_instance)}. {constants.FEEDBACK_LINK}"
-    )
+
+    if isinstance(input, pd.DataFrame) or isinstance(input, bpd.DataFrame):
+        return _convert_to_dataframe(input)
+
+    return None
 
 
 def parse_model_endpoint(model_endpoint: str) -> tuple[str, Optional[str]]:

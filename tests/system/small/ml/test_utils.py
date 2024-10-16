@@ -87,20 +87,12 @@ def test_convert_pandas_to_series(data):
         pytest.param(_SERIES, id="from-series"),
     ],
 )
-@pytest.mark.parametrize(
-    "type_instance",
-    [
-        pytest.param(_DATA_FRAME, id="to-dataframe"),
-        pytest.param(_SERIES, id="to-series"),
-    ],
-)
-def test_convert_to_types(session, input, type_instance):
+def test_convert_to_bf_equivalent(session, input):
     bf_input = session.read_pandas(input)
-    bf_type_instance = session.read_pandas(type_instance)
 
-    (actual_result,) = utils.convert_to_types([bf_input], [bf_type_instance])
+    actual_result = utils.convert_to_bf_equivalent(bf_input)
 
-    assert type(actual_result) is type(bf_type_instance)
+    assert type(actual_result) is type(session.read_pandas(input))
 
 
 @pytest.mark.parametrize(
@@ -110,16 +102,7 @@ def test_convert_to_types(session, input, type_instance):
         pytest.param(_SERIES, id="from-series"),
     ],
 )
-@pytest.mark.parametrize(
-    "type_instance",
-    [
-        pytest.param(_DATA_FRAME, id="to-dataframe"),
-        pytest.param(_SERIES, id="to-series"),
-    ],
-)
-def test_convert_pandas_to_types(session, input, type_instance):
-    bf_type_instance = session.read_pandas(type_instance)
+def test_convert_pandas_to_bf_equivalent(session, input):
+    actual_result = utils.convert_to_bf_equivalent(input)
 
-    (actual_result,) = utils.convert_to_types([input], [bf_type_instance])
-
-    assert type(actual_result) is type(bf_type_instance)
+    assert type(actual_result) is type(session.read_pandas(input))

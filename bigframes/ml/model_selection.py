@@ -36,7 +36,7 @@ def train_test_split(
     train_size: Union[float, None] = None,
     random_state: Union[int, None] = None,
     stratify: Union[bpd.Series, None] = None,
-) -> List[Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]]:
+) -> List[Union[bpd.DataFrame, bpd.Series]]:
 
     # TODO(garrettwu): scikit-learn throws an error when the dataframes don't have the same
     # number of rows. We probably want to do something similar. Now the implementation is based
@@ -128,7 +128,7 @@ class KFold(vendored_model_selection_split.KFold):
         self,
         X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
         y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series, None] = None,
-    ) -> Generator[tuple[Union[bpd.DataFrame, bpd.Series, None]], None, None]:
+    ) -> Generator[tuple[Union[bpd.DataFrame, bpd.Series, None], ...], None, None]:
         X_df = next(utils.convert_to_dataframe(X))
         y_df_or = next(utils.convert_to_dataframe(y)) if y is not None else None
         joined_df = X_df.join(y_df_or, how="outer") if y_df_or is not None else X_df
@@ -147,8 +147,8 @@ class KFold(vendored_model_selection_split.KFold):
             X_test = test_df[X_df.columns]
             y_test = test_df[y_df_or.columns] if y_df_or is not None else None
 
-            yield utils.convert_to_types(
-                [X_train, X_test, y_train, y_test], [X, X, y, y]
+            yield tuple(
+                map(utils.convert_to_bf_equivalent, [X_train, X_test, y_train, y_test])
             )
 
 
