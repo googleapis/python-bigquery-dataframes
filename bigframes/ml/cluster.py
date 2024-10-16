@@ -102,7 +102,7 @@ class KMeans(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        X: utils.ArrayType,
         y=None,  # ignored
         transforms: Optional[List[str]] = None,
     ) -> KMeans:
@@ -126,7 +126,7 @@ class KMeans(
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        X: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
@@ -185,7 +185,7 @@ class KMeans(
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        X: utils.ArrayType,
         y=None,  # ignored
     ) -> bpd.DataFrame:
         if not self._bqml_model:

@@ -21,7 +21,6 @@ from typing import List, Literal, Optional, Union
 
 import bigframes_vendored.sklearn.decomposition._pca
 from google.cloud import bigquery
-import pandas as pd
 
 import bigframes
 from bigframes.core import log_adapter
@@ -85,7 +84,7 @@ class PCA(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        X: utils.ArrayType,
         y=None,
         transforms: Optional[List[str]] = None,
     ) -> PCA:
@@ -130,9 +129,7 @@ class PCA(
             ["principal_component_id", "explained_variance_ratio"]
         ]
 
-    def predict(
-        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
-    ) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -142,7 +139,7 @@ class PCA(
 
     def detect_anomalies(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        X: utils.ArrayType,
         *,
         contamination: float = 0.1,
     ) -> bpd.DataFrame:

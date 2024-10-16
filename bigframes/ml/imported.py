@@ -16,10 +16,9 @@
 
 from __future__ import annotations
 
-from typing import cast, Mapping, Optional, Union
+from typing import cast, Mapping, Optional
 
 from google.cloud import bigquery
-import pandas as pd
 
 import bigframes
 from bigframes.core import log_adapter
@@ -65,13 +64,11 @@ class TensorFlowModel(base.Predictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(
-        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
-    ) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Input DataFrame. Schema is defined by the model.
 
         Returns:
@@ -146,13 +143,11 @@ class ONNXModel(base.Predictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(
-        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
-    ) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Input DataFrame or Series. Schema is defined by the model.
 
         Returns:
@@ -264,13 +259,11 @@ class XGBoostModel(base.Predictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(
-        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
-    ) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Input DataFrame or Series. Schema is defined by the model.
 
         Returns:

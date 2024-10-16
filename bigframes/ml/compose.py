@@ -26,7 +26,6 @@ from typing import cast, Iterable, List, Optional, Set, Tuple, Union
 from bigframes_vendored import constants
 import bigframes_vendored.sklearn.compose._column_transformer
 from google.cloud import bigquery
-import pandas as pd
 
 from bigframes.core import log_adapter
 import bigframes.core.compile.googlesql as sql_utils
@@ -333,7 +332,7 @@ class ColumnTransformer(
 
     def fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        X: utils.ArrayType,
         y=None,  # ignored
     ) -> ColumnTransformer:
         (X,) = utils.convert_to_dataframe(X)
@@ -348,9 +347,7 @@ class ColumnTransformer(
         self._extract_output_names()
         return self
 
-    def transform(
-        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
-    ) -> bpd.DataFrame:
+    def transform(self, X: utils.ArrayType) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 

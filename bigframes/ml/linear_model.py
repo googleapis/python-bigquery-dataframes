@@ -23,7 +23,6 @@ import bigframes_vendored.constants as constants
 import bigframes_vendored.sklearn.linear_model._base
 import bigframes_vendored.sklearn.linear_model._logistic
 from google.cloud import bigquery
-import pandas as pd
 
 import bigframes
 from bigframes.core import log_adapter
@@ -129,8 +128,8 @@ class LinearRegression(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
-        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
     ) -> LinearRegression:
         X, y = utils.convert_to_dataframe(X, y)
@@ -143,9 +142,7 @@ class LinearRegression(
         )
         return self
 
-    def predict(
-        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
-    ) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -155,8 +152,8 @@ class LinearRegression(
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
-        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
@@ -283,8 +280,8 @@ class LogisticRegression(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
-        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
     ) -> LogisticRegression:
         """Fit model with transforms."""
@@ -300,7 +297,7 @@ class LogisticRegression(
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        X: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
@@ -311,8 +308,8 @@ class LogisticRegression(
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
-        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")

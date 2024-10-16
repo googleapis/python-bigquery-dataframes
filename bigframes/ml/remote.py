@@ -16,10 +16,8 @@
 
 from __future__ import annotations
 
-from typing import Mapping, Optional, Union
+from typing import Mapping, Optional
 import warnings
-
-import pandas as pd
 
 import bigframes
 from bigframes import clients
@@ -123,12 +121,12 @@ class VertexAIModel(base.BaseEstimator):
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+        X: utils.ArrayType,
     ) -> bpd.DataFrame:
         """Predict the result from the input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Input DataFrame or Series, which needs to comply with the input parameter of the model.
 
         Returns:

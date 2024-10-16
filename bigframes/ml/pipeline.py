@@ -18,12 +18,11 @@ pipeline module: https://scikit-learn.org/stable/modules/pipeline.html."""
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.sklearn.pipeline
 from google.cloud import bigquery
-import pandas as pd
 
 import bigframes
 from bigframes.core import log_adapter
@@ -102,8 +101,8 @@ class Pipeline(
 
     def fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
-        y: Optional[Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]] = None,
+        X: utils.ArrayType,
+        y: Optional[utils.ArrayType] = None,
     ) -> Pipeline:
         (X,) = utils.convert_to_dataframe(X)
 
@@ -116,15 +115,13 @@ class Pipeline(
         self._estimator._fit(X=X, y=y, transforms=transform_sqls)
         return self
 
-    def predict(
-        self, X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
-    ) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         return self._estimator.predict(X)
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
-        y: Optional[Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]] = None,
+        X: utils.ArrayType,
+        y: Optional[utils.ArrayType] = None,
     ) -> bpd.DataFrame:
         (X,) = utils.convert_to_dataframe(X)
         if y is not None:

@@ -31,7 +31,7 @@ import bigframes.pandas as bpd
 
 
 def train_test_split(
-    *arrays: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
+    *arrays: utils.ArrayType,
     test_size: Union[float, None] = None,
     train_size: Union[float, None] = None,
     random_state: Union[int, None] = None,
@@ -126,8 +126,8 @@ class KFold(vendored_model_selection_split.KFold):
 
     def split(
         self,
-        X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
-        y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series, None] = None,
+        X: utils.ArrayType,
+        y: Union[utils.ArrayType, None] = None,
     ) -> Generator[tuple[Union[bpd.DataFrame, bpd.Series, None], ...], None, None]:
         X_df = next(utils.convert_to_dataframe(X))
         y_df_or = next(utils.convert_to_dataframe(y)) if y is not None else None
@@ -174,8 +174,8 @@ class KFold(vendored_model_selection_split.KFold):
 
 def cross_validate(
     estimator,
-    X: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series],
-    y: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series, None] = None,
+    X: utils.ArrayType,
+    y: Union[utils.ArrayType, None] = None,
     *,
     cv: Optional[Union[int, KFold]] = None,
 ) -> dict[str, list]:
