@@ -20,7 +20,6 @@ from google.cloud import bigquery
 import pandas as pd
 
 from bigframes.core import blocks
-from bigframes.core.global_session import get_global_session
 import bigframes.pandas as bpd
 from bigframes.session import Session
 
@@ -31,7 +30,7 @@ BigFramesArrayType = Union[bpd.DataFrame, bpd.Series]
 
 def convert_to_dataframe(
     *input: ArrayType,
-    session: Session = get_global_session(),
+    session: Optional[Session] = None,
 ) -> Generator[bpd.DataFrame, None, None]:
     """Converts the input to BigFrames DataFrame.
 
@@ -44,22 +43,30 @@ def convert_to_dataframe(
     return (_convert_to_dataframe(frame, session) for frame in input)
 
 
-def _convert_to_dataframe(frame: ArrayType, session: Session) -> bpd.DataFrame:
+def _convert_to_dataframe(
+    frame: ArrayType, session: Optional[Session] = None
+) -> bpd.DataFrame:
     if isinstance(frame, bpd.DataFrame):
         return frame
     if isinstance(frame, bpd.Series):
         return frame.to_frame()
     if isinstance(frame, pd.DataFrame):
-        return session.read_pandas(frame)
+        if session is None:
+            return bpd.read_pandas(frame)
+        else:
+            return session.read_pandas(frame)
     if isinstance(frame, pd.Series):
-        return session.read_pandas(frame).to_frame()
+        if session is None:
+            return bpd.read_pandas(frame).to_frame()
+        else:
+            return session.read_pandas(frame).to_frame()
     raise ValueError(
         f"Unsupported type {type(frame)} to convert to DataFrame. {constants.FEEDBACK_LINK}"
     )
 
 
 def convert_to_series(
-    *input: ArrayType, session: Session = get_global_session()
+    *input: ArrayType, session: Optional[Session] = None
 ) -> Generator[bpd.Series, None, None]:
     """Converts the input to BigFrames Series.
 
@@ -72,7 +79,9 @@ def convert_to_series(
     return (_convert_to_series(frame, session) for frame in input)
 
 
-def _convert_to_series(frame: ArrayType, session: Session) -> bpd.Series:
+def _convert_to_series(
+    frame: ArrayType, session: Optional[Session] = None
+) -> bpd.Series:
     if isinstance(frame, bpd.DataFrame):
         if len(frame.columns) != 1:
             raise ValueError(
@@ -86,9 +95,15 @@ def _convert_to_series(frame: ArrayType, session: Session) -> bpd.Series:
         return frame
     if isinstance(frame, pd.DataFrame):
         # Recursively call this method to re-use the length-checking logic
-        return _convert_to_series(session.read_pandas(frame), session)
+        if session is None:
+            return _convert_to_series(bpd.read_pandas(frame))
+        else:
+            return _convert_to_series(session.read_pandas(frame), session)
     if isinstance(frame, pd.Series):
-        return session.read_pandas(frame)
+        if session is None:
+            return bpd.read_pandas(frame)
+        else:
+            return session.read_pandas(frame)
     raise ValueError(
         f"Unsupported type {type(frame)} to convert to Series. {constants.FEEDBACK_LINK}"
     )
