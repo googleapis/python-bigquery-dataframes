@@ -54,7 +54,25 @@ def test_linear_regression(random_model_id: str) -> None:
     #   0        227.012237         81838.159892            0.00507                173.080816        0.872377    0.872377
     #   1 rows x columns
     # [END bigquery_dataframes_bqml_linear_evaluate]
+    # [START bigquery_dataframes_bqml_linear_predict]
+    # Select the model you'll use for predictions. `read_gbq_model` loads
+    # model data from BigQuery, but you could also use the `model` object
+    # object from previous steps.
+    model = bpd.read_gbq_model(
+        your_model_id,
+        # For example: "bqml_tutorial.penguins_model",
+    )
+
+    # Use 'contains' function to filter by island containing the string
+    # "Biscoe".
+    model = model.loc[model["island"].str.contains("Biscoe")]
+
+    result = model.predict(model)
+
+    # Expected output results:
+    # [END bigquery_dataframes_bqml_linear_predict]
     assert feature_columns is not None
     assert label_columns is not None
     assert model is not None
     assert score is not None
+    assert result is not None
