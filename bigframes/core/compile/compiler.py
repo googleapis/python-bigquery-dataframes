@@ -144,7 +144,7 @@ class Compiler:
 
         labels_array_table = ibis.range(
             joined_table[start_column], joined_table[end_column] + node.step, node.step
-        ).name("labels")
+        ).name(node.output_id.sql)
         labels = (
             typing.cast(ibis.expr.types.ArrayValue, labels_array_table)
             .unnest()
@@ -307,18 +307,19 @@ class Compiler:
 
     @_compile_node.register
     def compile_concat(self, node: nodes.ConcatNode, ordered: bool = True):
+        output_ids = [id.sql for id in node.output_ids]
         if ordered:
             compiled_ordered = [self.compile_ordered_ir(node) for node in node.children]
-            return concat_impl.concat_ordered(compiled_ordered)
+            return concat_impl.concat_ordered(compiled_ordered, output_ids)
         else:
             compiled_unordered = [
                 self.compile_unordered_ir(node) for node in node.children
             ]
-            return concat_impl.concat_unordered(compiled_unordered)
+            return concat_impl.concat_unordered(compiled_unordered, output_ids)
 
     @_compile_node.register
     def compile_rowcount(self, node: nodes.RowCountNode, ordered: bool = True):
-        result = self.compile_unordered_ir(node.child).row_count()
+        result = self.compile_unordered_ir(node.child).row_count(name=node.col_id.sql)
         return result if ordered else result.to_unordered()
 
     @_compile_node.register
