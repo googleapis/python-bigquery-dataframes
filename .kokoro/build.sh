@@ -43,6 +43,16 @@ python3 -m pip uninstall --yes --quiet nox-automation
 python3 -m pip install --upgrade --quiet nox
 python3 -m nox --version
 
+# DEBUGGING ONLY - DO NOT CHECK IN
+if [ "${GOOGLE_CLOUD_PROJECT}" = "bigframes-load-testing" ]; then
+    gcloud config get project
+    gcloud auth list
+    bq mk zzz_shobs_debug
+    bq rm --force zzz_shobs_debug
+fi
+
+
+
 # If NOX_SESSION is set, it only runs the specified session,
 # otherwise run all the sessions.
 if [[ -n "${NOX_SESSION:-}" ]]; then
