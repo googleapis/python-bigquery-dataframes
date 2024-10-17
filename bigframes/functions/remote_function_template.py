@@ -33,7 +33,6 @@ _pickle_protocol_version = 4
 # Placeholder variables for testing.
 input_types = ("STRING",)
 output_type = "STRING"
-return_json_serialized_output = False
 
 
 # Convert inputs to BigQuery JSON. See:
@@ -156,7 +155,7 @@ def udf(*args):
 # }
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#input_format
 def udf_http(request):
-    global input_types, output_type, return_json_serialized_output
+    global input_types, output_type
     import json
     import traceback
 
@@ -170,7 +169,9 @@ def udf_http(request):
             reply = convert_to_bq_json(
                 output_type, udf(*convert_call(input_types, call))
             )
-            if return_json_serialized_output:
+            if type(reply) is list:
+                # Since the BQ remote function does not support array yet,
+                # return a json serialized version of the reply
                 reply = json.dumps(reply)
             replies.append(reply)
         return_json = json.dumps({"replies": replies})
@@ -180,7 +181,7 @@ def udf_http(request):
 
 
 def udf_http_row_processor(request):
-    global output_type, return_json_serialized_output
+    global output_type
     import json
     import math
     import traceback
@@ -194,8 +195,15 @@ def udf_http_row_processor(request):
         replies = []
         for call in calls:
             reply = convert_to_bq_json(output_type, udf(get_pd_series(call[0])))
-            if isinstance(reply, float) and (math.isnan(reply) or math.isinf(reply)):
-                # json serialization of the special float values (nan, inf, -inf)
+            if type(reply) is list:
+                # Since the BQ remote function does not support array yet,
+                # return a json serialized version of the reply.
+                # Numpy types are not json serializable, so use their Python
+                # values instead.
+                reply = [val.item() if hasattr(val, "item") else val for val in reply]
+                reply = json.dumps(reply)
+            elif isinstance(reply, float) and (math.isnan(reply) or math.isinf(reply)):
+                # Json serialization of the special float values (nan, inf, -inf)
                 # is not in strict compliance of the JSON specification
                 # https://docs.python.org/3/library/json.html#basic-usage.
                 # Let's convert them to a quoted string representation ("NaN",
@@ -210,8 +218,6 @@ def udf_http_row_processor(request):
                 # Numpy types are not json serializable, so use its Python
                 # value instead
                 reply = reply.item()
-            if return_json_serialized_output:
-                reply = json.dumps(reply)
             replies.append(reply)
         return_json = json.dumps({"replies": replies})
         return return_json
@@ -246,7 +252,6 @@ def generate_cloud_function_main_code(
     input_types: Tuple[str],
     output_type: str,
     is_row_processor=False,
-    return_json_serialized_output=False,
 ):
     """Get main.py code for the cloud function for the given user defined function."""
 
@@ -264,7 +269,6 @@ with open("{udf_pickle_file}", "rb") as f:
 
 input_types = {repr(input_types)}
 output_type = {repr(output_type)}
-return_json_serialized_output = {repr(return_json_serialized_output)}
 """
     ]
 

@@ -2181,6 +2181,48 @@ def test_df_apply_axis_1_single_param_non_series(session):
         )
 
 
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_array_output(session, scalars_dfs):
+    columns = ["int64_col", "int64_too"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+    try:
+
+        def generate_stats(row):
+            import pandas as pd
+
+            sum = row["int64_too"]
+            avg = row["int64_too"]
+            if pd.notna(row["int64_col"]):
+                sum += row["int64_col"]
+                avg = round((avg + row["int64_col"]) / 2)
+            return [sum, avg]
+
+        generate_stats_remote = session.remote_function(
+            bigframes.series.Series, list[int], reuse=False
+        )(generate_stats)
+
+        assert getattr(generate_stats_remote, "is_row_processor")
+
+        bf_result = scalars_df[columns].apply(generate_stats_remote, axis=1).to_pandas()
+        pd_result = scalars_pandas_df[columns].apply(generate_stats, axis=1)
+
+        # bf_result.dtype is 'list<item: int64>[pyarrow]' while pd_result.dtype
+        # is 'object', ignore this mismatch by using check_dtype=False.
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+        # Let's make sure the read_gbq_function path works for this function
+        serialize_row_reuse = session.read_gbq_function(
+            generate_stats_remote.bigframes_remote_function, is_row_processor=True
+        )
+        bf_result = scalars_df[columns].apply(serialize_row_reuse, axis=1).to_pandas()
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, generate_stats_remote
+        )
+
+
 @pytest.mark.parametrize(
     ("ingress_settings_args", "effective_ingress_settings"),
     [
