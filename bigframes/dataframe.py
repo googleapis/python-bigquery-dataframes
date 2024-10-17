@@ -366,6 +366,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
     ) -> DataFrame:
+        """
+        Casts a dtype to BigQuery DataFrame.
+
+        Returns:
+          bigframes.pandas.DataFrame:
+              A BigQuery DataFrame.
+        """
         return self._apply_unary_op(ops.AsTypeOp(to_type=dtype))
 
     def _to_sql_query(
@@ -387,7 +394,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def sql(self) -> str:
-        """Compiles this DataFrame's expression tree to SQL."""
+        """Compiles this DataFrame's expression tree to SQL.
+
+        Returns:
+            str:
+                string represening the compoiled SQL.
+        """
         include_index = self._has_index and (
             self.index.name is not None or len(self.index.names) > 1
         )
@@ -399,8 +411,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """BigQuery job metadata for the most recent query.
 
         Returns:
-            The most recent `QueryJob
-            <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
+            None or str:
+                The most recent `QueryJob
+                <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
         """
         if self._query_job is None:
             self._set_internal_query_job(self._compute_dry_run())
@@ -3763,7 +3776,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Useful if the dataframe will be used multiple times, as this will avoid recomputating the shared intermediate value.
 
         Returns:
-            DataFrame: Self
+            bigframes.pandas.DataFrame: DataFrame
         """
         return self._cached(force=True)
 
