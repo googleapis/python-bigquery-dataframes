@@ -1119,9 +1119,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def items(self):
         column_ids = self._block.value_columns
-        assert len(column_ids) == 1, (
-            f"Expected lenght of column ids to be 1, but got {len(column_ids)}."
-        )
+        assert (
+            len(column_ids) == 1
+        ), f"Expected lenght of column ids to be 1, but got {len(column_ids)}."
         bpd_series = bigframes.series.Series(self._block.select_column(column_ids[0]))
         for index, value in zip(bpd_series.index, bpd_series.values):
             yield index, value
