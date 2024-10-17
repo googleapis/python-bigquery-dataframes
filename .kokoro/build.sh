@@ -44,6 +44,7 @@ python3 -m pip install --upgrade --quiet nox
 python3 -m nox --version
 
 # DEBUGGING ONLY - DO NOT CHECK IN
+echo "shobhit debugging auth in project ${GOOGLE_CLOUD_PROJECT}"
 if [ "${GOOGLE_CLOUD_PROJECT}" = "bigframes-load-testing" ]; then
     gcloud config get project
     gcloud auth list
