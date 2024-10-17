@@ -167,12 +167,19 @@ class RemoteFunctionSession:
                 `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
         Args:
-            input_types (None, type, or sequence(type)):
+            input_types (type or sequence(type), Optional):
                 For scalar user defined function it should be the input type or
-                sequence of input types. For row processing user defined function,
-                type `Series` should be specified.
-            output_type (Optional[type]):
-                Data type of the output in the user defined function.
+                sequence of input types. The supported scalar input types are
+                `bool`, `bytes`, `float`, `int`, `str`. For row processing user
+                defined function (i.e. functions that receive a single input
+                representing a row in form of a Series), type `Series` should be
+                specified.
+            output_type (type, Optional):
+                Data type of the output in the user defined function. If the
+                user defined function returns an array, then `list[type]` should
+                be specified. The supported output types are `bool`, `bytes`,
+                `float`, `int`, `str`, `list[bool]`, `list[float]`, `list[int]`
+                and `list[str]`.
             session (bigframes.Session, Optional):
                 BigQuery DataFrames session to use for getting default project,
                 dataset and BigQuery connection.
