@@ -570,4 +570,5 @@ def remap_variables(
     )
     with_new_vars = with_new_children.remap_refs(var_mapping).remap_vars(id_generator)
     var_mapping.update(dict(zip(root.node_defined_ids, with_new_vars.node_defined_ids)))
+    with_new_vars._validate()
     return with_new_vars, var_mapping

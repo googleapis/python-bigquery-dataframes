@@ -49,13 +49,16 @@ class Compiler:
     # In unstrict mode, ordering from ReadTable or after joins may be ambiguous to improve query performance.
     strict: bool = True
     scalar_op_compiler = compile_scalar.ScalarOpCompiler()
-    enable_pruning: bool = False
+    enable_pruning: bool = True
+    enable_densify_ids: bool = True
 
     def _preprocess(self, node: nodes.BigFrameNode):
         if self.enable_pruning:
             used_fields = frozenset(field.id for field in node.fields)
             node = node.prune(used_fields)
         node = functools.cache(rewrites.replace_slice_ops)(node)
+        if self.enable_densify_ids:
+            node, _ = rewrites.remap_variables(node, id_generator=ids.standard_ids())
         return node
 
     def compile_ordered_ir(self, node: nodes.BigFrameNode) -> compiled.OrderedIR:
@@ -71,10 +74,12 @@ class Compiler:
             compiled.UnorderedIR, self.compile_node(self._preprocess(node), False)
         )
 
-    def compile_peak_sql(
+    def compile_peek_sql(
         self, node: nodes.BigFrameNode, n_rows: int
     ) -> typing.Optional[str]:
-        return self.compile_unordered_ir(self._preprocess(node)).peek_sql(n_rows)
+        return self.compile_unordered_ir(self._preprocess(node)).peek_sql(
+            n_rows, column_ids=node.schema.names
+        )
 
     # TODO: Remove cache when schema no longer requires compilation to derive schema (and therefor only compiles for execution)
     @functools.lru_cache(maxsize=5000)

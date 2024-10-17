@@ -18,10 +18,10 @@ import functools
 from typing import Generator
 
 
-def standard_identifiers() -> Generator[str, None, None]:
+def standard_id_strings(prefix: str = "col_") -> Generator[str, None, None]:
     i = 0
     while True:
-        yield f"col_{i}"
+        yield f"{prefix}{i}"
         i = i + 1
 
 
@@ -45,3 +45,8 @@ class ColumnId:
 
     def __lt__(self, other: ColumnId) -> bool:
         return self.name < other.name
+
+
+def standard_ids() -> Generator[ColumnId, None, None]:
+    for id_string in standard_id_strings():
+        yield ColumnId(id_string)

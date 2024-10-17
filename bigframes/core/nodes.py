@@ -931,7 +931,10 @@ class OrderByNode(UnaryNode):
         return self
 
     def remap_refs(self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]):
-        ref_mapping = {id: ex.DerefOp(mappings[id]) for id in self.ids}
+        all_refs = set(
+            itertools.chain.from_iterable(map(lambda x: x.referenced_columns, self.by))
+        )
+        ref_mapping = {id: ex.DerefOp(mappings[id]) for id in all_refs}
         new_by = cast(
             tuple[OrderingExpression, ...],
             tuple(
@@ -1089,9 +1092,7 @@ class ProjectionNode(UnaryNode):
 # Row count can be compute from table metadata sometimes, so it is a bit special.
 @dataclass(frozen=True, eq=False)
 class RowCountNode(UnaryNode):
-    col_id: bigframes.core.identifiers.ColumnId = bigframes.core.identifiers.ColumnId(
-        "count"
-    )
+    col_id: bfet_ids.ColumnId = bfet_ids.ColumnId("count")
 
     @property
     def row_preserving(self) -> bool:

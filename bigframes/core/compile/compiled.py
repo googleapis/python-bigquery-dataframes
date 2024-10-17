@@ -256,21 +256,25 @@ class UnorderedIR(BaseIbisIR):
             predicates=self._predicates,
         )
 
-    def peek_sql(self, n: int):
+    def peek_sql(self, n: int, column_ids: typing.Sequence[str]):
         # Peek currently implemented as top level LIMIT op.
         # Execution engine handles limit pushdown.
         # In future, may push down limit/filters in compilation.
-        sql = ibis_bigquery.Backend().compile(self._to_ibis_expr().limit(n))
+        col_id_overrides = dict(zip(self.column_ids, column_ids))
+        sql = ibis_bigquery.Backend().compile(
+            self._to_ibis_expr(col_id_overrides=col_id_overrides).limit(n)
+        )
         return typing.cast(str, sql)
 
     def to_sql(
         self,
+        column_ids: typing.Sequence[str],
         offset_column: typing.Optional[str] = None,
-        col_id_overrides: typing.Mapping[str, str] = {},
         ordered: bool = False,
     ) -> str:
         if offset_column or ordered:
             raise ValueError("Cannot produce sorted sql in partial ordering mode")
+        col_id_overrides = dict(zip(self.column_ids, column_ids))
         sql = ibis_bigquery.Backend().compile(
             self._to_ibis_expr(
                 col_id_overrides=col_id_overrides,
@@ -941,9 +945,10 @@ class OrderedIR(BaseIbisIR):
 
     def to_sql(
         self,
-        col_id_overrides: typing.Mapping[str, str] = {},
+        column_ids: typing.Sequence[str],
         ordered: bool = False,
     ) -> str:
+        col_id_overrides = dict(zip(self.column_ids, column_ids))
         if ordered:
             # Need to bake ordering expressions into the selected column in order for our ordering clause builder to work.
             baked_ir = self._bake_ordering()
@@ -954,13 +959,10 @@ class OrderedIR(BaseIbisIR):
                     expose_hidden_cols=True,
                 )
             )
-            output_columns = [
-                col_id_overrides.get(col, col) for col in baked_ir.column_ids
-            ]
             sql = (
                 bigframes.core.compile.googlesql.Select()
                 .from_(sql)
-                .select(output_columns)
+                .select(column_ids)
                 .sql()
             )
 
