@@ -57,7 +57,8 @@ class NDFrame(indexing.IndexingMixin):
         Iterate over column axis for DataFrame, or values for Series.
 
         Returns:
-            iterator
+            Iterator:
+                Iterator of DataFrame or Series values.
 
         **Examples:**
 
@@ -91,8 +92,8 @@ class NDFrame(indexing.IndexingMixin):
         This function only applies to elements that are all numeric.
 
         Returns:
-            Series/DataFrame containing the absolute value of each element.
-            Returns a Series/DataFrame containing the absolute value of each element.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                A Series or DataFrame containing the absolute value of each element.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -370,7 +371,8 @@ class NDFrame(indexing.IndexingMixin):
             key: object
 
         Returns:
-            same type as items contained in object
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                same type as items contained in object
         """
         try:
             return self[key]
@@ -391,7 +393,8 @@ class NDFrame(indexing.IndexingMixin):
                 to add prefix on.
 
         Returns:
-            New Series or DataFrame with updated labels.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                New Series or DataFrame with updated labels.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -409,7 +412,8 @@ class NDFrame(indexing.IndexingMixin):
                 to add suffix on
 
         Returns:
-            New Series or DataFrame with updated labels.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                New Series or DataFrame with updated labels.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -486,7 +490,8 @@ class NDFrame(indexing.IndexingMixin):
                 Default 5. Number of rows to select.
 
         Returns:
-            same type as caller: The first ``n`` rows of the caller object.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                The first ``n`` rows of the caller object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -507,7 +512,8 @@ class NDFrame(indexing.IndexingMixin):
                 Number of rows to select.
 
         Returns:
-            The last `n` rows of the caller object.
+            bigframes.pandas.DataFrame:
+                The last `n` rows of the caller object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -584,8 +590,9 @@ class NDFrame(indexing.IndexingMixin):
                 - 'False': The sample will retain the original object's order.
 
         Returns:
-            A new object of same type as caller containing `n` items randomly
-            sampled from the caller object.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                A new object of same type as caller containing `n` items randomly
+                sampled from the caller object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -613,7 +620,8 @@ class NDFrame(indexing.IndexingMixin):
             dtype: object
 
         Returns:
-            A *pandas* Series with the data type of each column.
+            pandas.Series:
+                A *pandas* Series with the data type of each column.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -686,7 +694,8 @@ class NDFrame(indexing.IndexingMixin):
             [2 rows x 2 columns]
 
         Returns:
-            Object type matches caller.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Object type matches caller.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -749,7 +758,8 @@ class NDFrame(indexing.IndexingMixin):
 
 
         Returns:
-            Series/DataFrame or None: Object with missing values filled.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series or None:
+                Object with missing values filled.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -766,7 +776,8 @@ class NDFrame(indexing.IndexingMixin):
                 filled. Must be greater than 0 if not None.
 
         Returns:
-            Series/DataFrame or None: Object with missing values filled.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series or None:
+                Object with missing values filled.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -844,8 +855,9 @@ class NDFrame(indexing.IndexingMixin):
             dtype: boolean
 
         Returns:
-            Mask of bool values for each element that indicates whether an
-            element is an NA value.
+            NDFrame:
+                Mask of bool values for each element that indicates whether an
+                element is an NA value.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -893,7 +905,7 @@ class NDFrame(indexing.IndexingMixin):
                 DataFrame. For `Series` this parameter is unused and defaults to `None`.
 
         Returns:
-            same type as input object
+            NDFrame: same type as input object
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -934,7 +946,7 @@ class NDFrame(indexing.IndexingMixin):
                 Periods to shift for forming percent change.
 
         Returns:
-            Series or DataFrame: The same type as the calling object.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series: The same type as the calling object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -972,7 +984,8 @@ class NDFrame(indexing.IndexingMixin):
                 Whether or not the elements should be ranked in ascending order.
 
         Returns:
-            same type as caller: Return a Series or DataFrame with data ranks as values.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Return a Series or DataFrame with data ranks as values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1126,7 +1139,8 @@ class NDFrame(indexing.IndexingMixin):
                 A dictionary of keyword arguments passed into ``func``.
 
         Returns:
-            same type as caller
+            T:
+                Object of same type as caller
         """
         return common.pipe(self, func, *args, **kwargs)
 
