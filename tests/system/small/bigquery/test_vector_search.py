@@ -76,7 +76,7 @@ def vector_table_id(
     bigquery_client.load_table_from_json(
         cast(Iterable[Dict[str, Any]], VECTOR_DF.to_dict(orient="records")),
         table_id_not_created,
-    )
+    ).result()
     yield table_id_not_created
     bigquery_client.delete_table(table_id_not_created, not_found_ok=True)
 
