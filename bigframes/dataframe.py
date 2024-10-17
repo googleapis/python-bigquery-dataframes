@@ -81,6 +81,8 @@ import bigframes.series as bf_series
 import bigframes.session._io.bigquery
 
 if typing.TYPE_CHECKING:
+    from _typeshed import SupportsRichComparison
+
     import bigframes.session
 
     SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
@@ -768,7 +770,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         reverse: bool = False,
     ) -> DataFrame:
         bf_series = bigframes.core.convert.to_bf_series(
-            other, self.index, self._session
+            other, self.index if self._has_index else None, self._session
         )
         aligned_block, columns, expr_pairs = self._block._align_axis_0(
             bf_series._block, how=how
@@ -2464,7 +2466,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             values = [values]
 
         # Unlike pivot, pivot_table has values always ordered.
-        values.sort()
+        values.sort(key=lambda val: typing.cast("SupportsRichComparison", val))
 
         keys = index + columns
         agged = self.groupby(keys, dropna=True)[values].agg(aggfunc)
@@ -3179,6 +3181,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         clustering_columns: Union[pandas.Index, Iterable[typing.Hashable]] = (),
         labels: dict[str, str] = {},
     ) -> str:
+        index = index and self._has_index
         temp_table_ref = None
 
         if destination_table is None:
