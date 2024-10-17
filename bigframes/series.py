@@ -1118,13 +1118,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return self._apply_binary_op(other, ops.ne_op)
 
     def items(self):
-        column_ids = self._block.value_columns
-        assert (
-            len(column_ids) == 1
-        ), f"Expected lenght of column ids to be 1, but got {len(column_ids)}."
-        bpd_series = bigframes.series.Series(self._block.select_column(column_ids[0]))
-        for index, value in zip(bpd_series.index, bpd_series.values):
-            yield index, value
+        for batch_df in self._block.to_pandas_batches():
+            assert (
+                batch_df.shape[1] == 1
+            ), f"Expected 1 column in the dataframe, but got {batch_df.shape[1]}."
+            for item in batch_df.squeeze(axis=1).items():
+                yield item
 
     def where(self, cond, other=None):
         value_id, cond_id, other_id, block = self._align3(cond, other)
