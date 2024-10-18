@@ -3344,15 +3344,15 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> df = bpd.Series(['bear', 'bear', 'marsupial'],
+            >>> s = bpd.Series(['bear', 'bear', 'marsupial'],
             ...                    index=['panda', 'polar', 'koala'])
-            >>> df
+            >>> s
             panda       bear
             polar       bear
             koala  marsupial
             dtype: string
 
-            >>> for index, value in df.items():
+            >>> for index, value in s.items():
             ...     print(f'--> index: {index}')
             ...     print(f'--> value: {value}')
             ...
@@ -3360,7 +3360,7 @@ class Series(NDFrame):  # type: ignore[misc]
             --> value: bear
             --> index: polar
             --> value: bear
-            --> index: kaola
+            --> index: koala
             --> value: marsupial
 
         Returns:
