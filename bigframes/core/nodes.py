@@ -314,7 +314,12 @@ class SliceNode(UnaryNode):
     def is_limit(self) -> bool:
         """Returns whether this is equivalent to a ORDER BY ... LIMIT N."""
         # TODO: Handle tail case.
-        return (not self.start) and (self.step == 1) and (self.stop is not None)
+        return (
+            (not self.start)
+            and (self.step == 1)
+            and (self.stop is not None)
+            and (self.stop > 0)
+        )
 
     @property
     def row_count(self) -> typing.Optional[int]:
