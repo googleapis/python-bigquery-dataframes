@@ -33,7 +33,9 @@ class SQLCompiler:
 
     def compile_peek(self, node: bigframes.core.nodes.BigFrameNode, n_rows: int) -> str:
         """Compile node into sql that selects N arbitrary rows, may not execute deterministically."""
-        return self._compiler.compile_unordered_ir(node).peek_sql(n_rows)
+        return self._compiler.compile_unordered_ir(
+            self._compiler._preprocess(node)
+        ).peek_sql(n_rows, column_ids=list(node.schema.names))
 
     def compile_unordered(
         self,
@@ -42,9 +44,10 @@ class SQLCompiler:
         col_id_overrides: Mapping[str, str] = {},
     ) -> str:
         """Compile node into sql where rows are unsorted, and no ordering information is preserved."""
-        return self._compiler.compile_unordered_ir(node).to_sql(
-            col_id_overrides=col_id_overrides
-        )
+        output_ids = [col_id_overrides.get(id, id) for id in node.schema.names]
+        return self._compiler.compile_unordered_ir(
+            self._compiler._preprocess(node)
+        ).to_sql(column_ids=output_ids)
 
     def compile_ordered(
         self,
@@ -53,9 +56,10 @@ class SQLCompiler:
         col_id_overrides: Mapping[str, str] = {},
     ) -> str:
         """Compile node into sql where rows are sorted with ORDER BY."""
-        return self._compiler.compile_ordered_ir(node).to_sql(
-            col_id_overrides=col_id_overrides, ordered=True
-        )
+        output_ids = [col_id_overrides.get(id, id) for id in node.schema.names]
+        return self._compiler.compile_ordered_ir(
+            self._compiler._preprocess(node)
+        ).to_sql(column_ids=output_ids, ordered=True)
 
     def compile_raw(
         self,
@@ -64,13 +68,14 @@ class SQLCompiler:
         str, Sequence[bigquery.SchemaField], bigframes.core.ordering.RowOrdering
     ]:
         """Compile node into sql that exposes all columns, including hidden ordering-only columns."""
-        ir = self._compiler.compile_ordered_ir(node)
+        ir = self._compiler.compile_ordered_ir(self._compiler._preprocess(node))
         sql, schema = ir.raw_sql_and_schema()
         return sql, schema, ir._ordering
 
 
 def test_only_try_evaluate(node: bigframes.core.nodes.BigFrameNode):
     """Use only for unit testing paths - not fully featured. Will throw exception if fails."""
+    node = _STRICT_COMPILER._preprocess(node)
     ibis = _STRICT_COMPILER.compile_ordered_ir(node)._to_ibis_expr(
         ordering_mode="unordered"
     )
@@ -83,7 +88,7 @@ def test_only_ibis_inferred_schema(node: bigframes.core.nodes.BigFrameNode):
 
     compiled = _STRICT_COMPILER.compile_unordered_ir(node)
     items = tuple(
-        bigframes.core.schema.SchemaItem(id, compiled.get_column_type(id))
-        for id in compiled.column_ids
+        bigframes.core.schema.SchemaItem(name, compiled.get_column_type(ibis_id))
+        for name, ibis_id in zip(node.schema.names, compiled.column_ids)
     )
     return bigframes.core.schema.ArraySchema(items)

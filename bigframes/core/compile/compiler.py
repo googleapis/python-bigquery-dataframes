@@ -49,32 +49,35 @@ class Compiler:
     # In unstrict mode, ordering from ReadTable or after joins may be ambiguous to improve query performance.
     strict: bool = True
     scalar_op_compiler = compile_scalar.ScalarOpCompiler()
-    enable_pruning: bool = False
+    enable_pruning: bool = True
+    enable_densify_ids: bool = True
 
     def _preprocess(self, node: nodes.BigFrameNode):
         if self.enable_pruning:
             used_fields = frozenset(field.id for field in node.fields)
             node = node.prune(used_fields)
         node = functools.cache(rewrites.replace_slice_ops)(node)
+        if self.enable_densify_ids:
+            node, _ = rewrites.remap_variables(
+                node, id_generator=ids.anonymous_serial_ids()
+            )
         return node
 
     def compile_ordered_ir(self, node: nodes.BigFrameNode) -> compiled.OrderedIR:
-        ir = typing.cast(
-            compiled.OrderedIR, self.compile_node(self._preprocess(node), True)
-        )
+        ir = typing.cast(compiled.OrderedIR, self.compile_node(node, True))
         if self.strict:
             assert ir.has_total_order
         return ir
 
     def compile_unordered_ir(self, node: nodes.BigFrameNode) -> compiled.UnorderedIR:
-        return typing.cast(
-            compiled.UnorderedIR, self.compile_node(self._preprocess(node), False)
-        )
+        return typing.cast(compiled.UnorderedIR, self.compile_node(node, False))
 
-    def compile_peak_sql(
+    def compile_peek_sql(
         self, node: nodes.BigFrameNode, n_rows: int
     ) -> typing.Optional[str]:
-        return self.compile_unordered_ir(self._preprocess(node)).peek_sql(n_rows)
+        return self.compile_unordered_ir(node).peek_sql(
+            n_rows, column_ids=node.schema.names
+        )
 
     # TODO: Remove cache when schema no longer requires compilation to derive schema (and therefor only compiles for execution)
     @functools.lru_cache(maxsize=5000)
@@ -144,7 +147,7 @@ class Compiler:
 
         labels_array_table = ibis.range(
             joined_table[start_column], joined_table[end_column] + node.step, node.step
-        ).name("labels")
+        ).name(node.output_id.sql)
         labels = (
             typing.cast(ibis.expr.types.ArrayValue, labels_array_table)
             .unnest()
@@ -307,18 +310,19 @@ class Compiler:
 
     @_compile_node.register
     def compile_concat(self, node: nodes.ConcatNode, ordered: bool = True):
+        output_ids = [id.sql for id in node.output_ids]
         if ordered:
             compiled_ordered = [self.compile_ordered_ir(node) for node in node.children]
-            return concat_impl.concat_ordered(compiled_ordered)
+            return concat_impl.concat_ordered(compiled_ordered, output_ids)
         else:
             compiled_unordered = [
                 self.compile_unordered_ir(node) for node in node.children
             ]
-            return concat_impl.concat_unordered(compiled_unordered)
+            return concat_impl.concat_unordered(compiled_unordered, output_ids)
 
     @_compile_node.register
     def compile_rowcount(self, node: nodes.RowCountNode, ordered: bool = True):
-        result = self.compile_unordered_ir(node.child).row_count()
+        result = self.compile_unordered_ir(node.child).row_count(name=node.col_id.sql)
         return result if ordered else result.to_unordered()
 
     @_compile_node.register
