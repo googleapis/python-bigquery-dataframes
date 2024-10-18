@@ -1091,12 +1091,19 @@ class Session(
                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
         Args:
-            input_types (type or sequence(type)):
+            input_types (type or sequence(type), Optional):
                 For scalar user defined function it should be the input type or
-                sequence of input types. For row processing user defined function,
-                type `Series` should be specified.
-            output_type (type):
-                Data type of the output in the user defined function.
+                sequence of input types. The supported scalar input types are
+                `bool`, `bytes`, `float`, `int`, `str`. For row processing user
+                defined function (i.e. functions that receive a single input
+                representing a row in form of a Series), type `Series` should be
+                specified.
+            output_type (type, Optional):
+                Data type of the output in the user defined function. If the
+                user defined function returns an array, then `list[type]` should
+                be specified. The supported output types are `bool`, `bytes`,
+                `float`, `int`, `str`, `list[bool]`, `list[float]`, `list[int]`
+                and `list[str]`.
             dataset (str, Optional):
                 Dataset in which to create a BigQuery remote function. It should be in
                 `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
@@ -1236,6 +1243,7 @@ class Session(
         self,
         function_name: str,
         is_row_processor: bool = False,
+        output_type: Optional[type] = None,
     ):
         """Loads a BigQuery function from BigQuery.
 
@@ -1325,6 +1333,12 @@ class Session(
                 Whether the function is a row processor. This is set to True
                 for a function which receives an entire row of a DataFrame as
                 a pandas Series.
+            output_type (type, default None):
+                Python type equivalent to the BigQuery return type. This is used
+                to coerce the return value of the BigQuery function to BigFrames
+                type. For example, if the BigQuery function returns a JSON
+                serialized array of integers such as "[1, 2, 3]", then user can
+                set `output_type=list[int]` to read it as array of integers [1, 2, 3].
 
         Returns:
             callable: A function object pointing to the BigQuery function read
@@ -1339,6 +1353,7 @@ class Session(
             function_name=function_name,
             session=self,
             is_row_processor=is_row_processor,
+            output_type=output_type,
         )
 
     def _prepare_copy_job_config(self) -> bigquery.CopyJobConfig:

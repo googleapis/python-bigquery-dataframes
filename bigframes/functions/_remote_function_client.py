@@ -200,14 +200,7 @@ class RemoteFunctionClient:
         package_requirements=None,
         is_row_processor=False,
     ):
-        """Generate the cloud function code for a given user defined function.
-
-        Args:
-            input_types (tuple[str]):
-                Types of the input arguments in BigQuery SQL data type names.
-            output_type (str):
-                Types of the output scalar as a BigQuery SQL data type name.
-        """
+        """Generate the cloud function code for a given user defined function."""
 
         # requirements.txt
         if package_requirements:
@@ -240,14 +233,7 @@ class RemoteFunctionClient:
         memory_mib=1024,
         ingress_settings="all",
     ):
-        """Create a cloud function from the given user defined function.
-
-        Args:
-            input_types (tuple[str]):
-                Types of the input arguments in BigQuery SQL data type names.
-            output_type (str):
-                Types of the output scalar as a BigQuery SQL data type name.
-        """
+        """Create a cloud function from the given user defined function."""
 
         # Build and deploy folder structure containing cloud function
         with tempfile.TemporaryDirectory() as directory:
