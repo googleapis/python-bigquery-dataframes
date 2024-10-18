@@ -955,7 +955,7 @@ def cleanup(session):
     # project within the "Number of functions" quota
     # https://cloud.google.com/functions/quotas#resource_limits
     recency_cutoff_hours = 12
-    cleanup_count_per_location = 10
+    cleanup_count_per_location = 20
 
     session.install("-e", ".")
 
