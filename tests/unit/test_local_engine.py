@@ -21,16 +21,18 @@ import bigframes
 import bigframes.pandas as bpd
 from tests.system.utils import skip_legacy_pandas
 
-from . import resources
+pytest.importorskip("polars")
 
 
 # All tests in this file require polars to be installed to pass.
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def polars_session():
-    return resources.create_polars_session()
+    from . import polars_session
+
+    return polars_session.TestSession()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def test_frame() -> pd.DataFrame:
     df = pd.DataFrame(
         {

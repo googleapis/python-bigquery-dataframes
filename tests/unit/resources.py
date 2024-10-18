@@ -114,11 +114,3 @@ def create_dataframe(
     monkeypatch.setattr(bigframes.core.global_session, "_global_session", session)
     bigframes.options.bigquery._session_started = True
     return bigframes.dataframe.DataFrame({"col": []}, session=session)
-
-
-def create_polars_session() -> bigframes.Session:
-    # TODO(tswast): Refactor to make helper available for all tests. Consider
-    # providing a proper "local Session" for use by downstream developers.
-    from . import polars_session
-
-    return polars_session.TestSession()
