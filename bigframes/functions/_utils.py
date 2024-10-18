@@ -208,17 +208,16 @@ def ibis_signature_from_python_signature(
         for t in input_types
     ]
 
-    try:
+    if typing.get_origin(output_type) is list:
+        ibis_output_type = (
+            bigframes.core.compile.ibis_types.ibis_array_output_type_from_python_type(
+                output_type
+            )
+        )
+    else:
         ibis_output_type = bigframes.core.compile.ibis_types.ibis_type_from_python_type(
             output_type
         )
-    except bigframes.core.compile.ibis_types.UnsupportedTypeError:
-        if typing.get_origin(output_type) is list:
-            ibis_output_type = bigframes.core.compile.ibis_types.ibis_array_output_type_from_python_type(
-                output_type
-            )
-        else:
-            raise
 
     return IbisSignature(
         parameter_names=list(signature.parameters.keys()),

@@ -1245,6 +1245,7 @@ class Session(
         self,
         function_name: str,
         is_row_processor: bool = False,
+        output_type: Optional[type] = None,
     ):
         """Loads a BigQuery function from BigQuery.
 
@@ -1334,6 +1335,12 @@ class Session(
                 Whether the function is a row processor. This is set to True
                 for a function which receives an entire row of a DataFrame as
                 a pandas Series.
+            output_type (type, default None):
+                Python type equivalent to the BigQuery return type. This is used
+                to coerce the return value of the BigQuery function to BigFrames
+                type. For example, if the BigQuery function returns a JSON
+                serialized array of integers such as "[1, 2, 3]", then user can
+                set `output_type=list[int]` to read it as array of integers [1, 2, 3].
 
         Returns:
             callable: A function object pointing to the BigQuery function read
@@ -1348,6 +1355,7 @@ class Session(
             function_name=function_name,
             session=self,
             is_row_processor=is_row_processor,
+            output_type=output_type,
         )
 
     def _prepare_copy_job_config(self) -> bigquery.CopyJobConfig:

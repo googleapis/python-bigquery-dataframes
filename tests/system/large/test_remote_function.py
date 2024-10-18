@@ -2187,7 +2187,8 @@ def test_df_apply_axis_1_array_output(session, scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     try:
 
-        def generate_stats(row):
+        @session.remote_function(reuse=False)
+        def generate_stats(row: pandas.Series) -> list[int]:
             import pandas as pd
 
             sum = row["int64_too"]
@@ -2197,13 +2198,9 @@ def test_df_apply_axis_1_array_output(session, scalars_dfs):
                 avg = round((avg + row["int64_col"]) / 2)
             return [sum, avg]
 
-        generate_stats_remote = session.remote_function(
-            bigframes.series.Series, list[int], reuse=False
-        )(generate_stats)
+        assert getattr(generate_stats, "is_row_processor")
 
-        assert getattr(generate_stats_remote, "is_row_processor")
-
-        bf_result = scalars_df[columns].apply(generate_stats_remote, axis=1).to_pandas()
+        bf_result = scalars_df[columns].apply(generate_stats, axis=1).to_pandas()
         pd_result = scalars_pandas_df[columns].apply(generate_stats, axis=1)
 
         # bf_result.dtype is 'list<item: int64>[pyarrow]' while pd_result.dtype
@@ -2211,15 +2208,17 @@ def test_df_apply_axis_1_array_output(session, scalars_dfs):
         pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
 
         # Let's make sure the read_gbq_function path works for this function
-        serialize_row_reuse = session.read_gbq_function(
-            generate_stats_remote.bigframes_remote_function, is_row_processor=True
+        generate_stats_reuse = session.read_gbq_function(
+            generate_stats.bigframes_remote_function,
+            is_row_processor=True,
+            output_type=list[int],
         )
-        bf_result = scalars_df[columns].apply(serialize_row_reuse, axis=1).to_pandas()
+        bf_result = scalars_df[columns].apply(generate_stats_reuse, axis=1).to_pandas()
         pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, session.cloudfunctionsclient, generate_stats_remote
+            session.bqclient, session.cloudfunctionsclient, generate_stats
         )
 
 
@@ -2304,29 +2303,35 @@ def test_remote_function_array_output(
 ):
     try:
 
-        def featurizer(x: int) -> list[array_dtype]:  # type: ignore
-            return [array_dtype(i) for i in [x, x + 1, x + 2]]
-
-        featurizer_remote = session.remote_function(
+        @session.remote_function(
             dataset=dataset_id,
             bigquery_connection=bq_cf_connection,
             reuse=False,
-        )(featurizer)
+        )
+        def featurize(x: int) -> list[array_dtype]:  # type: ignore
+            return [array_dtype(i) for i in [x, x + 1, x + 2]]
 
         scalars_df, scalars_pandas_df = scalars_dfs
 
         bf_int64_col = scalars_df["int64_too"]
-        bf_result = bf_int64_col.apply(featurizer_remote).to_pandas()
+        bf_result = bf_int64_col.apply(featurize).to_pandas()
 
         pd_int64_col = scalars_pandas_df["int64_too"]
-        pd_result = pd_int64_col.apply(featurizer)
+        pd_result = pd_int64_col.apply(featurize)
 
         # ignore any dtype disparity
-        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+        # Let's make sure the read_gbq_function path works for this function
+        featurize_reuse = session.read_gbq_function(
+            featurize.bigframes_remote_function, output_type=list[array_dtype]  # type: ignore
+        )
+        bf_result = scalars_df["int64_too"].apply(featurize_reuse).to_pandas()
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, session.cloudfunctionsclient, featurizer_remote
+            session.bqclient, session.cloudfunctionsclient, featurize
         )
 
 
@@ -2336,14 +2341,13 @@ def test_remote_function_array_output_multiindex(
 ):
     try:
 
-        def featurizer(x: int) -> list[float]:
-            return [x, x + 0.5, x + 0.33]
-
-        featurizer_remote = session.remote_function(
+        @session.remote_function(
             dataset=dataset_id,
             bigquery_connection=bq_cf_connection,
             reuse=False,
-        )(featurizer)
+        )
+        def featurize(x: int) -> list[float]:
+            return [x, x + 0.5, x + 0.33]
 
         scalars_df, scalars_pandas_df = scalars_dfs
         multiindex_cols = ["rowindex", "string_col"]
@@ -2351,15 +2355,15 @@ def test_remote_function_array_output_multiindex(
         scalars_pandas_df = scalars_pandas_df.reset_index().set_index(multiindex_cols)
 
         bf_int64_col = scalars_df["int64_too"]
-        bf_result = bf_int64_col.apply(featurizer_remote).to_pandas()
+        bf_result = bf_int64_col.apply(featurize).to_pandas()
 
         pd_int64_col = scalars_pandas_df["int64_too"]
-        pd_result = pd_int64_col.apply(featurizer)
+        pd_result = pd_int64_col.apply(featurize)
 
         # ignore any dtype disparity
-        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
-            session.bqclient, session.cloudfunctionsclient, featurizer_remote
+            session.bqclient, session.cloudfunctionsclient, featurize
         )

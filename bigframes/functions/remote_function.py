@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import typing
 from typing import cast, Optional, TYPE_CHECKING
 import warnings
 
@@ -109,6 +110,7 @@ def read_gbq_function(
     *,
     session: Session,
     is_row_processor: bool = False,
+    output_type: Optional[type] = None,
 ):
     """
     Read an existing BigQuery function and prepare it for use in future queries.
@@ -198,9 +200,19 @@ def read_gbq_function(
         )
     func.input_dtypes = tuple(function_input_dtypes)  # type: ignore
 
+    # set output bigframes data types
+    if typing.get_origin(output_type) is list:
+        ibis_output_type = (
+            bigframes.core.compile.ibis_types.ibis_array_output_type_from_python_type(
+                cast(type, output_type)
+            )
+        )
+    else:
+        ibis_output_type = ibis_signature.output_type
     func.output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(  # type: ignore
-        ibis_signature.output_type
+        ibis_output_type
     )
+
     func.is_row_processor = is_row_processor  # type: ignore
     func.ibis_node = node  # type: ignore
     return func
