@@ -39,6 +39,7 @@ import bigframes.core.identifiers
 import bigframes.core.identifiers as bfet_ids
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.schema as schemata
+import bigframes.core.slices as slices
 import bigframes.core.window_spec as window
 import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
@@ -90,6 +91,11 @@ class BigFrameNode(abc.ABC):
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
         """Direct children of this node"""
         return tuple([])
+
+    @property
+    @abc.abstractmethod
+    def row_count(self) -> typing.Optional[int]:
+        return None
 
     @abc.abstractmethod
     def remap_refs(
@@ -346,6 +352,26 @@ class SliceNode(UnaryNode):
         return 2
 
     @property
+    def is_limit(self) -> bool:
+        """Returns whether this is equivalent to a ORDER BY ... LIMIT N."""
+        # TODO: Handle tail case.
+        return (
+            (not self.start)
+            and (self.step == 1)
+            and (self.stop is not None)
+            and (self.stop > 0)
+        )
+
+    @property
+    def row_count(self) -> typing.Optional[int]:
+        child_length = self.child.row_count
+        if child_length is None:
+            return None
+        return slices.slice_output_rows(
+            (self.start, self.stop, self.step), child_length
+        )
+
+    @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return ()
 
@@ -403,6 +429,15 @@ class JoinNode(BigFrameNode):
     @property
     def joins(self) -> bool:
         return True
+
+    @property
+    def row_count(self) -> Optional[int]:
+        if self.type == "cross":
+            if self.left_child.row_count is None or self.right_child.row_count is None:
+                return None
+            return self.left_child.row_count * self.right_child.row_count
+
+        return None
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
@@ -486,6 +521,16 @@ class ConcatNode(BigFrameNode):
         return len(self.schema.items) + OVERHEAD_VARIABLES
 
     @property
+    def row_count(self) -> Optional[int]:
+        sub_counts = [node.row_count for node in self.child_nodes]
+        total = 0
+        for count in sub_counts:
+            if count is None:
+                return None
+            total += count
+        return total
+
+    @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return self.output_ids
 
@@ -548,6 +593,10 @@ class FromRangeNode(BigFrameNode):
         return len(self.schema.items) + OVERHEAD_VARIABLES
 
     @property
+    def row_count(self) -> Optional[int]:
+        return None
+
+    @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return (self.output_id,)
 
@@ -583,18 +632,17 @@ class LeafNode(BigFrameNode):
         return {self}
 
     @property
-    def supports_fast_head(self) -> bool:
+    def fast_offsets(self) -> bool:
+        return False
+
+    @property
+    def fast_ordered_limit(self) -> bool:
         return False
 
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
     ) -> BigFrameNode:
         return self
-
-    @property
-    def row_count(self) -> typing.Optional[int]:
-        """How many rows are in the data source. None means unknown."""
-        return None
 
 
 class ScanItem(typing.NamedTuple):
@@ -627,7 +675,11 @@ class ReadLocalNode(LeafNode):
         return len(self.scan_list.items) + 1
 
     @property
-    def supports_fast_head(self) -> bool:
+    def fast_offsets(self) -> bool:
+        return True
+
+    @property
+    def fast_ordered_limit(self) -> bool:
         return True
 
     @property
@@ -752,11 +804,26 @@ class ReadTableNode(LeafNode):
         return 3
 
     @property
-    def supports_fast_head(self) -> bool:
-        # Fast head is only supported when row offsets are available.
-        # In the future, ORDER BY+LIMIT optimizations may allow fast head when
-        # clustered and/or partitioned on ordering key
+    def fast_offsets(self) -> bool:
+        # Fast head is only supported when row offsets are available or data is clustered over ordering key.
         return (self.source.ordering is not None) and self.source.ordering.is_sequential
+
+    @property
+    def fast_ordered_limit(self) -> bool:
+        if self.source.ordering is None:
+            return False
+        order_cols = self.source.ordering.all_ordering_columns
+        # monotonicity would probably be fine
+        if not all(col.scalar_expression.is_identity for col in order_cols):
+            return False
+        order_col_ids = tuple(
+            cast(ex.DerefOp, col.scalar_expression).id.name for col in order_cols
+        )
+        cluster_col_ids = self.source.table.cluster_cols
+        if cluster_col_ids is None:
+            return False
+
+        return order_col_ids == cluster_col_ids[: len(order_col_ids)]
 
     @property
     def order_ambiguous(self) -> bool:
@@ -842,6 +909,10 @@ class PromoteOffsetsNode(UnaryNode):
         return 1
 
     @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
+
+    @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return (self.col_id,)
 
@@ -872,6 +943,10 @@ class FilterNode(UnaryNode):
     @property
     def variables_introduced(self) -> int:
         return 1
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return None
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
@@ -912,6 +987,10 @@ class OrderByNode(UnaryNode):
     @property
     def explicitly_ordered(self) -> bool:
         return True
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
@@ -960,6 +1039,10 @@ class ReversedNode(UnaryNode):
         return 0
 
     @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
+
+    @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return ()
 
@@ -996,6 +1079,10 @@ class SelectionNode(UnaryNode):
     @property
     def defines_namespace(self) -> bool:
         return True
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
@@ -1061,6 +1148,10 @@ class ProjectionNode(UnaryNode):
         return new_vars
 
     @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
+
+    @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return tuple(id for _, id in self.assignments)
 
@@ -1113,6 +1204,10 @@ class RowCountNode(UnaryNode):
     @property
     def defines_namespace(self) -> bool:
         return True
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return 1
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
@@ -1176,6 +1271,12 @@ class AggregateNode(UnaryNode):
         return True
 
     @property
+    def row_count(self) -> Optional[int]:
+        if not self.by_column_ids:
+            return 1
+        return None
+
+    @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return tuple(id for _, id in self.aggregations)
 
@@ -1230,6 +1331,10 @@ class WindowOpNode(UnaryNode):
         # Assume that if not reprojecting, that there is a sequence of window operations sharing the same window
         return 0 if self.skip_reproject_unsafe else 4
 
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
+
     @functools.cached_property
     def added_field(self) -> Field:
         input_type = self.child.get_type(self.column_name.id)
@@ -1277,6 +1382,10 @@ class RandomSampleNode(UnaryNode):
     @property
     def variables_introduced(self) -> int:
         return 1
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return None
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
@@ -1327,6 +1436,10 @@ class ExplodeNode(UnaryNode):
     @property
     def defines_namespace(self) -> bool:
         return True
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return None
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
