@@ -17,7 +17,7 @@ https://scikit-learn.org/stable/modules/ensemble.html"""
 
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional, Union
+from typing import List, Literal, Optional, Union
 
 import bigframes_vendored.sklearn.ensemble._forest
 import bigframes_vendored.xgboost.sklearn
@@ -47,6 +47,9 @@ _BQML_PARAMS_MAPPING = {
     "max_iterations": "maxIterations",
     "enable_global_explain": "enableGlobalExplain",
     "xgboost_version": "xgboostVersion",
+    "data_split_method": "dataSplitMethod",
+    "data_split_eval_fraction": "dataSplitEvalFraction",
+    "data_split_col": "dataSplitColumn",
 }
 
 
@@ -78,6 +81,15 @@ class XGBRegressor(
         tol: float = 0.01,
         enable_global_explain: bool = False,
         xgboost_version: Literal["0.9", "1.1"] = "0.9",
+        data_split_method: Literal[
+            "auto_split",
+            "random",
+            "custom",
+            "seq",
+            "no_split",
+        ] = "no_split",
+        data_split_eval_fraction: Optional[float] = None,
+        data_split_col: Optional[str] = None,
     ):
         self.n_estimators = n_estimators
         self.booster = booster
@@ -97,6 +109,9 @@ class XGBRegressor(
         self.tol = tol
         self.enable_global_explain = enable_global_explain
         self.xgboost_version = xgboost_version
+        self.data_split_method = data_split_method
+        self.data_split_eval_fraction = data_split_eval_fraction
+        self.data_split_col = data_split_col
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
 
@@ -115,11 +130,11 @@ class XGBRegressor(
         return model
 
     @property
-    def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
+    def _bqml_options(self) -> dict:
         """The model options as they will be set for BQML"""
-        return {
+        options = {
             "model_type": "BOOSTED_TREE_REGRESSOR",
-            "data_split_method": "NO_SPLIT",
+            "data_split_method": self.data_split_method,
             "early_stop": True,
             "num_parallel_tree": self.n_estimators,
             "booster_type": self.booster,
@@ -139,6 +154,13 @@ class XGBRegressor(
             "enable_global_explain": self.enable_global_explain,
             "xgboost_version": self.xgboost_version,
         }
+
+        if self.data_split_eval_fraction is not None:
+            options["data_split_eval_fraction"] = self.data_split_eval_fraction
+        if self.data_split_col is not None:
+            options["data_split_col"] = self.data_split_col
+
+        return options
 
     def _fit(
         self,
@@ -227,6 +249,15 @@ class XGBClassifier(
         tol: float = 0.01,
         enable_global_explain: bool = False,
         xgboost_version: Literal["0.9", "1.1"] = "0.9",
+        data_split_method: Literal[
+            "auto_split",
+            "random",
+            "custom",
+            "seq",
+            "no_split",
+        ] = "no_split",
+        data_split_eval_fraction: Optional[float] = None,
+        data_split_col: Optional[str] = None,
     ):
         self.n_estimators = n_estimators
         self.booster = booster
@@ -246,6 +277,9 @@ class XGBClassifier(
         self.tol = tol
         self.enable_global_explain = enable_global_explain
         self.xgboost_version = xgboost_version
+        self.data_split_method = data_split_method
+        self.data_split_eval_fraction = data_split_eval_fraction
+        self.data_split_col = data_split_col
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
 
@@ -264,11 +298,11 @@ class XGBClassifier(
         return model
 
     @property
-    def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
+    def _bqml_options(self) -> dict:
         """The model options as they will be set for BQML"""
-        return {
+        options = {
             "model_type": "BOOSTED_TREE_CLASSIFIER",
-            "data_split_method": "NO_SPLIT",
+            "data_split_method": self.data_split_method,
             "early_stop": True,
             "num_parallel_tree": self.n_estimators,
             "booster_type": self.booster,
@@ -288,6 +322,13 @@ class XGBClassifier(
             "enable_global_explain": self.enable_global_explain,
             "xgboost_version": self.xgboost_version,
         }
+
+        if self.data_split_eval_fraction is not None:
+            options["data_split_eval_fraction"] = self.data_split_eval_fraction
+        if self.data_split_col is not None:
+            options["data_split_col"] = self.data_split_col
+
+        return options
 
     def _fit(
         self,
@@ -370,6 +411,15 @@ class RandomForestRegressor(
         tol: float = 0.01,
         enable_global_explain: bool = False,
         xgboost_version: Literal["0.9", "1.1"] = "0.9",
+        data_split_method: Literal[
+            "auto_split",
+            "random",
+            "custom",
+            "seq",
+            "no_split",
+        ] = "no_split",
+        data_split_eval_fraction: Optional[float] = None,
+        data_split_col: Optional[str] = None,
     ):
         self.n_estimators = n_estimators
         self.tree_method = tree_method
@@ -385,6 +435,9 @@ class RandomForestRegressor(
         self.tol = tol
         self.enable_global_explain = enable_global_explain
         self.xgboost_version = xgboost_version
+        self.data_split_method = data_split_method
+        self.data_split_eval_fraction = data_split_eval_fraction
+        self.data_split_col = data_split_col
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
 
@@ -403,9 +456,9 @@ class RandomForestRegressor(
         return model
 
     @property
-    def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
+    def _bqml_options(self) -> dict:
         """The model options as they will be set for BQML"""
-        return {
+        options = {
             "model_type": "RANDOM_FOREST_REGRESSOR",
             "early_stop": True,
             "num_parallel_tree": self.n_estimators,
@@ -420,10 +473,17 @@ class RandomForestRegressor(
             "l1_reg": self.reg_alpha,
             "l2_reg": self.reg_lambda,
             "min_rel_progress": self.tol,
-            "data_split_method": "NO_SPLIT",
+            "data_split_method": self.data_split_method,
             "enable_global_explain": self.enable_global_explain,
             "xgboost_version": self.xgboost_version,
         }
+
+        if self.data_split_eval_fraction is not None:
+            options["data_split_eval_fraction"] = self.data_split_eval_fraction
+        if self.data_split_col is not None:
+            options["data_split_col"] = self.data_split_col
+
+        return options
 
     def _fit(
         self,
@@ -526,6 +586,15 @@ class RandomForestClassifier(
         tol: float = 0.01,
         enable_global_explain: bool = False,
         xgboost_version: Literal["0.9", "1.1"] = "0.9",
+        data_split_method: Literal[
+            "auto_split",
+            "random",
+            "custom",
+            "seq",
+            "no_split",
+        ] = "no_split",
+        data_split_eval_fraction: Optional[float] = None,
+        data_split_col: Optional[str] = None,
     ):
         self.n_estimators = n_estimators
         self.tree_method = tree_method
@@ -541,6 +610,9 @@ class RandomForestClassifier(
         self.tol = tol
         self.enable_global_explain = enable_global_explain
         self.xgboost_version = xgboost_version
+        self.data_split_method = data_split_method
+        self.data_split_eval_fraction = data_split_eval_fraction
+        self.data_split_col = data_split_col
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
 
@@ -559,9 +631,9 @@ class RandomForestClassifier(
         return model
 
     @property
-    def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
+    def _bqml_options(self) -> dict:
         """The model options as they will be set for BQML"""
-        return {
+        options = {
             "model_type": "RANDOM_FOREST_CLASSIFIER",
             "early_stop": True,
             "num_parallel_tree": self.n_estimators,
@@ -576,10 +648,17 @@ class RandomForestClassifier(
             "l1_reg": self.reg_alpha,
             "l2_reg": self.reg_lambda,
             "min_rel_progress": self.tol,
-            "data_split_method": "NO_SPLIT",
+            "data_split_method": self.data_split_method,
             "enable_global_explain": self.enable_global_explain,
             "xgboost_version": self.xgboost_version,
         }
+
+        if self.data_split_eval_fraction is not None:
+            options["data_split_eval_fraction"] = self.data_split_eval_fraction
+        if self.data_split_col is not None:
+            options["data_split_col"] = self.data_split_col
+
+        return options
 
     def _fit(
         self,
