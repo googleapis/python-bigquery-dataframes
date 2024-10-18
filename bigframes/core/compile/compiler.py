@@ -58,26 +58,24 @@ class Compiler:
             node = node.prune(used_fields)
         node = functools.cache(rewrites.replace_slice_ops)(node)
         if self.enable_densify_ids:
-            node, _ = rewrites.remap_variables(node, id_generator=ids.standard_ids())
+            node, _ = rewrites.remap_variables(
+                node, id_generator=ids.anonymous_serial_ids()
+            )
         return node
 
     def compile_ordered_ir(self, node: nodes.BigFrameNode) -> compiled.OrderedIR:
-        ir = typing.cast(
-            compiled.OrderedIR, self.compile_node(self._preprocess(node), True)
-        )
+        ir = typing.cast(compiled.OrderedIR, self.compile_node(node, True))
         if self.strict:
             assert ir.has_total_order
         return ir
 
     def compile_unordered_ir(self, node: nodes.BigFrameNode) -> compiled.UnorderedIR:
-        return typing.cast(
-            compiled.UnorderedIR, self.compile_node(self._preprocess(node), False)
-        )
+        return typing.cast(compiled.UnorderedIR, self.compile_node(node, False))
 
     def compile_peek_sql(
         self, node: nodes.BigFrameNode, n_rows: int
     ) -> typing.Optional[str]:
-        return self.compile_unordered_ir(self._preprocess(node)).peek_sql(
+        return self.compile_unordered_ir(node).peek_sql(
             n_rows, column_ids=node.schema.names
         )
 
