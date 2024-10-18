@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import dataclasses
 import datetime
-from typing import Mapping, Optional, Sequence, Union
+from typing import Optional, Sequence
 import unittest.mock as mock
-import weakref
 
 import google.auth.credentials
 import google.cloud.bigquery
@@ -24,7 +22,6 @@ import pytest
 
 import bigframes
 import bigframes.clients
-import bigframes.core.compile.polars
 import bigframes.core.ordering
 import bigframes.dataframe
 import bigframes.session.clients
@@ -35,66 +32,6 @@ import bigframes.session.metrics
 
 
 TEST_SCHEMA = (google.cloud.bigquery.SchemaField("col", "INTEGER"),)
-
-
-@dataclasses.dataclass
-class TestExecutor(bigframes.session.executor.Executor):
-    compiler = bigframes.core.compile.polars.PolarsCompiler()
-
-    def execute(
-        self,
-        array_value: bigframes.core.ArrayValue,
-        *,
-        ordered: bool = True,
-        col_id_overrides: Mapping[str, str] = {},
-        use_explicit_destination: bool = False,
-        get_size_bytes: bool = False,
-        page_size: Optional[int] = None,
-        max_results: Optional[int] = None,
-    ):
-        """
-        Execute the ArrayValue, storing the result to a temporary session-owned table.
-        """
-        import polars
-
-        lazy_frame: polars.LazyFrame = self.compiler.compile(array_value)
-        pa_table = lazy_frame.collect().to_arrow()
-        # Currently, pyarrow types might not quite be exactly the ones in the bigframes schema.
-        # Nullability may be different, and might use large versions of list, string datatypes.
-        return bigframes.session.executor.ExecuteResult(
-            arrow_batches=lambda: pa_table.to_batches(),
-            schema=array_value.schema,
-            total_bytes=pa_table.nbytes,
-            total_rows=pa_table.num_rows,
-        )
-
-
-class TestSession(bigframes.session.Session):
-    def __init__(self):
-        self._location = None  # type: ignore
-        self._bq_kms_key_name = None  # type: ignore
-        self._clients_provider = None  # type: ignore
-        self.ibis_client = None  # type: ignore
-        self._bq_connection = None  # type: ignore
-        self._skip_bq_connection_check = True
-        self._session_id: str = "test_session"
-        self._objects: list[
-            weakref.ReferenceType[
-                Union[
-                    bigframes.core.indexes.Index,
-                    bigframes.series.Series,
-                    bigframes.dataframe.DataFrame,
-                ]
-            ]
-        ] = []
-        self._strictly_ordered: bool = True
-        self._allow_ambiguity = False  # type: ignore
-        self._default_index_type = bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
-        self._metrics = bigframes.session.metrics.ExecutionMetrics()
-        self._remote_function_session = None  # type: ignore
-        self._temp_storage_manager = None  # type: ignore
-        self._executor = TestExecutor()
-        self._loader = None  # type: ignore
 
 
 def create_bigquery_session(
@@ -182,4 +119,6 @@ def create_dataframe(
 def create_polars_session() -> bigframes.Session:
     # TODO(tswast): Refactor to make helper available for all tests. Consider
     # providing a proper "local Session" for use by downstream developers.
-    return TestSession()
+    from . import polars_session
+
+    return polars_session.TestSession()

@@ -18,12 +18,7 @@ import functools
 import itertools
 from typing import cast, Sequence
 
-# Polars is an optional dependency
-try:
-    import polars as pl
-except ImportError:
-    # Handle the case where the dependency is not installed
-    pl = None  # type: ignore
+import polars as pl
 
 import bigframes.core
 import bigframes.core.expression as ex

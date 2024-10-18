@@ -24,6 +24,7 @@ from tests.system.utils import skip_legacy_pandas
 from . import resources
 
 
+# All tests in this file require polars to be installed to pass.
 @pytest.fixture(scope="session")
 def polars_session():
     return resources.create_polars_session()
