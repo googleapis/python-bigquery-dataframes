@@ -576,7 +576,7 @@ class Session(
 
         Returns:
             bigframes.streaming.dataframe.StreamingDataFrame:
-               A StreamingDataFrame representing results of the query or table.
+               A StreamingDataFrame representing results of the table.
         """
         warnings.warn(
             "The bigframes.streaming module is a preview feature, and subject to change.",
