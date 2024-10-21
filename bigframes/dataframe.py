@@ -366,13 +366,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
     ) -> DataFrame:
-        """
-        Casts a dtype to BigQuery DataFrame.
-
-        Returns:
-          bigframes.pandas.DataFrame:
-              A BigQuery DataFrame.
-        """
         return self._apply_unary_op(ops.AsTypeOp(to_type=dtype))
 
     def _to_sql_query(

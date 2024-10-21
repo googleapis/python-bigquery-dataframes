@@ -182,7 +182,8 @@ class NDFrame(indexing.IndexingMixin):
                 ``pd.ArrowDtype(pa.timestamp("us", tz="UTC"))``.
 
         Returns:
-            same type as caller
+            bigframes.pandas.DataFrame:
+                A BigQuery DataFrame.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -1139,7 +1140,7 @@ class NDFrame(indexing.IndexingMixin):
                 A dictionary of keyword arguments passed into ``func``.
 
         Returns:
-            T:
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
                 Object of same type as caller
         """
         return common.pipe(self, func, *args, **kwargs)

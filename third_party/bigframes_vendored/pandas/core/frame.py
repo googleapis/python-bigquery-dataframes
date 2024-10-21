@@ -91,7 +91,7 @@ class DataFrame(generic.NDFrame):
                 The value to use for missing values.
 
         Returns:
-            np.ndarray:
+            numpy.ndarray:
                 The values of the DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
