@@ -62,6 +62,7 @@ def json_set(
     # SQLGlot parser does not support the "create_if_missing => true" syntax, so
     # create_if_missing is not currently implemented.
 
+    result = input
     for json_path_value_pair in json_path_value_pairs:
         if len(json_path_value_pair) != 2:
             raise ValueError(
@@ -70,7 +71,7 @@ def json_set(
             )
 
         json_path, json_value = json_path_value_pair
-        result = input._apply_binary_op(
+        result = result._apply_binary_op(
             json_value, ops.JSONSet(json_path=json_path), alignment="left"
         )
     return result
