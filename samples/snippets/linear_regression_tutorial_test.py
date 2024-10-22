@@ -65,9 +65,9 @@ def test_linear_regression(random_model_id: str) -> None:
 
     # Use 'contains' function to filter by island containing the string
     # "Biscoe".
-    model = model.loc[model["island"].str.contains("Biscoe")]
+    biscoe_data = model.loc[model["island"].str.contains("Biscoe")]
 
-    result = model.predict(model)
+    result = model.predict(biscoe_data)
 
     # Expected output results:
     # [END bigquery_dataframes_bqml_linear_predict]
