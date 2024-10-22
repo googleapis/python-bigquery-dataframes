@@ -29,19 +29,19 @@ class ExecutionMetrics:
     execution_count: int = 0
     slot_millis: int = 0
     bytes_processed: int = 0
-    exec_seconds: float = 0
+    execution_secs: float = 0
 
     def count_job_stats(self, query_job: bq_job.QueryJob):
         stats = get_performance_stats(query_job)
         if stats is not None:
-            bytes_processed, slot_millis, exec_seconds = stats
+            bytes_processed, slot_millis, execution_secs = stats
             self.execution_count += 1
             self.bytes_processed += bytes_processed
             self.slot_millis += slot_millis
-            self.exec_seconds += exec_seconds
+            self.execution_secs += execution_secs
             if LOGGING_NAME_ENV_VAR in os.environ:
                 # when running notebooks via pytest nbmake
-                write_stats_to_disk(bytes_processed, slot_millis, exec_seconds)
+                write_stats_to_disk(bytes_processed, slot_millis, execution_secs)
 
 
 def get_performance_stats(
@@ -67,11 +67,11 @@ def get_performance_stats(
         slot_millis = 0
 
     if query_job.created is not None and query_job.ended is not None:
-        exec_seconds = (query_job.ended - query_job.created).total_seconds()
+        execution_secs = (query_job.ended - query_job.created).total_seconds()
     else:
         return None
 
-    return bytes_processed, slot_millis, exec_seconds
+    return bytes_processed, slot_millis, execution_secs
 
 
 def write_stats_to_disk(
