@@ -347,7 +347,7 @@ def test_logistic_regression_configure_fit_with_eval_score(
     # returned by model.score()
     bq_model_expected_eval_metrics = result
     bq_model_eval_metrics = bq_model.training_runs[-1]["evaluationMetrics"][
-        "binaryClassificationMetrics"
+        "multiClassClassificationMetrics"
     ]["aggregateClassificationMetrics"]
     bq_model_eval_metrics = pd.DataFrame(
         [
