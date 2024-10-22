@@ -504,7 +504,7 @@ class Semantics:
                 right_columns.append(col)
 
             elif col.startswith("left."):
-                original_col_name = col[len("left."):]
+                original_col_name = col[len("left.") :]
                 if (
                     original_col_name in self._df.columns
                     and original_col_name in other.columns
@@ -517,7 +517,7 @@ class Semantics:
                     raise ValueError(f"Column {col} not found")
 
             elif col.startswith("right."):
-                original_col_name = col[len("right."):]
+                original_col_name = col[len("right.") :]
                 if (
                     original_col_name in self._df.columns
                     and original_col_name in other.columns
@@ -537,7 +537,7 @@ class Semantics:
 
         if not right_columns:
             raise ValueError("No right column references.")
-        
+
         # Update column references to be compatible with internal naming scheme.
         # That is, "left.col" -> "col_left" and "right.col" -> "col_right"
         instruction = re.sub(r"(?<!{){left\.(\w+)}(?!})", r"{\1_left}", instruction)
