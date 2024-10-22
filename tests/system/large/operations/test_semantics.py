@@ -497,12 +497,12 @@ def test_join_data_too_large_raise_error(session, gemini_flash_model):
             id="ambiguous_column",
         ),
         pytest.param(
-            "{right.city} is in {country}", r"Column .+ not found", id="wrong_suffix"
+            "{right.city} is in {country}", r"Column .+ not found", id="wrong_prefix"
         ),
         pytest.param(
             "{city} is in {right.continent}",
             r"Column .+ not found",
-            id="suffix_on_non_existing_column",
+            id="prefix_on_non_existing_column",
         ),
     ],
 )
