@@ -29,6 +29,7 @@ class ExecutionMetrics:
     execution_count: int = 0
     slot_millis: int = 0
     bytes_processed: int = 0
+    exec_seconds: float = 0
 
     def count_job_stats(self, query_job: bq_job.QueryJob):
         stats = get_performance_stats(query_job)
@@ -37,6 +38,7 @@ class ExecutionMetrics:
             self.execution_count += 1
             self.bytes_processed += bytes_processed
             self.slot_millis += slot_millis
+            self.exec_seconds += exec_seconds
             if LOGGING_NAME_ENV_VAR in os.environ:
                 # when running notebooks via pytest nbmake
                 write_stats_to_disk(bytes_processed, slot_millis, exec_seconds)
@@ -44,7 +46,7 @@ class ExecutionMetrics:
 
 def get_performance_stats(
     query_job: bigquery.QueryJob,
-) -> Optional[Tuple[int, int, Optional[float]]]:
+) -> Optional[Tuple[int, int, float]]:
     """Parse the query job for performance stats.
 
     Return None if the stats do not reflect real work done in bigquery.
@@ -64,11 +66,10 @@ def get_performance_stats(
         # dry run stats are just predictions of the real run
         slot_millis = 0
 
-    exec_seconds = (
-        (query_job.ended - query_job.created).total_seconds()
-        if query_job.created is not None and query_job.ended is not None
-        else None
-    )
+    if query_job.created is not None and query_job.ended is not None:
+        exec_seconds = (query_job.ended - query_job.created).total_seconds()
+    else:
+        return None
 
     return bytes_processed, slot_millis, exec_seconds
 
