@@ -132,7 +132,6 @@ class Predictor(BaseEstimator):
     @abc.abstractmethod
     def to_gbq(self, model_name, replace):
         pass
-        pass
 
 
 class TrainablePredictor(Predictor):
@@ -164,7 +163,7 @@ class SupervisedTrainablePredictor(TrainablePredictor):
         return self._fit(X, y)
 
 
-class TrainableWithEvaluationPredictor(Predictor):
+class TrainableWithEvaluationPredictor(TrainablePredictor):
     """A BigQuery DataFrames ML Model base class that can be used to fit and predict outputs.
 
     Additional evaluation data can be provided to measure the model in the fit phase."""
