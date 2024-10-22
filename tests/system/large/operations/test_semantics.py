@@ -386,16 +386,12 @@ def test_map_invalid_model_raise_error():
             None,
         )
 
+
 @pytest.mark.parametrize(
     "instruction",
     [
-        pytest.param(
-            "{city} is in {country}", id="no_dataframe_reference"
-        ),
-        pytest.param(
-            "{left.city} is in {country}",
-            id="has_left_dataframe_reference"
-        ),
+        pytest.param("{city} is in {country}", id="no_dataframe_reference"),
+        pytest.param("{left.city} is in {country}", id="has_left_dataframe_reference"),
         pytest.param(
             "{city} is in {right.country}",
             id="has_right_dataframe_reference",
