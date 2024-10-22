@@ -464,7 +464,7 @@ class Semantics:
                 For example: "The {city} belongs to the {country}".
                 For column names that are shared between two dataframes, you need to add "left."
                 and "right." prefix for differentiation. This is especially important when you do
-                self joins. For example: "The {left.employee_name_} reports to {right.employee_name}"
+                self joins. For example: "The {left.employee_name} reports to {right.employee_name}"
                 For unique column names, this prefix is optional.
 
             model:
