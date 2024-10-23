@@ -1602,12 +1602,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return Series(block)
 
     def unique(self) -> Series:
-        block, results = self._block.aggregate(
+        block, result = self._block.aggregate(
             [self._value_column],
             [(self._value_column, agg_ops.AnyValueOp())],
             dropna=False,
         )
-        return Series(block.select_columns(results))
+        return Series(block.select_columns(result))
 
     def duplicated(self, keep: str = "first") -> Series:
         if keep is not False:
