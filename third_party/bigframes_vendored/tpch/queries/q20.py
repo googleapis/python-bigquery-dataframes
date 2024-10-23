@@ -46,7 +46,7 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
 
     if not session._strictly_ordered:
         filtered_parts = filtered_parts[["P_PARTKEY"]].sort_values(by=["P_PARTKEY"])
-    filtered_parts = filtered_parts["P_PARTKEY"].unique().to_frame()
+    filtered_parts = filtered_parts["P_PARTKEY"].unique(keep_order=False).to_frame()
     joined_parts = filtered_parts.merge(
         partsupp, left_on="P_PARTKEY", right_on="PS_PARTKEY"
     )
@@ -56,7 +56,7 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
     )
     final_filtered = final_join[final_join["PS_AVAILQTY"] > final_join["SUM_QUANTITY"]]
 
-    final_filtered = final_filtered["PS_SUPPKEY"].unique().to_frame()
+    final_filtered = final_filtered["PS_SUPPKEY"].unique(keep_order=False).to_frame()
 
     final_result = final_filtered.merge(q3, left_on="PS_SUPPKEY", right_on="S_SUPPKEY")
     final_result = final_result[["S_NAME", "S_ADDRESS"]].sort_values(by="S_NAME")

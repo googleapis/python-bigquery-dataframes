@@ -645,18 +645,24 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def unique(self) -> Series:
+    def unique(self, keep_order=True) -> Series:
         """
         Return unique values of Series object.
 
-        Uniques are returned in order of value. To maintain unique values
-        in order of appearance, use `drop_duplicates()` instead.
+        By default, uniques are returned in order of appearance. Hash table-based unique,
+        therefore does NOT sort.
+
+        Args:
+            keep_order (bool, default True):
+                If True, preserves the order of the first appearance of each unique value.
+                If False, returns the elements in ascending order, which can be faster.
 
         **Examples:**
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
+        Example with order preservation: Slower, but keeps order
             >>> s = bpd.Series([2, 1, 3, 3], name='A')
             >>> s
             0    2
@@ -664,7 +670,15 @@ class Series(NDFrame):  # type: ignore[misc]
             2    3
             3    3
             Name: A, dtype: Int64
+
+        Example without order preservation: Faster, but loses original order
             >>> s.unique()
+            0    1
+            1    2
+            2    3
+            Name: A, dtype: Int64
+
+            >>> s.unique(sort=True)
             0    1
             1    2
             2    3

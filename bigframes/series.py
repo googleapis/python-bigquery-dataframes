@@ -1601,7 +1601,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)
         return Series(block)
 
-    def unique(self) -> Series:
+    def unique(self, keep_order=True) -> Series:
+        if keep_order:
+            return self.drop_duplicates()
         block, result = self._block.aggregate(
             [self._value_column],
             [(self._value_column, agg_ops.AnyValueOp())],

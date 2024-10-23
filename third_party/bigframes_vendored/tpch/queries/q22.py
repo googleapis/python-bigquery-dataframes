@@ -22,7 +22,7 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
         (customer["CNTRYCODE"].isin(country_codes)) & (customer["C_ACCTBAL"] > 0)
     ]["C_ACCTBAL"].mean()
 
-    orders_unique = orders["O_CUSTKEY"].unique().to_frame()
+    orders_unique = orders["O_CUSTKEY"].unique(keep_order=False).to_frame()
 
     matched_customers = customer.merge(
         orders_unique, left_on="C_CUSTKEY", right_on="O_CUSTKEY"
