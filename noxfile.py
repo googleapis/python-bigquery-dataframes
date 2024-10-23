@@ -102,9 +102,8 @@ nox.options.sessions = [
     "docfx",
     "unit",
     "unit_noextras",
+    "system-3.9",
     "system-3.12",
-    "system-3.10",
-    "system-3.11",
     "cover",
     "cleanup",
 ]
