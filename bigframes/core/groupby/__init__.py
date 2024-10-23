@@ -93,17 +93,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         bad_keys = [key for key in keys if key not in self._block.column_labels]
 
         # Raise a KeyError message with the possible correct key(s)
-        if len(bad_keys) == 1:
-            possible_key = min(
-                self._block.column_labels,
-                key=lambda item: jellyfish.damerau_levenshtein_distance(
-                    bad_keys[0], item
-                ),
-            )
-            raise KeyError(
-                f"Columns not found: {str(bad_keys)[1:-1]}. Did you mean '{str(possible_key)}'?"
-            )
-        if len(bad_keys) > 1:
+        if len(bad_keys) > 0:
             possible_key = []
             for bad_key in bad_keys:
                 possible_key.append(
