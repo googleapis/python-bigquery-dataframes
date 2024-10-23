@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import cast, Literal, Optional, Union
+from typing import cast, Literal, Optional
 import warnings
 
 import bigframes_vendored.constants as constants
@@ -58,13 +58,17 @@ _GEMINI_PRO_ENDPOINT = "gemini-pro"
 _GEMINI_1P5_PRO_PREVIEW_ENDPOINT = "gemini-1.5-pro-preview-0514"
 _GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT = "gemini-1.5-flash-preview-0514"
 _GEMINI_1P5_PRO_001_ENDPOINT = "gemini-1.5-pro-001"
+_GEMINI_1P5_PRO_002_ENDPOINT = "gemini-1.5-pro-002"
 _GEMINI_1P5_FLASH_001_ENDPOINT = "gemini-1.5-flash-001"
+_GEMINI_1P5_FLASH_002_ENDPOINT = "gemini-1.5-flash-002"
 _GEMINI_ENDPOINTS = (
     _GEMINI_PRO_ENDPOINT,
     _GEMINI_1P5_PRO_PREVIEW_ENDPOINT,
     _GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT,
     _GEMINI_1P5_PRO_001_ENDPOINT,
+    _GEMINI_1P5_PRO_002_ENDPOINT,
     _GEMINI_1P5_FLASH_001_ENDPOINT,
+    _GEMINI_1P5_FLASH_002_ENDPOINT,
 )
 
 _CLAUDE_3_SONNET_ENDPOINT = "claude-3-sonnet"
@@ -214,8 +218,8 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
     def fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> PaLM2TextGenerator:
         """Fine tune PaLM2TextGenerator model.
 
@@ -227,9 +231,9 @@ class PaLM2TextGenerator(base.BaseEstimator):
             (https://cloud.google.com/products#product-launch-stages).
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 DataFrame of shape (n_samples, n_features). Training data.
-            y (bigframes.dataframe.DataFrame or bigframes.series.Series:
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Training labels.
 
         Returns:
@@ -251,7 +255,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
         *,
         temperature: float = 0.0,
         max_output_tokens: int = 128,
@@ -261,7 +265,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
         """Predict the result from input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, it must contain a "prompt" column for prediction.
                 Prompts can include preamble, questions, suggestions, instructions, or examples.
 
@@ -323,7 +327,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -350,8 +354,8 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         task_type: Literal[
             "text_generation", "classification", "summarization", "question_answering"
         ] = "text_generation",
@@ -372,10 +376,10 @@ class PaLM2TextGenerator(base.BaseEstimator):
             for the outputs relevant to this model type.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 A BigQuery DataFrame as evaluation data, which contains only one column of input_text
                 that contains the prompt text to use when evaluating the model.
-            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 A BigQuery DataFrame as evaluation labels, which contains only one column of output_text
                 that you would expect to be returned by the model.
             task_type (str):
@@ -388,7 +392,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         if len(X.columns) != 1 or len(y.columns) != 1:
             raise ValueError(
@@ -538,11 +542,11 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, it must contain a "content" column for prediction.
 
         Returns:
@@ -550,7 +554,7 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
         """
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -694,11 +698,11 @@ class TextEmbeddingGenerator(base.BaseEstimator):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, it must contain a "content" column for prediction.
 
         Returns:
@@ -706,7 +710,7 @@ class TextEmbeddingGenerator(base.BaseEstimator):
         """
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -749,7 +753,7 @@ class GeminiTextGenerator(base.BaseEstimator):
 
     Args:
         model_name (str, Default to "gemini-pro"):
-            The model for natural language tasks. Accepted values are "gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514", "gemini-1.5-pro-001" and "gemini-1.5-flash-001". Default to "gemini-pro".
+            The model for natural language tasks. Accepted values are "gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514", "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-1.5-flash-001" and "gemini-1.5-flash-002". Default to "gemini-pro".
 
         .. note::
             "gemini-1.5-pro-preview-0514" and "gemini-1.5-flash-preview-0514" is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
@@ -775,7 +779,9 @@ class GeminiTextGenerator(base.BaseEstimator):
             "gemini-1.5-pro-preview-0514",
             "gemini-1.5-flash-preview-0514",
             "gemini-1.5-pro-001",
+            "gemini-1.5-pro-002",
             "gemini-1.5-flash-001",
+            "gemini-1.5-flash-002",
         ] = "gemini-pro",
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
@@ -861,8 +867,8 @@ class GeminiTextGenerator(base.BaseEstimator):
 
     def fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> GeminiTextGenerator:
         """Fine tune GeminiTextGenerator model. Only support "gemini-pro" model for now.
 
@@ -901,7 +907,7 @@ class GeminiTextGenerator(base.BaseEstimator):
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
         *,
         temperature: float = 0.9,
         max_output_tokens: int = 8192,
@@ -911,7 +917,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         """Predict the result from input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, it must contain a "prompt" column for prediction.
                 Prompts can include preamble, questions, suggestions, instructions, or examples.
 
@@ -955,7 +961,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -982,8 +988,8 @@ class GeminiTextGenerator(base.BaseEstimator):
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         task_type: Literal[
             "text_generation", "classification", "summarization", "question_answering"
         ] = "text_generation",
@@ -1004,10 +1010,10 @@ class GeminiTextGenerator(base.BaseEstimator):
             for the outputs relevant to this model type.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 A BigQuery DataFrame as evaluation data, which contains only one column of input_text
                 that contains the prompt text to use when evaluating the model.
-            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 A BigQuery DataFrame as evaluation labels, which contains only one column of output_text
                 that you would expect to be returned by the model.
             task_type (str):
@@ -1024,7 +1030,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         if self._bqml_model.model_name.startswith("gemini-1.5"):
             raise NotImplementedError("Score is not supported for gemini-1.5 model.")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         if len(X.columns) != 1 or len(y.columns) != 1:
             raise ValueError(
@@ -1189,7 +1195,7 @@ class Claude3TextGenerator(base.BaseEstimator):
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
         *,
         max_output_tokens: int = 128,
         top_k: int = 40,
@@ -1198,7 +1204,7 @@ class Claude3TextGenerator(base.BaseEstimator):
         """Predict the result from input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, it must contain a "prompt" column for prediction.
                 Prompts can include preamble, questions, suggestions, instructions, or examples.
 
@@ -1238,7 +1244,7 @@ class Claude3TextGenerator(base.BaseEstimator):
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name

@@ -477,6 +477,14 @@ class Session(
             [2 rows x 3 columns]
 
         See also: :meth:`Session.read_gbq`.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                A DataFrame representing results of the query or table.
+
+        Raises:
+            ValueError:
+                When both columns (preferred) and col_order are specified.
         """
         # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
         # these docstrings are inline.
@@ -521,6 +529,14 @@ class Session(
             >>> df = bpd.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
 
         See also: :meth:`Session.read_gbq`.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                A DataFrame representing results of the query or table.
+
+        Raises:
+            ValueError:
+                When both columns (preferred) and col_order are specified.
         """
         # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
         # these docstrings are inline.
@@ -557,6 +573,10 @@ class Session(
             >>> bpd.options.display.progress_bar = None
 
             >>> sdf = bst.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
+
+        Returns:
+            bigframes.streaming.dataframe.StreamingDataFrame:
+               A StreamingDataFrame representing results of the table.
         """
         warnings.warn(
             "The bigframes.streaming module is a preview feature, and subject to change.",
@@ -654,6 +674,10 @@ class Session(
 
         Returns:
             An equivalent bigframes.pandas.(DataFrame/Series/Index) object
+
+        Raises:
+            ValueError:
+                When the object is not a Pandas DataFrame.
         """
         import bigframes.series as series
 
@@ -707,14 +731,12 @@ class Session(
         try:
             local_block = blocks.Block.from_local(pandas_dataframe, self)
             inline_df = dataframe.DataFrame(local_block)
-        except pa.ArrowInvalid as e:
-            raise pa.ArrowInvalid(
-                f"Could not convert with a BigQuery type: `{e}`. "
-            ) from e
-        # except ValueError:  # Thrown by ibis for some unhandled types
-        #    return None
-        # except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
-        #    return None
+        except pa.ArrowInvalid:  # Thrown by arrow for unsupported types, such as geo.
+            return None
+        except ValueError:  # Thrown by ibis for some unhandled types
+            return None
+        except pa.ArrowTypeError:  # Thrown by arrow for types without mapping (geo).
+            return None
 
         # inline_types = inline_df._block.expr.schema.dtypes
         # Ibis has problems escaping bytes literals, which will cause syntax errors server-side.

@@ -98,17 +98,20 @@ class Semantics:
             ValueError: when the instruction refers to a non-existing column, or when
                 more than one columns are referred to.
         """
-        self._validate_model(model)
+        import bigframes.bigquery as bbq
+        import bigframes.dataframe
+        import bigframes.series
 
+        self._validate_model(model)
         columns = self._parse_columns(instruction)
+
+        df: bigframes.dataframe.DataFrame = self._df.copy()
         for column in columns:
             if column not in self._df.columns:
                 raise ValueError(f"Column {column} not found.")
-            if self._df[column].dtype != dtypes.STRING_DTYPE:
-                raise TypeError(
-                    "Semantics aggregated column must be a string type, not "
-                    f"{type(self._df[column])}"
-                )
+
+            if df[column].dtype != dtypes.STRING_DTYPE:
+                df[column] = df[column].astype(dtypes.STRING_DTYPE)
 
         if len(columns) > 1:
             raise NotImplementedError(
@@ -122,11 +125,6 @@ class Semantics:
                 "It must be greater than 1."
             )
 
-        import bigframes.bigquery as bbq
-        import bigframes.dataframe
-        import bigframes.series
-
-        df: bigframes.dataframe.DataFrame = self._df.copy()
         user_instruction = self._format_instruction(instruction, columns)
 
         num_cluster = 1
@@ -193,7 +191,7 @@ class Semantics:
 
             # Run model
             predict_df = typing.cast(
-                bigframes.dataframe.DataFrame, model.predict(prompt_s)
+                bigframes.dataframe.DataFrame, model.predict(prompt_s, temperature=0.0)
             )
             agg_df[column] = predict_df["ml_generate_text_llm_result"].combine_first(
                 single_row_df
@@ -325,26 +323,28 @@ class Semantics:
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
+        import bigframes.dataframe
+        import bigframes.series
+
         self._validate_model(model)
         columns = self._parse_columns(instruction)
         for column in columns:
             if column not in self._df.columns:
                 raise ValueError(f"Column {column} not found.")
-            if self._df[column].dtype != dtypes.STRING_DTYPE:
-                raise TypeError(
-                    "Semantics aggregated column must be a string type, not "
-                    f"{type(self._df[column])}"
-                )
+
+        df: bigframes.dataframe.DataFrame = self._df[columns].copy()
+        for column in columns:
+            if df[column].dtype != dtypes.STRING_DTYPE:
+                df[column] = df[column].astype(dtypes.STRING_DTYPE)
 
         user_instruction = self._format_instruction(instruction, columns)
         output_instruction = "Based on the provided context, reply to the following claim by only True or False:"
 
-        from bigframes.dataframe import DataFrame
-
         results = typing.cast(
-            DataFrame,
+            bigframes.dataframe.DataFrame,
             model.predict(
-                self._make_prompt(columns, user_instruction, output_instruction)
+                self._make_prompt(df, columns, user_instruction, output_instruction),
+                temperature=0.0,
             ),
         )
 
@@ -397,28 +397,30 @@ class Semantics:
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
+        import bigframes.dataframe
+        import bigframes.series
+
         self._validate_model(model)
         columns = self._parse_columns(instruction)
         for column in columns:
             if column not in self._df.columns:
                 raise ValueError(f"Column {column} not found.")
-            if self._df[column].dtype != dtypes.STRING_DTYPE:
-                raise TypeError(
-                    "Semantics aggregated column must be a string type, not "
-                    f"{type(self._df[column])}"
-                )
+
+        df: bigframes.dataframe.DataFrame = self._df[columns].copy()
+        for column in columns:
+            if df[column].dtype != dtypes.STRING_DTYPE:
+                df[column] = df[column].astype(dtypes.STRING_DTYPE)
 
         user_instruction = self._format_instruction(instruction, columns)
         output_instruction = (
             "Based on the provided contenxt, answer the following instruction:"
         )
 
-        from bigframes.series import Series
-
         results = typing.cast(
-            Series,
+            bigframes.series.Series,
             model.predict(
-                self._make_prompt(columns, user_instruction, output_instruction)
+                self._make_prompt(df, columns, user_instruction, output_instruction),
+                temperature=0.0,
             )["ml_generate_text_llm_result"],
         )
 
@@ -460,10 +462,10 @@ class Semantics:
                 An instruction on how left and right rows can be joined. This value must contain
                 column references by name. which should be wrapped in a pair of braces.
                 For example: "The {city} belongs to the {country}".
-                For column names that are shared between two dataframes, you need to add "_left"
-                and "_right" suffix for differentiation. This is especially important when you do
-                self joins. For example: "The {employee_name_left} reports to {employee_name_right}"
-                You must not add "_left" or "_right" suffix to non-overlapping columns.
+                For column names that are shared between two dataframes, you need to add "left."
+                and "right." prefix for differentiation. This is especially important when you do
+                self joins. For example: "The {left.employee_name} reports to {right.employee_name}"
+                For unique column names, this prefix is optional.
 
             model:
                 A GeminiTextGenerator provided by Bigframes ML package.
@@ -501,27 +503,29 @@ class Semantics:
             elif col in other.columns:
                 right_columns.append(col)
 
-            elif col.endswith("_left"):
-                original_col_name = col[: -len("_left")]
+            elif col.startswith("left."):
+                original_col_name = col[len("left.") :]
                 if (
                     original_col_name in self._df.columns
                     and original_col_name in other.columns
                 ):
                     left_columns.append(col)
                 elif original_col_name in self._df.columns:
-                    raise ValueError(f"Unnecessary suffix for {col}")
+                    left_columns.append(col)
+                    instruction = instruction.replace(col, original_col_name)
                 else:
                     raise ValueError(f"Column {col} not found")
 
-            elif col.endswith("_right"):
-                original_col_name = col[: -len("_right")]
+            elif col.startswith("right."):
+                original_col_name = col[len("right.") :]
                 if (
                     original_col_name in self._df.columns
                     and original_col_name in other.columns
                 ):
                     right_columns.append(col)
                 elif original_col_name in other.columns:
-                    raise ValueError(f"Unnecessary suffix for {col}")
+                    right_columns.append(col)
+                    instruction = instruction.replace(col, original_col_name)
                 else:
                     raise ValueError(f"Column {col} not found")
 
@@ -533,6 +537,11 @@ class Semantics:
 
         if not right_columns:
             raise ValueError("No right column references.")
+
+        # Update column references to be compatible with internal naming scheme.
+        # That is, "left.col" -> "col_left" and "right.col" -> "col_right"
+        instruction = re.sub(r"(?<!{){left\.(\w+)}(?!})", r"{\1_left}", instruction)
+        instruction = re.sub(r"(?<!{){right\.(\w+)}(?!})", r"{\1_right}", instruction)
 
         joined_df = self._df.merge(other, how="cross", suffixes=("_left", "_right"))
 
@@ -681,6 +690,9 @@ class Semantics:
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
+        import bigframes.dataframe
+        import bigframes.series
+
         self._validate_model(model)
         columns = self._parse_columns(instruction)
         for column in columns:
@@ -690,12 +702,12 @@ class Semantics:
             raise NotImplementedError(
                 "Semantic aggregations are limited to a single column."
             )
+
+        df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         column = columns[0]
-        if self._df[column].dtype != dtypes.STRING_DTYPE:
-            raise TypeError(
-                "Referred column must be a string type, not "
-                f"{type(self._df[column])}"
-            )
+        if df[column].dtype != dtypes.STRING_DTYPE:
+            df[column] = df[column].astype(dtypes.STRING_DTYPE)
+
         # `index` is reserved for the `reset_index` below.
         if column == "index":
             raise ValueError(
@@ -707,12 +719,7 @@ class Semantics:
 
         user_instruction = self._format_instruction(instruction, columns)
 
-        import bigframes.dataframe
-        import bigframes.series
-
-        df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         n = df.shape[0]
-
         if k >= n:
             return df
 
@@ -760,7 +767,7 @@ class Semantics:
 
         # Random pivot selection for improved average quickselect performance.
         pending_df = df[df[status_column].isna()]
-        pivot_iloc = np.random.randint(0, pending_df.shape[0] - 1)
+        pivot_iloc = np.random.randint(0, pending_df.shape[0])
         pivot_index = pending_df.iloc[pivot_iloc]["index"]
         pivot_df = pending_df[pending_df["index"] == pivot_index]
 
@@ -768,15 +775,17 @@ class Semantics:
         prompt_s = pending_df[pending_df["index"] != pivot_index][column]
         prompt_s = (
             f"{output_instruction}\n\nQuestion: {user_instruction}\n"
-            + "\nDocument 1: "
+            + f"\nDocument 1: {column} "
             + pivot_df.iloc[0][column]
-            + "\nDocument 2: "
+            + f"\nDocument 2: {column} "
             + prompt_s  # type:ignore
         )
 
         import bigframes.dataframe
 
-        predict_df = typing.cast(bigframes.dataframe.DataFrame, model.predict(prompt_s))
+        predict_df = typing.cast(
+            bigframes.dataframe.DataFrame, model.predict(prompt_s, temperature=0.0)
+        )
 
         marks = predict_df["ml_generate_text_llm_result"].str.contains("2")
         more_relavant: bigframes.dataframe.DataFrame = df[marks]
@@ -916,9 +925,8 @@ class Semantics:
         return result_df
 
     def _make_prompt(
-        self, columns: List[str], user_instruction: str, output_instruction: str
+        self, prompt_df, columns, user_instruction: str, output_instruction: str
     ):
-        prompt_df = self._df[columns].copy()
         prompt_df["prompt"] = f"{output_instruction}\n{user_instruction}\nContext: "
 
         # Combine context from multiple columns.
