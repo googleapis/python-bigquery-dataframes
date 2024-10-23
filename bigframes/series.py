@@ -1603,6 +1603,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def unique(self, keep_order=True) -> Series:
         if keep_order:
+            validations.enforce_ordered(self, "unique(keep_order != False)")
             return self.drop_duplicates()
         block, result = self._block.aggregate(
             [self._value_column],
