@@ -964,7 +964,8 @@ class DataFrame(generic.NDFrame):
                 These parameters will be passed to `tabulate <https://pypi.org/project/tabulate>`_.
 
         Returns:
-            bigframes.pandas.DataFrame: DataFrame in Markdown-friendly format.
+            str:
+                DataFrame in Markdown-friendly format.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

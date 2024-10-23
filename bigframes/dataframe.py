@@ -391,7 +391,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         Returns:
             str:
-                string represening the compoiled SQL.
+                string representing the compiled SQL.
         """
         include_index = self._has_index and (
             self.index.name is not None or len(self.index.names) > 1

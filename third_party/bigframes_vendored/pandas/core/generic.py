@@ -856,7 +856,7 @@ class NDFrame(indexing.IndexingMixin):
             dtype: boolean
 
         Returns:
-            NDFrame:
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
                 Mask of bool values for each element that indicates whether an
                 element is an NA value.
         """
@@ -906,7 +906,8 @@ class NDFrame(indexing.IndexingMixin):
                 DataFrame. For `Series` this parameter is unused and defaults to `None`.
 
         Returns:
-            NDFrame: same type as input object
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Same type as input object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
