@@ -1607,7 +1607,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             [(self._value_column, agg_ops.AnyValueOp())],
             dropna=False,
         )
-        return Series(block.select_columns(result))
+        return Series(block.select_columns(result).reset_index())
 
     def duplicated(self, keep: str = "first") -> Series:
         if keep is not False:

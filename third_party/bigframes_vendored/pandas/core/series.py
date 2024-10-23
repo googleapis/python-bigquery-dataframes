@@ -649,8 +649,8 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Return unique values of Series object.
 
-        Uniques are returned in order of appearance. Hash table-based unique,
-        therefore does NOT sort.
+        Uniques are returned in order of value. To maintain unique values
+        in order of appearance, use `drop_duplicates()` instead.
 
         **Examples:**
 
@@ -665,8 +665,8 @@ class Series(NDFrame):  # type: ignore[misc]
             3    3
             Name: A, dtype: Int64
             >>> s.unique()
-            0    2
-            1    1
+            0    1
+            1    2
             2    3
             Name: A, dtype: Int64
 
