@@ -55,6 +55,7 @@ def join_by_column_ordered(
     l_value_mapping = dict(zip(left.column_ids, left.column_ids))
     r_value_mapping = dict(zip(right.column_ids, right.column_ids))
 
+    # hidden columns aren't necessarily unique, so need to remap to guids
     l_hidden_mapping = {
         id: guids.generate_guid("hidden_") for id in left._hidden_column_ids
     }
@@ -68,13 +69,13 @@ def join_by_column_ordered(
     left_table = left._to_ibis_expr(
         ordering_mode="unordered",
         expose_hidden_cols=True,
-        col_id_overrides=l_mapping,
     )
+    left_table = left_table.rename(l_hidden_mapping)
     right_table = right._to_ibis_expr(
         ordering_mode="unordered",
         expose_hidden_cols=True,
-        col_id_overrides=r_mapping,
     )
+    right_table = right_table.rename(r_hidden_mapping)
     join_conditions = [
         value_to_join_key(left_table[l_mapping[left_index]])
         == value_to_join_key(right_table[r_mapping[right_index]])

@@ -18,6 +18,7 @@ import functools
 import io
 import typing
 
+import google.cloud.bigquery
 import ibis
 import ibis.backends
 import ibis.backends.bigquery
@@ -32,6 +33,7 @@ import bigframes.core.compile.scalar_op_compiler
 import bigframes.core.compile.scalar_op_compiler as compile_scalar
 import bigframes.core.compile.schema_translator
 import bigframes.core.compile.single_column
+import bigframes.core.expression as ex
 import bigframes.core.guid as guids
 import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
@@ -52,16 +54,56 @@ class Compiler:
     enable_pruning: bool = True
     enable_densify_ids: bool = True
 
+    def compile_sql(
+        self, node: nodes.BigFrameNode, ordered: bool, output_ids: typing.Sequence[str]
+    ) -> str:
+        node = self.set_output_names(node, output_ids)
+        if ordered:
+            node, limit = rewrites.pullup_limit_from_slice(node)
+            return self.compile_ordered_ir(self._preprocess(node)).to_sql(
+                ordered=True, limit=limit
+            )
+        else:
+            return self.compile_unordered_ir(self._preprocess(node)).to_sql()
+
+    def compile_peek_sql(self, node: nodes.BigFrameNode, n_rows: int) -> str:
+        return self.compile_unordered_ir(self._preprocess(node)).peek_sql(n_rows)
+
+    def compile_raw(
+        self,
+        node: bigframes.core.nodes.BigFrameNode,
+    ) -> typing.Tuple[
+        str, typing.Sequence[google.cloud.bigquery.SchemaField], bf_ordering.RowOrdering
+    ]:
+        ir = self.compile_ordered_ir(self._preprocess(node))
+        sql, schema = ir.raw_sql_and_schema(column_ids=node.schema.names)
+        return sql, schema, ir._ordering
+
     def _preprocess(self, node: nodes.BigFrameNode):
         if self.enable_pruning:
             used_fields = frozenset(field.id for field in node.fields)
-            node = node.prune(used_fields)
+            result_node = node.prune(used_fields)
         node = functools.cache(rewrites.replace_slice_ops)(node)
         if self.enable_densify_ids:
-            node, _ = rewrites.remap_variables(
+            remapped_node, _ = rewrites.remap_variables(
                 node, id_generator=ids.anonymous_serial_ids()
             )
-        return node
+            result_node = self.set_output_names(
+                remapped_node, [id.name for id in node.ids]
+            )
+        return result_node
+
+    def set_output_names(
+        self, node: bigframes.core.nodes.BigFrameNode, output_ids: typing.Sequence[str]
+    ):
+        # TODO: Create specialized output operators that will handle final names
+        return nodes.SelectionNode(
+            node,
+            tuple(
+                (ex.DerefOp(old_id), ids.ColumnId(out_id))
+                for old_id, out_id in zip(node.ids, output_ids)
+            ),
+        )
 
     def compile_ordered_ir(self, node: nodes.BigFrameNode) -> compiled.OrderedIR:
         ir = typing.cast(compiled.OrderedIR, self.compile_node(node, True))
@@ -71,13 +113,6 @@ class Compiler:
 
     def compile_unordered_ir(self, node: nodes.BigFrameNode) -> compiled.UnorderedIR:
         return typing.cast(compiled.UnorderedIR, self.compile_node(node, False))
-
-    def compile_peek_sql(
-        self, node: nodes.BigFrameNode, n_rows: int
-    ) -> typing.Optional[str]:
-        return self.compile_unordered_ir(node).peek_sql(
-            n_rows, column_ids=node.schema.names
-        )
 
     # TODO: Remove cache when schema no longer requires compilation to derive schema (and therefor only compiles for execution)
     @functools.lru_cache(maxsize=5000)

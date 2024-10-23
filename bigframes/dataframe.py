@@ -3466,7 +3466,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = self._block.multi_apply_unary_op(self._block.value_columns, operation)
         return DataFrame(block)
 
-    def _map_clustering_columns(
+    def f(
         self,
         clustering_columns: Union[pandas.Index, Iterable[typing.Hashable]],
         index: bool,

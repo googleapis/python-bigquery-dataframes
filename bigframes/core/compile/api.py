@@ -18,14 +18,13 @@ from typing import Mapping, Sequence, Tuple, TYPE_CHECKING
 import google.cloud.bigquery as bigquery
 
 import bigframes.core.compile.compiler as compiler
-import bigframes.core.rewrite as rewrites
 
 if TYPE_CHECKING:
     import bigframes.core.nodes
     import bigframes.core.ordering
     import bigframes.core.schema
 
-_STRICT_COMPILER = compiler.Compiler(strict=True)
+_STRICT_COMPILER = compiler.Compiler(strict=True, enable_densify_ids=False)
 
 
 class SQLCompiler:
@@ -34,9 +33,7 @@ class SQLCompiler:
 
     def compile_peek(self, node: bigframes.core.nodes.BigFrameNode, n_rows: int) -> str:
         """Compile node into sql that selects N arbitrary rows, may not execute deterministically."""
-        return self._compiler.compile_unordered_ir(
-            self._compiler._preprocess(node)
-        ).peek_sql(n_rows, column_ids=list(node.schema.names))
+        return self._compiler.compile_peek_sql(node, n_rows)
 
     def compile_unordered(
         self,
@@ -47,9 +44,7 @@ class SQLCompiler:
         """Compile node into sql where rows are unsorted, and no ordering information is preserved."""
         # TODO: Enable limit pullup, but only if not being used to write to clustered table.
         output_ids = [col_id_overrides.get(id, id) for id in node.schema.names]
-        return self._compiler.compile_unordered_ir(
-            self._compiler._preprocess(node)
-        ).to_sql(column_ids=output_ids)
+        return self._compiler.compile_sql(node, ordered=False, output_ids=output_ids)
 
     def compile_ordered(
         self,
@@ -60,10 +55,7 @@ class SQLCompiler:
         """Compile node into sql where rows are sorted with ORDER BY."""
         # If we are ordering the query anyways, compiling the slice as a limit is probably a good idea.
         output_ids = [col_id_overrides.get(id, id) for id in node.schema.names]
-        node, limit = rewrites.pullup_limit_from_slice(node)
-        return self._compiler.compile_ordered_ir(
-            self._compiler._preprocess(node)
-        ).to_sql(column_ids=output_ids, ordered=True, limit=limit)
+        return self._compiler.compile_sql(node, ordered=True, output_ids=output_ids)
 
     def compile_raw(
         self,
@@ -72,9 +64,7 @@ class SQLCompiler:
         str, Sequence[bigquery.SchemaField], bigframes.core.ordering.RowOrdering
     ]:
         """Compile node into sql that exposes all columns, including hidden ordering-only columns."""
-        ir = self._compiler.compile_ordered_ir(self._compiler._preprocess(node))
-        sql, schema = ir.raw_sql_and_schema()
-        return sql, schema, ir._ordering
+        return self._compiler.compile_raw(node)
 
 
 def test_only_try_evaluate(node: bigframes.core.nodes.BigFrameNode):
@@ -90,6 +80,7 @@ def test_only_ibis_inferred_schema(node: bigframes.core.nodes.BigFrameNode):
     """Use only for testing paths to ensure ibis inferred schema does not diverge from bigframes inferred schema."""
     import bigframes.core.schema
 
+    node = _STRICT_COMPILER._preprocess(node)
     compiled = _STRICT_COMPILER.compile_unordered_ir(node)
     items = tuple(
         bigframes.core.schema.SchemaItem(name, compiled.get_column_type(ibis_id))

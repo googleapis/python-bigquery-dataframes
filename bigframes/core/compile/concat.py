@@ -74,11 +74,10 @@ def concat_ordered(
         table = expr._to_ibis_expr(
             ordering_mode="string_encoded",
             order_col_name=ORDER_ID_COLUMN,
-            col_id_overrides=renames,
         )
         table = table.select(
             [
-                table[col]
+                table[col].name(renames[col])
                 if col != ORDER_ID_COLUMN
                 else (
                     ordering_prefix

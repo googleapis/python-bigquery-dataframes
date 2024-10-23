@@ -271,7 +271,8 @@ class ArrayValue:
             nodes.ConcatNode(
                 children=tuple([self.node, *[val.node for val in other]]),
                 output_ids=tuple(
-                    bigframes.core.guid.generate_guid() for id in self.column_ids
+                    ids.ColumnId(bigframes.core.guid.generate_guid())
+                    for id in self.column_ids
                 ),
             )
         )

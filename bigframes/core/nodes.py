@@ -1349,7 +1349,7 @@ class WindowOpNode(UnaryNode):
         if self.output_name not in used_cols:
             return self.child
         consumed_ids = used_cols.difference([self.output_name]).union(
-            [self.column_name.id]
+            [self.column_name.id, *self.window_spec.all_referenced_columns]
         )
         return self.transform_children(lambda x: x.prune(consumed_ids))
 
@@ -1362,6 +1362,9 @@ class WindowOpNode(UnaryNode):
         return replace(
             self,
             column_name=self.column_name.remap_column_refs(
+                mappings, allow_partial_bindings=True
+            ),
+            window_spec=self.window_spec.remap_column_refs(
                 mappings, allow_partial_bindings=True
             ),
         )
