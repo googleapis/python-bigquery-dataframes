@@ -100,7 +100,7 @@ assert 1 == s.replace(
 # opting into Cloud RAD for docs hosting.
 assert 1 == s.replace(
     [".kokoro/docs/common.cfg"],
-    re.escape('value: "docs-staging-v2-staging"'),
+    re.escape('value: "docs-staging-v2-dev"'),
     'value: "docs-staging-v2"',
 )
 
