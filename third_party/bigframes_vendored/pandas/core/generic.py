@@ -372,7 +372,7 @@ class NDFrame(indexing.IndexingMixin):
             key: object
 
         Returns:
-            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+            Any:
                 same type as items contained in object
         """
         try:

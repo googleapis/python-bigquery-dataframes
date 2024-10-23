@@ -45,6 +45,10 @@ class DataFrame(generic.NDFrame):
             ...                     'col2': [4, 5, 6]})
             >>> df.shape
             (3, 2)
+
+        Returns:
+            Tuple[int, int]:
+                 Tuple of array dimensions.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1288,7 +1292,8 @@ class DataFrame(generic.NDFrame):
                 Align on index (0), columns (1), or both (None).
 
         Returns:
-            tuple of (bigframes.pandas.DataFrame, type of other): Aligned objects.
+            Tuple[bigframes.pandas.DataFrame or bigframes.pandas.Series, type of other]:
+                Aligned objects.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1815,8 +1820,8 @@ class DataFrame(generic.NDFrame):
             B    4
             Name: 0, dtype: object
 
-        Yields:
-            A tuple of (index, data):
+        Returns:
+            Iterable[Tuple]:
                 A tuple where data contains row values as a Series
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -1844,7 +1849,7 @@ class DataFrame(generic.NDFrame):
                 tuples.
 
         Returns:
-            Iterator:
+            Iterable[Tuple]:
                 An object to iterate over namedtuples for each row in the
                 DataFrame with the first field possibly being the index and
                 following fields being the column values.
@@ -6864,7 +6869,7 @@ class DataFrame(generic.NDFrame):
                 column labels
 
         Returns:
-            bigframes.pandas.Series or Value: Value(s) at the requested index(es).
+            bigframes.pandas.Series or Any: Value(s) at the requested index(es).
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
