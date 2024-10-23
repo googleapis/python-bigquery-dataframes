@@ -142,8 +142,8 @@ class XGBRegressor(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
         X_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
         y_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
@@ -168,23 +168,23 @@ class XGBRegressor(
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ):
-        X, y = utils.convert_to_dataframe(X, y)
-
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
+
+        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = (
             X.join(y, how="outer") if (X is not None) and (y is not None) else None
@@ -301,8 +301,8 @@ class XGBClassifier(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
         X_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
         y_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
@@ -325,22 +325,22 @@ class XGBClassifier(
         )
         return self
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = (
             X.join(y, how="outer") if (X is not None) and (y is not None) else None
@@ -447,8 +447,8 @@ class RandomForestRegressor(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
         X_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
         y_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
@@ -473,18 +473,18 @@ class RandomForestRegressor(
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ):
         """Calculate evaluation metrics of the model.
 
@@ -506,7 +506,7 @@ class RandomForestRegressor(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = (
             X.join(y, how="outer") if (X is not None) and (y is not None) else None
@@ -613,8 +613,8 @@ class RandomForestClassifier(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
         X_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
         y_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
@@ -639,18 +639,18 @@ class RandomForestClassifier(
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ):
         """Calculate evaluation metrics of the model.
 
@@ -672,7 +672,7 @@ class RandomForestClassifier(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = (
             X.join(y, how="outer") if (X is not None) and (y is not None) else None
