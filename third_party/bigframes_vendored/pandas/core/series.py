@@ -662,7 +662,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-        Example with order preservation: Slower, but keeps order
+
             >>> s = bpd.Series([2, 1, 3, 3], name='A')
             >>> s
             0    2
@@ -671,14 +671,16 @@ class Series(NDFrame):  # type: ignore[misc]
             3    3
             Name: A, dtype: Int64
 
-        Example without order preservation: Faster, but loses original order
+        Example with order preservation: Slower, but keeps order
             >>> s.unique()
-            0    1
-            1    2
+            0    2
+            1    1
             2    3
             Name: A, dtype: Int64
 
-            >>> s.unique(sort=True)
+
+        Example without order preservation: Faster, but loses original order
+            >>> s.unique(keep_order=False)
             0    1
             1    2
             2    3
