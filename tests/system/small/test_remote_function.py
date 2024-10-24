@@ -20,6 +20,7 @@ from google.cloud import bigquery
 import pandas as pd
 import pyarrow
 import pytest
+import test_utils.prefixer
 
 import bigframes
 import bigframes.dtypes
@@ -27,6 +28,8 @@ import bigframes.exceptions
 from bigframes.functions import _utils as rf_utils
 from bigframes.functions import remote_function as rf
 from tests.system.utils import assert_pandas_df_equal
+
+_prefixer = test_utils.prefixer.Prefixer("bigframes", "")
 
 
 @pytest.fixture(scope="module")
@@ -861,7 +864,7 @@ def test_read_gbq_function_enforces_output_array_type(
         data_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
     )
     sql_routine = bigquery.Routine(
-        dataset_ref.routine("foo_sql"),
+        dataset_ref.routine(_prefixer.create_prefix()),
         body="TO_JSON_STRING([x, x+1, x+2])",
         arguments=[arg],
         return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.STRING),
@@ -908,7 +911,7 @@ def test_read_gbq_function_allows_explicit_output_type_only_on_string_outputs(
         data_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
     )
     sql_routine = bigquery.Routine(
-        dataset_ref.routine("foo_sql"),
+        dataset_ref.routine(_prefixer.create_prefix()),
         body="x+1",
         arguments=[arg],
         return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
@@ -948,7 +951,7 @@ def test_read_gbq_function_allows_list_of_type_as_explicit_output_type(
         data_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
     )
     sql_routine = bigquery.Routine(
-        dataset_ref.routine("foo_sql"),
+        dataset_ref.routine(_prefixer.create_prefix()),
         body="CAST(x AS STRING)",
         arguments=[arg],
         return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.STRING),
@@ -982,7 +985,7 @@ def test_read_gbq_function_allows_only_list_of_type_as_explicit_output_type(
         data_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
     )
     sql_routine = bigquery.Routine(
-        dataset_ref.routine("foo_sql"),
+        dataset_ref.routine(_prefixer.create_prefix()),
         body="TO_JSON_STRING([x, x+1, x+2])",
         arguments=[arg],
         return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.STRING),
