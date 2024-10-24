@@ -18,7 +18,7 @@ import pytest
 import bigframes.pandas as bpd
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def string_indexed_struct_series(session):
     return bpd.Series(
         [
@@ -32,11 +32,21 @@ def string_indexed_struct_series(session):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def number_series(session):
     return bpd.Series(
         [0],
         dtype=bpd.Int64Dtype,
+        session=session,
+    )
+
+
+@pytest.fixture(scope="module")
+def string_indexed_number_series(session):
+    return bpd.Series(
+        [0],
+        dtype=bpd.Int64Dtype,
+        index=["a"],
         session=session,
     )
 
@@ -62,6 +72,7 @@ def test_non_string_indexed_struct_series_with_string_key_should_warn(session):
     [
         "string_indexed_struct_series",
         "number_series",
+        "string_indexed_number_series",
     ],
 )
 @pytest.mark.parametrize(
