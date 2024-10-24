@@ -13,5 +13,6 @@
 # limitations under the License.
 
 from bigframes.core.array_value import ArrayValue
+from bigframes.core.window_spec import WindowSpec
 
-__all__ = ["ArrayValue"]
+__all__ = ["ArrayValue", "WindowSpec"]

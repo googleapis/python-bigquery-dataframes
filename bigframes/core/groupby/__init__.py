@@ -36,6 +36,9 @@ import bigframes.dtypes as dtypes
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 
+if typing.TYPE_CHECKING:
+    from bigframes.session import Session
+
 
 @log_adapter.class_logger
 class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
@@ -75,7 +78,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             ]
 
     @property
-    def _session(self) -> core.Session:
+    def _session(self) -> Session:
         return self._block.session
 
     def __getitem__(
@@ -545,7 +548,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         self._dropna = dropna  # Applies to aggregations but not windowing
 
     @property
-    def _session(self) -> core.Session:
+    def _session(self) -> Session:
         return self._block.session
 
     @validations.requires_ordering()
