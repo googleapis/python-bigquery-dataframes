@@ -18,66 +18,60 @@ import pytest
 import bigframes.pandas as bpd
 
 
-@pytest.mark.parametrize(
-    ("key", "should_warn"),
-    [
-        pytest.param(0, False, id="non_string_key_should_not_warn"),
-        pytest.param("a", True, id="string_key_should_warn"),
-    ],
-)
-def test_non_string_indexed_series_struct_accessor_warning(session, key, should_warn):
-    s = bpd.Series(
+@pytest.fixture
+def string_indexed_struct_series(session):
+    return bpd.Series(
         [
             {"project": "pandas", "version": 1},
         ],
         dtype=bpd.ArrowDtype(
             pa.struct([("project", pa.string()), ("version", pa.int64())])
         ),
-        session=session,
-    )
-
-    if should_warn:
-        with pytest.warns(UserWarning, match=r"Series\.struct\.field\(.+\)"):
-            s[key]
-    else:
-        s[key]
-
-
-@pytest.mark.parametrize(
-    "key",
-    [
-        pytest.param(0, id="non_string_key"),
-        pytest.param("a", id="string_key"),
-    ],
-)
-def test_string_indexed_series_struct_accessor_no_warning(session, key):
-    s = bpd.Series(
-        [
-            {"project": "pandas", "version": 1},
-        ],
-        dtype=bpd.ArrowDtype(
-            pa.struct([("project", pa.string()), ("version", pa.int64())])
-        ),
-        index=["p1"],
-        session=session,
-    )
-
-    s[key]
-
-
-@pytest.mark.parametrize(
-    "key",
-    [
-        pytest.param(0, id="non_string_key"),
-        pytest.param("a", id="string_key"),
-    ],
-)
-def test_string_indexed_series_non_struct_accessor_no_warning(session, key):
-    s = bpd.Series(
-        [1],
-        dtype=bpd.Int64Dtype,
         index=["a"],
         session=session,
     )
+
+
+@pytest.fixture
+def number_series(session):
+    return bpd.Series(
+        [0],
+        dtype=bpd.Int64Dtype,
+        session=session,
+    )
+
+
+def test_non_string_indexed_struct_series_with_string_key_should_warn(session):
+    s = bpd.Series(
+        [
+            {"project": "pandas", "version": 1},
+        ],
+        dtype=bpd.ArrowDtype(
+            pa.struct([("project", pa.string()), ("version", pa.int64())])
+        ),
+        session=session,
+    )
+
+    with pytest.warns(UserWarning, match=r"Series\.struct\.field\(.+\)"):
+        s["a"]
+
+
+@pytest.mark.filterwarnings(r"error:Series\.struct\.field:UserWarning")
+@pytest.mark.parametrize(
+    "series",
+    [
+        "string_indexed_struct_series",
+        "number_series",
+    ],
+)
+@pytest.mark.parametrize(
+    "key",
+    [
+        0,
+        "a",
+    ],
+)
+def test_struct_series_indexers_should_not_warn(request, series, key):
+    s = request.getfixturevalue(series)
 
     s[key]
