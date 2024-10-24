@@ -63,3 +63,21 @@ def test_string_indexed_series_struct_accessor_no_warning(session, key):
     )
 
     s[key]
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        pytest.param(0, id="non_string_key"),
+        pytest.param("a", id="string_key"),
+    ],
+)
+def test_string_indexed_series_non_struct_accessor_no_warning(session, key):
+    s = bpd.Series(
+        [1],
+        dtype=bpd.Int64Dtype,
+        index=["a"],
+        session=session,
+    )
+
+    s[key]
