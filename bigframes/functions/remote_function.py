@@ -214,7 +214,7 @@ def read_gbq_function(
             )
         else:
             raise TypeError(
-                f"Currently only list of a type is supported for output_type. - routine_return_type={routine.return_type.type_kind}, ibis_output_type={ibis_signature.output_type}, is_ibis_string_type={isinstance(ibis_signature.output_type, ibis.expr.datatypes.String)}"
+                "Currently only list of a type is supported for output_type."
             )
 
     func.output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(  # type: ignore
