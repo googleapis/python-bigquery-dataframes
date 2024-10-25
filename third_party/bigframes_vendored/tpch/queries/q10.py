@@ -28,8 +28,6 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
     var1 = date(1993, 10, 1)
     var2 = date(1994, 1, 1)
 
-    q_final = customer.merge
-
     q_final = (
         customer.merge(orders, left_on="C_CUSTKEY", right_on="O_CUSTKEY")
         .merge(lineitem, left_on="O_ORDERKEY", right_on="L_ORDERKEY")

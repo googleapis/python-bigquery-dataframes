@@ -18,9 +18,13 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
 
     customer["CNTRYCODE"] = customer["C_PHONE"].str.slice(0, 2)
 
-    avg_acctbal = customer[
-        (customer["CNTRYCODE"].isin(country_codes)) & (customer["C_ACCTBAL"] > 0)
-    ]["C_ACCTBAL"].mean()
+    avg_acctbal = (
+        customer[
+            (customer["CNTRYCODE"].isin(country_codes)) & (customer["C_ACCTBAL"] > 0)
+        ][["C_ACCTBAL"]]
+        .mean()
+        .rename("AVG_ACCTBAL")
+    )
 
     orders_unique = orders["O_CUSTKEY"].unique(keep_order=False).to_frame()
 
@@ -33,10 +37,11 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
         matched_customers[["C_CUSTKEY", "IS_IN_ORDERS"]], on="C_CUSTKEY", how="left"
     )
     customer["IS_IN_ORDERS"] = customer["IS_IN_ORDERS"].fillna(False)
+    customer = customer.merge(avg_acctbal, how="cross")
 
     filtered_customers = customer[
         (customer["CNTRYCODE"].isin(country_codes))
-        & (customer["C_ACCTBAL"] > avg_acctbal)
+        & (customer["C_ACCTBAL"] > customer["AVG_ACCTBAL"])
         & (~customer["IS_IN_ORDERS"])
     ]
 
