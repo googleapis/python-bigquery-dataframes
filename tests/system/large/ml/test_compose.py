@@ -36,6 +36,32 @@ def test_columntransformer_standalone_fit_and_transform(
                 preprocessing.MinMaxScaler(),
                 ["culmen_length_mm"],
             ),
+            (
+                "increment",
+                compose.SQLScalarColumnTransformer("{0}+1"),
+                ["culmen_length_mm", "flipper_length_mm"],
+            ),
+            (
+                "length",
+                compose.SQLScalarColumnTransformer(
+                    "CASE WHEN {0} IS NULL THEN -1 ELSE LENGTH({0}) END",
+                    target_column="len_{0}",
+                ),
+                "species",
+            ),
+            (
+                "ohe",
+                compose.SQLScalarColumnTransformer(
+                    "CASE WHEN {0}='Adelie Penguin (Pygoscelis adeliae)' THEN 1 ELSE 0 END",
+                    target_column="ohe_adelie",
+                ),
+                "species",
+            ),
+            (
+                "identity",
+                compose.SQLScalarColumnTransformer("{0}", target_column="{0}"),
+                ["culmen_length_mm", "flipper_length_mm"],
+            ),
         ]
     )
 
@@ -51,6 +77,12 @@ def test_columntransformer_standalone_fit_and_transform(
             "standard_scaled_culmen_length_mm",
             "min_max_scaled_culmen_length_mm",
             "standard_scaled_flipper_length_mm",
+            "transformed_culmen_length_mm",
+            "transformed_flipper_length_mm",
+            "len_species",
+            "ohe_adelie",
+            "culmen_length_mm",
+            "flipper_length_mm",
         ],
         index=[1633, 1672, 1690],
         col_exact=False,
@@ -58,31 +90,49 @@ def test_columntransformer_standalone_fit_and_transform(
 
 
 def test_columntransformer_standalone_fit_transform(new_penguins_df):
+    # rename column to ensure robustness to column names that must be escaped
+    new_penguins_df = new_penguins_df.rename(columns={"species": "123 'species'"})
     transformer = compose.ColumnTransformer(
         [
             (
                 "onehot",
                 preprocessing.OneHotEncoder(),
-                "species",
+                "123 'species'",
             ),
             (
                 "standard_scale",
                 preprocessing.StandardScaler(),
                 ["culmen_length_mm", "flipper_length_mm"],
             ),
+            (
+                "length",
+                compose.SQLScalarColumnTransformer(
+                    "CASE WHEN {0} IS NULL THEN -1 ELSE LENGTH({0}) END",
+                    target_column="len_{0}",
+                ),
+                "123 'species'",
+            ),
+            (
+                "identity",
+                compose.SQLScalarColumnTransformer("{0}", target_column="{0}"),
+                ["culmen_length_mm", "flipper_length_mm"],
+            ),
         ]
     )
 
     result = transformer.fit_transform(
-        new_penguins_df[["species", "culmen_length_mm", "flipper_length_mm"]]
+        new_penguins_df[["123 'species'", "culmen_length_mm", "flipper_length_mm"]]
     ).to_pandas()
 
     utils.check_pandas_df_schema_and_index(
         result,
         columns=[
-            "onehotencoded_species",
+            "onehotencoded_123 'species'",
             "standard_scaled_culmen_length_mm",
             "standard_scaled_flipper_length_mm",
+            "len_123 'species'",
+            "culmen_length_mm",
+            "flipper_length_mm",
         ],
         index=[1633, 1672, 1690],
         col_exact=False,
@@ -101,6 +151,27 @@ def test_columntransformer_save_load(new_penguins_df, dataset_id):
                 "standard_scale",
                 preprocessing.StandardScaler(),
                 ["culmen_length_mm", "flipper_length_mm"],
+            ),
+            (
+                "length",
+                compose.SQLScalarColumnTransformer(
+                    "CASE WHEN {0} IS NULL THEN -1 ELSE LENGTH({0}) END",
+                    target_column="len_{0}",
+                ),
+                "species",
+            ),
+            (
+                "identity",
+                compose.SQLScalarColumnTransformer("{0}", target_column="{0}"),
+                ["culmen_length_mm", "flipper_length_mm"],
+            ),
+            (
+                "flexname",
+                compose.SQLScalarColumnTransformer(
+                    "CASE WHEN {0} IS NULL THEN -1 ELSE LENGTH({0}) END",
+                    target_column="Flex {0} Name",
+                ),
+                "species",
             ),
         ]
     )
@@ -122,6 +193,36 @@ def test_columntransformer_save_load(new_penguins_df, dataset_id):
         ),
         ("standard_scaler", preprocessing.StandardScaler(), "culmen_length_mm"),
         ("standard_scaler", preprocessing.StandardScaler(), "flipper_length_mm"),
+        (
+            "sql_scalar_column_transformer",
+            compose.SQLScalarColumnTransformer(
+                "CASE WHEN `species` IS NULL THEN -1 ELSE LENGTH(`species`) END",
+                target_column="len_species",
+            ),
+            "?len_species",
+        ),
+        (
+            "sql_scalar_column_transformer",
+            compose.SQLScalarColumnTransformer(
+                "`flipper_length_mm`", target_column="flipper_length_mm"
+            ),
+            "?flipper_length_mm",
+        ),
+        (
+            "sql_scalar_column_transformer",
+            compose.SQLScalarColumnTransformer(
+                "`culmen_length_mm`", target_column="culmen_length_mm"
+            ),
+            "?culmen_length_mm",
+        ),
+        (
+            "sql_scalar_column_transformer",
+            compose.SQLScalarColumnTransformer(
+                "CASE WHEN `species` IS NULL THEN -1 ELSE LENGTH(`species`) END",
+                target_column="Flex species Name",
+            ),
+            "?Flex species Name",
+        ),
     ]
     assert set(reloaded_transformer.transformers) == set(expected)
     assert reloaded_transformer._bqml_model is not None
@@ -136,6 +237,10 @@ def test_columntransformer_save_load(new_penguins_df, dataset_id):
             "onehotencoded_species",
             "standard_scaled_culmen_length_mm",
             "standard_scaled_flipper_length_mm",
+            "len_species",
+            "culmen_length_mm",
+            "flipper_length_mm",
+            "Flex species Name",
         ],
         index=[1633, 1672, 1690],
         col_exact=False,

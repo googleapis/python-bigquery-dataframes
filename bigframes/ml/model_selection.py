@@ -18,9 +18,12 @@ https://scikit-learn.org/stable/modules/classes.html#module-sklearn.model_select
 
 
 import inspect
-from typing import cast, Generator, List, Union
+import time
+from typing import cast, Generator, List, Optional, Union
 
 import bigframes_vendored.sklearn.model_selection._split as vendored_model_selection_split
+import bigframes_vendored.sklearn.model_selection._validation as vendored_model_selection_validation
+import pandas as pd
 
 from bigframes.core import log_adapter
 from bigframes.ml import utils
@@ -28,7 +31,7 @@ import bigframes.pandas as bpd
 
 
 def train_test_split(
-    *arrays: Union[bpd.DataFrame, bpd.Series],
+    *arrays: utils.ArrayType,
     test_size: Union[float, None] = None,
     train_size: Union[float, None] = None,
     random_state: Union[int, None] = None,
@@ -123,9 +126,9 @@ class KFold(vendored_model_selection_split.KFold):
 
     def split(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series, None] = None,
-    ) -> Generator[tuple[Union[bpd.DataFrame, bpd.Series, None]], None, None]:
+        X: utils.ArrayType,
+        y: Union[utils.ArrayType, None] = None,
+    ) -> Generator[tuple[Union[bpd.DataFrame, bpd.Series, None], ...], None, None]:
         X_df = next(utils.convert_to_dataframe(X))
         y_df_or = next(utils.convert_to_dataframe(y)) if y is not None else None
         joined_df = X_df.join(y_df_or, how="outer") if y_df_or is not None else X_df
@@ -144,6 +147,60 @@ class KFold(vendored_model_selection_split.KFold):
             X_test = test_df[X_df.columns]
             y_test = test_df[y_df_or.columns] if y_df_or is not None else None
 
-            yield utils.convert_to_types(
-                [X_train, X_test, y_train, y_test], [X, X, y, y]
+            yield (
+                KFold._convert_to_bf_type(X_train, X),
+                KFold._convert_to_bf_type(X_test, X),
+                KFold._convert_to_bf_type(y_train, y),
+                KFold._convert_to_bf_type(y_test, y),
             )
+
+    @staticmethod
+    def _convert_to_bf_type(
+        input,
+        type_instance: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series, None],
+    ) -> Union[bpd.DataFrame, bpd.Series, None]:
+        if isinstance(type_instance, pd.Series) or isinstance(
+            type_instance, bpd.Series
+        ):
+            return next(utils.convert_to_series(input))
+
+        if isinstance(type_instance, pd.DataFrame) or isinstance(
+            type_instance, bpd.DataFrame
+        ):
+            return next(utils.convert_to_dataframe(input))
+
+        return None
+
+
+def cross_validate(
+    estimator,
+    X: utils.ArrayType,
+    y: Union[utils.ArrayType, None] = None,
+    *,
+    cv: Optional[Union[int, KFold]] = None,
+) -> dict[str, list]:
+    if cv is None:
+        cv = KFold(n_splits=5)
+    elif isinstance(cv, int):
+        cv = KFold(n_splits=cv)
+
+    result: dict[str, list] = {"test_score": [], "fit_time": [], "score_time": []}
+    for X_train, X_test, y_train, y_test in cv.split(X, y):  # type: ignore
+        fit_start_time = time.perf_counter()
+        estimator.fit(X_train, y_train)
+        fit_time = time.perf_counter() - fit_start_time
+
+        score_start_time = time.perf_counter()
+        score = estimator.score(X_test, y_test)
+        score_time = time.perf_counter() - score_start_time
+
+        result["test_score"].append(score)
+        result["fit_time"].append(fit_time)
+        result["score_time"].append(score_time)
+
+    return result
+
+
+cross_validate.__doc__ = inspect.getdoc(
+    vendored_model_selection_validation.cross_validate
+)

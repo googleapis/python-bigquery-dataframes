@@ -32,6 +32,7 @@ import google.cloud.storage as storage  # type: ignore
 import ibis.backends
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pytest
 import pytz
 import test_utils.prefixer
@@ -241,6 +242,11 @@ def dataset_id_permanent_tokyo(
 
 
 @pytest.fixture(scope="session")
+def table_id_not_created(dataset_id: str):
+    return f"{dataset_id}.{prefixer.create_prefix()}"
+
+
+@pytest.fixture(scope="session")
 def scalars_schema(bigquery_client: bigquery.Client):
     # TODO(swast): Add missing scalar data types such as BIGNUMERIC.
     # See also: https://github.com/ibis-project/ibis-bigquery/pull/67
@@ -290,6 +296,7 @@ def load_test_data_tables(
         ("scalars", "scalars_schema.json", "scalars.jsonl"),
         ("scalars_too", "scalars_schema.json", "scalars.jsonl"),
         ("nested", "nested_schema.json", "nested.jsonl"),
+        ("nested_structs", "nested_structs_schema.json", "nested_structs.jsonl"),
         ("repeated", "repeated_schema.json", "repeated.jsonl"),
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
         ("time_series", "time_series_schema.json", "time_series.jsonl"),
@@ -368,6 +375,11 @@ def nested_table_id(test_data_tables) -> str:
 
 
 @pytest.fixture(scope="session")
+def nested_structs_table_id(test_data_tables) -> str:
+    return test_data_tables["nested_structs"]
+
+
+@pytest.fixture(scope="session")
 def repeated_table_id(test_data_tables) -> str:
     return test_data_tables["repeated"]
 
@@ -410,6 +422,43 @@ def nested_pandas_df() -> pd.DataFrame:
     )
     df = df.set_index("rowindex")
     return df
+
+
+@pytest.fixture(scope="session")
+def nested_structs_df(
+    nested_structs_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(nested_structs_table_id, index_col="id")
+
+
+@pytest.fixture(scope="session")
+def nested_structs_pandas_df() -> pd.DataFrame:
+    """pd.DataFrame pointing at test data."""
+
+    df = pd.read_json(
+        DATA_DIR / "nested_structs.jsonl",
+        lines=True,
+    )
+    df = df.set_index("id")
+    return df
+
+
+@pytest.fixture(scope="session")
+def nested_structs_pandas_type() -> pd.ArrowDtype:
+    address_struct_schema = pa.struct(
+        [pa.field("city", pa.string()), pa.field("country", pa.string())]
+    )
+
+    person_struct_schema = pa.struct(
+        [
+            pa.field("name", pa.string()),
+            pa.field("age", pa.int64()),
+            pa.field("address", address_struct_schema),
+        ]
+    )
+
+    return pd.ArrowDtype(person_struct_schema)
 
 
 @pytest.fixture(scope="session")

@@ -39,30 +39,6 @@ def llm_remote_text_df(session, llm_remote_text_pandas_df):
 
 
 @pytest.mark.flaky(retries=2)
-def test_llm_palm_configure_fit(llm_fine_tune_df_default_index, llm_remote_text_df):
-    model = llm.PaLM2TextGenerator(model_name="text-bison", max_iterations=1)
-
-    X_train = llm_fine_tune_df_default_index[["prompt"]]
-    y_train = llm_fine_tune_df_default_index[["label"]]
-    model.fit(X_train, y_train)
-
-    assert model is not None
-
-    df = model.predict(llm_remote_text_df["prompt"]).to_pandas()
-    utils.check_pandas_df_schema_and_index(
-        df,
-        columns=[
-            "ml_generate_text_llm_result",
-            "ml_generate_text_rai_result",
-            "ml_generate_text_status",
-            "prompt",
-        ],
-        index=3,
-    )
-    # TODO(ashleyxu b/335492787): After bqml rolled out version control: save, load, check parameters to ensure configuration was kept
-
-
-@pytest.mark.flaky(retries=2)
 def test_llm_gemini_configure_fit(llm_fine_tune_df_default_index, llm_remote_text_df):
     model = llm.GeminiTextGenerator(model_name="gemini-pro", max_iterations=1)
 
@@ -155,4 +131,28 @@ def test_claude3_text_generator_predict_with_params_success(
     ).to_pandas()
     utils.check_pandas_df_schema_and_index(
         df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    ("claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet", "claude-3-opus"),
+)
+@pytest.mark.flaky(retries=3, delay=120)
+def test_claude3_text_generator_predict_multi_col_success(
+    llm_text_df, model_name, session, session_us_east5, bq_connection
+):
+    if model_name in ("claude-3-5-sonnet", "claude-3-opus"):
+        session = session_us_east5
+
+    llm_text_df["additional_col"] = 1
+    claude3_text_generator_model = llm.Claude3TextGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
+    df = claude3_text_generator_model.predict(llm_text_df).to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        df,
+        columns=utils.ML_GENERATE_TEXT_OUTPUT + ["additional_col"],
+        index=3,
+        col_exact=False,
     )

@@ -24,6 +24,7 @@ from google.cloud import bigquery
 
 import bigframes
 import bigframes.constants as constants
+import bigframes.formatting_helpers as formatting_helpers
 from bigframes.ml import sql as ml_sql
 import bigframes.pandas as bpd
 
@@ -46,8 +47,10 @@ class BqmlModel(BaseBqml):
     def __init__(self, session: bigframes.Session, model: bigquery.Model):
         self._session = session
         self._model = model
+        model_ref = self._model.reference
+        assert model_ref is not None
         self._model_manipulation_sql_generator = ml_sql.ModelManipulationSqlGenerator(
-            self.model_name
+            model_ref
         )
 
     def _apply_ml_tvf(
@@ -233,7 +236,7 @@ class BqmlModel(BaseBqml):
         copy_job = self._session.bqclient.copy_table(
             self.model_name, new_model_name, job_config=job_config
         )
-        self._session._start_generic_job(copy_job)
+        _start_generic_job(copy_job)
 
         new_model = self._session.bqclient.get_model(new_model_name)
         return BqmlModel(self._session, new_model)
@@ -479,3 +482,12 @@ class BqmlModelFactory:
         )
 
         return self._create_model_with_sql(session=session, sql=sql)
+
+
+def _start_generic_job(job: formatting_helpers.GenericJob):
+    if bigframes.options.display.progress_bar is not None:
+        formatting_helpers.wait_for_job(
+            job, bigframes.options.display.progress_bar
+        )  # Wait for the job to complete
+    else:
+        job.result()

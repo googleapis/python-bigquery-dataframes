@@ -196,8 +196,7 @@ def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
         else:
             output_column_ids.append(column)
 
-    # Force reproject since used `skip_project_unsafe` perviously
-    block = block.select_columns(output_column_ids)._force_reproject()
+    block = block.select_columns(output_column_ids)
     return block.with_column_labels(original_labels)
 
 
@@ -210,7 +209,7 @@ def _interpolate_column(
 ) -> typing.Tuple[blocks.Block, str]:
     if interpolate_method not in ["linear", "nearest", "ffill"]:
         raise ValueError("interpolate method not supported")
-    window_ordering = (ordering.OrderingExpression(ex.free_var(x_values)),)
+    window_ordering = (ordering.OrderingExpression(ex.deref(x_values)),)
     backwards_window = windows.rows(following=0, ordering=window_ordering)
     forwards_window = windows.rows(preceding=0, ordering=window_ordering)
 
@@ -373,7 +372,7 @@ def value_counts(
         block = block.order_by(
             [
                 ordering.OrderingExpression(
-                    ex.free_var(count_id),
+                    ex.deref(count_id),
                     direction=ordering.OrderingDirection.ASC
                     if ascending
                     else ordering.OrderingDirection.DESC,
@@ -430,7 +429,7 @@ def rank(
         nullity_col_ids.append(nullity_col_id)
         window_ordering = (
             ordering.OrderingExpression(
-                ex.free_var(col),
+                ex.deref(col),
                 ordering.OrderingDirection.ASC
                 if ascending
                 else ordering.OrderingDirection.DESC,
@@ -522,7 +521,7 @@ def nsmallest(
         block = block.reversed()
     order_refs = [
         ordering.OrderingExpression(
-            ex.free_var(col_id), direction=ordering.OrderingDirection.ASC
+            ex.deref(col_id), direction=ordering.OrderingDirection.ASC
         )
         for col_id in column_ids
     ]
@@ -552,7 +551,7 @@ def nlargest(
         block = block.reversed()
     order_refs = [
         ordering.OrderingExpression(
-            ex.free_var(col_id), direction=ordering.OrderingDirection.DESC
+            ex.deref(col_id), direction=ordering.OrderingDirection.DESC
         )
         for col_id in column_ids
     ]
@@ -849,9 +848,9 @@ def _idx_extrema(
         )
         # Have to find the min for each
         order_refs = [
-            ordering.OrderingExpression(ex.free_var(value_col), direction),
+            ordering.OrderingExpression(ex.deref(value_col), direction),
             *[
-                ordering.OrderingExpression(ex.free_var(idx_col))
+                ordering.OrderingExpression(ex.deref(idx_col))
                 for idx_col in original_block.index_columns
             ],
         ]

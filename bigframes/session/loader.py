@@ -300,7 +300,9 @@ class GbqDataLoader:
         ):
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.
-            all_columns = itertools.chain(index_cols, columns) if columns else ()
+            all_columns: Iterable[str] = (
+                itertools.chain(index_cols, columns) if columns else ()
+            )
             query = bf_io_bigquery.to_query(
                 query,
                 columns=all_columns,
@@ -339,7 +341,12 @@ class GbqDataLoader:
         )
 
         enable_snapshot = enable_snapshot and bf_read_gbq_table.validate_table(
-            self._bqclient, table_ref, all_columns, time_travel_timestamp, filter_str
+            self._bqclient,
+            table_ref,
+            all_columns,
+            time_travel_timestamp,
+            table.table_type,
+            filter_str,
         )
 
         # ----------------------------
@@ -521,6 +528,9 @@ class GbqDataLoader:
             api_name=api_name,
             configuration=configuration,
         )
+
+        if self._metrics is not None:
+            self._metrics.count_job_stats(query_job)
 
         # If there was no destination table, that means the query must have
         # been DDL or DML. Return some job metadata, instead.
