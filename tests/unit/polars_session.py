@@ -20,6 +20,7 @@ import polars
 
 import bigframes
 import bigframes.clients
+import bigframes.core.blocks
 import bigframes.core.compile.polars
 import bigframes.core.ordering
 import bigframes.dataframe
@@ -84,3 +85,8 @@ class TestSession(bigframes.session.Session):
         self._temp_storage_manager = None  # type: ignore
         self._executor = TestExecutor()
         self._loader = None  # type: ignore
+
+    def read_pandas(self, pandas_dataframe) -> bigframes.dataframe.DataFrame:
+        # override read_pandas to always keep data local-only
+        local_block = bigframes.core.blocks.Block.from_local(pandas_dataframe, self)
+        return bigframes.dataframe.DataFrame(local_block)
