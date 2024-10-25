@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
+
 import pyarrow as pa
 import pytest
 
+import bigframes.exceptions
 import bigframes.pandas as bpd
 
 
@@ -62,11 +65,10 @@ def test_non_string_indexed_struct_series_with_string_key_should_warn(session):
         session=session,
     )
 
-    with pytest.warns(UserWarning, match=r"Series\.struct\.field\(.+\)"):
+    with pytest.warns(bigframes.exceptions.IncorrectApiUsageWarning):
         s["a"]
 
 
-@pytest.mark.filterwarnings(r"error:Series\.struct\.field:UserWarning")
 @pytest.mark.parametrize(
     "series",
     [
@@ -85,4 +87,8 @@ def test_non_string_indexed_struct_series_with_string_key_should_warn(session):
 def test_struct_series_indexers_should_not_warn(request, series, key):
     s = request.getfixturevalue(series)
 
-    s[key]
+    with warnings.catch_warnings():
+        warnings.simplefilter(
+            "error", category=bigframes.exceptions.IncorrectApiUsageWarning
+        )
+        s[key]

@@ -29,6 +29,7 @@ import bigframes.core.indexes as indexes
 import bigframes.core.scalar
 import bigframes.dataframe
 import bigframes.dtypes
+import bigframes.exceptions
 import bigframes.operations as ops
 import bigframes.series
 
@@ -407,7 +408,9 @@ def _struct_accessor_check_and_warn(
 
     if not bigframes.dtypes.is_string_like(series.index.dtype):
         warnings.warn(
-            "Are you trying to access struct fields? If so, please use Series.struct.field(...) method instead."
+            "Are you trying to access struct fields? If so, please use Series.struct.field(...) method instead.",
+            category=bigframes.exceptions.IncorrectApiUsageWarning,
+            stacklevel=7, # Stack depth from series.__getitem__ to here
         )
 
 

@@ -73,3 +73,7 @@ class UnknownDataTypeWarning(Warning):
 
 class ApiDeprecationWarning(FutureWarning):
     """The API has been deprecated."""
+
+
+class IncorrectApiUsageWarning(Warning):
+    """The API might not be used in a correct way."""
