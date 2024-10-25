@@ -22,7 +22,7 @@ This library is an evolving attempt to
 """
 
 import abc
-from typing import cast, Optional, TypeVar
+from typing import cast, Optional, TypeVar, Union
 
 import bigframes_vendored.sklearn.base
 
@@ -162,6 +162,40 @@ class SupervisedTrainablePredictor(TrainablePredictor):
         y: utils.ArrayType,
     ) -> _T:
         return self._fit(X, y)
+
+
+class TrainableWithEvaluationPredictor(TrainablePredictor):
+    """A BigQuery DataFrames ML Model base class that can be used to fit and predict outputs.
+
+    Additional evaluation data can be provided to measure the model in the fit phase."""
+
+    @abc.abstractmethod
+    def _fit(self, X, y, transforms=None, X_eval=None, y_eval=None):
+        pass
+
+    @abc.abstractmethod
+    def score(self, X, y):
+        pass
+
+
+class SupervisedTrainableWithEvaluationPredictor(TrainableWithEvaluationPredictor):
+    """A BigQuery DataFrames ML Supervised Model base class that can be used to fit and predict outputs.
+
+    Need to provide both X and y in supervised tasks.
+
+    Additional X_eval and y_eval can be provided to measure the model in the fit phase.
+    """
+
+    _T = TypeVar("_T", bound="SupervisedTrainableWithEvaluationPredictor")
+
+    def fit(
+        self: _T,
+        X: Union[bpd.DataFrame, bpd.Series],
+        y: Union[bpd.DataFrame, bpd.Series],
+        X_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        y_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+    ) -> _T:
+        return self._fit(X, y, X_eval=X_eval, y_eval=y_eval)
 
 
 class UnsupervisedTrainablePredictor(TrainablePredictor):
