@@ -76,4 +76,4 @@ class ApiDeprecationWarning(FutureWarning):
 
 
 class IncorrectApiUsageWarning(Warning):
-    """The API might not be used in a correct way."""
+    """The API is not being used in a correct way."""
