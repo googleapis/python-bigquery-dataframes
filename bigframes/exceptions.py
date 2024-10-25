@@ -76,4 +76,4 @@ class ApiDeprecationWarning(FutureWarning):
 
 
 class BadIndexerKeyWarning(Warning):
-    """The API is not being used in a correct way."""
+    """The indexer key is not used correctly."""
