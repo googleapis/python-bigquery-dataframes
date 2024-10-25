@@ -17,7 +17,7 @@ https://scikit-learn.org/stable/modules/ensemble.html"""
 
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional
 
 import bigframes_vendored.sklearn.ensemble._forest
 import bigframes_vendored.xgboost.sklearn
@@ -145,8 +145,8 @@ class XGBRegressor(
         X: utils.ArrayType,
         y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
-        X_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
-        y_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> XGBRegressor:
         X, y = utils.convert_to_dataframe(X, y)
 
@@ -304,8 +304,8 @@ class XGBClassifier(
         X: utils.ArrayType,
         y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
-        X_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
-        y_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> XGBClassifier:
         X, y = utils.convert_to_dataframe(X, y)
 
@@ -450,8 +450,8 @@ class RandomForestRegressor(
         X: utils.ArrayType,
         y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
-        X_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
-        y_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> RandomForestRegressor:
         X, y = utils.convert_to_dataframe(X, y)
 
@@ -616,8 +616,8 @@ class RandomForestClassifier(
         X: utils.ArrayType,
         y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
-        X_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
-        y_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> RandomForestClassifier:
         X, y = utils.convert_to_dataframe(X, y)
 

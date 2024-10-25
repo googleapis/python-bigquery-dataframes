@@ -131,8 +131,8 @@ class LinearRegression(
         X: utils.ArrayType,
         y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
-        X_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
-        y_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> LinearRegression:
         X, y = utils.convert_to_dataframe(X, y)
 
@@ -293,8 +293,8 @@ class LogisticRegression(
         X: utils.ArrayType,
         y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
-        X_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
-        y_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> LogisticRegression:
         X, y = utils.convert_to_dataframe(X, y)
 

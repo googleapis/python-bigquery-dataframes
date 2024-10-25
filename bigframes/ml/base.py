@@ -22,7 +22,7 @@ This library is an evolving attempt to
 """
 
 import abc
-from typing import cast, Optional, TypeVar, Union
+from typing import cast, Optional, TypeVar
 
 import bigframes_vendored.sklearn.base
 
@@ -190,10 +190,10 @@ class SupervisedTrainableWithEvaluationPredictor(TrainableWithEvaluationPredicto
 
     def fit(
         self: _T,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
-        X_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
-        y_eval: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X: utils.ArrayType,
+        y: utils.ArrayType,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> _T:
         return self._fit(X, y, X_eval=X_eval, y_eval=y_eval)
 
