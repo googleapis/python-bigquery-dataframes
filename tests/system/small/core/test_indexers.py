@@ -65,7 +65,7 @@ def test_non_string_indexed_struct_series_with_string_key_should_warn(session):
         session=session,
     )
 
-    with pytest.warns(bigframes.exceptions.IncorrectApiUsageWarning):
+    with pytest.warns(bigframes.exceptions.BadIndexerKeyWarning):
         s["a"]
 
 
@@ -89,6 +89,6 @@ def test_struct_series_indexers_should_not_warn(request, series, key):
 
     with warnings.catch_warnings():
         warnings.simplefilter(
-            "error", category=bigframes.exceptions.IncorrectApiUsageWarning
+            "error", category=bigframes.exceptions.BadIndexerKeyWarning
         )
         s[key]

@@ -75,5 +75,5 @@ class ApiDeprecationWarning(FutureWarning):
     """The API has been deprecated."""
 
 
-class IncorrectApiUsageWarning(Warning):
+class BadIndexerKeyWarning(Warning):
     """The API is not being used in a correct way."""
