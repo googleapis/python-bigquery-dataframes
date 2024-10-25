@@ -396,6 +396,7 @@ def doctest(session: nox.sessions.Session):
             "third_party",
             "--ignore",
             "third_party/bigframes_vendored/ibis",
+            "bigframes/core/compile/polars",
         ),
         test_folder="bigframes",
         check_cov=True,
