@@ -70,8 +70,7 @@ import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.pandas as io_pandas
 
 if TYPE_CHECKING:
-    import bigframes.session.executor
-    from bigframes.session import Session
+    from bigframes import session
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -260,7 +259,7 @@ class Block:
         return [self.expr.get_column_type(col) for col in self.value_columns]
 
     @property
-    def session(self) -> Session:
+    def session(self) -> session.Session:
         return self._expr.session
 
     @functools.cached_property
@@ -2645,7 +2644,7 @@ class BlockIndexProperties:
         ]
 
     @property
-    def session(self) -> Session:
+    def session(self) -> session.Session:
         return self._expr.session
 
     @property
@@ -3130,7 +3129,7 @@ def unpivot(
 
 
 def _pd_index_to_array_value(
-    session: Session,
+    session: session.Session,
     index: pd.Index,
 ) -> core.ArrayValue:
     """

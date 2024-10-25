@@ -46,7 +46,7 @@ import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.bigquery
 
 if typing.TYPE_CHECKING:
-    from bigframes.session import Session
+    from bigframes import session
 
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
@@ -61,7 +61,7 @@ class ArrayValue:
     node: nodes.BigFrameNode
 
     @classmethod
-    def from_pyarrow(cls, arrow_table: pa.Table, session: Session):
+    def from_pyarrow(cls, arrow_table: pa.Table, session: session.Session):
         adapted_table = local_data.adapt_pa_table(arrow_table)
         schema = local_data.arrow_schema_to_bigframes(adapted_table.schema)
 
@@ -99,7 +99,7 @@ class ArrayValue:
         cls,
         table: google.cloud.bigquery.Table,
         schema: schemata.ArraySchema,
-        session: Session,
+        session: session.Session,
         *,
         predicate: Optional[str] = None,
         at_time: Optional[datetime.datetime] = None,
@@ -146,7 +146,7 @@ class ArrayValue:
         return self.schema.names
 
     @property
-    def session(self) -> Session:
+    def session(self) -> session.Session:
         required_session = self.node.session
         from bigframes import get_global_session
 
