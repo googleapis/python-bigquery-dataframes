@@ -410,7 +410,7 @@ def _struct_accessor_check_and_warn(
         warnings.warn(
             "Are you trying to access struct fields? If so, please use Series.struct.field(...) method instead.",
             category=bigframes.exceptions.IncorrectApiUsageWarning,
-            stacklevel=7, # Stack depth from series.__getitem__ to here
+            stacklevel=7,  # Stack depth from series.__getitem__ to here
         )
 
 
