@@ -304,6 +304,8 @@ def test_logistic_regression_configure_fit_with_eval_score(
     model = bigframes.ml.linear_model.LogisticRegression()
 
     df = penguins_df_default_index.dropna()
+    df = df[df["sex"].isin(["MALE", "FEMALE"])]
+
     X = df[
         [
             "species",
