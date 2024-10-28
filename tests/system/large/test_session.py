@@ -138,7 +138,7 @@ def test_clean_up_by_session_id():
 @pytest.mark.parametrize(
     ("session_creator"),
     [
-        pytest.param(bigframes.Session, id="session-ctor"),
+        pytest.param(bigframes.Session, id="session-constructor"),
         pytest.param(bigframes.connect, id="connect-method"),
     ],
 )
