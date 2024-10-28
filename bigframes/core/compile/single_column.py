@@ -70,12 +70,14 @@ def join_by_column_ordered(
         ordering_mode="unordered",
         expose_hidden_cols=True,
     )
-    left_table = left_table.rename(l_hidden_mapping)
+    left_table = left_table.rename({val: key for key, val in l_hidden_mapping.items()})
     right_table = right._to_ibis_expr(
         ordering_mode="unordered",
         expose_hidden_cols=True,
     )
-    right_table = right_table.rename(r_hidden_mapping)
+    right_table = right_table.rename(
+        {val: key for key, val in r_hidden_mapping.items()}
+    )
     join_conditions = [
         value_to_join_key(left_table[l_mapping[left_index]])
         == value_to_join_key(right_table[r_mapping[right_index]])

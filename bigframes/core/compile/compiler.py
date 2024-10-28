@@ -82,16 +82,15 @@ class Compiler:
     def _preprocess(self, node: nodes.BigFrameNode):
         if self.enable_pruning:
             used_fields = frozenset(field.id for field in node.fields)
-            result_node = node.prune(used_fields)
+            node = node.prune(used_fields)
         node = functools.cache(rewrites.replace_slice_ops)(node)
         if self.enable_densify_ids:
-            remapped_node, _ = rewrites.remap_variables(
+            original_names = [id.name for id in node.ids]
+            node, _ = rewrites.remap_variables(
                 node, id_generator=ids.anonymous_serial_ids()
             )
-            result_node = self.set_output_names(
-                remapped_node, [id.name for id in node.ids]
-            )
-        return result_node
+            node = self.set_output_names(node, original_names)
+        return node
 
     def set_output_names(
         self, node: bigframes.core.nodes.BigFrameNode, output_ids: typing.Sequence[str]
