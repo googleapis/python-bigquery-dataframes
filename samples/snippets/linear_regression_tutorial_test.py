@@ -63,9 +63,10 @@ def test_linear_regression(random_model_id: str) -> None:
         # For example: "bqml_tutorial.penguins_model",
     )
 
+    # Load data from BigQuery
     bq_df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
 
-    # Drop rows with nulls to get training data
+    # Drop nulls from body mass columns
     bq_df = bq_df.dropna(subset=["body_mass_g"])
 
     # Use 'contains' function to filter by island containing the string
