@@ -65,12 +65,12 @@ def test_linear_regression(random_model_id: str) -> None:
 
     # Use 'contains' function to filter by island containing the string
     # "Biscoe".
-    biscoe_data = model.loc[model["island"].str.contains("Biscoe")]
+    biscoe_data = bq_df.loc[bq_df["island"].str.contains("Biscoe")]
 
     result = model.predict(biscoe_data)
 
     # Expected output results:
-    #     predicted_body_mass_g  	species	                    island	 culmen_length_mm  culmen_depth_mm	flipper_length_mm	sex
+    #     predicted_body_mass_g  	  species	              island	 culmen_length_mm  culmen_depth_mm	flipper_length_mm	sex
     # 23	4681.782896	      Gentoo penguin (Pygoscelis papua)	Biscoe	    <NA>	          <NA>	              <NA>	        <NA>
     # 332	4740.7907	      Gentoo penguin (Pygoscelis papua)	Biscoe	    46.2	          14.4	              214.0	        <NA>
     # 160	4731.310452	      Gentoo penguin (Pygoscelis papua)	Biscoe	    44.5	          14.3	              216.0	        <NA>
