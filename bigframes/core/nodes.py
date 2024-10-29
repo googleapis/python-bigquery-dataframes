@@ -447,10 +447,12 @@ class JoinNode(BigFrameNode):
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         # If this is a cross join, make sure to select at least one column from each side
-        new_used = used_cols.union(
+        condition_cols = used_cols.union(
             map(lambda x: x.id, itertools.chain.from_iterable(self.conditions))
         )
-        return self.transform_children(lambda x: x.prune(new_used))
+        return self.transform_children(
+            lambda x: x.prune(frozenset([*condition_cols, *used_cols]))
+        )
 
     def remap_vars(
         self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
@@ -686,8 +688,11 @@ class ReadLocalNode(LeafNode):
         return tuple(item.id for item in self.scan_list.items)
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
+        # Don't preoduce empty scan list no matter what, will result in broken sql syntax
+        # TODO: Handle more elegantly
         new_scan_list = ScanList(
             tuple(item for item in self.scan_list.items if item.id in used_cols)
+            or (self.scan_list.items[0],)
         )
         return ReadLocalNode(
             self.feather_bytes,
@@ -839,8 +844,9 @@ class ReadTableNode(LeafNode):
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         new_scan_list = ScanList(
             tuple(item for item in self.scan_list.items if item.id in used_cols)
+            or (self.scan_list.items[0],)
         )
-        return ReadTableNode(self.source, new_scan_list, self.table_session)
+        return replace(self, scan_list=new_scan_list)
 
     def remap_vars(
         self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
@@ -862,14 +868,6 @@ class CachedTableNode(ReadTableNode):
     # The original BFET subtree that was cached
     # note: this isn't a "child" node.
     original_node: BigFrameNode = field()
-
-    def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
-        new_scan_list = ScanList(
-            tuple(item for item in self.scan_list.items if item.id in used_cols)
-        )
-        return CachedTableNode(
-            self.source, new_scan_list, self.table_session, self.original_node
-        )
 
 
 # Unary nodes
@@ -1081,8 +1079,11 @@ class SelectionNode(UnaryNode):
         return tuple(id for _, id in self.input_output_pairs)
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
-        pruned_selections = tuple(
-            select for select in self.input_output_pairs if select[1] in used_cols
+        pruned_selections = (
+            tuple(
+                select for select in self.input_output_pairs if select[1] in used_cols
+            )
+            or self.input_output_pairs[:1]
         )
         consumed_ids = frozenset(i[0].id for i in pruned_selections)
 
@@ -1213,6 +1214,10 @@ class RowCountNode(UnaryNode):
     def remap_refs(self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]):
         return self
 
+    def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
+        # TODO: Handle row count pruning
+        return self
+
 
 @dataclass(frozen=True, eq=False)
 class AggregateNode(UnaryNode):
@@ -1270,7 +1275,10 @@ class AggregateNode(UnaryNode):
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         by_ids = (ref.id for ref in self.by_column_ids)
-        pruned_aggs = tuple(agg for agg in self.aggregations if agg[1] in used_cols)
+        pruned_aggs = (
+            tuple(agg for agg in self.aggregations if agg[1] in used_cols)
+            or self.aggregations[:1]
+        )
         agg_inputs = itertools.chain.from_iterable(
             agg.column_references for agg, _ in pruned_aggs
         )
@@ -1335,9 +1343,11 @@ class WindowOpNode(UnaryNode):
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         if self.output_name not in used_cols:
-            return self.child
-        consumed_ids = used_cols.difference([self.output_name]).union(
-            [self.column_name.id, *self.window_spec.all_referenced_columns]
+            return self.child.prune(used_cols)
+        consumed_ids = (
+            used_cols.difference([self.output_name])
+            .union([self.column_name.id])
+            .union(self.window_spec.all_referenced_columns)
         )
         return self.transform_children(lambda x: x.prune(consumed_ids))
 
@@ -1436,9 +1446,8 @@ class ExplodeNode(UnaryNode):
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         # Cannot prune explode op
-        return self.transform_children(
-            lambda x: x.prune(used_cols.union(ref.id for ref in self.column_ids))
-        )
+        consumed_ids = used_cols.union(ref.id for ref in self.column_ids)
+        return self.transform_children(lambda x: x.prune(consumed_ids))
 
     def remap_vars(
         self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]

@@ -154,8 +154,9 @@ class Expression(abc.ABC):
         return ()
 
     @property
+    @abc.abstractmethod
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
-        return ()
+        ...
 
     def remap_column_refs(
         self: TExpression,
@@ -222,6 +223,10 @@ class ScalarConstantExpression(Expression):
     def is_const(self) -> bool:
         return True
 
+    @property
+    def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
+        return ()
+
     def output_type(
         self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
     ) -> dtypes.ExpressionType:
@@ -258,6 +263,10 @@ class UnboundVariableExpression(Expression):
     @property
     def is_const(self) -> bool:
         return False
+
+    @property
+    def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
+        return ()
 
     def output_type(
         self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
