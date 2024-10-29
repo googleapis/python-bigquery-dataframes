@@ -572,9 +572,7 @@ class FromRangeNode(BigFrameNode):
 
     @functools.cached_property
     def fields(self) -> Iterable[Field]:
-        return (
-            Field(bfet_ids.ColumnId("labels"), next(iter(self.start.fields)).dtype),
-        )
+        return (Field(self.output_id, next(iter(self.start.fields)).dtype),)
 
     @functools.cached_property
     def variables_introduced(self) -> int:
@@ -588,6 +586,10 @@ class FromRangeNode(BigFrameNode):
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return (self.output_id,)
+
+    @property
+    def defines_namespace(self) -> bool:
+        return True
 
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
