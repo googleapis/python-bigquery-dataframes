@@ -63,6 +63,11 @@ def test_linear_regression(random_model_id: str) -> None:
         # For example: "bqml_tutorial.penguins_model",
     )
 
+    bq_df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
+
+    # Drop rows with nulls to get training data
+    bq_df = bq_df.dropna(subset=["body_mass_g"])
+
     # Use 'contains' function to filter by island containing the string
     # "Biscoe".
     biscoe_data = bq_df.loc[bq_df["island"].str.contains("Biscoe")]
@@ -70,12 +75,10 @@ def test_linear_regression(random_model_id: str) -> None:
     result = model.predict(biscoe_data)
 
     # Expected output results:
-    #     predicted_body_mass_g  	  species	              island	 culmen_length_mm  culmen_depth_mm	flipper_length_mm	sex
-    # 23	4681.782896	      Gentoo penguin (Pygoscelis papua)	Biscoe	    <NA>	          <NA>	              <NA>	        <NA>
-    # 332	4740.7907	      Gentoo penguin (Pygoscelis papua)	Biscoe	    46.2	          14.4	              214.0	        <NA>
-    # 160	4731.310452	      Gentoo penguin (Pygoscelis papua)	Biscoe	    44.5	          14.3	              216.0	        <NA>
-
-    #
+    #     predicted_body_mass_g  	      species	                island	 culmen_length_mm  culmen_depth_mm   body_mass_g 	flipper_length_mm	sex
+    # 332	4740.7907	         Gentoo penguin (Pygoscelis papua)	Biscoe	      46.2	            14.4	       214.0	         4650.0	        <NA>
+    # 235	4752.246604	         Gentoo penguin (Pygoscelis papua)	Biscoe	      47.3	            13.8	       216.0	         4725.0	        <NA>
+    # 160	4731.310452	         Gentoo penguin (Pygoscelis papua)	Biscoe	      44.5	            14.3	       216.0	         4100.0	        <NA>
     # [END bigquery_dataframes_bqml_linear_predict]
     assert feature_columns is not None
     assert label_columns is not None
