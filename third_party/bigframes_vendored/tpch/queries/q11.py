@@ -37,7 +37,9 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
 
     grouped = grouped.merge(threshold, how="cross")
 
-    result_df = grouped[grouped["VALUE"] > grouped["THRESHOLD"]]
+    result_df = grouped[grouped["VALUE"] > grouped["THRESHOLD"]].drop(
+        columns="THRESHOLD"
+    )
 
     result_df = result_df.sort_values(by="VALUE", ascending=False)
 

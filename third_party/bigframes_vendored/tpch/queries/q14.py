@@ -26,10 +26,9 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
         filtered["L_EXTENDEDPRICE"] * (1 - filtered["L_DISCOUNT"])
     ) * filtered["P_TYPE"].str.contains("PROMO").astype("Int64")
 
-    total_revenue = (
-        (filtered["L_EXTENDEDPRICE"] * (1 - filtered["L_DISCOUNT"])).to_frame().sum()
-    )
-    promo_revenue = filtered[["CONDI_REVENUE"]].sum()
+    total_revenue = (filtered["L_EXTENDEDPRICE"] * (1 - filtered["L_DISCOUNT"])).sum()
+    promo_revenue = filtered["CONDI_REVENUE"].sum()
 
-    promo_revenue_percent = (100.00 * promo_revenue / total_revenue).round(2)
-    promo_revenue_percent.to_frame().to_gbq()
+    promo_revenue_percent = 100.00 * promo_revenue / total_revenue
+
+    _ = round(promo_revenue_percent, 2)

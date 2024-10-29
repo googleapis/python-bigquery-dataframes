@@ -22,7 +22,7 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
 
     supplier = (
         supplier[
-            supplier["S_COMMENT"].str.contains("Customer.*Complaints", regex=True)
+            ~supplier["S_COMMENT"].str.contains("Customer.*Complaints", regex=True)
         ]["S_SUPPKEY"]
         .unique(keep_order=False)
         .to_frame()
