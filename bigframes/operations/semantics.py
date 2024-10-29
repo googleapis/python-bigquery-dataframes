@@ -130,7 +130,10 @@ class Semantics:
         column = columns[0]
 
         if ground_with_google_search:
-            warnings.warn("Enables Grounding with Google Search may impact billing.")
+            warnings.warn(
+                "Enables Grounding with Google Search may impact billing cost. See pricing "
+                "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
+            )
 
         if max_agg_rows <= 1:
             raise ValueError(
@@ -359,7 +362,10 @@ class Semantics:
                 raise ValueError(f"Column {column} not found.")
 
         if ground_with_google_search:
-            warnings.warn("Enables Grounding with Google Search may impact billing.")
+            warnings.warn(
+                "Enables Grounding with Google Search may impact billing cost. See pricing "
+                "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
+            )
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         for column in columns:
@@ -451,7 +457,10 @@ class Semantics:
                 raise ValueError(f"Column {column} not found.")
 
         if ground_with_google_search:
-            warnings.warn("Enables Grounding with Google Search may impact billing.")
+            warnings.warn(
+                "Enables Grounding with Google Search may impact billing cost. See pricing "
+                "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
+            )
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         for column in columns:
@@ -547,7 +556,10 @@ class Semantics:
         columns = self._parse_columns(instruction)
 
         if ground_with_google_search:
-            warnings.warn("Enables Grounding with Google Search may impact billing.")
+            warnings.warn(
+                "Enables Grounding with Google Search may impact billing cost. See pricing "
+                "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
+            )
 
         joined_table_rows = len(self._df) * len(other)
 
@@ -786,7 +798,10 @@ class Semantics:
             )
 
         if ground_with_google_search:
-            warnings.warn("Enables Grounding with Google Search may impact billing.")
+            warnings.warn(
+                "Enables Grounding with Google Search may impact billing cost. See pricing "
+                "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
+            )
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         column = columns[0]
