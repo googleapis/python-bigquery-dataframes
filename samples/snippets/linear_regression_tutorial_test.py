@@ -70,6 +70,12 @@ def test_linear_regression(random_model_id: str) -> None:
     result = model.predict(biscoe_data)
 
     # Expected output results:
+    #     predicted_body_mass_g  	species	                    island	 culmen_length_mm  culmen_depth_mm	flipper_length_mm	sex
+    # 23	4681.782896	      Gentoo penguin (Pygoscelis papua)	Biscoe	    <NA>	          <NA>	              <NA>	        <NA>
+    # 332	4740.7907	      Gentoo penguin (Pygoscelis papua)	Biscoe	    46.2	          14.4	              214.0	        <NA>
+    # 160	4731.310452	      Gentoo penguin (Pygoscelis papua)	Biscoe	    44.5	          14.3	              216.0	        <NA>
+
+    #
     # [END bigquery_dataframes_bqml_linear_predict]
     assert feature_columns is not None
     assert label_columns is not None
