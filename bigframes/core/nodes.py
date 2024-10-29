@@ -20,7 +20,7 @@ import datetime
 import functools
 import itertools
 import typing
-from typing import Callable, Iterable, Sequence, Tuple
+from typing import Callable, cast, Iterable, Optional, Sequence, Tuple
 
 import google.cloud.bigquery as bq
 
@@ -30,6 +30,7 @@ import bigframes.core.identifiers
 import bigframes.core.identifiers as bfet_ids
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.schema as schemata
+import bigframes.core.slices as slices
 import bigframes.core.window_spec as window
 import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
@@ -51,8 +52,8 @@ class Field:
     dtype: bigframes.dtypes.Dtype
 
 
-@dataclass(frozen=True)
-class BigFrameNode:
+@dataclass(eq=False, frozen=True)
+class BigFrameNode(abc.ABC):
     """
     Immutable node for representing 2D typed array as a tree of operators.
 
@@ -82,6 +83,11 @@ class BigFrameNode:
         """Direct children of this node"""
         return tuple([])
 
+    @property
+    @abc.abstractmethod
+    def row_count(self) -> typing.Optional[int]:
+        return None
+
     @functools.cached_property
     def session(self):
         sessions = []
@@ -95,12 +101,30 @@ class BigFrameNode:
             return sessions[0]
         return None
 
+    def _as_tuple(self) -> Tuple:
+        """Get all fields as tuple."""
+        return tuple(getattr(self, field.name) for field in fields(self))
+
+    def __hash__(self) -> int:
+        # Custom hash that uses cache to avoid costly recomputation
+        return self._cached_hash
+
+    def __eq__(self, other) -> bool:
+        # Custom eq that tries to short-circuit full structural comparison
+        if not isinstance(other, self.__class__):
+            return False
+        if self is other:
+            return True
+        if hash(self) != hash(other):
+            return False
+        return self._as_tuple() == other._as_tuple()
+
     # BigFrameNode trees can be very deep so its important avoid recalculating the hash from scratch
     # Each subclass of BigFrameNode should use this property to implement __hash__
     # The default dataclass-generated __hash__ method is not cached
     @functools.cached_property
-    def _node_hash(self):
-        return hash(tuple(hash(getattr(self, field.name)) for field in fields(self)))
+    def _cached_hash(self):
+        return hash(self._as_tuple())
 
     @property
     def roots(self) -> typing.Set[BigFrameNode]:
@@ -109,10 +133,10 @@ class BigFrameNode:
         )
         return set(roots)
 
-    # TODO: For deep trees, this can create a lot of overhead, maybe use zero-copy persistent datastructure?
+    # TODO: Store some local data lazily for select, aggregate nodes.
     @property
     @abc.abstractmethod
-    def fields(self) -> Tuple[Field, ...]:
+    def fields(self) -> Iterable[Field]:
         ...
 
     @property
@@ -226,7 +250,7 @@ class BigFrameNode:
         return self.transform_children(lambda x: x.prune(used_cols))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class UnaryNode(BigFrameNode):
     child: BigFrameNode
 
@@ -234,8 +258,8 @@ class UnaryNode(BigFrameNode):
     def child_nodes(self) -> typing.Sequence[BigFrameNode]:
         return (self.child,)
 
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
+    @property
+    def fields(self) -> Iterable[Field]:
         return self.child.fields
 
     @property
@@ -245,14 +269,69 @@ class UnaryNode(BigFrameNode):
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
     ) -> BigFrameNode:
-        return replace(self, child=t(self.child))
+        transformed = replace(self, child=t(self.child))
+        if self == transformed:
+            # reusing existing object speeds up eq, and saves a small amount of memory
+            return self
+        return transformed
 
     @property
     def order_ambiguous(self) -> bool:
         return self.child.order_ambiguous
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
+class SliceNode(UnaryNode):
+    """Logical slice node conditionally becomes limit or filter over row numbers."""
+
+    start: Optional[int]
+    stop: Optional[int]
+    step: int = 1
+
+    @property
+    def row_preserving(self) -> bool:
+        """Whether this node preserves input rows."""
+        return False
+
+    @property
+    def non_local(self) -> bool:
+        """
+        Whether this node combines information across multiple rows instead of processing rows independently.
+        Used as an approximation for whether the expression may require shuffling to execute (and therefore be expensive).
+        """
+        return True
+
+    # these are overestimates, more accurate numbers available by converting to concrete limit or analytic+filter ops
+    @property
+    def variables_introduced(self) -> int:
+        return 2
+
+    @property
+    def relation_ops_created(self) -> int:
+        return 2
+
+    @property
+    def is_limit(self) -> bool:
+        """Returns whether this is equivalent to a ORDER BY ... LIMIT N."""
+        # TODO: Handle tail case.
+        return (
+            (not self.start)
+            and (self.step == 1)
+            and (self.stop is not None)
+            and (self.stop > 0)
+        )
+
+    @property
+    def row_count(self) -> typing.Optional[int]:
+        child_length = self.child.row_count
+        if child_length is None:
+            return None
+        return slices.slice_output_rows(
+            (self.start, self.stop, self.step), child_length
+        )
+
+
+@dataclass(frozen=True, eq=False)
 class JoinNode(BigFrameNode):
     left_child: BigFrameNode
     right_child: BigFrameNode
@@ -285,12 +364,9 @@ class JoinNode(BigFrameNode):
         # Do not consider user pre-join ordering intent - they need to re-order post-join in unordered mode.
         return False
 
-    def __hash__(self):
-        return self._node_hash
-
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
-        return tuple(itertools.chain(self.left_child.fields, self.right_child.fields))
+    @property
+    def fields(self) -> Iterable[Field]:
+        return itertools.chain(self.left_child.fields, self.right_child.fields)
 
     @functools.cached_property
     def variables_introduced(self) -> int:
@@ -301,12 +377,25 @@ class JoinNode(BigFrameNode):
     def joins(self) -> bool:
         return True
 
+    @property
+    def row_count(self) -> Optional[int]:
+        if self.type == "cross":
+            if self.left_child.row_count is None or self.right_child.row_count is None:
+                return None
+            return self.left_child.row_count * self.right_child.row_count
+
+        return None
+
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
     ) -> BigFrameNode:
-        return replace(
+        transformed = replace(
             self, left_child=t(self.left_child), right_child=t(self.right_child)
         )
+        if self == transformed:
+            # reusing existing object speeds up eq, and saves a small amount of memory
+            return self
+        return transformed
 
     @property
     def defines_namespace(self) -> bool:
@@ -320,7 +409,7 @@ class JoinNode(BigFrameNode):
         return self.transform_children(lambda x: x.prune(new_used))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ConcatNode(BigFrameNode):
     # TODO: Explcitly map column ids from each child
     children: Tuple[BigFrameNode, ...]
@@ -345,13 +434,10 @@ class ConcatNode(BigFrameNode):
         # Consider concat as an ordered operations (even though input frames may not be ordered)
         return True
 
-    def __hash__(self):
-        return self._node_hash
-
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
+    @property
+    def fields(self) -> Iterable[Field]:
         # TODO: Output names should probably be aligned beforehand or be part of concat definition
-        return tuple(
+        return (
             Field(bfet_ids.ColumnId(f"column_{i}"), field.dtype)
             for i, field in enumerate(self.children[0].fields)
         )
@@ -361,25 +447,36 @@ class ConcatNode(BigFrameNode):
         """Defines the number of variables generated by the current node. Used to estimate query planning complexity."""
         return len(self.schema.items) + OVERHEAD_VARIABLES
 
+    @property
+    def row_count(self) -> Optional[int]:
+        sub_counts = [node.row_count for node in self.child_nodes]
+        total = 0
+        for count in sub_counts:
+            if count is None:
+                return None
+            total += count
+        return total
+
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
     ) -> BigFrameNode:
-        return replace(self, children=tuple(t(child) for child in self.children))
+        transformed = replace(self, children=tuple(t(child) for child in self.children))
+        if self == transformed:
+            # reusing existing object speeds up eq, and saves a small amount of memory
+            return self
+        return transformed
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         # TODO: Make concat prunable, probably by redefining
         return self
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class FromRangeNode(BigFrameNode):
     # TODO: Enforce single-row, single column constraint
     start: BigFrameNode
     end: BigFrameNode
     step: int
-
-    def __hash__(self):
-        return self._node_hash
 
     @property
     def roots(self) -> typing.Set[BigFrameNode]:
@@ -398,18 +495,28 @@ class FromRangeNode(BigFrameNode):
         return True
 
     @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
-        return (Field(bfet_ids.ColumnId("labels"), self.start.fields[0].dtype),)
+    def fields(self) -> Iterable[Field]:
+        return (
+            Field(bfet_ids.ColumnId("labels"), next(iter(self.start.fields)).dtype),
+        )
 
     @functools.cached_property
     def variables_introduced(self) -> int:
         """Defines the number of variables generated by the current node. Used to estimate query planning complexity."""
         return len(self.schema.items) + OVERHEAD_VARIABLES
 
+    @property
+    def row_count(self) -> Optional[int]:
+        return None
+
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
     ) -> BigFrameNode:
-        return replace(self, start=t(self.start), end=t(self.end))
+        transformed = replace(self, start=t(self.start), end=t(self.end))
+        if self == transformed:
+            # reusing existing object speeds up eq, and saves a small amount of memory
+            return self
+        return transformed
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         # TODO: Make FromRangeNode prunable (or convert to other node types)
@@ -419,25 +526,24 @@ class FromRangeNode(BigFrameNode):
 # Input Nodex
 # TODO: Most leaf nodes produce fixed column names based on the datasource
 # They should support renaming
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class LeafNode(BigFrameNode):
     @property
     def roots(self) -> typing.Set[BigFrameNode]:
         return {self}
 
     @property
-    def supports_fast_head(self) -> bool:
+    def fast_offsets(self) -> bool:
+        return False
+
+    @property
+    def fast_ordered_limit(self) -> bool:
         return False
 
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
     ) -> BigFrameNode:
         return self
-
-    @property
-    def row_count(self) -> typing.Optional[int]:
-        """How many rows are in the data source. None means unknown."""
-        return None
 
 
 class ScanItem(typing.NamedTuple):
@@ -451,7 +557,7 @@ class ScanList:
     items: typing.Tuple[ScanItem, ...]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ReadLocalNode(LeafNode):
     feather_bytes: bytes
     data_schema: schemata.ArraySchema
@@ -460,20 +566,21 @@ class ReadLocalNode(LeafNode):
     scan_list: ScanList
     session: typing.Optional[bigframes.session.Session] = None
 
-    def __hash__(self):
-        return self._node_hash
+    @property
+    def fields(self) -> Iterable[Field]:
+        return (Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
 
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
-        return tuple(Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
-
-    @functools.cached_property
+    @property
     def variables_introduced(self) -> int:
         """Defines the number of variables generated by the current node. Used to estimate query planning complexity."""
         return len(self.scan_list.items) + 1
 
     @property
-    def supports_fast_head(self) -> bool:
+    def fast_offsets(self) -> bool:
+        return True
+
+    @property
+    def fast_ordered_limit(self) -> bool:
         return True
 
     @property
@@ -508,6 +615,7 @@ class GbqTable:
     table_id: str = field()
     physical_schema: Tuple[bq.SchemaField, ...] = field()
     n_rows: int = field()
+    is_physically_stored: bool = field()
     cluster_cols: typing.Optional[Tuple[str, ...]]
 
     @staticmethod
@@ -523,6 +631,7 @@ class GbqTable:
             table_id=table.table_id,
             physical_schema=schema,
             n_rows=table.num_rows,
+            is_physically_stored=(table.table_type in ["TABLE", "MATERIALIZED_VIEW"]),
             cluster_cols=None
             if table.clustering_fields is None
             else tuple(table.clustering_fields),
@@ -545,7 +654,7 @@ class BigqueryDataSource:
 
 
 ## Put ordering in here or just add order_by node above?
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ReadTableNode(LeafNode):
     source: BigqueryDataSource
     # Subset of physical schema column
@@ -568,12 +677,9 @@ class ReadTableNode(LeafNode):
     def session(self):
         return self.table_session
 
-    def __hash__(self):
-        return self._node_hash
-
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
-        return tuple(Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
+    @property
+    def fields(self) -> Iterable[Field]:
+        return (Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
 
     @property
     def relation_ops_created(self) -> int:
@@ -581,11 +687,26 @@ class ReadTableNode(LeafNode):
         return 3
 
     @property
-    def supports_fast_head(self) -> bool:
-        # Fast head is only supported when row offsets are available.
-        # In the future, ORDER BY+LIMIT optimizations may allow fast head when
-        # clustered and/or partitioned on ordering key
+    def fast_offsets(self) -> bool:
+        # Fast head is only supported when row offsets are available or data is clustered over ordering key.
         return (self.source.ordering is not None) and self.source.ordering.is_sequential
+
+    @property
+    def fast_ordered_limit(self) -> bool:
+        if self.source.ordering is None:
+            return False
+        order_cols = self.source.ordering.all_ordering_columns
+        # monotonicity would probably be fine
+        if not all(col.scalar_expression.is_identity for col in order_cols):
+            return False
+        order_col_ids = tuple(
+            cast(ex.DerefOp, col.scalar_expression).id.name for col in order_cols
+        )
+        cluster_col_ids = self.source.table.cluster_cols
+        if cluster_col_ids is None:
+            return False
+
+        return order_col_ids == cluster_col_ids[: len(order_col_ids)]
 
     @property
     def order_ambiguous(self) -> bool:
@@ -603,7 +724,7 @@ class ReadTableNode(LeafNode):
 
     @property
     def row_count(self) -> typing.Optional[int]:
-        if self.source.sql_predicate is None:
+        if self.source.sql_predicate is None and self.source.table.is_physically_stored:
             return self.source.table.n_rows
         return None
 
@@ -614,14 +735,11 @@ class ReadTableNode(LeafNode):
         return ReadTableNode(self.source, new_scan_list, self.table_session)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class CachedTableNode(ReadTableNode):
     # The original BFET subtree that was cached
     # note: this isn't a "child" node.
     original_node: BigFrameNode = field()
-
-    def __hash__(self):
-        return self._node_hash
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         new_scan_list = ScanList(
@@ -633,20 +751,19 @@ class CachedTableNode(ReadTableNode):
 
 
 # Unary nodes
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class PromoteOffsetsNode(UnaryNode):
     col_id: bigframes.core.identifiers.ColumnId
-
-    def __hash__(self):
-        return self._node_hash
 
     @property
     def non_local(self) -> bool:
         return True
 
     @property
-    def fields(self) -> Tuple[Field, ...]:
-        return (*self.child.fields, Field(self.col_id, bigframes.dtypes.INT_DTYPE))
+    def fields(self) -> Iterable[Field]:
+        return itertools.chain(
+            self.child.fields, [Field(self.col_id, bigframes.dtypes.INT_DTYPE)]
+        )
 
     @property
     def relation_ops_created(self) -> int:
@@ -656,6 +773,10 @@ class PromoteOffsetsNode(UnaryNode):
     def variables_introduced(self) -> int:
         return 1
 
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
+
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         if self.col_id not in used_cols:
             return self.child.prune(used_cols)
@@ -664,7 +785,7 @@ class PromoteOffsetsNode(UnaryNode):
             return self.transform_children(lambda x: x.prune(new_used))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class FilterNode(UnaryNode):
     predicate: ex.Expression
 
@@ -672,12 +793,13 @@ class FilterNode(UnaryNode):
     def row_preserving(self) -> bool:
         return False
 
-    def __hash__(self):
-        return self._node_hash
-
     @property
     def variables_introduced(self) -> int:
         return 1
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return None
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         consumed_ids = used_cols.union(self.predicate.column_references)
@@ -685,12 +807,9 @@ class FilterNode(UnaryNode):
         return FilterNode(pruned_child, self.predicate)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class OrderByNode(UnaryNode):
     by: Tuple[OrderingExpression, ...]
-
-    def __hash__(self):
-        return self._node_hash
 
     @property
     def variables_introduced(self) -> int:
@@ -705,6 +824,10 @@ class OrderByNode(UnaryNode):
     def explicitly_ordered(self) -> bool:
         return True
 
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
+
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         ordering_cols = itertools.chain.from_iterable(
             map(lambda x: x.referenced_columns, self.by)
@@ -714,13 +837,10 @@ class OrderByNode(UnaryNode):
         return OrderByNode(pruned_child, self.by)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ReversedNode(UnaryNode):
     # useless field to make sure has distinct hash
     reversed: bool = True
-
-    def __hash__(self):
-        return self._node_hash
 
     @property
     def variables_introduced(self) -> int:
@@ -731,18 +851,19 @@ class ReversedNode(UnaryNode):
         # Doesnt directly create any relational operations
         return 0
 
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
 
-@dataclass(frozen=True)
+
+@dataclass(frozen=True, eq=False)
 class SelectionNode(UnaryNode):
     input_output_pairs: typing.Tuple[
         typing.Tuple[ex.DerefOp, bigframes.core.identifiers.ColumnId], ...
     ]
 
-    def __hash__(self):
-        return self._node_hash
-
     @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
+    def fields(self) -> Iterable[Field]:
         return tuple(
             Field(output, self.child.get_type(input.id))
             for input, output in self.input_output_pairs
@@ -760,6 +881,10 @@ class SelectionNode(UnaryNode):
     def defines_namespace(self) -> bool:
         return True
 
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
+
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         pruned_selections = tuple(
             select for select in self.input_output_pairs if select[1] in used_cols
@@ -770,7 +895,7 @@ class SelectionNode(UnaryNode):
         return SelectionNode(pruned_child, pruned_selections)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ProjectionNode(UnaryNode):
     """Assigns new variables (without modifying existing ones)"""
 
@@ -786,23 +911,27 @@ class ProjectionNode(UnaryNode):
         # Cannot assign to existing variables - append only!
         assert all(name not in self.child.schema.names for _, name in self.assignments)
 
-    def __hash__(self):
-        return self._node_hash
-
     @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
+    def added_fields(self) -> Tuple[Field, ...]:
         input_types = self.child._dtype_lookup
-        new_fields = (
+        return tuple(
             Field(id, bigframes.dtypes.dtype_for_etype(ex.output_type(input_types)))
             for ex, id in self.assignments
         )
-        return (*self.child.fields, *new_fields)
+
+    @property
+    def fields(self) -> Iterable[Field]:
+        return itertools.chain(self.child.fields, self.added_fields)
 
     @property
     def variables_introduced(self) -> int:
         # ignore passthrough expressions
         new_vars = sum(1 for i in self.assignments if not i[0].is_identity)
         return new_vars
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         pruned_assignments = tuple(i for i in self.assignments if i[1] in used_cols)
@@ -817,7 +946,7 @@ class ProjectionNode(UnaryNode):
 
 # TODO: Merge RowCount into Aggregate Node?
 # Row count can be compute from table metadata sometimes, so it is a bit special.
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class RowCountNode(UnaryNode):
     @property
     def row_preserving(self) -> bool:
@@ -827,8 +956,8 @@ class RowCountNode(UnaryNode):
     def non_local(self) -> bool:
         return True
 
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
+    @property
+    def fields(self) -> Iterable[Field]:
         return (Field(bfet_ids.ColumnId("count"), bigframes.dtypes.INT_DTYPE),)
 
     @property
@@ -839,8 +968,12 @@ class RowCountNode(UnaryNode):
     def defines_namespace(self) -> bool:
         return True
 
+    @property
+    def row_count(self) -> Optional[int]:
+        return 1
 
-@dataclass(frozen=True)
+
+@dataclass(frozen=True, eq=False)
 class AggregateNode(UnaryNode):
     aggregations: typing.Tuple[
         typing.Tuple[ex.Aggregation, bigframes.core.identifiers.ColumnId], ...
@@ -852,15 +985,12 @@ class AggregateNode(UnaryNode):
     def row_preserving(self) -> bool:
         return False
 
-    def __hash__(self):
-        return self._node_hash
-
     @property
     def non_local(self) -> bool:
         return True
 
     @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
+    def fields(self) -> Iterable[Field]:
         by_items = (
             Field(ref.id, self.child.get_type(ref.id)) for ref in self.by_column_ids
         )
@@ -873,7 +1003,7 @@ class AggregateNode(UnaryNode):
             )
             for agg, id in self.aggregations
         )
-        return (*by_items, *agg_items)
+        return tuple(itertools.chain(by_items, agg_items))
 
     @property
     def variables_introduced(self) -> int:
@@ -891,6 +1021,12 @@ class AggregateNode(UnaryNode):
     def defines_namespace(self) -> bool:
         return True
 
+    @property
+    def row_count(self) -> Optional[int]:
+        if not self.by_column_ids:
+            return 1
+        return None
+
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         by_ids = (ref.id for ref in self.by_column_ids)
         pruned_aggs = tuple(agg for agg in self.aggregations if agg[1] in used_cols)
@@ -902,7 +1038,7 @@ class AggregateNode(UnaryNode):
         return AggregateNode(pruned_child, pruned_aggs, self.by_column_ids, self.dropna)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class WindowOpNode(UnaryNode):
     column_name: ex.DerefOp
     op: agg_ops.UnaryWindowOp
@@ -911,18 +1047,13 @@ class WindowOpNode(UnaryNode):
     never_skip_nulls: bool = False
     skip_reproject_unsafe: bool = False
 
-    def __hash__(self):
-        return self._node_hash
-
     @property
     def non_local(self) -> bool:
         return True
 
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
-        input_type = self.child.get_type(self.column_name.id)
-        new_item_dtype = self.op.output_type(input_type)
-        return (*self.child.fields, Field(self.output_name, new_item_dtype))
+    @property
+    def fields(self) -> Iterable[Field]:
+        return itertools.chain(self.child.fields, [self.added_field])
 
     @property
     def variables_introduced(self) -> int:
@@ -933,6 +1064,16 @@ class WindowOpNode(UnaryNode):
         # Assume that if not reprojecting, that there is a sequence of window operations sharing the same window
         return 0 if self.skip_reproject_unsafe else 4
 
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
+
+    @functools.cached_property
+    def added_field(self) -> Field:
+        input_type = self.child.get_type(self.column_name.id)
+        new_item_dtype = self.op.output_type(input_type)
+        return Field(self.output_name, new_item_dtype)
+
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         if self.output_name not in used_cols:
             return self.child
@@ -942,23 +1083,7 @@ class WindowOpNode(UnaryNode):
         return self.transform_children(lambda x: x.prune(consumed_ids))
 
 
-# TODO: Remove this op
-@dataclass(frozen=True)
-class ReprojectOpNode(UnaryNode):
-    def __hash__(self):
-        return self._node_hash
-
-    @property
-    def variables_introduced(self) -> int:
-        return 0
-
-    @property
-    def relation_ops_created(self) -> int:
-        # This op is not a real transformation, just a hint to the sql generator
-        return 0
-
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class RandomSampleNode(UnaryNode):
     fraction: float
 
@@ -970,16 +1095,17 @@ class RandomSampleNode(UnaryNode):
     def row_preserving(self) -> bool:
         return False
 
-    def __hash__(self):
-        return self._node_hash
-
     @property
     def variables_introduced(self) -> int:
         return 1
 
+    @property
+    def row_count(self) -> Optional[int]:
+        return None
+
 
 # TODO: Explode should create a new column instead of overriding the existing one
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ExplodeNode(UnaryNode):
     column_ids: typing.Tuple[ex.DerefOp, ...]
 
@@ -987,12 +1113,9 @@ class ExplodeNode(UnaryNode):
     def row_preserving(self) -> bool:
         return False
 
-    def __hash__(self):
-        return self._node_hash
-
-    @functools.cached_property
-    def fields(self) -> Tuple[Field, ...]:
-        return tuple(
+    @property
+    def fields(self) -> Iterable[Field]:
+        return (
             Field(
                 field.id,
                 bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
@@ -1015,6 +1138,10 @@ class ExplodeNode(UnaryNode):
     @property
     def defines_namespace(self) -> bool:
         return True
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return None
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         # Cannot prune explode op

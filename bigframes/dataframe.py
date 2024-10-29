@@ -74,12 +74,15 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.plotting as plotting
+import bigframes.operations.semantics
 import bigframes.operations.structs
 import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session._io.bigquery
 
 if typing.TYPE_CHECKING:
+    from _typeshed import SupportsRichComparison
+
     import bigframes.session
 
     SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
@@ -376,7 +379,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 whether to include index columns.
 
         Returns:
-            a tuple of (sql_string, index_column_id_list, index_column_label_list).
+            Tuple[sql_string, index_column_id_list, index_column_label_list]:
                 If include_index is set to False, index_column_id_list and index_column_label_list
                 return empty lists.
         """
@@ -384,7 +387,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def sql(self) -> str:
-        """Compiles this DataFrame's expression tree to SQL."""
+        """Compiles this DataFrame's expression tree to SQL.
+
+        Returns:
+            str:
+                string representing the compiled SQL.
+        """
         include_index = self._has_index and (
             self.index.name is not None or len(self.index.names) > 1
         )
@@ -396,8 +404,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """BigQuery job metadata for the most recent query.
 
         Returns:
-            The most recent `QueryJob
-            <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
+            None or google.cloud.bigquery.QueryJob:
+                The most recent `QueryJob
+                <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
         """
         if self._query_job is None:
             self._set_internal_query_job(self._compute_dry_run())
@@ -689,7 +698,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        self._cached()
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -768,7 +776,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         reverse: bool = False,
     ) -> DataFrame:
         bf_series = bigframes.core.convert.to_bf_series(
-            other, self.index, self._session
+            other, self.index if self._has_index else None, self._session
         )
         aligned_block, columns, expr_pairs = self._block._align_axis_0(
             bf_series._block, how=how
@@ -2464,7 +2472,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             values = [values]
 
         # Unlike pivot, pivot_table has values always ordered.
-        values.sort()
+        values.sort(key=lambda val: typing.cast("SupportsRichComparison", val))
 
         keys = index + columns
         agged = self.groupby(keys, dropna=True)[values].agg(aggfunc)
@@ -3179,6 +3187,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         clustering_columns: Union[pandas.Index, Iterable[typing.Hashable]] = (),
         labels: dict[str, str] = {},
     ) -> str:
+        index = index and self._has_index
         temp_table_ref = None
 
         if destination_table is None:
@@ -3722,7 +3731,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
     ) -> DataFrame:
-        block = self._block.slice(start=start, stop=stop, step=step)
+        block = self._block.slice(
+            start=start, stop=stop, step=step if (step is not None) else 1
+        )
         return DataFrame(block)
 
     def __array_ufunc__(
@@ -3758,7 +3769,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Useful if the dataframe will be used multiple times, as this will avoid recomputating the shared intermediate value.
 
         Returns:
-            DataFrame: Self
+            bigframes.pandas.DataFrame: DataFrame
         """
         return self._cached(force=True)
 
@@ -3875,3 +3886,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise bigframes.exceptions.NullIndexError(
                 f"DataFrame cannot perform {opname} as it has no index. Set an index using set_index."
             )
+
+    @property
+    def semantics(self):
+        return bigframes.operations.semantics.Semantics(self)

@@ -158,10 +158,6 @@ class ArrayValue:
     def schema(self) -> schemata.ArraySchema:
         return self.node.schema
 
-    @functools.cached_property
-    def _compiled_schema(self) -> schemata.ArraySchema:
-        return bigframes.core.compile.test_only_ibis_inferred_schema(self.node)
-
     @property
     def explicitly_ordered(self) -> bool:
         # see BigFrameNode.explicitly_ordered
@@ -228,6 +224,23 @@ class ArrayValue:
 
     def reversed(self) -> ArrayValue:
         return ArrayValue(nodes.ReversedNode(child=self.node))
+
+    def slice(
+        self, start: Optional[int], stop: Optional[int], step: Optional[int]
+    ) -> ArrayValue:
+        if self.node.order_ambiguous and not (self.session._strictly_ordered):
+            warnings.warn(
+                "Window ordering may be ambiguous, this can cause unstable results.",
+                bigframes.exceptions.AmbiguousWindowWarning,
+            )
+        return ArrayValue(
+            nodes.SliceNode(
+                self.node,
+                start=start,
+                stop=stop,
+                step=step if (step is not None) else 1,
+            )
+        )
 
     def promote_offsets(self) -> Tuple[ArrayValue, str]:
         """
@@ -392,20 +405,6 @@ class ArrayValue:
                 )
             ),
             output_name,
-        )
-
-    def _reproject_to_table(self) -> ArrayValue:
-        """
-        Internal operators that projects the internal representation into a
-        new ibis table expression where each value column is a direct
-        reference to a column in that table expression. Needed after
-        some operations such as window operations that cannot be used
-        recursively in projections.
-        """
-        return ArrayValue(
-            nodes.ReprojectOpNode(
-                child=self.node,
-            )
         )
 
     def relational_join(
