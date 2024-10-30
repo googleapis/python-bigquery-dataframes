@@ -1117,6 +1117,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         # TODO: enforce stricter alignment
         return self._apply_binary_op(other, ops.ne_op)
 
+    def items(self):
+        for batch_df in self._block.to_pandas_batches():
+            assert (
+                batch_df.shape[1] == 1
+            ), f"Expected 1 column in the dataframe, but got {batch_df.shape[1]}."
+            for item in batch_df.squeeze(axis=1).items():
+                yield item
+
     def where(self, cond, other=None):
         value_id, cond_id, other_id, block = self._align3(cond, other)
         block, result_id = block.project_expr(
@@ -1601,9 +1609,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)
         return Series(block)
 
-    @validations.requires_ordering()
-    def unique(self) -> Series:
-        return self.drop_duplicates()
+    def unique(self, keep_order=True) -> Series:
+        if keep_order:
+            validations.enforce_ordered(self, "unique(keep_order != False)")
+            return self.drop_duplicates()
+        block, result = self._block.aggregate(
+            [self._value_column],
+            [(self._value_column, agg_ops.AnyValueOp())],
+            dropna=False,
+        )
+        return Series(block.select_columns(result).reset_index())
 
     def duplicated(self, keep: str = "first") -> Series:
         if keep is not False:
