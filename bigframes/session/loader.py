@@ -129,7 +129,7 @@ class GbqDataLoader:
         self._metrics = metrics
         # Unfortunate circular reference, but need to pass reference when constructing objects
         self._session = session
-        self._clock = session_time.BigquerySyncedClock(bqclient)
+        self._clock = session_time.BigQuerySyncedClock(bqclient)
         self._clock.sync()
 
     def read_pandas_load_job(

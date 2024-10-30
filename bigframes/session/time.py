@@ -22,7 +22,7 @@ import google.cloud.bigquery as bigquery
 MIN_RESYNC_SECONDS = 100
 
 
-class BigquerySyncedClock:
+class BigQuerySyncedClock:
     """
     Local clock that attempts to synchronize its time with the bigquery service.
     """
