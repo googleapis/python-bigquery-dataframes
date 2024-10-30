@@ -992,6 +992,7 @@ class GroupBy:
                A  B
             0  1  2
             2  5  6
+            [2 rows x 2 columns]
 
         Args:
             n (int):
@@ -1022,11 +1023,11 @@ class GroupBy:
               a     1
               a     2
               b     3
-              dtype: int64
+              dtype: Int64
               >>> ser.groupby(level=0).size()
               a    2
               b    1
-              dtype: int64
+              dtype: Int64
 
           For DataFrameGroupBy:
 
