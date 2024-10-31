@@ -20,6 +20,8 @@ import bigframes.series
 
 
 class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
+    __doc__ = vendored_geoseries.GeoSeries.__doc__
+
     def __init__(self, data=None, index=None, **kwargs):
         super().__init__(
             data=data, index=index, dtype=geopandas.array.GeometryDtype(), **kwargs
