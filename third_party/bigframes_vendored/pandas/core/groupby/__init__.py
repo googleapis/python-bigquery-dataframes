@@ -1059,7 +1059,7 @@ class GroupBy:
               owl     1  2  3
               toucan  1  5  6
               eagle   7  8  9
-              [3 rows x 3 columns in total]
+              [3 rows x 3 columns]
               >>> df.groupby("a").size()
               a
               1    2
