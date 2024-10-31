@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 import bigframes_vendored.geopandas.geoseries as vendored_geoseries
-import geopandas.array
+import geopandas.array  # type: ignore
 
 import bigframes.series
 
