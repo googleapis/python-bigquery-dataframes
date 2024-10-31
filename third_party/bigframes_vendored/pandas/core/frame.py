@@ -3895,7 +3895,7 @@ class DataFrame(generic.NDFrame):
                 * If specified columns to explode is empty list.
                 * If specified columns to explode have not matching count of elements rowwise in the frame.
             KeyError:
-                If incorecct column names are provided
+                If incorrect column names are provided
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
