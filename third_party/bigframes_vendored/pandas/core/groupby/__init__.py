@@ -1032,18 +1032,19 @@ class GroupBy:
           For DataFrameGroupBy:
 
               >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
-              >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
+              >>> df = bpd.DataFrame(data, columns=["a", "b", "c"],
               ...                   index=["owl", "toucan", "eagle"])
               >>> df
                       a  b  c
               owl     1  2  3
               toucan  1  5  6
               eagle   7  8  9
+              [3 rows x 3 columns in total]
               >>> df.groupby("a").size()
               a
               1    2
               7    1
-              dtype: int64
+              dtype: Int64
 
         Returns:
             bigframes.pandas.DataFrame or bigframes.pandas.Series:
