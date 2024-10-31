@@ -17,6 +17,7 @@ import textwrap
 from typing import Any, cast, Dict, Iterable, Optional, Tuple, Union
 import warnings
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import geopandas as gpd  # type: ignore
@@ -29,7 +30,6 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 
-import bigframes.constants as constants
 import bigframes.dtypes
 
 # Type hints for Ibis data types supported by BigQuery DataFrame
@@ -330,7 +330,11 @@ def _ibis_dtype_to_arrow_dtype(ibis_dtype: ibis_dtypes.DataType) -> pa.DataType:
     if isinstance(ibis_dtype, ibis_dtypes.Struct):
         return pa.struct(
             [
-                (name, _ibis_dtype_to_arrow_dtype(dtype))
+                pa.field(
+                    name,
+                    _ibis_dtype_to_arrow_dtype(dtype),
+                    nullable=not pa.types.is_list(_ibis_dtype_to_arrow_dtype(dtype)),
+                )
                 for name, dtype in ibis_dtype.fields.items()
             ]
         )

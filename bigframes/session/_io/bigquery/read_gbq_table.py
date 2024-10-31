@@ -23,12 +23,12 @@ import typing
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import warnings
 
+import bigframes_vendored.constants as constants
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 
 import bigframes
 import bigframes.clients
-import bigframes.constants
 import bigframes.core.compile
 import bigframes.core.compile.default_ordering
 import bigframes.core.sql
@@ -102,6 +102,7 @@ def validate_table(
     table_ref: bigquery.table.TableReference,
     columns: Optional[Sequence[str]],
     snapshot_time: datetime.datetime,
+    table_type: str,
     filter_str: Optional[str] = None,
 ) -> bool:
     """Validates that the table can be read, returns True iff snapshot is supported."""
@@ -122,6 +123,17 @@ def validate_table(
 
     # Anonymous dataset, does not support snapshot ever
     if table_ref.dataset_id.startswith("_"):
+        return False
+
+    # Materialized views，does not support snapshot
+    if table_type == "MATERIALIZED_VIEW":
+        warnings.warn(
+            "Materialized views do not support FOR SYSTEM_TIME AS OF queries. "
+            "Attempting query without time travel. Be aware that as materialized views "
+            "are updated periodically, modifications to the underlying data in the view may "
+            "result in errors or unexpected behavior.",
+            category=bigframes.exceptions.TimeTravelDisabledWarning,
+        )
         return False
 
     # Second, try with snapshot to verify table supports this feature
@@ -241,7 +253,7 @@ def get_index_cols(
             # test, as it's not possible to subclass enums in Python. See:
             # https://stackoverflow.com/a/33680021/101923
             raise NotImplementedError(
-                f"Got unexpected index_col {repr(index_col)}. {bigframes.constants.FEEDBACK_LINK}"
+                f"Got unexpected index_col {repr(index_col)}. {constants.FEEDBACK_LINK}"
             )
     elif isinstance(index_col, str):
         index_cols: List[str] = [index_col]

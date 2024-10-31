@@ -22,11 +22,12 @@ This library is an evolving attempt to
 """
 
 import abc
-from typing import cast, Optional, TypeVar, Union
+from typing import cast, Optional, TypeVar
 
 import bigframes_vendored.sklearn.base
 
 from bigframes.ml import core
+import bigframes.ml.utils as utils
 import bigframes.pandas as bpd
 
 
@@ -157,10 +158,44 @@ class SupervisedTrainablePredictor(TrainablePredictor):
 
     def fit(
         self: _T,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> _T:
         return self._fit(X, y)
+
+
+class TrainableWithEvaluationPredictor(TrainablePredictor):
+    """A BigQuery DataFrames ML Model base class that can be used to fit and predict outputs.
+
+    Additional evaluation data can be provided to measure the model in the fit phase."""
+
+    @abc.abstractmethod
+    def _fit(self, X, y, transforms=None, X_eval=None, y_eval=None):
+        pass
+
+    @abc.abstractmethod
+    def score(self, X, y):
+        pass
+
+
+class SupervisedTrainableWithEvaluationPredictor(TrainableWithEvaluationPredictor):
+    """A BigQuery DataFrames ML Supervised Model base class that can be used to fit and predict outputs.
+
+    Need to provide both X and y in supervised tasks.
+
+    Additional X_eval and y_eval can be provided to measure the model in the fit phase.
+    """
+
+    _T = TypeVar("_T", bound="SupervisedTrainableWithEvaluationPredictor")
+
+    def fit(
+        self: _T,
+        X: utils.ArrayType,
+        y: utils.ArrayType,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
+    ) -> _T:
+        return self._fit(X, y, X_eval=X_eval, y_eval=y_eval)
 
 
 class UnsupervisedTrainablePredictor(TrainablePredictor):
@@ -172,8 +207,8 @@ class UnsupervisedTrainablePredictor(TrainablePredictor):
 
     def fit(
         self: _T,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X: utils.ArrayType,
+        y: Optional[utils.ArrayType] = None,
     ) -> _T:
         return self._fit(X, y)
 
@@ -198,10 +233,6 @@ class BaseTransformer(BaseEstimator):
             # pass the columns that are not transformed
             if "transformSql" not in transform_col_dict:
                 continue
-            transform_sql: str = transform_col_dict["transformSql"]
-            if not transform_sql.startswith("ML."):
-                continue
-
             output_names.append(transform_col_dict["name"])
 
         self._output_names = output_names
@@ -247,8 +278,8 @@ class Transformer(BaseTransformer):
 
     def fit_transform(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X: utils.ArrayType,
+        y: Optional[utils.ArrayType] = None,
     ) -> bpd.DataFrame:
         return self.fit(X, y).transform(X)
 
@@ -268,6 +299,6 @@ class LabelTransformer(BaseTransformer):
 
     def fit_transform(
         self,
-        y: Union[bpd.DataFrame, bpd.Series],
+        y: utils.ArrayType,
     ) -> bpd.DataFrame:
         return self.fit(y).transform(y)

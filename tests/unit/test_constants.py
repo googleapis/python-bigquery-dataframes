@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import bigframes.constants as constants
+import bigframes_vendored.constants
+
+import bigframes.version
 
 
 def test_feedback_link_includes_version():
-    assert len(constants.BF_VERSION) > 0
-    assert constants.BF_VERSION in constants.FEEDBACK_LINK
+    version = bigframes.version.__version__
+    assert len(version) > 0
+    assert version in bigframes_vendored.constants.FEEDBACK_LINK

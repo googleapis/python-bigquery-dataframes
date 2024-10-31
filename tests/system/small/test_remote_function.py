@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import re
 
 import google.api_core.exceptions
@@ -498,6 +499,37 @@ def test_dataframe_applymap(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
+def test_dataframe_applymap_explicit_filter(
+    session_with_bq_connection, scalars_dfs, dataset_id_permanent
+):
+    def add_one(x):
+        return x + 1
+
+    remote_add_one = session_with_bq_connection.remote_function(
+        [int], int, dataset_id_permanent, name=get_rf_name(add_one)
+    )(add_one)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_cols = ["int64_col", "int64_too"]
+
+    bf_int64_df = scalars_df[int64_cols]
+    bf_int64_df_filtered = bf_int64_df[bf_int64_df["int64_col"].notnull()]
+    bf_result = bf_int64_df_filtered.applymap(remote_add_one).to_pandas()
+
+    pd_int64_df = scalars_pandas_df[int64_cols]
+    pd_int64_df_filtered = pd_int64_df[pd_int64_df["int64_col"].notnull()]
+    pd_result = pd_int64_df_filtered.applymap(add_one)
+    # TODO(shobs): Figure why pandas .applymap() changes the dtype, i.e.
+    # pd_int64_df_filtered.dtype is Int64Dtype()
+    # pd_int64_df_filtered.applymap(lambda x: x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as input.
+    for col in pd_result:
+        pd_result[col] = pd_result[col].astype(pd_int64_df_filtered[col].dtype)
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
 def test_dataframe_applymap_na_ignore(
     session_with_bq_connection, scalars_dfs, dataset_id_permanent
 ):
@@ -972,3 +1004,276 @@ def test_df_apply_axis_1_unsupported_dtype(session, scalars_dfs, dataset_id_perm
             bigframes.exceptions.PreviewWarning, match="axis=1 scenario is in preview."
         ):
             scalars_df[[column]].apply(echo_len_remote, axis=1)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_application_repr(session, dataset_id_permanent):
+    # This function deliberately has a param with name "name", this is to test
+    # a specific ibis' internal handling of object names
+    def should_mask(name: str) -> bool:
+        hash = 0
+        for char_ in name:
+            hash += ord(char_)
+        return hash % 2 == 0
+
+    assert "name" in inspect.signature(should_mask).parameters
+
+    should_mask = session.remote_function(
+        dataset=dataset_id_permanent, name=get_rf_name(should_mask)
+    )(should_mask)
+
+    s = bigframes.series.Series(["Alice", "Bob", "Caroline"])
+
+    repr(s.apply(should_mask))
+    repr(s.where(s.apply(should_mask)))
+    repr(s.where(~s.apply(should_mask)))
+    repr(s.mask(should_mask))
+    repr(s.mask(should_mask, "REDACTED"))
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_read_gbq_function_application_repr(session, dataset_id, scalars_df_index):
+    gbq_function = f"{dataset_id}.should_mask"
+
+    # This function deliberately has a param with name "name", this is to test
+    # a specific ibis' internal handling of object names
+    session.bqclient.query_and_wait(
+        f"CREATE OR REPLACE FUNCTION `{gbq_function}`(name STRING) RETURNS BOOL AS (MOD(LENGTH(name), 2) = 1)"
+    )
+    routine = session.bqclient.get_routine(gbq_function)
+    assert "name" in [arg.name for arg in routine.arguments]
+
+    # read the function and apply to dataframe
+    should_mask = session.read_gbq_function(gbq_function)
+
+    s = scalars_df_index["string_col"]
+
+    repr(s.apply(should_mask))
+    repr(s.where(s.apply(should_mask)))
+    repr(s.where(~s.apply(should_mask)))
+    repr(s.mask(should_mask))
+    repr(s.mask(should_mask, "REDACTED"))
+
+
+@pytest.mark.parametrize(
+    ("method",),
+    [
+        pytest.param("apply"),
+        pytest.param("map"),
+        pytest.param("mask"),
+    ],
+)
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_unary_applied_after_filter(
+    session, dataset_id_permanent, scalars_dfs, method
+):
+    # This function is deliberately written to not work with NA input
+    def is_odd(x: int) -> bool:
+        return x % 2 == 1
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int_col_name_with_nulls = "int64_col"
+
+    # make sure there are NA values in the test column
+    assert any([pd.isna(val) for val in scalars_df[int_col_name_with_nulls]])
+
+    # create a remote function
+    is_odd_remote = session.remote_function(
+        dataset=dataset_id_permanent, name=get_rf_name(is_odd)
+    )(is_odd)
+
+    # with nulls in the series the remote function application would fail
+    with pytest.raises(
+        google.api_core.exceptions.BadRequest, match="unsupported operand"
+    ):
+        bf_method = getattr(scalars_df[int_col_name_with_nulls], method)
+        bf_method(is_odd_remote).to_pandas()
+
+    # after filtering out nulls the remote function application should work
+    # similar to pandas
+    pd_method = getattr(
+        scalars_pandas_df[scalars_pandas_df[int_col_name_with_nulls].notnull()][
+            int_col_name_with_nulls
+        ],
+        method,
+    )
+    pd_result = pd_method(is_odd)
+    bf_method = getattr(
+        scalars_df[scalars_df[int_col_name_with_nulls].notnull()][
+            int_col_name_with_nulls
+        ],
+        method,
+    )
+    bf_result = bf_method(is_odd_remote).to_pandas()
+
+    # ignore any dtype difference
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_binary_applied_after_filter(
+    session, dataset_id_permanent, scalars_dfs
+):
+    # This function is deliberately written to not work with NA input
+    def add(x: int, y: int) -> int:
+        return x + y
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int_col_name_with_nulls = "int64_col"
+    int_col_name_no_nulls = "int64_too"
+    bf_df = scalars_df[[int_col_name_with_nulls, int_col_name_no_nulls]]
+    pd_df = scalars_pandas_df[[int_col_name_with_nulls, int_col_name_no_nulls]]
+
+    # make sure there are NA values in the test column
+    assert any([pd.isna(val) for val in bf_df[int_col_name_with_nulls]])
+
+    # create a remote function
+    add_remote = session.remote_function(
+        dataset=dataset_id_permanent, name=get_rf_name(add)
+    )(add)
+
+    # with nulls in the series the remote function application would fail
+    with pytest.raises(
+        google.api_core.exceptions.BadRequest, match="unsupported operand"
+    ):
+        bf_df[int_col_name_with_nulls].combine(
+            bf_df[int_col_name_no_nulls], add_remote
+        ).to_pandas()
+
+    # after filtering out nulls the remote function application should work
+    # similar to pandas
+    pd_filter = pd_df[int_col_name_with_nulls].notnull()
+    pd_result = pd_df[pd_filter][int_col_name_with_nulls].combine(
+        pd_df[pd_filter][int_col_name_no_nulls], add
+    )
+    bf_filter = bf_df[int_col_name_with_nulls].notnull()
+    bf_result = (
+        bf_df[bf_filter][int_col_name_with_nulls]
+        .combine(bf_df[bf_filter][int_col_name_no_nulls], add_remote)
+        .to_pandas()
+    )
+
+    # ignore any dtype difference
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_nary_applied_after_filter(
+    session, dataset_id_permanent, scalars_dfs
+):
+    # This function is deliberately written to not work with NA input
+    def add(x: int, y: int, z: float) -> float:
+        return x + y + z
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int_col_name_with_nulls = "int64_col"
+    int_col_name_no_nulls = "int64_too"
+    float_col_name_with_nulls = "float64_col"
+    bf_df = scalars_df[
+        [int_col_name_with_nulls, int_col_name_no_nulls, float_col_name_with_nulls]
+    ]
+    pd_df = scalars_pandas_df[
+        [int_col_name_with_nulls, int_col_name_no_nulls, float_col_name_with_nulls]
+    ]
+
+    # make sure there are NA values in the test columns
+    assert any([pd.isna(val) for val in bf_df[int_col_name_with_nulls]])
+    assert any([pd.isna(val) for val in bf_df[float_col_name_with_nulls]])
+
+    # create a remote function
+    add_remote = session.remote_function(
+        dataset=dataset_id_permanent, name=get_rf_name(add)
+    )(add)
+
+    # pandas does not support nary functions, so let's create a proxy function
+    # for testing purpose that takes a series and in turn calls the naray function
+    def add_pandas(s: pd.Series) -> float:
+        return add(
+            s[int_col_name_with_nulls],
+            s[int_col_name_no_nulls],
+            s[float_col_name_with_nulls],
+        )
+
+    # with nulls in the series the remote function application would fail
+    with pytest.raises(
+        google.api_core.exceptions.BadRequest, match="unsupported operand"
+    ):
+        bf_df.apply(add_remote, axis=1).to_pandas()
+
+    # after filtering out nulls the remote function application should work
+    # similar to pandas
+    pd_filter = (
+        pd_df[int_col_name_with_nulls].notnull()
+        & pd_df[float_col_name_with_nulls].notnull()
+    )
+    pd_result = pd_df[pd_filter].apply(add_pandas, axis=1)
+    bf_filter = (
+        bf_df[int_col_name_with_nulls].notnull()
+        & bf_df[float_col_name_with_nulls].notnull()
+    )
+    bf_result = bf_df[bf_filter].apply(add_remote, axis=1).to_pandas()
+
+    # ignore any dtype difference
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("method",),
+    [
+        pytest.param("apply"),
+        pytest.param("map"),
+        pytest.param("mask"),
+    ],
+)
+def test_remote_function_unary_partial_ordering_mode_assign(
+    unordered_session, dataset_id_permanent, method
+):
+    df = unordered_session.read_gbq("bigquery-public-data.baseball.schedules")[
+        ["duration_minutes"]
+    ]
+
+    def is_long_duration(minutes: int) -> bool:
+        return minutes >= 120
+
+    is_long_duration = unordered_session.remote_function(
+        dataset=dataset_id_permanent, name=get_rf_name(is_long_duration)
+    )(is_long_duration)
+
+    method = getattr(df["duration_minutes"], method)
+
+    df1 = df.assign(duration_meta=method(is_long_duration))
+    repr(df1)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_binary_partial_ordering_mode_assign(
+    unordered_session, dataset_id_permanent, scalars_df_index
+):
+    def combiner(x: int, y: int) -> int:
+        if x is None:
+            return y
+        return x
+
+    combiner = unordered_session.remote_function(
+        dataset=dataset_id_permanent, name=get_rf_name(combiner)
+    )(combiner)
+
+    df = scalars_df_index[["int64_col", "int64_too", "float64_col", "string_col"]]
+    df1 = df.assign(int64_combined=df["int64_col"].combine(df["int64_too"], combiner))
+    repr(df1)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_nary_partial_ordering_mode_assign(
+    unordered_session, dataset_id_permanent, scalars_df_index
+):
+    def processor(x: int, y: int, z: float, w: str) -> str:
+        return f"I got x={x}, y={y}, z={z} and w={w}"
+
+    processor = unordered_session.remote_function(
+        dataset=dataset_id_permanent, name=get_rf_name(processor)
+    )(processor)
+
+    df = scalars_df_index[["int64_col", "int64_too", "float64_col", "string_col"]]
+    df1 = df.assign(combined=df.apply(processor, axis=1))
+    repr(df1)

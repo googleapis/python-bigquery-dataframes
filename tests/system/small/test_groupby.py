@@ -247,6 +247,41 @@ def test_dataframe_groupby_agg_named(scalars_df_index, scalars_pandas_df_index):
     pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
 
 
+def test_dataframe_groupby_agg_kw_tuples(scalars_df_index, scalars_pandas_df_index):
+    col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
+    bf_result = (
+        scalars_df_index[col_names]
+        .groupby("string_col")
+        .agg(
+            agg1=("int64_too", "sum"),
+            agg2=("float64_col", "max"),
+        )
+    )
+    pd_result = (
+        scalars_pandas_df_index[col_names]
+        .groupby("string_col")
+        .agg(agg1=("int64_too", "sum"), agg2=("float64_col", "max"))
+    )
+    bf_result_computed = bf_result.to_pandas()
+
+    pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("kwargs"),
+    [
+        ({"hello": "world"}),
+        ({"too_many_fields": ("one", "two", "three")}),
+    ],
+)
+def test_dataframe_groupby_agg_kw_error(scalars_df_index, kwargs):
+    col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
+    with pytest.raises(
+        TypeError, match=r"kwargs values must be 2-tuples of column, aggfunc"
+    ):
+        (scalars_df_index[col_names].groupby("string_col").agg(**kwargs))
+
+
 @pytest.mark.parametrize(
     ("as_index"),
     [
@@ -386,6 +421,22 @@ def test_dataframe_groupby_getitem(
     pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
 
 
+def test_dataframe_groupby_getitem_error(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    col_names = ["float64_col", "int64_col", "bool_col", "string_col"]
+    with pytest.raises(
+        KeyError, match=r"Columns not found: 'not_in_group'. Did you mean 'string_col'?"
+    ):
+        (
+            scalars_df_index[col_names]
+            .groupby("bool_col")["not_in_group"]
+            .min()
+            .to_pandas()
+        )
+
+
 def test_dataframe_groupby_getitem_list(
     scalars_df_index,
     scalars_pandas_df_index,
@@ -399,6 +450,23 @@ def test_dataframe_groupby_getitem_list(
     )
 
     pd.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)
+
+
+def test_dataframe_groupby_getitem_list_error(
+    scalars_df_index,
+    scalars_pandas_df_index,
+):
+    col_names = ["float64_col", "int64_col", "bool_col", "string_col"]
+    with pytest.raises(
+        KeyError,
+        match=r"Columns not found: 'col1', 'float'. Did you mean 'bool_col', 'float64_col'?",
+    ):
+        (
+            scalars_df_index[col_names]
+            .groupby("string_col")["col1", "float"]
+            .min()
+            .to_pandas()
+        )
 
 
 def test_dataframe_groupby_nonnumeric_with_mean():

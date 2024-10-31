@@ -1670,7 +1670,11 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
                     (3, 4): ["pq", "rs", "tu"],
                     (5.0, "six", 7): [8, 9, 10],
                     'raise Exception("hacked!")': [11, 12, 13],
-                }
+                },
+                # Default pandas index has non-numpy type, whereas bigframes is
+                # always numpy-based type, so let's use the index compatible
+                # with bigframes. See more details in b/369689696.
+                index=pandas.Index([0, 1, 2], dtype=pandas.Int64Dtype()),
             ),
             id="all-kinds-of-column-names",
         ),
@@ -1681,15 +1685,23 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
                     "y": [1.5, 3.75, 5],
                     "z": ["pq", "rs", "tu"],
                 },
-                index=pandas.MultiIndex.from_tuples(
-                    [
-                        ("a", 100),
-                        ("a", 200),
-                        ("b", 300),
-                    ]
+                index=pandas.MultiIndex.from_frame(
+                    pandas.DataFrame(
+                        {
+                            "idx0": pandas.Series(
+                                ["a", "a", "b"], dtype=pandas.StringDtype()
+                            ),
+                            "idx1": pandas.Series(
+                                [100, 200, 300], dtype=pandas.Int64Dtype()
+                            ),
+                        }
+                    )
                 ),
             ),
             id="multiindex",
+            marks=pytest.mark.skip(
+                reason="TODO: revert this skip after this pandas bug is fixed: https://github.com/pandas-dev/pandas/issues/59908"
+            ),
         ),
         pytest.param(
             pandas.DataFrame(
@@ -1698,6 +1710,10 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
                     [20, 3.75, "rs"],
                     [30, 8.0, "tu"],
                 ],
+                # Default pandas index has non-numpy type, whereas bigframes is
+                # always numpy-based type, so let's use the index compatible
+                # with bigframes. See more details in b/369689696.
+                index=pandas.Index([0, 1, 2], dtype=pandas.Int64Dtype()),
                 columns=pandas.MultiIndex.from_arrays(
                     [
                         ["first", "last_two", "last_two"],
@@ -1751,12 +1767,7 @@ def test_df_apply_axis_1_complex(session, pd_df):
         bf_result = bf_df.apply(serialize_row_remote, axis=1).to_pandas()
         pd_result = pd_df.apply(serialize_row, axis=1)
 
-        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
-        # , ignore this mismatch by using check_dtype=False.
-        #
-        # bf_result.index[0].dtype is 'string[pyarrow]' while
-        # pd_result.index[0].dtype is 'object', ignore this mismatch by using
-        # check_index_type=False.
+        # ignore known dtype difference between pandas and bigframes
         pandas.testing.assert_series_equal(
             pd_result, bf_result, check_dtype=False, check_index_type=False
         )
@@ -2167,4 +2178,222 @@ def test_df_apply_axis_1_single_param_non_series(session):
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
             session.bqclient, session.cloudfunctionsclient, foo
+        )
+
+
+@pytest.mark.parametrize(
+    ("ingress_settings_args", "effective_ingress_settings"),
+    [
+        pytest.param(
+            {}, functions_v2.ServiceConfig.IngressSettings.ALLOW_ALL, id="no-set"
+        ),
+        pytest.param(
+            {"cloud_function_ingress_settings": "all"},
+            functions_v2.ServiceConfig.IngressSettings.ALLOW_ALL,
+            id="set-all",
+        ),
+        pytest.param(
+            {"cloud_function_ingress_settings": "internal-only"},
+            functions_v2.ServiceConfig.IngressSettings.ALLOW_INTERNAL_ONLY,
+            id="set-internal-only",
+        ),
+        pytest.param(
+            {"cloud_function_ingress_settings": "internal-and-gclb"},
+            functions_v2.ServiceConfig.IngressSettings.ALLOW_INTERNAL_AND_GCLB,
+            id="set-internal-and-gclb",
+        ),
+    ],
+)
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_ingress_settings(
+    session, scalars_dfs, ingress_settings_args, effective_ingress_settings
+):
+    try:
+
+        def square(x: int) -> int:
+            return x * x
+
+        square_remote = session.remote_function(reuse=False, **ingress_settings_args)(
+            square
+        )
+
+        # Assert that the GCF is created with the intended maximum timeout
+        gcf = session.cloudfunctionsclient.get_function(
+            name=square_remote.bigframes_cloud_function
+        )
+        assert gcf.service_config.ingress_settings == effective_ingress_settings
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_result = scalars_df["int64_too"].apply(square_remote).to_pandas()
+        pd_result = scalars_pandas_df["int64_too"].apply(square)
+
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, square_remote
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_ingress_settings_unsupported(session):
+    with pytest.raises(
+        ValueError, match="'unknown' not one of the supported ingress settings values"
+    ):
+
+        @session.remote_function(reuse=False, cloud_function_ingress_settings="unknown")
+        def square(x: int) -> int:
+            return x * x
+
+
+@pytest.mark.parametrize(
+    ("session_creator"),
+    [
+        pytest.param(bigframes.Session, id="session-constructor"),
+        pytest.param(bigframes.connect, id="connect-method"),
+    ],
+)
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_w_context_manager_unnamed(
+    scalars_dfs, dataset_id, bq_cf_connection, session_creator
+):
+    def add_one(x: int) -> int:
+        return x + 1
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    pd_result = scalars_pandas_df["int64_too"].apply(add_one)
+
+    temporary_bigquery_remote_function = None
+    temporary_cloud_run_function = None
+
+    try:
+        with session_creator() as session:
+            # create a temporary remote function
+            add_one_remote_temp = session.remote_function(
+                dataset=dataset_id,
+                bigquery_connection=bq_cf_connection,
+                reuse=False,
+            )(add_one)
+
+            temporary_bigquery_remote_function = (
+                add_one_remote_temp.bigframes_remote_function
+            )
+            assert temporary_bigquery_remote_function is not None
+            assert (
+                session.bqclient.get_routine(temporary_bigquery_remote_function)
+                is not None
+            )
+
+            temporary_cloud_run_function = add_one_remote_temp.bigframes_cloud_function
+            assert temporary_cloud_run_function is not None
+            assert (
+                session.cloudfunctionsclient.get_function(
+                    name=temporary_cloud_run_function
+                )
+                is not None
+            )
+
+            bf_result = scalars_df["int64_too"].apply(add_one_remote_temp).to_pandas()
+            pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+        # outside the with statement context manager the temporary BQ remote
+        # function and the underlying cloud run function should have been
+        # cleaned up
+        assert temporary_bigquery_remote_function is not None
+        with pytest.raises(google.api_core.exceptions.NotFound):
+            session.bqclient.get_routine(temporary_bigquery_remote_function)
+        # the deletion of cloud function happens in a non-blocking way, ensure that
+        # it either exists in a being-deleted state, or is already deleted
+        assert temporary_cloud_run_function is not None
+        try:
+            gcf = session.cloudfunctionsclient.get_function(
+                name=temporary_cloud_run_function
+            )
+            assert gcf.state is functions_v2.Function.State.DELETING
+        except google.cloud.exceptions.NotFound:
+            pass
+    finally:
+        # clean up the gcp assets created for the temporary remote function,
+        # just in case it was not explicitly cleaned up in the try clause due
+        # to assertion failure or exception earlier than that
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, add_one_remote_temp
+        )
+
+
+@pytest.mark.parametrize(
+    ("session_creator"),
+    [
+        pytest.param(bigframes.Session, id="session-constructor"),
+        pytest.param(bigframes.connect, id="connect-method"),
+    ],
+)
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_w_context_manager_named(
+    scalars_dfs, dataset_id, bq_cf_connection, session_creator
+):
+    def add_one(x: int) -> int:
+        return x + 1
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    pd_result = scalars_pandas_df["int64_too"].apply(add_one)
+
+    persistent_bigquery_remote_function = None
+    persistent_cloud_run_function = None
+
+    try:
+        with session_creator() as session:
+            # create a persistent remote function
+            name = test_utils.prefixer.Prefixer("bigframes", "").create_prefix()
+            add_one_remote_persist = session.remote_function(
+                dataset=dataset_id,
+                bigquery_connection=bq_cf_connection,
+                reuse=False,
+                name=name,
+            )(add_one)
+
+            persistent_bigquery_remote_function = (
+                add_one_remote_persist.bigframes_remote_function
+            )
+            assert persistent_bigquery_remote_function is not None
+            assert (
+                session.bqclient.get_routine(persistent_bigquery_remote_function)
+                is not None
+            )
+
+            persistent_cloud_run_function = (
+                add_one_remote_persist.bigframes_cloud_function
+            )
+            assert persistent_cloud_run_function is not None
+            assert (
+                session.cloudfunctionsclient.get_function(
+                    name=persistent_cloud_run_function
+                )
+                is not None
+            )
+
+            bf_result = (
+                scalars_df["int64_too"].apply(add_one_remote_persist).to_pandas()
+            )
+            pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+        # outside the with statement context manager the persistent BQ remote
+        # function and the underlying cloud run function should still exist
+        assert persistent_bigquery_remote_function is not None
+        assert (
+            session.bqclient.get_routine(persistent_bigquery_remote_function)
+            is not None
+        )
+        assert persistent_cloud_run_function is not None
+        assert (
+            session.cloudfunctionsclient.get_function(
+                name=persistent_cloud_run_function
+            )
+            is not None
+        )
+    finally:
+        # clean up the gcp assets created for the persistent remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, add_one_remote_persist
         )

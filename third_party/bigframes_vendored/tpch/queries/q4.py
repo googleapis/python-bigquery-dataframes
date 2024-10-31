@@ -8,13 +8,13 @@ import bigframes
 import bigframes.pandas as bpd
 
 
-def q(dataset_id: str, session: bigframes.Session):
+def q(project_id: str, dataset_id: str, session: bigframes.Session):
     lineitem = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.LINEITEM",
+        f"{project_id}.{dataset_id}.LINEITEM",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     orders = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.ORDERS",
+        f"{project_id}.{dataset_id}.ORDERS",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
 
@@ -26,10 +26,7 @@ def q(dataset_id: str, session: bigframes.Session):
     jn = jn[(jn["O_ORDERDATE"] >= var1) & (jn["O_ORDERDATE"] < var2)]
     jn = jn[jn["L_COMMITDATE"] < jn["L_RECEIPTDATE"]]
 
-    if not session._strictly_ordered:
-        jn = jn.sort_values(by=["O_ORDERPRIORITY", "L_ORDERKEY"])
-
-    jn = jn.drop_duplicates(subset=["O_ORDERPRIORITY", "L_ORDERKEY"])
+    jn = jn.groupby(["O_ORDERPRIORITY", "L_ORDERKEY"], as_index=False).agg("size")
 
     gb = jn.groupby("O_ORDERPRIORITY", as_index=False)
     agg = gb.agg(ORDER_COUNT=bpd.NamedAgg(column="L_ORDERKEY", aggfunc="count"))

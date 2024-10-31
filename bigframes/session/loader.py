@@ -22,6 +22,7 @@ import os
 import typing
 from typing import Dict, Hashable, IO, Iterable, List, Optional, Sequence, Tuple, Union
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
 import google.auth.credentials
@@ -36,7 +37,7 @@ import numpy as np
 import pandas
 
 import bigframes.clients
-import bigframes.constants as constants
+import bigframes.constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.compile
@@ -299,7 +300,9 @@ class GbqDataLoader:
         ):
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.
-            all_columns = itertools.chain(index_cols, columns) if columns else ()
+            all_columns: Iterable[str] = (
+                itertools.chain(index_cols, columns) if columns else ()
+            )
             query = bf_io_bigquery.to_query(
                 query,
                 columns=all_columns,
@@ -338,7 +341,12 @@ class GbqDataLoader:
         )
 
         enable_snapshot = enable_snapshot and bf_read_gbq_table.validate_table(
-            self._bqclient, table_ref, all_columns, time_travel_timestamp, filter_str
+            self._bqclient,
+            table_ref,
+            all_columns,
+            time_travel_timestamp,
+            table.table_type,
+            filter_str,
         )
 
         # ----------------------------
@@ -382,8 +390,7 @@ class GbqDataLoader:
 
         index_names: Sequence[Hashable] = index_cols
         if index_col == bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64:
-            sequential_index_col = bigframes.core.guid.generate_guid("index_")
-            array_value = array_value.promote_offsets(sequential_index_col)
+            array_value, sequential_index_col = array_value.promote_offsets()
             index_cols = [sequential_index_col]
             index_names = [None]
 
@@ -444,7 +451,8 @@ class GbqDataLoader:
         # hours of the anonymous dataset.
         table_expiration = bigquery.Table(table_id)
         table_expiration.expires = (
-            datetime.datetime.now(datetime.timezone.utc) + constants.DEFAULT_EXPIRATION
+            datetime.datetime.now(datetime.timezone.utc)
+            + bigframes.constants.DEFAULT_EXPIRATION
         )
         self._bqclient.update_table(table_expiration, ["expires"])
 
@@ -520,6 +528,9 @@ class GbqDataLoader:
             api_name=api_name,
             configuration=configuration,
         )
+
+        if self._metrics is not None:
+            self._metrics.count_job_stats(query_job)
 
         # If there was no destination table, that means the query must have
         # been DDL or DML. Return some job metadata, instead.

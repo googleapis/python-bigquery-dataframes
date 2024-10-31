@@ -7,28 +7,26 @@ import bigframes
 import bigframes.pandas as bpd
 
 
-def q(dataset_id: str, session: bigframes.Session):
+def q(project_id: str, dataset_id: str, session: bigframes.Session):
     customer = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.CUSTOMER",
+        f"{project_id}.{dataset_id}.CUSTOMER",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     lineitem = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.LINEITEM",
+        f"{project_id}.{dataset_id}.LINEITEM",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     nation = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.NATION",
+        f"{project_id}.{dataset_id}.NATION",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     orders = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.ORDERS",
+        f"{project_id}.{dataset_id}.ORDERS",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
 
     var1 = date(1993, 10, 1)
     var2 = date(1994, 1, 1)
-
-    q_final = customer.merge
 
     q_final = (
         customer.merge(orders, left_on="C_CUSTKEY", right_on="O_CUSTKEY")
@@ -61,15 +59,21 @@ def q(dataset_id: str, session: bigframes.Session):
         as_index=False,
     ).agg(REVENUE=bpd.NamedAgg(column="INTERMEDIATE_REVENUE", aggfunc="sum"))
 
-    q_final[
-        [
-            "C_CUSTKEY",
-            "C_NAME",
-            "REVENUE",
-            "C_ACCTBAL",
-            "N_NAME",
-            "C_ADDRESS",
-            "C_PHONE",
-            "C_COMMENT",
+    q_final = (
+        q_final[
+            [
+                "C_CUSTKEY",
+                "C_NAME",
+                "REVENUE",
+                "C_ACCTBAL",
+                "N_NAME",
+                "C_ADDRESS",
+                "C_PHONE",
+                "C_COMMENT",
+            ]
         ]
-    ].sort_values(by="REVENUE", ascending=False).head(20).to_gbq()
+        .sort_values(by="REVENUE", ascending=False)
+        .head(20)
+    )
+
+    q_final.to_gbq()

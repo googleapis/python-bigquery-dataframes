@@ -19,9 +19,11 @@ import tempfile
 
 import geopandas as gpd  # type: ignore
 import numpy
+from packaging.version import Version
 import pandas as pd
 import pyarrow as pa  # type: ignore
 import pytest
+import shapely  # type: ignore
 
 import bigframes.pandas
 import bigframes.series as series
@@ -210,6 +212,43 @@ def test_series_construct_from_list_escaped_strings():
     pd_result.index = pd_result.index.astype("Int64")
 
     pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
+
+
+def test_series_construct_geodata():
+    pd_series = pd.Series(
+        [shapely.Point(1, 1), shapely.Point(2, 2), shapely.Point(3, 3)],
+        dtype=gpd.array.GeometryDtype(),
+    )
+
+    series = bigframes.pandas.Series(pd_series)
+
+    pd.testing.assert_series_equal(
+        pd_series, series.to_pandas(), check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
+    ["data", "index"],
+    [
+        (["a", "b", "c"], None),
+        ([1, 2, 3], ["a", "b", "c"]),
+        ([1, 2, None], ["a", "b", "c"]),
+        ([1, 2, 3], [pd.NA, "b", "c"]),
+        ([numpy.nan, 2, 3], ["a", "b", "c"]),
+    ],
+)
+def test_series_items(data, index):
+    bf_series = series.Series(data, index=index)
+    pd_series = pd.Series(data, index=index)
+
+    for (bf_index, bf_value), (pd_index, pd_value) in zip(
+        bf_series.items(), pd_series.items()
+    ):
+        # TODO(jialuo): Remove the if conditions after b/373699458 is addressed.
+        if not pd.isna(bf_index) or not pd.isna(pd_index):
+            assert bf_index == pd_index
+        if not pd.isna(bf_value) or not pd.isna(pd_value):
+            assert bf_value == pd_value
 
 
 @pytest.mark.parametrize(
@@ -2346,8 +2385,13 @@ def test_value_counts(scalars_dfs, kwargs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_too"
 
-    bf_result = scalars_df[col_name].value_counts(**kwargs).to_pandas()
-    pd_result = scalars_pandas_df[col_name].value_counts(**kwargs)
+    # Pandas `value_counts` can produce non-deterministic results with tied counts.
+    # Remove duplicates to enforce a consistent output.
+    s = scalars_df[col_name].drop(0)
+    pd_s = scalars_pandas_df[col_name].drop(0)
+
+    bf_result = s.value_counts(**kwargs).to_pandas()
+    pd_result = pd_s.value_counts(**kwargs)
 
     pd.testing.assert_series_equal(
         bf_result,
@@ -2704,27 +2748,30 @@ def test_between(scalars_df_index, scalars_pandas_df_index, left, right, inclusi
     )
 
 
-def test_case_when(scalars_df_index, scalars_pandas_df_index):
+def test_series_case_when(scalars_dfs_maybe_ordered):
     pytest.importorskip(
         "pandas",
         minversion="2.2.0",
         reason="case_when added in pandas 2.2.0",
     )
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
 
-    bf_series = scalars_df_index["int64_col"]
-    pd_series = scalars_pandas_df_index["int64_col"]
+    bf_series = scalars_df["int64_col"]
+    pd_series = scalars_pandas_df["int64_col"]
 
     # TODO(tswast): pandas case_when appears to assume True when a value is
     # null. I suspect this should be considered a bug in pandas.
     bf_result = bf_series.case_when(
         [
-            ((bf_series > 100).fillna(True), 1000),
+            ((bf_series > 100).fillna(True), bf_series - 1),
+            ((bf_series > 0).fillna(True), pd.NA),
             ((bf_series < -100).fillna(True), -1000),
         ]
     ).to_pandas()
     pd_result = pd_series.case_when(
         [
-            (pd_series > 100, 1000),
+            (pd_series > 100, pd_series - 1),
+            (pd_series > 0, pd.NA),
             (pd_series < -100, -1000),
         ]
     )
@@ -2739,6 +2786,15 @@ def test_to_frame(scalars_dfs):
 
     bf_result = scalars_df["int64_col"].to_frame().to_pandas()
     pd_result = scalars_pandas_df["int64_col"].to_frame()
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+def test_to_frame_no_name(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df["int64_col"].rename(None).to_frame().to_pandas()
+    pd_result = scalars_pandas_df["int64_col"].rename(None).to_frame()
 
     assert_pandas_df_equal(bf_result, pd_result)
 
@@ -3843,6 +3899,28 @@ def test_series_explode(data):
         pytest.param([5, 1, 3, 2], False, id="ignore_unordered_index"),
         pytest.param(["z", "x", "a", "b"], True, id="str_index"),
         pytest.param(["z", "x", "a", "b"], False, id="ignore_str_index"),
+        pytest.param(
+            pd.Index(["z", "x", "a", "b"], name="idx"), True, id="str_named_index"
+        ),
+        pytest.param(
+            pd.Index(["z", "x", "a", "b"], name="idx"),
+            False,
+            id="ignore_str_named_index",
+        ),
+        pytest.param(
+            pd.MultiIndex.from_frame(
+                pd.DataFrame({"idx0": [5, 1, 3, 2], "idx1": ["z", "x", "a", "b"]})
+            ),
+            True,
+            id="multi_index",
+        ),
+        pytest.param(
+            pd.MultiIndex.from_frame(
+                pd.DataFrame({"idx0": [5, 1, 3, 2], "idx1": ["z", "x", "a", "b"]})
+            ),
+            False,
+            id="ignore_multi_index",
+        ),
     ],
 )
 def test_series_explode_w_index(index, ignore_index):
@@ -3904,3 +3982,61 @@ def test_series_explode_null(data):
         s.to_pandas().explode(),
         check_dtype=False,
     )
+
+
+@skip_legacy_pandas
+@pytest.mark.parametrize(
+    ("append", "level", "col", "rule"),
+    [
+        pytest.param(False, None, "timestamp_col", "75D"),
+        pytest.param(True, 1, "timestamp_col", "25W"),
+        pytest.param(False, None, "datetime_col", "3ME"),
+        pytest.param(True, "timestamp_col", "timestamp_col", "1YE"),
+    ],
+)
+def test__resample(scalars_df_index, scalars_pandas_df_index, append, level, col, rule):
+    scalars_df_index = scalars_df_index.set_index(col, append=append)["int64_col"]
+    scalars_pandas_df_index = scalars_pandas_df_index.set_index(col, append=append)[
+        "int64_col"
+    ]
+    bf_result = scalars_df_index._resample(rule=rule, level=level).min().to_pandas()
+    pd_result = scalars_pandas_df_index.resample(rule=rule, level=level).min()
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_series_struct_get_field_by_attribute(
+    nested_structs_df, nested_structs_pandas_df, nested_structs_pandas_type
+):
+    if Version(pd.__version__) < Version("2.2.0"):
+        pytest.skip("struct accessor is not supported before pandas 2.2")
+
+    bf_series = nested_structs_df["person"]
+    df_series = nested_structs_pandas_df["person"].astype(nested_structs_pandas_type)
+
+    pd.testing.assert_series_equal(
+        bf_series.address.city.to_pandas(),
+        df_series.struct.field("address").struct.field("city"),
+        check_dtype=False,
+        check_index=False,
+    )
+    pd.testing.assert_series_equal(
+        bf_series.address.country.to_pandas(),
+        df_series.struct.field("address").struct.field("country"),
+        check_dtype=False,
+        check_index=False,
+    )
+
+
+def test_series_struct_fields_in_dir(nested_structs_df):
+    series = nested_structs_df["person"]
+
+    assert "age" in dir(series)
+    assert "address" in dir(series)
+    assert "city" in dir(series.address)
+    assert "country" in dir(series.address)
+
+
+def test_series_struct_class_attributes_shadow_struct_fields(nested_structs_df):
+    series = nested_structs_df["person"]
+
+    assert series.name == "person"
