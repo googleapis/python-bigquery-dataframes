@@ -281,7 +281,7 @@ class NDFrame(indexing.IndexingMixin):
 
         Raises:
             ValueError:
-                If `lines` is True but `records` is not provided as value for `orient`.
+                If ``lines`` is True but ``records`` is not provided as value for ``orient``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -602,7 +602,7 @@ class NDFrame(indexing.IndexingMixin):
 
         Raises:
             ValueError:
-                If both `n` and `frac` are specified.
+                If both ``n`` and ``frac`` are specified.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -920,7 +920,7 @@ class NDFrame(indexing.IndexingMixin):
 
         Raises:
             ValueError:
-                If value provided is not exactly one of `items`, `like`, or `regex`.
+                If value provided is not exactly one of ``items``, ``like``, or ``regex``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

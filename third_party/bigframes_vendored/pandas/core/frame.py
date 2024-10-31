@@ -490,14 +490,14 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If an invalid value is provided for `if_exists` when `destination_table`
-                is None. None or `replace` are the only valid values for `if_exists`.
+                If an invalid value is provided for ``if_exists`` when ``destination_table``
+                is ``None``. ``None`` or ``replace`` are the only valid values for ``if_exists``.
             ValueError:
-                If an invalid value is provided for `destination_table` that is
-                not one of `datasetID.tableId` or `projectId.datasetId.tableId.
+                If an invalid value is provided for ``destination_table`` that is
+                not one of ``datasetID.tableId`` or ``projectId.datasetId.tableId``.
             ValueError:
-                If an invalid value is provided for `if_exists` that is not one of
-                `fail`, `replace`, or `append`.
+                If an invalid value is provided for ``if_exists`` that is not one of
+                ``fail``, ``replace``, or ``append``.
 
 
         """
@@ -550,7 +550,7 @@ class DataFrame(generic.NDFrame):
         Raises:
             ValueError:
                 If an invalid value provided for `compression` that is not one of
-                None, `snappy`, or `gzip`.
+                ``None``, ``snappy``, or ``gzip``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1160,10 +1160,10 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             IndexError:
-                If `column` index is out of bounds with the total count of columns.
+                If ``column`` index is out of bounds with the total count of columns.
             ValueError:
-                If `column` is already contained in the DataFrame,
-                unless `allow_duplicates` is set to True.
+                If ``column`` is already contained in the DataFrame,
+                unless ``allow_duplicates`` is set to True.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1285,9 +1285,9 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             KeyError: If any of the labels is not found in the selected axis.
-            ValueError: If values for both `labels` and `index/`columns` are provided.
-            ValueError: If a multi-index tuple is provided as `level`.
-            ValueError: If either `labels` or `index`/`columns` is not provided.
+            ValueError: If values for both ``labels`` and ``index``/``columns`` are provided.
+            ValueError: If a multi-index tuple is provided as ``level``.
+            ValueError: If either ``labels`` or ``index``/``columns`` is not provided.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1774,7 +1774,7 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If `how` is not one of `any` or `all`.
+                If ``how`` is not one of ``any`` or ``all``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2064,7 +2064,7 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If value of `na_position` is not one of `first` or `last`.
+                If value of ``na_position`` is not one of ``first`` or ``last``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2079,9 +2079,9 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If value of `na_position` is not one of `first` or `last`.
+                If value of ``na_position`` is not one of ``first`` or ``last``.
             ValueError:
-                If length of `ascending` dose not equal length of `by`.
+                If length of ``ascending`` dose not equal length of ``by``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3799,7 +3799,7 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If `func` return value is not Series.
+                If ``func`` return value is not Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3891,9 +3891,9 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If columns of the frame are not unique.
-                If specified columns to explode is empty list.
-                If specified columns to explode have not matching count of elements rowwise in the frame.
+                * If columns of the frame are not unique.
+                * If specified columns to explode is empty list.
+                * If specified columns to explode have not matching count of elements rowwise in the frame.
             KeyError:
                 If incorecct column names are provided
         """
@@ -4013,7 +4013,7 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-              If a type of join other than `left` is provided as an argument.
+              If a type of join other than ``left`` is provided as an argument.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4113,9 +4113,9 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If both `by` and `level` are specified.
+                If both ``by`` and ``level`` are specified.
             TypeError:
-                If one of `by` or level` is not specified.
+                If one of ``by`` or `level`` is not specified.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4206,9 +4206,9 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             TypeError:
-                If value provided for `func` is not callable.
+                If value provided for ``func`` is not callable.
             ValueError:
-                If value provided for `na_action` is not `None` or `ignore`.
+                If value provided for ``na_action`` is not ``None`` or ``ignore``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4313,11 +4313,10 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If value for `on` is specified for cross join.
+                If value for ``on`` is specified for cross join.
             ValueError:
                 If join on columns does not match the index level of the other
-                DataFrame.
-                Join on columns with multi-index is not supported.
+                DataFrame. Join on columns with multi-index is not supported.
             ValueError:
                 If left index to join on does not have the same number of levels
                 as the right index.
@@ -4470,15 +4469,15 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If value for `on` is specified for cross join.
+                If value for ``on`` is specified for cross join.
             ValueError:
-                If `on` or `left_on` + `right_on` are not specified when `on is None`.
+                If ``on`` or ``left_on`` + ``right_on`` are not specified when ``on`` is ``None``.
             ValueError:
-                If `on` and `left_on` + `right_on` are specified when `on is not None`.
+                If ``on`` and ``left_on`` + ``right_on`` are specified when ``on`` is not ``None``.
             ValueError:
-                If no column with the provided label is found in `self` for left join.
+                If no column with the provided label is found in ``self`` for left join.
             ValueError:
-                If no column with the provided label is found in `self` for right join.
+                If no column with the provided label is found in ``self`` for right join.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4596,7 +4595,7 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If a remote function is not provided when `axis=1` is specified.
+                If a remote function is not provided when ``axis=1`` is specified.
             ValueError:
                 If number or input params in the remote function are not the same as
                 the number of columns in the dataframe.
@@ -5295,7 +5294,7 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If value of `keep` is not `first`, `last`, or `all`.
+                If value of ``keep`` is not ``first``, ``last``, or ``all``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5388,7 +5387,7 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If value of `keep` is not `first`, `last`, or `all`.
+                If value of ``keep`` is not ``first``, ``last``, or ``all``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5854,7 +5853,7 @@ class DataFrame(generic.NDFrame):
 
         Raises:
             ValueError:
-                If unsupported `include` type is provided.
+                If unsupported ``include`` type is provided.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
