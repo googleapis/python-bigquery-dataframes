@@ -85,56 +85,58 @@ def get_table_metadata(
 
 def validate_table(
     bqclient: bigquery.Client,
-    table_ref: bigquery.table.TableReference,
+    table: bigquery.table.Table,
     columns: Optional[Sequence[str]],
     snapshot_time: datetime.datetime,
-    table_type: str,
     filter_str: Optional[str] = None,
 ) -> bool:
     """Validates that the table can be read, returns True iff snapshot is supported."""
-    # First run without snapshot to verify table can be read
-    sql = bigframes.session._io.bigquery.to_query(
-        query_or_table=f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}",
-        columns=columns or (),
-        sql_predicate=filter_str,
-    )
-    dry_run_config = bigquery.QueryJobConfig()
-    dry_run_config.dry_run = True
-    try:
-        bqclient.query_and_wait(sql, job_config=dry_run_config)
-    except google.api_core.exceptions.Forbidden as ex:
-        if "Drive credentials" in ex.message:
-            ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
-        raise
 
+    time_travel_not_found = False
     # Anonymous dataset, does not support snapshot ever
-    if table_ref.dataset_id.startswith("_"):
-        return False
-
-    # Materialized views，does not support snapshot
-    if table_type == "MATERIALIZED_VIEW":
-        warnings.warn(
-            "Materialized views do not support FOR SYSTEM_TIME AS OF queries. "
-            "Attempting query without time travel. Be aware that as materialized views "
-            "are updated periodically, modifications to the underlying data in the view may "
-            "result in errors or unexpected behavior.",
-            category=bigframes.exceptions.TimeTravelDisabledWarning,
+    if table.dataset_id.startswith("_"):
+        pass
+    # Only true tables support time travel
+    elif table.table_type != "TABLE":
+        if table.table_type == "MATERIALIZED_VIEW":
+            warnings.warn(
+                "Materialized views do not support FOR SYSTEM_TIME AS OF queries. "
+                "Attempting query without time travel. Be aware that as materialized views "
+                "are updated periodically, modifications to the underlying data in the view may "
+                "result in errors or unexpected behavior.",
+                category=bigframes.exceptions.TimeTravelDisabledWarning,
+            )
+    else:
+        # table might support time travel, lets do a dry-run query with time travel
+        snapshot_sql = bigframes.session._io.bigquery.to_query(
+            query_or_table=f"{table.reference.project}.{table.reference.dataset_id}.{table.reference.table_id}",
+            columns=columns or (),
+            sql_predicate=filter_str,
+            time_travel_timestamp=snapshot_time,
         )
-        return False
+        try:
+            # If this succeeds, we don't need to query without time travel, that would surely succeed
+            bqclient.query_and_wait(
+                snapshot_sql, job_config=bigquery.QueryJobConfig(dry_run=True)
+            )
+            return True
+        except google.api_core.exceptions.NotFound:
+            # note that a notfound caused by a simple typo will be
+            # caught above when the metadata is fetched, not here
+            time_travel_not_found = True
 
-    # Second, try with snapshot to verify table supports this feature
+    # At this point, time travel is known to fail, but can we query without time travel?
     snapshot_sql = bigframes.session._io.bigquery.to_query(
-        query_or_table=f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}",
+        query_or_table=f"{table.reference.project}.{table.reference.dataset_id}.{table.reference.table_id}",
         columns=columns or (),
         sql_predicate=filter_str,
-        time_travel_timestamp=snapshot_time,
+        time_travel_timestamp=None,
     )
-    try:
-        bqclient.query_and_wait(snapshot_sql, job_config=dry_run_config)
-        return True
-    except google.api_core.exceptions.NotFound:
-        # note that a notfound caused by a simple typo will be
-        # caught above when the metadata is fetched, not here
+    # Any erorrs here should just be raised to user
+    bqclient.query_and_wait(
+        snapshot_sql, job_config=bigquery.QueryJobConfig(dry_run=True)
+    )
+    if time_travel_not_found:
         warnings.warn(
             "NotFound error when reading table with time travel."
             " Attempting query without time travel. Warning: Without"
@@ -142,7 +144,7 @@ def validate_table(
             " result in errors or unexpected behavior.",
             category=bigframes.exceptions.TimeTravelDisabledWarning,
         )
-        return False
+    return False
 
 
 def are_index_cols_unique(
