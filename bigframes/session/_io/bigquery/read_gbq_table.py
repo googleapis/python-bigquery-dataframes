@@ -80,7 +80,7 @@ def get_table_metadata(
     # local time will lag a little bit do to network latency
     # make sure it is at least table creation time.
     # This is relevant if the table was created immediately before loading it here.
-    if table.created > bq_time:
+    if (table.created is not None) and (table.created > bq_time):
         bq_time = table.created
 
     cached_table = (bq_time, table)
