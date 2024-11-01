@@ -3472,52 +3472,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = self._block.multi_apply_unary_op(self._block.value_columns, operation)
         return DataFrame(block)
 
-    def f(
-        self,
-        clustering_columns: Union[pandas.Index, Iterable[typing.Hashable]],
-        index: bool,
-    ) -> List[str]:
-        """Maps the provided clustering columns to the existing columns in the DataFrame."""
-
-        def map_columns_on_occurrence(columns):
-            mapped_columns = []
-            for col in clustering_columns:
-                if col in columns:
-                    count = columns.count(col)
-                    mapped_columns.extend([col] * count)
-            return mapped_columns
-
-        if not clustering_columns:
-            return []
-
-        if len(list(clustering_columns)) != len(set(clustering_columns)):
-            raise ValueError("Duplicates are not supported in clustering_columns")
-
-        all_possible_columns = (
-            (set(self.columns) | set(self.index.names)) if index else set(self.columns)
-        )
-        missing_columns = set(clustering_columns) - all_possible_columns
-        if missing_columns:
-            raise ValueError(
-                f"Clustering columns not found in DataFrame: {missing_columns}"
-            )
-
-        clustering_columns_for_df = map_columns_on_occurrence(
-            list(self._block.column_labels)
-        )
-        clustering_columns_for_index = (
-            map_columns_on_occurrence(list(self.index.names)) if index else []
-        )
-
-        (
-            clustering_columns_for_df,
-            clustering_columns_for_index,
-        ) = utils.get_standardized_ids(
-            clustering_columns_for_df, clustering_columns_for_index
-        )
-
-        return clustering_columns_for_index + clustering_columns_for_df
-
     def _map_clustering_columns(
         self,
         clustering_columns: Union[pandas.Index, Iterable[typing.Hashable]],
