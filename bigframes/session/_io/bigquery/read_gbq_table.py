@@ -77,6 +77,11 @@ def get_table_metadata(
         return cached_table
 
     table = bqclient.get_table(table_ref)
+    # local time will lag a little bit do to network latency
+    # make sure it is at least table creation time.
+    # This is relevant if the table was created immediately before loading it here.
+    if table.created > bq_time:
+        bq_time = table.created
 
     cached_table = (bq_time, table)
     cache[table_ref] = cached_table
