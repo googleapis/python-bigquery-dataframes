@@ -584,6 +584,11 @@ def convert_complex_slice(
 def remap_variables(
     root: nodes.BigFrameNode, id_generator: Generator[ids.ColumnId, None, None]
 ) -> Tuple[nodes.BigFrameNode, dict[ids.ColumnId, ids.ColumnId]]:
+    """
+    Remap all variables in the BFET using the id_generator.
+
+    Note: this will convert a DAG to a tree.
+    """
     child_replacement_map = dict()
     ref_mapping = dict()
     # Sequential ids are assigned bottom-up left-to-right

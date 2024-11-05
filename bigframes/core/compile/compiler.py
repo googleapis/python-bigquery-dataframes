@@ -185,7 +185,7 @@ class Compiler:
         labels = (
             typing.cast(ibis.expr.types.ArrayValue, labels_array_table)
             .as_table()
-            .unnest(["labels"])
+            .unnest([node.output_id.sql])
         )
         if ordered:
             return compiled.OrderedIR(
