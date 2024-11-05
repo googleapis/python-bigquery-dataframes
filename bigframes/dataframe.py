@@ -734,7 +734,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         how: str = "outer",
         reverse: bool = False,
     ):
-        if isinstance(other, (float, int, bool)):
+        if isinstance(other, (float, int, bool, str)):
             return self._apply_scalar_binop(other, op, reverse=reverse)
         elif isinstance(other, DataFrame):
             return self._apply_dataframe_binop(other, op, how=how, reverse=reverse)
@@ -752,7 +752,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def _apply_scalar_binop(
-        self, other: float | int, op: ops.BinaryOp, reverse: bool = False
+        self, other: float | int | bool | str, op: ops.BinaryOp, reverse: bool = False
     ) -> DataFrame:
         if reverse:
             expr = op.as_expr(
