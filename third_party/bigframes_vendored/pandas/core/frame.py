@@ -4248,7 +4248,7 @@ class DataFrame(generic.NDFrame):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-        Merge DataFrames df1 and df2 by specifiying type of merge:
+        Merge DataFrames df1 and df2 by specifying type of merge:
 
             >>> df1 = bpd.DataFrame({'a': ['foo', 'bar'], 'b': [1, 2]})
             >>> df1
