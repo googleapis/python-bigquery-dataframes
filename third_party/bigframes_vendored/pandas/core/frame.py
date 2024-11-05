@@ -2582,7 +2582,7 @@ class DataFrame(generic.NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def __add__(self, other) -> DataFrame:
-        """Get addition of DataFrame and other, column-wise, using arithmatic
+        """Get addition of DataFrame and other, column-wise, using arithmetic
         operator `+`.
 
         Equivalent to ``DataFrame.add(other)``.
@@ -3241,7 +3241,7 @@ class DataFrame(generic.NDFrame):
 
     def __floordiv__(self, other):
         """
-        Get integer divison of DataFrame by other, using arithmatic operator `//`.
+        Get integer division of DataFrame by other, using arithmetic operator `//`.
 
         Equivalent to `DataFrame.floordiv(other)`.
 
