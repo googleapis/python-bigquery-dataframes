@@ -24,7 +24,9 @@ if TYPE_CHECKING:
     import bigframes.core.ordering
     import bigframes.core.schema
 
-_STRICT_COMPILER = compiler.Compiler(strict=True, enable_densify_ids=False)
+_STRICT_COMPILER = compiler.Compiler(
+    strict=True, enable_pruning=True, enable_densify_ids=True
+)
 
 
 class SQLCompiler:
