@@ -51,8 +51,8 @@ class Compiler:
     # In unstrict mode, ordering from ReadTable or after joins may be ambiguous to improve query performance.
     strict: bool = True
     scalar_op_compiler = compile_scalar.ScalarOpCompiler()
-    enable_pruning: bool = True
-    enable_densify_ids: bool = True
+    enable_pruning: bool = False
+    enable_densify_ids: bool = False
 
     def compile_sql(
         self, node: nodes.BigFrameNode, ordered: bool, output_ids: typing.Sequence[str]
