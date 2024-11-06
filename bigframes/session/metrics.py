@@ -58,7 +58,6 @@ def get_performance_stats(
         and query_job.ended is None
     ):
         return None
-    execution_secs = (query_job.ended - query_job.created).total_seconds()
 
     bytes_processed = query_job.total_bytes_processed
     if not isinstance(bytes_processed, int):
@@ -67,6 +66,8 @@ def get_performance_stats(
     slot_millis = query_job.slot_millis
     if not isinstance(slot_millis, int):
         return None  # filter out mocks
+
+    execution_secs = (query_job.ended - query_job.created).total_seconds()
 
     return bytes_processed, slot_millis, execution_secs
 
