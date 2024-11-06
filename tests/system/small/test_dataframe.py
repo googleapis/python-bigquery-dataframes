@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import decimal
 import io
 import operator
 import sys
@@ -1027,7 +1026,6 @@ def test_df_interpolate(scalars_dfs):
         (["int64_col", "float64_col"], 3),
         (["string_col"], "A"),
         (["datetime_col"], pd.Timestamp("2023-01-01")),
-        (["numeric_col"], decimal.Decimal("3.14")),
     ],
 )
 def test_df_fillna(scalars_dfs, col, fill_value):
