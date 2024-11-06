@@ -51,25 +51,22 @@ def get_performance_stats(
 
     Return None if the stats do not reflect real work done in bigquery.
     """
+
+    if (
+        query_job.configuration.dry_run
+        or query_job.created is None
+        and query_job.ended is None
+    ):
+        return None
+    execution_secs = (query_job.ended - query_job.created).total_seconds()
+
     bytes_processed = query_job.total_bytes_processed
     if not isinstance(bytes_processed, int):
         return None  # filter out mocks
-    if query_job.configuration.dry_run:
-        # dry run stats are just predictions of the real run
-        bytes_processed = 0
 
     slot_millis = query_job.slot_millis
     if not isinstance(slot_millis, int):
         return None  # filter out mocks
-
-    if query_job.configuration.dry_run:
-        # dry run stats are just predictions of the real run
-        slot_millis = 0
-
-    if query_job.created is not None and query_job.ended is not None:
-        execution_secs = (query_job.ended - query_job.created).total_seconds()
-    else:
-        execution_secs = 0
 
     return bytes_processed, slot_millis, execution_secs
 
