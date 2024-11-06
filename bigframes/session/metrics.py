@@ -69,7 +69,7 @@ def get_performance_stats(
     if query_job.created is not None and query_job.ended is not None:
         execution_secs = (query_job.ended - query_job.created).total_seconds()
     else:
-        return None
+        execution_secs = 0
 
     return bytes_processed, slot_millis, execution_secs
 
