@@ -55,7 +55,7 @@ def get_performance_stats(
     if (
         query_job.configuration.dry_run
         or query_job.created is None
-        and query_job.ended is None
+        or query_job.ended is None
     ):
         return None
 
