@@ -278,10 +278,11 @@ def test_get_column(scalars_dfs, col_name, expected_dtype):
     assert series_pandas.shape[0] == scalars_pandas_df.shape[0]
 
 
-def test_get_column_w_json(json_df):
+def test_get_column_w_json(json_df, json_pandas_df):
     series = json_df["json_col"]
+    series_pandas = series.to_pandas()
     assert series.dtype == pd.StringDtype(storage="pyarrow")
-    # assert series_pandas.shape[0] == scalars_pandas_df.shape[0]
+    assert series_pandas.shape[0] == json_pandas_df.shape[0]
 
 
 def test_series_get_column_default(scalars_dfs):
