@@ -78,8 +78,6 @@ def test_linear_regression(random_model_id: str) -> None:
     # 332	  4740.7907	       Gentoo penguin (Pygoscelis papua)	Biscoe	      46.2	            14.4	        214.0	          4650.0	    <NA>
     # 160	  4731.310452	   Gentoo penguin (Pygoscelis papua)	Biscoe	      44.5	            14.3	        216.0	          4100.0	    <NA>
     # [END bigquery_dataframes_bqml_linear_predict]
-    # [START bigquery_dataframes_bqml_linear_explain]
-    # [END bigquery_dataframes_bqml_linear_explain]
     assert feature_columns is not None
     assert label_columns is not None
     assert model is not None
