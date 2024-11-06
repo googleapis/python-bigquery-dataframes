@@ -26,40 +26,156 @@ class Index:
 
     @property
     def name(self):
-        """Returns Index name."""
+        """Returns Index name.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = bpd.Index([1, 2, 3], name='x')
+            Index([1, 2, 3], dtype='Int64', name='x')
+            >>> idx.name
+            'x'
+
+        Returns:
+            blocks.Label:
+                Index or MultiIndex name
+
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def values(self):
-        """Return an array representing the data in the Index."""
+        """Return an array representing the data in the Index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = bpd.Index([1, 2, 3])
+            >>> idx
+            Index([1, 2, 3], dtype='Int64')
+
+            >>> idx.values
+            array([1, 2, 3])
+
+        Returns:
+            array:
+                Numpy.ndarray or ExtensionArray
+
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def shape(self):
         """
         Return a tuple of the shape of the underlying data.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = pd.Index([1, 2, 3])
+            >>> idx
+            Index([1, 2, 3], dtype='Int64')
+
+            >>> idx.shape
+            (3,)
+
+            Returns:
+                Tuple[int]:
+                    A tuple of int representing the shape.
+
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def nlevels(self) -> int:
-        """Number of levels."""
+        """Integer number of levels in this MultiIndex
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> mi = bpd.MultiIndex.from_arrays([['a'], ['b'], ['c']])
+            >>> mi
+            MultiIndex([('a', 'b', 'c')],
+           ...         )
+           >>> mi.nlevels
+           3
+
+        Returns:
+            Int:
+                Number of levels.
+
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def is_unique(self) -> bool:
-        """Return if the index has unique values."""
+        """Return if the index has unique values.
+
+        **Examples:**
+
+            >>> idx = bpd.Index([1, 5, 7, 7])
+            >>> idx.is_unique
+            False
+
+            >>> idx = bpd.Index([1, 5, 7])
+            >>> idx.is_unique
+            True
+
+        Returns:
+            bool:
+                True if the index has unique values, otherwise False.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def has_duplicates(self) -> bool:
-        """Check if the Index has duplicate values."""
+        """Check if the Index has duplicate values.
+
+        **Examples:**
+
+            >>> idx = bpd.Index([1, 5, 7, 7])
+            >>> idx.has_duplicates
+            True
+
+            >>> idx = bpd.Index([1, 5, 7])
+            >>> idx.has_duplicates
+            False
+
+            >>> idx = pd.Index(["Watermelon", "Orange", "Apple",
+                ...             "Watermelon"]).astype("category")
+            >>> idx.has_duplicates
+            True
+
+            >>> idx = pd.Index(["Orange", "Apple",
+                ...             "Watermelon"]).astype("category")
+            >>> idx.has_duplicates
+            False
+
+
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def dtype(self):
-        """Return the dtype object of the underlying data."""
+        """Return the dtype object of the underlying data.
 
+        **Examples:**
+
+            >>> idx = bpd.Index([1, 2, 3])
+            >>> idx
+            Index([1, 2, 3], dtype='Int64')
+
+            >>> idx.dtype
+            Int64Dtype()
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
