@@ -734,7 +734,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         how: str = "outer",
         reverse: bool = False,
     ):
-        if isinstance(other, (float, int, bool, str)):
+        if isinstance(other, bigframes.dtypes.LOCAL_SCALAR_TYPES):
             return self._apply_scalar_binop(other, op, reverse=reverse)
         elif isinstance(other, DataFrame):
             return self._apply_dataframe_binop(other, op, how=how, reverse=reverse)
