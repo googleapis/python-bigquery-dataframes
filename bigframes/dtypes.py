@@ -21,6 +21,7 @@ import typing
 from typing import Dict, Literal, Union
 
 import bigframes_vendored.constants as constants
+import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery
 import numpy as np
@@ -55,6 +56,7 @@ NUMERIC_DTYPE = pd.ArrowDtype(pa.decimal128(38, 9))
 BIGNUMERIC_DTYPE = pd.ArrowDtype(pa.decimal256(76, 38))
 # No arrow equivalent
 GEO_DTYPE = gpd.array.GeometryDtype()
+JSON_DTYPE = db_dtypes.JSONDtype()
 
 # Used when storing Null expressions
 DEFAULT_DTYPE = FLOAT_DTYPE
@@ -186,6 +188,12 @@ SIMPLE_TYPES = (
         type_kind=("GEOGRAPHY",),
         logical_bytes=40,
         clusterable=True,
+    ),
+    # JSON has no corresponding arrow dtype
+    SimpleDtypeInfo(
+        dtype=JSON_DTYPE,
+        arrow_dtype=None,
+        type_kind=("JSON",),
     ),
 )
 
@@ -446,8 +454,6 @@ def infer_literal_arrow_type(literal) -> typing.Optional[pa.DataType]:
     return bigframes_dtype_to_arrow_dtype(infer_literal_type(literal))
 
 
-# Don't have dtype for json, so just end up interpreting as STRING
-_REMAPPED_TYPEKINDS = {"JSON": "STRING"}
 _TK_TO_BIGFRAMES = {
     type_kind: mapping.dtype
     for mapping in SIMPLE_TYPES
@@ -471,12 +477,8 @@ def convert_schema_field(
         pa_struct = pa.struct(fields)
         pa_type = pa.list_(pa_struct) if is_repeated else pa_struct
         return field.name, pd.ArrowDtype(pa_type)
-    elif (
-        field.field_type in _TK_TO_BIGFRAMES or field.field_type in _REMAPPED_TYPEKINDS
-    ):
-        singular_type = _TK_TO_BIGFRAMES[
-            _REMAPPED_TYPEKINDS.get(field.field_type, field.field_type)
-        ]
+    elif field.field_type in _TK_TO_BIGFRAMES:
+        singular_type = _TK_TO_BIGFRAMES[field.field_type]
         if is_repeated:
             pa_type = pa.list_(bigframes_dtype_to_arrow_dtype(singular_type))
             return field.name, pd.ArrowDtype(pa_type)

@@ -15,11 +15,9 @@ from __future__ import annotations
 
 import textwrap
 from typing import Any, cast, Dict, Iterable, Optional, Tuple, Union
-import warnings
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
-import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
 import ibis
@@ -208,10 +206,6 @@ def ibis_value_to_canonical_type(value: ibis_types.Value) -> ibis_types.Value:
     """
     ibis_type = value.type()
     name = value.get_name()
-    if ibis_type.is_json():
-        value = vendored_ibis_ops.ToJsonString(value).to_expr()
-        value = value.case().when("null", ibis.null()).else_(value).end()
-        return value.name(name)
     # Allow REQUIRED fields to be joined with NULLABLE fields.
     nullable_type = ibis_type.copy(nullable=True)
     return value.cast(nullable_type).name(name)
@@ -295,13 +289,8 @@ def ibis_dtype_to_bigframes_dtype(
     if isinstance(ibis_dtype, ibis_dtypes.Integer):
         return pd.Int64Dtype()
 
-    # Temporary: Will eventually support an explicit json type instead of casting to string.
     if isinstance(ibis_dtype, ibis_dtypes.JSON):
-        warnings.warn(
-            "Interpreting JSON as string. This behavior may change in future versions.",
-            bigframes.exceptions.PreviewWarning,
-        )
-        return bigframes.dtypes.STRING_DTYPE
+        return bigframes.dtypes.JSON_DTYPE
 
     if ibis_dtype in IBIS_TO_BIGFRAMES:
         return IBIS_TO_BIGFRAMES[ibis_dtype]

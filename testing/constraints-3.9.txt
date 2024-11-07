@@ -26,5 +26,6 @@ tabulate==0.9
 ipywidgets==7.7.1
 humanize==4.6.0
 matplotlib==3.7.1
+db-dtypes @ git+https://github.com/googleapis/python-db-dtypes-pandas.git@4b84e4a6fada5ecfa7f910dca61e6de714abdb9d
 # extras
 pandas-gbq==0.19.0
