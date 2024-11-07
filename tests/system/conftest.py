@@ -491,14 +491,13 @@ def repeated_pandas_df() -> pd.DataFrame:
 def json_df(
     json_table_id: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
-    """Returns a DataFrame containing columns of list type."""
+    """Returns a DataFrame containing columns of JSON type."""
     return session.read_gbq(json_table_id, index_col="rowindex")
 
 
 @pytest.fixture(scope="session")
 def json_pandas_df() -> pd.DataFrame:
-    """Returns a DataFrame containing columns of list type."""
-
+    """Returns a DataFrame containing columns of JSON type."""
     df = pd.read_json(
         DATA_DIR / "json.jsonl",
         lines=True,
