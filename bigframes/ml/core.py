@@ -306,6 +306,8 @@ class BqmlModelFactory:
         options = dict(options)
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
+
+        X_train = X_train.reset_index(drop=True)
         if y_train is None:
             input_data = X_train.cache()
         else:
