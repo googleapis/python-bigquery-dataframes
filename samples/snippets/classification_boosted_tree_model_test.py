@@ -61,3 +61,4 @@ def test_boosted_tree_model(random_model_id: str) -> None:
     )
     # [END bigquery_dataframes_bqml_boosted_tree_create]
     assert input_data is not None
+    assert census_model is not None
