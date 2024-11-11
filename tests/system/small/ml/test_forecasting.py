@@ -64,6 +64,35 @@ def test_arima_plus_predict_default(
         check_index_type=False,
     )
 
+def test_arima_plus_predict_attribution_default(
+    time_series_arima_plus_model: forecasting.ARIMAPlus,
+):
+    utc = pytz.utc
+    predictions = time_series_arima_plus_model.predict_attribution().to_pandas()
+    assert predictions.shape == (3, 8)
+    result = predictions[["forecast_timestamp", "forecast_value"]]
+    expected = pd.DataFrame(
+        {
+            "forecast_timestamp": [
+                datetime(2017, 8, 2, tzinfo=utc),
+                datetime(2017, 8, 3, tzinfo=utc),
+                datetime(2017, 8, 4, tzinfo=utc),
+            ],
+            "forecast_value": [2724.472284, 2593.368389, 2353.613034],
+        }
+    )
+    expected["forecast_value"] = expected["forecast_value"].astype(pd.Float64Dtype())
+    expected["forecast_timestamp"] = expected["forecast_timestamp"].astype(
+        pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
+    )
+
+    pd.testing.assert_frame_equal(
+        result,
+        expected,
+        rtol=0.1,
+        check_index_type=False,
+    )
+
 
 def test_arima_plus_predict_params(time_series_arima_plus_model: forecasting.ARIMAPlus):
     utc = pytz.utc
