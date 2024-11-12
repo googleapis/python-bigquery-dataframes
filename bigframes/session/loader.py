@@ -59,6 +59,7 @@ import bigframes.session.executor
 import bigframes.session.metrics
 import bigframes.session.planner
 import bigframes.session.temp_storage
+import bigframes.session.time as session_time
 import bigframes.version
 
 # Avoid circular imports.
@@ -128,6 +129,8 @@ class GbqDataLoader:
         self._metrics = metrics
         # Unfortunate circular reference, but need to pass reference when constructing objects
         self._session = session
+        self._clock = session_time.BigQuerySyncedClock(bqclient)
+        self._clock.sync()
 
     def read_pandas_load_job(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
@@ -246,7 +249,7 @@ class GbqDataLoader:
         time_travel_timestamp, table = bf_read_gbq_table.get_table_metadata(
             self._bqclient,
             table_ref=table_ref,
-            api_name=api_name,
+            bq_time=self._clock.get_time(),
             cache=self._df_snapshot,
             use_cache=use_cache,
         )
@@ -340,14 +343,18 @@ class GbqDataLoader:
             else (*columns, *[col for col in index_cols if col not in columns])
         )
 
-        enable_snapshot = enable_snapshot and bf_read_gbq_table.validate_table(
-            self._bqclient,
-            table_ref,
-            all_columns,
-            time_travel_timestamp,
-            table.table_type,
-            filter_str,
-        )
+        try:
+            enable_snapshot = enable_snapshot and bf_read_gbq_table.validate_table(
+                self._bqclient,
+                table,
+                all_columns,
+                time_travel_timestamp,
+                filter_str,
+            )
+        except google.api_core.exceptions.Forbidden as ex:
+            if "Drive credentials" in ex.message:
+                ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
+            raise
 
         # ----------------------------
         # Create ordering and validate
