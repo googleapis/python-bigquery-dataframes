@@ -22,6 +22,7 @@
 import bigframes.pandas as bfpd
 import bigframes.core as core
 from bigframes.core.schema_tracking import set_project
+from bigframes.core.nested_context import NestedDataError
 from bigframes.dataframe import DataFrame
 #from bigframes.core.nodes import NestedDataContextManager
 #from bigframes.core import Session
@@ -105,13 +106,10 @@ def create_complex_nested(create: bool) -> DataFrame:
 
 if __name__ == "__main__":
     #TODO: autodetect if bfpd is already setup and copy proj/loc if availabe
-    #set_project(project="gmbigframes", location="europe-west3")
-    #table = "gmbigframes.nested.tiny"  #"vf-de-aib-prd-cmr-chn-lab.staging.scs_mini"
     set_project(project="vf-de-ca-lab", location="europe-west3")
     table="andreas_beschorner.nested_dbg"
     table = "andreas_beschorner.nested_complex" # table="andreas_beschorner.nested_tiny"
     #dfp = create_simple_nested(True)
-    #testdf = DataFrame({"a": [1]}, index=None)
 
     with core.nested_data_context_manager as ncm:
         #df = bfpd.read_gbq(f"SELECT * FROM {table} limit 10")
@@ -122,17 +120,14 @@ if __name__ == "__main__":
         ncm.add(df, layer_separator=ncm.sep_layers, struct_separator=ncm.sep_structs)
         print(ncm.lineage(df))
         #df_n.to_gbq("andreas_beschorner.nested_complex_half")
-        #df = df.rename(columns={"event_sequence.POSO": "event_sequence.pso"})
+        try:
+            df = df.rename(columns={"person.address.county": "person.address.location"})
+        except NestedDataError as ne:
+            print(ne)
+        df = df.rename(columns={"person.address.country": "location"}) #df = df.rename(columns={"person.address.country": "person.address.location"})
+        lin = ncm.schema_lineage(df)
+        if lin is not None:
+            print(lin)
         pass
-        #testdf = DataFrame({"ooc_flag": [1], "test_value": ["Grmph"]}, index=None)
-        #TODO: How create 
-
-        #ncm |=  ncm.data, {"columns": []} | n_get_dummies
     pass
-
-
-    # bqs = test_unroll_schema()
-    # shdl = SchemaHandler(bqs, layer_separator=bsq.layer_separator)
-    # cmd = CommandDAG(shdl)
-    # cmd.dag_from_schema()
     

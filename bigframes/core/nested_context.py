@@ -16,10 +16,24 @@ if TYPE_CHECKING:
     from bigframes.dataframe import DataFrame
 
 
+#TODO: edge attribute: action done (renaming, OHE, ...) plus resulting child node and parent(s)
+
 # -- schema tracking --
 def bfnode_hash(node: nodes.BigFrameNode):
     return node._node_hash
-    
+
+
+class NestedDataError(Exception):
+    def __init__(self, message: str, 
+                 params: list|None=None, error_exc: str|None=None):
+        txt = " | ".join(params) if params is not None else None
+        msg = f"{message}: [{txt}]" if txt is not None else f"{message}"
+        msg = f"Nested data error -- {msg}"
+        if error_exc:
+            msg += f"\n Raised from: {error_exc}"
+        #self.message = msg
+        super().__init__(msg)
+        
 
 class SchemaSource:
     def __init__(self, node_flattened: nodes.BigFrameNode, dag: DiGraph, 
@@ -38,6 +52,13 @@ class SchemaSource:
         """
         return self.dag is not None
 
+    def extend_dag(self, changes:Mapping|dict):
+        for col_source, col_target in changes.items():
+            self.dag.add_node(col_target)
+            self.dag.add_edge(col_source, col_target)
+
+    def inherit(self, new_node: nodes.BigFrameNode):
+        return SchemaSource(new_node, self.dag, self.schema, schema_orig=self.schema_orig)
 
 class SchemaSourceHandler:
     _base_root_name = "_root_"
@@ -78,7 +99,7 @@ class SchemaSourceHandler:
         return dag_ret
     
     @staticmethod
-    def leafs(dag: DiGraph):
+    def leaves(dag: DiGraph):
         return [node for node in dag.nodes if dag.out_degree(node) == 0]
 
     # two identical properties, depending on what meaning you prefer
@@ -145,36 +166,106 @@ class SchemaTrackingContextManager:
         self.block_start: blocks.Block|None = None
         self.block_end: blocks.Block|None = None
         self._latest_op: dict|Mapping = {}  # latest schema changes
-        self._latest_callee: nodes.BigFrameNode|None = None
+        self._calling_node: nodes.BigFrameNode|None = None
         self._func: Callable|None = None
         self._op_count = 0
+
+    def _to_name_layer(self, col: str) -> str:
+        return col.replace(self.sep_structs, self.sep_layers)
+
+    def _to_name_struct(self, col: str) -> str:
+        return col.replace(self.sep_layers, self.sep_structs)
+
+    def schema_lineage(self, df: DataFrame):
+        src = self._source_handler.get(df.block.expr.node)
+        if src is not None:
+            return list(topological_sort(src.dag))
+        return None
+
+    @staticmethod
+    def _parse_change(chg_from: str, chg_to: str, sep: str) -> tuple[str, str, bool]:
+        _from = chg_from.split(sep)
+        _to = chg_to.split(sep)
+        if (len(_from) < 1) or (len(_to) < 1):
+            raise NestedDataError("Column name missing")
+        if len(_from) != len(_to):
+            if len(_to) != 1:
+                return tuple((chg_from, chg_to, False)) # type: ignore
+            _chg_to = chg_from.rsplit(sep, 1)[0] + sep + chg_to
+            return tuple((chg_from, _chg_to, True)) # type: ignore
+        equal = sum([val_from==_to[i] for i, val_from in enumerate(_from[0:-1])])==(len(_from)-1)
+        return tuple((chg_from, chg_to, equal)) # type: ignore
+
+    @staticmethod
+    def _parse_change_levels(changes: dict|Mapping, sep: str) -> dict:
+        """
+        Changes must be within the same level/layer of nesting.
+        However, to make things easier for the user, we allow a simplified notation such that the targets/values
+        of the 'changes' dict can just reference the last layer of the keys. Example:
+            person.address.city: location
+        is the same as
+            person.address.city: person.address.location
+        """
+        _valid, _invalid = {}, {}
+        for col_from, col_to in changes.items():
+            ret = SchemaTrackingContextManager._parse_change(col_from, col_to, sep)
+            el = {ret[0]: ret[1]}
+            if ret[-1]:
+                _valid.update(el)
+            else:
+                _invalid.update(el)
+        if _invalid:
+            raise NestedDataError(f"Invalid column name cange operation {ret[0]} -> {ret[1]}")
+        return _valid
+        
+
+    def _extend_dag(self, hdl_parent: nodes.BigFrameNode, hdl_child: nodes.BigFrameNode, changes: dict|Mapping):
+        source = self._source_handler.get(hdl_child)
+        if source is None:
+            self._add_child(hdl_parent, hdl_child)
+            source = self._source_handler.get(hdl_child)
+            assert(source is not None)
+            #raise NestedDataError("Unknown nested node handel", params=[hdl.__qualname__])
+        dag_leaves = set(self._source_handler.leaves(dag=source.dag))
+        source_leaves = set([self._to_name_layer(col) for col in list(changes.keys())])
+        if not source_leaves.issubset(dag_leaves):
+            invalid_cols = [self._to_name_layer(col) for col in source_leaves if col not in dag_leaves]
+            raise NestedDataError("Invalid columns/ Columns not in schema", params=invalid_cols)
+        _changes = SchemaTrackingContextManager._parse_change_levels(changes, self.sep_structs)
+        _changes = {self._to_name_layer(_from): self._to_name_layer(_to) for _from, _to in _changes.items()}
+        source.extend_dag(_changes)
 
     @property
     def num_nested_commands(self) -> int:
         return self._op_count
 
     def prev_changes(self) -> tuple[nodes.BigFrameNode, dict|Mapping]:
-        return ((self._latest_callee, self._latest_op)) # type: ignore
+        return ((self._calling_node, self._latest_op)) # type: ignore
 
-    def add_changes(self, hdl: nodes.BigFrameNode, changes: dict|Mapping, fct: Callable|None=None):
-        self._latest_callee = hdl
-        self._latest_op = changes
-        self._func = fct
-        self._op_count += 1
+    def add_changes(self, caller: str, hdl_parent: nodes.BigFrameNode, hdl_child: nodes.BigFrameNode, changes: dict|Mapping, fct: Callable|None=None):
+        if self.active:
+            self._calling_node = hdl_parent
+            self._latest_op = changes
+            self._func = fct
+            self._op_count += 1
+            self._extend_dag(hdl_parent=hdl_parent, hdl_child=hdl_child, changes=changes)
 
     def latest_changes(self) -> list:
-        return [self._latest_callee, self._latest_op, self._op_count]
+        return [self._calling_node, self._latest_op, self._op_count]
 
-    #@property
     @classmethod
-    def active(cls):
+    def active(cls):  #TODO: class property!
         """
         Returns True if context manager is active, ie if we are within a "with" block
         """
         return cls._is_active
 
-    def get_source(self, src: int) -> DiGraph:
-        return self._source_handler.sources.get(src, None)     
+    def get_source(self, src: int|DataFrame) -> DiGraph:
+        if isinstance(src, int):
+            return self._source_handler.sources.get(src, None)
+        node = src.block._expr.node
+        hash_df = bfnode_hash(node)
+        return self._source_handler.sources.get(hash_df, None)
 
     def reset_block_markers(self):
         self.block_start = None
@@ -201,7 +292,7 @@ class SchemaTrackingContextManager:
     def _has_nested_data(schema: list) -> bool:
         return sum([1 for x in schema if x.field_type == "RECORD"]) > 0
 
-    def explode_nested(self, df: DataFrame, sep_explode: str, sep_struct: str|None=None, columns: list|None=None) -> tuple[DataFrame, dict[str, pa_datatype]]:
+    def _explode_nested(self, df: DataFrame, sep_explode: str, sep_struct: str|None=None, columns: list|None=None) -> tuple[DataFrame, dict[str, pa_datatype]]:
         """
         :param bigframes.dataframe.DataFrame df: DataFrame to explode
         :param str sep_explode: separator used in exploded representation
@@ -252,7 +343,7 @@ class SchemaTrackingContextManager:
         return tuple((df_flattened, schema_ret)) # type: ignore
 
     def add(self, df: DataFrame, layer_separator: str, struct_separator: str):
-        df_flattened, df_schema = self.explode_nested(df, sep_explode=layer_separator, sep_struct=struct_separator)
+        df_flattened, df_schema = self._explode_nested(df, sep_explode=layer_separator, sep_struct=struct_separator)
         schema = df_flattened.dtypes
         cols = list(df_flattened.dtypes.keys())
         node = df_flattened.block.expr.node
@@ -261,18 +352,23 @@ class SchemaTrackingContextManager:
         source = SchemaSource(node_flattened=node, dag=dag, schema=schema, schema_orig=schema_orig) # type: ignore  # noqa: E999
         hash_df = bfnode_hash(df.block.expr.node)
         self._source_handler.add_source(hash_df=hash_df, source = source)
+        return
 
     def lineage(self, df) -> dict:
         node = df.block.expr.node
         return self._source_handler.sources.get(node, {})
-       
-# Work In Progress
 
-    def get_cols_changes(self):
-        cols = list(self._latest_op.keys())
-        cols = [col.replace(self.sep_structs, self.sep_layers) for col in cols]
-        dag = self._source_handler.sources[self._latest_callee]
-        pass
+    #TODO: multiple parents, join for instance
+    def _add_child(self, node_parent: nodes.BigFrameNode, node_child: nodes.BigFrameNode):
+        parent = self._source_handler.get(node_parent)
+        if parent is None:
+            raise Exception("NOOOOO!") #TODO
+        source_child = parent.inherit(node_child)
+        hash_child = bfnode_hash(node_child)
+        self._source_handler.add_source(hash_df=hash_child, source=source_child)
+        
+        
+# Work In Progress
 
     def step(self):  #nodes.BigFrameNode):
         assert(self.block_start is not None)

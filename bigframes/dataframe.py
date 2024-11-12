@@ -1529,15 +1529,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Rename is special in the context of nested data, as we allow column name changes for struct columns!
         Thus we cannot just call it but have to forward it to the context manager via the add_changes method
         """
-        res = True
-        if nested_data_context_manager.active:
-            nested_data_context_manager.add_changes(DataFrame.rename.__qualname__, columns, fct=bigframes.dataframe.DataFrame.rename)
-            if False: #TODO: action_not_allowed, for instance OHE on intermediate, struct like col!
-                res = False
-        else: # no context manager? Just return the new data frame
-            block = self._block.rename(columns=columns)
-        
-        return DataFrame(block)
+        block = self._block.rename(columns=columns)
+        ret = DataFrame(block)
+        nested_data_context_manager.add_changes(DataFrame.rename.__qualname__, self.block._expr.node, ret.block._expr.node, columns, fct=bigframes.dataframe.DataFrame.rename)
+        return ret
 
     def rename_axis(
         self,
