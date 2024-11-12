@@ -752,7 +752,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def _apply_scalar_binop(
-        self, other: float | int | bool | str, op: ops.BinaryOp, reverse: bool = False
+        self,
+        other: bigframes.dtypes.LOCAL_SCALAR_TYPE,
+        op: ops.BinaryOp,
+        reverse: bool = False,
     ) -> DataFrame:
         if reverse:
             expr = op.as_expr(

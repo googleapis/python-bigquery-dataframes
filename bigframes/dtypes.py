@@ -59,7 +59,7 @@ GEO_DTYPE = gpd.array.GeometryDtype()
 # Used when storing Null expressions
 DEFAULT_DTYPE = FLOAT_DTYPE
 
-LOCAL_SCALAR_TYPES = (
+LOCAL_SCALAR_TYPE = Union[
     bool,
     np.bool_,
     int,
@@ -75,7 +75,8 @@ LOCAL_SCALAR_TYPES = (
     pd.Timestamp,
     datetime.date,
     datetime.time,
-)
+]
+LOCAL_SCALAR_TYPES = typing.get_args(LOCAL_SCALAR_TYPE)
 
 
 # Will have a few dtype variants: simple(eg. int, string, bool), complex (eg. list, struct), and virtual (eg. micro intervals, categorical)
