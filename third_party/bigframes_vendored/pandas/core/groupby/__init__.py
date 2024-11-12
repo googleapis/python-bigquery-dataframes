@@ -1028,43 +1028,43 @@ class GroupBy:
 
     def size(self):
         """
-          Compute group sizes.
+        Compute group sizes.
 
-          **Examples:**
+        **Examples:**
 
-          For SeriesGroupBy:
+        For SeriesGroupBy:
 
-              >>> import bigframes.pandas as bpd
-              >>> bpd.options.display.progress_bar = None
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
-              >>> lst = ['a', 'a', 'b']
-              >>> ser = bpd.Series([1, 2, 3], index=lst)
-              >>> ser
-              a     1
-              a     2
-              b     3
-              dtype: Int64
-              >>> ser.groupby(level=0).size()
-              a    2
-              b    1
-              dtype: Int64
+            >>> lst = ['a', 'a', 'b']
+            >>> ser = bpd.Series([1, 2, 3], index=lst)
+            >>> ser
+            a     1
+            a     2
+            b     3
+            dtype: Int64
+            >>> ser.groupby(level=0).size()
+            a    2
+            b    1
+            dtype: Int64
 
-          For DataFrameGroupBy:
+        For DataFrameGroupBy:
 
-              >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
-              >>> df = bpd.DataFrame(data, columns=["a", "b", "c"],
-              ...                   index=["owl", "toucan", "eagle"])
-              >>> df
-                      a  b  c
-              owl     1  2  3
-              toucan  1  5  6
-              eagle   7  8  9
-              [3 rows x 3 columns]
-              >>> df.groupby("a").size()
-              a
-              1    2
-              7    1
-              dtype: Int64
+            >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+            >>> df = bpd.DataFrame(data, columns=["a", "b", "c"],
+            ...                   index=["owl", "toucan", "eagle"])
+            >>> df
+                    a  b  c
+            owl     1  2  3
+            toucan  1  5  6
+            eagle   7  8  9
+            [3 rows x 3 columns]
+            >>> df.groupby("a").size()
+            a
+            1    2
+            7    1
+            dtype: Int64
 
         Returns:
             bigframes.pandas.DataFrame or bigframes.pandas.Series:
