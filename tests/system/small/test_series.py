@@ -2766,22 +2766,17 @@ def test_series_case_when(scalars_dfs_maybe_ordered):
     bf_series = scalars_df["int64_col"]
     pd_series = scalars_pandas_df["int64_col"]
 
-    # TODO(tswast): pandas case_when appears to assume True when a value is
-    # null. I suspect this should be considered a bug in pandas.
-    bf_result = bf_series.case_when(
-        [
-            ((bf_series > 100).fillna(True), bf_series - 1),
-            ((bf_series > 0).fillna(True), pd.NA),
-            ((bf_series < -100).fillna(True), -1000),
-        ]
-    ).to_pandas()
-    pd_result = pd_series.case_when(
-        [
-            (pd_series > 100, pd_series - 1),
-            (pd_series > 0, pd.NA),
-            (pd_series < -100, -1000),
-        ]
-    )
+    bf_conditions = [
+        ((bf_series > (-100 + i * 5)).fillna(True), i) for i in range(149, 0, -1)
+    ] + [((bf_series <= -100).fillna(True), 0)]
+
+    pd_conditions = [((pd_series > (-100 + i * 5)), i) for i in range(149, 0, -1)] + [
+        (pd_series <= -100, 0)
+    ]
+
+    bf_result = bf_series.case_when(bf_conditions).to_pandas()
+    pd_result = pd_series.case_when(pd_conditions)
+
     pd.testing.assert_series_equal(
         bf_result,
         pd_result.astype(pd.Int64Dtype()),
