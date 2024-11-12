@@ -55,7 +55,7 @@ class GeoSeries:
             0    1.0
             1    2.0
             2    3.0
-            dtype: float64
+            dtype: Float64
 
         Returns:
             bigframes.series.Series:
@@ -82,7 +82,7 @@ class GeoSeries:
             0    1.0
             1    2.0
             2    3.0
-            dtype: float64
+            dtype: Float64
 
         Returns:
             bigframes.series.Series:
