@@ -2768,6 +2768,8 @@ def test_series_case_when(scalars_dfs_maybe_ordered):
 
     # TODO(tswast): pandas case_when appears to assume True when a value is
     # null. I suspect this should be considered a bug in pandas.
+
+    # Generate 150 conditions to test case_when with a large number of conditions
     bf_conditions = (
         [((bf_series > 645).fillna(True), bf_series - 1)]
         + [((bf_series > (-100 + i * 5)).fillna(True), i) for i in range(148, 0, -1)]
@@ -2779,6 +2781,8 @@ def test_series_case_when(scalars_dfs_maybe_ordered):
         + [((pd_series > (-100 + i * 5)), i) for i in range(148, 0, -1)]
         + [(pd_series <= -100, pd.NA)]
     )
+
+    assert len(bf_conditions) == 150
 
     bf_result = bf_series.case_when(bf_conditions).to_pandas()
     pd_result = pd_series.case_when(pd_conditions)
