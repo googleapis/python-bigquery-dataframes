@@ -279,8 +279,7 @@ def is_struct_like(type_: ExpressionType) -> bool:
 
 
 def is_json_like(type_: ExpressionType) -> bool:
-    # TODO: Add JSON type support
-    return type_ == STRING_DTYPE
+    return type_ == STRING_DTYPE or type_ == JSON_DTYPE
 
 
 def is_json_encoding_type(type_: ExpressionType) -> bool:

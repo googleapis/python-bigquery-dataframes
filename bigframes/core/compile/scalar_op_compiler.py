@@ -18,10 +18,10 @@ import functools
 import typing
 
 import bigframes_vendored.constants as constants
-import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import ibis
 import ibis.common.exceptions
 import ibis.expr.datatypes as ibis_dtypes
+import ibis.expr.operations as ibis_ops
 import ibis.expr.operations.generic
 import ibis.expr.types as ibis_types
 import numpy as np
@@ -1113,26 +1113,20 @@ def array_slice_op_impl(x: ibis_types.Value, op: ops.ArraySliceOp):
 # JSON Ops
 @scalar_op_compiler.register_binary_op(ops.JSONSet, pass_op=True)
 def json_set_op_impl(x: ibis_types.Value, y: ibis_types.Value, op: ops.JSONSet):
-    if x.type().is_json():
-        return json_set(
-            json_obj=x,
-            json_path=op.json_path,
-            json_value=y,
-        ).to_expr()
-    else:
-        # Enabling JSON type eliminates the need for less efficient string conversions.
-        return vendored_ibis_ops.ToJsonString(
-            json_set(
-                json_obj=parse_json(x),
-                json_path=op.json_path,
-                json_value=y,
-            )
-        ).to_expr()
+    return json_set(json_obj=x, json_path=op.json_path, json_value=y)
 
 
 @scalar_op_compiler.register_unary_op(ops.JSONExtract, pass_op=True)
 def json_extract_op_impl(x: ibis_types.Value, op: ops.JSONExtract):
-    return json_extract(json_obj=x, json_path=op.json_path)
+    # Define a user-defined function whose returned type is dynamically matching the input.
+    def json_extract(json_or_json_string, json_path: ibis_dtypes.str):  # type: ignore
+        """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
+        ...
+
+    return_type = x.type()
+    json_extract.__annotations__["return"] = return_type
+    json_extract_op = ibis_ops.udf.scalar.builtin(json_extract)
+    return json_extract_op(json_or_json_string=x, json_path=op.json_path)
 
 
 @scalar_op_compiler.register_unary_op(ops.JSONExtractArray, pass_op=True)
@@ -1792,13 +1786,6 @@ def json_set(
     json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str, json_value
 ) -> ibis_dtypes.JSON:
     """Produces a new SQL JSON value with the specified JSON data inserted or replaced."""
-
-
-@ibis.udf.scalar.builtin(name="json_extract")
-def json_extract(
-    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str
-) -> ibis_dtypes.JSON:
-    """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
 
 
 @ibis.udf.scalar.builtin(name="json_extract_array")
