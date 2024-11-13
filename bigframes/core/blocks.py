@@ -2426,14 +2426,12 @@ class Block:
     def cached(self, *, force: bool = False, session_aware: bool = False) -> None:
         """Write the block to a session table."""
         # use a heuristic for whether something needs to be cached
-        if (not force) and self.session._executor._is_trivially_executable(self.expr):
-            return
-        elif session_aware:
-            self.session._executor._cache_with_session_awareness(self.expr)
-        else:
-            self.session._executor._cache_with_cluster_cols(
-                self.expr, cluster_cols=self.index_columns
-            )
+        self.session._executor.cached(
+            self.expr,
+            force=force,
+            use_session=session_aware,
+            cluster_cols=self.index_columns,
+        )
 
     def _is_monotonic(
         self, column_ids: typing.Union[str, Sequence[str]], increasing: bool
@@ -3139,7 +3137,7 @@ def _pd_index_to_array_value(
     rows = []
     labels_as_tuples = utils.index_as_tuples(index)
     for row_offset in range(len(index)):
-        id_gen = bigframes.core.identifiers.standard_identifiers()
+        id_gen = bigframes.core.identifiers.standard_id_strings()
         row_label = labels_as_tuples[row_offset]
         row_label = (row_label,) if not isinstance(row_label, tuple) else row_label
         row = {}

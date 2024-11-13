@@ -207,6 +207,7 @@ class BigQueryCachingExecutor(Executor):
         bqclient: bigquery.Client,
         storage_manager: bigframes.session.temp_storage.TemporaryGbqStorageManager,
         bqstoragereadclient: google.cloud.bigquery_storage_v1.BigQueryReadClient,
+        *,
         strictly_ordered: bool = True,
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
     ):
@@ -447,6 +448,23 @@ class BigQueryCachingExecutor(Executor):
             iter, _ = self._run_execute_query(sql)
             return next(iter)[0]
 
+    def cached(
+        self,
+        array_value: bigframes.core.ArrayValue,
+        *,
+        force: bool = False,
+        use_session: bool = False,
+        cluster_cols: Sequence[str] = (),
+    ) -> None:
+        """Write the block to a session table."""
+        # use a heuristic for whether something needs to be cached
+        if (not force) and self._is_trivially_executable(array_value):
+            return
+        elif use_session:
+            self._cache_with_session_awareness(array_value)
+        else:
+            self._cache_with_cluster_cols(array_value, cluster_cols=cluster_cols)
+
     def _local_get_row_count(
         self, array_value: bigframes.core.ArrayValue
     ) -> Optional[int]:
@@ -472,11 +490,12 @@ class BigQueryCachingExecutor(Executor):
             job_config.maximum_bytes_billed = (
                 bigframes.options.compute.maximum_bytes_billed
             )
-        # Note: add_labels is global scope which may have unexpected effects
-        bq_io.add_labels(job_config, api_name=api_name)
 
         if not self.strictly_ordered:
             job_config.labels["bigframes-mode"] = "unordered"
+
+        # Note: add_labels is global scope which may have unexpected effects
+        bq_io.add_labels(job_config, api_name=api_name)
         try:
             query_job = self.bqclient.query(sql, job_config=job_config)
             return (
