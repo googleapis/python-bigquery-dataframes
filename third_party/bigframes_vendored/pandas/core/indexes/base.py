@@ -41,7 +41,6 @@ class Index:
         Returns:
             blocks.Label:
                 Index or MultiIndex name
-
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -64,7 +63,6 @@ class Index:
         Returns:
             array:
                 Numpy.ndarray or ExtensionArray
-
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -88,7 +86,6 @@ class Index:
             Returns:
                 Tuple[int]:
                     A tuple of int representing the shape.
-
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -111,7 +108,6 @@ class Index:
         Returns:
             Int:
                 Number of levels.
-
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -120,6 +116,9 @@ class Index:
         """Return if the index has unique values.
 
         **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, 5, 7, 7])
             >>> idx.is_unique
@@ -141,6 +140,9 @@ class Index:
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> idx = bpd.Index([1, 5, 7, 7])
             >>> idx.has_duplicates
             True
@@ -159,7 +161,9 @@ class Index:
             >>> idx.has_duplicates
             False
 
-
+        Returns:
+            bool:
+                True if the Index has duplicate values, otherwise False.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -168,6 +172,9 @@ class Index:
         """Return the dtype object of the underlying data.
 
         **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, 2, 3])
             >>> idx
@@ -180,12 +187,40 @@ class Index:
 
     @property
     def dtypes(self):
-        """Return the dtypes as a Series for the underlying MultiIndex."""
+        """Return the dtypes as a Series for the underlying MultiIndex.
+
+        Returns:
+            Pandas.Series:
+                Pandas.Series of the MultiIndex dtypes.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @property
     def T(self) -> Index:
-        """Return the transpose, which is by definition self."""
+        """Return the transpose, which is by definition self.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['Ant', 'Bear', 'Cow'])
+            >>> s
+            0     Ant
+            1    Bear
+            2     Cow
+            dtype: string
+
+            >>> s.T
+
+        For Index:
+
+            >>> idx = bpd.Index([1, 2, 3])
+            >>> idx.T
+            Index([1, 2, 3], dtype='Int64')
+
+        Returns:
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def copy(
@@ -197,11 +232,23 @@ class Index:
 
         Name is set on the new object.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = pd.Index(['a', 'b', 'c'])
+            >>> new_idx = idx.copy()
+            >>> idx is new_idx
+            False
+
         Args:
             name (Label, optional):
                 Set name for new object.
+
         Returns:
-            Index: Index reference to new object, which is a copy of this object.
+            Index:
+                Index reference to new object, which is a copy of this object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -210,7 +257,8 @@ class Index:
         Return the transpose, which is by definition self.
 
         Returns:
-            Index
+            bigframes.pandas.Index
+                An Index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -219,6 +267,16 @@ class Index:
 
         The class of a new Index is determined by dtype. When conversion is
         impossible, a TypeError exception is raised.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = pd.Index([1, 2, 3])
+            >>> idx
+            Index([1, 2, 3], dtype='Int64')
+
 
         Args:
             dtype (numpy dtype or pandas type):
@@ -235,12 +293,25 @@ class Index:
         This is primarily useful to get an individual level of values from a
         MultiIndex, but is provided on Index as well for compatibility.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = bpd.Index(list('abc'))
+            >>> idx
+            Index(['a', 'b', 'c'], dtype='string')
+
+            >>> idx.get_level_values(0)
+            Index(['a', 'b', 'c'], dtype='string')
+
         Args:
             level (int or str):
                 It is either the integer position or the name of the level.
 
         Returns:
-            Index: Calling object, as there is only one level in the Index.
+            Index:
+                Calling object, as there is only one level in the Index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -250,6 +321,29 @@ class Index:
 
         Useful with map for returning an indexer based on an index.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            animal
+            Ant      Ant
+            Bear    Bear
+            Cow      Cow
+            Name: animal, dtype: string
+
+            >>> idx.to_series(index=[0, 1, 2])
+            0     Ant
+            1    Bear
+            2     Cow
+            Name: animal, dtype: string
+
+            >>> idx.to_series(name='zoo')
+            animal
+            Ant      Ant
+            Bear    Bear
+            Cow      Cow
+            Name: zoo, dtype: string
+
         Args:
             index (Index, optional):
                 Index of resulting Series. If None, defaults to original index.
@@ -258,7 +352,8 @@ class Index:
                 index.
 
         Returns:
-            Series: The dtype will be based on the type of the Index values.
+            bigframes.pandas.Series:
+                The dtype will be based on the type of the Index values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
