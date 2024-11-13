@@ -16,22 +16,24 @@
 
 from __future__ import annotations
 
+import datetime
 import functools
 import inspect
 import itertools
 import numbers
 import textwrap
 import typing
-from typing import Any, cast, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, cast, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.series as vendored_pandas_series
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
 import pandas.core.dtypes.common
+import pyarrow as pa
 import typing_extensions
 
-import bigframes.constants as constants
 import bigframes.core
 from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
@@ -45,7 +47,7 @@ import bigframes.core.scalar as scalars
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
 import bigframes.core.window
-import bigframes.core.window_spec
+import bigframes.core.window_spec as windows
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
@@ -53,9 +55,13 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
 import bigframes.operations.datetimes as dt
+import bigframes.operations.lists as lists
 import bigframes.operations.plotting as plotting
 import bigframes.operations.strings as strings
 import bigframes.operations.structs as structs
+
+if typing.TYPE_CHECKING:
+    import bigframes.geopandas.geoseries
 
 LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
@@ -65,6 +71,8 @@ _remote_function_recommendation_message = (
     "Your functions could not be applied directly to the Series."
     " Try converting it to a remote function."
 )
+
+_list = list  # Type alias to escape Series.list property
 
 
 @log_adapter.class_logger
@@ -85,6 +93,20 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def dtypes(self):
         return self._dtype
+
+    @property
+    def geo(self) -> bigframes.geopandas.geoseries.GeoSeries:
+        """
+        Accessor object for geography properties of the Series values.
+
+        Returns:
+            bigframes.geopandas.geoseries.GeoSeries:
+                An accessor containing geography methods.
+
+        """
+        import bigframes.geopandas.geoseries
+
+        return bigframes.geopandas.geoseries.GeoSeries(self)
 
     @property
     @validations.requires_index
@@ -162,6 +184,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return structs.StructAccessor(self._block)
 
     @property
+    def list(self) -> lists.ListAccessor:
+        return lists.ListAccessor(self._block)
+
+    @property
     @validations.requires_ordering()
     def T(self) -> Series:
         return self.transpose()
@@ -174,11 +200,19 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def _session(self) -> bigframes.Session:
         return self._get_block().expr.session
 
+    @property
+    def _struct_fields(self) -> List[str]:
+        if not bigframes.dtypes.is_struct_like(self._dtype):
+            return []
+
+        struct_type = typing.cast(pa.StructType, self._dtype.pyarrow_dtype)
+        return [struct_type.field(i).name for i in range(struct_type.num_fields)]
+
     @validations.requires_ordering()
     def transpose(self) -> Series:
         return self
 
-    def _set_internal_query_job(self, query_job: bigquery.QueryJob):
+    def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
 
     def __len__(self):
@@ -438,33 +472,21 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def case_when(self, caselist) -> Series:
+        cases = list(itertools.chain(*caselist, (True, self)))
         return self._apply_nary_op(
             ops.case_when_op,
-            tuple(
-                itertools.chain(
-                    itertools.chain(*caselist),
-                    # Fallback to current value if no other matches.
-                    (
-                        # We make a Series with a constant value to avoid casts to
-                        # types other than boolean.
-                        Series(True, index=self.index, dtype=pandas.BooleanDtype()),
-                        self,
-                    ),
-                ),
-            ),
+            cases,
             # Self is already included in "others".
             ignore_self=True,
-        )
+        ).rename(self.name)
 
     @validations.requires_ordering()
     def cumsum(self) -> Series:
-        return self._apply_window_op(
-            agg_ops.sum_op, bigframes.core.window_spec.cumulative_rows()
-        )
+        return self._apply_window_op(agg_ops.sum_op, windows.cumulative_rows())
 
     @validations.requires_ordering()
     def ffill(self, *, limit: typing.Optional[int] = None) -> Series:
-        window = bigframes.core.window_spec.rows(preceding=limit, following=0)
+        window = windows.rows(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
     pad = ffill
@@ -472,42 +494,30 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @validations.requires_ordering()
     def bfill(self, *, limit: typing.Optional[int] = None) -> Series:
-        window = bigframes.core.window_spec.rows(preceding=0, following=limit)
+        window = windows.rows(preceding=0, following=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
 
     @validations.requires_ordering()
     def cummax(self) -> Series:
-        return self._apply_window_op(
-            agg_ops.max_op, bigframes.core.window_spec.cumulative_rows()
-        )
+        return self._apply_window_op(agg_ops.max_op, windows.cumulative_rows())
 
     @validations.requires_ordering()
     def cummin(self) -> Series:
-        return self._apply_window_op(
-            agg_ops.min_op, bigframes.core.window_spec.cumulative_rows()
-        )
+        return self._apply_window_op(agg_ops.min_op, windows.cumulative_rows())
 
     @validations.requires_ordering()
     def cumprod(self) -> Series:
-        return self._apply_window_op(
-            agg_ops.product_op, bigframes.core.window_spec.cumulative_rows()
-        )
+        return self._apply_window_op(agg_ops.product_op, windows.cumulative_rows())
 
     @validations.requires_ordering()
     def shift(self, periods: int = 1) -> Series:
-        window = bigframes.core.window_spec.rows(
-            preceding=periods if periods > 0 else None,
-            following=-periods if periods < 0 else None,
-        )
-        return self._apply_window_op(agg_ops.ShiftOp(periods), window)
+        window_spec = windows.rows()
+        return self._apply_window_op(agg_ops.ShiftOp(periods), window_spec)
 
     @validations.requires_ordering()
     def diff(self, periods: int = 1) -> Series:
-        window = bigframes.core.window_spec.rows(
-            preceding=periods if periods > 0 else None,
-            following=-periods if periods < 0 else None,
-        )
-        return self._apply_window_op(agg_ops.DiffOp(periods), window)
+        window_spec = windows.rows()
+        return self._apply_window_op(agg_ops.DiffOp(periods), window_spec)
 
     @validations.requires_ordering()
     def pct_change(self, periods: int = 1) -> Series:
@@ -581,6 +591,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return Series(block.select_column(result_col))
 
     def _mapping_replace(self, mapping: dict[typing.Hashable, typing.Hashable]):
+        if not mapping:
+            return self.copy()
+
         tuples = []
         lcd_types: list[typing.Optional[bigframes.dtypes.Dtype]] = []
         for key, value in mapping.items():
@@ -597,6 +610,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         result_dtype = functools.reduce(
             lambda t1, t2: bigframes.dtypes.lcd_type(t1, t2) if (t1 and t2) else None,
             lcd_types,
+            self.dtype,
         )
         if not result_dtype:
             raise NotImplementedError(
@@ -605,7 +619,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block, result = self._block.apply_unary_op(
             self._value_column, ops.MapOp(tuple(tuples))
         )
-        return Series(block.select_column(result))
+        replaced = Series(block.select_column(result))
+        replaced.name = self.name
+        return replaced
 
     @validations.requires_ordering()
     @validations.requires_index
@@ -1040,7 +1056,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block, max_value_count_col_id = block.apply_window_op(
             value_count_col_id,
             agg_ops.max_op,
-            window_spec=bigframes.core.window_spec.unbound(),
+            window_spec=windows.unbound(),
         )
         block, is_mode_col_id = block.apply_binary_op(
             value_count_col_id,
@@ -1107,6 +1123,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def __neg__(self) -> Series:
         return self._apply_unary_op(ops.neg_op)
 
+    def __dir__(self) -> List[str]:
+        return dir(type(self)) + self._struct_fields
+
     def eq(self, other: object) -> Series:
         # TODO: enforce stricter alignment
         return self._apply_binary_op(other, ops.eq_op)
@@ -1115,10 +1134,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         # TODO: enforce stricter alignment
         return self._apply_binary_op(other, ops.ne_op)
 
+    def items(self):
+        for batch_df in self._block.to_pandas_batches():
+            assert (
+                batch_df.shape[1] == 1
+            ), f"Expected 1 column in the dataframe, but got {batch_df.shape[1]}."
+            for item in batch_df.squeeze(axis=1).items():
+                yield item
+
     def where(self, cond, other=None):
         value_id, cond_id, other_id, block = self._align3(cond, other)
-        block, result_id = block.apply_ternary_op(
-            value_id, cond_id, other_id, ops.where_op
+        block, result_id = block.project_expr(
+            ops.where_op.as_expr(value_id, cond_id, other_id)
         )
         return Series(block.select_column(result_id).with_column_labels([self.name]))
 
@@ -1130,8 +1157,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if upper is None:
             return self._apply_binary_op(lower, ops.maximum_op, alignment="left")
         value_id, lower_id, upper_id, block = self._align3(lower, upper)
-        block, result_id = block.apply_ternary_op(
-            value_id, lower_id, upper_id, ops.clip_op
+        block, result_id = block.project_expr(
+            ops.clip_op.as_expr(value_id, lower_id, upper_id),
         )
         return Series(block.select_column(result_id).with_column_labels([self.name]))
 
@@ -1243,15 +1270,23 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return self.iloc[indexer]
         if isinstance(indexer, Series):
             (left, right, block) = self._align(indexer, "left")
-            block = block.filter_by_id(right)
-            block = block.select_column(left)
+            block = block.filter(right)
+            block = block.select_column(left.id.name)
             return Series(block)
         return self.loc[indexer]
 
     __getitem__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__getitem__)
 
     def __getattr__(self, key: str):
-        if hasattr(pandas.Series, key):
+        # Protect against recursion errors with uninitialized Series objects.
+        # We use "_block" attribute to check whether the instance is initialized.
+        # See:
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/728
+        # and
+        # https://nedbatchelder.com/blog/201010/surprising_getattr_recursion.html
+        if key == "_block":
+            raise AttributeError(key)
+        elif hasattr(pandas.Series, key):
             raise AttributeError(
                 textwrap.dedent(
                     f"""
@@ -1260,22 +1295,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     """
                 )
             )
+        elif key in self._struct_fields:
+            return self.struct.field(key)
         else:
             raise AttributeError(key)
-
-    def _align3(self, other1: Series | scalars.Scalar, other2: Series | scalars.Scalar, how="left") -> tuple[str, str, str, blocks.Block]:  # type: ignore
-        """Aligns the series value with 2 other scalars or series objects. Returns new values and joined tabled expression."""
-        values, index = self._align_n([other1, other2], how)
-        return (values[0], values[1], values[2], index)
 
     def _apply_aggregation(
         self, op: agg_ops.UnaryAggregateOp | agg_ops.NullaryAggregateOp
     ) -> Any:
         return self._block.get_stat(self._value_column, op)
 
-    def _apply_window_op(
-        self, op: agg_ops.WindowOp, window_spec: bigframes.core.window_spec.WindowSpec
-    ):
+    def _apply_window_op(self, op: agg_ops.WindowOp, window_spec: windows.WindowSpec):
         block = self._block
         block, result_id = block.apply_window_op(
             self._value_column, op, window_spec=window_spec, result_label=self.name
@@ -1332,7 +1362,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @validations.requires_ordering()
     def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
         # To get n size window, need current row and n-1 preceding rows.
-        window_spec = bigframes.core.window_spec.rows(
+        window_spec = windows.rows(
             preceding=window - 1, following=0, min_periods=min_periods or window
         )
         return bigframes.core.window.Window(
@@ -1341,9 +1371,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @validations.requires_ordering()
     def expanding(self, min_periods: int = 1) -> bigframes.core.window.Window:
-        window_spec = bigframes.core.window_spec.cumulative_rows(
-            min_periods=min_periods
-        )
+        window_spec = windows.cumulative_rows(min_periods=min_periods)
         return bigframes.core.window.Window(
             self._block, window_spec, self._block.value_columns, is_series=True
         )
@@ -1468,19 +1496,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     ex.message += f"\n{_remote_function_recommendation_message}"
                 raise
 
-        # We are working with remote function at this point.
-        # Reproject as workaround to applying filter too late. This forces the
-        # filter to be applied before passing data to remote function,
-        # protecting from bad inputs causing errors.
-        reprojected_series = Series(self._block._force_reproject())
-        result_series = reprojected_series._apply_unary_op(
+        # We are working with remote function at this point
+        result_series = self._apply_unary_op(
             ops.RemoteFunctionOp(func=func, apply_on_null=True)
         )
 
-        # return Series with materialized result so that any error in the remote
-        # function is caught early
-        materialized_series = result_series._cached(session_aware=False)
-        return materialized_series
+        return result_series
 
     def combine(
         self,
@@ -1504,18 +1525,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     ex.message += f"\n{_remote_function_recommendation_message}"
                 raise
 
-        # Reproject as workaround to applying filter too late. This forces the
-        # filter to be applied before passing data to remote function,
-        # protecting from bad inputs causing errors.
-        reprojected_series = Series(self._block._force_reproject())
-        result_series = reprojected_series._apply_binary_op(
+        result_series = self._apply_binary_op(
             other, ops.BinaryRemoteFunctionOp(func=func)
         )
 
-        # return Series with materialized result so that any error in the remote
-        # function is caught early
-        materialized_series = result_series._cached()
-        return materialized_series
+        return result_series
 
     @validations.requires_index
     def add_prefix(self, prefix: str, axis: int | str | None = None) -> Series:
@@ -1612,9 +1626,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)
         return Series(block)
 
-    @validations.requires_ordering()
-    def unique(self) -> Series:
-        return self.drop_duplicates()
+    def unique(self, keep_order=True) -> Series:
+        if keep_order:
+            validations.enforce_ordered(self, "unique(keep_order != False)")
+            return self.drop_duplicates()
+        block, result = self._block.aggregate(
+            [self._value_column],
+            [(self._value_column, agg_ops.AnyValueOp())],
+            dropna=False,
+        )
+        return Series(block.select_columns(result).reset_index())
 
     def duplicated(self, keep: str = "first") -> Series:
         if keep is not False:
@@ -1647,7 +1668,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         provided_name = name if name else self.name
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
         block = self._block.with_column_labels(
-            [provided_name] if provided_name else ["0"]
+            [provided_name] if provided_name else [0]
         )
         return bigframes.dataframe.DataFrame(block)
 
@@ -1702,7 +1723,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             buf, columns=columns, header=header, index=index, **kwargs
         )
 
-    def tolist(self) -> list:
+    def tolist(self) -> _list:
         return self.to_pandas().to_list()
 
     to_list = tolist
@@ -1818,9 +1839,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         ns = (n,) if n is not None else ()
         fracs = (frac,) if frac is not None else ()
         return Series(
-            self._block._split(
-                ns=ns, fracs=fracs, random_state=random_state, sort=sort
-            )[0]
+            self._block.split(ns=ns, fracs=fracs, random_state=random_state, sort=sort)[
+                0
+            ]
         )
 
     def explode(self, *, ignore_index: Optional[bool] = False) -> Series:
@@ -1829,6 +1850,72 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 column_ids=[self._value_column], ignore_index=ignore_index
             )
         )
+
+    @validations.requires_ordering()
+    def _resample(
+        self,
+        rule: str,
+        *,
+        closed: Optional[Literal["right", "left"]] = None,
+        label: Optional[Literal["right", "left"]] = None,
+        level: Optional[LevelsType] = None,
+        origin: Union[
+            Union[
+                pandas.Timestamp, datetime.datetime, numpy.datetime64, int, float, str
+            ],
+            Literal["epoch", "start", "start_day", "end", "end_day"],
+        ] = "start_day",
+    ) -> bigframes.core.groupby.SeriesGroupBy:
+        """Internal function to support resample. Resample time-series data.
+
+        **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> import pandas as pd
+        >>> bpd.options.display.progress_bar = None
+
+        >>> data = {
+        ...     "timestamp_col": pd.date_range(
+        ...         start="2021-01-01 13:00:00", periods=30, freq="1s"
+        ...     ),
+        ...     "int64_col": range(30),
+        ... }
+        >>> s = bpd.DataFrame(data).set_index("timestamp_col")
+        >>> s._resample(rule="7s", origin="epoch").min()
+                             int64_col
+        2021-01-01 12:59:56          0
+        2021-01-01 13:00:03          3
+        2021-01-01 13:00:10         10
+        2021-01-01 13:00:17         17
+        2021-01-01 13:00:24         24
+        <BLANKLINE>
+        [5 rows x 1 columns]
+
+
+        Args:
+            rule (str):
+                The offset string representing target conversion.
+            level (str or int, default None):
+                For a MultiIndex, level (name or number) to use for resampling.
+                level must be datetime-like.
+            origin(str, default 'start_day'):
+                The timestamp on which to adjust the grouping. Must be one of the following:
+                'epoch': origin is 1970-01-01
+                'start': origin is the first value of the timeseries
+                'start_day': origin is the first day at midnight of the timeseries
+        Returns:
+            SeriesGroupBy: SeriesGroupBy object.
+        """
+        block = self._block._generate_resample_label(
+            rule=rule,
+            closed=closed,
+            label=label,
+            on=None,
+            level=level,
+            origin=origin,
+        )
+        series = Series(block)
+        return series.groupby(level=0)
 
     def __array_ufunc__(
         self, ufunc: numpy.ufunc, method: str, *inputs, **kwargs
@@ -1868,9 +1955,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         step: typing.Optional[int] = None,
     ) -> bigframes.series.Series:
         return bigframes.series.Series(
-            self._block.slice(start=start, stop=stop, step=step).select_column(
-                self._value_column
-            ),
+            self._block.slice(
+                start=start, stop=stop, step=step if (step is not None) else 1
+            ).select_column(self._value_column),
         )
 
     def cache(self):

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime
 import inspect
+import itertools
 import re
 import sys
 import textwrap
@@ -37,6 +38,7 @@ from typing import (
 import warnings
 
 import bigframes.dataframe
+import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 from bigframes_vendored.pandas.core.reshape import concat
@@ -50,7 +52,6 @@ import tabulate
 import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.constants
-import bigframes.constants as constants
 import bigframes.core
 from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
@@ -66,14 +67,16 @@ import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
 import bigframes.core.window
-import bigframes.core.window_spec as window_spec
+import bigframes.core.window_spec as windows
 from bigframes.core import nested_data_context_manager
 import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
+import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.plotting as plotting
+import bigframes.operations.semantics
 import bigframes.operations.structs
 import bigframes.series
 import bigframes.series as bf_series
@@ -81,6 +84,8 @@ import bigframes.session._io.bigquery
 
 
 if typing.TYPE_CHECKING:
+    from _typeshed import SupportsRichComparison
+
     import bigframes.session
 
     SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
@@ -115,12 +120,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         session: typing.Optional[bigframes.session.Session] = None,
     ):
+        global bigframes
+
         if copy is not None and not copy:
             raise ValueError(
                 f"DataFrame constructor only supports copy=True. {constants.FEEDBACK_LINK}"
             )
-        # just ignore object dtype if provided
-        if dtype in {numpy.dtypes.ObjectDType, "object"}:
+        # Ignore object dtype if provided, as it provides no additional
+        # information about what BigQuery type to use.
+        if dtype is not None and bigframes.dtypes.is_object_like(dtype):
             dtype = None
 
         # Check to see if constructing from BigQuery-backed objects before
@@ -378,7 +386,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 whether to include index columns.
 
         Returns:
-            a tuple of (sql_string, index_column_id_list, index_column_label_list).
+            Tuple[sql_string, index_column_id_list, index_column_label_list]:
                 If include_index is set to False, index_column_id_list and index_column_label_list
                 return empty lists.
         """
@@ -386,7 +394,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def sql(self) -> str:
-        """Compiles this DataFrame's expression tree to SQL."""
+        """Compiles this DataFrame's expression tree to SQL.
+
+        Returns:
+            str:
+                string representing the compiled SQL.
+        """
         include_index = self._has_index and (
             self.index.name is not None or len(self.index.names) > 1
         )
@@ -398,8 +411,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """BigQuery job metadata for the most recent query.
 
         Returns:
-            The most recent `QueryJob
-            <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
+            None or google.cloud.bigquery.QueryJob:
+                The most recent `QueryJob
+                <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
         """
         if self._query_job is None:
             self._set_internal_query_job(self._compute_dry_run())
@@ -501,7 +515,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(self._block.select_columns(selected_columns))
 
-    def _set_internal_query_job(self, query_job: bigquery.QueryJob):
+    def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
 
     def __getitem__(
@@ -651,7 +665,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        self._cached()
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -698,7 +711,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        self._cached()
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -759,11 +771,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if reverse:
             expr = op.as_expr(
                 left_input=ex.const(other),
-                right_input=bigframes.core.guid.generate_guid(),
+                right_input=ex.free_var("var1"),
             )
         else:
             expr = op.as_expr(
-                left_input=bigframes.core.guid.generate_guid(),
+                left_input=ex.free_var("var1"),
                 right_input=ex.const(other),
             )
         return DataFrame(
@@ -778,7 +790,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         reverse: bool = False,
     ) -> DataFrame:
         bf_series = bigframes.core.convert.to_bf_series(
-            other, self.index, self._session
+            other, self.index if self._has_index else None, self._session
         )
         aligned_block, columns, expr_pairs = self._block._align_axis_0(
             bf_series._block, how=how
@@ -1931,6 +1943,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _reindex_columns(self, columns):
         block = self._block
         new_column_index, indexer = self.columns.reindex(columns)
+
+        if indexer is None:
+            # The new index is the same as the old one. Do nothing.
+            return self
+
         result_cols = []
         for label, index in zip(columns, indexer):
             if index >= 0:
@@ -1976,12 +1993,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @validations.requires_ordering()
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
-        window = window_spec.rows(preceding=limit, following=0)
+        window = windows.rows(preceding=limit, following=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
     @validations.requires_ordering()
     def bfill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
-        window = window_spec.rows(preceding=0, following=limit)
+        window = windows.rows(preceding=0, following=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
 
     def isin(self, values) -> DataFrame:
@@ -2038,8 +2055,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         *,
         axis: int | str = 0,
-        inplace: bool = False,
         how: str = "any",
+        subset: typing.Union[None, blocks.Label, Sequence[blocks.Label]] = None,
+        inplace: bool = False,
         ignore_index=False,
     ) -> DataFrame:
         if inplace:
@@ -2051,8 +2069,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         axis_n = utils.get_axis_number(axis)
 
+        if subset is not None and axis_n != 0:
+            raise NotImplementedError(
+                f"subset only supported when axis=0. {constants.FEEDBACK_LINK}"
+            )
+
         if axis_n == 0:
-            result = block_ops.dropna(self._block, self._block.value_columns, how=how)  # type: ignore
+            # subset needs to be converted into column IDs, not column labels.
+            if subset is None:
+                subset_ids = None
+            elif not utils.is_list_like(subset):
+                subset_ids = [id_ for id_ in self._block.label_to_col_id[subset]]
+            else:
+                subset_ids = [
+                    id_
+                    for label in subset
+                    for id_ in self._block.label_to_col_id[label]
+                ]
+
+            result = block_ops.dropna(self._block, self._block.value_columns, how=how, subset=subset_ids)  # type: ignore
             if ignore_index:
                 result = result.reset_index()
             return DataFrame(result)
@@ -2220,14 +2255,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self, func: str | typing.Sequence[str]
     ) -> DataFrame | bigframes.series.Series:
         if utils.is_list_like(func):
-            if any(
-                dtype not in bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
-                for dtype in self.dtypes
-            ):
-                raise NotImplementedError(
-                    f"Multiple aggregations only supported on numeric columns. {constants.FEEDBACK_LINK}"
-                )
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
+
+            for dtype, agg in itertools.product(self.dtypes, aggregations):
+                if not bigframes.operations.aggregations.is_agg_op_supported(
+                    dtype, agg
+                ):
+                    raise NotImplementedError(
+                        f"Type {dtype} does not support aggregation {agg}. "
+                        f"Share your usecase with the BigQuery DataFrames team at the {constants.FEEDBACK_LINK}"
+                    )
+
             return DataFrame(
                 self._block.summarize(
                     self._block.value_columns,
@@ -2293,16 +2331,63 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._block.melt(id_col_ids, val_col_ids, var_name, value_name)
         )
 
-    def describe(self) -> DataFrame:
-        df_numeric = self._drop_non_numeric(permissive=False)
-        if len(df_numeric.columns) == 0:
-            raise NotImplementedError(
-                f"df.describe() currently only supports numeric values. {constants.FEEDBACK_LINK}"
-            )
-        result = df_numeric.agg(
-            ["count", "mean", "std", "min", "25%", "50%", "75%", "max"]
+    def describe(self, include: None | Literal["all"] = None) -> DataFrame:
+        if include is None:
+            numeric_df = self._drop_non_numeric(permissive=False)
+            if len(numeric_df.columns) == 0:
+                # Describe eligible non-numeric columns
+                return self._describe_non_numeric()
+
+            # Otherwise, only describe numeric columns
+            return self._describe_numeric()
+
+        elif include == "all":
+            numeric_result = self._describe_numeric()
+            non_numeric_result = self._describe_non_numeric()
+
+            if len(numeric_result.columns) == 0:
+                return non_numeric_result
+            elif len(non_numeric_result.columns) == 0:
+                return numeric_result
+            else:
+                import bigframes.core.reshape as rs
+
+                # Use reindex after join to preserve the original column order.
+                return rs.concat(
+                    [non_numeric_result, numeric_result], axis=1
+                )._reindex_columns(self.columns)
+
+        else:
+            raise ValueError(f"Unsupported include type: {include}")
+
+    def _describe_numeric(self) -> DataFrame:
+        return typing.cast(
+            DataFrame,
+            self._drop_non_numeric(permissive=False).agg(
+                [
+                    "count",
+                    "mean",
+                    "std",
+                    "min",
+                    "25%",
+                    "50%",
+                    "75%",
+                    "max",
+                ]
+            ),
         )
-        return typing.cast(DataFrame, result)
+
+    def _describe_non_numeric(self) -> DataFrame:
+        return typing.cast(
+            DataFrame,
+            self.select_dtypes(
+                include={
+                    bigframes.dtypes.STRING_DTYPE,
+                    bigframes.dtypes.BOOL_DTYPE,
+                    bigframes.dtypes.BYTES_DTYPE,
+                }
+            ).agg(["count", "nunique"]),
+        )
 
     def skew(self, *, numeric_only: bool = False):
         if not numeric_only:
@@ -2408,7 +2493,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             values = [values]
 
         # Unlike pivot, pivot_table has values always ordered.
-        values.sort()
+        values.sort(key=lambda val: typing.cast("SupportsRichComparison", val))
 
         keys = index + columns
         agged = self.groupby(keys, dropna=True)[values].agg(aggfunc)
@@ -2500,7 +2585,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(pivot_block)
 
     def _drop_non_numeric(self, permissive=True) -> DataFrame:
-        types_to_keep = (
+        numeric_types = (
             set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE)
             if permissive
             else set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE)
@@ -2508,7 +2593,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         non_numeric_cols = [
             col_id
             for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
-            if dtype not in types_to_keep
+            if dtype not in numeric_types
         ]
         return DataFrame(self._block.drop_columns(non_numeric_cols))
 
@@ -2688,7 +2773,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @validations.requires_ordering()
     def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
         # To get n size window, need current row and n-1 preceding rows.
-        window_def = window_spec.rows(
+        window_def = windows.rows(
             preceding=window - 1, following=0, min_periods=min_periods or window
         )
         return bigframes.core.window.Window(
@@ -2697,7 +2782,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @validations.requires_ordering()
     def expanding(self, min_periods: int = 1) -> bigframes.core.window.Window:
-        window = window_spec.cumulative_rows(min_periods=min_periods)
+        window = windows.cumulative_rows(min_periods=min_periods)
         return bigframes.core.window.Window(
             self._block, window, self._block.value_columns
         )
@@ -2808,7 +2893,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("All values must be numeric to apply cumsum.")
         return self._apply_window_op(
             agg_ops.sum_op,
-            window_spec.cumulative_rows(),
+            windows.cumulative_rows(),
         )
 
     @validations.requires_ordering()
@@ -2821,38 +2906,32 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError("All values must be numeric to apply cumsum.")
         return self._apply_window_op(
             agg_ops.product_op,
-            window_spec.cumulative_rows(),
+            windows.cumulative_rows(),
         )
 
     @validations.requires_ordering()
     def cummin(self) -> DataFrame:
         return self._apply_window_op(
             agg_ops.min_op,
-            window_spec.cumulative_rows(),
+            windows.cumulative_rows(),
         )
 
     @validations.requires_ordering()
     def cummax(self) -> DataFrame:
         return self._apply_window_op(
             agg_ops.max_op,
-            window_spec.cumulative_rows(),
+            windows.cumulative_rows(),
         )
 
     @validations.requires_ordering()
     def shift(self, periods: int = 1) -> DataFrame:
-        window = window_spec.rows(
-            preceding=periods if periods > 0 else None,
-            following=-periods if periods < 0 else None,
-        )
-        return self._apply_window_op(agg_ops.ShiftOp(periods), window)
+        window_spec = windows.rows()
+        return self._apply_window_op(agg_ops.ShiftOp(periods), window_spec)
 
     @validations.requires_ordering()
     def diff(self, periods: int = 1) -> DataFrame:
-        window = window_spec.rows(
-            preceding=periods if periods > 0 else None,
-            following=-periods if periods < 0 else None,
-        )
-        return self._apply_window_op(agg_ops.DiffOp(periods), window)
+        window_spec = windows.rows()
+        return self._apply_window_op(agg_ops.DiffOp(periods), window_spec)
 
     @validations.requires_ordering()
     def pct_change(self, periods: int = 1) -> DataFrame:
@@ -2863,7 +2942,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _apply_window_op(
         self,
         op: agg_ops.WindowOp,
-        window_spec: window_spec.WindowSpec,
+        window_spec: windows.WindowSpec,
     ):
         block, result_ids = self._block.multi_apply_window_op(
             self._block.value_columns,
@@ -2887,9 +2966,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ns = (n,) if n is not None else ()
         fracs = (frac,) if frac is not None else ()
         return DataFrame(
-            self._block._split(
-                ns=ns, fracs=fracs, random_state=random_state, sort=sort
-            )[0]
+            self._block.split(ns=ns, fracs=fracs, random_state=random_state, sort=sort)[
+                0
+            ]
         )
         
         
@@ -2929,8 +3008,90 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         At most one of ns and fracs can be passed in. If neither, default to ns = (1,).
         Return a list of sampled DataFrames.
         """
-        blocks = self._block._split(ns=ns, fracs=fracs, random_state=random_state)
+        blocks = self._block.split(ns=ns, fracs=fracs, random_state=random_state)
         return [DataFrame(block) for block in blocks]
+
+    @validations.requires_ordering()
+    def _resample(
+        self,
+        rule: str,
+        *,
+        on: blocks.Label = None,
+        level: Optional[LevelsType] = None,
+        origin: Union[
+            Union[
+                pandas.Timestamp, datetime.datetime, numpy.datetime64, int, float, str
+            ],
+            Literal["epoch", "start", "start_day", "end", "end_day"],
+        ] = "start_day",
+    ) -> bigframes.core.groupby.DataFrameGroupBy:
+        """Internal function to support resample. Resample time-series data.
+
+        **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> import pandas as pd
+        >>> bpd.options.display.progress_bar = None
+
+        >>> data = {
+        ...     "timestamp_col": pd.date_range(
+        ...         start="2021-01-01 13:00:00", periods=30, freq="1s"
+        ...     ),
+        ...     "int64_col": range(30),
+        ...     "int64_too": range(10, 40),
+        ... }
+
+        Resample on a DataFrame with index:
+
+        >>> df = bpd.DataFrame(data).set_index("timestamp_col")
+        >>> df._resample(rule="7s").min()
+                             int64_col  int64_too
+        2021-01-01 12:59:55          0         10
+        2021-01-01 13:00:02          2         12
+        2021-01-01 13:00:09          9         19
+        2021-01-01 13:00:16         16         26
+        2021-01-01 13:00:23         23         33
+        <BLANKLINE>
+        [5 rows x 2 columns]
+
+        Resample with column and origin set to 'start':
+
+        >>> df = bpd.DataFrame(data)
+        >>> df._resample(rule="7s", on = "timestamp_col", origin="start").min()
+                             int64_col  int64_too
+        2021-01-01 13:00:00          0         10
+        2021-01-01 13:00:07          7         17
+        2021-01-01 13:00:14         14         24
+        2021-01-01 13:00:21         21         31
+        2021-01-01 13:00:28         28         38
+        <BLANKLINE>
+        [5 rows x 2 columns]
+
+        Args:
+            rule (str):
+                The offset string representing target conversion.
+            on (str, default None):
+                For a DataFrame, column to use instead of index for resampling. Column
+                must be datetime-like.
+            level (str or int, default None):
+                For a MultiIndex, level (name or number) to use for resampling.
+                level must be datetime-like.
+            origin(str, default 'start_day'):
+                The timestamp on which to adjust the grouping. Must be one of the following:
+                'epoch': origin is 1970-01-01
+                'start': origin is the first value of the timeseries
+                'start_day': origin is the first day at midnight of the timeseries
+        Returns:
+            DataFrameGroupBy: DataFrameGroupBy object.
+        """
+        block = self._block._generate_resample_label(
+            rule=rule,
+            on=on,
+            level=level,
+            origin=origin,
+        )
+        df = DataFrame(block)
+        return df.groupby(level=0)
 
     @classmethod
     def from_dict(
@@ -2977,17 +3138,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if "*" not in path_or_buf:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
 
-        result_table = self._run_io_query(
-            index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
+        export_array, id_overrides = self._prepare_export(
+            index=index and self._has_index,
+            ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID,
         )
-        export_data_statement = bigframes.session._io.bigquery.create_export_csv_statement(
-            f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
-            uri=path_or_buf,
-            field_delimiter=sep,
-            header=header,
-        )
-        _, query_job = self._block.expr.session._start_query(
-            export_data_statement, api_name="dataframe-to_csv"
+        options = {
+            "field_delimiter": sep,
+            "header": header,
+        }
+        query_job = self._session._executor.export_gcs(
+            export_array,
+            id_overrides,
+            path_or_buf,
+            format="csv",
+            export_options=options,
         )
         self._set_internal_query_job(query_job)
         return None
@@ -3027,17 +3191,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 "'lines' keyword is only valid when 'orient' is 'records'."
             )
 
-        result_table = self._run_io_query(
-            index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
+        export_array, id_overrides = self._prepare_export(
+            index=index and self._has_index,
+            ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID,
         )
-        export_data_statement = bigframes.session._io.bigquery.create_export_data_statement(
-            f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
-            uri=path_or_buf,
-            format="JSON",
-            export_options={},
-        )
-        _, query_job = self._block.expr.session._start_query(
-            export_data_statement, api_name="dataframe-to_json"
+        query_job = self._session._executor.export_gcs(
+            export_array, id_overrides, path_or_buf, format="json", export_options={}
         )
         self._set_internal_query_job(query_job)
         return None
@@ -3050,7 +3209,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         index: bool = True,
         ordering_id: Optional[str] = None,
         clustering_columns: Union[pandas.Index, Iterable[typing.Hashable]] = (),
+        labels: dict[str, str] = {},
     ) -> str:
+        index = index and self._has_index
         temp_table_ref = None
 
         if destination_table is None:
@@ -3104,11 +3265,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         export_array, id_overrides = self._prepare_export(
             index=index and self._has_index, ordering_id=ordering_id
         )
-        destination = bigquery.table.TableReference.from_string(
-            destination_table,
-            default_project=default_project,
+        destination: bigquery.table.TableReference = (
+            bigquery.table.TableReference.from_string(
+                destination_table,
+                default_project=default_project,
+            )
         )
-        _, query_job = self._session._export(
+        query_job = self._session._executor.export_gbq(
             export_array,
             destination=destination,
             col_id_overrides=id_overrides,
@@ -3126,8 +3289,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 self._session.bqclient,
                 temp_table_ref,
                 datetime.datetime.now(datetime.timezone.utc)
-                + constants.DEFAULT_EXPIRATION,
+                + bigframes.constants.DEFAULT_EXPIRATION,
             )
+
+        if len(labels) != 0:
+            table = bigquery.Table(result_table)
+            table.labels = labels
+            self._session.bqclient.update_table(table, ["labels"])
 
         return destination_table
 
@@ -3166,17 +3334,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if compression:
             export_options["compression"] = compression.upper()
 
-        result_table = self._run_io_query(
-            index=index, ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID
+        export_array, id_overrides = self._prepare_export(
+            index=index and self._has_index,
+            ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID,
         )
-        export_data_statement = bigframes.session._io.bigquery.create_export_data_statement(
-            f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
-            uri=path,
-            format="PARQUET",
+        query_job = self._session._executor.export_gcs(
+            export_array,
+            id_overrides,
+            path,
+            format="parquet",
             export_options=export_options,
-        )
-        _, query_job = self._block.expr.session._start_query(
-            export_data_statement, api_name="dataframe-to_parquet"
         )
         self._set_internal_query_job(query_job)
         return None
@@ -3404,32 +3571,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         }
 
         if ordering_id is not None:
-            array_value = array_value.promote_offsets(ordering_id)
+            array_value, internal_ordering_id = array_value.promote_offsets()
+            id_overrides[internal_ordering_id] = ordering_id
         return array_value, id_overrides
-
-    def _run_io_query(
-        self,
-        index: bool,
-        ordering_id: Optional[str] = None,
-    ) -> bigquery.TableReference:
-        """Executes a query job presenting this dataframe and returns the destination
-        table."""
-        session = self._block.expr.session
-        export_array, id_overrides = self._prepare_export(
-            index=index and self._has_index, ordering_id=ordering_id
-        )
-
-        _, query_job = session._execute(
-            export_array,
-            ordered=False,
-            col_id_overrides=id_overrides,
-        )
-        self._set_internal_query_job(query_job)
-
-        # The query job should have finished, so there should be always be a result table.
-        result_table = query_job.destination
-        assert result_table is not None
-        return result_table
 
     def map(self, func, na_action: Optional[str] = None) -> DataFrame:
         if not callable(func):
@@ -3439,11 +3583,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError(f"na_action={na_action} not supported")
 
         # TODO(shobs): Support **kwargs
-        # Reproject as workaround to applying filter too late. This forces the
-        # filter to be applied before passing data to remote function,
-        # protecting from bad inputs causing errors.
-        reprojected_df = DataFrame(self._block._force_reproject())
-        return reprojected_df._apply_unary_op(
+        return self._apply_unary_op(
             ops.RemoteFunctionOp(func=func, apply_on_null=(na_action is None))
         )
 
@@ -3538,21 +3678,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     )
 
                 series_list = [self[col] for col in self.columns]
-                # Reproject as workaround to applying filter too late. This forces the
-                # filter to be applied before passing data to remote function,
-                # protecting from bad inputs causing errors.
-                reprojected_series = bigframes.series.Series(
-                    series_list[0]._block._force_reproject()
-                )
-                result_series = reprojected_series._apply_nary_op(
+                result_series = series_list[0]._apply_nary_op(
                     ops.NaryRemoteFunctionOp(func=func), series_list[1:]
                 )
             result_series.name = None
-
-            # Return Series with materialized result so that any error in the remote
-            # function is caught early
-            materialized_series = result_series.cache()
-            return materialized_series
+            return result_series
 
         # Per-column apply
         results = {name: func(col, *args, **kwargs) for name, col in self.items()}
@@ -3625,7 +3755,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
     ) -> DataFrame:
-        block = self._block.slice(start=start, stop=stop, step=step)
+        block = self._block.slice(
+            start=start, stop=stop, step=step if (step is not None) else 1
+        )
         return DataFrame(block)
 
     def __array_ufunc__(
@@ -3661,7 +3793,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Useful if the dataframe will be used multiple times, as this will avoid recomputating the shared intermediate value.
 
         Returns:
-            DataFrame: Self
+            bigframes.pandas.DataFrame: DataFrame
         """
         return self._cached(force=True)
 
@@ -3778,3 +3910,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise bigframes.exceptions.NullIndexError(
                 f"DataFrame cannot perform {opname} as it has no index. Set an index using set_index."
             )
+
+    @property
+    def semantics(self):
+        return bigframes.operations.semantics.Semantics(self)

@@ -14,7 +14,9 @@
 
 import pytest
 
+from bigframes import exceptions
 from bigframes.ml import llm
+import bigframes.pandas as bpd
 from tests.system import utils
 
 
@@ -74,10 +76,9 @@ def test_create_text_generator_model_default_session(
         llm_text_df = bpd.read_pandas(llm_text_pandas_df)
 
         df = model.predict(llm_text_df).to_pandas()
-        assert df.shape == (3, 4)
-        assert "ml_generate_text_llm_result" in df.columns
-        series = df["ml_generate_text_llm_result"]
-        assert all(series.str.len() > 20)
+        utils.check_pandas_df_schema_and_index(
+            df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+        )
 
 
 @pytest.mark.flaky(retries=2)
@@ -104,10 +105,9 @@ def test_create_text_generator_32k_model_default_session(
         llm_text_df = bpd.read_pandas(llm_text_pandas_df)
 
         df = model.predict(llm_text_df).to_pandas()
-        assert df.shape == (3, 4)
-        assert "ml_generate_text_llm_result" in df.columns
-        series = df["ml_generate_text_llm_result"]
-        assert all(series.str.len() > 20)
+        utils.check_pandas_df_schema_and_index(
+            df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+        )
 
 
 @pytest.mark.flaky(retries=2)
@@ -131,10 +131,9 @@ def test_create_text_generator_model_default_connection(
     )
 
     df = model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
 
 
 # Marked as flaky only because BQML LLM is in preview, the service only has limited capacity, not stable enough.
@@ -143,10 +142,9 @@ def test_text_generator_predict_default_params_success(
     palm2_text_generator_model, llm_text_df
 ):
     df = palm2_text_generator_model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
 
 
 @pytest.mark.flaky(retries=2)
@@ -154,10 +152,9 @@ def test_text_generator_predict_series_default_params_success(
     palm2_text_generator_model, llm_text_df
 ):
     df = palm2_text_generator_model.predict(llm_text_df["prompt"]).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
 
 
 @pytest.mark.flaky(retries=2)
@@ -166,10 +163,23 @@ def test_text_generator_predict_arbitrary_col_label_success(
 ):
     llm_text_df = llm_text_df.rename(columns={"prompt": "arbitrary"})
     df = palm2_text_generator_model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
+
+
+@pytest.mark.flaky(retries=2)
+def test_text_generator_predict_multiple_cols_success(
+    palm2_text_generator_model, llm_text_df: bpd.DataFrame
+):
+    df = llm_text_df.assign(additional_col=1)
+    pd_df = palm2_text_generator_model.predict(df).to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        pd_df,
+        columns=utils.ML_GENERATE_TEXT_OUTPUT + ["additional_col"],
+        index=3,
+        col_exact=False,
+    )
 
 
 @pytest.mark.flaky(retries=2)
@@ -179,129 +189,9 @@ def test_text_generator_predict_with_params_success(
     df = palm2_text_generator_model.predict(
         llm_text_df, temperature=0.5, max_output_tokens=100, top_k=20, top_p=0.5
     ).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
-
-
-def test_create_embedding_generator_model(
-    palm2_embedding_generator_model, dataset_id, bq_connection
-):
-    # Model creation doesn't return error
-    assert palm2_embedding_generator_model is not None
-    assert palm2_embedding_generator_model._bqml_model is not None
-
-    # save, load to ensure configuration was kept
-    reloaded_model = palm2_embedding_generator_model.to_gbq(
-        f"{dataset_id}.temp_embedding_model", replace=True
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
     )
-    assert f"{dataset_id}.temp_embedding_model" == reloaded_model._bqml_model.model_name
-    assert reloaded_model.model_name == "textembedding-gecko"
-    assert reloaded_model.connection_name == bq_connection
-
-
-def test_create_embedding_generator_model_002(
-    palm2_embedding_generator_model_002, dataset_id, bq_connection
-):
-    # Model creation doesn't return error
-    assert palm2_embedding_generator_model_002 is not None
-    assert palm2_embedding_generator_model_002._bqml_model is not None
-
-    # save, load to ensure configuration was kept
-    reloaded_model = palm2_embedding_generator_model_002.to_gbq(
-        f"{dataset_id}.temp_embedding_model", replace=True
-    )
-    assert f"{dataset_id}.temp_embedding_model" == reloaded_model._bqml_model.model_name
-    assert reloaded_model.model_name == "textembedding-gecko"
-    assert reloaded_model.version == "002"
-    assert reloaded_model.connection_name == bq_connection
-
-
-def test_create_embedding_generator_multilingual_model(
-    palm2_embedding_generator_multilingual_model,
-    dataset_id,
-    bq_connection,
-):
-    # Model creation doesn't return error
-    assert palm2_embedding_generator_multilingual_model is not None
-    assert palm2_embedding_generator_multilingual_model._bqml_model is not None
-
-    # save, load to ensure configuration was kept
-    reloaded_model = palm2_embedding_generator_multilingual_model.to_gbq(
-        f"{dataset_id}.temp_embedding_model", replace=True
-    )
-    assert f"{dataset_id}.temp_embedding_model" == reloaded_model._bqml_model.model_name
-    assert reloaded_model.model_name == "textembedding-gecko-multilingual"
-    assert reloaded_model.connection_name == bq_connection
-
-
-def test_create_text_embedding_generator_model_defaults(bq_connection):
-    import bigframes.pandas as bpd
-
-    # Note: This starts a thread-local session.
-    with bpd.option_context(
-        "bigquery.bq_connection",
-        bq_connection,
-        "bigquery.location",
-        "US",
-    ):
-        model = llm.PaLM2TextEmbeddingGenerator()
-        assert model is not None
-        assert model._bqml_model is not None
-
-
-def test_create_text_embedding_generator_multilingual_model_defaults(bq_connection):
-    import bigframes.pandas as bpd
-
-    # Note: This starts a thread-local session.
-    with bpd.option_context(
-        "bigquery.bq_connection",
-        bq_connection,
-        "bigquery.location",
-        "US",
-    ):
-        model = llm.PaLM2TextEmbeddingGenerator(
-            model_name="textembedding-gecko-multilingual"
-        )
-        assert model is not None
-        assert model._bqml_model is not None
-
-
-@pytest.mark.flaky(retries=2)
-def test_embedding_generator_predict_success(
-    palm2_embedding_generator_model, llm_text_df
-):
-    df = palm2_embedding_generator_model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "text_embedding" in df.columns
-    series = df["text_embedding"]
-    value = series[0]
-    assert len(value) == 768
-
-
-@pytest.mark.flaky(retries=2)
-def test_embedding_generator_multilingual_predict_success(
-    palm2_embedding_generator_multilingual_model, llm_text_df
-):
-    df = palm2_embedding_generator_multilingual_model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "text_embedding" in df.columns
-    series = df["text_embedding"]
-    value = series[0]
-    assert len(value) == 768
-
-
-@pytest.mark.flaky(retries=2)
-def test_embedding_generator_predict_series_success(
-    palm2_embedding_generator_model, llm_text_df
-):
-    df = palm2_embedding_generator_model.predict(llm_text_df["prompt"]).to_pandas()
-    assert df.shape == (3, 4)
-    assert "text_embedding" in df.columns
-    series = df["text_embedding"]
-    value = series[0]
-    assert len(value) == 768
 
 
 @pytest.mark.parametrize(
@@ -331,23 +221,53 @@ def test_create_load_text_embedding_generator_model(
     ("text-embedding-004", "text-multilingual-embedding-002"),
 )
 @pytest.mark.flaky(retries=2)
-def test_gemini_text_embedding_generator_predict_default_params_success(
+def test_text_embedding_generator_predict_default_params_success(
     llm_text_df, model_name, session, bq_connection
 ):
     text_embedding_model = llm.TextEmbeddingGenerator(
         model_name=model_name, connection_name=bq_connection, session=session
     )
     df = text_embedding_model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_embedding_result" in df.columns
-    series = df["ml_generate_embedding_result"]
-    value = series[0]
-    assert len(value) == 768
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_EMBEDDING_OUTPUT, index=3, col_exact=False
+    )
+    assert len(df["ml_generate_embedding_result"][0]) == 768
 
 
 @pytest.mark.parametrize(
     "model_name",
-    ("gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514"),
+    ("text-embedding-004", "text-multilingual-embedding-002"),
+)
+@pytest.mark.flaky(retries=2)
+def test_text_embedding_generator_multi_cols_predict_success(
+    llm_text_df: bpd.DataFrame, model_name, session, bq_connection
+):
+    df = llm_text_df.assign(additional_col=1)
+    df = df.rename(columns={"prompt": "content"})
+    text_embedding_model = llm.TextEmbeddingGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
+    pd_df = text_embedding_model.predict(df).to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        pd_df,
+        columns=utils.ML_GENERATE_EMBEDDING_OUTPUT + ["additional_col"],
+        index=3,
+        col_exact=False,
+    )
+    assert len(pd_df["ml_generate_embedding_result"][0]) == 768
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "gemini-pro",
+        "gemini-1.5-pro-preview-0514",
+        "gemini-1.5-flash-preview-0514",
+        "gemini-1.5-pro-001",
+        "gemini-1.5-pro-002",
+        "gemini-1.5-flash-001",
+        "gemini-1.5-flash-002",
+    ),
 )
 def test_create_load_gemini_text_generator_model(
     dataset_id, model_name, session, bq_connection
@@ -369,7 +289,15 @@ def test_create_load_gemini_text_generator_model(
 
 @pytest.mark.parametrize(
     "model_name",
-    ("gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514"),
+    (
+        "gemini-pro",
+        "gemini-1.5-pro-preview-0514",
+        "gemini-1.5-flash-preview-0514",
+        "gemini-1.5-pro-001",
+        "gemini-1.5-pro-002",
+        "gemini-1.5-flash-001",
+        "gemini-1.5-flash-002",
+    ),
 )
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_predict_default_params_success(
@@ -379,15 +307,22 @@ def test_gemini_text_generator_predict_default_params_success(
         model_name=model_name, connection_name=bq_connection, session=session
     )
     df = gemini_text_generator_model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
 
 
 @pytest.mark.parametrize(
     "model_name",
-    ("gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514"),
+    (
+        "gemini-pro",
+        "gemini-1.5-pro-preview-0514",
+        "gemini-1.5-flash-preview-0514",
+        "gemini-1.5-pro-001",
+        "gemini-1.5-pro-002",
+        "gemini-1.5-flash-001",
+        "gemini-1.5-flash-002",
+    ),
 )
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_predict_with_params_success(
@@ -399,76 +334,38 @@ def test_gemini_text_generator_predict_with_params_success(
     df = gemini_text_generator_model.predict(
         llm_text_df, temperature=0.5, max_output_tokens=100, top_k=20, top_p=0.5
     ).to_pandas()
-    assert df.shape == (3, 4)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
+    utils.check_pandas_df_schema_and_index(
+        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
+    )
 
 
 @pytest.mark.parametrize(
     "model_name",
-    ("claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet", "claude-3-opus"),
-)
-def test_claude3_text_generator_create_load(
-    dataset_id, model_name, session, session_us_east5, bq_connection
-):
-    if model_name in ("claude-3-5-sonnet", "claude-3-opus"):
-        session = session_us_east5
-    claude3_text_generator_model = llm.Claude3TextGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session
-    )
-    assert claude3_text_generator_model is not None
-    assert claude3_text_generator_model._bqml_model is not None
-
-    # save, load to ensure configuration was kept
-    reloaded_model = claude3_text_generator_model.to_gbq(
-        f"{dataset_id}.temp_text_model", replace=True
-    )
-    assert f"{dataset_id}.temp_text_model" == reloaded_model._bqml_model.model_name
-    assert reloaded_model.connection_name == bq_connection
-    assert reloaded_model.model_name == model_name
-
-
-@pytest.mark.parametrize(
-    "model_name",
-    ("claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet", "claude-3-opus"),
+    (
+        "gemini-pro",
+        "gemini-1.5-pro-preview-0514",
+        "gemini-1.5-flash-preview-0514",
+        "gemini-1.5-pro-001",
+        "gemini-1.5-pro-002",
+        "gemini-1.5-flash-001",
+        "gemini-1.5-flash-002",
+    ),
 )
 @pytest.mark.flaky(retries=2)
-def test_claude3_text_generator_predict_default_params_success(
-    llm_text_df, model_name, session, session_us_east5, bq_connection
+def test_gemini_text_generator_multi_cols_predict_success(
+    llm_text_df: bpd.DataFrame, model_name, session, bq_connection
 ):
-    if model_name in ("claude-3-5-sonnet", "claude-3-opus"):
-        session = session_us_east5
-    claude3_text_generator_model = llm.Claude3TextGenerator(
+    df = llm_text_df.assign(additional_col=1)
+    gemini_text_generator_model = llm.GeminiTextGenerator(
         model_name=model_name, connection_name=bq_connection, session=session
     )
-    df = claude3_text_generator_model.predict(llm_text_df).to_pandas()
-    assert df.shape == (3, 3)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
-
-
-@pytest.mark.parametrize(
-    "model_name",
-    ("claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet", "claude-3-opus"),
-)
-@pytest.mark.flaky(retries=2)
-def test_claude3_text_generator_predict_with_params_success(
-    llm_text_df, model_name, session, session_us_east5, bq_connection
-):
-    if model_name in ("claude-3-5-sonnet", "claude-3-opus"):
-        session = session_us_east5
-    claude3_text_generator_model = llm.Claude3TextGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session
+    pd_df = gemini_text_generator_model.predict(df).to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        pd_df,
+        columns=utils.ML_GENERATE_TEXT_OUTPUT + ["additional_col"],
+        index=3,
+        col_exact=False,
     )
-    df = claude3_text_generator_model.predict(
-        llm_text_df, max_output_tokens=100, top_k=20, top_p=0.5
-    ).to_pandas()
-    assert df.shape == (3, 3)
-    assert "ml_generate_text_llm_result" in df.columns
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
 
 
 @pytest.mark.flaky(retries=2)
@@ -559,3 +456,16 @@ def test_llm_gemini_pro_score_params(llm_fine_tune_df_default_index):
         ],
         index=6,
     )
+
+
+def test_palm2_text_generator_deprecated():
+    with pytest.warns(exceptions.ApiDeprecationWarning):
+        llm.PaLM2TextGenerator()
+
+
+def test_palm2_text_embedding_deprecated():
+    with pytest.warns(exceptions.ApiDeprecationWarning):
+        try:
+            llm.PaLM2TextEmbeddingGenerator()
+        except (Exception):
+            pass

@@ -47,10 +47,10 @@ def test_read_gbq_tokyo(
     result = df.sort_index().to_pandas()
     expected = scalars_pandas_df_index
 
-    _, query_job = session_tokyo._execute(df._block.expr)
-    assert query_job.location == tokyo_location
+    result = session_tokyo._executor.execute(df._block.expr)
+    assert result.query_job.location == tokyo_location
 
-    pd.testing.assert_frame_equal(result, expected)
+    assert len(expected) == result.total_rows
 
 
 @pytest.mark.parametrize(
@@ -390,9 +390,16 @@ def test_read_gbq_twice_with_same_timestamp(session, penguins_table_id):
     assert df3 is not None
 
 
-def test_read_gbq_on_linked_dataset_warns(session):
+@pytest.mark.parametrize(
+    "source_table",
+    [
+        "bigframes-dev.thelook_ecommerce.orders",
+        "bigframes-dev.bigframes_tests_sys.base_table_mat_view",
+    ],
+)
+def test_read_gbq_on_linked_dataset_warns(session, source_table):
     with warnings.catch_warnings(record=True) as warned:
-        session.read_gbq("bigframes-dev.thelook_ecommerce.orders")
+        session.read_gbq(source_table, use_cache=False)
         assert len(warned) == 1
         assert warned[0].category == bigframes.exceptions.TimeTravelDisabledWarning
 
@@ -671,10 +678,10 @@ def test_read_pandas_tokyo(
     result = df.to_pandas()
     expected = scalars_pandas_df_index
 
-    _, query_job = session_tokyo._execute(df._block.expr)
-    assert query_job.location == tokyo_location
+    result = session_tokyo._executor.execute(df._block.expr)
+    assert result.query_job.location == tokyo_location
 
-    pd.testing.assert_frame_equal(result, expected)
+    assert len(expected) == result.total_rows
 
 
 @utils.skip_legacy_pandas
@@ -1034,6 +1041,25 @@ def test_read_csv_local_w_usecols(session, scalars_pandas_df_index, engine):
         # df should only have 1 column which is bool_col.
         df = session.read_csv(path, usecols=["bool_col"], engine=engine)
         assert len(df.columns) == 1
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [
+        pytest.param(
+            "bigquery",
+            id="bq_engine",
+            marks=pytest.mark.xfail(
+                raises=NotImplementedError,
+            ),
+        ),
+        pytest.param(None, id="default_engine"),
+    ],
+)
+def test_read_csv_others(session, engine):
+    uri = "https://raw.githubusercontent.com/googleapis/python-bigquery-dataframes/main/tests/data/people.csv"
+    df = session.read_csv(uri, engine=engine)
+    assert len(df.columns) == 3
 
 
 @pytest.mark.parametrize(

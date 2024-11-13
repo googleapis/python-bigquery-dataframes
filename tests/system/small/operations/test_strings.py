@@ -14,7 +14,6 @@
 
 import re
 
-import packaging.version
 import pandas as pd
 import pyarrow as pa
 import pytest
@@ -615,28 +614,32 @@ def test_getitem_w_string(scalars_dfs, index):
 @pytest.mark.parametrize(
     ("index"),
     [
-        pytest.param(2, id="int"),
+        pytest.param(0, id="int"),
         pytest.param(slice(None, None, None), id="default_start_slice"),
         pytest.param(slice(0, None, 1), id="default_stop_slice"),
         pytest.param(slice(0, 2, None), id="default_step_slice"),
         pytest.param(slice(0, 0, None), id="single_one_slice"),
     ],
 )
-def test_getitem_w_array(index):
-    data = [[1], [2, 3], [], [4, 5, 6]]
-    s = bpd.Series(data)
-    pd_s = pd.Series(data)
+@pytest.mark.parametrize(
+    "column_name",
+    [
+        pytest.param("int_list_col"),
+        pytest.param("bool_list_col"),
+        pytest.param("float_list_col"),
+        pytest.param("string_list_col"),
+        # date, date_time and numeric are excluded because their default types are different
+        # in Pandas and BigFrames
+    ],
+)
+def test_getitem_w_array(index, column_name, repeated_df, repeated_pandas_df):
+    bf_result = repeated_df[column_name].str[index].to_pandas()
+    pd_result = repeated_pandas_df[column_name].str[index]
 
-    bf_result = s.str[index].to_pandas()
-    pd_result = pd_s.str[index]
-    # Skip dtype checks here because pandas returns `int64` while BF returns `Int64`.
     assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)
 
 
 def test_getitem_w_struct_array():
-    if packaging.version.Version(pd.__version__) <= packaging.version.Version("1.5.0"):
-        pytest.skip("https://github.com/googleapis/python-bigquery/issues/1992")
-
     pa_struct = pa.struct(
         [
             ("name", pa.string()),

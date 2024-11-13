@@ -15,8 +15,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import itertools
-from typing import Optional, Set, Tuple, Union
+from typing import Mapping, Optional, Set, Tuple, Union
 
+import bigframes.core.expression as ex
+import bigframes.core.identifiers as ids
 import bigframes.core.ordering as orderings
 
 
@@ -41,7 +43,9 @@ def unbound(
         WindowSpec
     """
     return WindowSpec(
-        grouping_keys=grouping_keys, min_periods=min_periods, ordering=ordering
+        grouping_keys=tuple(map(ex.deref, grouping_keys)),
+        min_periods=min_periods,
+        ordering=ordering,
     )
 
 
@@ -70,10 +74,9 @@ def rows(
     Returns:
         WindowSpec
     """
-    assert (preceding is not None) or (following is not None)
     bounds = RowsWindowBounds(preceding=preceding, following=following)
     return WindowSpec(
-        grouping_keys=grouping_keys,
+        grouping_keys=tuple(map(ex.deref, grouping_keys)),
         bounds=bounds,
         min_periods=min_periods,
         ordering=ordering,
@@ -96,7 +99,9 @@ def cumulative_rows(
     """
     bounds = RowsWindowBounds(following=0)
     return WindowSpec(
-        grouping_keys=grouping_keys, bounds=bounds, min_periods=min_periods
+        grouping_keys=tuple(map(ex.deref, grouping_keys)),
+        bounds=bounds,
+        min_periods=min_periods,
     )
 
 
@@ -116,7 +121,9 @@ def inverse_cumulative_rows(
     """
     bounds = RowsWindowBounds(preceding=0)
     return WindowSpec(
-        grouping_keys=grouping_keys, bounds=bounds, min_periods=min_periods
+        grouping_keys=tuple(map(ex.deref, grouping_keys)),
+        bounds=bounds,
+        min_periods=min_periods,
     )
 
 
@@ -149,7 +156,7 @@ class WindowSpec:
     ordering: List of columns ids and ordering direction to override base ordering
     """
 
-    grouping_keys: Tuple[str, ...] = tuple()
+    grouping_keys: Tuple[ex.DerefOp, ...] = tuple()
     ordering: Tuple[orderings.OrderingExpression, ...] = tuple()
     bounds: Union[RowsWindowBounds, RangeWindowBounds, None] = None
     min_periods: int = 0
@@ -165,11 +172,29 @@ class WindowSpec:
         return isinstance(self.bounds, RowsWindowBounds)
 
     @property
-    def all_referenced_columns(self) -> Set[str]:
+    def all_referenced_columns(self) -> Set[ids.ColumnId]:
         """
         Return list of all variables reference ind the window.
         """
         ordering_vars = itertools.chain.from_iterable(
-            item.scalar_expression.unbound_variables for item in self.ordering
+            item.scalar_expression.column_references for item in self.ordering
         )
-        return set(itertools.chain(self.grouping_keys, ordering_vars))
+        return set(itertools.chain((i.id for i in self.grouping_keys), ordering_vars))
+
+    def remap_column_refs(
+        self,
+        mapping: Mapping[ids.ColumnId, ids.ColumnId],
+        allow_partial_bindings: bool = False,
+    ) -> WindowSpec:
+        return WindowSpec(
+            grouping_keys=tuple(
+                key.remap_column_refs(mapping, allow_partial_bindings)
+                for key in self.grouping_keys
+            ),
+            ordering=tuple(
+                order_part.remap_column_refs(mapping, allow_partial_bindings)
+                for order_part in self.ordering
+            ),
+            bounds=self.bounds,
+            min_periods=self.min_periods,
+        )

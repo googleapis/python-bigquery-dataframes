@@ -23,11 +23,12 @@ import shutil
 import string
 import sys
 import tempfile
+import types
 from typing import cast, Tuple, TYPE_CHECKING
 
+from bigframes_vendored import constants
 import requests
 
-from bigframes import constants
 import bigframes.functions.remote_function_template
 
 if TYPE_CHECKING:
@@ -37,9 +38,20 @@ import google.api_core.exceptions
 import google.api_core.retry
 from google.cloud import bigquery, functions_v2
 
+import bigframes.session._io.bigquery
+
 from . import _utils
 
 logger = logging.getLogger(__name__)
+
+# https://cloud.google.com/sdk/gcloud/reference/functions/deploy#--ingress-settings
+_INGRESS_SETTINGS_MAP = types.MappingProxyType(
+    {
+        "all": functions_v2.ServiceConfig.IngressSettings.ALLOW_ALL,
+        "internal-only": functions_v2.ServiceConfig.IngressSettings.ALLOW_INTERNAL_ONLY,
+        "internal-and-gclb": functions_v2.ServiceConfig.IngressSettings.ALLOW_INTERNAL_AND_GCLB,
+    }
+)
 
 
 class RemoteFunctionClient:
@@ -142,7 +154,12 @@ class RemoteFunctionClient:
             self._bq_client.create_dataset(dataset, exists_ok=True)
 
         # TODO(swast): plumb through the original, user-facing api_name.
-        _, query_job = self._session._start_query(create_function_ddl)
+        _, query_job = bigframes.session._io.bigquery.start_query_with_client(
+            self._session.bqclient,
+            create_function_ddl,
+            job_config=bigquery.QueryJobConfig(),
+        )
+
         logger.info(f"Created remote function {query_job.ddl_target_routine}")
 
     def get_cloud_function_fully_qualified_parent(self):
@@ -221,6 +238,7 @@ class RemoteFunctionClient:
         is_row_processor=False,
         vpc_connector=None,
         memory_mib=1024,
+        ingress_settings="all",
     ):
         """Create a cloud function from the given user defined function.
 
@@ -317,6 +335,16 @@ class RemoteFunctionClient:
             function.service_config.service_account_email = (
                 self._cloud_function_service_account
             )
+            if ingress_settings not in _INGRESS_SETTINGS_MAP:
+                raise ValueError(
+                    "'{}' not one of the supported ingress settings values: {}".format(
+                        ingress_settings, list(_INGRESS_SETTINGS_MAP)
+                    )
+                )
+            function.service_config.ingress_settings = cast(
+                functions_v2.ServiceConfig.IngressSettings,
+                _INGRESS_SETTINGS_MAP[ingress_settings],
+            )
             function.kms_key_name = self._cloud_function_kms_key_name
             create_function_request.function = function
 
@@ -365,6 +393,7 @@ class RemoteFunctionClient:
         is_row_processor,
         cloud_function_vpc_connector,
         cloud_function_memory_mib,
+        cloud_function_ingress_settings,
     ):
         """Provision a BigQuery remote function."""
         # Augment user package requirements with any internal package
@@ -411,6 +440,7 @@ class RemoteFunctionClient:
                 is_row_processor=is_row_processor,
                 vpc_connector=cloud_function_vpc_connector,
                 memory_mib=cloud_function_memory_mib,
+                ingress_settings=cloud_function_ingress_settings,
             )
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")
