@@ -174,23 +174,15 @@ class Executor(abc.ABC):
     def get_row_count(self, array_value: bigframes.core.ArrayValue) -> int:
         raise NotImplementedError("get_row_count not implemented for this executor")
 
-    # TODO: Caching helpers should be converted to a unified caching instruction.
-    def _cache_with_offsets(self, array_value: bigframes.core.ArrayValue):
-        raise NotImplementedError("this executor does not implement caching")
-
-    def _cache_with_cluster_cols(
-        self, array_value: bigframes.core.ArrayValue, cluster_cols: Sequence[str]
-    ):
-        raise NotImplementedError("this executor does not implement caching")
-
-    def _cache_with_session_awareness(
+    def cached(
         self,
         array_value: bigframes.core.ArrayValue,
+        *,
+        force: bool = False,
+        use_session: bool = False,
+        cluster_cols: Sequence[str] = (),
     ) -> None:
-        raise NotImplementedError("this executor does not implement caching")
-
-    def _is_trivially_executable(self, array_value: bigframes.core.ArrayValue):
-        raise NotImplementedError("this executor does not implement caching")
+        raise NotImplementedError("cached not implemented for this executor")
 
 
 class BigQueryCachingExecutor(Executor):

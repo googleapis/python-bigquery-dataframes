@@ -29,6 +29,7 @@ import bigframes.session.executor
 import bigframes.session.metrics
 
 
+# Does not support to_sql, export_gbq, export_gcs, dry_run, peek, head, get_row_count, cached
 @dataclasses.dataclass
 class TestExecutor(bigframes.session.executor.Executor):
     compiler = bigframes.core.compile.polars.PolarsCompiler()

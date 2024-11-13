@@ -16,9 +16,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import itertools
-from typing import cast, Sequence
-
-import polars as pl
+from typing import cast, Sequence, TYPE_CHECKING
 
 import bigframes.core
 import bigframes.core.expression as ex
@@ -26,6 +24,14 @@ import bigframes.core.guid as guid
 import bigframes.core.nodes as nodes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+
+if TYPE_CHECKING:
+    import polars as pl
+else:
+    try:
+        import polars as pl
+    except Exception:
+        pass
 
 
 @dataclasses.dataclass(frozen=True)
