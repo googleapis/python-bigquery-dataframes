@@ -3103,6 +3103,7 @@ def test_mask_simple_udf(scalars_dfs):
         ("int64_col", "time64[us][pyarrow]"),
         ("bool_col", "Int64"),
         ("bool_col", "string[pyarrow]"),
+        ("bool_col", "Float64"),
         ("string_col", "binary[pyarrow]"),
         ("bytes_col", "string[pyarrow]"),
         # pandas actually doesn't let folks convert to/from naive timestamp and
@@ -3153,6 +3154,12 @@ def test_astype_safe(session):
     )
     result = session.read_pandas(input).astype("Float64", errors="null").to_pandas()
     pd.testing.assert_series_equal(result, exepcted)
+
+
+def test_series_astype_error_error(session):
+    input = pd.Series(["hello", "world", "3.11", "4000"])
+    with pytest.raises(ValueError):
+        session.read_pandas(input).astype("Float64", errors="bad_value")
 
 
 @skip_legacy_pandas
