@@ -4,6 +4,50 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.26.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.25.0...v1.26.0) (2024-11-12)
+
+
+### Features
+
+* Add basic geopandas functionality ([#962](https://github.com/googleapis/python-bigquery-dataframes/issues/962)) ([3759c63](https://github.com/googleapis/python-bigquery-dataframes/commit/3759c6397eaa3c46c4142aa51ca22be3dc8e4971))
+* Support `json_extract_string_array` in the `bigquery` module ([#1131](https://github.com/googleapis/python-bigquery-dataframes/issues/1131)) ([4ef8bac](https://github.com/googleapis/python-bigquery-dataframes/commit/4ef8bacdcc5447ba53c0f354526346f4dec7c5a1))
+
+
+### Bug Fixes
+
+* Fix Series.to_frame generating string label instead of int where name is None ([#1118](https://github.com/googleapis/python-bigquery-dataframes/issues/1118)) ([14e32b5](https://github.com/googleapis/python-bigquery-dataframes/commit/14e32b51c11c1718128f49ef94e754afc0ac0618))
+* Update the API documentation with newly added rep ([#1120](https://github.com/googleapis/python-bigquery-dataframes/issues/1120)) ([72c228b](https://github.com/googleapis/python-bigquery-dataframes/commit/72c228b15627e6047d60ae42740563a6dfea73da))
+
+
+### Performance Improvements
+
+* Reduce CURRENT_TIMESTAMP queries ([#1114](https://github.com/googleapis/python-bigquery-dataframes/issues/1114)) ([32274b1](https://github.com/googleapis/python-bigquery-dataframes/commit/32274b130849b37d7e587643cf7b6d109455ff38))
+* Reduce dry runs from read_gbq with table ([#1129](https://github.com/googleapis/python-bigquery-dataframes/issues/1129)) ([f7e4354](https://github.com/googleapis/python-bigquery-dataframes/commit/f7e435488d630cf4cf493c89ecdde94a95a7a0d7))
+
+
+### Documentation
+
+* Add file for Classification with a Boosted Treed Model and snippet for preparing sample data ([#1135](https://github.com/googleapis/python-bigquery-dataframes/issues/1135)) ([7ac6639](https://github.com/googleapis/python-bigquery-dataframes/commit/7ac6639fb0e8baf5fb3adf5785dffd8cf9b06702))
+* Add snippet for Linear Regression tutorial Predict Outcomes section ([#1101](https://github.com/googleapis/python-bigquery-dataframes/issues/1101)) ([108f4a9](https://github.com/googleapis/python-bigquery-dataframes/commit/108f4a98463596d8df6d381b3580eb72eab41b6e))
+* Update `DataFrame` docstrings to include the errors section ([#1127](https://github.com/googleapis/python-bigquery-dataframes/issues/1127)) ([a38d4c4](https://github.com/googleapis/python-bigquery-dataframes/commit/a38d4c422b6b312f6a54d7b1dd105a474ec2e91a))
+* Update GroupBy docstrings ([#1103](https://github.com/googleapis/python-bigquery-dataframes/issues/1103)) ([9867a78](https://github.com/googleapis/python-bigquery-dataframes/commit/9867a788e7c46bf0850cacbe7cd41a11fea32d6b))
+* Update Session doctrings to include exceptions ([#1130](https://github.com/googleapis/python-bigquery-dataframes/issues/1130)) ([a870421](https://github.com/googleapis/python-bigquery-dataframes/commit/a87042158b181dceee31124fe208926a3bb1071f))
+
+## [1.25.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.24.0...v1.25.0) (2024-10-29)
+
+
+### Features
+
+* Add the `ground_with_google_search` option for GeminiTextGenerator predict ([#1119](https://github.com/googleapis/python-bigquery-dataframes/issues/1119)) ([ca02cd4](https://github.com/googleapis/python-bigquery-dataframes/commit/ca02cd4b87d354c1e01c670cd9d4e36fa74896f5))
+* Add warning when user tries to access struct series fields with `__getitem__` ([#1082](https://github.com/googleapis/python-bigquery-dataframes/issues/1082)) ([20e5c58](https://github.com/googleapis/python-bigquery-dataframes/commit/20e5c58868af8b18595d5635cb7722da4f622eb5))
+* Allow `fit` to take additional eval data in linear and ensemble models ([#1096](https://github.com/googleapis/python-bigquery-dataframes/issues/1096)) ([254875c](https://github.com/googleapis/python-bigquery-dataframes/commit/254875c25f39df4bc477e1ed7339ecb30b395ab6))
+* Support context manager for bigframes session ([#1107](https://github.com/googleapis/python-bigquery-dataframes/issues/1107)) ([5f7b8b1](https://github.com/googleapis/python-bigquery-dataframes/commit/5f7b8b189c093629d176ffc99364767dc766397a))
+
+
+### Performance Improvements
+
+* Improve series.unique performance and replace drop_duplicates i… ([#1108](https://github.com/googleapis/python-bigquery-dataframes/issues/1108)) ([499f24a](https://github.com/googleapis/python-bigquery-dataframes/commit/499f24a5f22ce484db96eb09cd3a0ce972398d81))
+
 ## [1.24.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.23.0...v1.24.0) (2024-10-24)
 
 

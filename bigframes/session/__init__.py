@@ -500,7 +500,7 @@ class Session(
 
         Raises:
             ValueError:
-                When both columns (preferred) and col_order are specified.
+                When both ``columns`` and ``col_order`` are specified.
         """
         # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
         # these docstrings are inline.
@@ -552,7 +552,7 @@ class Session(
 
         Raises:
             ValueError:
-                When both columns (preferred) and col_order are specified.
+                When both ``columns`` and ``col_order`` are specified.
         """
         # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
         # these docstrings are inline.
@@ -922,7 +922,7 @@ class Session(
 
         if isinstance(pandas_obj, pandas.Series):
             if pandas_obj.name is None:
-                pandas_obj.name = "0"
+                pandas_obj.name = 0
             bigframes_df = self._read_pandas(pandas_obj.to_frame(), "read_pickle")
             return bigframes_df[bigframes_df.columns[0]]
         return self._read_pandas(pandas_obj, "read_pickle")
