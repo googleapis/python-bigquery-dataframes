@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+from abc import ABCMeta, abstractmethod
+from collections.abc import Callable, Iterable, Mapping
 import datetime
 import inspect
 import itertools
@@ -23,13 +25,11 @@ import re
 import sys
 import textwrap
 import typing
+#TODO use collections instead!
 from typing import (
-    Callable,
     Dict,
-    Iterable,
     List,
     Literal,
-    Mapping,
     Optional,
     Sequence,
     Tuple,
@@ -37,11 +37,10 @@ from typing import (
 )
 import warnings
 
-import bigframes.dataframe
+import bigframes._config as config
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
-from bigframes_vendored.pandas.core.reshape import concat
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
@@ -49,6 +48,7 @@ import pandas
 import pandas.io.formats.format
 import pyarrow
 import tabulate
+
 import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.constants
@@ -68,7 +68,6 @@ import bigframes.core.utils as utils
 import bigframes.core.validations as validations
 import bigframes.core.window
 import bigframes.core.window_spec as windows
-from bigframes.core import nested_data_context_manager
 import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.formatting_helpers as formatter
@@ -82,6 +81,8 @@ import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session._io.bigquery
 
+from bigframes.core.nested_context import SchemaTrackingContextManager, schema_tracking_factory
+#from bigframes.core import nested_data_context_manager
 
 if typing.TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
@@ -99,6 +100,58 @@ ERROR_IO_REQUIRES_WILDCARD = (
     "https://cloud.google.com/bigquery/docs/reference/standard-sql/other-statements#export_data_statement"
     f"{constants.FEEDBACK_LINK}"
 )
+
+# nested data
+options = config.options
+
+# to guarantee singleton creation, we prohibit inheritnig from the class
+nested_data_context_manager: SchemaTrackingContextManager = schema_tracking_factory()
+
+class CMNnested(ABCMeta):
+    def __init__(self, func: Callable):
+        self.func = func
+
+    def __call__(self, *args, **kwargs):
+        if nested_data_context_manager.active():
+            #TODO (abeschorner): handle multiple parents
+            current_block = args[0].block
+            nested_data_context_manager.block_start = current_block
+            ncm_ref = nested_data_context_manager._source_handler.sources.get(current_block, None)
+            if ncm_ref is not None:
+                res = self.func(*args, **kwargs)
+                nested_data_context_manager._block_end = res.block
+                nested_data_context_manager.step() #current_block, res.block, nested_data_context_manager.latest_changes()) # or current_block.expr.node? nodes or blocks?
+                nested_data_context_manager.reset_block_markers()
+            else:
+                #TODO: add node to ncm
+                raise KeyError(f"Unknown nested node {args[0]}")
+        return res
+
+    @abstractmethod
+    def _nesting(self) -> dict:
+        ...
+
+    @property
+    def nesting(self) -> dict:
+        return self._nesting()
+
+
+def cm_nested(func: Callable):
+    def wrapper(*args, **kwargs):
+        if nested_data_context_manager.active():
+            #TODO (abeschorner): handle multiple parents
+            current_block = args[0]._block           
+            nested_data_context_manager._block_start = current_block
+            prev_op = nested_data_context_manager.prev_changes()
+            prev_num_ops = nested_data_context_manager.num_nested_commands
+            res = func(*args, **kwargs)
+            if (prev_op == nested_data_context_manager.prev_changes()) | (nested_data_context_manager.num_nested_commands <= prev_num_ops):
+                raise ValueError(f"Nested operation {func.__qualname__} did not set changes in the nested_data_context_manager!")
+            nested_data_context_manager._block_end = res._block      
+            nested_data_context_manager.step() # or current_block.expr.node? nodes or blocks?
+            nested_data_context_manager.reset_block_markers()
+        return res
+    return wrapper
 
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
@@ -278,10 +331,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         self._set_block(result._get_block())
         self.index.name = value.name if hasattr(value, "name") else None
-
-    @property
-    def block(self) -> blocks.Block:
-        return self._block
 
     @property
     @validations.requires_index
@@ -554,13 +603,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         selected_ids: Tuple[str, ...] = ()
         for label in key:
-            col_ids = None
-            try:
-                col_ids = self._block.label_to_col_id[label] # type: ignore
-            except KeyError as err:
-                pass
-            if col_ids:
-                selected_ids = (*selected_ids, *col_ids)
+            col_ids = self._block.label_to_col_id[label]
+            selected_ids = (*selected_ids, *col_ids)
 
         return DataFrame(self._block.select_columns(selected_ids))
 
@@ -648,9 +692,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # Can this be removed?
         except (AttributeError, TypeError):
             object.__setattr__(self, key, value)
-    
-    #TODO: problemati.. rename back to __repr__ 
-    def __my_repr__(self) -> str:
+
+    def __repr__(self) -> str:
         """Converts a DataFrame to a string. Calls to_pandas.
 
         Only represents the first `bigframes.options.display.max_rows`.
@@ -739,7 +782,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     __setitem__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__setitem__)
 
-    #TODO: _apply should be comparabe to _align_n, adds to expression tree
     def _apply_binop(
         self,
         other: float | int | bigframes.series.Series | DataFrame,
@@ -1535,7 +1577,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _resolve_levels(self, level: LevelsType) -> typing.Sequence[str]:
         return self._block.index.resolve_level(level)
 
-    @bigframes.core.cm_nested
+    #@bigframes.core.cm_nested
+    @cm_nested
     def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame:
         """
         Rename is special in the context of nested data, as we allow column name changes for struct columns!
@@ -1543,7 +1586,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """
         block = self._block.rename(columns=columns)
         ret = DataFrame(block)
-        nested_data_context_manager.add_changes(DataFrame.rename.__qualname__, self.block._expr.node, ret.block._expr.node, columns, fct=bigframes.dataframe.DataFrame.rename)
+        nested_data_context_manager.add_changes(DataFrame.rename.__qualname__, self._block._expr.node, ret._block._expr.node, columns, fct=DataFrame.rename)
         return ret
 
     def rename_axis(
@@ -2970,10 +3013,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 0
             ]
         )
-        
-        
-    #TODO: create explod_recursion to arbitrary depth of nestings
-    #TODO: DataFrame.Struct.explode, not yet available
+
     def explode(
         self,
         column: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],

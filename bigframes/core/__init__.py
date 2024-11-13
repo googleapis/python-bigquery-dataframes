@@ -14,25 +14,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from abc import ABCMeta, abstractmethod
 import datetime
 import functools
 import io
 import typing
 from typing import Iterable, List, Optional, Sequence, Tuple
 import warnings
-from collections.abc import Callable
-
 
 import google.cloud.bigquery
 import pandas
 import pyarrow as pa
 import pyarrow.feather as pa_feather
 
-# schema lineage
-
 import bigframes._config as config
-
 
 import bigframes.core.compile
 import bigframes.core.expression as ex
@@ -54,7 +48,6 @@ import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.bigquery
-from bigframes.core.nested_context import SchemaTrackingContextManager, schema_tracking_factory
 
 if typing.TYPE_CHECKING:
     from bigframes.session import Session
@@ -62,58 +55,6 @@ if typing.TYPE_CHECKING:
 
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
-options = config.options
-
-
-# to guarantee singleton creation, we prohibit inheritnig from the class
-nested_data_context_manager: SchemaTrackingContextManager = schema_tracking_factory()
-
-class CMNnested(ABCMeta):
-    def __init__(self, func: Callable):
-        self.func = func
-
-    def __call__(self, *args, **kwargs):
-        if nested_data_context_manager.active():
-            #TODO (abeschorner): handle multiple parents
-            current_block = args[0].block
-            nested_data_context_manager.block_start = current_block
-            ncm_ref = nested_data_context_manager._source_handler.sources.get(current_block, None)
-            if ncm_ref is not None:
-                res = self.func(*args, **kwargs)
-                nested_data_context_manager.block_end = res.block
-                nested_data_context_manager.step() #current_block, res.block, nested_data_context_manager.latest_changes()) # or current_block.expr.node? nodes or blocks?
-                nested_data_context_manager.reset_block_markers()
-            else:
-                #TODO: add node to ncm
-                raise KeyError(f"Unknown nested node {args[0]}")
-        return res
-
-    @abstractmethod
-    def _nesting(self) -> dict:
-        ...
-
-    @property
-    def nesting(self) -> dict:
-        return self._nesting()
-
-
-def cm_nested(func: Callable):
-    def wrapper(*args, **kwargs):
-        if nested_data_context_manager.active():
-            #TODO (abeschorner): handle multiple parents
-            current_block = args[0].block           
-            nested_data_context_manager.block_start = current_block
-            prev_op = nested_data_context_manager.prev_changes()
-            prev_num_ops = nested_data_context_manager.num_nested_commands
-            res = func(*args, **kwargs)
-            if (prev_op == nested_data_context_manager.prev_changes()) | (nested_data_context_manager.num_nested_commands <= prev_num_ops):
-                raise ValueError(f"Nested operation {func.__qualname__} did not set changes in the nested_data_context_manager!")
-            nested_data_context_manager.block_end = res.block      
-            nested_data_context_manager.step() # or current_block.expr.node? nodes or blocks?
-            nested_data_context_manager.reset_block_markers()
-        return res
-    return wrapper
-
 
 @dataclass(frozen=True)
 class ArrayValue:

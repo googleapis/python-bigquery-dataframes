@@ -23,7 +23,7 @@ import bigframes.pandas as bfpd
 import bigframes.core as core
 from bigframes.core.schema_tracking import set_project
 from bigframes.core.nested_context import NestedDataError
-from bigframes.dataframe import DataFrame
+from bigframes.dataframe import DataFrame, nested_data_context_manager
 #from bigframes.core.nodes import NestedDataContextManager
 #from bigframes.core import Session
 
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     table = "andreas_beschorner.nested_complex" # table="andreas_beschorner.nested_tiny"
     #dfp = create_simple_nested(True)
 
-    with core.nested_data_context_manager as ncm:
+    with nested_data_context_manager as ncm:
         #df = bfpd.read_gbq(f"SELECT * FROM {table} limit 10")
         #ncm.add_df(df)
         #df = bfpd.DataFrame(dfp)

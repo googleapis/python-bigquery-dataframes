@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 # -- schema tracking --
 def bfnode_hash(node: nodes.BigFrameNode):
-    return node._node_hash
+    return hash(node)
 
 
 class NestedDataError(Exception):
@@ -163,8 +163,8 @@ class SchemaTrackingContextManager:
         self.sep_layers = layer_separator if layer_separator is not None else SchemaTrackingContextManager._default_sep_layers
         self.sep_structs = struct_separator if struct_separator is not None else SchemaTrackingContextManager._default_sep_structs
         self._source_handler = SchemaSourceHandler()
-        self.block_start: blocks.Block|None = None
-        self.block_end: blocks.Block|None = None
+        self._block_start: blocks._block|None = None
+        self._block_end: blocks._block|None = None
         self._latest_op: dict|Mapping = {}  # latest schema changes
         self._calling_node: nodes.BigFrameNode|None = None
         self._func: Callable|None = None
@@ -177,7 +177,7 @@ class SchemaTrackingContextManager:
         return col.replace(self.sep_layers, self.sep_structs)
 
     def schema_lineage(self, df: DataFrame):
-        src = self._source_handler.get(df.block.expr.node)
+        src = self._source_handler.get(df._block.expr.node)
         if src is not None:
             return list(topological_sort(src.dag))
         return None
@@ -263,13 +263,13 @@ class SchemaTrackingContextManager:
     def get_source(self, src: int|DataFrame) -> DiGraph:
         if isinstance(src, int):
             return self._source_handler.sources.get(src, None)
-        node = src.block._expr.node
+        node = src._block._expr.node
         hash_df = bfnode_hash(node)
         return self._source_handler.sources.get(hash_df, None)
 
     def reset_block_markers(self):
-        self.block_start = None
-        self.block_end = None
+        self._block_start = None
+        self._block_end = None
         return
 
     # Context Manager interface
@@ -346,16 +346,16 @@ class SchemaTrackingContextManager:
         df_flattened, df_schema = self._explode_nested(df, sep_explode=layer_separator, sep_struct=struct_separator)
         schema = df_flattened.dtypes
         cols = list(df_flattened.dtypes.keys())
-        node = df_flattened.block.expr.node
+        node = df_flattened._block.expr.node
         dag = self._source_handler.dag_from_df(schema=df_schema, layer_separator=layer_separator, struct_separator=struct_separator)
-        schema_orig: Tuple[SchemaField, ...] = node.physical_schema if hasattr(node, "physical_schema") else None # type: ignore
+        schema_orig: Tuple[SchemaField, ...] = node.physical_schema if hasattr(node, "physical_schema") else None # type: ignore, TODO: drop physical schema for now!
         source = SchemaSource(node_flattened=node, dag=dag, schema=schema, schema_orig=schema_orig) # type: ignore  # noqa: E999
-        hash_df = bfnode_hash(df.block.expr.node)
+        hash_df = bfnode_hash(df._block.expr.node)
         self._source_handler.add_source(hash_df=hash_df, source = source)
         return
 
     def lineage(self, df) -> dict:
-        node = df.block.expr.node
+        node = df._block.expr.node
         return self._source_handler.sources.get(node, {})
 
     #TODO: multiple parents, join for instance
@@ -371,22 +371,22 @@ class SchemaTrackingContextManager:
 # Work In Progress
 
     def step(self):  #nodes.BigFrameNode):
-        assert(self.block_start is not None)
-        assert(self.block_end is not None)
-        hash_start = bfnode_hash(self.block_start.expr.node)
-        hash_parent = bfnode_hash(self.block_end.expr.node.child)
+        assert(self._block_start is not None)
+        assert(self._block_end is not None)
+        hash_start = bfnode_hash(self._block_start.expr.node)
+        hash_parent = bfnode_hash(self._block_end.expr.node.child)
         assert(hash_start==hash_parent)
         hdl = None
         if hash_start:
             hdl = self._source_handler.sources.get(hash_parent, None)
             if hdl is None:
-                raise ValueError(f"NestedDataCM: Unknown data source {self.block_start}")
+                raise ValueError(f"NestedDataCM: Unknown data source {self._block_start}")
             
         # no join, merge etc., no new source/BigFrameNode
         else:
-            if not self._schemata_matching(self.block_start, hdl):
+            if not self._schemata_matching(self._block_start, hdl):
                 raise Exception("Internal error: Nested Schema mismatch")
-                self._extend_dag(hdl, self.block_end.expr.node)
+                self._extend_dag(hdl, self._block_end.expr.node)
 
 # Default arguments are only evaluated once when the function is created
 def schema_tracking_factory(singleton=SchemaTrackingContextManager()) -> SchemaTrackingContextManager:

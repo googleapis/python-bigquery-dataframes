@@ -6,10 +6,10 @@ python = "^3.10"
 google-cloud-bigquery = {extras = ["bqstorage", "pandas"], version = "^3.21.0"}
 google-cloud-bigquery-storage = "^2.24.0"
 pyarrow = "^15.0.0"
-pandas = "^2.2.2"
+pandas = {version = ">= 1.5.3"}
 numpy = "^1.26.4"
 #future = "^1.0.0"
-ibis-framework = {extras = ["bigquery"], version = ">=8.0.0,<9.0.0dev"}
+ibis-framework = {extras = ["bigquery"], version = ">=9.0.0,<=9.2.0"}
 pydata-google-auth = "^1.8.2"
 geopandas = "^0.14"
 cloudpickle = "^3.0.0"
@@ -26,7 +26,7 @@ google-cloud-storage = "^2.16.0"
 requests = "^2.31.0"
 scikit-learn = "^1.4.2"
 sqlalchemy = "^2.0.29"
-sqlglot = ">=20.8.0,<=20.11"
+sqlglot = {version = ">=23.6.3,<25.2"}
 ipywidgets = "^8.1.2"
 humanize = "^4.9.0"
 matplotlib = "^3.8.4"
