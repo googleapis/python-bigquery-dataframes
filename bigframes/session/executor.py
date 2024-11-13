@@ -97,7 +97,6 @@ class BigQueryCachingExecutor:
         *,
         strictly_ordered: bool = True,
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
-        nondeterminism_only_once: bool = False,
     ):
         self.bqclient = bqclient
         self.storage_manager = storage_manager
@@ -110,7 +109,6 @@ class BigQueryCachingExecutor:
         ] = weakref.WeakKeyDictionary()
         self.metrics = metrics
         self.bqstoragereadclient = bqstoragereadclient
-        self.nondeterminism_only_once = (nondeterminism_only_once,)
 
     def to_sql(
         self,
