@@ -500,7 +500,7 @@ class Session(
 
         Raises:
             ValueError:
-                When both columns (preferred) and col_order are specified.
+                When both ``columns`` and ``col_order`` are specified.
         """
         # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
         # these docstrings are inline.
@@ -552,7 +552,7 @@ class Session(
 
         Raises:
             ValueError:
-                When both columns (preferred) and col_order are specified.
+                When both ``columns`` and ``col_order`` are specified.
         """
         # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
         # these docstrings are inline.
@@ -946,6 +946,14 @@ class Session(
                 path, table, job_config=job_config
             )
         else:
+            if "*" in path:
+                raise ValueError(
+                    "The provided path contains a wildcard character (*), which is not "
+                    "supported by the current engine. To read files from wildcard paths, "
+                    "please use the 'bigquery' engine by setting `engine='bigquery'` in "
+                    "your configuration."
+                )
+
             read_parquet_kwargs: Dict[str, Any] = {}
             if pandas.__version__.startswith("1."):
                 read_parquet_kwargs["use_nullable_dtypes"] = True
