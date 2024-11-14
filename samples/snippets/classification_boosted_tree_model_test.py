@@ -40,6 +40,7 @@ def test_boosted_tree_model(random_model_id: str) -> None:
     del input_data["functional_weight"]
     # [END bigquery_dataframes_bqml_boosted_tree_prepare]
     # [START bigquery_dataframes_bqml_boosted_tree_create]
+    # from sklearn.ensemble import GradientBoostingClassifier
     import bigframes.ml.linear_model
 
     # input_data is defined in an earlier step.
