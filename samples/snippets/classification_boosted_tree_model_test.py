@@ -42,7 +42,7 @@ def test_boosted_tree_model(random_model_id: str) -> None:
     # [START bigquery_dataframes_bqml_boosted_tree_explain]
     # Select model you'll use for predictions. `read_gbq_model` loads model
     # data from BigQuery, but you could also use the `tree_model` object
-    # from previous steps.
+    # from the previous step.
     tree_model = bpd.read_gbq_model(
         your_model_id,  # For example: "your-project.bqml_tutorial.tree_model"
     )
