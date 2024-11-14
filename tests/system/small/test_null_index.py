@@ -268,6 +268,25 @@ def test_null_index_series_self_join(
     )
 
 
+def test_null_index_series_self_join_on(
+    scalars_df_null_index, scalars_pandas_df_default_index
+):
+    # caller doesn't need index, but do need index on arg to join with 'on'
+    bf_result = scalars_df_null_index[["int64_col", "string_col"]].join(
+        scalars_df_null_index[["int64_too", "bool_col"]].set_index("int64_too"),
+        on="int64_col",
+    )
+    pd_result = scalars_pandas_df_default_index[["int64_col", "string_col"]].join(
+        scalars_pandas_df_default_index[["int64_too", "bool_col"]].set_index(
+            "int64_too"
+        ),
+        on="int64_col",
+    )
+    pd.testing.assert_frame_equal(
+        bf_result.to_pandas(), pd_result.reset_index(drop=True), check_dtype=False
+    )
+
+
 def test_null_index_series_self_aligns(
     scalars_df_null_index, scalars_pandas_df_default_index
 ):
