@@ -46,7 +46,8 @@ class MPLPlot(abc.ABC):
 
 
 class SamplingPlot(MPLPlot):
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def _kind(self):
         pass
 
@@ -74,16 +75,22 @@ class SamplingPlot(MPLPlot):
         return self._compute_sample_data(self.data)
 
 
-class LinePlot(SamplingPlot):
-    @property
-    def _kind(self) -> typing.Literal["line"]:
-        return "line"
-
-
 class AreaPlot(SamplingPlot):
     @property
     def _kind(self) -> typing.Literal["area"]:
         return "area"
+
+
+class BarPlot(SamplingPlot):
+    @property
+    def _kind(self) -> typing.Literal["bar"]:
+        return "bar"
+
+
+class LinePlot(SamplingPlot):
+    @property
+    def _kind(self) -> typing.Literal["line"]:
+        return "line"
 
 
 class ScatterPlot(SamplingPlot):
