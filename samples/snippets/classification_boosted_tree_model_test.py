@@ -38,7 +38,8 @@ def test_boosted_tree_model(random_model_id: str) -> None:
         ]
     )
     del input_data["functional_weight"]
-    # [END bigquery_dataframes_bqml_boosted_tree_prepare]   # [START bigquery_dataframes_bqml_boosted_tree_explain]
+    # [END bigquery_dataframes_bqml_boosted_tree_prepare]
+    # [START bigquery_dataframes_bqml_boosted_tree_explain]
     # Select model you'll use for predictions. `read_gbq_model` loads model
     # data from BigQuery, but you could also use the `tree_model` object
     # from previous steps.
