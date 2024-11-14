@@ -1020,13 +1020,20 @@ def test_df_interpolate(scalars_dfs):
     )
 
 
-def test_df_fillna(scalars_dfs):
+@pytest.mark.parametrize(
+    "col, fill_value",
+    [
+        (["int64_col", "float64_col"], 3),
+        (["string_col"], "A"),
+        (["datetime_col"], pd.Timestamp("2023-01-01")),
+    ],
+)
+def test_df_fillna(scalars_dfs, col, fill_value):
     scalars_df, scalars_pandas_df = scalars_dfs
-    df = scalars_df[["int64_col", "float64_col"]].fillna(3)
-    bf_result = df.to_pandas()
-    pd_result = scalars_pandas_df[["int64_col", "float64_col"]].fillna(3)
+    bf_result = scalars_df[col].fillna(fill_value).to_pandas()
+    pd_result = scalars_pandas_df[col].fillna(fill_value)
 
-    pandas.testing.assert_frame_equal(bf_result, pd_result)
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
 
 def test_df_replace_scalar_scalar(scalars_dfs):
@@ -3678,6 +3685,12 @@ def test_df_add_suffix(scalars_df_index, scalars_pandas_df_index, axis):
         pd_result,
         check_index_type=False,
     )
+
+
+def test_df_astype_error_error(session):
+    input = pd.DataFrame(["hello", "world", "3.11", "4000"])
+    with pytest.raises(ValueError):
+        session.read_pandas(input).astype("Float64", errors="bad_value")
 
 
 def test_df_columns_filter_items(scalars_df_index, scalars_pandas_df_index):
