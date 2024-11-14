@@ -14,7 +14,7 @@
 
 
 def test_boosted_tree_model(random_model_id: str) -> None:
-    # your_model_id = random_model_id
+    your_model_id = random_model_id
     # [START bigquery_dataframes_bqml_boosted_tree_prepare]
     import bigframes.pandas as bpd
 
@@ -38,5 +38,28 @@ def test_boosted_tree_model(random_model_id: str) -> None:
         ]
     )
     del input_data["functional_weight"]
-    # [END bigquery_dataframes_bqml_boosted_tree_prepare]
+    # [END bigquery_dataframes_bqml_boosted_tree_prepare]   # [START bigquery_dataframes_bqml_boosted_tree_explain]
+    # Select model you'll use for predictions. `read_gbq_model` loads model
+    # data from BigQuery, but you could also use the `tree_model` object
+    # from previous steps.
+    tree_model = bpd.read_gbq_model(
+        your_model_id,  # For example: "your-project.bqml_tutorial.tree_model"
+    )
+
+    # input_data is defined in an earlier step.
+    evaluation_data = input_data[input_data["dataframe"] == "evaluation"]
+    X = evaluation_data.drop(columns=["income_bracket", "dataframe"])
+    y = evaluation_data["income_bracket"]
+
+    # The score() method evaluates how the model performs compared to the
+    # actual data. Output DataFrame matches that of ML.EVALUATE().
+    score = tree_model.score(X, y)
+    score.peek()
+    # Output:
+    #    precision    recall  accuracy  f1_score  log_loss   roc_auc
+    # 0   0.671924  0.578804  0.839429  0.621897  0.344054  0.887335
+    # [END bigquery_dataframes_bqml_boosted_tree_explain]
     assert input_data is not None
+    assert tree_model is not None
+    assert evaluation_data is not None
+    assert score is not None
