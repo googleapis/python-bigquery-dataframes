@@ -325,17 +325,27 @@ class Index:
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
+
+            >>> idx = pd.Index(['Ant', 'Bear', 'Cow'], name='animal')
+
+            By default, the original index and original name is reused.
+
+            >>> idx.to_series()
             animal
             Ant      Ant
             Bear    Bear
             Cow      Cow
             Name: animal, dtype: string
 
+            To enforce a new index, specify new labels to index:
+
             >>> idx.to_series(index=[0, 1, 2])
             0     Ant
             1    Bear
             2     Cow
             Name: animal, dtype: string
+
+            To override the name of the resulting column, specify name:
 
             >>> idx.to_series(name='zoo')
             animal
@@ -377,16 +387,48 @@ class Index:
     def all(self) -> bool:
         """Return whether all elements are Truthy.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            True, because nonzero integers are considered True.
+
+            >>> bpd.Index([1, 2, 3]).all()
+            True
+
+            False, because 0 is considered False.
+
+            >>> bpd.Index([0, 1, 2]).all()
+            False
+
+        Args:
+
         Returns:
-            bool: A single element array-like may be converted to bool.
+            bool:
+                A single element array-like may be converted to bool.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def any(self) -> bool:
         """Return whether any element is Truthy.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> index = bpd.Index([0, 1, 2])
+            >>> index.any()
+            True
+
+            >>> index = bpd.Index([0, 0, 0])
+            >>> index.any()
+            False
+
         Returns:
-            bool: A single element array-like may be converted to bool.
+            bool:
+                A single element array-like may be converted to bool.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
