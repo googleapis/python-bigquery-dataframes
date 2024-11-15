@@ -183,3 +183,33 @@ def test_polars_local_engine_explode(test_frame, polars_session):
     bf_result = bf_df.explode(["intLists"]).to_pandas()
     pd_result = pd_df.explode(["intLists"])
     pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("start", "stop", "step"),
+    [
+        (1, None, None),
+        (None, 4, None),
+        (None, None, 2),
+        (None, 50000000000, 1),
+        (5, 4, None),
+        (3, None, 2),
+        (1, 7, 2),
+        (1, 7, 50000000000),
+        (-1, -7, -2),
+        (None, -7, -2),
+        (-1, None, -2),
+        (-7, -1, 2),
+        (-7, -1, None),
+        (-7, 7, None),
+        (7, -7, -2),
+    ],
+)
+@skip_legacy_pandas
+def test_polars_local_engine_slice(test_frame, polars_session, start, stop, step):
+    pd_df = test_frame
+    bf_df = bpd.DataFrame(pd_df, session=polars_session)
+
+    bf_result = bf_df.iloc[start:stop:step].to_pandas()
+    pd_result = pd_df.iloc[start:stop:step]
+    pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)

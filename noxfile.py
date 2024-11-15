@@ -60,8 +60,8 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
 UNIT_TEST_EXTERNAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
-UNIT_TEST_EXTRAS: List[str] = ["polars"]
-UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
+UNIT_TEST_EXTRAS: List[str] = []
+UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {"3.12": ["polars"]}
 
 # There are 4 different ibis-framework 9.x versions we want to test against.
 # 3.10 is needed for Windows tests.
@@ -397,6 +397,7 @@ def doctest(session: nox.sessions.Session):
             "third_party",
             "--ignore",
             "third_party/bigframes_vendored/ibis",
+            "--ignore",
             "bigframes/core/compile/polars",
         ),
         test_folder="bigframes",
