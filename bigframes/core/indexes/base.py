@@ -175,7 +175,6 @@ class Index(vendored_pandas_index.Index):
 
     @property
     def size(self) -> int:
-        """Returns the size of the Index."""
         return self.shape[0]
 
     @property
@@ -186,12 +185,6 @@ class Index(vendored_pandas_index.Index):
     @property
     @validations.requires_ordering()
     def is_monotonic_increasing(self) -> bool:
-        """
-        Return a boolean if the values are equal or increasing.
-
-        Returns:
-            bool
-        """
         return typing.cast(
             bool,
             self._block.is_monotonic_increasing(self._block.index_columns),

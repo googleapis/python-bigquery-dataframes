@@ -76,7 +76,7 @@ class Index:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> idx = pd.Index([1, 2, 3])
+            >>> idx = bpd.Index([1, 2, 3])
             >>> idx
             Index([1, 2, 3], dtype='Int64')
 
@@ -151,16 +151,6 @@ class Index:
             >>> idx.has_duplicates
             False
 
-            >>> idx = pd.Index(["Watermelon", "Orange", "Apple",
-                ...             "Watermelon"]).astype("category")
-            >>> idx.has_duplicates
-            True
-
-            >>> idx = pd.Index(["Orange", "Apple",
-                ...             "Watermelon"]).astype("category")
-            >>> idx.has_duplicates
-            False
-
         Returns:
             bool:
                 True if the Index has duplicate values, otherwise False.
@@ -212,6 +202,10 @@ class Index:
             dtype: string
 
             >>> s.T
+            0     Ant
+            1    Bear
+            2     Cow
+            dtype: string
 
         For Index:
 
@@ -220,6 +214,7 @@ class Index:
             Index([1, 2, 3], dtype='Int64')
 
         Returns:
+            bigframes.pandas.Index
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -237,7 +232,7 @@ class Index:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> idx = pd.Index(['a', 'b', 'c'])
+            >>> idx = bpd.Index(['a', 'b', 'c'])
             >>> new_idx = idx.copy()
             >>> idx is new_idx
             False
@@ -247,7 +242,7 @@ class Index:
                 Set name for new object.
 
         Returns:
-            Index:
+            bigframes.pandas.Index:
                 Index reference to new object, which is a copy of this object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -320,6 +315,8 @@ class Index:
             >>> idx
             Index(['a', 'b', 'c'], dtype='string')
 
+            Get level values by supplying level as integer:
+
             >>> idx.get_level_values(0)
             Index(['a', 'b', 'c'], dtype='string')
 
@@ -328,7 +325,7 @@ class Index:
                 It is either the integer position or the name of the level.
 
         Returns:
-            Index:
+            bigframes.pandas.Index:
                 Calling object, as there is only one level in the Index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -344,7 +341,7 @@ class Index:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> idx = pd.Index(['Ant', 'Bear', 'Cow'], name='animal')
+            >>> idx = bpd.Index(['Ant', 'Bear', 'Cow'], name='animal')
 
             By default, the original index and original name is reused.
 
@@ -393,12 +390,40 @@ class Index:
         passed set of values. The length of the returned boolean array matches
         the length of the index.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = bpd.Index([1,2,3])
+            >>> idx
+            Index([1, 2, 3], dtype='Int64')
+
+            Check whether each index value in a list of values.
+
+            >>> idx.isin([1, 4])
+            array([ True, False, False])
+
+            >>> midx = bpd.MultiIndex.from_arrays([[1,2,3],
+                ...                               ['red', 'blue', 'green']],
+                ...                               names=('number', 'color'))
+            >>> midx
+            MultiIndex([(1,   'red'),
+                        (2,  'blue'),
+                        (3, 'green')],
+                       names=['number', 'color'])
+
         Args:
             values (set or list-like):
                 Sought values.
 
         Returns:
-            Series: Series of boolean values.
+            bigframes.pandas.Series:
+                Series of boolean values.
+
+        Raises:
+            TypeError:
+                If object passed to ``isin()`` is not a list-like
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -419,8 +444,6 @@ class Index:
 
             >>> bpd.Index([0, 1, 2]).all()
             False
-
-        Args:
 
         Returns:
             bool:
@@ -453,6 +476,20 @@ class Index:
     def min(self):
         """Return the minimum value of the Index.
 
+         **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = bpd.Index([3, 2, 1])
+            >>> idx.min()
+            1
+
+            >>> idx = bpd.Index(['c', 'b', 'a'])
+            >>> idx.min()
+            'a'
+
+
         Returns:
             scalar: Minimum value.
         """
@@ -460,6 +497,19 @@ class Index:
 
     def max(self):
         """Return the maximum value of the Index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = bpd.Index([3, 2, 1])
+            >>> idx.max()
+            3
+
+            >>> idx = bpd.Index(['c', 'b', 'a'])
+            >>>> idx.max()
+            'c'
 
         Returns:
             scalar: Maximum value.
@@ -473,6 +523,29 @@ class Index:
         If the minimum is achieved in multiple locations,
         the first row position is returned.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = pd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
+               ...             'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
+            >>> s
+            Corn Flakes              100.0
+            Almond Delight           110.0
+            Cinnamon Toast Crunch    120.0
+            Cocoa Puff               110.0
+            dtype: Float64
+
+            >>> s.argmax()
+            2
+
+            >>> s.argmin()
+            0
+
+            The maximum cereal calories is the third element and the minimum
+            cereal calories is the first element, since series is zero-indexed.
+
         Returns:
             int: Row position of the minimum value.
         """
@@ -485,6 +558,29 @@ class Index:
         If the maximum is achieved in multiple locations,
         the first row position is returned.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = pd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
+                  ...          'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
+            >>> s
+            Corn Flakes              100.0
+            Almond Delight           110.0
+            Cinnamon Toast Crunch    120.0
+            Cocoa Puff               110.0
+            dtype: Float64
+
+            >>> s.argmax()
+            2
+
+            >>> s.argmin()
+            0
+
+            The maximum cereal calories is the third element and the minimum
+            cereal calories is the first element, since series is zero-indexed.
+
         Returns:
             int: Row position of the maximum value.
         """
@@ -495,8 +591,26 @@ class Index:
 
         Excludes NA values by default.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 3, 5, 7, 7])
+            >>> s
+            0    1
+            1    3
+            2    5
+            3    7
+            4    7
+            dtype: Int64
+
+            >>> s.nunique()
+            4
+
         Returns:
-            int
+            int:
+                Number of unique elements
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -509,6 +623,20 @@ class Index:
         Return a sorted copy of the index, and optionally return the indices
         that sorted the index itself.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = bpd.Index([10, 100, 1, 1000])
+            >>> idx
+            Index([10, 100, 1, 1000], dtype='Int64')
+
+            Sort values in ascending order (default behavior).
+
+            >>> idx.sort_values()
+            Index([1, 10, 100, 1000], dtype='Int64')
+
         Args:
             ascending (bool, default True):
                 Should the index values be sorted in an ascending order.
@@ -518,6 +646,10 @@ class Index:
 
         Returns:
             pandas.Index: Sorted copy of the index.
+
+        Raises:
+            ValueError:
+                If ``no_position`` is not one of ``first`` or ``last``
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -535,6 +667,43 @@ class Index:
         first element is the most frequently-occurring element.
         Excludes NA values by default.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> index = pd.Index([3, 1, 2, 3, 4, np.nan])
+            >>> index.value_counts()
+            3.0    2
+            1.0    1
+            2.0    1
+            4.0    1
+            Name: count, dtype: Int64
+
+            With normalize set to True, returns the relative frequency by
+            dividing all values by the sum of values.
+
+            >>> s = bpd.Series([3, 1, 2, 3, 4, np.nan])
+            >>> s.value_counts(normalize=True)
+            3.0    0.4
+            1.0    0.2
+            2.0    0.2
+            4.0    0.2
+            Name: proportion, dtype: Float64
+
+        dropna
+
+            With dropna set to False we can also see NaN index values.
+
+            >>> s.value_counts(dropna=False)
+            3.0     2
+            1.0     1
+            2.0     1
+            4.0     1
+            <NA>    1
+            Name: count, dtype: Int64
+
         Args:
             normalize (bool, default False):
                 If True, then the object returned will contain the relative
@@ -547,7 +716,7 @@ class Index:
                 Don't include counts of NaN.
 
         Returns:
-            Series
+            bigframe.pandas.Series
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -555,13 +724,23 @@ class Index:
         """
         Fill NA/NaN values with the specified value.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = bpd.Index([np.nan, np.nan, 3])
+            >>> idx.fillna(0)
+            Index([0.0, 0.0, 3.0], dtype='Float64')
+
         Args:
             value (scalar):
                 Scalar value to use to fill holes (e.g. 0).
                 This value cannot be a list-likes.
 
         Returns:
-            Index
+            bigframes.pandas.Index
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -572,18 +751,41 @@ class Index:
         Able to set new names without level. Defaults to returning new index.
         Length of names must match number of levels in MultiIndex.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = bpd.Index(['A', 'C', 'A', 'B'], name='score')
+            >>> idx.rename('grade')
+            Index(['A', 'C', 'A', 'B'], dtype='string', name='grade')
+
         Args:
             name (label or list of labels):
                 Name(s) to set.
 
         Returns:
-            Index: The same type as the caller.
+            bigframes.pandas.Index:
+                The same type as the caller.
+
+        Raises:
+            ValueError:
+                If ``name`` is not the same length as levels
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def drop(self, labels) -> Index:
         """
         Make new Index with passed list of labels deleted.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = bpd.Index(['a', 'b', 'c'])
+            >>> idx.drop(['a'])
+            Index(['b', 'c'], dtype='string')
 
         Args:
             labels (array-like or scalar):
@@ -596,19 +798,59 @@ class Index:
     def dropna(self, how: typing.Literal["all", "any"] = "any"):
         """Return Index without NA/NaN values.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> idx = bpd.Index([1, np.nan, 3])
+            >>> idx.dropna()
+            Index([1.0, 3.0], dtype='Float64')
+
         Args:
             how ({'any', 'all'}, default 'any'):
                 If the Index is a MultiIndex, drop the value when any or all levels
                 are NaN.
 
         Returns:
-            Index
+            bigframes.pandas.Index
+
+        Raises:
+            ValueError:
+                If ``how`` is not ``any`` or ``all``
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def drop_duplicates(self, *, keep: str = "first"):
         """
         Return Index with duplicate values removed.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            Generate an pandas.Index with duplicate values.
+
+            >>> idx = bpd.Index(['lama', 'cow', 'lama', 'beetle', 'lama', 'hippo'])
+
+            The keep parameter controls which duplicate values are removed.
+            The value ``first`` keeps the first occurrence for each set of
+            duplicated entries. The default value of keep is ``first``.
+
+            >>> idx.drop_duplicates(keep='first')
+            Index(['lama', 'cow', 'beetle', 'hippo'], dtype='string')
+
+            The value ``last`` keeps the last occurrence for each set of
+            duplicated entries.
+
+            >>> idx.drop_duplicates(keep='last')
+            Index(['cow', 'beetle', 'lama', 'hippo'], dtype='string')
+
+            The value ``False`` discards all sets of duplicated entries.
+
+            >>> idx.drop_duplicates(keep=False)
+            Index(['cow', 'beetle', 'hippo'], dtype='string')
 
         Args:
             keep ({'first', 'last', ``False``}, default 'first'):
@@ -618,7 +860,7 @@ class Index:
                 ``False`` : Drop all duplicates.
 
         Returns:
-            Index
+            bigframes.pandas.Index
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
