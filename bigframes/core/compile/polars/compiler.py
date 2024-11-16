@@ -110,6 +110,7 @@ if polars_installed:
             self,
             agg: ex.Aggregation,
         ) -> Sequence[pl.Expr]:
+            """Prepares arguments for aggregation by compiling them."""
             if isinstance(agg, ex.NullaryAggregation):
                 return []
             elif isinstance(agg, ex.UnaryAggregation):
@@ -170,6 +171,7 @@ class PolarsCompiler:
                 "Polars is not installed, cannot compile to polars engine."
             )
 
+        # TODO: Create standard way to configure BFET -> BFET rewrites
         # Polars has incomplete slice support in lazy mode
         node = bigframes.core.rewrite.replace_slice_ops(array_value.node)
         return self.compile_node(node)
@@ -181,7 +183,14 @@ class PolarsCompiler:
 
     @compile_node.register
     def compile_readlocal(self, node: nodes.ReadLocalNode):
-        return pl.read_ipc(node.feather_bytes).lazy()
+        cols_to_read = {
+            scan_item.source_id: scan_item.id.sql for scan_item in node.scan_list.items
+        }
+        return (
+            pl.read_ipc(node.feather_bytes, columns=list(cols_to_read.keys()))
+            .lazy()
+            .rename(cols_to_read)
+        )
 
     @compile_node.register
     def compile_filter(self, node: nodes.FilterNode):
@@ -227,8 +236,8 @@ class PolarsCompiler:
 
     @compile_node.register
     def compile_rowcount(self, node: nodes.RowCountNode):
-        rows = self.compile_node(node.child).count()[0]
-        return pl.DataFrame({node.col_id.sql, [rows]})
+        df = cast(pl.LazyFrame, self.compile_node(node.child))
+        return df.select(pl.len().alias(node.col_id.sql))
 
     @compile_node.register
     def compile_offsets(self, node: nodes.PromoteOffsetsNode):
@@ -237,11 +246,8 @@ class PolarsCompiler:
         )
 
     @compile_node.register
-    def compile_slice(self, node: nodes.SliceNode):
-        return self.compile_node(node.child)[node.start : node.stop : node.step]
-
-    @compile_node.register
     def compile_join(self, node: nodes.JoinNode):
+        # Always totally order this, as adding offsets is relatively cheap for in-memory columnar data
         left = self.compile_node(node.left_child).with_columns(
             [
                 pl.int_range(pl.len()).alias("_bf_join_l"),

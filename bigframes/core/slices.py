@@ -30,7 +30,8 @@ def to_forward_offsets(
         start = 0 if (step > 0) else (input_rows - 1)
     elif start < 0:
         start = max(0, input_rows + start)
-    else:
+    else:  # start >= 0
+        # Clip start to either beginning or end depending on step direction
         start = min(start, input_rows - 1) if step < 0 else start
 
     if stop is None:

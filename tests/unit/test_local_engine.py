@@ -33,7 +33,7 @@ def polars_session():
 
 
 @pytest.fixture(scope="module")
-def test_frame() -> pd.DataFrame:
+def small_inline_frame() -> pd.DataFrame:
     df = pd.DataFrame(
         {
             "int1": pd.Series([1, 2, 3], dtype="Int64"),
@@ -53,9 +53,9 @@ def test_frame() -> pd.DataFrame:
 # These tests should be unit tests, but Session object is tightly coupled to BigQuery client.
 @skip_legacy_pandas
 def test_polars_local_engine_add(
-    test_frame: pd.DataFrame, polars_session: bigframes.Session
+    small_inline_frame: pd.DataFrame, polars_session: bigframes.Session
 ):
-    pd_df = test_frame
+    pd_df = small_inline_frame
     bf_df = bpd.DataFrame(pd_df, session=polars_session)
 
     bf_result = (bf_df["int1"] + bf_df["int2"]).to_pandas()
@@ -64,8 +64,8 @@ def test_polars_local_engine_add(
 
 
 @skip_legacy_pandas
-def test_polars_local_engine_order_by(test_frame: pd.DataFrame, polars_session):
-    pd_df = test_frame
+def test_polars_local_engine_order_by(small_inline_frame: pd.DataFrame, polars_session):
+    pd_df = small_inline_frame
     bf_df = bpd.DataFrame(pd_df, session=polars_session)
 
     bf_result = bf_df.sort_values("strings").to_pandas()
@@ -74,8 +74,8 @@ def test_polars_local_engine_order_by(test_frame: pd.DataFrame, polars_session):
 
 
 @skip_legacy_pandas
-def test_polars_local_engine_filter(test_frame: pd.DataFrame, polars_session):
-    pd_df = test_frame
+def test_polars_local_engine_filter(small_inline_frame: pd.DataFrame, polars_session):
+    pd_df = small_inline_frame
     bf_df = bpd.DataFrame(pd_df, session=polars_session)
 
     bf_result = bf_df.filter(bf_df["int2"] >= 1).to_pandas()
@@ -84,8 +84,10 @@ def test_polars_local_engine_filter(test_frame: pd.DataFrame, polars_session):
 
 
 @skip_legacy_pandas
-def test_polars_local_engine_reset_index(test_frame: pd.DataFrame, polars_session):
-    pd_df = test_frame
+def test_polars_local_engine_reset_index(
+    small_inline_frame: pd.DataFrame, polars_session
+):
+    pd_df = small_inline_frame
     bf_df = bpd.DataFrame(pd_df, session=polars_session)
 
     bf_result = bf_df.reset_index().to_pandas()
@@ -105,7 +107,7 @@ def test_polars_local_engine_join_binop(polars_session):
 
     bf_result = (bf_df_1 + bf_df_2).to_pandas()
     pd_result = pd_df_1 + pd_df_2
-    # Sort by index because ordering logic isn't quite consistent yet
+    # Sort since different join ordering
     pandas.testing.assert_frame_equal(
         bf_result.sort_index(),
         pd_result.sort_index(),
@@ -129,10 +131,9 @@ def test_polars_local_engine_joins(join_type, polars_session):
     bf_df_1 = bpd.DataFrame(pd_df_1, session=polars_session)
     bf_df_2 = bpd.DataFrame(pd_df_2, session=polars_session)
 
-    # Sort by index because ordering logic isn't quite consistent yet
     bf_result = bf_df_1.join(bf_df_2, how=join_type).to_pandas()
     pd_result = pd_df_1.join(pd_df_2, how=join_type)
-    # Sort by index because ordering logic isn't quite consistent yet
+    # Sort by index because ordering logic isn't same as pandas
     pandas.testing.assert_frame_equal(
         bf_result.sort_index(), pd_result.sort_index(), check_index_type=False
     )
@@ -166,8 +167,8 @@ def test_polars_local_engine_groupby_sum(polars_session):
 
 
 @skip_legacy_pandas
-def test_polars_local_engine_cumsum(test_frame, polars_session):
-    pd_df = test_frame[["int1", "int2"]]
+def test_polars_local_engine_cumsum(small_inline_frame, polars_session):
+    pd_df = small_inline_frame[["int1", "int2"]]
     bf_df = bpd.DataFrame(pd_df, session=polars_session)
 
     bf_result = bf_df.cumsum().to_pandas()
@@ -176,8 +177,8 @@ def test_polars_local_engine_cumsum(test_frame, polars_session):
 
 
 @skip_legacy_pandas
-def test_polars_local_engine_explode(test_frame, polars_session):
-    pd_df = test_frame
+def test_polars_local_engine_explode(small_inline_frame, polars_session):
+    pd_df = small_inline_frame
     bf_df = bpd.DataFrame(pd_df, session=polars_session)
 
     bf_result = bf_df.explode(["intLists"]).to_pandas()
@@ -191,11 +192,11 @@ def test_polars_local_engine_explode(test_frame, polars_session):
         (1, None, None),
         (None, 4, None),
         (None, None, 2),
-        (None, 50000000000, 1),
+        (None, 50_000_000_000, 1),
         (5, 4, None),
         (3, None, 2),
         (1, 7, 2),
-        (1, 7, 50000000000),
+        (1, 7, 50_000_000_000),
         (-1, -7, -2),
         (None, -7, -2),
         (-1, None, -2),
@@ -206,8 +207,10 @@ def test_polars_local_engine_explode(test_frame, polars_session):
     ],
 )
 @skip_legacy_pandas
-def test_polars_local_engine_slice(test_frame, polars_session, start, stop, step):
-    pd_df = test_frame
+def test_polars_local_engine_slice(
+    small_inline_frame, polars_session, start, stop, step
+):
+    pd_df = small_inline_frame
     bf_df = bpd.DataFrame(pd_df, session=polars_session)
 
     bf_result = bf_df.iloc[start:stop:step].to_pandas()
