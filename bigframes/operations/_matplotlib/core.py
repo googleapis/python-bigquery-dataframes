@@ -52,6 +52,10 @@ class SamplingPlot(MPLPlot):
     def _kind(self):
         pass
 
+    @property
+    def _sampling_warning_msg(self) -> typing.Optional[str]:
+        return None
+
     def __init__(self, data, **kwargs) -> None:
         self.kwargs = kwargs
         self.data = data
@@ -67,7 +71,7 @@ class SamplingPlot(MPLPlot):
             total_n = data.shape[0]
             if sampling_n < total_n:
                 warnings.warn(
-                    self._sampling_warning_msg().format(
+                    self._sampling_warning_msg.format(
                         sampling_n=sampling_n, total_n=total_n
                     )
                 )
@@ -84,10 +88,6 @@ class SamplingPlot(MPLPlot):
     def _compute_plot_data(self):
         return self._compute_sample_data(self.data)
 
-    def _sampling_warning_msg(self) -> str:
-        return None
-
-
 class AreaPlot(SamplingPlot):
     @property
     def _kind(self) -> typing.Literal["area"]:
@@ -99,7 +99,8 @@ class BarPlot(SamplingPlot):
     def _kind(self) -> typing.Literal["bar"]:
         return "bar"
 
-    def _sampling_warning_msg(self) -> str:
+    @property
+    def _sampling_warning_msg(self) -> typing.Optional[str]:
         return (
             "To optimize plotting performance, your data has been downsampled to {sampling_n} "
             "rows from the original {total_n} rows. This may result in some data points "
