@@ -88,6 +88,7 @@ class SamplingPlot(MPLPlot):
     def _compute_plot_data(self):
         return self._compute_sample_data(self.data)
 
+
 class AreaPlot(SamplingPlot):
     @property
     def _kind(self) -> typing.Literal["area"]:
