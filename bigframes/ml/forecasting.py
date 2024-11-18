@@ -253,15 +253,15 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
             options={"horizon": horizon, "confidence_level": confidence_level}
         )
     
-    def predict_attribution(
+    def predict_explain(
         self, X=None, *, horizon: int = 3, confidence_level: float = 0.95
     ) -> bpd.DataFrame:
-        """Forecast time series at future horizon.
+        """Explain Forecast time series at future horizon.
 
         .. note::
 
-            Output matches that of the BigQuery ML.FORECAST function.
-            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-forecast
+            Output matches that of the BigQuery ML.EXPLAIN_FORECAST function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-forecast
 
         Args:
             X (default None):
@@ -274,8 +274,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
                 The valid input range is [0.0, 1.0).
 
         Returns:
-            bigframes.dataframe.DataFrame: The predicted DataFrames. Which
-                contains 2 columns: "forecast_timestamp" and "forecast_value".
+            bigframes.dataframe.DataFrame: The predicted DataFrames.
         """
         if horizon < 1 or horizon > 1000:
             raise ValueError(f"horizon must be [1, 1000], but is {horizon}.")
