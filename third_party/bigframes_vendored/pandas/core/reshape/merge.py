@@ -17,6 +17,8 @@ def merge(
     suffixes=("_x", "_y"),
 ):
     """
+    THIS IS A TEST LINE
+
     Merge DataFrame objects with a database-style join.
 
     The join is done on columns or indexes. If joining columns on

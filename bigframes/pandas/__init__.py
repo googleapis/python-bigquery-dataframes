@@ -457,7 +457,10 @@ to_datetime.__doc__ = vendored_pandas_datetimes.to_datetime.__doc__
 
 
 def get_default_session_id() -> str:
-    """Gets the session id that is used whenever a custom session
+    """
+    THIS IS A TEST LINE
+
+    Gets the session id that is used whenever a custom session
     has not been provided.
 
     It is the session id of the default global session. It is prefixed to
@@ -474,7 +477,10 @@ def clean_up_by_session_id(
     location: Optional[str] = None,
     project: Optional[str] = None,
 ) -> None:
-    """Searches through BigQuery tables and routines and deletes the ones
+    """
+    THIS IS A TEST LINE
+
+    Searches through BigQuery tables and routines and deletes the ones
     created during the session with the given session id. The match is
     determined by having the session id present in the resource name or
     metadata. The cloud functions serving the cleaned up routines are also
@@ -526,14 +532,6 @@ def clean_up_by_session_id(
         session.bqclient, session.cloudfunctionsclient, dataset, session_id
     )
 
-
-# pandas dtype attributes
-NA = pandas.NA
-BooleanDtype = pandas.BooleanDtype
-Float64Dtype = pandas.Float64Dtype
-Int64Dtype = pandas.Int64Dtype
-StringDtype = pandas.StringDtype
-ArrowDtype = pandas.ArrowDtype
 
 # Class aliases
 # TODO(swast): Make these real classes so we can refer to these in type
@@ -610,11 +608,6 @@ __all__ = [
     "to_datetime",
     # pandas dtype attributes
     "NA",
-    "BooleanDtype",
-    "Float64Dtype",
-    "Int64Dtype",
-    "StringDtype",
-    "ArrowDtype",
     # Class aliases
     "DataFrame",
     "Index",

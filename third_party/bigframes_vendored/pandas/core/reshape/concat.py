@@ -14,7 +14,10 @@ def concat(
     join: str = "outer",
     ignore_index: bool = False,
 ):
-    """Concatenate BigQuery DataFrames objects along a particular axis.
+    """
+    THIS IS A TEST LINE
+
+    Concatenate BigQuery DataFrames objects along a particular axis.
 
     Allows optional set logic along the other axes.
 
