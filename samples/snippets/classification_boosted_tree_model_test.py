@@ -40,8 +40,7 @@ def test_boosted_tree_model(random_model_id: str) -> None:
     del input_data["functional_weight"]
     # [END bigquery_dataframes_bqml_boosted_tree_prepare]
     # [START bigquery_dataframes_bqml_boosted_tree_create]
-    # from sklearn.ensemble import GradientBoostingClassifier
-    import bigframes.ml.linear_model
+    from bigframes.ml import ensemble
 
     # input_data is defined in an earlier step.
     training_data = input_data[input_data["dataframe"] == "training"]
@@ -49,10 +48,12 @@ def test_boosted_tree_model(random_model_id: str) -> None:
     y = training_data["income_bracket"]
 
     # create and train the model
-    census_model = bigframes.ml.linear_model.LogisticRegression(
-        # model_type="BOOSTED_TREE_CLASSIFIER",
-        # booster_type="gbtree",
-        max_iterations=50,
+    census_model = ensemble.XGBClassifier(
+        n_estimators=1,
+        booster="gbtree",
+        tree_method="hist",
+        max_iterations=5,  # For a more accurate model, try 50 iterations.
+        subsample=0.85,
     )
     census_model.fit(X, y)
 
