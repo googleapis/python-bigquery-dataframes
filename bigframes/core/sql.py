@@ -190,11 +190,11 @@ def create_vector_search_sql(
             f"options => {simple_literal(json.dumps(options, indent=None))}"
         )
 
+    args_str = ",\n".join(vector_search_args)
     return f"""
     SELECT
         query.*,
         base.*,
         distance,
-    FROM VECTOR_SEARCH(
-{',\n'.join(vector_search_args)})
+    FROM VECTOR_SEARCH({args_str})
     """

@@ -29,8 +29,7 @@ def test_create_vector_search_sql_simple():
         query.*,
         base.*,
         distance,
-    FROM VECTOR_SEARCH(
-TABLE `my_base_table`,
+    FROM VECTOR_SEARCH(TABLE `my_base_table`,
 'my_embedding_column',
 (SELECT embedding FROM my_embeddings_table WHERE id = 1))
     """
@@ -57,8 +56,7 @@ def test_create_vector_search_sql_all_named_parameters():
         query.*,
         base.*,
         distance,
-    FROM VECTOR_SEARCH(
-TABLE `my_base_table`,
+    FROM VECTOR_SEARCH(TABLE `my_base_table`,
 'my_embedding_column',
 (SELECT embedding FROM my_embeddings_table WHERE id = 1),
 query_column_to_search => 'another_embedding_column',
