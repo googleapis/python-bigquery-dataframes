@@ -52,7 +52,7 @@ def test_boosted_tree_model(random_model_id: str) -> None:
         n_estimators=1,
         booster="gbtree",
         tree_method="hist",
-        max_iterations=5,  # For a more accurate model, try 50 iterations.
+        max_iterations=1,  # For a more accurate model, try 50 iterations.
         subsample=0.85,
     )
     census_model.fit(X, y)
