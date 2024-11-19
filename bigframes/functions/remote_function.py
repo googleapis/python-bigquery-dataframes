@@ -130,6 +130,9 @@ def read_gbq_function(
     except google.api_core.exceptions.NotFound:
         raise ValueError(f"Unknown function '{routine_ref}'. {constants.FEEDBACK_LINK}")
 
+    if is_row_processor and len(routine.arguments) > 1:
+        raise ValueError("The row processor cannot accept a multi-parameter function.")
+
     try:
         ibis_signature = ibis_signature_from_routine(routine)
     except ReturnTypeMissingError:

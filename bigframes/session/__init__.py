@@ -1362,6 +1362,67 @@ class Session(
             2    TestCad$123456Str
             dtype: string
 
+        Another use case is to define your own remote funtion (or UDFs) and use
+        it later. For example, define the remote function:
+
+            >>> @bpd.remote_function(
+            ...     dataset='bigframe_testing',
+            ...     reuse=True,
+            ...     name='foo_0',
+            ... )
+            ... def foo_0(num: int) -> float:
+            ...     return num * 10
+
+        Then, use the pre-define remote function:
+
+            >>> func_ref_0 = bpd.read_gbq_function(
+            ...     "bigframes-dev.bigframe_testing.foo_0",
+            ... )
+
+            >>> df = bpd.DataFrame({'a': [1, 2], 'b': [3, 4], 'c': [5, 6]})
+            >>> df
+                a   b   c
+            0   1   3   5
+            1   2   4   6
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+            >>> df['a'].apply(func_ref_0)
+            0    10.0
+            1    20.0
+            Name: a, dtype: Float64
+
+        It also supports row processing by using `is_row_processor=True`. Please
+        note, row processor only works well when the function has only one
+        parameter.
+
+            >>> import pandas as pd
+            >>> @bpd.remote_function(
+            ...     dataset='bigframe_testing',
+            ...     reuse=True,
+            ...     name='foo_1',
+            ... )
+            ... def foo_1(s: pd.Series) -> float:
+            ...     return s['a'] + s['b'] + s['c']
+
+            >>> func_ref_1 = bpd.read_gbq_function(
+            ...     "bigframes-dev.bigframe_testing.foo_1",
+            ...     is_row_processor=True,
+            ... )
+
+            >>> df = bpd.DataFrame({'a': [1, 2], 'b': [3, 4], 'c': [5, 6]})
+            >>> df
+                a   b   c
+            0   1   3   5
+            1   2   4   6
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+            >>> df.apply(func_ref_1, axis=1)
+            0     9.0
+            1    12.0
+            dtype: Float64
+
         Args:
             function_name (str):
                 The function's name in BigQuery in the format

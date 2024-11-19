@@ -840,6 +840,89 @@ def test_read_gbq_function_enforces_explicit_types(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
+def test_read_gbq_function_row_processor_error(
+    session,
+    bigquery_client,
+    bigqueryconnection_client,
+    cloudfunctions_client,
+    resourcemanager_client,
+    dataset_id_permanent,
+    bq_cf_connection,
+):
+    def func_rp0(num0: int, num1: int) -> int:
+        return num0 + num1
+
+    func_rp0 = rf.remote_function(
+        bigquery_client=bigquery_client,
+        bigquery_connection_client=bigqueryconnection_client,
+        dataset=dataset_id_permanent,
+        cloud_functions_client=cloudfunctions_client,
+        resource_manager_client=resourcemanager_client,
+        bigquery_connection=bq_cf_connection,
+        reuse=True,
+        name=get_rf_name(func_rp0),
+    )(func_rp0)
+
+    with pytest.raises(ValueError) as context:
+        # The remote function has two args, which cannot be row processed. Throw
+        # a ValueError for it.
+        rf.read_gbq_function(
+            function_name=func_rp0.bigframes_remote_function,
+            is_row_processor=True,
+            session=session,
+        )
+    assert (
+        str(context.value)
+        == "The row processor cannot accept a multi-parameter function."
+    )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_read_gbq_function_row_processor(
+    session,
+    bigquery_client,
+    bigqueryconnection_client,
+    cloudfunctions_client,
+    resourcemanager_client,
+    dataset_id_permanent,
+    bq_cf_connection,
+):
+    def func_rp1(s):
+        return s["a"] + s["b"] + s["c"]
+
+    func_rp1 = rf.remote_function(
+        [bigframes.series.Series],
+        int,
+        bigquery_client=bigquery_client,
+        bigquery_connection_client=bigqueryconnection_client,
+        dataset=dataset_id_permanent,
+        cloud_functions_client=cloudfunctions_client,
+        resource_manager_client=resourcemanager_client,
+        bigquery_connection=bq_cf_connection,
+        reuse=True,
+        name=get_rf_name(func_rp1),
+    )(func_rp1)
+
+    func_ref_rp1 = rf.read_gbq_function(
+        function_name=func_rp1.bigframes_remote_function,
+        is_row_processor=True,
+        session=session,
+    )
+
+    assert func_rp1.bigframes_remote_function
+    assert func_rp1.bigframes_cloud_function
+    assert func_ref_rp1.bigframes_remote_function
+    assert not hasattr(func_ref_rp1, "bigframes_cloud_function")
+    assert func_rp1.bigframes_remote_function == func_ref_rp1.bigframes_remote_function
+
+    bdf = bigframes.pandas.DataFrame({"a": [1, 2], "b": [3, 4], "c": [5, 6]})
+    actual_result = bdf.apply(func_rp1, axis=1).to_frame()
+    expected_result = bdf.apply(func_ref_rp1, axis=1).to_frame()
+
+    assert_pandas_df_equal(actual_result.to_pandas(), expected_result.to_pandas())
+
+
+@pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
     columns = [
         "bool_col",
