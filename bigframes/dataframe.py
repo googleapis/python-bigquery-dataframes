@@ -1280,11 +1280,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             columns="_bigframes_variable_y",
             values="_bigframes_corr",
         )
-
-        n_levels = len(orig_columns.levels)
         map_data = {
             f"_bigframes_level_{i}": orig_columns.get_level_values(i)
-            for i in range(n_levels)
+            for i in range(orig_columns.nlevels)
         }
         map_data["_bigframes_keys"] = range(len(orig_columns))
         map_df = bigframes.dataframe.DataFrame(
@@ -1293,7 +1291,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ).set_index("_bigframes_keys")
         result = result.join(map_df)
         result = result.sort_index()
-        index_columns = [f"_bigframes_level_{i}" for i in range(n_levels)]
+        index_columns = [f"_bigframes_level_{i}" for i in range(orig_columns.nlevels)]
         result = result.set_index(index_columns)
         result.index.names = orig_columns.names
         result.columns = orig_columns
@@ -1378,10 +1376,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             values="_bigframes_cov",
         )
 
-        n_levels = len(orig_columns.levels)
         map_data = {
             f"_bigframes_level_{i}": orig_columns.get_level_values(i)
-            for i in range(n_levels)
+            for i in range(orig_columns.nlevels)
         }
         map_data["_bigframes_keys"] = range(len(orig_columns))
         map_df = bigframes.dataframe.DataFrame(
@@ -1390,7 +1387,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ).set_index("_bigframes_keys")
         result = result.join(map_df)
         result = result.sort_index()
-        index_columns = [f"_bigframes_level_{i}" for i in range(n_levels)]
+        index_columns = [f"_bigframes_level_{i}" for i in range(orig_columns.nlevels)]
         result = result.set_index(index_columns)
         result.index.names = orig_columns.names
         result.columns = orig_columns
