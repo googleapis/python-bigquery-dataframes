@@ -101,7 +101,7 @@ def test_boosted_tree_model(random_model_id: str) -> None:
     predictions.peek()
     # Output:
     # predicted_income_bracket   predicted_income_bracket_probs.label  predicted_income_bracket_probs.prob
-    #                   <=50K                                   >50K                   0.05183430016040802                 |
+    #                   <=50K                                   >50K                   0.05183430016040802
     #                                                           <50K                   0.94816571474075317
     #                   <=50K                                   >50K                   0.00365859130397439
     #                                                           <50K                   0.99634140729904175
