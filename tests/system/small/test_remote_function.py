@@ -867,7 +867,7 @@ def test_read_gbq_function_row_processor_error(
         # The remote function has two args, which cannot be row processed. Throw
         # a ValueError for it.
         rf.read_gbq_function(
-            function_name=func_rp0.bigframes_remote_function,
+            function_name=func_rp0.bigframes_remote_function,   # type: ignore
             is_row_processor=True,
             session=session,
         )
@@ -904,16 +904,16 @@ def test_read_gbq_function_row_processor(
     )(func_rp1)
 
     func_ref_rp1 = rf.read_gbq_function(
-        function_name=func_rp1.bigframes_remote_function,
+        function_name=func_rp1.bigframes_remote_function,   # type: ignore
         is_row_processor=True,
         session=session,
     )
 
-    assert func_rp1.bigframes_remote_function
-    assert func_rp1.bigframes_cloud_function
+    assert func_rp1.bigframes_remote_function   # type: ignore
+    assert func_rp1.bigframes_cloud_function    # type: ignore
     assert func_ref_rp1.bigframes_remote_function
     assert not hasattr(func_ref_rp1, "bigframes_cloud_function")
-    assert func_rp1.bigframes_remote_function == func_ref_rp1.bigframes_remote_function
+    assert func_rp1.bigframes_remote_function == func_ref_rp1.bigframes_remote_function # type: ignore
 
     bdf = bigframes.pandas.DataFrame({"a": [1, 2], "b": [3, 4], "c": [5, 6]})
     actual_result = bdf.apply(func_rp1, axis=1).to_frame()
