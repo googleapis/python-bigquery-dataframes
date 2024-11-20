@@ -522,7 +522,9 @@ def scalars_df_numeric_150_columns_maybe_ordered(
             "int64_too",
         ]
     ]
-    df = bpd.concat([df] * 30, axis=1)
+
+    # Cache to avoid RecursionError
+    df = bpd.concat([df] * 30, axis=1).cache()
 
     pandas_df = pandas_df.reset_index(drop=False)[
         [
