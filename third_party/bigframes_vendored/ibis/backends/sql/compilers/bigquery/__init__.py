@@ -247,17 +247,6 @@ class BigQueryCompiler(SQLGlotCompiler):
         sources.append(result)
         return sources
 
-    @staticmethod
-    def _minimize_spec(start, end, spec):
-        if (
-            start is None
-            and isinstance(getattr(end, "value", None), ops.Literal)
-            and end.value.value == 0
-            and end.following
-        ):
-            return None
-        return spec
-
     def visit_BoundingBox(self, op, *, arg):
         name = type(op).__name__[len("Geo") :].lower()
         return sge.Dot(
