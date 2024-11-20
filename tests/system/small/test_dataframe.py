@@ -2104,9 +2104,7 @@ def test_corr_w_invalid_parameters(scalars_dfs):
 def test_cov_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
     scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
     bf_result = scalars_df[columns].cov(numeric_only=numeric_only).to_pandas()
-    print(bf_result)
     pd_result = scalars_pandas_df[columns].cov(numeric_only=numeric_only)
-    print(pd_result)
     # BigFrames and Pandas differ in their data type handling:
     # - Column types: BigFrames uses Float64, Pandas uses float64.
     # - Index types: BigFrames uses strign, Pandas uses object.
