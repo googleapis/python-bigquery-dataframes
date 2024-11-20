@@ -507,6 +507,37 @@ def json_pandas_df() -> pd.DataFrame:
 
 
 @pytest.fixture(scope="session")
+def scalars_df_numeric_150_columns_maybe_ordered(
+    scalars_dfs_maybe_ordered: bigframes.dataframe.DataFrame,
+):
+    """DataFrame pointing at test data."""
+    # TODO(b/379911038): After the error fixed, add numeric type.
+    df, pandas_df = scalars_dfs_maybe_ordered
+    df = df.reset_index(drop=False)[
+        [
+            "rowindex",
+            "rowindex_2",
+            "float64_col",
+            "int64_col",
+            "int64_too",
+        ]
+    ]
+    df = bpd.concat([df] * 30, axis=1)
+
+    pandas_df = pandas_df.reset_index(drop=False)[
+        [
+            "rowindex",
+            "rowindex_2",
+            "float64_col",
+            "int64_col",
+            "int64_too",
+        ]
+        * 30
+    ]
+    return (df, pandas_df)
+
+
+@pytest.fixture(scope="session")
 def scalars_df_default_index(
     scalars_df_index: bigframes.dataframe.DataFrame,
     scalars_pandas_df_default_index: pd.DataFrame,
