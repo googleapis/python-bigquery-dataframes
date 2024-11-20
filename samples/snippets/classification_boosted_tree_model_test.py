@@ -48,17 +48,17 @@ def test_boosted_tree_model(random_model_id: str) -> None:
     y = training_data["income_bracket"]
 
     # create and train the model
-    census_model = ensemble.XGBClassifier(
+    tree_model = ensemble.XGBClassifier(
         n_estimators=1,
         booster="gbtree",
         tree_method="hist",
         max_iterations=1,  # For a more accurate model, try 50 iterations.
         subsample=0.85,
     )
-    census_model.fit(X, y)
+    tree_model.fit(X, y)
 
-    census_model.to_gbq(
-        your_model_id,  # For example: "your-project.census.census_model"
+    tree_model.to_gbq(
+        your_model_id,  # For example: "your-project.bqml_tutorial.tree_model"
         replace=True,
     )
     # [END bigquery_dataframes_bqml_boosted_tree_create]
@@ -87,4 +87,3 @@ def test_boosted_tree_model(random_model_id: str) -> None:
     assert evaluation_data is not None
     assert score is not None
     assert input_data is not None
-    assert census_model is not None
