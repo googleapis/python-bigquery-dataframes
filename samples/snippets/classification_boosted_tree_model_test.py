@@ -83,9 +83,6 @@ def test_boosted_tree_model(random_model_id: str) -> None:
     #    precision    recall  accuracy  f1_score  log_loss   roc_auc
     # 0   0.671924  0.578804  0.839429  0.621897  0.344054  0.887335
     # [END bigquery_dataframes_bqml_boosted_tree_evaluate]
-    assert tree_model is not None
-    assert evaluation_data is not None
-    assert score is not None
     # [START bigquery_dataframes_bqml_boosted_tree_predict]
     # Select model you'll use for predictions. `read_gbq_model` loads model
     # data from BigQuery, but you could also use the `tree_model` object
@@ -109,6 +106,9 @@ def test_boosted_tree_model(random_model_id: str) -> None:
     #                                                           <50K                   0.96222406625747681
     # [END bigquery_dataframes_bqml_boosted_tree_predict]
     assert input_data is not None
+    assert training_data is not None
     assert tree_model is not None
-    assert predictions is not None
+    assert evaluation_data is not None
+    assert score is not None
     assert prediction_data is not None
+    assert predictions is not None
