@@ -1,0 +1,29 @@
+import pandas as pd
+
+
+def test_corr_w_numeric_only(scalars_df_numeric_150_columns_maybe_ordered):
+    scalars_df, scalars_pandas_df = scalars_df_numeric_150_columns_maybe_ordered
+    bf_result = scalars_df.corr(numeric_only=True).to_pandas()
+    pd_result = scalars_pandas_df.corr(numeric_only=True)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_dtype=False,
+        check_index_type=False,
+        check_column_type=False,
+    )
+
+
+def test_cov_w_numeric_only(scalars_df_numeric_150_columns_maybe_ordered):
+    scalars_df, scalars_pandas_df = scalars_df_numeric_150_columns_maybe_ordered
+    bf_result = scalars_df.cov(numeric_only=True).to_pandas()
+    pd_result = scalars_pandas_df.cov(numeric_only=True)
+
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_dtype=False,
+        check_index_type=False,
+        check_column_type=False,
+    )
