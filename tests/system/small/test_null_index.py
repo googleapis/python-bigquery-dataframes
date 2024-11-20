@@ -341,6 +341,25 @@ def test_null_index_df_concat(scalars_df_null_index, scalars_pandas_df_default_i
     )
 
 
+def test_null_index_map_dict_input(
+    scalars_df_null_index, scalars_pandas_df_default_index
+):
+
+    local_map = dict()
+    # construct a local map, incomplete to cover <NA> behavior
+    for s in scalars_pandas_df_default_index.string_col[:-3]:
+        if isinstance(s, str):
+            local_map[s] = ord(s[0])
+
+    pd_result = scalars_pandas_df_default_index.string_col.map(local_map)
+    pd_result = pd_result.astype("Int64")  # pandas type differences
+    bf_result = scalars_df_null_index.string_col.map(local_map)
+
+    pd.testing.assert_series_equal(
+        bf_result.to_pandas(), pd_result.reset_index(drop=True), check_dtype=False
+    )
+
+
 def test_null_index_align_error(scalars_df_null_index):
     with pytest.raises(bigframes.exceptions.NullIndexError):
         _ = (
