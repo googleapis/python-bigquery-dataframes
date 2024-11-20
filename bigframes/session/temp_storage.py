@@ -51,13 +51,13 @@ class TemporaryGbqStorageManager:
 
     def create_temp_table(
         self, schema: Sequence[bigquery.SchemaField], cluster_cols: Sequence[str]
-    ) -> bigquery.TableReference:
+    ) -> bigquery.Table:
         # Can't set a table in _SESSION as destination via query job API, so we
         # run DDL, instead.
         expiration = (
             datetime.datetime.now(datetime.timezone.utc) + constants.DEFAULT_EXPIRATION
         )
-        table = bf_io_bigquery.create_temp_table(
+        return bf_io_bigquery.create_temp_table(
             self.bqclient,
             self._random_table(),
             expiration,
@@ -65,7 +65,6 @@ class TemporaryGbqStorageManager:
             cluster_columns=list(cluster_cols),
             kms_key=self._kms_key,
         )
-        return bigquery.TableReference.from_string(table)
 
     def _random_table(self, skip_cleanup: bool = False) -> bigquery.TableReference:
         """Generate a random table ID with BigQuery DataFrames prefix.

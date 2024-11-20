@@ -124,7 +124,7 @@ def create_temp_table(
     schema: Optional[Iterable[bigquery.SchemaField]] = None,
     cluster_columns: Optional[list[str]] = None,
     kms_key: Optional[str] = None,
-) -> str:
+) -> bigquery.Table:
     """Create an empty table with an expiration in the desired session.
 
     The table will be deleted when the session is closed or the expiration
@@ -141,8 +141,7 @@ def create_temp_table(
         )
     # Ok if already exists, since this will only happen from retries internal to this method
     # as the requested table id has a random UUID4 component.
-    bqclient.create_table(destination, exists_ok=True)
-    return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
+    return bqclient.create_table(destination, exists_ok=True)
 
 
 def set_table_expiration(

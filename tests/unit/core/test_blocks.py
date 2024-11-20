@@ -80,7 +80,7 @@ def test_block_from_local(data):
     expected = pandas.DataFrame(data)
     mock_session = mock.create_autospec(spec=bigframes.Session)
     mock_executor = mock.create_autospec(
-        spec=bigframes.session.executor.BigQueryCachingExecutor
+        spec=bigframes.session.executor.BigQueryExecutor
     )
 
     # hard-coded the returned dimension of the session for that each of the test case contains 3 rows.

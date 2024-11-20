@@ -258,11 +258,13 @@ class Session(
         )
         self._executor: bigframes.session.executor.Executor = (
             bigframes.session.executor.BigQueryCachingExecutor(
-                bqclient=self._clients_provider.bqclient,
-                bqstoragereadclient=self._clients_provider.bqstoragereadclient,
-                storage_manager=self._temp_storage_manager,
-                strictly_ordered=self._strictly_ordered,
-                metrics=self._metrics,
+                bigframes.session.executor.BigQueryExecutor(
+                    bqclient=self._clients_provider.bqclient,
+                    bqstoragereadclient=self._clients_provider.bqstoragereadclient,
+                    storage_manager=self._temp_storage_manager,
+                    strictly_ordered=self._strictly_ordered,
+                    metrics=self._metrics,
+                )
             )
         )
         self._loader = bigframes.session.loader.GbqDataLoader(

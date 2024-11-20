@@ -69,24 +69,24 @@ def test_close(session: bigframes.Session):
         datetime.datetime.now(datetime.timezone.utc)
         + bigframes.constants.DEFAULT_EXPIRATION
     )
-    full_id_1 = bigframes.session._io.bigquery.create_temp_table(
+    table_1 = bigframes.session._io.bigquery.create_temp_table(
         session.bqclient, session._temp_storage_manager._random_table(), expiration
     )
-    full_id_2 = bigframes.session._io.bigquery.create_temp_table(
+    table_2 = bigframes.session._io.bigquery.create_temp_table(
         session.bqclient, session._temp_storage_manager._random_table(), expiration
     )
 
     # check that the tables were actually created
-    assert bqclient.get_table(full_id_1).created is not None
-    assert bqclient.get_table(full_id_2).created is not None
+    assert bqclient.get_table(table_1).created is not None
+    assert bqclient.get_table(table_2).created is not None
 
     session.close()
 
     # check that the tables are already deleted
     with pytest.raises(google.cloud.exceptions.NotFound):
-        bqclient.delete_table(full_id_1)
+        bqclient.delete_table(table_1)
     with pytest.raises(google.cloud.exceptions.NotFound):
-        bqclient.delete_table(full_id_2)
+        bqclient.delete_table(table_2)
 
 
 def test_clean_up_by_session_id():
