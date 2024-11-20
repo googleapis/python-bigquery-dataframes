@@ -1281,19 +1281,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             values="_bigframes_corr",
         )
 
-        result.columns = orig_columns
-
+        n_levels = len(orig_columns.levels)
+        map_data = {
+            f"_bigframes_level_{i}": orig_columns.get_level_values(i)
+            for i in range(n_levels)
+        }
+        map_data["_bigframes_keys"] = range(len(orig_columns))
         map_df = bigframes.dataframe.DataFrame(
-            {
-                "_biframes_keys": range(len(orig_columns)),
-                "_bigframes_new_index": orig_columns,
-            },
+            map_data,
             session=self._get_block().expr.session,
-        ).set_index("_biframes_keys")
+        ).set_index("_bigframes_keys")
         result = result.join(map_df)
         result = result.sort_index()
-        result = result.set_index("_bigframes_new_index")
-        result.index.name = None
+        index_columns = [f"_bigframes_level_{i}" for i in range(n_levels)]
+        result = result.set_index(index_columns)
+        result.index.names = orig_columns.names
+        result.columns = orig_columns
 
         return result
 
@@ -1375,19 +1378,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             values="_bigframes_cov",
         )
 
-        result.columns = orig_columns
-
+        n_levels = len(orig_columns.levels)
+        map_data = {
+            f"_bigframes_level_{i}": orig_columns.get_level_values(i)
+            for i in range(n_levels)
+        }
+        map_data["_bigframes_keys"] = range(len(orig_columns))
         map_df = bigframes.dataframe.DataFrame(
-            {
-                "_biframes_keys": range(len(orig_columns)),
-                "_bigframes_new_index": orig_columns,
-            },
+            map_data,
             session=self._get_block().expr.session,
-        ).set_index("_biframes_keys")
+        ).set_index("_bigframes_keys")
         result = result.join(map_df)
         result = result.sort_index()
-        result = result.set_index("_bigframes_new_index")
-        result.index.name = None
+        index_columns = [f"_bigframes_level_{i}" for i in range(n_levels)]
+        result = result.set_index(index_columns)
+        result.index.names = orig_columns.names
+        result.columns = orig_columns
 
         return result
 
