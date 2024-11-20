@@ -48,6 +48,9 @@ class Index:
     def values(self):
         """Return an array representing the data in the Index.
 
+        .. warning:
+            We recommend using ``Index.array`` or ``Index.to_numpy()``, depending on whether you need a reference to the underlying data or a NumPy array.
+
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -85,7 +88,7 @@ class Index:
 
             Returns:
                 Tuple[int]:
-                    A tuple of int representing the shape.
+                    A Tuple of integers representing the shape.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -153,7 +156,7 @@ class Index:
 
         Returns:
             bool:
-                True if the Index has duplicate values, otherwise False.
+                Whether or not the Index has duplicate values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -214,7 +217,8 @@ class Index:
             Index([1, 2, 3], dtype='Int64')
 
         Returns:
-            bigframes.pandas.Index
+            bigframes.pandas.Index:
+                Index
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -244,16 +248,6 @@ class Index:
         Returns:
             bigframes.pandas.Index:
                 Index reference to new object, which is a copy of this object.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
-
-    def transpose(self) -> Index:
-        """
-        Return the transpose, which is by definition self.
-
-        Returns:
-            bigframes.pandas.Index
-                An Index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -296,6 +290,13 @@ class Index:
 
         Returns:
             Index: Index with values cast to specified dtype.
+
+        Raises:
+            ValueError:
+                If ``errors`` is not one of ``raise``.
+
+            TypeError:
+                MultiIndex with more than 1 level does not support ``astype``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -448,6 +449,10 @@ class Index:
         Returns:
             bool:
                 A single element array-like may be converted to bool.
+
+        Raises:
+            TypeError:
+                MultiIndex with more than 1 level does not support ``all``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -470,6 +475,10 @@ class Index:
         Returns:
             bool:
                 A single element array-like may be converted to bool.
+
+        Raises:
+            TypeError:
+                MultiIndex with more than 1 level does not support ``any``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -649,7 +658,7 @@ class Index:
 
         Raises:
             ValueError:
-                If ``no_position`` is not one of ``first`` or ``last``
+                If ``no_position`` is not one of ``first`` or ``last``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -770,7 +779,7 @@ class Index:
 
         Raises:
             ValueError:
-                If ``name`` is not the same length as levels
+                If ``name`` is not the same length as levels.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
