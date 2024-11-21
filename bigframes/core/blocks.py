@@ -912,6 +912,8 @@ class Block:
             input_varname = input_varnames[0]
 
         block = self
+
+        result_ids = []
         for col_id in columns:
             label = self.col_id_to_label[col_id]
             block, result_id = block.project_expr(
@@ -919,7 +921,8 @@ class Block:
                 label=label,
             )
             block = block.copy_values(result_id, col_id)
-            block = block.drop_columns([result_id])
+            result_ids.append(result_id)
+        block = block.drop_columns(result_ids)
         # Special case, we can preserve transpose cache for full-frame unary ops
         if (self._transpose_cache is not None) and set(self.value_columns) == set(
             columns
