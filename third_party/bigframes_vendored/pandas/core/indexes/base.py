@@ -83,9 +83,9 @@ class Index:
             >>> idx.shape
             (3,)
 
-            Returns:
-                Tuple[int]:
-                    A Tuple of integers representing the shape.
+        Returns:
+            Tuple[int]:
+                A Tuple of integers representing the shape.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -295,12 +295,11 @@ class Index:
                 If 'null', will assign null value if value fails cast
 
         Returns:
-            Index: Index with values cast to specified dtype.
+            bigframes.pandas.Index: Index with values cast to specified dtype.
 
         Raises:
             ValueError:
                 If ``errors`` is not one of ``raise``.
-
             TypeError:
                 MultiIndex with more than 1 level does not support ``astype``.
         """
@@ -322,7 +321,7 @@ class Index:
             >>> idx
             Index(['a', 'b', 'c'], dtype='string')
 
-            Get level values by supplying level as integer:
+        Get level values by supplying level as integer:
 
             >>> idx.get_level_values(0)
             Index(['a', 'b', 'c'], dtype='string')
@@ -350,7 +349,7 @@ class Index:
 
             >>> idx = bpd.Index(['Ant', 'Bear', 'Cow'], name='animal')
 
-            By default, the original index and original name is reused.
+        By default, the original index and original name is reused.
 
             >>> idx.to_series()
             animal
@@ -359,7 +358,7 @@ class Index:
             Cow      Cow
             Name: animal, dtype: string
 
-            To enforce a new index, specify new labels to index:
+        To enforce a new index, specify new labels to index:
 
             >>> idx.to_series(index=[0, 1, 2])
             0     Ant
@@ -367,7 +366,7 @@ class Index:
             2     Cow
             Name: animal, dtype: string
 
-            To override the name of the resulting column, specify name:
+        To override the name of the resulting column, specify name:
 
             >>> idx.to_series(name='zoo')
             animal
@@ -406,7 +405,7 @@ class Index:
             >>> idx
             Index([1, 2, 3], dtype='Int64')
 
-            Check whether each index value in a list of values.
+        Check whether each index value in a list of values.
 
             >>> idx.isin([1, 4])
             array([ True, False, False])
@@ -442,7 +441,7 @@ class Index:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            True, because nonzero integers are considered True.
+        True, because nonzero integers are considered True.
 
             >>> bpd.Index([1, 2, 3]).all()
             True
@@ -504,7 +503,6 @@ class Index:
             >>> idx.min()
             'a'
 
-
         Returns:
             scalar:
                 Minimum value.
@@ -545,7 +543,7 @@ class Index:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            Consider dataset containing cereal calories
+        Consider dataset containing cereal calories
 
             >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
                ...             'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
@@ -562,8 +560,8 @@ class Index:
             >>> s.argmin()
             0
 
-            The maximum cereal calories is the third element and the minimum
-            cereal calories is the first element, since series is zero-indexed.
+        The maximum cereal calories is the third element and the minimum
+        cereal calories is the first element, since series is zero-indexed.
 
         Returns:
             int:
@@ -580,7 +578,7 @@ class Index:
 
         **Examples:**
 
-            Consider dataset containing cereal calories
+        Consider dataset containing cereal calories
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
@@ -600,8 +598,8 @@ class Index:
             >>> s.argmin()
             0
 
-            The maximum cereal calories is the third element and the minimum
-            cereal calories is the first element, since series is zero-indexed.
+        The maximum cereal calories is the third element and the minimum
+        cereal calories is the first element, since series is zero-indexed.
 
         Returns:
             int:
@@ -655,7 +653,7 @@ class Index:
             >>> idx
             Index([10, 100, 1, 1000], dtype='Int64')
 
-            Sort values in ascending order (default behavior).
+        Sort values in ascending order (default behavior).
 
             >>> idx.sort_values()
             Index([1, 10, 100, 1000], dtype='Int64')
@@ -704,8 +702,8 @@ class Index:
             4.0    1
             Name: count, dtype: Int64
 
-            With normalize set to True, returns the relative frequency by
-            dividing all values by the sum of values.
+        With normalize set to True, returns the relative frequency by
+        dividing all values by the sum of values.
 
             >>> s = bpd.Series([3, 1, 2, 3, 4, np.nan])
             >>> s.value_counts(normalize=True)
@@ -715,9 +713,9 @@ class Index:
             4.0    0.2
             Name: proportion, dtype: Float64
 
-        dropna
+        ``dropna``
 
-            With dropna set to False we can also see NaN index values.
+        With dropna set to False we can also see NaN index values.
 
             >>> s.value_counts(dropna=False)
             3.0     2
@@ -861,20 +859,20 @@ class Index:
 
             >>> idx = bpd.Index(['lama', 'cow', 'lama', 'beetle', 'lama', 'hippo'])
 
-            The keep parameter controls which duplicate values are removed.
-            The value ``first`` keeps the first occurrence for each set of
-            duplicated entries. The default value of keep is ``first``.
+        The keep parameter controls which duplicate values are removed.
+        The value ``first`` keeps the first occurrence for each set of
+        duplicated entries. The default value of keep is ``first``.
 
             >>> idx.drop_duplicates(keep='first')
             Index(['lama', 'cow', 'beetle', 'hippo'], dtype='string')
 
-            The value ``last`` keeps the last occurrence for each set of
-            duplicated entries.
+        The value ``last`` keeps the last occurrence for each set of
+        duplicated entries.
 
             >>> idx.drop_duplicates(keep='last')
             Index(['cow', 'beetle', 'lama', 'hippo'], dtype='string')
 
-            The value ``False`` discards all sets of duplicated entries.
+        The value ``False`` discards all sets of duplicated entries.
 
             >>> idx.drop_duplicates(keep=False)
             Index(['cow', 'beetle', 'hippo'], dtype='string')
