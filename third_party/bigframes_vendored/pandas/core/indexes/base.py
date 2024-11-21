@@ -251,6 +251,15 @@ class Index:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def transpose(self) -> Index:
+        """
+        Return the transpose, which is by definition self.
+
+        Returns:
+            bigframes.pandas.Index
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def astype(self, dtype):
         """Create an Index with values cast to dtypes.
 
@@ -262,7 +271,7 @@ class Index:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> idx = pd.Index([1, 2, 3])
+            >>> idx = bpd.Index([1, 2, 3])
             >>> idx
             Index([1, 2, 3], dtype='Int64')
 
@@ -500,7 +509,8 @@ class Index:
 
 
         Returns:
-            scalar: Minimum value.
+            scalar:
+                Minimum value.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -521,7 +531,8 @@ class Index:
             'c'
 
         Returns:
-            scalar: Maximum value.
+            scalar:
+                Maximum value.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -537,7 +548,9 @@ class Index:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> s = pd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
+            Consider dataset containing cereal calories
+
+            >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
                ...             'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
             >>> s
             Corn Flakes              100.0
@@ -556,7 +569,8 @@ class Index:
             cereal calories is the first element, since series is zero-indexed.
 
         Returns:
-            int: Row position of the minimum value.
+            int:
+                Row position of the minimum value.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -569,10 +583,12 @@ class Index:
 
         **Examples:**
 
+            Consider dataset containing cereal calories
+
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> s = pd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
+            >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
                   ...          'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
             >>> s
             Corn Flakes              100.0
@@ -591,7 +607,8 @@ class Index:
             cereal calories is the first element, since series is zero-indexed.
 
         Returns:
-            int: Row position of the maximum value.
+            int:
+                Row position of the maximum value.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -682,7 +699,7 @@ class Index:
             >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
-            >>> index = pd.Index([3, 1, 2, 3, 4, np.nan])
+            >>> index = bpd.Index([3, 1, 2, 3, 4, np.nan])
             >>> index.value_counts()
             3.0    2
             1.0    1
@@ -725,7 +742,7 @@ class Index:
                 Don't include counts of NaN.
 
         Returns:
-            bigframe.pandas.Series
+            bigframes.pandas.Series
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -750,6 +767,10 @@ class Index:
 
         Returns:
             bigframes.pandas.Index
+
+        Raises:
+            TypeError:
+                MultiIndex with more than 1 level does not support ``fillna``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

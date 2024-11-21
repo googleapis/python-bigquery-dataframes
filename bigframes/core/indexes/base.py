@@ -134,7 +134,6 @@ class Index(vendored_pandas_index.Index):
 
     @property
     def names(self) -> typing.Sequence[blocks.Label]:
-        """Returns the names of the Index."""
         return self._block._index_labels
 
     @names.setter
