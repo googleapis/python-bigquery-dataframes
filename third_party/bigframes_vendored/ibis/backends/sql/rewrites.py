@@ -402,13 +402,13 @@ def rewrite_empty_order_by_window(_, **kwargs):
 
 @replace(p.WindowFunction(p.RowNumber | p.NTile))
 def exclude_unsupported_window_frame_from_row_number(_, **kwargs):
-    return ops.Subtract(_.copy(start=None, end=0), 1)
+    return ops.Subtract(_.copy(start=None, end=None), 1)
 
 
 @replace(p.WindowFunction(p.MinRank | p.DenseRank, start=None))
 def exclude_unsupported_window_frame_from_rank(_, **kwargs):
     return ops.Subtract(
-        _.copy(start=None, end=0, order_by=_.order_by or (ops.NULL,)), 1
+        _.copy(start=None, end=None, order_by=_.order_by or (ops.NULL,)), 1
     )
 
 
@@ -418,7 +418,7 @@ def exclude_unsupported_window_frame_from_rank(_, **kwargs):
     )
 )
 def exclude_unsupported_window_frame_from_ops(_, **kwargs):
-    return _.copy(start=None, end=0, order_by=_.order_by or (ops.NULL,))
+    return _.copy(start=None, end=None, order_by=_.order_by or (ops.NULL,))
 
 
 # Rewrite rules for lowering a high-level operation into one composed of more
