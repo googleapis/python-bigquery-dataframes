@@ -449,14 +449,40 @@ class ArrayValue:
         )
         return ArrayValue(join_node), (l_mapping, r_mapping)
 
-    def try_align_as_projection(
+    def try_new_row_join(
+        self,
+        other: ArrayValue,
+        conditions: typing.Tuple[typing.Tuple[str, str], ...] = (),
+    ) -> Optional[
+        typing.Tuple[ArrayValue, typing.Tuple[dict[str, str], dict[str, str]]]
+    ]:
+        import bigframes.core.node_align
+
+        result_node = bigframes.core.node_align.join_as_projection(
+            self.node, other.node, conditions
+        )
+        if result_node is None:
+            return None
+
+        new_ids = list(field.id.name for field in result_node.fields)
+        self_pre_fields = list(field.id.name for field in self.node.fields)
+        other_pre_fields = list(field.id.name for field in other.node.fields)
+        return (
+            ArrayValue(result_node),
+            (
+                dict(zip(self_pre_fields, new_ids[: len(self_pre_fields) :])),
+                dict(zip(other_pre_fields, new_ids[len(self_pre_fields) :])),
+            ),
+        )
+
+    def try_legacy_row_join(
         self,
         other: ArrayValue,
         join_type: join_def.JoinType,
         join_keys: typing.Tuple[join_def.CoalescedColumnMapping, ...],
         mappings: typing.Tuple[join_def.JoinColumnMapping, ...],
     ) -> typing.Optional[ArrayValue]:
-        result = bigframes.core.rewrite.join_as_projection(
+        result = bigframes.core.rewrite.legacy_join_as_projection(
             self.node, other.node, join_keys, mappings, join_type
         )
         if result is not None:
@@ -488,11 +514,4 @@ class ArrayValue:
         return self._gen_namespaced_uids(1)[0]
 
     def _gen_namespaced_uids(self, n: int) -> List[str]:
-        i = len(self.node.defined_variables)
-        genned_ids: List[str] = []
-        while len(genned_ids) < n:
-            attempted_id = f"col_{i}"
-            if attempted_id not in self.node.defined_variables:
-                genned_ids.append(attempted_id)
-            i = i + 1
-        return genned_ids
+        return [ids.ColumnId.unique().name for _ in range(n)]

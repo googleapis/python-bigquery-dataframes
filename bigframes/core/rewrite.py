@@ -238,7 +238,7 @@ class SquashedSelect:
         )
 
 
-def join_as_projection(
+def legacy_join_as_projection(
     l_node: nodes.BigFrameNode,
     r_node: nodes.BigFrameNode,
     join_keys: Tuple[join_defs.CoalescedColumnMapping, ...],

@@ -2323,6 +2323,27 @@ def test_cumsum_nested(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_cumsum_nested_align(scalars_df_index, scalars_pandas_df_index):
+    col_name = "float64_col"
+    # set non-unique index to check implicit alignment
+    bf_series = scalars_df_index.set_index("bool_col")[col_name]
+    pd_series = scalars_pandas_df_index.set_index("bool_col")[col_name]
+
+    bf_result = (
+        bf_series.cumsum().cumsum().cumsum() + bf_series.rolling(window=3).mean()
+    ).to_pandas()
+    # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA
+    pd_result = (
+        pd_series.cumsum().cumsum().cumsum().astype(pd.Float64Dtype())
+        + pd_series.rolling(window=3).mean()
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_cumsum_int_filtered(scalars_df_index, scalars_pandas_df_index):
     col_name = "int64_col"
 
