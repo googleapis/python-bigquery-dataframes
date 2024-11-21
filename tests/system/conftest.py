@@ -523,8 +523,9 @@ def scalars_df_numeric_150_columns_maybe_ordered(
         ]
     ]
 
-    # Cache to avoid RecursionError
-    df = bpd.concat([df] * 30, axis=1).cache()
+    # concat twice to avoid RecursionError
+    df = bpd.concat([df] * 5, axis=1)
+    df = bpd.concat([df] * 6, axis=1)
 
     pandas_df = pandas_df.reset_index(drop=False)[
         [
