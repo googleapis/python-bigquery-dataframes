@@ -22,6 +22,7 @@ import os
 import pathlib
 import re
 import shutil
+import sys
 import time
 from typing import Dict, List
 import warnings
@@ -111,6 +112,9 @@ nox.options.sessions = [
 
 # Error if a python version is missing
 nox.options.error_on_missing_interpreters = True
+
+# Set recursionlimit to 10000
+sys.setrecursionlimit(10000)
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)

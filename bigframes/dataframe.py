@@ -1280,6 +1280,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             columns="_bigframes_variable_y",
             values="_bigframes_corr",
         )
+
         map_data = {
             f"_bigframes_level_{i}": orig_columns.get_level_values(i)
             for i in range(orig_columns.nlevels)
