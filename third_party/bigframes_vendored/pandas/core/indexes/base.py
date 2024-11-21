@@ -48,9 +48,6 @@ class Index:
     def values(self):
         """Return an array representing the data in the Index.
 
-        .. warning:
-            We recommend using ``Index.array`` or ``Index.to_numpy()``, depending on whether you need a reference to the underlying data or a NumPy array.
-
         **Examples:**
 
             >>> import bigframes.pandas as bpd
@@ -104,12 +101,12 @@ class Index:
             >>> mi = bpd.MultiIndex.from_arrays([['a'], ['b'], ['c']])
             >>> mi
             MultiIndex([('a', 'b', 'c')],
-           ...         )
-           >>> mi.nlevels
-           3
+            ...         )
+            >>> mi.nlevels
+            3
 
         Returns:
-            Int:
+            int:
                 Number of levels.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
