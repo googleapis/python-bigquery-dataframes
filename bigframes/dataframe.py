@@ -2076,9 +2076,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         result_series = {}
         for x, self_id in self_col.items():
-            none_const = ex.const(None)
-            cond_id = cond_col[x] if x in cond_col else none_const
-            other_id = other_col[x] if x in other_col else none_const
+            cond_id = cond_col[x] if x in cond_col else ex.const(False)
+            other_id = other_col[x] if x in other_col else ex.const(None)
             result_block, result_id = aligned_block.project_expr(
                 ops.where_op.as_expr(self_id, cond_id, other_id)
             )
