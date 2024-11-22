@@ -13,7 +13,7 @@ from typing import Any, Optional, TYPE_CHECKING, TypeVar, Union
 from bigframes_vendored.ibis.common.bases import Hashable
 from bigframes_vendored.ibis.common.patterns import NoMatch, Pattern
 from bigframes_vendored.ibis.common.typing import _ClassInfo
-from ibis.util import experimental, promote_list
+from bigframes_vendored.ibis.util import experimental, promote_list
 
 if TYPE_CHECKING:
     from typing_extensions import Self

@@ -68,7 +68,7 @@ class RefCountedCache:
 
     def store(self, input):
         """Compute and store a reference to `key`."""
-        from ibis.util import gen_name
+        from bigframes_vendored.ibis.util import gen_name
 
         key = input.op()
         name = gen_name("cache")

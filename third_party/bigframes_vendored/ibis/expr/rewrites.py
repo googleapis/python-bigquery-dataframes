@@ -15,7 +15,7 @@ from bigframes_vendored.ibis.common.typing import VarTuple  # noqa: TCH001
 from ibis.common.deferred import _, deferred, Item, var
 from ibis.common.grounds import Concrete
 import ibis.expr.operations as ops
-from ibis.util import Namespace, promote_list
+from bigframes_vendored.ibis.util import Namespace, promote_list
 import toolz
 
 p = Namespace(pattern, module=ops)

@@ -40,7 +40,7 @@ from bigframes_vendored.ibis.common.typing import (
 )
 from ibis.common.deferred import _  # noqa: F401
 from ibis.common.deferred import Deferred, Factory, Resolver, resolver, Variable
-from ibis.util import import_object, is_iterable, unalias_package
+from bigframes_vendored.ibis.util import import_object, is_iterable, unalias_package
 import toolz
 from typing_extensions import GenericMeta
 
