@@ -11,7 +11,7 @@ from typing import Any, TYPE_CHECKING
 
 import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
 from ibis.common.annotations import attribute
-from ibis.common.collections import FrozenDict  # noqa: TCH001
+from bigframes_vendored.ibis.common.collections import FrozenDict  # noqa: TCH001
 from ibis.common.deferred import var
 from ibis.common.graph import Graph
 from ibis.common.patterns import InstanceOf, Object, Pattern, replace
