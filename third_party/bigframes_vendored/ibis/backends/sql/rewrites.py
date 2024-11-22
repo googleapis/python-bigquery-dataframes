@@ -9,13 +9,13 @@ from functools import reduce
 import operator
 from typing import Any, TYPE_CHECKING
 
-import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
-from ibis.common.annotations import attribute
 from bigframes_vendored.ibis.common.collections import FrozenDict  # noqa: TCH001
+import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
+from bigframes_vendored.ibis.common.typing import VarTuple  # noqa: TCH001
+from ibis.common.annotations import attribute
 from ibis.common.deferred import var
 from ibis.common.graph import Graph
 from ibis.common.patterns import InstanceOf, Object, Pattern, replace
-from ibis.common.typing import VarTuple  # noqa: TCH001
 import ibis.expr.datatypes as dt
 import ibis.expr.operations as ops
 from ibis.expr.rewrites import d, p, replace_parameter

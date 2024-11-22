@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from bigframes_vendored.ibis.common.typing import VarTuple
 import ibis.common.annotations as ibis_annotations
-from ibis.common.typing import VarTuple
 import ibis.expr.datatypes as dt
 import ibis.expr.operations.core as ibis_ops_core
 from ibis.expr.operations.reductions import Filterable, Reduction
