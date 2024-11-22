@@ -15,6 +15,7 @@ from bigframes_vendored.ibis.backends.sql.compilers.base import (
     SQLGlotCompiler,
     STAR,
 )
+import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
 from ibis import util
 from ibis.backends.sql.datatypes import BigQueryType, BigQueryUDFType
 from ibis.backends.sql.rewrites import (
@@ -22,7 +23,6 @@ from ibis.backends.sql.rewrites import (
     exclude_unsupported_window_frame_from_rank,
     exclude_unsupported_window_frame_from_row_number,
 )
-import ibis.common.exceptions as com
 from ibis.common.temporal import DateUnit, IntervalUnit, TimestampUnit, TimeUnit
 import ibis.expr.datatypes as dt
 import ibis.expr.operations as ops
@@ -271,7 +271,7 @@ class BigQueryCompiler(SQLGlotCompiler):
             not isinstance(op.preserve_collapsed, ops.Literal)
             or op.preserve_collapsed.value
         ):
-            raise com.UnsupportedOperationError(
+            raise ibis_exceptions.UnsupportedOperationError(
                 "BigQuery simplify does not support preserving collapsed geometries, "
                 "pass preserve_collapsed=False"
             )
@@ -301,7 +301,7 @@ class BigQueryCompiler(SQLGlotCompiler):
         elif left_tz is not None and right_tz is not None:
             return self.f.timestamp_diff(left, right, part)
 
-        raise com.UnsupportedOperationError(
+        raise ibis_exceptions.UnsupportedOperationError(
             "timestamp difference with mixed timezone/timezoneless values is not implemented"
         )
 
@@ -316,7 +316,7 @@ class BigQueryCompiler(SQLGlotCompiler):
 
     def visit_ApproxQuantile(self, op, *, arg, quantile, where):
         if not isinstance(op.quantile, ops.Literal):
-            raise com.UnsupportedOperationError(
+            raise ibis_exceptions.UnsupportedOperationError(
                 "quantile must be a literal in BigQuery"
             )
 
@@ -375,7 +375,7 @@ class BigQueryCompiler(SQLGlotCompiler):
 
     def visit_NthValue(self, op, *, arg, nth):
         if not isinstance(op.nth, ops.Literal):
-            raise com.UnsupportedOperationError(
+            raise ibis_exceptions.UnsupportedOperationError(
                 f"BigQuery `nth` must be a literal; got {type(op.nth)}"
             )
         return self.f.nth_value(arg, nth)
@@ -399,7 +399,7 @@ class BigQueryCompiler(SQLGlotCompiler):
 
     def visit_ArrayCollect(self, op, *, arg, where, order_by, include_null):
         if where is not None and include_null:
-            raise com.UnsupportedOperationError(
+            raise ibis_exceptions.UnsupportedOperationError(
                 "Combining `include_null=True` and `where` is not supported "
                 "by bigquery"
             )
@@ -477,7 +477,7 @@ class BigQueryCompiler(SQLGlotCompiler):
             )
         elif dtype.is_interval():
             if dtype.unit == IntervalUnit.NANOSECOND:
-                raise com.UnsupportedOperationError(
+                raise ibis_exceptions.UnsupportedOperationError(
                     "BigQuery does not support nanosecond intervals"
                 )
         elif dtype.is_uuid():
@@ -489,7 +489,7 @@ class BigQueryCompiler(SQLGlotCompiler):
 
     def visit_IntervalFromInteger(self, op, *, arg, unit):
         if unit == IntervalUnit.NANOSECOND:
-            raise com.UnsupportedOperationError(
+            raise ibis_exceptions.UnsupportedOperationError(
                 "BigQuery does not support nanosecond intervals"
             )
         return sge.Interval(this=arg, unit=self.v[unit.singular])
@@ -524,7 +524,9 @@ class BigQueryCompiler(SQLGlotCompiler):
                 self.cast(self.f.round(arg / 1_000), dt.int64)
             )
         else:
-            raise com.UnsupportedOperationError(f"Unit not supported: {unit}")
+            raise ibis_exceptions.UnsupportedOperationError(
+                f"Unit not supported: {unit}"
+            )
 
     def visit_Cast(self, op, *, arg, to):
         from_ = op.arg.dtype
@@ -538,7 +540,7 @@ class BigQueryCompiler(SQLGlotCompiler):
                 IntervalUnit.QUARTER,
                 IntervalUnit.NANOSECOND,
             }:
-                raise com.UnsupportedOperationError(
+                raise ibis_exceptions.UnsupportedOperationError(
                     f"BigQuery does not allow extracting date part `{from_.unit}` from intervals"
                 )
             return self.f.extract(self.v[to.resolution.upper()], arg)
@@ -578,7 +580,7 @@ class BigQueryCompiler(SQLGlotCompiler):
 
     def visit_TimestampTruncate(self, op, *, arg, unit):
         if unit == IntervalUnit.NANOSECOND:
-            raise com.UnsupportedOperationError(
+            raise ibis_exceptions.UnsupportedOperationError(
                 f"BigQuery does not support truncating {op.arg.dtype} values to unit {unit!r}"
             )
         elif unit == IntervalUnit.WEEK:
@@ -596,7 +598,7 @@ class BigQueryCompiler(SQLGlotCompiler):
 
     def visit_TimeTruncate(self, op, *, arg, unit):
         if unit == TimeUnit.NANOSECOND:
-            raise com.UnsupportedOperationError(
+            raise ibis_exceptions.UnsupportedOperationError(
                 f"BigQuery does not support truncating {op.arg.dtype} values to unit {unit!r}"
             )
         else:
@@ -646,7 +648,7 @@ class BigQueryCompiler(SQLGlotCompiler):
 
     def visit_TimestampRange(self, op, *, start, stop, step):
         if op.start.dtype.timezone is None or op.stop.dtype.timezone is None:
-            raise com.IbisTypeError(
+            raise ibis_exceptions.IbisTypeError(
                 "Timestamps without timezone values are not supported when generating timestamp ranges"
             )
         return self._make_range(
@@ -657,7 +659,7 @@ class BigQueryCompiler(SQLGlotCompiler):
         if where is not None:
             arg = self.if_(where, arg, NULL)
             if include_null:
-                raise com.UnsupportedOperationError(
+                raise ibis_exceptions.UnsupportedOperationError(
                     "Combining `include_null=True` and `where` is not supported "
                     "by bigquery"
                 )
@@ -675,7 +677,7 @@ class BigQueryCompiler(SQLGlotCompiler):
         if where is not None:
             arg = self.if_(where, arg, NULL)
             if include_null:
-                raise com.UnsupportedOperationError(
+                raise ibis_exceptions.UnsupportedOperationError(
                     "Combining `include_null=True` and `where` is not supported "
                     "by bigquery"
                 )
@@ -772,11 +774,11 @@ class BigQueryCompiler(SQLGlotCompiler):
 
     def visit_TimestampAddSub(self, op, *, left, right):
         if not isinstance(right, sge.Interval):
-            raise com.OperationNotDefinedError(
+            raise ibis_exceptions.OperationNotDefinedError(
                 "BigQuery does not support non-literals on the right side of timestamp add/subtract"
             )
         if (unit := op.right.dtype.unit) == IntervalUnit.NANOSECOND:
-            raise com.UnsupportedOperationError(
+            raise ibis_exceptions.UnsupportedOperationError(
                 f"BigQuery does not allow binary operation {type(op).__name__} with "
                 f"INTERVAL offset {unit}"
             )
@@ -789,11 +791,11 @@ class BigQueryCompiler(SQLGlotCompiler):
 
     def visit_DateAddSub(self, op, *, left, right):
         if not isinstance(right, sge.Interval):
-            raise com.OperationNotDefinedError(
+            raise ibis_exceptions.OperationNotDefinedError(
                 "BigQuery does not support non-literals on the right side of date add/subtract"
             )
         if not (unit := op.right.dtype.unit).is_date():
-            raise com.UnsupportedOperationError(
+            raise ibis_exceptions.UnsupportedOperationError(
                 f"BigQuery does not allow binary operation {type(op).__name__} with "
                 f"INTERVAL offset {unit}"
             )
@@ -861,7 +863,7 @@ class BigQueryCompiler(SQLGlotCompiler):
         # rename their columns
         limit = 300
         if len(candidate) > limit:
-            raise com.IbisError(
+            raise ibis_exceptions.IbisError(
                 f"BigQuery does not allow column names longer than {limit:d} characters. "
                 "Please rename your columns to have fewer characters."
             )

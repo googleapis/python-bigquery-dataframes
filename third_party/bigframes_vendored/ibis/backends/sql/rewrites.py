@@ -9,10 +9,10 @@ from functools import reduce
 import operator
 from typing import Any, TYPE_CHECKING
 
+import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
 from ibis.common.annotations import attribute
 from ibis.common.collections import FrozenDict  # noqa: TCH001
 from ibis.common.deferred import var
-import ibis.common.exceptions as com
 from ibis.common.graph import Graph
 from ibis.common.patterns import InstanceOf, Object, Pattern, replace
 from ibis.common.typing import VarTuple  # noqa: TCH001
@@ -198,7 +198,7 @@ if hasattr(p, "DropNull"):
 def first_to_firstvalue(_, **kwargs):
     """Convert a First or Last node to a FirstValue or LastValue node."""
     if _.func.where is not None:
-        raise com.UnsupportedOperationError(
+        raise ibis_exceptions.UnsupportedOperationError(
             f"`{type(_.func).__name__.lower()}` with `where` is unsupported "
             "in a window function"
         )
@@ -510,7 +510,7 @@ def lower_sample(_, **kwargs):
     Errors as unsupported if a `seed` is specified.
     """
     if _.seed is not None:
-        raise com.UnsupportedOperationError(
+        raise ibis_exceptions.UnsupportedOperationError(
             "`Table.sample` with a random seed is unsupported"
         )
     return ops.Filter(_.parent, (ops.LessEqual(ops.RandomScalar(), _.fraction),))

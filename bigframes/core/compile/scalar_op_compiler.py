@@ -20,7 +20,6 @@ import typing
 import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import ibis
-import ibis.common.exceptions
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.operations.generic
 import ibis.expr.types as ibis_types

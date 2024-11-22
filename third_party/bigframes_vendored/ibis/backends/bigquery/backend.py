@@ -12,6 +12,7 @@ from typing import Any, Optional, TYPE_CHECKING
 
 from bigframes_vendored.ibis.backends.bigquery.datatypes import BigQueryType
 import bigframes_vendored.ibis.backends.sql.compilers as sc
+import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
 import google.api_core.exceptions
 import google.auth.credentials
 import google.cloud.bigquery as bq
@@ -27,7 +28,6 @@ from ibis.backends.bigquery.client import (
 )
 from ibis.backends.bigquery.datatypes import BigQuerySchema
 from ibis.backends.sql import SQLBackend
-import ibis.common.exceptions as com
 import ibis.expr.operations as ops
 import ibis.expr.schema as sch
 import ibis.expr.types as ir
@@ -516,7 +516,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         catalog = table_loc.args["catalog"]  # args access will return None, not ''
         if table.catalog:
             if table_loc.catalog:
-                raise com.IbisInputError(
+                raise ibis_exceptions.IbisInputError(
                     "Cannot specify catalog both in the table name and as an argument"
                 )
             else:
@@ -526,7 +526,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         db = table_loc.args["db"]  # args access will return None, not ''
         if table.db:
             if table_loc.db:
-                raise com.IbisInputError(
+                raise ibis_exceptions.IbisInputError(
                     "Cannot specify database both in the table name and as an argument"
                 )
             else:
@@ -896,13 +896,15 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
 
         """
         if obj is None and schema is None:
-            raise com.IbisError("One of the `schema` or `obj` parameter is required")
+            raise ibis_exceptions.IbisError(
+                "One of the `schema` or `obj` parameter is required"
+            )
         if schema is not None:
             schema = ibis.schema(schema)
 
         if isinstance(obj, ir.Table) and schema is not None:
             if not schema.equals(obj.schema()):
-                raise com.IbisTypeError(
+                raise ibis_exceptions.IbisTypeError(
                     "Provided schema and Ibis table schema are incompatible. Please "
                     "align the two schemas, or provide only one of the two arguments."
                 )
@@ -941,7 +943,9 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         if temp:
             dataset = self._session_dataset.dataset_id
             if database is not None:
-                raise com.IbisInputError("Cannot specify database for temporary table")
+                raise ibis_exceptions.IbisInputError(
+                    "Cannot specify database for temporary table"
+                )
             database = self._session_dataset.project
         else:
             dataset = database or self.current_database
