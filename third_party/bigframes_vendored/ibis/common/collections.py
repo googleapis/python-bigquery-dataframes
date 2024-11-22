@@ -7,7 +7,7 @@ import collections.abc
 from itertools import tee
 from typing import Any, Generic, TYPE_CHECKING, TypeVar
 
-from ibis.common.bases import Abstract, Hashable
+from bigframes_vendored.ibis.common.bases import Abstract, Hashable
 from bigframes_vendored.ibis.common.exceptions import ConflictingValuesError
 from public import public
 
