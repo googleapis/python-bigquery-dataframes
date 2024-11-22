@@ -22,7 +22,7 @@ import google.cloud.bigquery
 import ibis
 import ibis.backends
 import ibis.backends.bigquery
-import ibis.expr.types
+import ibis.expr.types as ibis_types
 import pandas as pd
 
 import bigframes.core.compile.compiled as compiled
@@ -183,7 +183,7 @@ class Compiler:
             joined_table[start_column], joined_table[end_column] + node.step, node.step
         ).name(node.output_id.sql)
         labels = (
-            typing.cast(ibis.expr.types.ArrayValue, labels_array_table)
+            typing.cast(ibis_types.ArrayValue, labels_array_table)
             .as_table()
             .unnest([node.output_id.sql])
         )
@@ -220,7 +220,7 @@ class Compiler:
 
     def read_table_as_unordered_ibis(
         self, source: nodes.BigqueryDataSource
-    ) -> ibis.expr.types.Table:
+    ) -> ibis_types.Table:
         full_table_name = f"{source.table.project_id}.{source.table.dataset_id}.{source.table.table_id}"
         used_columns = tuple(col.name for col in source.table.physical_schema)
         # Physical schema might include unused columns, unsupported datatypes like JSON

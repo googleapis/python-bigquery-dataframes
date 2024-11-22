@@ -869,8 +869,8 @@ def integer_label_to_datetime_op_non_fixed_frequency(
             .cast(y.type())
         )
     elif rule_code == "ME":  # Monthly
-        one = ibis.literal(1)
-        twelve = ibis.literal(12)
+        one = ibis_types.literal(1)
+        twelve = ibis_types.literal(12)
         first = y.year() * twelve + y.month() - one
 
         x = x * n + first
@@ -883,10 +883,10 @@ def integer_label_to_datetime_op_non_fixed_frequency(
 
         x_label = next_month_date - ibis.interval(days=1)
     elif rule_code == "QE-DEC":  # Quarterly
-        one = ibis.literal(1)
-        three = ibis.literal(3)
-        four = ibis.literal(4)
-        twelve = ibis.literal(12)
+        one = ibis_types.literal(1)
+        three = ibis_types.literal(3)
+        four = ibis_types.literal(4)
+        twelve = ibis_types.literal(12)
         first = y.year() * four + y.quarter() - one
 
         x = x * n + first
@@ -899,7 +899,7 @@ def integer_label_to_datetime_op_non_fixed_frequency(
 
         x_label = next_month_date - ibis.interval(days=1)
     elif rule_code == "YE-DEC":  # Yearly
-        one = ibis.literal(1)
+        one = ibis_types.literal(1)
         first = y.year()
         x = x * n + first
         next_year = x + one
@@ -911,7 +911,7 @@ def integer_label_to_datetime_op_non_fixed_frequency(
 
 def calculate_resample_first(y: ibis_types.Value, origin):
     if origin == "epoch":
-        return ibis.literal(0)
+        return ibis_types.literal(0)
     elif origin == "start_day":
         return (
             y.cast(ibis_dtypes.date)
@@ -1032,7 +1032,7 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
             try:
                 # we want values that *could* be cast to the dtype, but we don't want
                 # to actually cast it, as that could be lossy (eg float -> int)
-                item_inferred_type = ibis.literal(item).type()
+                item_inferred_type = ibis_types.literal(item).type()
                 if (
                     x.type() == item_inferred_type
                     or x.type().is_numeric()
@@ -1117,7 +1117,7 @@ def array_to_string_op_impl(x: ibis_types.Value, op: ops.ArrayToStringOp):
 def array_index_op_impl(x: ibis_types.Value, op: ops.ArrayIndexOp):
     res = typing.cast(ibis_types.ArrayValue, x)[op.index]
     if x.type().is_string():
-        return _null_or_value(res, res != ibis.literal(""))
+        return _null_or_value(res, res != ibis_types.literal(""))
     else:
         return res
 
@@ -1126,7 +1126,7 @@ def array_index_op_impl(x: ibis_types.Value, op: ops.ArrayIndexOp):
 def array_slice_op_impl(x: ibis_types.Value, op: ops.ArraySliceOp):
     res = typing.cast(ibis_types.ArrayValue, x)[op.start : op.stop : op.step]
     if x.type().is_string():
-        return _null_or_value(res, res != ibis.literal(""))
+        return _null_or_value(res, res != ibis_types.literal(""))
     else:
         return res
 
@@ -1240,7 +1240,7 @@ def _null_or_value(value: ibis_types.Value, where_value: ibis_types.BooleanValue
     return ibis.ifelse(
         where_value,
         value,
-        ibis.null(),
+        ibis_types.null(),
     )
 
 
@@ -1255,10 +1255,10 @@ def and_op(
     # is unknown (NULL). See: truth table at
     # https://en.wikibooks.org/wiki/Structured_Query_Language/NULLs_and_the_Three_Valued_Logic#AND,_OR
     if isinstance(x, ibis_types.NullScalar):
-        return _null_or_value(y, y == ibis.literal(False))
+        return _null_or_value(y, y == ibis_types.literal(False))
 
     if isinstance(y, ibis_types.NullScalar):
-        return _null_or_value(x, x == ibis.literal(False))
+        return _null_or_value(x, x == ibis_types.literal(False))
     return typing.cast(ibis_types.BooleanValue, x) & typing.cast(
         ibis_types.BooleanValue, y
     )
@@ -1275,10 +1275,10 @@ def or_op(
     # is unknown (NULL). See: truth table at
     # https://en.wikibooks.org/wiki/Structured_Query_Language/NULLs_and_the_Three_Valued_Logic#AND,_OR
     if isinstance(x, ibis_types.NullScalar):
-        return _null_or_value(y, y == ibis.literal(True))
+        return _null_or_value(y, y == ibis_types.literal(True))
 
     if isinstance(y, ibis_types.NullScalar):
-        return _null_or_value(x, x == ibis.literal(True))
+        return _null_or_value(x, x == ibis_types.literal(True))
     return typing.cast(ibis_types.BooleanValue, x) | typing.cast(
         ibis_types.BooleanValue, y
     )
@@ -1301,7 +1301,7 @@ def add_op(
     y: ibis_types.Value,
 ):
     if isinstance(x, ibis_types.NullScalar) or isinstance(x, ibis_types.NullScalar):
-        return ibis.null()
+        return ibis_types.null()
     return x + y  # type: ignore
 
 
@@ -1384,7 +1384,7 @@ def _int_pow_op(
 
     return (
         ibis.case()
-        .when((overflow_cond), ibis.null())
+        .when((overflow_cond), ibis_types.null())
         .else_(pow_result.cast(ibis_dtypes.int64))
         .end()
     )

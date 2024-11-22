@@ -274,7 +274,7 @@ def _(
     )
     negative_count = _apply_window_if_present(is_negative.sum(), window)
     negative_count_parity = negative_count % cast(
-        ibis_types.NumericValue, ibis.literal(2)
+        ibis_types.NumericValue, ibis_types.literal(2)
     )  # 1 if result should be negative, otherwise 0
 
     any_zeroes = _apply_window_if_present(is_zero.any(), window)
@@ -394,7 +394,7 @@ def _(
             left = compile_ibis_types.literal_to_ibis_scalar(interval[0])
             right = compile_ibis_types.literal_to_ibis_scalar(interval[1])
             condition = (x > left) & (x <= right)
-            interval_struct = ibis.struct(
+            interval_struct = ibis_types.struct(
                 {"left_exclusive": left, "right_inclusive": right}
             )
             out = out.when(condition, interval_struct)

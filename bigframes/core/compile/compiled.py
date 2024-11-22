@@ -25,7 +25,6 @@ import bigframes_vendored.ibis.common.deferred  # type: ignore
 import bigframes_vendored.ibis.expr.operations as ibis_ops
 import bigframes_vendored.ibis.expr.schema as ibis_schema
 import google.cloud.bigquery
-import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas
@@ -345,7 +344,7 @@ class UnorderedIR(BaseIbisIR):
             table = table.filter(base_table[PREDICATE_COLUMN])
         table = table.drop(*columns_to_drop)
         if fraction is not None:
-            table = table.filter(ibis.random() < ibis.literal(fraction))
+            table = table.filter(ibis.random() < ibis_types.literal(fraction))
         return table
 
     def filter(self, predicate: ex.Expression) -> UnorderedIR:
@@ -874,7 +873,7 @@ class OrderedIR(BaseIbisIR):
 
         clauses = []
         if op.skips_nulls and not never_skip_nulls:
-            clauses.append((column.isnull(), ibis.null()))
+            clauses.append((column.isnull(), ibis_types.null()))
         if window_spec.min_periods:
             if op.skips_nulls:
                 # Most operations do not count NULL values towards min_periods
@@ -895,7 +894,7 @@ class OrderedIR(BaseIbisIR):
             clauses.append(
                 (
                     observation_count < ibis_types.literal(window_spec.min_periods),
-                    ibis.null(),
+                    ibis_types.null(),
                 )
             )
         if clauses:
@@ -1075,7 +1074,7 @@ class OrderedIR(BaseIbisIR):
             table = table.filter(base_table[PREDICATE_COLUMN])
         table = table.drop(*columns_to_drop)
         if fraction is not None:
-            table = table.filter(ibis.random() < ibis.literal(fraction))
+            table = table.filter(ibis.random() < ibis_types.literal(fraction))
         return table
 
     def filter(self, predicate: ex.Expression) -> OrderedIR:

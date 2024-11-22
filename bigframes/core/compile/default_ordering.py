@@ -53,12 +53,12 @@ def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringVa
     ).replace(
         "\\", "\\\\"
     )  # type: ignore
-    return cast(ibis_types.StringColumn, ibis.literal("\\")).concat(escaped)
+    return cast(ibis_types.StringColumn, ibis_types.literal("\\")).concat(escaped)
 
 
 def gen_default_ordering(
-    table: ibis.table, use_double_hash: bool = True
-) -> list[ibis.Value]:
+    table: ibis_types.Table, use_double_hash: bool = True
+) -> list[ibis_types.Value]:
     ordering_hash_part = guid.generate_guid("bigframes_ordering_")
     ordering_hash_part2 = guid.generate_guid("bigframes_ordering_")
     ordering_rand_part = guid.generate_guid("bigframes_ordering_")

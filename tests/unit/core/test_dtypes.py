@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import geopandas as gpd  # type: ignore
-import ibis
 import ibis.expr.datatypes as ibis_dtypes
+import ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 import pyarrow as pa  # type: ignore
@@ -229,9 +229,9 @@ def test_unsupported_dtype_str_raises_unexpected_datatype():
 @pytest.mark.parametrize(
     ["literal", "ibis_scalar"],
     [
-        (True, ibis.literal(True, ibis_dtypes.boolean)),
-        (5, ibis.literal(5, ibis_dtypes.int64)),
-        (-33.2, ibis.literal(-33.2, ibis_dtypes.float64)),
+        (True, ibis_types.literal(True, ibis_dtypes.boolean)),
+        (5, ibis_types.literal(5, ibis_dtypes.int64)),
+        (-33.2, ibis_types.literal(-33.2, ibis_dtypes.float64)),
     ],
 )
 def test_literal_to_ibis_scalar_converts(literal, ibis_scalar):
