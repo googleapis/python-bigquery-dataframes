@@ -8,12 +8,12 @@ from collections import defaultdict
 
 from bigframes_vendored.ibis.common.collections import FrozenDict  # noqa: TCH001
 from bigframes_vendored.ibis.common.exceptions import ExpressionError, IbisInputError
+from bigframes_vendored.ibis.common.graph import Node as Traversable
+from bigframes_vendored.ibis.common.graph import traverse
+from bigframes_vendored.ibis.common.patterns import Check, pattern, replace
 from bigframes_vendored.ibis.common.typing import VarTuple  # noqa: TCH001
 from ibis.common.deferred import _, deferred, Item, var
-from ibis.common.graph import Node as Traversable
-from ibis.common.graph import traverse
 from ibis.common.grounds import Concrete
-from ibis.common.patterns import Check, pattern, replace
 import ibis.expr.operations as ops
 from ibis.util import Namespace, promote_list
 import toolz
