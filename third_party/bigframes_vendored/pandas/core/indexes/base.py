@@ -522,7 +522,7 @@ class Index:
             3
 
             >>> idx = bpd.Index(['c', 'b', 'a'])
-            >>>> idx.max()
+            >>> idx.max()
             'c'
 
         Returns:
