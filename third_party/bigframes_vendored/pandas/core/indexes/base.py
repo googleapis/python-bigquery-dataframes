@@ -76,7 +76,8 @@ class Index:
 
     @property
     def size(self) -> int:
-        """Return the number of elements in the underlying data.
+        """
+        Return the number of elements in the underlying data.
 
         **Examples:**
 
@@ -113,7 +114,7 @@ class Index:
         """
         Return a boolean if the values are equal or increasing.
 
-                **Examples:**
+        **Examples:**
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
@@ -138,7 +139,7 @@ class Index:
         """
         Return a boolean if the values are equal or decreasing.
 
-                **Examples:**
+        **Examples:**
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
@@ -169,8 +170,8 @@ class Index:
             >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([['HI', 'Temp'], ['HI', 'Precip'],
-                ...                ['NJ', 'Temp'], ['NJ', 'Precip']],
-                ...               columns=['a', 'b'])
+            ...                     ['NJ', 'Temp'], ['NJ', 'Precip']],
+            ...                    columns=['a', 'b'])
             >>> df
                a	   b
             0	HI	Temp
@@ -184,19 +185,18 @@ class Index:
             >>> bpd.MultiIndex.from_frame(df)
             Index([0, 1, 2, 3], dtype='Int64')
 
-
-         Args:
-            frame (Union[bigframes.series.Series, bigframes.dataframe.DataFrame]):
-                bigframes.series.Series or bigframes.dataframe.DataFrame to convert
-                to bigframes.pandas.Index
+        Args:
+          frame (Union[bigframes.pandas.Series, bigframes.pandas.DataFrame]):
+              bigframes.pandas.Series or bigframes.pandas.DataFrame to convert
+              to bigframes.pandas.Index.
 
         Returns:
             bigframes.pandas.Index:
-                The Index representation of the given Series or DataFrame
+                The Index representation of the given Series or DataFrame.
 
         Raises:
             bigframes.exceptions.NullIndexError:
-                If Index is Null
+                If Index is Null.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
