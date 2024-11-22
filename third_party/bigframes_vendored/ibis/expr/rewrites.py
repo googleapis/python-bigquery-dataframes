@@ -6,9 +6,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from bigframes_vendored.ibis.common.exceptions import ExpressionError, IbisInputError
 from ibis.common.collections import FrozenDict  # noqa: TCH001
 from ibis.common.deferred import _, deferred, Item, var
-from ibis.common.exceptions import ExpressionError, IbisInputError
 from ibis.common.graph import Node as Traversable
 from ibis.common.graph import traverse
 from ibis.common.grounds import Concrete
