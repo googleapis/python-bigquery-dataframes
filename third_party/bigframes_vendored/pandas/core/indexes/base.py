@@ -411,8 +411,8 @@ class Index:
             array([ True, False, False])
 
             >>> midx = bpd.MultiIndex.from_arrays([[1,2,3],
-                ...                               ['red', 'blue', 'green']],
-                ...                               names=('number', 'color'))
+            ...                                   ['red', 'blue', 'green']],
+            ...                                   names=('number', 'color'))
             >>> midx
             MultiIndex([(1,   'red'),
                         (2,  'blue'),
