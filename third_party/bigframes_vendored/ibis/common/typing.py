@@ -12,7 +12,7 @@ from typing import get_type_hints as _get_type_hints
 from typing import Optional, TYPE_CHECKING, TypeVar
 
 from bigframes_vendored.ibis.common.bases import Abstract
-from ibis.common.caching import memoize
+from bigframes_vendored.ibis.common.caching import memoize
 
 if TYPE_CHECKING:
     from typing_extensions import Self
