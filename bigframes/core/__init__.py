@@ -449,16 +449,16 @@ class ArrayValue:
         )
         return ArrayValue(join_node), (l_mapping, r_mapping)
 
-    def try_new_row_join(
+    def try_row_join(
         self,
         other: ArrayValue,
         conditions: typing.Tuple[typing.Tuple[str, str], ...] = (),
     ) -> Optional[
         typing.Tuple[ArrayValue, typing.Tuple[dict[str, str], dict[str, str]]]
     ]:
-        import bigframes.core.node_align
+        import bigframes.core.rewrite
 
-        result_node = bigframes.core.node_align.join_as_projection(
+        result_node = bigframes.core.rewrite.try_join_as_projection(
             self.node, other.node, conditions
         )
         if result_node is None:

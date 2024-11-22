@@ -2704,7 +2704,7 @@ def try_new_row_join(
         (left_id, right_id)
         for left_id, right_id in zip(left.index_columns, right.index_columns)
     )
-    join_result = left.expr.try_new_row_join(right.expr, join_keys)
+    join_result = left.expr.try_row_join(right.expr, join_keys)
     if join_result is None:  # did not succeed
         return None
     combined_expr, (get_column_left, get_column_right) = join_result

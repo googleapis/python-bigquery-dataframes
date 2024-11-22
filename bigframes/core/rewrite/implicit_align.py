@@ -24,6 +24,7 @@ import bigframes.core.nodes
 import bigframes.core.window_spec
 import bigframes.operations.aggregations
 
+# Additive nodes leave existing columns completely intact, and only add new columns to the end
 ADDITIVE_NODES = (
     bigframes.core.nodes.ProjectionNode,
     bigframes.core.nodes.WindowOpNode,
@@ -40,7 +41,11 @@ class ExpressionSpec:
 def get_expression_spec(
     node: bigframes.core.nodes.BigFrameNode, id: bigframes.core.identifiers.ColumnId
 ) -> ExpressionSpec:
-    """Normalizes column value by chaining expressions across multiple selection and projection nodes if possible"""
+    """Normalizes column value by chaining expressions across multiple selection and projection nodes if possible.
+    This normalization helps identify whether columns are equivalent.
+    """
+    # TODO: While we chain expression fragments from different nodes
+    # we could further normalize with constant folding and other scalar expression rewrites
     expression: bigframes.core.expression.Expression = (
         bigframes.core.expression.DerefOp(id)
     )
@@ -65,6 +70,8 @@ def get_expression_spec(
                 bigframes.core.nodes.PromoteOffsetsNode,
             ),
         ):
+            # we don't yet have a way of normalizing window ops into a ExpressionSpec, which only
+            # handles normalizing scalar expressions at the moment.
             pass
         else:
             return ExpressionSpec(expression, curr_node)
@@ -77,6 +84,7 @@ def _linearize_trees(
 ) -> bigframes.core.nodes.BigFrameNode:
     """Linearize two divergent tree who only diverge through different additive nodes."""
     assert append_tree.projection_base == base_tree.projection_base
+    # base case: append tree does not have any additive nodes to linearize
     if append_tree == append_tree.projection_base:
         return base_tree
     else:
@@ -98,7 +106,7 @@ def combine_nodes(
     return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
 
 
-def join_as_projection(
+def try_join_as_projection(
     l_node: bigframes.core.nodes.BigFrameNode,
     r_node: bigframes.core.nodes.BigFrameNode,
     join_keys: Tuple[Tuple[str, str], ...],
@@ -127,7 +135,17 @@ def pull_up_selection(
         ...,
     ],
 ]:
-    """Remove all selection nodes above the base node. Returns stripped tree."""
+    """Remove all selection nodes above the base node. Returns stripped tree.
+
+    Args:
+        node (BigFrameNode):
+            The node from which to pull up SelectionNode ops
+        rename_vars (bool):
+            If true, will rename projected columns to new unique ids.
+
+    Returns:
+        BigFrameNode, Selections
+    """
     if node == node.projection_base:  # base case
         return node, tuple(
             (bigframes.core.expression.DerefOp(field.id), field.id)
