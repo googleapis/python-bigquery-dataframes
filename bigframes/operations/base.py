@@ -33,6 +33,7 @@ import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 import bigframes.session
 
+#TODO: window = SQL windowing/ "over clause"
 
 class SeriesMethods:
     def __init__(
@@ -260,6 +261,7 @@ class SeriesMethods:
             index,
         )
 
+    #TODO: start here with schema tracking
     def _align_n(
         self,
         others: typing.Sequence[typing.Union[series.Series, scalars.Scalar]],

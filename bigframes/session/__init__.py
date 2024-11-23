@@ -65,7 +65,7 @@ import bigframes.core.pruning
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
 # to register new and replacement ops with the Ibis BigQuery backend.
-import bigframes.dataframe
+#import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.functions._remote_function_session as bigframes_rf_session

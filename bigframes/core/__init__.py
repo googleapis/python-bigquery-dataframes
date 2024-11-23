@@ -26,6 +26,8 @@ import pandas
 import pyarrow as pa
 import pyarrow.feather as pa_feather
 
+import bigframes._config as config
+
 import bigframes.core.compile
 import bigframes.core.expression as ex
 import bigframes.core.guid
@@ -33,6 +35,7 @@ import bigframes.core.identifiers as ids
 import bigframes.core.join_def as join_def
 import bigframes.core.local_data as local_data
 import bigframes.core.nodes as nodes
+
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.ordering as orderings
 import bigframes.core.rewrite
@@ -40,6 +43,7 @@ import bigframes.core.schema as schemata
 import bigframes.core.tree_properties
 import bigframes.core.utils
 from bigframes.core.window_spec import WindowSpec
+#import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -47,10 +51,10 @@ import bigframes.session._io.bigquery
 
 if typing.TYPE_CHECKING:
     from bigframes.session import Session
+    
 
 ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
-
 
 @dataclass(frozen=True)
 class ArrayValue:

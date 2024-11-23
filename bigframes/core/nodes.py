@@ -38,7 +38,10 @@ import bigframes.operations.aggregations as agg_ops
 if typing.TYPE_CHECKING:
     import bigframes.core.ordering as orderings
     import bigframes.session
+    from bigframes.core import NestedDataContextManager
 
+# (abeschorner) MVP nested data: Define one schema tracking context singleton so the context is known to actions performed on nested data
+# [as discussed with Tim Sweena, 2024/07/01]
 
 # A fixed number of variable to assume for overhead on some operations
 OVERHEAD_VARIABLES = 5
