@@ -3,11 +3,11 @@
 
 from __future__ import annotations
 
+from bigframes_vendored.ibis.formats import SchemaMapper, TypeMapper
 import google.cloud.bigquery as bq
 import ibis
 import ibis.expr.datatypes as dt
 import ibis.expr.schema as sch
-from ibis.formats import SchemaMapper, TypeMapper
 import sqlglot as sg
 
 _from_bigquery_types = {

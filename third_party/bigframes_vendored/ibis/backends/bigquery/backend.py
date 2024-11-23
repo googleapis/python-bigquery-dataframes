@@ -636,48 +636,9 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         return sql
 
     def execute(self, expr, params=None, limit="default", **kwargs):
-        """Compile and execute the given Ibis expression.
-
-        Compile and execute Ibis expression using this backend client
-        interface, returning results in-memory in the appropriate object type
-
-        Parameters
-        ----------
-        expr
-            Ibis expression to execute
-        limit
-            Retrieve at most this number of values/rows. Overrides any limit
-            already set on the expression.
-        params
-            Query parameters
-        kwargs
-            Extra arguments specific to the backend
-
-        Returns
-        -------
-        pd.DataFrame | pd.Series | scalar
-            Output from execution
-
-        """
-        from ibis.backends.bigquery.converter import BigQueryPandasData
-
-        self._run_pre_execute_hooks(expr)
-
-        schema = expr.as_table().schema() - ibis.schema({"_TABLE_SUFFIX": "string"})
-
-        sql = self.compile(expr, limit=limit, params=params, **kwargs)
-        self._log(sql)
-        query = self.raw_sql(sql, params=params, **kwargs)
-
-        arrow_t = query.to_arrow(
-            progress_bar_type=None, bqstorage_client=self.storage_client
+        raise ibis_exceptions.IbisError(
+            "BigFrames does not vendored these peice of codes"
         )
-
-        result = BigQueryPandasData.convert_table(
-            arrow_t.to_pandas(timestamp_as_object=True), schema
-        )
-
-        return expr.__pandas_result__(result, schema=schema)
 
     def insert(
         self,
