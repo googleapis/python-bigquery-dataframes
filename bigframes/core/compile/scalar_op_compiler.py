@@ -19,9 +19,9 @@ import typing
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
+import bigframes_vendored.ibis.expr.operations.generic as ibis_generic
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
-import ibis.expr.operations.generic
 import ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
@@ -1516,7 +1516,7 @@ def mod_op(
 ):
     # Hacky short-circuit to avoid passing zero-literal to sql backend, evaluate locally instead to null.
     op = y.op()
-    if isinstance(op, ibis.expr.operations.generic.Literal) and op.value == 0:
+    if isinstance(op, ibis_generic.Literal) and op.value == 0:
         return ibis_types.null().cast(x.type())
 
     if x.type().is_integer() and y.type().is_integer():
@@ -1550,7 +1550,7 @@ def _bignumeric_mod(
 ):
     # Hacky short-circuit to avoid passing zero-literal to sql backend, evaluate locally instead to null.
     op = y.op()
-    if isinstance(op, ibis.expr.operations.generic.Literal) and op.value == 0:
+    if isinstance(op, ibis_generic.Literal) and op.value == 0:
         return ibis_types.null().cast(x.type())
 
     bq_mod = x % y  # Bigquery will maintain x sign here
@@ -1579,7 +1579,7 @@ def _int_mod(
 ):
     # Hacky short-circuit to avoid passing zero-literal to sql backend, evaluate locally instead to null.
     op = y.op()
-    if isinstance(op, ibis.expr.operations.generic.Literal) and op.value == 0:
+    if isinstance(op, ibis_generic.Literal) and op.value == 0:
         return ibis_types.null().cast(x.type())
 
     bq_mod = x % y  # Bigquery will maintain x sign here

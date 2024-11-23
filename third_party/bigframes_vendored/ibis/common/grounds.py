@@ -15,7 +15,10 @@ from bigframes_vendored.ibis.common.bases import (  # noqa: F401
     Abstract,
     AbstractMeta,
     Comparable,
+    Final,
+    Hashable,
     Immutable,
+    Singleton,
 )
 from bigframes_vendored.ibis.common.collections import FrozenDict  # noqa: TCH001
 from bigframes_vendored.ibis.common.patterns import Pattern

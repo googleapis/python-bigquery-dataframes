@@ -19,10 +19,9 @@ import typing
 from typing import cast, List, Optional
 
 import bigframes_vendored.constants as constants
-import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
+import bigframes_vendored.ibis.expr.operations as ibis_ops
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
-import ibis.expr.operations as ibis_ops
 import ibis.expr.types as ibis_types
 import pandas as pd
 
@@ -147,7 +146,7 @@ def numeric_op(operation):
 
 @compile_nullary_agg.register
 def _(op: agg_ops.SizeOp, window=None) -> ibis_types.NumericValue:
-    return _apply_window_if_present(vendored_ibis_ops.count(1), window)
+    return _apply_window_if_present(ibis_ops.count(1), window)
 
 
 @compile_unary_agg.register
@@ -491,7 +490,7 @@ def _(
     window=None,
 ) -> ibis_types.Value:
     return _apply_window_if_present(
-        vendored_ibis_ops.FirstNonNullValue(column).to_expr(), window  # type: ignore
+        ibis_ops.FirstNonNullValue(column).to_expr(), window  # type: ignore
     )
 
 
@@ -511,7 +510,7 @@ def _(
     window=None,
 ) -> ibis_types.Value:
     return _apply_window_if_present(
-        vendored_ibis_ops.LastNonNullValue(column).to_expr(), window  # type: ignore
+        ibis_ops.LastNonNullValue(column).to_expr(), window  # type: ignore
     )
 
 
@@ -602,7 +601,7 @@ def _(
             f"ArrayAgg with windowing is not supported. {constants.FEEDBACK_LINK}"
         )
 
-    return vendored_ibis_ops.ArrayAggregate(
+    return ibis_ops.ArrayAggregate(
         column,
         order_by=order_by,
     ).to_expr()

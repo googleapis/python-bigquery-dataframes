@@ -29,8 +29,8 @@ from bigframes_vendored.ibis.common.temporal import (
     TimestampUnit,
     TimeUnit,
 )
+import bigframes_vendored.ibis.expr.operations as ops
 import ibis.expr.datatypes as dt
-import ibis.expr.operations as ops
 import numpy as np
 import sqlglot as sg
 from sqlglot.dialects import BigQuery
