@@ -6,9 +6,9 @@ from collections.abc import Callable  # noqa: TCH003
 import contextlib
 from typing import Annotated, Any, Optional
 
-import ibis.common.exceptions as com
-from ibis.common.grounds import Annotable
-from ibis.common.patterns import Between
+import bigframes_vendored.ibis.common.exceptions as com
+from bigframes_vendored.ibis.common.grounds import Annotable
+from bigframes_vendored.ibis.common.patterns import Between
 from public import public
 
 PosInt = Annotated[int, Between(lower=0)]
@@ -178,34 +178,7 @@ def _default_backend() -> Any:
     if (backend := options.default_backend) is not None:
         return backend
 
-    try:
-        import duckdb as _  # noqa: F401
-    except ImportError:
-        raise com.IbisError(
-            """\
-You have used a function that relies on the default backend, but the default
-backend (DuckDB) is not installed.
-
-You may specify an alternate backend to use, e.g.
-
-ibis.set_backend("polars")
-
-or to install the DuckDB backend, run:
-
-    pip install 'ibis-framework[duckdb]'
-
-or
-
-    conda install -c conda-forge ibis-framework
-
-For more information on available backends, visit https://ibis-project.org/install
-"""
-        )
-
-    import ibis
-
-    options.default_backend = con = ibis.duckdb.connect(":memory:")
-    return con
+    raise com.IbisError("You must speficy an backend to use")
 
 
 options = Options()
