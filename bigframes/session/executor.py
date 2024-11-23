@@ -233,6 +233,25 @@ class BigQueryExecutor(Executor):
         array_value: bigframes.core.ArrayValue,
         *,
         ordered: bool = True,
+        use_explicit_destination: bool = False,
+        get_size_bytes: bool = False,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+    ):
+        return self._execute(
+            array_value=array_value,
+            ordered=ordered,
+            use_explicit_destination=use_explicit_destination,
+            get_size_bytes=get_size_bytes,
+            page_size=page_size,
+            max_results=max_results,
+        )
+
+    def _execute(
+        self,
+        array_value: bigframes.core.ArrayValue,
+        *,
+        ordered: bool = True,
         col_id_overrides: Mapping[str, str] = {},
         use_explicit_destination: bool = False,
         get_size_bytes: bool = False,
@@ -320,7 +339,7 @@ class BigQueryExecutor(Executor):
         format: Literal["json", "csv", "parquet"],
         export_options: Mapping[str, Union[bool, str]],
     ):
-        query_job = self.execute(
+        query_job = self._execute(
             array_value,
             ordered=False,
             col_id_overrides=col_id_overrides,
@@ -379,7 +398,7 @@ class BigQueryExecutor(Executor):
     ) -> ExecuteResult:
         maybe_row_count = tree_properties.row_count(array_value.node)
         if (maybe_row_count is not None) and (maybe_row_count <= n_rows):
-            return self.execute(array_value, ordered=True)
+            return self._execute(array_value, ordered=True)
 
         if not self.strictly_ordered and not array_value.node.explicitly_ordered:
             # No user-provided ordering, so just get any N rows, its faster!
@@ -387,7 +406,7 @@ class BigQueryExecutor(Executor):
 
         plan = array_value.node
         head_plan = generate_head_plan(plan, n_rows)
-        return self.execute(bigframes.core.ArrayValue(head_plan))
+        return self._execute(bigframes.core.ArrayValue(head_plan))
 
     def get_row_count(self, array_value: bigframes.core.ArrayValue) -> int:
         count = tree_properties.row_count(array_value.node)
@@ -497,6 +516,8 @@ class BigQueryExecutor(Executor):
             )
 
 
+# A somewhat crude decorator to add caching behavior
+# Maybe find a better extension mechanism as layer in other behaviors
 class BigQueryCachingExecutor(Executor):
     """
     This executor can cache expressions. If those expressions are executed later, this session
@@ -528,6 +549,8 @@ class BigQueryCachingExecutor(Executor):
         *args,
         **kwargs,
     ):
+        if bigframes.options.compute.enable_multi_query_execution:
+            self._simplify_with_caching(array_value)
         return self._inner.execute(
             self.replace_cached_subtrees(array_value), *args, **kwargs
         )
@@ -538,6 +561,8 @@ class BigQueryCachingExecutor(Executor):
         *args,
         **kwargs,
     ) -> bigquery.QueryJob:
+        if bigframes.options.compute.enable_multi_query_execution:
+            self._simplify_with_caching(array_value)
         return self._inner.export_gbq(
             self.replace_cached_subtrees(array_value), *args, **kwargs
         )
@@ -548,6 +573,8 @@ class BigQueryCachingExecutor(Executor):
         *args,
         **kwargs,
     ) -> bigquery.QueryJob:
+        if bigframes.options.compute.enable_multi_query_execution:
+            self._simplify_with_caching(array_value)
         return self._inner.export_gcs(
             self.replace_cached_subtrees(array_value), *args, **kwargs
         )
@@ -659,7 +686,7 @@ class BigQueryCachingExecutor(Executor):
         self._inner.export_gbq(
             array_value,
             col_id_overrides={},
-            destination=temp_table,
+            destination=temp_table.reference,
             if_exists="replace",
         )
 
