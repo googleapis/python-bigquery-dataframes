@@ -89,11 +89,7 @@ def _linearize_trees(
         return base_tree
     else:
         assert isinstance(append_tree, ADDITIVE_NODES)
-        result = append_tree.replace_child(
-            _linearize_trees(base_tree, append_tree.child)
-        )
-        result.validate_tree()
-        return result
+        return append_tree.replace_child(_linearize_trees(base_tree, append_tree.child))
 
 
 def combine_nodes(
@@ -107,9 +103,7 @@ def combine_nodes(
     )  # Rename only right vars to avoid collisions with left vars
     combined_selection = (*l_selection, *r_selection)
     merged_node = _linearize_trees(l_node, r_node)
-    result = bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
-    result.validate_tree()
-    return result
+    return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
 
 
 def try_join_as_projection(
@@ -183,8 +177,6 @@ def pull_up_selection(
             for field in node.added_fields
         )
         new_selection = (*child_selections, *added_selections)
-        if not (all(ref.id in new_node.ids for ref, _ in new_selection)):
-            raise ValueError()
         return new_node, new_selection
     elif isinstance(node, bigframes.core.nodes.SelectionNode):
         new_selection = tuple(
@@ -194,7 +186,5 @@ def pull_up_selection(
             )
             for ref, out in node.input_output_pairs
         )
-        if not (all(ref.id in child_node.ids for ref, _ in new_selection)):
-            raise ValueError()
         return child_node, new_selection
     raise ValueError(f"Couldn't pull up select from node: {node}")
