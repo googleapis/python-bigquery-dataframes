@@ -1,4 +1,4 @@
-# Contains code from https://github.com/ibis-project/ibis/blob/main/ibis/backends/sql/compilers/bigquery/__init__.py
+# Contains code from https://github.com/ibis-project/ibis/blob/9.2.0/ibis/backends/sql/datatypes.py
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from functools import partial
 from typing import NoReturn
 
 import bigframes_vendored.ibis.common.exceptions as com
+from bigframes_vendored.ibis.formats import TypeMapper
 import ibis.expr.datatypes as dt
-from ibis.formats import TypeMapper
 import sqlglot as sg
 import sqlglot.expressions as sge
 
