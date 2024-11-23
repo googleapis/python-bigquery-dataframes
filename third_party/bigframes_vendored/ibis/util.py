@@ -152,7 +152,7 @@ def is_function(v: Any) -> bool:
 
 def log(msg: str) -> None:
     """Log `msg` using ``options.verbose_log`` if set, otherwise ``print``."""
-    from ibis.config import options
+    from bigframes_vendored.ibis.config import options
 
     if options.verbose:
         (options.verbose_log or print)(msg)
