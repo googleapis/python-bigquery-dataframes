@@ -1,3 +1,5 @@
+# Contains code from https://github.com/ibis-project/ibis/blob/9.2.0/ibis/common/annotations.py
+
 from __future__ import annotations
 
 import functools
