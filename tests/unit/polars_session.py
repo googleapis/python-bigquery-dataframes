@@ -34,7 +34,7 @@ import bigframes.session.metrics
 class TestExecutor(bigframes.session.executor.Executor):
     compiler = bigframes.core.compile.polars.PolarsCompiler()
 
-    def _execute(
+    def execute(
         self,
         array_value: bigframes.core.ArrayValue,
         *,
