@@ -89,7 +89,11 @@ def _linearize_trees(
         return base_tree
     else:
         assert isinstance(append_tree, ADDITIVE_NODES)
-        return append_tree.replace_child(_linearize_trees(base_tree, append_tree.child))
+        result = append_tree.replace_child(
+            _linearize_trees(base_tree, append_tree.child)
+        )
+        result.validate_tree()
+        return result
 
 
 def combine_nodes(
@@ -103,7 +107,9 @@ def combine_nodes(
     )  # Rename only right vars to avoid collisions with left vars
     combined_selection = (*l_selection, *r_selection)
     merged_node = _linearize_trees(l_node, r_node)
-    return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
+    result = bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
+    result.validate_tree()
+    return result
 
 
 def try_join_as_projection(
@@ -114,7 +120,8 @@ def try_join_as_projection(
     """Joins the two nodes"""
     if l_node.projection_base != r_node.projection_base:
         return None
-    # check join key
+    # check join keys are equivalent by normalizing the expressions as much as posisble
+    # instead of just comparing ids
     for l_key, r_key in join_keys:
         # Caller is block, so they still work with raw strings rather than ids
         left_id = bigframes.core.identifiers.ColumnId(l_key)
@@ -152,7 +159,9 @@ def pull_up_selection(
             for field in node.fields
         )
     assert isinstance(node, (bigframes.core.nodes.SelectionNode, *ADDITIVE_NODES))
-    child_node, child_selections = pull_up_selection(node.child)
+    child_node, child_selections = pull_up_selection(
+        node.child, rename_vars=rename_vars
+    )
     mapping = {out: ref.id for ref, out in child_selections}
     if isinstance(node, ADDITIVE_NODES):
         new_node: bigframes.core.nodes.BigFrameNode = node.replace_child(child_node)
@@ -163,19 +172,25 @@ def pull_up_selection(
                 for field in node.added_fields
             }
             new_node = new_node.remap_vars(var_renames)
+        else:
+            var_renames = {}
         assert isinstance(new_node, ADDITIVE_NODES)
         added_selections = (
-            (bigframes.core.expression.DerefOp(field.id), field.id)
-            for field in new_node.added_fields
+            (
+                bigframes.core.expression.DerefOp(var_renames.get(field.id, field.id)),
+                field.id,
+            )
+            for field in node.added_fields
         )
         new_selection = (*child_selections, *added_selections)
-        assert all(ref.id in new_node.ids for ref, _ in new_selection)
+        if not (all(ref.id in new_node.ids for ref, _ in new_selection)):
+            raise ValueError()
         return new_node, new_selection
     elif isinstance(node, bigframes.core.nodes.SelectionNode):
         new_selection = tuple(
             (
                 bigframes.core.expression.DerefOp(mapping[ref.id]),
-                (bigframes.core.identifiers.ColumnId.unique() if rename_vars else out),
+                out,
             )
             for ref, out in node.input_output_pairs
         )

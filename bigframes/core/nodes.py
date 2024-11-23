@@ -127,6 +127,9 @@ class BigFrameNode(abc.ABC):
         for child in self.child_nodes:
             child.validate_tree()
         self._validate()
+        field_list = list(self.fields)
+        if len(set(field_list)) != len(field_list):
+            raise ValueError(f"Non unique field ids {list(self.fields)}")
         return True
 
     def _as_tuple(self) -> Tuple:
@@ -1076,8 +1079,8 @@ class SelectionNode(UnaryNode):
     @functools.cached_property
     def fields(self) -> Iterable[Field]:
         return tuple(
-            Field(output, self.child.get_type(input.id))
-            for input, output in self.input_output_pairs
+            Field(output, self.child.get_type(ref.id))
+            for ref, output in self.input_output_pairs
         )
 
     @property
@@ -1341,6 +1344,10 @@ class WindowOpNode(UnaryNode):
     output_name: bigframes.core.identifiers.ColumnId
     never_skip_nulls: bool = False
     skip_reproject_unsafe: bool = False
+
+    def _validate(self):
+        """Validate the local data in the node."""
+        assert self.column_name.id in self.child.ids
 
     @property
     def non_local(self) -> bool:
