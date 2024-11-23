@@ -25,11 +25,11 @@ from bigframes_vendored.ibis.backends.sql.rewrites import (
 )
 import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
 import bigframes_vendored.ibis.common.patterns as pats
-from bigframes_vendored.ibis.expr.rewrites import lower_stringslice
 from bigframes_vendored.ibis.config import options
+from bigframes_vendored.ibis.expr.operations.udf import InputType
+from bigframes_vendored.ibis.expr.rewrites import lower_stringslice
 import ibis.expr.datatypes as dt
 import ibis.expr.operations as ops
-from ibis.expr.operations.udf import InputType
 from public import public
 import sqlglot as sg
 import sqlglot.expressions as sge

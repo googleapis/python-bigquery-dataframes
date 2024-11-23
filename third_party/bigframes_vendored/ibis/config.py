@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import contextlib
 from collections.abc import Callable  # noqa: TCH003
+import contextlib
 from typing import Annotated, Any, Optional
-
-from public import public
 
 import ibis.common.exceptions as com
 from ibis.common.grounds import Annotable
 from ibis.common.patterns import Between
+from public import public
 
 PosInt = Annotated[int, Between(lower=0)]
 
