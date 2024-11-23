@@ -10,8 +10,12 @@ import re
 from types import UnionType
 from typing import Union
 
-from ibis.common.typing import evaluate_annotations, get_args, get_origin
-from ibis.util import import_object, unalias_package
+from bigframes_vendored.ibis.common.typing import (
+    evaluate_annotations,
+    get_args,
+    get_origin,
+)
+from bigframes_vendored.ibis.util import import_object, unalias_package
 
 
 def normalize(r: str | re.Pattern):

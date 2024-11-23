@@ -11,7 +11,10 @@ import os
 from typing import Any, Optional, TYPE_CHECKING
 
 from bigframes_vendored.ibis import util
-from bigframes_vendored.ibis.backends.bigquery.datatypes import BigQueryType
+from bigframes_vendored.ibis.backends.bigquery.datatypes import (
+    BigQuerySchema,
+    BigQueryType,
+)
 import bigframes_vendored.ibis.backends.sql.compilers as sc
 import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
 import google.api_core.exceptions
@@ -26,7 +29,6 @@ from ibis.backends.bigquery.client import (
     rename_partitioned_column,
     schema_from_bigquery_table,
 )
-from ibis.backends.bigquery.datatypes import BigQuerySchema
 from ibis.backends.sql import SQLBackend
 import ibis.expr.operations as ops
 import ibis.expr.schema as sch

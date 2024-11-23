@@ -20,10 +20,10 @@ import typing
 from typing import Collection, Literal, Optional, Sequence
 
 import bigframes_vendored.ibis.backends.bigquery.backend as ibis_bigquery
+import bigframes_vendored.ibis.backends.bigquery.datatypes
 import bigframes_vendored.ibis.common.deferred  # type: ignore
 import google.cloud.bigquery
 import ibis
-import ibis.backends.bigquery.datatypes
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.operations as ibis_ops
 import ibis.expr.schema as ibis_schema
@@ -994,7 +994,7 @@ class OrderedIR(BaseIbisIR):
             (name, dtype.copy(nullable=True))
             for (name, dtype) in as_ibis.schema().items()
         )
-        bq_schema = ibis.backends.bigquery.datatypes.BigQuerySchema.from_ibis(
+        bq_schema = bigframes_vendored.ibis.backends.bigquery.datatypes.BigQuerySchema.from_ibis(
             fixed_ibis_schema
         )
         return ibis_bigquery.Backend().compile(as_ibis), bq_schema
