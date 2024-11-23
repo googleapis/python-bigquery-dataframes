@@ -7,12 +7,12 @@ from decimal import Decimal
 from enum import Enum, EnumMeta
 import numbers
 
-import dateutil.parser
-import dateutil.tz
 from bigframes_vendored.ibis import util
 from bigframes_vendored.ibis.common.bases import AbstractMeta
-from ibis.common.dispatch import lazy_singledispatch
+from bigframes_vendored.ibis.common.dispatch import lazy_singledispatch
 from bigframes_vendored.ibis.common.patterns import Coercible, CoercionError
+import dateutil.parser
+import dateutil.tz
 from public import public
 import pytz
 

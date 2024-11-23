@@ -8,6 +8,7 @@ import math
 import re
 from typing import Any, TYPE_CHECKING
 
+from bigframes_vendored.ibis import util
 import bigframes_vendored.ibis.backends.bigquery.datatypes as bq_datatypes
 from bigframes_vendored.ibis.backends.sql.compilers.base import (
     AggGen,
@@ -22,7 +23,6 @@ from bigframes_vendored.ibis.common.temporal import (
     TimestampUnit,
     TimeUnit,
 )
-from bigframes_vendored.ibis import util
 from ibis.backends.sql.datatypes import BigQueryType, BigQueryUDFType
 from ibis.backends.sql.rewrites import (
     exclude_unsupported_window_frame_from_ops,

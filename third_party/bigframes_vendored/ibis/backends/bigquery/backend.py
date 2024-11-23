@@ -10,6 +10,7 @@ import glob
 import os
 from typing import Any, Optional, TYPE_CHECKING
 
+from bigframes_vendored.ibis import util
 from bigframes_vendored.ibis.backends.bigquery.datatypes import BigQueryType
 import bigframes_vendored.ibis.backends.sql.compilers as sc
 import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
@@ -18,7 +19,6 @@ import google.auth.credentials
 import google.cloud.bigquery as bq
 import google.cloud.bigquery_storage_v1 as bqstorage
 import ibis
-from bigframes_vendored.ibis import util
 from ibis.backends import CanCreateDatabase, CanCreateSchema
 from ibis.backends.bigquery.client import (
     bigquery_param,
