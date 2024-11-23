@@ -2323,6 +2323,7 @@ def test_cumsum_nested(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+@skip_legacy_pandas
 def test_nested_analytic_ops_align(scalars_df_index, scalars_pandas_df_index):
     col_name = "float64_col"
     # set non-unique index to check implicit alignment
