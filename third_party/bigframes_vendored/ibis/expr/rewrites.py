@@ -1,4 +1,4 @@
-# Contains code from https://github.com/ibis-project/ibis/blob/main/ibis/expr/rewrites.py
+# Contains code from https://github.com/ibis-project/ibis/blob/9.2.0/ibis/expr/rewrites.py
 
 """Some common rewrite functions to be shared between backends."""
 

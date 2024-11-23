@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import bigframes_vendored.ibis.expr.rules as rlz
 import ibis
 import ibis.expr.operations as ops
-import ibis.expr.rules as rlz
 
 
 # TODO(swast): We can remove this if ibis adds aggregates over scalar values.
