@@ -22,11 +22,11 @@ from typing import Collection, Literal, Optional, Sequence
 import bigframes_vendored.ibis.backends.bigquery.backend as ibis_bigquery
 import bigframes_vendored.ibis.backends.bigquery.datatypes
 import bigframes_vendored.ibis.common.deferred  # type: ignore
+import bigframes_vendored.ibis.expr.schema as ibis_schema
 import google.cloud.bigquery
 import ibis
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.operations as ibis_ops
-import ibis.expr.schema as ibis_schema
 import ibis.expr.types as ibis_types
 import pandas
 

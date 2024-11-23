@@ -48,7 +48,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
 
     from bigframes_vendored.ibis.backends.bigquery.datatypes import SqlglotType
-    import ibis.expr.schema as sch
+    import bigframes_vendored.ibis.expr.schema as sch
     import ibis.expr.types as ir
 
 

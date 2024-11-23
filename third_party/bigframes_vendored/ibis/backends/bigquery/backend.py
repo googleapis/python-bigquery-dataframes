@@ -17,6 +17,7 @@ from bigframes_vendored.ibis.backends.bigquery.datatypes import (
 )
 import bigframes_vendored.ibis.backends.sql.compilers as sc
 import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
+import bigframes_vendored.ibis.expr.schema as sch
 import google.api_core.exceptions
 import google.auth.credentials
 import google.cloud.bigquery as bq
@@ -31,7 +32,6 @@ from ibis.backends.bigquery.client import (
 )
 from ibis.backends.sql import SQLBackend
 import ibis.expr.operations as ops
-import ibis.expr.schema as sch
 import ibis.expr.types as ir
 import pydata_google_auth
 from pydata_google_auth import cache
