@@ -28,6 +28,14 @@ from bigframes_vendored.ibis.common.collections import (
     frozendict,
     RewindableIterator,
 )
+from bigframes_vendored.ibis.common.deferred import _  # noqa: F401
+from bigframes_vendored.ibis.common.deferred import (
+    Deferred,
+    Factory,
+    Resolver,
+    resolver,
+    Variable,
+)
 from bigframes_vendored.ibis.common.typing import (
     _ClassInfo,
     Coercible,
@@ -39,8 +47,6 @@ from bigframes_vendored.ibis.common.typing import (
     UnionType,
 )
 from bigframes_vendored.ibis.util import import_object, is_iterable, unalias_package
-from bigframes_vendored.ibis.common.deferred import _  # noqa: F401
-from bigframes_vendored.ibis.common.deferred import Deferred, Factory, Resolver, resolver, Variable
 import toolz
 from typing_extensions import GenericMeta
 

@@ -2,18 +2,24 @@
 
 from __future__ import annotations
 
+from abc import abstractmethod
 import collections.abc
+from collections.abc import Callable
 import functools
 import inspect
 import operator
-from abc import abstractmethod
-from collections.abc import Callable
-from typing import Any, TypeVar, overload
+from typing import Any, overload, TypeVar
 
-from ibis.common.bases import Final, FrozenSlotted, Hashable, Immutable, Slotted
-from ibis.common.collections import FrozenDict
-from ibis.common.typing import Coercible, CoercionError
-from ibis.util import PseudoHashable
+from bigframes_vendored.ibis.common.bases import (
+    Final,
+    FrozenSlotted,
+    Hashable,
+    Immutable,
+    Slotted,
+)
+from bigframes_vendored.ibis.common.collections import FrozenDict
+from bigframes_vendored.ibis.common.typing import Coercible, CoercionError
+from bigframes_vendored.ibis.util import PseudoHashable
 
 
 class Resolver(Coercible, Hashable):
@@ -45,7 +51,8 @@ class Resolver(Coercible, Hashable):
         """
 
     @abstractmethod
-    def __eq__(self, other: Resolver) -> bool: ...
+    def __eq__(self, other: Resolver) -> bool:
+        ...
 
     @classmethod
     def __coerce__(cls, value):
@@ -572,11 +579,13 @@ F = TypeVar("F", bound=Callable)
 
 
 @overload
-def deferrable(*, repr: str | None = None) -> Callable[[F], F]: ...
+def deferrable(*, repr: str | None = None) -> Callable[[F], F]:
+    ...
 
 
 @overload
-def deferrable(func: F) -> F: ...
+def deferrable(func: F) -> F:
+    ...
 
 
 def deferrable(func=None, *, repr=None):

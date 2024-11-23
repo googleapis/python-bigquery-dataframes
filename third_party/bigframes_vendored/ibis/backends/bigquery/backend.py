@@ -18,7 +18,7 @@ import google.auth.credentials
 import google.cloud.bigquery as bq
 import google.cloud.bigquery_storage_v1 as bqstorage
 import ibis
-from ibis import util
+from bigframes_vendored.ibis import util
 from ibis.backends import CanCreateDatabase, CanCreateSchema
 from ibis.backends.bigquery.client import (
     bigquery_param,

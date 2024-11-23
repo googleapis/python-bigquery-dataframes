@@ -16,14 +16,19 @@ from bigframes_vendored.ibis.backends.sql.compilers.base import (
     STAR,
 )
 import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
-from ibis import util
+from bigframes_vendored.ibis.common.temporal import (
+    DateUnit,
+    IntervalUnit,
+    TimestampUnit,
+    TimeUnit,
+)
+from bigframes_vendored.ibis import util
 from ibis.backends.sql.datatypes import BigQueryType, BigQueryUDFType
 from ibis.backends.sql.rewrites import (
     exclude_unsupported_window_frame_from_ops,
     exclude_unsupported_window_frame_from_rank,
     exclude_unsupported_window_frame_from_row_number,
 )
-from ibis.common.temporal import DateUnit, IntervalUnit, TimestampUnit, TimeUnit
 import ibis.expr.datatypes as dt
 import ibis.expr.operations as ops
 import numpy as np

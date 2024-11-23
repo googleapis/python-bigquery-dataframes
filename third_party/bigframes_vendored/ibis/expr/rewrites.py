@@ -7,14 +7,14 @@ from __future__ import annotations
 from collections import defaultdict
 
 from bigframes_vendored.ibis.common.collections import FrozenDict  # noqa: TCH001
+from bigframes_vendored.ibis.common.deferred import _, deferred, Item, var
 from bigframes_vendored.ibis.common.exceptions import ExpressionError, IbisInputError
 from bigframes_vendored.ibis.common.graph import Node as Traversable
 from bigframes_vendored.ibis.common.graph import traverse
+from bigframes_vendored.ibis.common.grounds import Concrete
 from bigframes_vendored.ibis.common.patterns import Check, pattern, replace
 from bigframes_vendored.ibis.common.typing import VarTuple  # noqa: TCH001
 from bigframes_vendored.ibis.util import Namespace, promote_list
-from bigframes_vendored.ibis.common.deferred import _, deferred, Item, var
-from bigframes_vendored.ibis.common.grounds import Concrete
 import ibis.expr.operations as ops
 import toolz
 

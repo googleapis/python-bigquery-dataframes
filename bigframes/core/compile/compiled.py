@@ -20,10 +20,10 @@ import typing
 from typing import Collection, Literal, Optional, Sequence
 
 import bigframes_vendored.ibis.backends.bigquery.backend as ibis_bigquery
+import bigframes_vendored.ibis.common.deferred  # type: ignore
 import google.cloud.bigquery
 import ibis
 import ibis.backends.bigquery.datatypes
-import bigframes_vendored.ibis.common.deferred  # type: ignore
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.operations as ibis_ops
 import ibis.expr.schema as ibis_schema
@@ -77,7 +77,8 @@ class BaseIbisIR(abc.ABC):
             column.resolve(table)
             # TODO(https://github.com/ibis-project/ibis/issues/7613): use
             # public API to refer to Deferred type.
-            if isinstance(column, bigframes_vendored.ibis.common.deferred.Deferred) else column
+            if isinstance(column, bigframes_vendored.ibis.common.deferred.Deferred)
+            else column
             for column in columns
         )
         # To allow for more efficient lookup by column name, create a

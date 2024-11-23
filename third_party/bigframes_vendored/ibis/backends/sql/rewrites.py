@@ -11,11 +11,11 @@ from typing import Any, TYPE_CHECKING
 
 from bigframes_vendored.ibis.common.annotations import attribute
 from bigframes_vendored.ibis.common.collections import FrozenDict  # noqa: TCH001
+from bigframes_vendored.ibis.common.deferred import var
 import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
 from bigframes_vendored.ibis.common.graph import Graph
 from bigframes_vendored.ibis.common.patterns import InstanceOf, Object, Pattern, replace
 from bigframes_vendored.ibis.common.typing import VarTuple  # noqa: TCH001
-from bigframes_vendored.ibis.common.deferred import var
 import ibis.expr.datatypes as dt
 import ibis.expr.operations as ops
 from ibis.expr.rewrites import d, p, replace_parameter
