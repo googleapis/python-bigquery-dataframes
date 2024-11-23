@@ -38,9 +38,9 @@ from bigframes_vendored.ibis.common.typing import (
     Sentinel,
     UnionType,
 )
+from bigframes_vendored.ibis.util import import_object, is_iterable, unalias_package
 from ibis.common.deferred import _  # noqa: F401
 from ibis.common.deferred import Deferred, Factory, Resolver, resolver, Variable
-from bigframes_vendored.ibis.util import import_object, is_iterable, unalias_package
 import toolz
 from typing_extensions import GenericMeta
 
@@ -1376,7 +1376,7 @@ class CallableWith(Slotted, Pattern):
         super().__init__(args=tuple(args), return_=return_)
 
     def match(self, value, context):
-        from ibis.common.annotations import annotated, EMPTY
+        from bigframes_vendored.ibis.common.annotations import annotated, EMPTY
 
         if not callable(value):
             return NoMatch

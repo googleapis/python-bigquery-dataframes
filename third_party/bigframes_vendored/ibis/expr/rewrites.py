@@ -12,10 +12,10 @@ from bigframes_vendored.ibis.common.graph import Node as Traversable
 from bigframes_vendored.ibis.common.graph import traverse
 from bigframes_vendored.ibis.common.patterns import Check, pattern, replace
 from bigframes_vendored.ibis.common.typing import VarTuple  # noqa: TCH001
+from bigframes_vendored.ibis.util import Namespace, promote_list
 from ibis.common.deferred import _, deferred, Item, var
 from ibis.common.grounds import Concrete
 import ibis.expr.operations as ops
-from bigframes_vendored.ibis.util import Namespace, promote_list
 import toolz
 
 p = Namespace(pattern, module=ops)

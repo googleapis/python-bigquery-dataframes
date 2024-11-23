@@ -15,15 +15,14 @@ import os
 import sys
 import textwrap
 import types
-import uuid
-import warnings
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import Any, Generic, TYPE_CHECKING, TypeVar
+import uuid
 from uuid import uuid4
-
-import toolz
+import warnings
 
 from bigframes_vendored.ibis.common.typing import Coercible
+import toolz
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
@@ -705,4 +704,3 @@ def chunks(n: int, *, chunk_size: int) -> Iterator[tuple[int, int]]:
     [(0, 4), (4, 8), (8, 10)]
     """
     return ((start, min(start + chunk_size, n)) for start in range(0, n, chunk_size))
-
