@@ -47,4 +47,3 @@ def test_quickstart() -> None:
     finally:
         # Don't leak partial ordering mode to other code samples.
         bigframes.pandas.close_session()
-
