@@ -328,7 +328,7 @@ class BigQueryOptions:
     @client_endpoints_override.setter
     def client_endpoints_override(self, value: dict):
         warnings.warn(
-            "This is an advanced option that sets the endpoints directly. Don't use if you don't know about it."
+            "This is an advanced configuration option for directly setting endpoints. Incorrect use may lead to unexpected behavior or system instability. Proceed only if you fully understand its implications."
         )
 
         if self._session_started and self._client_endpoints_override != value:
