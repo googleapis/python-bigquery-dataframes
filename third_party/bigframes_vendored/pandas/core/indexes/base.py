@@ -102,7 +102,7 @@ class Index:
             >>> mi = bpd.MultiIndex.from_arrays([['a'], ['b'], ['c']])
             >>> mi
             MultiIndex([('a', 'b', 'c')],
-            ...         )
+            ...        )
             >>> mi.nlevels
             3
 
@@ -555,10 +555,10 @@ class Index:
             Cocoa Puff               110.0
             dtype: Float64
 
-            >>> s.argmax()
+            >>> int(s.argmax())
             2
 
-            >>> s.argmin()
+            >>> int(s.argmin())
             0
 
         The maximum cereal calories is the third element and the minimum
@@ -593,10 +593,10 @@ class Index:
             Cocoa Puff               110.0
             dtype: Float64
 
-            >>> s.argmax()
+            >>> int(s.argmax())
             2
 
-            >>> s.argmin()
+            >>> int(s.argmin())
             0
 
         The maximum cereal calories is the third element and the minimum
@@ -627,7 +627,7 @@ class Index:
             4    7
             dtype: Int64
 
-            >>> s.nunique()
+            >>> int(s.nunique())
             4
 
         Returns:
@@ -827,7 +827,7 @@ class Index:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import Numpy as np
+            >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, np.nan, 3])
