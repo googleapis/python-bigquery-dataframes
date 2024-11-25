@@ -766,7 +766,9 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
             Output from execution
 
         """
-        from ibis.backends.bigquery.converter import BigQueryPandasData
+        from bigframes_vendored.ibis.backends.bigquery.converter import (
+            BigQueryPandasData,
+        )
 
         self._run_pre_execute_hooks(expr)
 
