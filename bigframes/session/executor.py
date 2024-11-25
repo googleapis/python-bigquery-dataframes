@@ -684,12 +684,14 @@ class BigQueryCachingExecutor(Executor):
             w_offsets.schema.to_bigquery(), [offset_column]
         )
         self._inner.export_gbq(
-            array_value,
+            w_offsets,
             col_id_overrides={},
             destination=temp_table.reference,
             if_exists="replace",
         )
 
+        # Refresh primarily to get row number
+        temp_table = self._inner.bqclient.get_table(temp_table)
         cached_replacement = array_value.as_cached(
             cache_table=temp_table,
             ordering=order.TotalOrdering.from_offset_col(offset_column),
@@ -766,7 +768,7 @@ class BigQueryCachingExecutor(Executor):
             api_name="cached",
         )
         query_job.result()
-        return temp_table
+        return self._inner.bqclient.get_table(temp_table)
 
 
 def generate_head_plan(node: nodes.BigFrameNode, n: int):
