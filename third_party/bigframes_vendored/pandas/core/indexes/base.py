@@ -119,13 +119,13 @@ class Index:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> bpd.Index([1, 2, 3]).is_monotonic_increasing
-            np.True_
+            >>> bool(bpd.Index([1, 2, 3]).is_monotonic_increasing)
+            True
 
-            >>> bpd.Index([1, 2, 2]).is_monotonic_increasing
-            np.True_
+            >>> bool(bpd.Index([1, 2, 2]).is_monotonic_increasing)
+            True
 
-            >>> bpd.Index([1, 3, 2]).is_monotonic_increasing
+            >>> bool(bpd.Index([1, 3, 2]).is_monotonic_increasing)
             False
 
         Returns:
@@ -144,13 +144,13 @@ class Index:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> bpd.Index([3, 2, 1]).is_monotonic_decreasing
-            np.True_
+            >>> bool(bpd.Index([3, 2, 1]).is_monotonic_decreasing)
+            True
 
-            >>> bpd.Index([3, 2, 2]).is_monotonic_decreasing
-            np.True_
+            >>> bool(bpd.Index([3, 2, 2]).is_monotonic_decreasing)
+            True
 
-            >>> bpd.Index([3, 1, 2]).is_monotonic_decreasing
+            >>> bool(bpd.Index([3, 1, 2]).is_monotonic_decreasing)
             False
 
         Returns:
@@ -178,7 +178,7 @@ class Index:
             1  HI  Precip
             2  NJ    Temp
             3  NJ  Precip
-
+            <BLANKLINE>
             [4 rows x 2 columns]
 
             >>> bpd.MultiIndex.from_frame(df)
