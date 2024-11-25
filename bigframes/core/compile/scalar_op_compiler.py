@@ -1848,6 +1848,6 @@ def vector_distance(vector1, vector2, type: str) -> ibis_dtypes.Float64:
     """Computes the distance between two vectors using specified type ("EUCLIDEAN", "MANHATTAN", or "COSINE")"""
 
 
-@ibis.udf.scalar.builtin(name="OBJ.FETCH_METADATA")
+@ibis_udf.scalar.builtin(name="OBJ.FETCH_METADATA")
 def obj_fetch_metadata(obj_ref: _OBJ_REF_IBIS_DTYPE) -> _OBJ_REF_IBIS_DTYPE:  # type: ignore
     """Fetch metadata from ObjectRef Struct."""

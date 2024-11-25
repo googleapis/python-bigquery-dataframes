@@ -33,6 +33,8 @@ from typing import (
 import warnings
 
 import bigframes_vendored.constants as constants
+import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
+import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import cloudpickle
 import google.api_core.exceptions
 from google.cloud import (
@@ -47,8 +49,6 @@ from bigframes import clients
 if TYPE_CHECKING:
     from bigframes.session import Session
 
-import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
-import ibis
 import pandas
 
 from . import _remote_function_client as rf_client
