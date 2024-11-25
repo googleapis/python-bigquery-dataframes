@@ -8,8 +8,8 @@ from typing import Generic, TYPE_CHECKING, TypeVar
 from bigframes_vendored.ibis.util import indent, PseudoHashable
 
 if TYPE_CHECKING:
+    from bigframes_vendored.ibis.expr.datatypes import DataType
     from bigframes_vendored.ibis.expr.schema import Schema
-    from ibis.expr.datatypes import DataType
     import pandas as pd
     import polars as pl
     import pyarrow as pa

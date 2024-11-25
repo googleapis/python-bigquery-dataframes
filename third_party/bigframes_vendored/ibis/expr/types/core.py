@@ -30,7 +30,10 @@ if TYPE_CHECKING:
 
     from bigframes_vendored.ibis.backends import BaseBackend
     import bigframes_vendored.ibis.expr.types as ir
-    from ibis.expr.visualize import EdgeAttributeGetter, NodeAttributeGetter
+    from bigframes_vendored.ibis.expr.visualize import (
+        EdgeAttributeGetter,
+        NodeAttributeGetter,
+    )
     import pandas as pd
     import polars as pl
     import pyarrow as pa
@@ -684,7 +687,7 @@ class Expr(Immutable, Coercible):
 
     def unbind(self) -> ir.Table:
         """Return an expression built on `UnboundTable` instead of backend-specific objects."""
-        from ibis.expr.rewrites import _, d, p
+        from bigframes_vendored.ibis.expr.rewrites import _, d, p
 
         rule = p.DatabaseTable >> d.UnboundTable(
             name=_.name, schema=_.schema, namespace=_.namespace

@@ -164,7 +164,7 @@ class _FileIOHandler:
             An iterator of pandas `DataFrame`s.
 
         """
-        from ibis.formats.pandas import PandasData
+        from bigframes_vendored.ibis.formats.pandas import PandasData
 
         orig_expr = expr
         expr = expr.as_table()

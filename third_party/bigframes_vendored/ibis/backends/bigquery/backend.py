@@ -11,6 +11,13 @@ import os
 from typing import Any, Optional, TYPE_CHECKING
 
 from bigframes_vendored.ibis import util
+from bigframes_vendored.ibis.backends import CanCreateDatabase, CanCreateSchema
+from bigframes_vendored.ibis.backends.bigquery.client import (
+    bigquery_param,
+    parse_project_and_dataset,
+    rename_partitioned_column,
+    schema_from_bigquery_table,
+)
 from bigframes_vendored.ibis.backends.bigquery.datatypes import (
     BigQuerySchema,
     BigQueryType,
@@ -26,13 +33,6 @@ import google.auth.credentials
 import google.cloud.bigquery as bq
 import google.cloud.bigquery_storage_v1 as bqstorage
 import ibis
-from ibis.backends import CanCreateDatabase, CanCreateSchema
-from ibis.backends.bigquery.client import (
-    bigquery_param,
-    parse_project_and_dataset,
-    rename_partitioned_column,
-    schema_from_bigquery_table,
-)
 import pydata_google_auth
 from pydata_google_auth import cache
 import sqlglot as sg

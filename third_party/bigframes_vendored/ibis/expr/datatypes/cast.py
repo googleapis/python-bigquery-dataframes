@@ -28,7 +28,7 @@ def cast(source: str | dt.DataType, target: str | dt.DataType, **kwargs) -> dt.D
 @public
 def castable(source: dt.DataType, target: dt.DataType, value: Any = None) -> bool:
     """Return whether source ir type is implicitly castable to target."""
-    from ibis.expr.datatypes.value import normalizable
+    from bigframes_vendored.ibis.expr.datatypes.value import normalizable
 
     if source == target:
         return True

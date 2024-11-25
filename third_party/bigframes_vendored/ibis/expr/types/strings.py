@@ -89,7 +89,7 @@ class StringValue(Value):
         │ ~                     │
         └───────────────────────┘
         """
-        from ibis.expr import types as ir
+        from bigframes_vendored.ibis.expr import types as ir
 
         if isinstance(key, slice):
             start, stop, step = key.start, key.stop, key.step

@@ -199,19 +199,21 @@ class Table(Expr, _FixedTextJupyterMixin):
         self, table: pa.Table, data_mapper: type[PyArrowData] | None = None
     ) -> pa.Table:
         if data_mapper is None:
-            from ibis.formats.pyarrow import PyArrowData as data_mapper
+            from bigframes_vendored.ibis.formats.pyarrow import (
+                PyArrowData as data_mapper,
+            )
 
         return data_mapper.convert_table(table, self.schema())
 
     def __pandas_result__(
         self, df: pd.DataFrame, schema: sch.Schema | None = None
     ) -> pd.DataFrame:
-        from ibis.formats.pandas import PandasData
+        from bigframes_vendored.ibis.formats.pandas import PandasData
 
         return PandasData.convert_table(df, self.schema() if schema is None else schema)
 
     def __polars_result__(self, df: pl.DataFrame) -> Any:
-        from ibis.formats.polars import PolarsData
+        from bigframes_vendored.ibis.formats.polars import PolarsData
 
         return PolarsData.convert_table(df, self.schema())
 
@@ -1100,8 +1102,8 @@ class Table(Expr, _FixedTextJupyterMixin):
         │ orange │       0.33 │     0.33 │
         └────────┴────────────┴──────────┘
         """
-        from ibis.common.patterns import Contains, In
-        from ibis.expr.rewrites import p
+        from bigframes_vendored.ibis.common.patterns import Contains, In
+        from bigframes_vendored.ibis.expr.rewrites import p
 
         node = self.op()
 
@@ -2196,7 +2198,7 @@ class Table(Expr, _FixedTextJupyterMixin):
         │       43.92193 │      17.15117 │        200.915205 │ 4201.754386 │
         └────────────────┴───────────────┴───────────────────┴─────────────┘
         """
-        from ibis.expr.rewrites import rewrite_project_input
+        from bigframes_vendored.ibis.expr.rewrites import rewrite_project_input
 
         values = self.bind(*exprs, **named_exprs)
         values = unwrap_aliases(values)
@@ -2559,7 +2561,10 @@ class Table(Expr, _FixedTextJupyterMixin):
         │ male   │        68 │
         └────────┴───────────┘
         """
-        from ibis.expr.rewrites import flatten_predicates, rewrite_filter_input
+        from bigframes_vendored.ibis.expr.rewrites import (
+            flatten_predicates,
+            rewrite_filter_input,
+        )
 
         preds = self.bind(*predicates)
 
@@ -2938,7 +2943,7 @@ class Table(Expr, _FixedTextJupyterMixin):
         │ year              │ int64   │ True     │     0 │       344 │  0.000000 │ … │
         └───────────────────┴─────────┴──────────┴───────┴───────────┴───────────┴───┘
         """
-        from ibis import literal as lit
+        from bigframes_vendored.ibis import literal as lit
 
         aggs = []
 
@@ -3025,8 +3030,8 @@ class Table(Expr, _FixedTextJupyterMixin):
         │ island  │     1 │ string │   344 │     0 │      3 │ Biscoe │
         └─────────┴───────┴────────┴───────┴───────┴────────┴────────┘
         """
-        from ibis import literal as lit
-        import ibis.selectors as s
+        from bigframes_vendored.ibis.expr.types.generic import literal as lit
+        import bigframes_vendored.ibis.selectors as s
 
         quantile = sorted(quantile)
         aggs = []
@@ -4347,8 +4352,8 @@ class Table(Expr, _FixedTextJupyterMixin):
         │     … │        … │        … │        … │
         └───────┴──────────┴──────────┴──────────┘
         """
-        from ibis.expr.rewrites import _, p, x
-        import ibis.selectors as s
+        from bigframes_vendored.ibis.expr.rewrites import _, p, x
+        import bigframes_vendored.ibis.selectors as s
         import pandas as pd
 
         orig_names_from = util.promote_list(names_from)

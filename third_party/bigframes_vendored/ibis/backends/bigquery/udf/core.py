@@ -12,8 +12,8 @@ import inspect
 import textwrap
 from typing import TYPE_CHECKING
 
-from ibis.backends.bigquery.udf.find import find_names
-from ibis.backends.bigquery.udf.rewrite import rewrite
+from bigframes_vendored.ibis.backends.bigquery.udf.find import find_names
+from bigframes_vendored.ibis.backends.bigquery.udf.rewrite import rewrite
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -518,8 +518,8 @@ class PythonToJavaScriptTranslator:
 
 
 if __name__ == "__main__":
+    from bigframes_vendored.ibis import udf
     import ibis
-    from ibis import udf
 
     @udf.scalar.python(strict=False)
     def my_func(a: float, b: float, n: float) -> list[float]:

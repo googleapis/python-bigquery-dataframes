@@ -157,19 +157,19 @@ class DataType(Concrete, Coercible):
 
     def cast(self, other, **kwargs):
         # TODO(kszucs): remove it or deprecate it?
-        from ibis.expr.datatypes.cast import cast
+        from bigframes_vendored.ibis.expr.datatypes.cast import cast
 
         return cast(self, other, **kwargs)
 
     def castable(self, to, **kwargs) -> bool:
         """Check whether this type is castable to another."""
-        from ibis.expr.datatypes.cast import castable
+        from bigframes_vendored.ibis.expr.datatypes.cast import castable
 
         return castable(self, to, **kwargs)
 
     @classmethod
     def from_string(cls, value) -> Self:
-        from ibis.expr.datatypes.parse import parse
+        from bigframes_vendored.ibis.expr.datatypes.parse import parse
 
         try:
             return parse(value)
@@ -235,52 +235,52 @@ class DataType(Concrete, Coercible):
     @classmethod
     def from_numpy(cls, numpy_type, nullable=True) -> Self:
         """Return the equivalent ibis datatype."""
-        from ibis.formats.numpy import NumpyType
+        from bigframes_vendored.ibis.formats.numpy import NumpyType
 
         return NumpyType.to_ibis(numpy_type, nullable=nullable)
 
     @classmethod
     def from_pandas(cls, pandas_type, nullable=True) -> Self:
         """Return the equivalent ibis datatype."""
-        from ibis.formats.pandas import PandasType
+        from bigframes_vendored.ibis.formats.pandas import PandasType
 
         return PandasType.to_ibis(pandas_type, nullable=nullable)
 
     @classmethod
     def from_pyarrow(cls, arrow_type, nullable=True) -> Self:
         """Return the equivalent ibis datatype."""
-        from ibis.formats.pyarrow import PyArrowType
+        from bigframes_vendored.ibis.formats.pyarrow import PyArrowType
 
         return PyArrowType.to_ibis(arrow_type, nullable=nullable)
 
     @classmethod
     def from_polars(cls, polars_type, nullable=True) -> Self:
         """Return the equivalent ibis datatype."""
-        from ibis.formats.polars import PolarsType
+        from bigframes_vendored.ibis.formats.polars import PolarsType
 
         return PolarsType.to_ibis(polars_type, nullable=nullable)
 
     def to_numpy(self):
         """Return the equivalent numpy datatype."""
-        from ibis.formats.numpy import NumpyType
+        from bigframes_vendored.ibis.formats.numpy import NumpyType
 
         return NumpyType.from_ibis(self)
 
     def to_pandas(self):
         """Return the equivalent pandas datatype."""
-        from ibis.formats.pandas import PandasType
+        from bigframes_vendored.ibis.formats.pandas import PandasType
 
         return PandasType.from_ibis(self)
 
     def to_pyarrow(self):
         """Return the equivalent pyarrow datatype."""
-        from ibis.formats.pyarrow import PyArrowType
+        from bigframes_vendored.ibis.formats.pyarrow import PyArrowType
 
         return PyArrowType.from_ibis(self)
 
     def to_polars(self):
         """Return the equivalent polars datatype."""
-        from ibis.formats.polars import PolarsType
+        from bigframes_vendored.ibis.formats.polars import PolarsType
 
         return PolarsType.from_ibis(self)
 

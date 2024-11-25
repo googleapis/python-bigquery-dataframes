@@ -166,7 +166,7 @@ def infer_ipaddr(
 
 @infer.register("numpy.generic")
 def infer_numpy_scalar(value):
-    from ibis.formats.numpy import NumpyType
+    from bigframes_vendored.ibis.formats.numpy import NumpyType
 
     return NumpyType.to_ibis(value.dtype)
 
@@ -204,8 +204,8 @@ def infer_interval_pandas(value) -> dt.Interval:
 @infer.register("numpy.ndarray")
 @infer.register("pandas.Series")
 def infer_numpy_array(value):
-    from ibis.formats.numpy import NumpyType
-    from ibis.formats.pyarrow import PyArrowData
+    from bigframes_vendored.ibis.formats.numpy import NumpyType
+    from bigframes_vendored.ibis.formats.pyarrow import PyArrowData
 
     if value.dtype.kind == "O":
         value_dtype = PyArrowData.infer_column(value)

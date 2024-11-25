@@ -20,8 +20,8 @@ import sqlglot.expressions as sge
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
-    from ibis.backends.sql.compilers.base import SQLGlotCompiler
-    from ibis.expr.schema import SchemaLike
+    from bigframes_vendored.ibis.backends.sql.compilers.base import SQLGlotCompiler
+    from bigframes_vendored.ibis.expr.schema import SchemaLike
     import pandas as pd
     import pyarrow as pa
 
@@ -89,7 +89,7 @@ class SQLBackend(BaseBackend, _DatabaseSchemaHandler):
         )
 
     def _fetch_from_cursor(self, cursor, schema: sch.Schema) -> pd.DataFrame:
-        from ibis.formats.pandas import PandasData
+        from bigframes_vendored.ibis.formats.pandas import PandasData
         import pandas as pd
 
         try:
@@ -187,7 +187,7 @@ class SQLBackend(BaseBackend, _DatabaseSchemaHandler):
         This method can be implemented by subclasses. Logging occurs when
         `ibis.options.verbose` is `True`.
         """
-        from ibis import util
+        from bigframes_vendored.ibis import util
 
         util.log(sql)
 

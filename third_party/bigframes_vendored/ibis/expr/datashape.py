@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ibis.common.grounds import Singleton
+from bigframes_vendored.ibis.common.grounds import Singleton
 from public import public
 
 

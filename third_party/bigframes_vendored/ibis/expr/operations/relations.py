@@ -281,7 +281,7 @@ class Filter(Simple):
     predicates: VarTuple[Value[dt.Boolean]]
 
     def __init__(self, parent, predicates):
-        from ibis.expr.rewrites import ReductionLike
+        from bigframes_vendored.ibis.expr.rewrites import ReductionLike
 
         for pred in predicates:
             if pred.find(ReductionLike, filter=Value):

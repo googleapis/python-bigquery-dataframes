@@ -1243,21 +1243,23 @@ class Scalar(Value):
         self, table: pa.Table, data_mapper: type[PyArrowData] | None = None
     ) -> pa.Scalar:
         if data_mapper is None:
-            from ibis.formats.pyarrow import PyArrowData as data_mapper
+            from bigframes_vendored.ibis.formats.pyarrow import (
+                PyArrowData as data_mapper,
+            )
 
         return data_mapper.convert_scalar(table[0][0], self.type())
 
     def __pandas_result__(
         self, df: pd.DataFrame, *, schema: sch.Schema | None = None
     ) -> Any:
-        from ibis.formats.pandas import PandasData
+        from bigframes_vendored.ibis.formats.pandas import PandasData
 
         return PandasData.convert_scalar(
             df, self.type() if schema is None else schema[df.columns[0]]
         )
 
     def __polars_result__(self, df: pl.DataFrame) -> Any:
-        from ibis.formats.polars import PolarsData
+        from bigframes_vendored.ibis.formats.polars import PolarsData
 
         return PolarsData.convert_scalar(df, self.type())
 
@@ -1417,14 +1419,16 @@ class Column(Value, _FixedTextJupyterMixin):
         self, table: pa.Table, data_mapper: type[PyArrowData] | None = None
     ) -> pa.Array | pa.ChunkedArray:
         if data_mapper is None:
-            from ibis.formats.pyarrow import PyArrowData as data_mapper
+            from bigframes_vendored.ibis.formats.pyarrow import (
+                PyArrowData as data_mapper,
+            )
 
         return data_mapper.convert_column(table[0], self.type())
 
     def __pandas_result__(
         self, df: pd.DataFrame, *, schema: sch.Schema | None = None
     ) -> pd.Series:
-        from ibis.formats.pandas import PandasData
+        from bigframes_vendored.ibis.formats.pandas import PandasData
 
         assert (
             len(df.columns) == 1
@@ -1443,7 +1447,7 @@ class Column(Value, _FixedTextJupyterMixin):
         )
 
     def __polars_result__(self, df: pl.DataFrame) -> pl.Series:
-        from ibis.formats.polars import PolarsData
+        from bigframes_vendored.ibis.formats.polars import PolarsData
 
         return PolarsData.convert_column(df, self.type())
 

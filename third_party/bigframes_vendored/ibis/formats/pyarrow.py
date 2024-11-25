@@ -374,7 +374,7 @@ class PyArrowTableProxy(TableProxy):
         return self.obj
 
     def to_polars(self, schema: Schema) -> pl.DataFrame:
-        from ibis.formats.polars import PolarsData
+        from bigframes_vendored.ibis.formats.polars import PolarsData
         import polars as pl
 
         df = pl.from_arrow(self.obj)

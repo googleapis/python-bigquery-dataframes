@@ -142,46 +142,46 @@ class Schema(Concrete, Coercible, MapSet):
     @classmethod
     def from_numpy(cls, numpy_schema):
         """Return the equivalent ibis schema."""
-        from ibis.formats.numpy import NumpySchema
+        from bigframes_vendored.ibis.formats.numpy import NumpySchema
 
         return NumpySchema.to_ibis(numpy_schema)
 
     @classmethod
     def from_pandas(cls, pandas_schema):
         """Return the equivalent ibis schema."""
-        from ibis.formats.pandas import PandasSchema
+        from bigframes_vendored.ibis.formats.pandas import PandasSchema
 
         return PandasSchema.to_ibis(pandas_schema)
 
     @classmethod
     def from_pyarrow(cls, pyarrow_schema):
         """Return the equivalent ibis schema."""
-        from ibis.formats.pyarrow import PyArrowSchema
+        from bigframes_vendored.ibis.formats.pyarrow import PyArrowSchema
 
         return PyArrowSchema.to_ibis(pyarrow_schema)
 
     @classmethod
     def from_polars(cls, polars_schema):
         """Return the equivalent ibis schema."""
-        from ibis.formats.polars import PolarsSchema
+        from bigframes_vendored.ibis.formats.polars import PolarsSchema
 
         return PolarsSchema.to_ibis(polars_schema)
 
     def to_numpy(self):
         """Return the equivalent numpy dtypes."""
-        from ibis.formats.numpy import NumpySchema
+        from bigframes_vendored.ibis.formats.numpy import NumpySchema
 
         return NumpySchema.from_ibis(self)
 
     def to_pandas(self):
         """Return the equivalent pandas datatypes."""
-        from ibis.formats.pandas import PandasSchema
+        from bigframes_vendored.ibis.formats.pandas import PandasSchema
 
         return PandasSchema.from_ibis(self)
 
     def to_pyarrow(self):
         """Return the equivalent pyarrow schema."""
-        from ibis.formats.pyarrow import PyArrowSchema
+        from bigframes_vendored.ibis.formats.pyarrow import PyArrowSchema
 
         return PyArrowSchema.from_ibis(self)
 
@@ -190,7 +190,7 @@ class Schema(Concrete, Coercible, MapSet):
 
     def to_polars(self):
         """Return the equivalent polars schema."""
-        from ibis.formats.polars import PolarsSchema
+        from bigframes_vendored.ibis.formats.polars import PolarsSchema
 
         return PolarsSchema.from_ibis(self)
 
@@ -264,28 +264,28 @@ def from_class(cls):
 
 @schema.register("pandas.Series")
 def from_pandas_series(s):
-    from ibis.formats.pandas import PandasSchema
+    from bigframes_vendored.ibis.formats.pandas import PandasSchema
 
     return PandasSchema.to_ibis(s)
 
 
 @schema.register("pyarrow.Schema")
 def from_pyarrow_schema(schema):
-    from ibis.formats.pyarrow import PyArrowSchema
+    from bigframes_vendored.ibis.formats.pyarrow import PyArrowSchema
 
     return PyArrowSchema.to_ibis(schema)
 
 
 @infer.register("pandas.DataFrame")
 def infer_pandas_dataframe(df):
-    from ibis.formats.pandas import PandasData
+    from bigframes_vendored.ibis.formats.pandas import PandasData
 
     return PandasData.infer_table(df)
 
 
 @infer.register("pyarrow.Table")
 def infer_pyarrow_table(table):
-    from ibis.formats.pyarrow import PyArrowSchema
+    from bigframes_vendored.ibis.formats.pyarrow import PyArrowSchema
 
     return PyArrowSchema.to_ibis(table.schema)
 
@@ -293,7 +293,7 @@ def infer_pyarrow_table(table):
 @infer.register("polars.DataFrame")
 @infer.register("polars.LazyFrame")
 def infer_polars_dataframe(df):
-    from ibis.formats.polars import PolarsSchema
+    from bigframes_vendored.ibis.formats.polars import PolarsSchema
 
     return PolarsSchema.to_ibis(df.collect_schema())
 
