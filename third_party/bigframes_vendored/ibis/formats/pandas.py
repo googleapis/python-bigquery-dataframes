@@ -6,6 +6,7 @@ import contextlib
 import datetime
 from importlib.util import find_spec as _find_spec
 from functools import partial
+from typing import TYPE_CHECKING
 import warnings
 
 from bigframes_vendored.ibis import util
@@ -13,12 +14,20 @@ from bigframes_vendored.ibis.common.numeric import normalize_decimal
 from bigframes_vendored.ibis.common.temporal import normalize_timezone
 import bigframes_vendored.ibis.expr.datatypes as dt
 import bigframes_vendored.ibis.expr.schema as sch
-from bigframes_vendored.ibis.formats import DataMapper, SchemaMapper
+from bigframes_vendored.ibis.formats import DataMapper, SchemaMapper, TableProxy
 from bigframes_vendored.ibis.formats.numpy import NumpyType
-from bigframes_vendored.ibis.formats.pyarrow import PyArrowData, PyArrowType
+from bigframes_vendored.ibis.formats.pyarrow import (
+    PyArrowData,
+    PyArrowSchema,
+    PyArrowType,
+)
 import numpy as np
 import pandas as pd
 import pandas.api.types as pdt
+
+if TYPE_CHECKING:
+    import polars as pl
+    import pyarrow as pa
 
 _has_arrow_dtype = hasattr(pd, "ArrowDtype")
 
@@ -401,3 +410,22 @@ class PandasData(DataMapper):
             return UUID(value)
 
         return convert
+
+
+class PandasDataFrameProxy(TableProxy[pd.DataFrame]):
+    def to_frame(self) -> pd.DataFrame:
+        return self.obj
+
+    def to_pyarrow(self, schema: sch.Schema) -> pa.Table:
+        import pyarrow as pa
+        import pyarrow_hotfix  # noqa: F401
+
+        pyarrow_schema = PyArrowSchema.from_ibis(schema)
+        return pa.Table.from_pandas(self.obj, schema=pyarrow_schema)
+
+    def to_polars(self, schema: sch.Schema) -> pl.DataFrame:
+        from bigframes_vendored.ibis.formats.polars import PolarsSchema
+        import polars as pl
+
+        pl_schema = PolarsSchema.from_ibis(schema)
+        return pl.from_pandas(self.obj, schema_overrides=pl_schema)

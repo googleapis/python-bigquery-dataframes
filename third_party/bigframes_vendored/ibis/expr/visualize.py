@@ -190,7 +190,7 @@ if __name__ == "__main__":
     from argparse import ArgumentParser
     import json
 
-    from ibis import _
+    from bigframes_vendored.ibis import _
 
     p = ArgumentParser(
         description="Render a GraphViz SVG of an example ibis expression."

@@ -25,6 +25,7 @@ from bigframes_vendored.ibis.common.temporal import (
 )
 import bigframes_vendored.ibis.expr.builders as bl
 import bigframes_vendored.ibis.expr.datatypes as dt
+from bigframes_vendored.ibis.expr.decompile import decompile
 import bigframes_vendored.ibis.expr.operations as ops
 from bigframes_vendored.ibis.expr.schema import Schema
 import bigframes_vendored.ibis.expr.schema as sch
@@ -46,7 +47,6 @@ from bigframes_vendored.ibis.expr.types import (
 )
 import bigframes_vendored.ibis.expr.types as ir
 from bigframes_vendored.ibis.util import experimental
-from ibis.expr.decompile import decompile
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -474,7 +474,7 @@ def _memtable(
     schema: SchemaLike | None = None,
     name: str | None = None,
 ) -> Table:
-    from ibis.formats.pandas import PandasDataFrameProxy
+    from bigframes_vendored.ibis.formats.pandas import PandasDataFrameProxy
     import pandas as pd
 
     if not isinstance(data, pd.DataFrame):
@@ -525,7 +525,7 @@ def _memtable_from_pyarrow_table(
     schema: SchemaLike | None = None,
     columns: Iterable[str] | None = None,
 ):
-    from ibis.formats.pyarrow import PyArrowTableProxy
+    from bigframes_vendored.ibis.formats.pyarrow import PyArrowTableProxy
 
     if columns is not None:
         assert schema is None, "if `columns` is not `None` then `schema` must be `None`"
@@ -550,7 +550,7 @@ def _memtable_from_polars_dataframe(
     schema: SchemaLike | None = None,
     columns: Iterable[str] | None = None,
 ):
-    from ibis.formats.polars import PolarsDataFrameProxy
+    from bigframes_vendored.ibis.formats.polars import PolarsDataFrameProxy
 
     if columns is not None:
         assert schema is None, "if `columns` is not `None` then `schema` must be `None`"
@@ -1440,7 +1440,7 @@ def read_csv(
     └───────┴────────┘
 
     """
-    from ibis.config import _default_backend
+    from bigframes_vendored.ibis.config import _default_backend
 
     con = _default_backend()
     return con.read_csv(sources, table_name=table_name, **kwargs)
@@ -1496,7 +1496,7 @@ def read_json(
     └───────┴────────┘
 
     """
-    from ibis.config import _default_backend
+    from bigframes_vendored.ibis.config import _default_backend
 
     con = _default_backend()
     return con.read_json(sources, table_name=table_name, **kwargs)
@@ -1554,7 +1554,7 @@ def read_parquet(
     └───────┴────────┘
 
     """
-    from ibis.config import _default_backend
+    from bigframes_vendored.ibis.config import _default_backend
 
     con = _default_backend()
     return con.read_parquet(sources, table_name=table_name, **kwargs)
@@ -1605,7 +1605,7 @@ def read_delta(
     └───────┴────────┘
 
     """
-    from ibis.config import _default_backend
+    from bigframes_vendored.ibis.config import _default_backend
 
     con = _default_backend()
     return con.read_delta(source, table_name=table_name, **kwargs)
@@ -1666,7 +1666,7 @@ def get_backend(expr: Expr | None = None) -> BaseBackend:
 
     """
     if expr is None:
-        from ibis.config import _default_backend
+        from bigframes_vendored.ibis.config import _default_backend
 
         return _default_backend()
     return expr._find_backend(use_default=True)

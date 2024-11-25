@@ -185,7 +185,7 @@ class PolarsDataFrameProxy(TableProxy[pl.DataFrame]):
         return self.obj.to_pandas()
 
     def to_pyarrow(self, schema: Schema) -> pa.Table:
-        from ibis.formats.pyarrow import PyArrowData
+        from bigframes_vendored.ibis.formats.pyarrow import PyArrowData
 
         table = self.obj.to_arrow()
         return PyArrowData.convert_table(table, schema)
