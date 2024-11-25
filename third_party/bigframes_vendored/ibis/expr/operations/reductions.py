@@ -8,11 +8,11 @@ from typing import Literal, Optional
 
 from bigframes_vendored.ibis.common.annotations import attribute
 from bigframes_vendored.ibis.common.typing import VarTuple
+import bigframes_vendored.ibis.expr.datatypes as dt
 from bigframes_vendored.ibis.expr.operations.core import Column, Value
 from bigframes_vendored.ibis.expr.operations.relations import Relation  # noqa: TCH001
 import bigframes_vendored.ibis.expr.rules as rlz
 import ibis.expr.datashape as ds
-import ibis.expr.datatypes as dt
 from public import public
 
 

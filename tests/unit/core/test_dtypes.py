@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import geopandas as gpd  # type: ignore
-import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd

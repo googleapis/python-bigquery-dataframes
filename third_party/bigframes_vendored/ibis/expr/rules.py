@@ -10,8 +10,8 @@ from bigframes_vendored.ibis.common.annotations import attribute
 from bigframes_vendored.ibis.common.grounds import Concrete
 from bigframes_vendored.ibis.common.patterns import CoercionError, NoMatch, Pattern
 from bigframes_vendored.ibis.common.temporal import IntervalUnit
+import bigframes_vendored.ibis.expr.datatypes as dt
 import bigframes_vendored.ibis.expr.operations as ops
-import ibis.expr.datatypes as dt
 from public import public
 
 

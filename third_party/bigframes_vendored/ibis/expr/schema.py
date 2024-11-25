@@ -11,8 +11,8 @@ from bigframes_vendored.ibis.common.dispatch import lazy_singledispatch
 from bigframes_vendored.ibis.common.exceptions import InputTypeError, IntegrityError
 from bigframes_vendored.ibis.common.grounds import Concrete
 from bigframes_vendored.ibis.common.patterns import Coercible
+import bigframes_vendored.ibis.expr.datatypes as dt
 from bigframes_vendored.ibis.util import indent
-import ibis.expr.datatypes as dt
 
 if TYPE_CHECKING:
     from typing import TypeAlias

@@ -5,6 +5,7 @@ from __future__ import annotations
 import functools
 from typing import Any, TYPE_CHECKING
 
+import bigframes_vendored.ibis.expr.datatypes as dt
 from bigframes_vendored.ibis.expr.schema import Schema
 from bigframes_vendored.ibis.formats import (
     DataMapper,
@@ -12,7 +13,6 @@ from bigframes_vendored.ibis.formats import (
     TableProxy,
     TypeMapper,
 )
-import ibis.expr.datatypes as dt
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

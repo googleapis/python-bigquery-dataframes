@@ -15,10 +15,10 @@ from bigframes_vendored.ibis.common.temporal import (
     TimestampUnit,
     TimeUnit,
 )
+import bigframes_vendored.ibis.expr.datatypes as dt
 from bigframes_vendored.ibis.expr.operations.core import Binary, Scalar, Unary, Value
 from bigframes_vendored.ibis.expr.operations.logical import Between
 import bigframes_vendored.ibis.expr.rules as rlz
-import ibis.expr.datatypes as dt
 from public import public
 
 

@@ -18,10 +18,11 @@ import functools
 import typing
 
 import bigframes_vendored.constants as constants
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import bigframes_vendored.ibis.expr.operations.generic as ibis_generic
+import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import ibis
-import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
@@ -1791,58 +1792,58 @@ def _ibis_num(number: float):
     return typing.cast(ibis_types.NumericValue, ibis_types.literal(number))
 
 
-@ibis.udf.scalar.builtin
+@ibis_udf.scalar.builtin
 def timestamp(a: str) -> ibis_dtypes.timestamp:
     """Convert string to timestamp."""
 
 
 # Need these because ibis otherwise tries to do casts to int that can fail
-@ibis.udf.scalar.builtin(name="floor")
+@ibis_udf.scalar.builtin(name="floor")
 def float_floor(a: float) -> float:
     """Convert string to timestamp."""
     return 0  # pragma: NO COVER
 
 
-@ibis.udf.scalar.builtin(name="ceil")
+@ibis_udf.scalar.builtin(name="ceil")
 def float_ceil(a: float) -> float:
     """Convert string to timestamp."""
     return 0  # pragma: NO COVER
 
 
-@ibis.udf.scalar.builtin(name="parse_json")
+@ibis_udf.scalar.builtin(name="parse_json")
 def parse_json(a: str) -> ibis_dtypes.JSON:
     """Converts a JSON-formatted STRING value to a JSON value."""
 
 
-@ibis.udf.scalar.builtin(name="json_set")
+@ibis_udf.scalar.builtin(name="json_set")
 def json_set(
     json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str, json_value
 ) -> ibis_dtypes.JSON:
     """Produces a new SQL JSON value with the specified JSON data inserted or replaced."""
 
 
-@ibis.udf.scalar.builtin(name="json_extract")
+@ibis_udf.scalar.builtin(name="json_extract")
 def json_extract(
     json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str
 ) -> ibis_dtypes.JSON:
     """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
 
 
-@ibis.udf.scalar.builtin(name="json_extract_array")
+@ibis_udf.scalar.builtin(name="json_extract_array")
 def json_extract_array(
     json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str
 ) -> ibis_dtypes.Array[ibis_dtypes.String]:
     """Extracts a JSON array and converts it to a SQL ARRAY of JSON-formatted STRINGs or JSON values."""
 
 
-@ibis.udf.scalar.builtin(name="json_extract_string_array")
+@ibis_udf.scalar.builtin(name="json_extract_string_array")
 def json_extract_string_array(
     json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str
 ) -> ibis_dtypes.Array[ibis_dtypes.String]:
     """Extracts a JSON array and converts it to a SQL ARRAY of STRINGs."""
 
 
-@ibis.udf.scalar.builtin(name="ML.DISTANCE")
+@ibis_udf.scalar.builtin(name="ML.DISTANCE")
 def vector_distance(vector1, vector2, type: str) -> ibis_dtypes.Float64:
     """Computes the distance between two vectors using specified type ("EUCLIDEAN", "MANHATTAN", or "COSINE")"""
 

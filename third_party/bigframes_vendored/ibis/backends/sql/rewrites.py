@@ -16,10 +16,10 @@ import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
 from bigframes_vendored.ibis.common.graph import Graph
 from bigframes_vendored.ibis.common.patterns import InstanceOf, Object, Pattern, replace
 from bigframes_vendored.ibis.common.typing import VarTuple  # noqa: TCH001
+import bigframes_vendored.ibis.expr.datatypes as dt
 import bigframes_vendored.ibis.expr.operations as ops
 from bigframes_vendored.ibis.expr.rewrites import d, p, replace_parameter
 from bigframes_vendored.ibis.expr.schema import Schema
-import ibis.expr.datatypes as dt
 from public import public
 import toolz
 

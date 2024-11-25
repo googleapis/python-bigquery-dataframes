@@ -538,7 +538,7 @@ class RemoteFunctionSession:
             )
 
             # TODO: Move ibis logic to compiler step
-            node = ibis.udf.scalar.builtin(
+            node = ibis_udf.scalar.builtin(
                 func,
                 name=rf_name,
                 catalog=dataset_ref.project,

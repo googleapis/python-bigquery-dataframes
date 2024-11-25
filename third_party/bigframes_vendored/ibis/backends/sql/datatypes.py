@@ -6,8 +6,8 @@ from functools import partial
 from typing import NoReturn
 
 import bigframes_vendored.ibis.common.exceptions as com
+import bigframes_vendored.ibis.expr.datatypes as dt
 from bigframes_vendored.ibis.formats import TypeMapper
-import ibis.expr.datatypes as dt
 import sqlglot as sg
 import sqlglot.expressions as sge
 

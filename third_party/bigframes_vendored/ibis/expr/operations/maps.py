@@ -5,9 +5,9 @@
 from __future__ import annotations
 
 from bigframes_vendored.ibis.common.annotations import attribute
+import bigframes_vendored.ibis.expr.datatypes as dt
 from bigframes_vendored.ibis.expr.operations.core import Unary, Value
 import bigframes_vendored.ibis.expr.rules as rlz
-import ibis.expr.datatypes as dt
 from public import public
 
 

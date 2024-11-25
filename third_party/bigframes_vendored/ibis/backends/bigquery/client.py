@@ -11,8 +11,8 @@ from bigframes_vendored.ibis.backends.bigquery.datatypes import (
     BigQueryType,
 )
 import bigframes_vendored.ibis.common.exceptions as com
+import bigframes_vendored.ibis.expr.datatypes as dt
 import google.cloud.bigquery as bq
-import ibis.expr.datatypes as dt
 import pandas as pd
 
 NATIVE_PARTITION_COL = "_PARTITIONTIME"

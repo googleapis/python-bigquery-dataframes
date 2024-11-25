@@ -12,11 +12,11 @@ import warnings
 from bigframes_vendored.ibis import util
 from bigframes_vendored.ibis.common.numeric import normalize_decimal
 from bigframes_vendored.ibis.common.temporal import normalize_timezone
+import bigframes_vendored.ibis.expr.datatypes as dt
 import bigframes_vendored.ibis.expr.schema as sch
 from bigframes_vendored.ibis.formats import DataMapper, SchemaMapper
 from bigframes_vendored.ibis.formats.numpy import NumpyType
 from bigframes_vendored.ibis.formats.pyarrow import PyArrowData, PyArrowType
-import ibis.expr.datatypes as dt
 import numpy as np
 import pandas as pd
 import pandas.api.types as pdt

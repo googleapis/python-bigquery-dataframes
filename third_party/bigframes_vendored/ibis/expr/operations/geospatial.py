@@ -4,9 +4,9 @@
 
 from __future__ import annotations
 
+import bigframes_vendored.ibis.expr.datatypes as dt
 from bigframes_vendored.ibis.expr.operations.core import Binary, Unary, Value
 from bigframes_vendored.ibis.expr.operations.reductions import Filterable, Reduction
-import ibis.expr.datatypes as dt
 from public import public
 
 

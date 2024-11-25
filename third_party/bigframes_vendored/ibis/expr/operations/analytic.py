@@ -6,11 +6,12 @@ from __future__ import annotations
 
 from typing import Optional
 
+import bigframes_vendored.ibis.expr.datatypes as dt
 from bigframes_vendored.ibis.expr.operations.core import Column, Scalar, Value
+import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import bigframes_vendored.ibis.expr.rules as rlz
 import ibis
 import ibis.expr.datashape as ds
-import ibis.expr.datatypes as dt
 from public import public
 
 
@@ -102,7 +103,7 @@ public(AnalyticOp=Analytic)
 # TODO(swast): We can remove this if ibis adds aggregates over scalar values.
 # See: https://github.com/ibis-project/ibis/issues/8698
 @public
-@ibis.udf.agg.builtin
+@ibis_udf.agg.builtin
 def count(value: int) -> int:
     """Count of a scalar."""
     return 0  # pragma: NO COVER

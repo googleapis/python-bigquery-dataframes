@@ -19,9 +19,10 @@ import typing
 from typing import cast, List, Optional
 
 import bigframes_vendored.constants as constants
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations as ibis_ops
+import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import ibis
-import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 import pandas as pd
 
@@ -36,7 +37,7 @@ scalar_compiler = scalar_compilers.scalar_op_compiler
 
 # TODO(swast): We can remove this if ibis adds general approx_quantile
 # See: https://github.com/ibis-project/ibis/issues/9541
-@ibis.udf.agg.builtin
+@ibis_udf.agg.builtin
 def approx_quantiles(expression: float, number) -> List[float]:
     """APPROX_QUANTILES
 

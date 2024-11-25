@@ -6,9 +6,9 @@ from __future__ import annotations
 
 from typing import Optional
 
+import bigframes_vendored.ibis.expr.datatypes as dt
 from ibis.common.annotations import attribute
 from ibis.common.typing import VarTuple  # noqa: TCH001
-import ibis.expr.datatypes as dt
 from ibis.expr.operations.core import Unary, Value
 import ibis.expr.rules as rlz
 from public import public

@@ -10,10 +10,10 @@ from bigframes_vendored.ibis.common.graph import Node as Traversable
 from bigframes_vendored.ibis.common.grounds import Concrete
 from bigframes_vendored.ibis.common.patterns import Coercible, CoercionError
 from bigframes_vendored.ibis.common.typing import DefaultTypeVars
+import bigframes_vendored.ibis.expr.datatypes as dt
 import bigframes_vendored.ibis.expr.rules as rlz
 from bigframes_vendored.ibis.util import is_iterable
 import ibis.expr.datashape as ds
-import ibis.expr.datatypes as dt
 from public import public
 from typing_extensions import Any, Self, TypeVar
 

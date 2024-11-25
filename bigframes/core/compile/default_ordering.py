@@ -20,9 +20,9 @@ from __future__ import annotations
 
 from typing import cast
 
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations as ibis_ops
 import ibis
-import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
 import bigframes.core.guid as guid

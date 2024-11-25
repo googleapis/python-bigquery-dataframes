@@ -23,6 +23,7 @@ from bigframes_vendored.ibis.common.exceptions import (
 from bigframes_vendored.ibis.common.grounds import Concrete
 from bigframes_vendored.ibis.common.patterns import Between, InstanceOf
 from bigframes_vendored.ibis.common.typing import Coercible, VarTuple
+import bigframes_vendored.ibis.expr.datatypes as dt
 from bigframes_vendored.ibis.expr.operations.core import (
     Alias,
     Column,
@@ -34,7 +35,6 @@ from bigframes_vendored.ibis.expr.operations.sortkeys import SortKey
 from bigframes_vendored.ibis.expr.schema import Schema
 from bigframes_vendored.ibis.formats import TableProxy  # noqa: TCH001
 import ibis.expr.datashape as ds
-import ibis.expr.datatypes as dt
 from public import public
 
 T = TypeVar("T")

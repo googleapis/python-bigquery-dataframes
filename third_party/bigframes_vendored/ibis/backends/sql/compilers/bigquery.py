@@ -23,8 +23,8 @@ from bigframes_vendored.ibis.common.temporal import (
     TimestampUnit,
     TimeUnit,
 )
+import bigframes_vendored.ibis.expr.datatypes as dt
 import bigframes_vendored.ibis.expr.operations as ops
-import ibis.expr.datatypes as dt
 import sqlglot as sg
 from sqlglot.dialects import BigQuery
 import sqlglot.expressions as sge

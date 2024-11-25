@@ -18,12 +18,12 @@ from bigframes_vendored.ibis.common.annotations import Argument, attribute
 from bigframes_vendored.ibis.common.collections import FrozenDict
 from bigframes_vendored.ibis.common.deferred import deferrable
 import bigframes_vendored.ibis.common.exceptions as exc
+import bigframes_vendored.ibis.expr.datatypes as dt
 import bigframes_vendored.ibis.expr.operations.core as core
 import bigframes_vendored.ibis.expr.operations.reductions as reductions
 import bigframes_vendored.ibis.expr.operations.relations as relations
 import bigframes_vendored.ibis.expr.rules as rlz
 import ibis.expr.datashape as ds
-import ibis.expr.datatypes as dt
 from public import public
 
 if TYPE_CHECKING:
