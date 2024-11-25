@@ -568,8 +568,8 @@ if __name__ == "__main__":
 
         i = 0
         foo = 2
-        bar = lambda x: x
-        bazel = lambda x: y
+        bar = lambda x: x  # noqa: E731
+        bazel = lambda x: y  # noqa: E731
         while i < n:
             foo = bar(bazel(10))
             i += 1

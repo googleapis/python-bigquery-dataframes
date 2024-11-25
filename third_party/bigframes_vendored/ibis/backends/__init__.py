@@ -1352,7 +1352,6 @@ def connect(resource: Path | str, **kwargs: Any) -> BaseBackend:
     parsed = urllib.parse.urlparse(url)
     scheme = parsed.scheme or "file"
 
-    orig_kwargs = kwargs.copy()
     kwargs = dict(urllib.parse.parse_qsl(parsed.query))
 
     # convert single parameter lists value to single values
@@ -1361,27 +1360,13 @@ def connect(resource: Path | str, **kwargs: Any) -> BaseBackend:
             kwargs[name] = value[0]
 
     if scheme == "file":
-        path = parsed.netloc + parsed.path
-        # Merge explicit kwargs with query string, explicit kwargs
-        # taking precedence
-        kwargs.update(orig_kwargs)
-        if path.endswith(".duckdb"):
-            return ibis.duckdb.connect(path, **kwargs)
-        elif path.endswith((".sqlite", ".db")):
-            return ibis.sqlite.connect(path, **kwargs)
-        elif path.endswith((".parquet", ".csv", ".csv.gz")):
-            # Load parquet/csv/csv.gz files with duckdb by default
-            con = ibis.duckdb.connect(**kwargs)
-            con.register(path)
-            return con
-        else:
-            raise ValueError(f"Don't know how to connect to {resource!r}")
+        raise ValueError(f"Don't know how to connect to {resource!r}")
 
     # Treat `postgres://` and `postgresql://` the same
     scheme = scheme.replace("postgresql", "postgres")
 
     try:
-        backend = getattr(ibis, scheme)
+        backend = getattr(bigframes_vendored.ibis, scheme)
     except AttributeError:
         raise ValueError(f"Don't know how to connect to {resource!r}") from None
 

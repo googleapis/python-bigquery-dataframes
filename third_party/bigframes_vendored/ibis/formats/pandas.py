@@ -6,7 +6,6 @@ import contextlib
 import datetime
 from importlib.util import find_spec as _find_spec
 from functools import partial
-from typing import TYPE_CHECKING
 import warnings
 
 from bigframes_vendored.ibis import util
@@ -20,10 +19,6 @@ from bigframes_vendored.ibis.formats.pyarrow import PyArrowData, PyArrowType
 import numpy as np
 import pandas as pd
 import pandas.api.types as pdt
-
-if TYPE_CHECKING:
-    import polars as pl
-    import pyarrow as pa
 
 _has_arrow_dtype = hasattr(pd, "ArrowDtype")
 

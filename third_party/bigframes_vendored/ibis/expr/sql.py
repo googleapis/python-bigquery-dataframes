@@ -6,7 +6,7 @@ import contextlib
 from functools import singledispatch
 import operator
 
-import bigframes_vendored.ibis.common.exceptions as com
+import bigframes_vendored.ibis
 import bigframes_vendored.ibis.expr.api as api
 import bigframes_vendored.ibis.expr.datatypes as dt
 import bigframes_vendored.ibis.expr.schema as sch
@@ -368,18 +368,11 @@ def to_sql(
     # try to infer from a non-str expression or if not possible fallback to
     # the default pretty dialect for expressions
     if dialect is None:
-        try:
-            backend = expr._find_backend(use_default=True)
-        except com.IbisError:
-            # default to duckdb for SQL compilation because it supports the
-            # widest array of ibis features for SQL backends
-            backend = ibis.duckdb
-            dialect = ibis.options.sql.default_dialect
-        else:
-            dialect = backend.dialect
+        backend = expr._find_backend(use_default=True)
+        dialect = backend.dialect
     else:
         try:
-            backend = getattr(ibis, dialect)
+            backend = getattr(bigframes_vendored.ibis, dialect)
         except AttributeError:
             raise ValueError(f"Unknown dialect {dialect}")
         else:

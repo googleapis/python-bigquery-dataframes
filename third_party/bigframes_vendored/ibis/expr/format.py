@@ -56,7 +56,7 @@ _infix_ops = {
 
 def type_info(datatype) -> str:
     """Format `datatype` for display next to a column."""
-    return f"  # {datatype}" * ibis.options.repr.show_types
+    return f"  # {datatype}" * bigframes_vendored.ibis.options.repr.show_types
 
 
 def truncate(pieces: Sequence[str], limit: int) -> list[str]:
@@ -113,7 +113,7 @@ def render_schema(schema, indent_level=0, limit_items=None):
     if not len(schema):
         return util.indent("<empty schema>", spaces=indent_level * 2)
     if limit_items is None:
-        limit_items = ibis.options.repr.table_columns
+        limit_items = bigframes_vendored.ibis.options.repr.table_columns
     return render(schema, indent_level, limit_items, key_separator="")
 
 
@@ -240,7 +240,9 @@ def _in_memory_table(op, data, **kwargs):
     import rich.pretty
 
     name = f"{op.__class__.__name__}\n"
-    data = rich.pretty.pretty_repr(op.data, max_length=ibis.options.repr.table_columns)
+    data = rich.pretty.pretty_repr(
+        op.data, max_length=bigframes_vendored.ibis.options.repr.table_columns
+    )
     return name + render_fields({"data": data}, 1)
 
 
@@ -257,7 +259,7 @@ def _sql_query_result(op, query, **kwargs):
 
     query = textwrap.shorten(
         query,
-        width=ibis.options.repr.query_text_length,
+        width=bigframes_vendored.ibis.options.repr.query_text_length,
         placeholder=f" {util.HORIZONTAL_ELLIPSIS}",
     )
     schema = render_schema(op.schema)
@@ -277,36 +279,6 @@ def _aggregate(op, parent, **kwargs):
     return name + render_fields(kwargs, 1)
 
 
-@fmt.register(ops.Project)
-def _project(op, parent, values):
-    name = f"{op.__class__.__name__}[{parent}]\n"
-
-    fields = {}
-    for k, v in values.items():
-        node = op.values[k]
-        fields[f"{k}:"] = f"{v}{type_info(node.dtype)}"
-
-    return name + render_schema(fields, 1)
-
-
-@fmt.register(ops.DummyTable)
-def _dummy_table(op, values):
-    name = op.__class__.__name__ + "\n"
-
-    fields = {}
-    for k, v in values.items():
-        node = op.values[k]
-        fields[f"{k}:"] = f"{v}{type_info(node.dtype)}"
-
-    return name + render_schema(fields, 1)
-
-
-@fmt.register(ops.Filter)
-def _project(op, parent, predicates):
-    name = f"{op.__class__.__name__}[{parent}]\n"
-    return name + render(predicates, 1)
-
-
 @fmt.register(ops.Sort)
 def _sort(op, parent, keys):
     name = f"{op.__class__.__name__}[{parent}]\n"
@@ -319,30 +291,6 @@ def _set_op(op, left, right, distinct):
     if op.distinct is not None:
         args.append(f"distinct={distinct}")
     return f"{op.__class__.__name__}[{', '.join(args)}]"
-
-
-@fmt.register(ops.JoinChain)
-def _join(op, left, right, predicates, **kwargs):
-    args = [str(left), str(right)]
-    name = f"{op.__class__.__name__}[{', '.join(args)}]"
-
-    if len(predicates) == 1:
-        # if only one, put it directly after the join on the same line
-        top = f"{name} {predicates[0]}"
-        fields = kwargs
-    else:
-        top = f"{name}"
-        fields = {"predicates": predicates, **kwargs}
-
-    fields = render_fields(fields, 1)
-    return f"{top}\n{fields}" if fields else top
-
-
-@fmt.register(ops.JoinLink)
-def _join(op, how, table, predicates):
-    args = [str(how), str(table)]
-    name = f"{op.__class__.__name__}[{', '.join(args)}]"
-    return f"{name}\n{render(predicates, 1)}"
 
 
 @fmt.register(ops.JoinChain)

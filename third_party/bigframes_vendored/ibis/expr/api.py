@@ -1641,7 +1641,7 @@ def set_backend(backend: str | BaseBackend) -> None:
 
     if isinstance(backend, str) and backend.isidentifier():
         try:
-            backend_type = getattr(ibis, backend)
+            backend_type = getattr(bigframes_vendored.ibis, backend)
         except AttributeError:
             pass
         else:

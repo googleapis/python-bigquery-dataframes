@@ -218,15 +218,15 @@ def of_type(dtype: dt.DataType | str | type[dt.DataType]) -> Predicate:
             "temporal": dt.Temporal,
         }
         if cls := abstract.get(dtype.lower()):
-            predicate = lambda col: isinstance(col.type(), cls)
+            predicate = lambda col: isinstance(col.type(), cls)  # noqa: E731
         else:
             dtype = dt.dtype(dtype)
-            predicate = lambda col: col.type() == dtype
+            predicate = lambda col: col.type() == dtype  # noqa: E731
     elif inspect.isclass(dtype) and issubclass(dtype, dt.DataType):
-        predicate = lambda col: isinstance(col.type(), dtype)
+        predicate = lambda col: isinstance(col.type(), dtype)  # noqa: E731
     else:
         dtype = dt.dtype(dtype)
-        predicate = lambda col: col.type() == dtype
+        predicate = lambda col: col.type() == dtype  # noqa: E731
     return where(predicate)
 
 
@@ -461,7 +461,7 @@ def across(
 
     """
     if names is None:
-        names = lambda col, fn: "_".join(filter(None, (col, fn)))
+        names = lambda col, fn: "_".join(filter(None, (col, fn)))  # noqa: E731
     funcs = dict(func if isinstance(func, Mapping) else {None: func})
     if not isinstance(selector, Selector):
         selector = c(*util.promote_list(selector))
