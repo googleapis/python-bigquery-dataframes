@@ -34,6 +34,7 @@ class Index:
             >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, 2, 3], name='x')
+            >>> idx
             Index([1, 2, 3], dtype='Int64', name='x')
             >>> idx.name
             'x'
@@ -144,11 +145,11 @@ class Index:
             >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, 5, 7, 7])
-            >>> idx.has_duplicates
+            >>> bool(idx.has_duplicates)
             True
 
             >>> idx = bpd.Index([1, 5, 7])
-            >>> idx.has_duplicates
+            >>> bool(idx.has_duplicates)
             False
 
         Returns:
@@ -408,7 +409,7 @@ class Index:
         Check whether each index value in a list of values.
 
             >>> idx.isin([1, 4])
-            array([ True, False, False])
+            Index([True, False, False], dtype='boolean')
 
             >>> midx = bpd.MultiIndex.from_arrays([[1,2,3],
             ...                                   ['red', 'blue', 'green']],
@@ -443,12 +444,12 @@ class Index:
 
         True, because nonzero integers are considered True.
 
-            >>> bpd.Index([1, 2, 3]).all()
+            >>> bool(bpd.Index([1, 2, 3]).all())
             True
 
             False, because 0 is considered False.
 
-            >>> bpd.Index([0, 1, 2]).all()
+            >>> bool(bpd.Index([0, 1, 2]).all())
             False
 
         Returns:
@@ -470,11 +471,11 @@ class Index:
             >>> bpd.options.display.progress_bar = None
 
             >>> index = bpd.Index([0, 1, 2])
-            >>> index.any()
+            >>> bool(index.any())
             True
 
             >>> index = bpd.Index([0, 0, 0])
-            >>> index.any()
+            >>> bool(index.any())
             False
 
         Returns:
@@ -496,7 +497,7 @@ class Index:
             >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([3, 2, 1])
-            >>> idx.min()
+            >>> int(idx.min())
             1
 
             >>> idx = bpd.Index(['c', 'b', 'a'])
@@ -518,7 +519,7 @@ class Index:
             >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([3, 2, 1])
-            >>> idx.max()
+            >>> int(idx.max())
             3
 
             >>> idx = bpd.Index(['c', 'b', 'a'])
@@ -826,6 +827,7 @@ class Index:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import Numpy as np
             >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, np.nan, 3])
