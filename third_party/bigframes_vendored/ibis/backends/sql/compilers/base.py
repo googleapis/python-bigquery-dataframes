@@ -1,4 +1,4 @@
-# Contains code from https://github.com/ibis-project/ibis/blob/main/ibis/backends/sql/compilers/base.py
+# Contains code from https://github.com/ibis-project/ibis/blob/9.2.0/ibis/backends/sql/compilers/base.py
 
 from __future__ import annotations
 
