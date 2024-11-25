@@ -7,6 +7,7 @@ import os
 from typing import Any, NoReturn, TYPE_CHECKING
 import webbrowser
 
+import bigframes_vendored.ibis
 from bigframes_vendored.ibis.common.annotations import ValidationError
 from bigframes_vendored.ibis.common.exceptions import IbisError, TranslationError
 from bigframes_vendored.ibis.common.grounds import Immutable
@@ -18,7 +19,6 @@ from bigframes_vendored.ibis.expr.format import pretty
 import bigframes_vendored.ibis.expr.operations as ops
 from bigframes_vendored.ibis.expr.types.pretty import to_rich
 from bigframes_vendored.ibis.util import experimental
-import ibis
 from public import public
 from rich.console import Console
 from rich.jupyter import JupyterMixin
@@ -57,7 +57,7 @@ class Expr(Immutable, Coercible):
     _arg: ops.Node
 
     def _noninteractive_repr(self) -> str:
-        if ibis.options.repr.show_variables:
+        if bigframes_vendored.ibis.options.repr.show_variables:
             scope = get_defining_scope(self, types=Expr)
         else:
             scope = None
@@ -186,7 +186,7 @@ class Expr(Immutable, Coercible):
         if opts.interactive or not opts.graphviz_repr:
             return None
         try:
-            import ibis.expr.visualize as viz
+            import bigframes_vendored.ibis.expr.visualize as viz
         except ImportError:
             return None
         else:
@@ -253,7 +253,7 @@ class Expr(Immutable, Coercible):
         ImportError
             If ``graphviz`` is not installed.
         """
-        import ibis.expr.visualize as viz
+        import bigframes_vendored.ibis.expr.visualize as viz
 
         path = viz.draw(
             viz.to_graph(

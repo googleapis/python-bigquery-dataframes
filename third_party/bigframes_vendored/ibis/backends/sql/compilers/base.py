@@ -558,12 +558,12 @@ class SQLGlotCompiler(abc.ABC):
         limit: str | None = None,
         params: Mapping[ir.Expr, Any] | None = None,
     ):
-        import ibis
+        import bigframes_vendored.ibis
 
         table_expr = expr.as_table()
 
         if limit == "default":
-            limit = ibis.options.sql.default_limit
+            limit = bigframes_vendored.ibis.options.sql.default_limit
         if limit is not None:
             table_expr = table_expr.limit(limit)
 

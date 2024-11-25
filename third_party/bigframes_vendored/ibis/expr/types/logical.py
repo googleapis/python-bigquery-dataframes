@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import bigframes_vendored.ibis
 import bigframes_vendored.ibis.expr.operations as ops
 from bigframes_vendored.ibis.expr.types.core import _binop
 from bigframes_vendored.ibis.expr.types.numeric import (
@@ -11,7 +12,6 @@ from bigframes_vendored.ibis.expr.types.numeric import (
     NumericScalar,
     NumericValue,
 )
-import ibis
 from public import public
 
 if TYPE_CHECKING:
@@ -506,7 +506,9 @@ class BooleanColumn(NumericColumn, BooleanValue):
         └─────────────────────────────────────────────────┘
         """
         return self.any(where=where).over(
-            ibis.cumulative_window(group_by=group_by, order_by=order_by)
+            bigframes_vendored.ibis.cumulative_window(
+                group_by=group_by, order_by=order_by
+            )
         )
 
     def cumall(self, *, where=None, group_by=None, order_by=None) -> BooleanColumn:
@@ -546,5 +548,7 @@ class BooleanColumn(NumericColumn, BooleanValue):
         └─────────────────────────────────────────────────┘
         """
         return self.all(where=where).over(
-            ibis.cumulative_window(group_by=group_by, order_by=order_by)
+            bigframes_vendored.ibis.cumulative_window(
+                group_by=group_by, order_by=order_by
+            )
         )

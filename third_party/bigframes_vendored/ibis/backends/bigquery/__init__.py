@@ -11,6 +11,7 @@ import os
 import re
 from typing import Any, Optional, TYPE_CHECKING
 
+import bigframes_vendored.ibis
 from bigframes_vendored.ibis import util
 from bigframes_vendored.ibis.backends import CanCreateDatabase, CanCreateSchema
 from bigframes_vendored.ibis.backends.bigquery.client import (
@@ -34,7 +35,6 @@ import google.api_core.exceptions
 import google.auth.credentials
 import google.cloud.bigquery as bq
 import google.cloud.bigquery_storage_v1 as bqstorage
-import ibis
 import pydata_google_auth
 from pydata_google_auth import cache
 import sqlglot as sg
@@ -66,7 +66,7 @@ def _create_user_agent(application_name: str) -> str:
     if application_name:
         user_agent.append(application_name)
 
-    user_agent_default_template = f"ibis/{ibis.__version__}"
+    user_agent_default_template = f"ibis/{bigframes_vendored.ibis.__version__}"
     user_agent.append(user_agent_default_template)
 
     return " ".join(user_agent)
@@ -505,7 +505,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         dataset_id
             A dataset id that lives inside of the project attached to `client`.
         """
-        return ibis.bigquery.connect(
+        return bigframes_vendored.ibis.bigquery.connect(
             client=client,
             partition_column=partition_column,
             storage_client=storage_client,
@@ -772,7 +772,9 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
 
         self._run_pre_execute_hooks(expr)
 
-        schema = expr.as_table().schema() - ibis.schema({"_TABLE_SUFFIX": "string"})
+        schema = expr.as_table().schema() - bigframes_vendored.ibis.schema(
+            {"_TABLE_SUFFIX": "string"}
+        )
 
         sql = self.compile(expr, limit=limit, params=params, **kwargs)
         self._log(sql)
@@ -961,7 +963,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         | pl.LazyFrame
         | None = None,
         *,
-        schema: ibis.Schema | None = None,
+        schema: bigframes_vendored.ibis.Schema | None = None,
         database: str | None = None,
         temp: bool = False,
         overwrite: bool = False,
@@ -1047,7 +1049,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         )
 
         if obj is not None and not isinstance(obj, ir.Table):
-            obj = ibis.memtable(obj, schema=schema)
+            obj = bigframes_vendored.ibis.memtable(obj, schema=schema)
 
         if obj is not None:
             self._register_in_memory_tables(obj)

@@ -20,10 +20,10 @@ from __future__ import annotations
 
 from typing import cast
 
+import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations as ibis_ops
 import bigframes_vendored.ibis.expr.types as ibis_types
-import ibis
 
 import bigframes.core.guid as guid
 
@@ -73,7 +73,7 @@ def gen_default_ordering(
     # By modifying value slightly, we get another hash uncorrelated with the first
     full_row_hash_p2 = (full_row_str + "_").hash().name(ordering_hash_part2)
     # Used to disambiguate between identical rows (which will have identical hash)
-    random_value = ibis.random().name(ordering_rand_part)
+    random_value = ibis_api.random().name(ordering_rand_part)
 
     order_values = (
         [full_row_hash, full_row_hash_p2, random_value]

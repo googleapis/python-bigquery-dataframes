@@ -518,8 +518,8 @@ class PythonToJavaScriptTranslator:
 
 
 if __name__ == "__main__":
+    import bigframes_vendored.ibis
     from bigframes_vendored.ibis import udf
-    import ibis
 
     @udf.scalar.python(strict=False)
     def my_func(a: float, b: float, n: float) -> list[float]:
@@ -599,4 +599,6 @@ if __name__ == "__main__":
         nnn = len(values)
         return [sum(values) - a + b * y**-x, z, foo.width, nnn]
 
-    print(ibis.bigquery.compile(my_func(42.7, 13.2, 1)))  # noqa: T201
+    print(
+        bigframes_vendored.ibis.bigquery.compile(my_func(42.7, 13.2, 1))
+    )  # noqa: T201

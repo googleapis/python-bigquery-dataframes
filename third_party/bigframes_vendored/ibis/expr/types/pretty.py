@@ -9,8 +9,8 @@ from math import isfinite
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+import bigframes_vendored.ibis
 import bigframes_vendored.ibis.expr.datatypes as dt
-import ibis
 import rich
 from rich import box
 from rich.align import Align
@@ -33,9 +33,12 @@ def _format_nested(
     return [
         Pretty(
             v,
-            max_length=max_length or ibis.options.repr.interactive.max_length,
-            max_string=max_string or ibis.options.repr.interactive.max_string,
-            max_depth=max_depth or ibis.options.repr.interactive.max_depth,
+            max_length=max_length
+            or bigframes_vendored.ibis.options.repr.interactive.max_length,
+            max_string=max_string
+            or bigframes_vendored.ibis.options.repr.interactive.max_string,
+            max_depth=max_depth
+            or bigframes_vendored.ibis.options.repr.interactive.max_depth,
         )
         for v in values
     ]
@@ -164,7 +167,9 @@ _str_escapes = str.maketrans(
 
 @format_values.register(dt.String)
 def _(dtype, values, *, max_string: int | None = None, **fmt_kwargs):
-    max_string = max_string or ibis.options.repr.interactive.max_string
+    max_string = (
+        max_string or bigframes_vendored.ibis.options.repr.interactive.max_string
+    )
     out = []
     for v in values:
         v = str(v)
@@ -291,9 +296,12 @@ def _to_rich_scalar(
 ) -> Pretty:
     scalar = Pretty(
         expr.execute(),
-        max_length=max_length or ibis.options.repr.interactive.max_length,
-        max_string=max_string or ibis.options.repr.interactive.max_string,
-        max_depth=max_depth or ibis.options.repr.interactive.max_depth,
+        max_length=max_length
+        or bigframes_vendored.ibis.options.repr.interactive.max_length,
+        max_string=max_string
+        or bigframes_vendored.ibis.options.repr.interactive.max_string,
+        max_depth=max_depth
+        or bigframes_vendored.ibis.options.repr.interactive.max_depth,
     )
     return Panel(scalar, expand=False, box=box.SQUARE)
 
@@ -308,11 +316,15 @@ def _to_rich_table(
     max_depth: int | None = None,
     console_width: int | float | None = None,
 ) -> rich.table.Table:
-    max_rows = max_rows or ibis.options.repr.interactive.max_rows
-    max_columns = max_columns or ibis.options.repr.interactive.max_columns
+    max_rows = max_rows or bigframes_vendored.ibis.options.repr.interactive.max_rows
+    max_columns = (
+        max_columns or bigframes_vendored.ibis.options.repr.interactive.max_columns
+    )
     console_width = console_width or float("inf")
-    max_string = max_string or ibis.options.repr.interactive.max_string
-    show_types = ibis.options.repr.interactive.show_types
+    max_string = (
+        max_string or bigframes_vendored.ibis.options.repr.interactive.max_string
+    )
+    show_types = bigframes_vendored.ibis.options.repr.interactive.show_types
 
     table = tablish.as_table()
     orig_ncols = len(table.columns)

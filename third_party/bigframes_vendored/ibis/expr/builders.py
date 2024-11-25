@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any, Literal, Optional, TYPE_CHECKING, Union
 
+import bigframes_vendored.ibis
 from bigframes_vendored.ibis import util
 from bigframes_vendored.ibis.common.annotations import annotated, attribute
 from bigframes_vendored.ibis.common.deferred import deferrable, Deferred, Resolver
@@ -16,7 +17,6 @@ import bigframes_vendored.ibis.expr.datatypes as dt
 import bigframes_vendored.ibis.expr.operations as ops
 import bigframes_vendored.ibis.expr.rules as rlz
 import bigframes_vendored.ibis.expr.types as ir
-import ibis
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -95,9 +95,9 @@ class SimpleCaseBuilder(Builder):
 
         """
         if not isinstance(case_expr, ir.Value):
-            case_expr = ibis.literal(case_expr)
+            case_expr = bigframes_vendored.ibis.literal(case_expr)
         if not isinstance(result_expr, ir.Value):
-            result_expr = ibis.literal(result_expr)
+            result_expr = bigframes_vendored.ibis.literal(result_expr)
 
         if not rlz.comparable(self.base, case_expr.op()):
             raise TypeError(
@@ -122,7 +122,9 @@ class SimpleCaseBuilder(Builder):
     def end(self) -> ir.Value:
         """Finish the `CASE` expression."""
         if (default := self.default) is None:
-            default = ibis.null().cast(rlz.highest_precedence_dtype(self.results))
+            default = bigframes_vendored.ibis.null().cast(
+                rlz.highest_precedence_dtype(self.results)
+            )
         return ops.SimpleCase(
             cases=self.cases, results=self.results, default=default, base=self.base
         ).to_expr()

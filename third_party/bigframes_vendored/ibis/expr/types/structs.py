@@ -78,7 +78,7 @@ def struct(
     │ {'a': 3, 'b': 'foo'}               │
     └────────────────────────────────────┘
     """
-    import ibis.expr.operations as ops
+    import bigframes_vendored.ibis.expr.operations as ops
 
     fields = dict(value)
     if any(isinstance(value, Value) for value in fields.values()):

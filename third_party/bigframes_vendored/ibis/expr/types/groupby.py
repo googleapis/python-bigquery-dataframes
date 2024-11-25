@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from typing import Annotated, TYPE_CHECKING
 
+import bigframes_vendored.ibis
 from bigframes_vendored.ibis.common.grounds import Concrete
 from bigframes_vendored.ibis.common.patterns import Length  # noqa: TCH001
 from bigframes_vendored.ibis.common.typing import VarTuple  # noqa: TCH001
@@ -27,7 +28,6 @@ import bigframes_vendored.ibis.expr.datatypes as dt
 import bigframes_vendored.ibis.expr.operations as ops
 from bigframes_vendored.ibis.expr.rewrites import rewrite_window_input
 import bigframes_vendored.ibis.expr.types as ir
-import ibis
 from public import public
 
 if TYPE_CHECKING:
@@ -198,7 +198,9 @@ class GroupedTable(Concrete):
         """
         table = self.table.to_expr()
         values = table.bind(*exprs, **kwexprs)
-        window = ibis.window(group_by=self.groupings, order_by=self.orderings)
+        window = bigframes_vendored.ibis.window(
+            group_by=self.groupings, order_by=self.orderings
+        )
         return [rewrite_window_input(expr.op(), window).to_expr() for expr in values]
 
     projection = select
@@ -233,7 +235,7 @@ class GroupedTable(Concrete):
             A new grouped table expression
         """
         if window is None:
-            window = ibis.window(
+            window = bigframes_vendored.ibis.window(
                 rows=rows,
                 range=range,
                 group_by=group_by,

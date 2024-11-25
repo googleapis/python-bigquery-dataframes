@@ -576,7 +576,7 @@ def slice_to_limit_offset(
     if (step := what.step) is not None and step != 1:
         raise ValueError("Slice step can only be 1")
 
-    import ibis
+    import bigframes_vendored.ibis.expr.api as ibis_api
 
     start = what.start
     stop = what.stop
@@ -604,7 +604,7 @@ def slice_to_limit_offset(
             if limit == 0:
                 offset = 0
         else:  # stop > 0
-            limit = ibis.greatest((stop - start) - count, 0)
+            limit = ibis_api.greatest((stop - start) - count, 0)
     return limit, offset
 
 

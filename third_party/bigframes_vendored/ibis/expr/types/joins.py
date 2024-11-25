@@ -5,6 +5,7 @@ from __future__ import annotations
 import functools
 from typing import Any, TYPE_CHECKING
 
+import bigframes_vendored.ibis
 from bigframes_vendored.ibis import util
 from bigframes_vendored.ibis.common.deferred import Deferred
 from bigframes_vendored.ibis.common.egraph import DisjointSet
@@ -23,7 +24,6 @@ from bigframes_vendored.ibis.expr.types.relations import (
     Table,
     unwrap_aliases,
 )
-import ibis
 from public import public
 
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ def coerce_to_table(data):
         pass
     else:
         if isinstance(data, pd.DataFrame):
-            return ibis.memtable(data)
+            return bigframes_vendored.ibis.memtable(data)
 
     try:
         import pyarrow as pa
@@ -47,7 +47,7 @@ def coerce_to_table(data):
         pass
     else:
         if isinstance(data, pa.Table):
-            return ibis.memtable(data)
+            return bigframes_vendored.ibis.memtable(data)
 
     if not isinstance(data, Table):
         raise TypeError(f"right operand must be a Table, got {type(data).__name__}")

@@ -9,11 +9,11 @@ import sys
 import tempfile
 from typing import Optional
 
+import bigframes_vendored.ibis
 import bigframes_vendored.ibis.common.exceptions as com
 from bigframes_vendored.ibis.common.graph import Graph
 import bigframes_vendored.ibis.expr.operations as ops
 import graphviz as gv
-import ibis
 
 
 def get_type(node):
@@ -42,7 +42,7 @@ def get_type(node):
             (f"{right_table_name}.{right_column}", type)
             for right_column, type in right_schema.items()
         ]
-        schema = ibis.schema(pairs)
+        schema = bigframes_vendored.ibis.schema(pairs)
     else:
         # Simple relations have the same schema as their parent so avoid
         # re-rendering the same schema fields for these relations
@@ -226,8 +226,10 @@ if __name__ == "__main__":
 
     args = p.parse_args()
 
-    left = ibis.table(dict(a="int64", b="string"), name="left")
-    right = ibis.table(dict(b="string", c="int64", d="string"), name="right")
+    left = bigframes_vendored.ibis.table(dict(a="int64", b="string"), name="left")
+    right = bigframes_vendored.ibis.table(
+        dict(b="string", c="int64", d="string"), name="right"
+    )
     expr = (
         left.inner_join(right, "b")
         .select(left.a, b=right.c, c=right.d)
@@ -237,9 +239,11 @@ if __name__ == "__main__":
         .aggregate(a_mean=_.a.mean(), b_sum=_.b.sum())
         .order_by(_.a_mean)
         .mutate(
-            arrays=ibis.array([1, 2, 3]),
-            maps=ibis.map({"a": 1, "b": 2}),
-            structs=ibis.struct({"a": [1, 2, 3], "b": {"c": 1, "d": 2}}),
+            arrays=bigframes_vendored.ibis.array([1, 2, 3]),
+            maps=bigframes_vendored.ibis.map({"a": 1, "b": 2}),
+            structs=bigframes_vendored.ibis.struct(
+                {"a": [1, 2, 3], "b": {"c": 1, "d": 2}}
+            ),
         )
     )
 

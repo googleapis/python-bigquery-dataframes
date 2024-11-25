@@ -10,6 +10,7 @@ import glob
 import os
 from typing import Any, Optional, TYPE_CHECKING
 
+import bigframes_vendored.ibis
 from bigframes_vendored.ibis import util
 from bigframes_vendored.ibis.backends import CanCreateDatabase, CanCreateSchema
 from bigframes_vendored.ibis.backends.bigquery.client import (
@@ -32,7 +33,6 @@ import google.api_core.exceptions
 import google.auth.credentials
 import google.cloud.bigquery as bq
 import google.cloud.bigquery_storage_v1 as bqstorage
-import ibis
 import pydata_google_auth
 from pydata_google_auth import cache
 import sqlglot as sg
@@ -64,7 +64,7 @@ def _create_user_agent(application_name: str) -> str:
     if application_name:
         user_agent.append(application_name)
 
-    user_agent_default_template = f"ibis/{ibis.__version__}"
+    user_agent_default_template = f"ibis/{bigframes_vendored.ibis.__version__}"
     user_agent.append(user_agent_default_template)
 
     return " ".join(user_agent)
@@ -430,7 +430,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         dataset_id
             A dataset id that lives inside of the project attached to `client`.
         """
-        return ibis.bigquery.connect(
+        return bigframes_vendored.ibis.bigquery.connect(
             client=client,
             partition_column=partition_column,
             storage_client=storage_client,
@@ -863,7 +863,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
                 "One of the `schema` or `obj` parameter is required"
             )
         if schema is not None:
-            schema = ibis.schema(schema)
+            schema = bigframes_vendored.ibis.schema(schema)
 
         if isinstance(obj, ir.Table) and schema is not None:
             if not schema.equals(obj.schema()):
@@ -901,7 +901,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         )
 
         if obj is not None and not isinstance(obj, ir.Table):
-            obj = ibis.memtable(obj, schema=schema)
+            obj = bigframes_vendored.ibis.memtable(obj, schema=schema)
 
         if temp:
             dataset = self._session_dataset.dataset_id

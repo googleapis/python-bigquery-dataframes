@@ -5,11 +5,11 @@ from __future__ import annotations
 import functools
 from typing import Literal, TYPE_CHECKING
 
+import bigframes_vendored.ibis
 from bigframes_vendored.ibis.common.exceptions import IbisTypeError
 import bigframes_vendored.ibis.expr.operations as ops
 from bigframes_vendored.ibis.expr.types.core import _binop
 from bigframes_vendored.ibis.expr.types.generic import Column, Scalar, Value
-import ibis
 from public import public
 
 if TYPE_CHECKING:
@@ -895,7 +895,9 @@ class NumericColumn(Column, NumericValue):
     def cummean(self, *, where=None, group_by=None, order_by=None) -> NumericColumn:
         """Return the cumulative mean of the input."""
         return self.mean(where=where).over(
-            ibis.cumulative_window(group_by=group_by, order_by=order_by)
+            bigframes_vendored.ibis.cumulative_window(
+                group_by=group_by, order_by=order_by
+            )
         )
 
     def sum(
@@ -919,7 +921,9 @@ class NumericColumn(Column, NumericValue):
     def cumsum(self, *, where=None, group_by=None, order_by=None) -> NumericColumn:
         """Return the cumulative sum of the input."""
         return self.sum(where=where).over(
-            ibis.cumulative_window(group_by=group_by, order_by=order_by)
+            bigframes_vendored.ibis.cumulative_window(
+                group_by=group_by, order_by=order_by
+            )
         )
 
     def bucket(

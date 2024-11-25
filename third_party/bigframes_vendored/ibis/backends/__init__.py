@@ -12,13 +12,13 @@ import re
 from typing import Any, ClassVar, TYPE_CHECKING
 import urllib.parse
 
+import bigframes_vendored.ibis
 from bigframes_vendored.ibis import util
 from bigframes_vendored.ibis.common.caching import RefCountedCache
 import bigframes_vendored.ibis.common.exceptions as exc
 import bigframes_vendored.ibis.config
 import bigframes_vendored.ibis.expr.operations as ops
 import bigframes_vendored.ibis.expr.types as ir
-import ibis
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, MutableMapping
@@ -1067,7 +1067,7 @@ class BaseBackend(abc.ABC, _FileIOHandler):
         name: str,
         obj: pd.DataFrame | pa.Table | ir.Table | None = None,
         *,
-        schema: ibis.Schema | None = None,
+        schema: bigframes_vendored.ibis.Schema | None = None,
         database: str | None = None,
         temp: bool = False,
         overwrite: bool = False,

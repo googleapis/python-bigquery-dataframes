@@ -37,15 +37,14 @@ import warnings
 import weakref
 
 import bigframes_vendored.constants as constants
-import bigframes_vendored.ibis.backends.bigquery  # noqa
-import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery
+import bigframes_vendored.ibis
+import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery  # noqa
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
 import bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
 import bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 import google.cloud.bigquery as bigquery
 import google.cloud.storage as storage  # type: ignore
-import ibis
 import numpy as np
 import pandas
 from pandas._typing import (
@@ -197,9 +196,10 @@ class Session(
 
         # Only used to fetch remote function metadata.
         # TODO: Remove in favor of raw bq client
+
         self.ibis_client = typing.cast(
             ibis_bigquery.Backend,
-            ibis.bigquery.connect(
+            bigframes_vendored.ibis.bigquery.connect(
                 project_id=context.project,
                 client=self.bqclient,
                 storage_client=self.bqstoragereadclient,

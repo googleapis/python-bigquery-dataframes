@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from typing import Any, TYPE_CHECKING
 
+import bigframes_vendored.ibis
 from bigframes_vendored.ibis.common.deferred import _, deferrable, Deferred
 import bigframes_vendored.ibis.common.exceptions as com
 from bigframes_vendored.ibis.common.grounds import Singleton
@@ -20,7 +21,6 @@ from bigframes_vendored.ibis.expr.types.core import (
 )
 from bigframes_vendored.ibis.expr.types.pretty import to_rich
 from bigframes_vendored.ibis.util import deprecated, warn_deprecated
-import ibis
 from public import public
 
 if TYPE_CHECKING:
@@ -728,7 +728,7 @@ class Value(Expr):
         └────────┴──────────────┘
         """
         if isinstance(value, dict):
-            expr = ibis.case()
+            expr = bigframes_vendored.ibis.case()
             try:
                 null_replacement = value.pop(None)
             except KeyError:
@@ -774,7 +774,7 @@ class Value(Expr):
         """
 
         if window is None:
-            window = ibis.window(
+            window = bigframes_vendored.ibis.window(
                 rows=rows,
                 range=range,
                 group_by=group_by,
@@ -953,7 +953,7 @@ class Value(Expr):
         │ NULL                                                   │
         └────────────────────────────────────────────────────────┘
         """
-        import ibis.expr.builders as bl
+        import bigframes_vendored.ibis.expr.builders as bl
 
         return bl.SimpleCaseBuilder(self.op())
 
@@ -2181,7 +2181,7 @@ class Column(Value, _FixedTextJupyterMixin):
         │      3 │     5 │
         └────────┴───────┘
         """
-        return ibis.rank().over(order_by=self)
+        return bigframes_vendored.ibis.rank().over(order_by=self)
 
     def dense_rank(self) -> ir.IntegerColumn:
         """Position of first element within each group of equal values.
@@ -2214,15 +2214,15 @@ class Column(Value, _FixedTextJupyterMixin):
         │      3 │     2 │
         └────────┴───────┘
         """
-        return ibis.dense_rank().over(order_by=self)
+        return bigframes_vendored.ibis.dense_rank().over(order_by=self)
 
     def percent_rank(self) -> Column:
         """Return the relative rank of the values in the column."""
-        return ibis.percent_rank().over(order_by=self)
+        return bigframes_vendored.ibis.percent_rank().over(order_by=self)
 
     def cume_dist(self) -> Column:
         """Return the cumulative distribution over a window."""
-        return ibis.cume_dist().over(order_by=self)
+        return bigframes_vendored.ibis.cume_dist().over(order_by=self)
 
     def ntile(self, buckets: int | ir.IntegerValue) -> ir.IntegerColumn:
         """Return the integer number of a partitioning of the column values.
@@ -2232,18 +2232,22 @@ class Column(Value, _FixedTextJupyterMixin):
         buckets
             Number of buckets to partition into
         """
-        return ibis.ntile(buckets).over(order_by=self)
+        return bigframes_vendored.ibis.ntile(buckets).over(order_by=self)
 
     def cummin(self, *, where=None, group_by=None, order_by=None) -> Column:
         """Return the cumulative min over a window."""
         return self.min(where=where).over(
-            ibis.cumulative_window(group_by=group_by, order_by=order_by)
+            bigframes_vendored.ibis.cumulative_window(
+                group_by=group_by, order_by=order_by
+            )
         )
 
     def cummax(self, *, where=None, group_by=None, order_by=None) -> Column:
         """Return the cumulative max over a window."""
         return self.max(where=where).over(
-            ibis.cumulative_window(group_by=group_by, order_by=order_by)
+            bigframes_vendored.ibis.cumulative_window(
+                group_by=group_by, order_by=order_by
+            )
         )
 
     def lag(

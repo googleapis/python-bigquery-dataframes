@@ -6,6 +6,7 @@ import abc
 from functools import partial
 from typing import Any, ClassVar, TYPE_CHECKING
 
+import bigframes_vendored.ibis
 from bigframes_vendored.ibis import util
 from bigframes_vendored.ibis.backends import BaseBackend
 from bigframes_vendored.ibis.backends.sql.compilers.base import STAR
@@ -13,7 +14,6 @@ import bigframes_vendored.ibis.common.exceptions as exc
 import bigframes_vendored.ibis.expr.operations as ops
 import bigframes_vendored.ibis.expr.schema as sch
 import bigframes_vendored.ibis.expr.types as ir
-import ibis
 import sqlglot as sg
 import sqlglot.expressions as sge
 
@@ -151,7 +151,7 @@ class SQLBackend(BaseBackend, _DatabaseSchemaHandler):
         table_expr = expr.as_table()
 
         if limit == "default":
-            limit = ibis.options.sql.default_limit
+            limit = bigframes_vendored.ibis.options.sql.default_limit
         if limit is not None:
             table_expr = table_expr.limit(limit)
 
@@ -200,7 +200,9 @@ class SQLBackend(BaseBackend, _DatabaseSchemaHandler):
         query = self._transpile_sql(query, dialect=dialect)
         if schema is None:
             schema = self._get_schema_using_query(query)
-        return ops.SQLQueryResult(query, ibis.schema(schema), self).to_expr()
+        return ops.SQLQueryResult(
+            query, bigframes_vendored.ibis.schema(schema), self
+        ).to_expr()
 
     @abc.abstractmethod
     def _get_schema_using_query(self, query: str) -> sch.Schema:
@@ -425,7 +427,7 @@ class SQLBackend(BaseBackend, _DatabaseSchemaHandler):
             self.truncate_table(table_name, database=(catalog, db))
 
         if not isinstance(obj, ir.Table):
-            obj = ibis.memtable(obj)
+            obj = bigframes_vendored.ibis.memtable(obj)
 
         self._run_pre_execute_hooks(obj)
 

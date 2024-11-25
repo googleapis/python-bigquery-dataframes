@@ -3,11 +3,11 @@
 
 from __future__ import annotations
 
+import bigframes_vendored.ibis
 import bigframes_vendored.ibis.expr.datatypes as dt
 import bigframes_vendored.ibis.expr.schema as sch
 from bigframes_vendored.ibis.formats import SchemaMapper, TypeMapper
 import google.cloud.bigquery as bq
-import ibis
 import sqlglot as sg
 
 _from_bigquery_types = {
@@ -105,7 +105,7 @@ class BigQuerySchema(SchemaMapper):
     def from_ibis(cls, schema: sch.Schema) -> list[bq.SchemaField]:
         schema_fields = []
 
-        for name, typ in ibis.schema(schema).items():
+        for name, typ in bigframes_vendored.ibis.schema(schema).items():
             if typ.is_array():
                 value_type = typ.value_type
                 if value_type.is_array():
@@ -117,11 +117,13 @@ class BigQuerySchema(SchemaMapper):
                     "RECORD" if is_struct else BigQueryType.from_ibis(typ.value_type)
                 )
                 mode = "REPEATED"
-                fields = cls.from_ibis(ibis.schema(getattr(value_type, "fields", {})))
+                fields = cls.from_ibis(
+                    bigframes_vendored.ibis.schema(getattr(value_type, "fields", {}))
+                )
             elif typ.is_struct():
                 field_type = "RECORD"
                 mode = "NULLABLE" if typ.nullable else "REQUIRED"
-                fields = cls.from_ibis(ibis.schema(typ.fields))
+                fields = cls.from_ibis(bigframes_vendored.ibis.schema(typ.fields))
             else:
                 field_type = BigQueryType.from_ibis(typ)
                 mode = "NULLABLE" if typ.nullable else "REQUIRED"

@@ -18,10 +18,10 @@ import functools
 import io
 import typing
 
-import bigframes_vendored.ibis.backends.bigquery
+import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery
+import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.types as ibis_types
 import google.cloud.bigquery
-import ibis
 import pandas as pd
 
 import bigframes.core.compile.compiled as compiled
@@ -178,7 +178,7 @@ class Compiler:
         # Perform a cross join to avoid errors
         joined_table = start_table.cross_join(end_table)
 
-        labels_array_table = ibis.range(
+        labels_array_table = ibis_api.range(
             joined_table[start_column], joined_table[end_column] + node.step, node.step
         ).name(node.output_id.sql)
         labels = (
@@ -223,10 +223,8 @@ class Compiler:
         full_table_name = f"{source.table.project_id}.{source.table.dataset_id}.{source.table.table_id}"
         used_columns = tuple(col.name for col in source.table.physical_schema)
         # Physical schema might include unused columns, unsupported datatypes like JSON
-        physical_schema = (
-            bigframes_vendored.ibis.backends.bigquery.BigQuerySchema.to_ibis(
-                list(i for i in source.table.physical_schema if i.name in used_columns)
-            )
+        physical_schema = ibis_bigquery.BigQuerySchema.to_ibis(
+            list(i for i in source.table.physical_schema if i.name in used_columns)
         )
         if source.at_time is not None or source.sql_predicate is not None:
             import bigframes.session._io.bigquery
@@ -237,11 +235,9 @@ class Compiler:
                 sql_predicate=source.sql_predicate,
                 time_travel_timestamp=source.at_time,
             )
-            return bigframes_vendored.ibis.backends.bigquery.Backend().sql(
-                schema=physical_schema, query=sql
-            )
+            return ibis_bigquery.Backend().sql(schema=physical_schema, query=sql)
         else:
-            return ibis.table(physical_schema, full_table_name)
+            return ibis_api.table(physical_schema, full_table_name)
 
     def compile_read_table_unordered(
         self, source: nodes.BigqueryDataSource, scan: nodes.ScanList

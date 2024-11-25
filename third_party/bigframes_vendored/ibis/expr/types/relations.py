@@ -10,6 +10,7 @@ import operator
 import re
 from typing import Any, Literal, TYPE_CHECKING
 
+import bigframes_vendored.ibis
 from bigframes_vendored.ibis import util
 from bigframes_vendored.ibis.common.deferred import Deferred, Resolver
 import bigframes_vendored.ibis.common.exceptions as com
@@ -23,7 +24,6 @@ from bigframes_vendored.ibis.expr.types.generic import literal, Value
 from bigframes_vendored.ibis.expr.types.pretty import to_rich
 from bigframes_vendored.ibis.expr.types.temporal import TimestampColumn
 from bigframes_vendored.ibis.util import deprecated
-import ibis
 from public import public
 import toolz
 
@@ -1278,7 +1278,7 @@ class Table(Expr, _FixedTextJupyterMixin):
         ibis.common.exceptions.IbisError: Invalid value for keep: 'second' ...
         """
 
-        import ibis.selectors as s
+        import bigframes_vendored.ibis.selectors as s
 
         if on is None:
             # dedup everything
@@ -2951,7 +2951,7 @@ class Table(Expr, _FixedTextJupyterMixin):
             col = self[colname]
             typ = col.type()
             agg = self.select(
-                isna=ibis.case().when(col.isnull(), 1).else_(0).end()
+                isna=bigframes_vendored.ibis.case().when(col.isnull(), 1).else_(0).end()
             ).agg(
                 name=lit(colname),
                 type=lit(str(typ)),
@@ -2962,7 +2962,9 @@ class Table(Expr, _FixedTextJupyterMixin):
                 pos=lit(pos, type=dt.int16),
             )
             aggs.append(agg)
-        return ibis.union(*aggs).order_by(ibis.asc("pos"))
+        return bigframes_vendored.ibis.union(*aggs).order_by(
+            bigframes_vendored.ibis.asc("pos")
+        )
 
     def describe(
         self, quantile: Sequence[ir.NumericValue | float] = (0.25, 0.5, 0.75)
@@ -3088,7 +3090,7 @@ class Table(Expr, _FixedTextJupyterMixin):
             )
             aggs.append(agg)
 
-        t = ibis.union(*aggs)
+        t = bigframes_vendored.ibis.union(*aggs)
 
         # TODO(jiting): Need a better way to remove columns with all NULL
         if string_col and not numeric_col:
@@ -3924,7 +3926,7 @@ class Table(Expr, _FixedTextJupyterMixin):
           ...
         ibis.common.exceptions.IbisTypeError: ... Got <class 'str'>
         """  # noqa: RUF002
-        import ibis.selectors as s
+        import bigframes_vendored.ibis.selectors as s
 
         pivot_sel = s._to_selector(col)
 
@@ -3971,10 +3973,10 @@ class Table(Expr, _FixedTextJupyterMixin):
                 for name, value in zip(names_to, match_result.groups())
             }
             row[values_to] = values_transform(pivot_col)
-            pieces.append(ibis.struct(row))
+            pieces.append(bigframes_vendored.ibis.struct(row))
 
         # nest into an array of structs to zip unnests together
-        pieces = ibis.array(pieces)
+        pieces = bigframes_vendored.ibis.array(pieces)
 
         return self.select(~pivot_sel, __pivoted__=pieces.unnest()).unpack(
             "__pivoted__"
@@ -4391,7 +4393,9 @@ class Table(Expr, _FixedTextJupyterMixin):
         names_cols_exprs = [self[col] for col in names.columns]
 
         for keys in names.itertuples(index=False):
-            where = ibis.and_(*map(operator.eq, names_cols_exprs, keys))
+            where = bigframes_vendored.ibis.and_(
+                *map(operator.eq, names_cols_exprs, keys)
+            )
 
             for values_col in values_cols:
                 arg = values_agg(values_col)

@@ -18,12 +18,12 @@ import functools
 import typing
 
 import bigframes_vendored.constants as constants
+import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import bigframes_vendored.ibis.expr.operations.generic as ibis_generic
 import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import bigframes_vendored.ibis.expr.types as ibis_types
-import ibis
 import numpy as np
 import pandas as pd
 
@@ -569,7 +569,7 @@ def strpad_op_impl(x: ibis_types.Value, op: ops.StrPadOp):
     str_val = typing.cast(ibis_types.StringValue, x)
 
     # SQL pad operations will truncate, we do not want to truncate though.
-    pad_length = ibis.greatest(str_val.length(), op.length)
+    pad_length = ibis_api.greatest(str_val.length(), op.length)
     if op.side == "left":
         return str_val.lpad(pad_length, op.fillchar)
     elif op.side == "right":
@@ -625,7 +625,7 @@ def stringsplit_op_impl(x: ibis_types.Value, op: ops.StringSplitOp):
 def zfill_op_impl(x: ibis_types.Value, op: ops.ZfillOp):
     str_value = typing.cast(ibis_types.StringValue, x)
     return (
-        ibis.case()
+        ibis_api.case()
         .when(
             str_value[0] == "-",
             "-"
@@ -773,12 +773,12 @@ def datetime_to_integer_label_non_fixed_frequency(
     n = op.freq.n
     if rule_code == "W-SUN":  # Weekly
         us = n * 7 * 24 * 60 * 60 * 1000000
-        x = x.truncate("week") + ibis.interval(days=6)
-        y = y.truncate("week") + ibis.interval(days=6)
+        x = x.truncate("week") + ibis_api.interval(days=6)
+        y = y.truncate("week") + ibis_api.interval(days=6)
         x_int = x.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast(ibis_dtypes.int64)
         first = y.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast(ibis_dtypes.int64)
         x_int_label = (
-            ibis.case()
+            ibis_api.case()
             .when(x_int == first, 0)
             .else_((x_int - first - 1) // us + 1)
             .end()
@@ -787,7 +787,7 @@ def datetime_to_integer_label_non_fixed_frequency(
         x_int = x.year() * 12 + x.month() - 1
         first = y.year() * 12 + y.month() - 1
         x_int_label = (
-            ibis.case()
+            ibis_api.case()
             .when(x_int == first, 0)
             .else_((x_int - first - 1) // n + 1)
             .end()
@@ -796,7 +796,7 @@ def datetime_to_integer_label_non_fixed_frequency(
         x_int = x.year() * 4 + x.quarter() - 1
         first = y.year() * 4 + y.quarter() - 1
         x_int_label = (
-            ibis.case()
+            ibis_api.case()
             .when(x_int == first, 0)
             .else_((x_int - first - 1) // n + 1)
             .end()
@@ -805,7 +805,7 @@ def datetime_to_integer_label_non_fixed_frequency(
         x_int = x.year()
         first = y.year()
         x_int_label = (
-            ibis.case()
+            ibis_api.case()
             .when(x_int == first, 0)
             .else_((x_int - first - 1) // n + 1)
             .end()
@@ -860,7 +860,7 @@ def integer_label_to_datetime_op_non_fixed_frequency(
         us = n * 7 * 24 * 60 * 60 * 1000000
         first = (
             y.cast(ibis_dtypes.Timestamp(timezone="UTC")).truncate("week")
-            + ibis.interval(days=6)
+            + ibis_api.interval(days=6)
         ).cast(ibis_dtypes.int64)
         x_label = (
             (x * us + first)
@@ -880,9 +880,9 @@ def integer_label_to_datetime_op_non_fixed_frequency(
 
         next_year = (month == twelve).ifelse(year + one, year)
         next_month = (month == twelve).ifelse(one, month + one)
-        next_month_date = ibis.timestamp(next_year, next_month, one, 0, 0, 0)
+        next_month_date = ibis_api.timestamp(next_year, next_month, one, 0, 0, 0)
 
-        x_label = next_month_date - ibis.interval(days=1)
+        x_label = next_month_date - ibis_api.interval(days=1)
     elif rule_code == "QE-DEC":  # Quarterly
         one = ibis_types.literal(1)
         three = ibis_types.literal(3)
@@ -896,16 +896,16 @@ def integer_label_to_datetime_op_non_fixed_frequency(
 
         next_year = (month == twelve).ifelse(year + one, year)
         next_month = (month == twelve).ifelse(one, month + one)
-        next_month_date = ibis.timestamp(next_year, next_month, one, 0, 0, 0)
+        next_month_date = ibis_api.timestamp(next_year, next_month, one, 0, 0, 0)
 
-        x_label = next_month_date - ibis.interval(days=1)
+        x_label = next_month_date - ibis_api.interval(days=1)
     elif rule_code == "YE-DEC":  # Yearly
         one = ibis_types.literal(1)
         first = y.year()
         x = x * n + first
         next_year = x + one
-        next_month_date = ibis.timestamp(next_year, 1, 1, 0, 0, 0)
-        x_label = next_month_date - ibis.interval(days=1)
+        next_month_date = ibis_api.timestamp(next_year, 1, 1, 0, 0, 0)
+        x_label = next_month_date - ibis_api.interval(days=1)
 
     return x_label.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast(y.type())
 
@@ -1001,7 +1001,7 @@ def astype_op_impl(x: ibis_types.Value, op: ops.AsTypeOp):
     if to_type == ibis_dtypes.int64 and x.type() == ibis_dtypes.time:
         # The conversion unit is set to "us" (microseconds) for consistency
         # with pandas converting time64[us][pyarrow] to int64[pyarrow].
-        return x.delta(ibis.time("00:00:00"), part="microsecond")
+        return x.delta(ibis_api.time("00:00:00"), part="microsecond")
 
     if x.type() == ibis_dtypes.int64:
         # The conversion unit is set to "us" (microseconds) for consistency
@@ -1096,13 +1096,13 @@ def remote_function_op_impl(x: ibis_types.Value, op: ops.RemoteFunctionOp):
         )
     x_transformed = ibis_node(x)
     if not op.apply_on_null:
-        x_transformed = ibis.case().when(x.isnull(), x).else_(x_transformed).end()
+        x_transformed = ibis_api.case().when(x.isnull(), x).else_(x_transformed).end()
     return x_transformed
 
 
 @scalar_op_compiler.register_unary_op(ops.MapOp, pass_op=True)
 def map_op_impl(x: ibis_types.Value, op: ops.MapOp):
-    case = ibis.case()
+    case = ibis_api.case()
     for mapping in op.mappings:
         case = case.when(x == mapping[0], mapping[1])
     return case.else_(x).end()
@@ -1238,7 +1238,7 @@ def ne_op(
 
 
 def _null_or_value(value: ibis_types.Value, where_value: ibis_types.BooleanValue):
-    return ibis.ifelse(
+    return ibis_api.ifelse(
         where_value,
         value,
         ibis_types.null(),
@@ -1384,7 +1384,7 @@ def _int_pow_op(
     )
 
     return (
-        ibis.case()
+        ibis_api.case()
         .when((overflow_cond), ibis_types.null())
         .else_(pow_result.cast(ibis_dtypes.int64))
         .end()
@@ -1418,7 +1418,7 @@ def _float_pow_op(
     infinite_base = x_val.abs() == _INF
 
     return (
-        ibis.case()
+        ibis_api.case()
         # Might be able to do something more clever with x_val==0 case
         .when(y_val == _ZERO, _ibis_num(1))
         .when(
@@ -1490,7 +1490,7 @@ def floordiv_op(
     # Multiplying left by zero propogates nulls.
     zero_result = _INF if (x.type().is_floating() or y.type().is_floating()) else _ZERO
     return (
-        ibis.case()
+        ibis_api.case()
         .when(y_numeric == _ZERO, zero_result * x_numeric)
         .else_(floordiv_expr)
         .end()
@@ -1558,7 +1558,7 @@ def _bignumeric_mod(
 
     # In BigQuery returned value has the same sign as X. In pandas, the sign of y is used, so we need to flip the result if sign(x) != sign(y)
     return (
-        ibis.case()
+        ibis_api.case()
         .when(
             y == _ZERO,
             _NAN * x,
@@ -1587,7 +1587,7 @@ def _int_mod(
 
     # In BigQuery returned value has the same sign as X. In pandas, the sign of y is used, so we need to flip the result if sign(x) != sign(y)
     return (
-        ibis.case()
+        ibis_api.case()
         .when(
             y == _ZERO,
             _ZERO * x,
@@ -1629,7 +1629,7 @@ def coalesce_impl(
     if x.name("name").equals(y.name("name")):
         return x
     else:
-        return ibis.coalesce(x, y)
+        return ibis_api.coalesce(x, y)
 
 
 @scalar_op_compiler.register_binary_op(ops.maximum_op)
@@ -1638,7 +1638,9 @@ def maximum_impl(
     lower: ibis_types.Value,
 ):
     # Note: propagates nulls
-    return ibis.case().when(lower.isnull() | (value < lower), lower).else_(value).end()
+    return (
+        ibis_api.case().when(lower.isnull() | (value < lower), lower).else_(value).end()
+    )
 
 
 @scalar_op_compiler.register_binary_op(ops.minimum_op)
@@ -1647,7 +1649,9 @@ def minimum_impl(
     upper: ibis_types.Value,
 ):
     # Note: propagates nulls
-    return ibis.case().when(upper.isnull() | (value > upper), upper).else_(value).end()
+    return (
+        ibis_api.case().when(upper.isnull() | (value > upper), upper).else_(value).end()
+    )
 
 
 @scalar_op_compiler.register_binary_op(ops.cosine_distance_op)
@@ -1695,7 +1699,7 @@ def where_op(
     replacement: ibis_types.Value,
 ) -> ibis_types.Value:
     """Returns x if y is true, otherwise returns z."""
-    return ibis.case().when(condition, original).else_(replacement).end()
+    return ibis_api.case().when(condition, original).else_(replacement).end()
 
 
 @scalar_op_compiler.register_ternary_op(ops.clip_op)
@@ -1709,7 +1713,7 @@ def clip_op(
         not isinstance(upper, ibis_types.NullScalar)
     ):
         return (
-            ibis.case()
+            ibis_api.case()
             .when(upper.isnull() | (original > upper), upper)
             .else_(original)
             .end()
@@ -1718,7 +1722,7 @@ def clip_op(
         upper, ibis_types.NullScalar
     ):
         return (
-            ibis.case()
+            ibis_api.case()
             .when(lower.isnull() | (original < lower), lower)
             .else_(original)
             .end()
@@ -1730,7 +1734,7 @@ def clip_op(
     else:
         # Note: Pandas has unchanged behavior when upper bound and lower bound are flipped. This implementation requires that lower_bound < upper_bound
         return (
-            ibis.case()
+            ibis_api.case()
             .when(lower.isnull() | (original < lower), lower)
             .when(upper.isnull() | (original > upper), upper)
             .else_(original)
@@ -1752,7 +1756,7 @@ def case_when_op(*cases_and_outputs: ibis_types.Value) -> ibis_types.Value:
             for val in result_values
         )
 
-    case_val = ibis.case()
+    case_val = ibis_api.case()
     for predicate, output in zip(cases_and_outputs[::2], result_values):
         case_val = case_val.when(predicate, output)
     return case_val.end()
@@ -1779,7 +1783,7 @@ def struct_op_impl(
     for i, value in enumerate(values):
         data[op.column_names[i]] = value
 
-    return ibis.struct(data)
+    return ibis_types.struct(data)
 
 
 # Helpers
