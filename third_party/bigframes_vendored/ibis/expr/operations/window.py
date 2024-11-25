@@ -69,7 +69,7 @@ class WindowFunction(Value):
     """Window function operation."""
 
     func: Analytic | Reduction
-    how: LiteralType["rows", "range"] = "rows"
+    how: LiteralType["rows", "range"] = "rows"  # noqa: F821
     start: Optional[WindowBoundary[dt.Numeric | dt.Interval]] = None
     end: Optional[WindowBoundary[dt.Numeric | dt.Interval]] = None
     group_by: VarTuple[Column] = ()

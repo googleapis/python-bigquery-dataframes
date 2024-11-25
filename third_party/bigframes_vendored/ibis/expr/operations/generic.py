@@ -247,19 +247,19 @@ class Hash(Value):
 class HashBytes(Value):
     arg: Value[dt.String | dt.Binary]
     how: LiteralType[
-        "md5",
-        "MD5",
-        "sha1",
-        "SHA1",
-        "SHA224",
-        "sha256",
-        "SHA256",
-        "sha512",
-        "intHash32",
-        "intHash64",
-        "cityHash64",
-        "sipHash64",
-        "sipHash128",
+        "md5",  # noqa: F821
+        "MD5",  # noqa: F821
+        "sha1",  # noqa: F821
+        "SHA1",  # noqa: F821
+        "SHA224",  # noqa: F821
+        "sha256",  # noqa: F821
+        "SHA256",  # noqa: F821
+        "sha512",  # noqa: F821
+        "intHash32",  # noqa: F821
+        "intHash64",  # noqa: F821
+        "cityHash64",  # noqa: F821
+        "sipHash64",  # noqa: F821
+        "sipHash128",  # noqa: F821
     ]
 
     dtype = dt.binary
@@ -272,10 +272,10 @@ class HexDigest(Value):
 
     arg: Value[dt.String | dt.Binary]
     how: LiteralType[
-        "md5",
-        "sha1",
-        "sha256",
-        "sha512",
+        "md5",  # noqa: F821
+        "sha1",  # noqa: F821
+        "sha256",  # noqa: F821
+        "sha512",  # noqa: F821
     ]
 
     dtype = dt.str

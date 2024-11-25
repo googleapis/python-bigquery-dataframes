@@ -6,11 +6,11 @@ from __future__ import annotations
 
 from typing import Optional
 
+from bigframes_vendored.ibis.expr.operations.core import Column, Scalar, Value
+import bigframes_vendored.ibis.expr.rules as rlz
 import ibis
 import ibis.expr.datashape as ds
 import ibis.expr.datatypes as dt
-from ibis.expr.operations.core import Column, Scalar, Value
-import ibis.expr.rules as rlz
 from public import public
 
 
