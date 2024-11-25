@@ -123,7 +123,7 @@ class Index:
             np.True_
 
             >>> bpd.Index([1, 2, 2]).is_monotonic_increasing
-            True
+            np.True_
 
             >>> bpd.Index([1, 3, 2]).is_monotonic_increasing
             False
@@ -148,7 +148,7 @@ class Index:
             np.True_
 
             >>> bpd.Index([3, 2, 2]).is_monotonic_decreasing
-            True
+            np.True_
 
             >>> bpd.Index([3, 1, 2]).is_monotonic_decreasing
             False
@@ -173,12 +173,13 @@ class Index:
             ...                     ['NJ', 'Temp'], ['NJ', 'Precip']],
             ...                    columns=['a', 'b'])
             >>> df
-               a           b
-            0   HI      Temp
-            1   HI      Precip
-            2   NJ      Temp
-            3   NJ      Precip
-            4 rows x 2 columns
+                a       b
+            0  HI    Temp
+            1  HI  Precip
+            2  NJ    Temp
+            3  NJ  Precip
+
+            [4 rows x 2 columns]
 
             >>> bpd.MultiIndex.from_frame(df)
             Index([0, 1, 2, 3], dtype='Int64')
