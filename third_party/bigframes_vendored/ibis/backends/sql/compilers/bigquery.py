@@ -4,18 +4,27 @@ from __future__ import annotations
 
 import re
 
-from ibis import util
-from ibis.backends.sql.compilers.base import NULL, SQLGlotCompiler, STAR
-from ibis.backends.sql.datatypes import BigQueryType, BigQueryUDFType
-from ibis.backends.sql.rewrites import (
+from bigframes_vendored.ibis import util
+from bigframes_vendored.ibis.backends.sql.compilers.base import (
+    NULL,
+    SQLGlotCompiler,
+    STAR,
+)
+from bigframes_vendored.ibis.backends.sql.datatypes import BigQueryType, BigQueryUDFType
+from bigframes_vendored.ibis.backends.sql.rewrites import (
     exclude_unsupported_window_frame_from_ops,
     exclude_unsupported_window_frame_from_rank,
     exclude_unsupported_window_frame_from_row_number,
 )
-import ibis.common.exceptions as com
-from ibis.common.temporal import DateUnit, IntervalUnit, TimestampUnit, TimeUnit
+import bigframes_vendored.ibis.common.exceptions as com
+from bigframes_vendored.ibis.common.temporal import (
+    DateUnit,
+    IntervalUnit,
+    TimestampUnit,
+    TimeUnit,
+)
+import bigframes_vendored.ibis.expr.operations as ops
 import ibis.expr.datatypes as dt
-import ibis.expr.operations as ops
 import sqlglot as sg
 from sqlglot.dialects import BigQuery
 import sqlglot.expressions as sge

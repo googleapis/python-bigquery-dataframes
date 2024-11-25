@@ -20,9 +20,8 @@ from __future__ import annotations
 
 from typing import cast
 
-import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
+import bigframes_vendored.ibis.expr.operations as ibis_ops
 import ibis
-import ibis.backends
 import ibis.expr.datatypes as ibis_dtypes
 import ibis.expr.types as ibis_types
 
@@ -45,7 +44,7 @@ def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringVa
     else:
         # TO_JSON_STRING works with all data types, but isn't the most efficient
         # Needed for JSON, STRUCT and ARRAY datatypes
-        result = vendored_ibis_ops.ToJsonString(column).to_expr()  # type: ignore
+        result = ibis_ops.ToJsonString(column).to_expr()  # type: ignore
     # Escape backslashes and use backslash as delineator
     escaped = cast(
         ibis_types.StringColumn,
