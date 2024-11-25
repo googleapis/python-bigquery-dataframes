@@ -365,8 +365,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def astype(
         self,
         dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
+        *,
+        errors: Literal["raise", "null"] = "raise",
     ) -> DataFrame:
-        return self._apply_unary_op(ops.AsTypeOp(to_type=dtype))
+        if errors not in ["raise", "null"]:
+            raise ValueError("Arg 'error' must be one of 'raise' or 'null'")
+        return self._apply_unary_op(
+            ops.AsTypeOp(to_type=dtype, safe=(errors == "null"))
+        )
 
     def _to_sql_query(
         self, include_index: bool, enable_cache: bool = True
@@ -734,7 +740,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         how: str = "outer",
         reverse: bool = False,
     ):
-        if isinstance(other, (float, int, bool)):
+        if isinstance(other, bigframes.dtypes.LOCAL_SCALAR_TYPES):
             return self._apply_scalar_binop(other, op, reverse=reverse)
         elif isinstance(other, DataFrame):
             return self._apply_dataframe_binop(other, op, how=how, reverse=reverse)
@@ -752,7 +758,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def _apply_scalar_binop(
-        self, other: float | int, op: ops.BinaryOp, reverse: bool = False
+        self,
+        other: bigframes.dtypes.LOCAL_SCALAR_TYPE,
+        op: ops.BinaryOp,
+        reverse: bool = False,
     ) -> DataFrame:
         if reverse:
             expr = op.as_expr(
@@ -2687,6 +2696,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self, other: DataFrame, *, on: Optional[str] = None, how: str = "left"
     ) -> DataFrame:
         left, right = self, other
+
         if not left.columns.intersection(right.columns).empty:
             raise NotImplementedError(
                 f"Deduping column names is not implemented. {constants.FEEDBACK_LINK}"
@@ -2712,11 +2722,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             # Switch left index with on column
             left_columns = left.columns
-            left_idx_original_names = left.index.names
+            left_idx_original_names = left.index.names if left._has_index else ()
             left_idx_names_in_cols = [
-                f"bigframes_left_idx_name_{i}" for i in range(len(left.index.names))
+                f"bigframes_left_idx_name_{i}"
+                for i in range(len(left_idx_original_names))
             ]
-            left.index.names = left_idx_names_in_cols
+            if left._has_index:
+                left.index.names = left_idx_names_in_cols
             left = left.reset_index(drop=False)
             left = left.set_index(on)
 
@@ -2727,11 +2739,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             combined_df = combined_df.set_index(left_idx_names_in_cols)
 
             # To be consistent with Pandas
-            combined_df.index.names = (
-                left_idx_original_names
-                if how in ("inner", "left")
-                else ([None] * len(combined_df.index.names))
-            )
+            if combined_df._has_index:
+                combined_df.index.names = (
+                    left_idx_original_names
+                    if how in ("inner", "left")
+                    else ([None] * len(combined_df.index.names))
+                )
 
             # Reorder columns
             combined_df = combined_df[list(left_columns) + list(right.columns)]

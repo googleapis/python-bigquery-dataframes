@@ -645,12 +645,17 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def unique(self) -> Series:
+    def unique(self, keep_order=True) -> Series:
         """
         Return unique values of Series object.
 
-        Uniques are returned in order of appearance. Hash table-based unique,
+        By default, uniques are returned in order of appearance. Hash table-based unique,
         therefore does NOT sort.
+
+        Args:
+            keep_order (bool, default True):
+                If True, preserves the order of the first appearance of each unique value.
+                If False, returns the elements in ascending order, which can be faster.
 
         **Examples:**
 
@@ -664,9 +669,18 @@ class Series(NDFrame):  # type: ignore[misc]
             2    3
             3    3
             Name: A, dtype: Int64
+
+        Example with order preservation: Slower, but keeps order
             >>> s.unique()
             0    2
             1    1
+            2    3
+            Name: A, dtype: Int64
+
+        Example without order preservation: Faster, but loses original order
+            >>> s.unique(keep_order=False)
+            0    1
+            1    2
             2    3
             Name: A, dtype: Int64
 
@@ -1177,7 +1191,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-        For applying arbitrary python function a `remote_funciton` is recommended.
+        For applying arbitrary python function a `remote_function` is recommended.
         Let's use ``reuse=False`` flag to make sure a new `remote_function`
         is created every time we run the following code, but you can skip it
         to potentially reuse a previously deployed `remote_function` from
@@ -2649,7 +2663,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
     def __floordiv__(self, other):
         """
-        Get integer divison of Series by other, using arithmatic operator `//`.
+        Get integer division of Series by other, using arithmetic operator `//`.
 
         Equivalent to `Series.floordiv(other)`.
 
@@ -2702,7 +2716,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
     def __rfloordiv__(self, other):
         """
-        Get integer divison of other by Series, using arithmatic operator `//`.
+        Get integer division of other by Series, using arithmetic operator `//`.
 
         Equivalent to `Series.rfloordiv(other)`.
 
@@ -2711,7 +2725,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to divide by the Series.
 
         Returns:
-            Series: The result of the integer divison.
+            Series: The result of the integer division.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
