@@ -7,13 +7,13 @@ from functools import partial
 from typing import Any, ClassVar, TYPE_CHECKING
 
 from bigframes_vendored.ibis import util
+from bigframes_vendored.ibis.backends import BaseBackend
+from bigframes_vendored.ibis.backends.sql.compilers.base import STAR
 import bigframes_vendored.ibis.common.exceptions as exc
 import bigframes_vendored.ibis.expr.operations as ops
 import bigframes_vendored.ibis.expr.schema as sch
+import bigframes_vendored.ibis.expr.types as ir
 import ibis
-from ibis.backends import BaseBackend
-from ibis.backends.sql.compilers.base import STAR
-import ibis.expr.types as ir
 import sqlglot as sg
 import sqlglot.expressions as sge
 

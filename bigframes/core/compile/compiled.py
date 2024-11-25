@@ -25,9 +25,9 @@ import bigframes_vendored.ibis.common.deferred  # type: ignore
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations as ibis_ops
 import bigframes_vendored.ibis.expr.schema as ibis_schema
+import bigframes_vendored.ibis.expr.types as ibis_types
 import google.cloud.bigquery
 import ibis
-import ibis.expr.types as ibis_types
 import pandas
 
 import bigframes.core.compile.aggregate_compiler as agg_compiler

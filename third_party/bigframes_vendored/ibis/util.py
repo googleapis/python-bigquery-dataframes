@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from numbers import Real
     from pathlib import Path
 
-    import ibis.expr.types as ir
+    import bigframes_vendored.ibis.expr.types as ir
 
 T = TypeVar("T", covariant=True)
 U = TypeVar("U", covariant=True)

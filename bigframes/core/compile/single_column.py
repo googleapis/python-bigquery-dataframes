@@ -19,8 +19,8 @@ from __future__ import annotations
 from typing import Literal, Tuple
 
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
+import bigframes_vendored.ibis.expr.types as ibis_types
 import ibis
-import ibis.expr.types as ibis_types
 
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.guid as guids

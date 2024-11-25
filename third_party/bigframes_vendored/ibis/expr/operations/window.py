@@ -10,6 +10,7 @@ from typing import Optional
 import bigframes_vendored.ibis.common.exceptions as com
 from bigframes_vendored.ibis.common.patterns import CoercionError
 from bigframes_vendored.ibis.common.typing import VarTuple  # noqa: TCH001
+import bigframes_vendored.ibis.expr.datashape as ds
 import bigframes_vendored.ibis.expr.datatypes as dt
 from bigframes_vendored.ibis.expr.operations.analytic import Analytic  # noqa: TCH001
 from bigframes_vendored.ibis.expr.operations.core import Column, Value
@@ -18,7 +19,6 @@ from bigframes_vendored.ibis.expr.operations.numeric import Negate
 from bigframes_vendored.ibis.expr.operations.reductions import Reduction  # noqa: TCH001
 from bigframes_vendored.ibis.expr.operations.sortkeys import SortKey  # noqa: TCH001
 import bigframes_vendored.ibis.expr.rules as rlz
-import ibis.expr.datashape as ds
 from public import public
 from typing_extensions import TypeVar
 

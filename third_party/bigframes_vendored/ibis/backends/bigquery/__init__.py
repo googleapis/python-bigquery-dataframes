@@ -29,12 +29,12 @@ from bigframes_vendored.ibis.backends.sql.datatypes import BigQueryType
 import bigframes_vendored.ibis.common.exceptions as com
 import bigframes_vendored.ibis.expr.operations as ops
 import bigframes_vendored.ibis.expr.schema as sch
+import bigframes_vendored.ibis.expr.types as ir
 import google.api_core.exceptions
 import google.auth.credentials
 import google.cloud.bigquery as bq
 import google.cloud.bigquery_storage_v1 as bqstorage
 import ibis
-import ibis.expr.types as ir
 import pydata_google_auth
 from pydata_google_auth import cache
 import sqlglot as sg

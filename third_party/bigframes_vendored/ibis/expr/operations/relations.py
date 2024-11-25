@@ -23,6 +23,7 @@ from bigframes_vendored.ibis.common.exceptions import (
 from bigframes_vendored.ibis.common.grounds import Concrete
 from bigframes_vendored.ibis.common.patterns import Between, InstanceOf
 from bigframes_vendored.ibis.common.typing import Coercible, VarTuple
+import bigframes_vendored.ibis.expr.datashape as ds
 import bigframes_vendored.ibis.expr.datatypes as dt
 from bigframes_vendored.ibis.expr.operations.core import (
     Alias,
@@ -34,7 +35,6 @@ from bigframes_vendored.ibis.expr.operations.core import (
 from bigframes_vendored.ibis.expr.operations.sortkeys import SortKey
 from bigframes_vendored.ibis.expr.schema import Schema
 from bigframes_vendored.ibis.formats import TableProxy  # noqa: TCH001
-import ibis.expr.datashape as ds
 from public import public
 
 T = TypeVar("T")
@@ -49,7 +49,7 @@ class Relation(Node, Coercible):
 
     @classmethod
     def __coerce__(cls, value):
-        from ibis.expr.types import Table
+        from bigframes_vendored.ibis.expr.types import Table
 
         if isinstance(value, Relation):
             return value
@@ -87,7 +87,7 @@ class Relation(Node, Coercible):
         return FrozenOrderedDict({k: Field(self, k) for k in self.schema})
 
     def to_expr(self):
-        from ibis.expr.types import Table
+        from bigframes_vendored.ibis.expr.types import Table
 
         return Table(self)
 
@@ -258,7 +258,7 @@ class JoinChain(Relation):
         return Schema({k: v.dtype.copy(nullable=True) for k, v in self.values.items()})
 
     def to_expr(self):
-        import ibis.expr.types as ir
+        import bigframes_vendored.ibis.expr.types as ir
 
         return ir.Join(self)
 

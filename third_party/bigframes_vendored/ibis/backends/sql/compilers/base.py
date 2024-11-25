@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 
     from bigframes_vendored.ibis.backends.bigquery.datatypes import SqlglotType
     import bigframes_vendored.ibis.expr.schema as sch
-    import ibis.expr.types as ir
+    import bigframes_vendored.ibis.expr.types as ir
 
 
 def get_leaf_classes(op):

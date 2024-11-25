@@ -17,8 +17,8 @@ from bigframes_vendored.ibis.common.caching import RefCountedCache
 import bigframes_vendored.ibis.common.exceptions as exc
 import bigframes_vendored.ibis.config
 import bigframes_vendored.ibis.expr.operations as ops
+import bigframes_vendored.ibis.expr.types as ir
 import ibis
-import ibis.expr.types as ir
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, MutableMapping

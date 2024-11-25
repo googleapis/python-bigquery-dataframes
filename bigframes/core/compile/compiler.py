@@ -19,9 +19,9 @@ import io
 import typing
 
 import bigframes_vendored.ibis.backends.bigquery
+import bigframes_vendored.ibis.expr.types as ibis_types
 import google.cloud.bigquery
 import ibis
-import ibis.expr.types as ibis_types
 import pandas as pd
 
 import bigframes.core.compile.compiled as compiled

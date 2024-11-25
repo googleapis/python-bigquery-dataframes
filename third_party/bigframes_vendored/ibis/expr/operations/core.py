@@ -10,10 +10,10 @@ from bigframes_vendored.ibis.common.graph import Node as Traversable
 from bigframes_vendored.ibis.common.grounds import Concrete
 from bigframes_vendored.ibis.common.patterns import Coercible, CoercionError
 from bigframes_vendored.ibis.common.typing import DefaultTypeVars
+import bigframes_vendored.ibis.expr.datashape as ds
 import bigframes_vendored.ibis.expr.datatypes as dt
 import bigframes_vendored.ibis.expr.rules as rlz
 from bigframes_vendored.ibis.util import is_iterable
-import ibis.expr.datashape as ds
 from public import public
 from typing_extensions import Any, Self, TypeVar
 
@@ -48,8 +48,8 @@ class Value(Node, Coercible, DefaultTypeVars, Generic[T, S]):
     ) -> Self:
         # note that S=Shape is unused here since the pattern will check the
         # shape of the value expression after executing Value.__coerce__()
-        from ibis.expr.operations.generic import Literal, NULL
-        from ibis.expr.types import Expr
+        from bigframes_vendored.ibis.expr.operations.generic import Literal, NULL
+        from bigframes_vendored.ibis.expr.types import Expr
 
         if isinstance(value, Expr):
             value = value.op()
@@ -127,7 +127,7 @@ class Value(Node, Coercible, DefaultTypeVars, Generic[T, S]):
         return frozenset().union(*children)
 
     def to_expr(self):
-        import ibis.expr.types as ir
+        import bigframes_vendored.ibis.expr.types as ir
 
         if self.shape.is_columnar():
             typename = self.dtype.column

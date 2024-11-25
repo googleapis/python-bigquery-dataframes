@@ -39,7 +39,7 @@ import sqlglot.expressions as sge
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    import ibis.expr.types as ir
+    import bigframes_vendored.ibis.expr.types as ir
 
 
 _NAME_REGEX = re.compile(r'[^!"$()*,./;?@[\\\]^`{}~\n]+')

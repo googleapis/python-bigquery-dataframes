@@ -21,10 +21,10 @@ import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
+import bigframes_vendored.ibis.expr.types as ibis_types
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
 from ibis.expr.datatypes.core import dtype as python_type_to_bigquery_type
-import ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 import pyarrow as pa

@@ -22,8 +22,8 @@ import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import bigframes_vendored.ibis.expr.operations.generic as ibis_generic
 import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
+import bigframes_vendored.ibis.expr.types as ibis_types
 import ibis
-import ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 

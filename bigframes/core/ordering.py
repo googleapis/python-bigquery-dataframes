@@ -21,7 +21,7 @@ import typing
 from typing import Mapping, Optional, Sequence, Set
 
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
-import ibis.expr.types as ibis_types
+import bigframes_vendored.ibis.expr.types as ibis_types
 
 import bigframes.core.expression as expression
 import bigframes.core.identifiers as ids

@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
+import bigframes_vendored.ibis.expr.types as ibis_types
 import geopandas as gpd  # type: ignore
-import ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 import pyarrow as pa  # type: ignore
