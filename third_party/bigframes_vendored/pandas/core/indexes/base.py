@@ -546,7 +546,7 @@ class Index:
         Consider dataset containing cereal calories
 
             >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
-               ...             'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
+            ...                'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
             >>> s
             Corn Flakes              100.0
             Almond Delight           110.0
@@ -584,7 +584,7 @@ class Index:
             >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
-                  ...          'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
+            ...                'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
             >>> s
             Corn Flakes              100.0
             Almond Delight           110.0
