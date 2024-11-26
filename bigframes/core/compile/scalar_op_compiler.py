@@ -42,6 +42,14 @@ _NEG_INF = typing.cast(ibis_types.NumericValue, ibis_types.literal(-np.inf))
 # ln(2**(2**10)) == (2**10)*ln(2) ~= 709.78, so EXP(x) for x>709.78 will overflow.
 _FLOAT64_EXP_BOUND = typing.cast(ibis_types.NumericValue, ibis_types.literal(709.78))
 
+_OBJ_REF_STRUCT_SCHEMA = (
+    ("uri", ibis_dtypes.String),
+    ("version", ibis_dtypes.String),
+    ("authorizer", ibis_dtypes.String),
+    ("details", ibis_dtypes.JSON),
+)
+_OBJ_REF_IBIS_DTYPE = ibis_dtypes.Struct.from_tuples(_OBJ_REF_STRUCT_SCHEMA)
+
 # Datetime constants
 UNIT_TO_US_CONVERSION_FACTORS = {
     "W": 7 * 24 * 60 * 60 * 1000 * 1000,
@@ -958,7 +966,9 @@ def struct_field_op_impl(x: ibis_types.Value, op: ops.StructFieldOp):
     return result.cast(result.type()(nullable=True)).name(name)
 
 
-def numeric_to_datetime(x: ibis_types.Value, unit: str) -> ibis_types.TimestampValue:
+def numeric_to_datetime(
+    x: ibis_types.Value, unit: str, safe: bool = False
+) -> ibis_types.TimestampValue:
     if not isinstance(x, ibis_types.IntegerValue) and not isinstance(
         x, ibis_types.FloatingValue
     ):
@@ -967,7 +977,11 @@ def numeric_to_datetime(x: ibis_types.Value, unit: str) -> ibis_types.TimestampV
     if unit not in UNIT_TO_US_CONVERSION_FACTORS:
         raise ValueError(f"Cannot convert input with unit '{unit}'.")
     x_converted = x * UNIT_TO_US_CONVERSION_FACTORS[unit]
-    x_converted = x_converted.cast(ibis_dtypes.int64)
+    x_converted = (
+        x_converted.try_cast(ibis_dtypes.int64)
+        if safe
+        else x_converted.cast(ibis_dtypes.int64)
+    )
 
     # Note: Due to an issue where casting directly to a timestamp
     # without a timezone does not work, we first cast to UTC. This
@@ -989,8 +1003,11 @@ def astype_op_impl(x: ibis_types.Value, op: ops.AsTypeOp):
 
     # When casting DATETIME column into INT column, we need to convert the column into TIMESTAMP first.
     if to_type == ibis_dtypes.int64 and x.type() == ibis_dtypes.timestamp:
-        x_converted = x.cast(ibis_dtypes.Timestamp(timezone="UTC"))
-        return bigframes.core.compile.ibis_types.cast_ibis_value(x_converted, to_type)
+        utc_time_type = ibis_dtypes.Timestamp(timezone="UTC")
+        x_converted = x.try_cast(utc_time_type) if op.safe else x.cast(utc_time_type)
+        return bigframes.core.compile.ibis_types.cast_ibis_value(
+            x_converted, to_type, safe=op.safe
+        )
 
     if to_type == ibis_dtypes.int64 and x.type() == ibis_dtypes.time:
         # The conversion unit is set to "us" (microseconds) for consistency
@@ -1002,15 +1019,20 @@ def astype_op_impl(x: ibis_types.Value, op: ops.AsTypeOp):
         # with pandas converting int64[pyarrow] to timestamp[us][pyarrow],
         # timestamp[us, tz=UTC][pyarrow], and time64[us][pyarrow].
         unit = "us"
-        x_converted = numeric_to_datetime(x, unit)
+        x_converted = numeric_to_datetime(x, unit, safe=op.safe)
         if to_type == ibis_dtypes.timestamp:
-            return x_converted.cast(ibis_dtypes.Timestamp())
+            return (
+                x_converted.try_cast(ibis_dtypes.Timestamp())
+                if op.safe
+                else x_converted.cast(ibis_dtypes.Timestamp())
+            )
         elif to_type == ibis_dtypes.Timestamp(timezone="UTC"):
             return x_converted
         elif to_type == ibis_dtypes.time:
             return x_converted.time()
 
-    return bigframes.core.compile.ibis_types.cast_ibis_value(x, to_type)
+    # TODO: either inline this function, or push rest of this op into the function
+    return bigframes.core.compile.ibis_types.cast_ibis_value(x, to_type, safe=op.safe)
 
 
 @scalar_op_compiler.register_unary_op(ops.IsInOp, pass_op=True)
@@ -1156,6 +1178,12 @@ def json_extract_string_array_op_impl(
     x: ibis_types.Value, op: ops.JSONExtractStringArray
 ):
     return json_extract_string_array(json_obj=x, json_path=op.json_path)
+
+
+# Blob Ops
+@scalar_op_compiler.register_unary_op(ops.obj_fetch_metadata_op)
+def obj_fetch_metadata_op_impl(x: ibis_types.Value):
+    return obj_fetch_metadata(obj_ref=x)
 
 
 ### Binary Ops
@@ -1829,3 +1857,8 @@ def json_extract_string_array(
 @ibis.udf.scalar.builtin(name="ML.DISTANCE")
 def vector_distance(vector1, vector2, type: str) -> ibis_dtypes.Float64:
     """Computes the distance between two vectors using specified type ("EUCLIDEAN", "MANHATTAN", or "COSINE")"""
+
+
+@ibis.udf.scalar.builtin(name="OBJ.FETCH_METADATA")
+def obj_fetch_metadata(obj_ref: _OBJ_REF_IBIS_DTYPE) -> _OBJ_REF_IBIS_DTYPE:  # type: ignore
+    """Fetch metadata from ObjectRef Struct."""
