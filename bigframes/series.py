@@ -1541,6 +1541,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             other, ops.BinaryRemoteFunctionOp(func=func)
         )
 
+        # if the output is an array, reconstruct it from the json serialized
+        # string form
+        if bigframes.dtypes.is_array_like(func.output_dtype):
+            import bigframes.bigquery as bbq
+
+            result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
+                func.output_dtype.pyarrow_dtype.value_type
+            )
+            result_series = bbq.json_extract_string_array(
+                result_series, value_dtype=result_dtype
+            )
+
         return result_series
 
     @validations.requires_index
