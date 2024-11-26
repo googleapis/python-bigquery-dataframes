@@ -48,7 +48,7 @@ class GeoSeries:
             >>> import shapely
 
             >>> series = bpd.Series(
-            ...     [shapely.Point(1, 1), shapely.Point(2, 2), shapely.Point(3, 3)],
+            ...     [shapely.Point(1, 2), shapely.Point(2, 3), shapely.Point(3, 4)],
             ...     dtype=geopandas.array.GeometryDtype()
             ... )
             >>> series.geo.x
@@ -75,13 +75,13 @@ class GeoSeries:
             >>> import shapely
 
             >>> series = bpd.Series(
-            ...     [shapely.Point(1, 1), shapely.Point(2, 2), shapely.Point(3, 3)],
+            ...     [shapely.Point(1, 2), shapely.Point(2, 3), shapely.Point(3, 4)],
             ...     dtype=geopandas.array.GeometryDtype()
             ... )
             >>> series.geo.y
-            0    1.0
-            1    2.0
-            2    3.0
+            0    2.0
+            1    3.0
+            2    4.0
             dtype: Float64
 
         Returns:

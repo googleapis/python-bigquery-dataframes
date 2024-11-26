@@ -304,6 +304,7 @@ def load_test_data_tables(
         ("hockey_players", "hockey_players.json", "hockey_players.jsonl"),
         ("matrix_2by3", "matrix_2by3.json", "matrix_2by3.jsonl"),
         ("matrix_3by4", "matrix_3by4.json", "matrix_3by4.jsonl"),
+        ("urban_areas", "urban_areas_schema.json", "urban_areas.jsonl"),
     ]:
         test_data_hash = hashlib.md5()
         _hash_digest_file(test_data_hash, DATA_DIR / schema_filename)
@@ -393,6 +394,11 @@ def json_table_id(test_data_tables) -> str:
 @pytest.fixture(scope="session")
 def penguins_table_id(test_data_tables) -> str:
     return test_data_tables["penguins"]
+
+
+@pytest.fixture(scope="session")
+def urban_areas_table_id(test_data_tables) -> str:
+    return test_data_tables["urban_areas"]
 
 
 @pytest.fixture(scope="session")
@@ -1331,4 +1337,4 @@ def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent
         # backend flakiness.
         #
         # Let's stop further clean up and leave it to later.
-        traceback.print_exception(exc)
+        traceback.print_exception(type(exc), exc, None)
