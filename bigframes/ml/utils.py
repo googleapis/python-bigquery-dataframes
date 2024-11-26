@@ -65,7 +65,7 @@ def _convert_to_dataframe(
     )
 
 
-def batch_to_series(
+def batch_convert_to_series(
     *input: ArrayType, session: Optional[Session] = None
 ) -> Generator[bpd.Series, None, None]:
     """Converts the input to BigFrames Series.
