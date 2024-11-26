@@ -326,6 +326,10 @@ ln_op = create_unary_op(name="log", type_signature=op_typing.UNARY_REAL_NUMERIC)
 log10_op = create_unary_op(name="log10", type_signature=op_typing.UNARY_REAL_NUMERIC)
 log1p_op = create_unary_op(name="log1p", type_signature=op_typing.UNARY_REAL_NUMERIC)
 sqrt_op = create_unary_op(name="sqrt", type_signature=op_typing.UNARY_REAL_NUMERIC)
+## Blob Ops
+obj_fetch_metadata_op = create_unary_op(
+    name="obj_fetch_metadata", type_signature=op_typing.BLOB_TRANSFORM
+)
 
 
 # Parameterized unary ops
@@ -494,6 +498,7 @@ class AsTypeOp(UnaryOp):
     name: typing.ClassVar[str] = "astype"
     # TODO: Convert strings to dtype earlier
     to_type: dtypes.DtypeString | dtypes.Dtype
+    safe: bool = False
 
     def output_type(self, *input_types):
         # TODO: We should do this conversion earlier
