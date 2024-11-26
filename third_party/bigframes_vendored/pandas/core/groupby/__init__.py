@@ -49,7 +49,8 @@ class GroupBy:
             [2 rows x 2 columns]
 
         Returns:
-            Series or DataFrame: DataFrame or Series of boolean values,
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                DataFrame or Series of boolean values,
                 where a value is True if any element is True within its
                 respective group; otherwise False.
         """
@@ -87,7 +88,8 @@ class GroupBy:
             [2 rows x 2 columns]
 
         Returns:
-            Series or DataFrame: DataFrame or Series of boolean values,
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                DataFrame or Series of boolean values,
                 where a value is True if all elements are True within its
                 respective group; otherwise False.
         """
@@ -126,7 +128,8 @@ class GroupBy:
             [2 rows x 2 columns]
 
         Returns:
-            Series or DataFrame: Count of values within each group.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Count of values within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -181,7 +184,8 @@ class GroupBy:
                 Include only float, int, boolean columns.
 
         Returns:
-            pandas.Series or pandas.DataFrame: Mean of groups.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Mean of groups.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -228,7 +232,8 @@ class GroupBy:
                 Calculate the exact median instead of an approximation.
 
         Returns:
-            pandas.Series or pandas.DataFrame: Median of groups.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Median of groups.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -259,7 +264,8 @@ class GroupBy:
                 Include only `float`, `int` or `boolean` data.
 
         Returns:
-            Series or DataFrame: Return type determined by caller of GroupBy object.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Return type determined by caller of GroupBy object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -305,7 +311,8 @@ class GroupBy:
                 Include only `float`, `int` or `boolean` data.
 
         Returns:
-            Series or DataFrame: Standard deviation of values within each group.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Standard deviation of values within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -351,7 +358,7 @@ class GroupBy:
                 Include only `float`, `int` or `boolean` data.
 
         Returns:
-            Series or DataFrame
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
                 Variance of values within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -388,7 +395,7 @@ class GroupBy:
                 Include only `float`, `int` or `boolean` data.
 
         Returns:
-            Series or DataFrame
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
                 Variance of values within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -421,7 +428,7 @@ class GroupBy:
                 Include only `float`, `int` or `boolean` data.
 
         Returns:
-            Series or DataFrame
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
                 Variance of values within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -454,7 +461,7 @@ class GroupBy:
                 Include only `float`, `int` or `boolean` data.
 
         Returns:
-            Series or DataFrame
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
                 Variance of values within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -502,7 +509,8 @@ class GroupBy:
                 than ``min_count`` and non-NA values are present, the result will be NA.
 
         Returns:
-            Series or DataFrame: Computed sum of values within each group.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Computed sum of values within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -534,7 +542,8 @@ class GroupBy:
                 than ``min_count`` and non-NA values are present, the result will be NA.
 
         Returns:
-            Series or DataFrame: Computed prod of values within each group.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Computed prod of values within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -582,7 +591,8 @@ class GroupBy:
                 than ``min_count`` and non-NA values are present, the result will be NA.
 
         Returns:
-            Series or DataFrame: Computed min of values within each group.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Computed min of values within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -629,7 +639,8 @@ class GroupBy:
                 than ``min_count`` and non-NA values are present, the result will be NA.
 
         Returns:
-            Series or DataFrame: Computed max of values within each group.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Computed max of values within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -667,7 +678,8 @@ class GroupBy:
                 If False, number in reverse, from length of group - 1 to 0.
 
         Returns:
-            Series: Sequence number of each element within each group.
+            bigframes.pandas.Series:
+                Sequence number of each element within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -705,7 +717,8 @@ class GroupBy:
             [3 rows x 2 columns]
 
         Returns:
-            Series or DataFrame: Cumulative product for each group.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Cumulative product for each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -743,7 +756,8 @@ class GroupBy:
             [3 rows x 2 columns]
 
         Returns:
-            Series or DataFrame: Cumulative sum for each group.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Cumulative sum for each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -781,7 +795,8 @@ class GroupBy:
             [3 rows x 2 columns]
 
         Returns:
-            Series or DataFrame: Cumulative min for each group.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Cumulative min for each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -819,7 +834,8 @@ class GroupBy:
             [3 rows x 2 columns]
 
         Returns:
-            Series or DataFrame: Cumulative max for each group.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Cumulative max for each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -866,7 +882,8 @@ class GroupBy:
             [7 rows x 2 columns]
 
         Returns:
-            Series or DataFrame: First differences.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                First differences.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -910,7 +927,8 @@ class GroupBy:
                 Number of periods to shift.
 
         Returns:
-            Series or DataFrame: Object shifted within each group.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Object shifted within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -947,7 +965,8 @@ class GroupBy:
                 to the size of the window.
 
         Returns:
-            Series or DataFrame: Return a new grouper with our rolling appended.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Return a new grouper with our rolling appended.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -973,7 +992,85 @@ class GroupBy:
             dtype: Int64
 
         Returns:
-            Series or DataFrame: An expanding grouper, providing expanding functionality per group.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                An expanding grouper, providing expanding functionality per group.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def head(self, n: int = 5):
+        """
+        Return last first n rows of each group
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame([[1, 2], [1, 4], [5, 6]],
+            ...                   columns=['A', 'B'])
+            >>> df.groupby('A').head(1)
+               A  B
+            0  1  2
+            2  5  6
+            [2 rows x 2 columns]
+
+        Args:
+            n (int):
+                If positive: number of entries to include from start of each group.
+                If negative: number of entries to exclude from end of each group.
+
+        Returns:
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                First n rows of the original DataFrame or Series
+
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def size(self):
+        """
+        Compute group sizes.
+
+        **Examples:**
+
+        For SeriesGroupBy:
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> lst = ['a', 'a', 'b']
+            >>> ser = bpd.Series([1, 2, 3], index=lst)
+            >>> ser
+            a     1
+            a     2
+            b     3
+            dtype: Int64
+            >>> ser.groupby(level=0).size()
+            a    2
+            b    1
+            dtype: Int64
+
+        For DataFrameGroupBy:
+
+            >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+            >>> df = bpd.DataFrame(data, columns=["a", "b", "c"],
+            ...                   index=["owl", "toucan", "eagle"])
+            >>> df
+                    a  b  c
+            owl     1  2  3
+            toucan  1  5  6
+            eagle   7  8  9
+            [3 rows x 3 columns]
+            >>> df.groupby("a").size()
+            a
+            1    2
+            7    1
+            dtype: Int64
+
+        Returns:
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Number of rows in each group as a Series if as_index is True
+                or a DataFrame if as_index is False.
+
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1007,7 +1104,8 @@ class SeriesGroupBy(GroupBy):
                 - list of function names, e.g. ``['sum', 'mean']``
 
         Returns:
-            Series or DataFrame
+            bigframes.pandas.Series:
+              A BigQuery Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1039,7 +1137,8 @@ class SeriesGroupBy(GroupBy):
                 - list of function names, e.g. ``['sum', 'mean']``
 
         Returns:
-            Series or DataFrame
+            bigframes.pandas.Series:
+                A BigQuery Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1061,7 +1160,8 @@ class SeriesGroupBy(GroupBy):
             dtype: Int64
 
         Returns:
-            Series: Number of unique values within each group.
+            bigframes.pandas.Series:
+                Number of unique values within each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1122,7 +1222,8 @@ class DataFrameGroupBy(GroupBy):
                 aggregations via Named Aggregation. See ``func`` entry.
 
         Returns:
-            DataFrame
+            bigframes.pandas.DataFrame:
+                A BigQuery DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1181,7 +1282,8 @@ class DataFrameGroupBy(GroupBy):
                 aggregations via Named Aggregation. See ``func`` entry.
 
         Returns:
-            DataFrame
+            bigframes.pandas.DataFrame:
+                A BigQuery DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1209,6 +1311,7 @@ class DataFrameGroupBy(GroupBy):
             [3 rows x 2 columns]
 
         Returns:
-            DataFrame
+            bigframes.pandas.DataFrame:
+                Number of unique values within a BigQuery DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

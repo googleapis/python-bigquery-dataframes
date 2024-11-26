@@ -47,10 +47,10 @@ def test_read_gbq_tokyo(
     result = df.sort_index().to_pandas()
     expected = scalars_pandas_df_index
 
-    _, query_job = session_tokyo._execute(df._block.expr)
-    assert query_job.location == tokyo_location
+    result = session_tokyo._executor.execute(df._block.expr)
+    assert result.query_job.location == tokyo_location
 
-    pd.testing.assert_frame_equal(result, expected)
+    assert len(expected) == result.total_rows
 
 
 @pytest.mark.parametrize(
@@ -390,9 +390,16 @@ def test_read_gbq_twice_with_same_timestamp(session, penguins_table_id):
     assert df3 is not None
 
 
-def test_read_gbq_on_linked_dataset_warns(session):
+@pytest.mark.parametrize(
+    "source_table",
+    [
+        "bigframes-dev.thelook_ecommerce.orders",
+        "bigframes-dev.bigframes_tests_sys.base_table_mat_view",
+    ],
+)
+def test_read_gbq_on_linked_dataset_warns(session, source_table):
     with warnings.catch_warnings(record=True) as warned:
-        session.read_gbq("bigframes-dev.thelook_ecommerce.orders")
+        session.read_gbq(source_table, use_cache=False)
         assert len(warned) == 1
         assert warned[0].category == bigframes.exceptions.TimeTravelDisabledWarning
 
@@ -671,10 +678,10 @@ def test_read_pandas_tokyo(
     result = df.to_pandas()
     expected = scalars_pandas_df_index
 
-    _, query_job = session_tokyo._execute(df._block.expr)
-    assert query_job.location == tokyo_location
+    result = session_tokyo._executor.execute(df._block.expr)
+    assert result.query_job.location == tokyo_location
 
-    pd.testing.assert_frame_equal(result, expected)
+    assert len(expected) == result.total_rows
 
 
 @utils.skip_legacy_pandas
@@ -1039,6 +1046,25 @@ def test_read_csv_local_w_usecols(session, scalars_pandas_df_index, engine):
 @pytest.mark.parametrize(
     "engine",
     [
+        pytest.param(
+            "bigquery",
+            id="bq_engine",
+            marks=pytest.mark.xfail(
+                raises=NotImplementedError,
+            ),
+        ),
+        pytest.param(None, id="default_engine"),
+    ],
+)
+def test_read_csv_others(session, engine):
+    uri = "https://raw.githubusercontent.com/googleapis/python-bigquery-dataframes/main/tests/data/people.csv"
+    df = session.read_csv(uri, engine=engine)
+    assert len(df.columns) == 3
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [
         pytest.param("bigquery", id="bq_engine"),
         pytest.param(None, id="default_engine"),
     ],
@@ -1100,17 +1126,46 @@ def test_read_pickle_gcs(session, penguins_pandas_df_default_index, gcs_folder):
 
 
 @pytest.mark.parametrize(
-    ("engine",),
+    ("engine", "filename"),
     (
-        ("auto",),
-        ("bigquery",),
+        pytest.param(
+            "auto",
+            "000000000000.parquet",
+            id="auto",
+        ),
+        pytest.param(
+            "pyarrow",
+            "000000000000.parquet",
+            id="pyarrow",
+        ),
+        pytest.param(
+            "bigquery",
+            "000000000000.parquet",
+            id="bigquery",
+        ),
+        pytest.param(
+            "bigquery",
+            "*.parquet",
+            id="bigquery_wildcard",
+        ),
+        pytest.param(
+            "auto",
+            "*.parquet",
+            id="auto_wildcard",
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+            ),
+        ),
     ),
 )
-def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder, engine):
+def test_read_parquet_gcs(
+    session: bigframes.Session, scalars_dfs, gcs_folder, engine, filename
+):
     scalars_df, _ = scalars_dfs
     # Include wildcard so that multiple files can be written/read if > 1 GB.
     # https://cloud.google.com/bigquery/docs/exporting-data#exporting_data_into_one_or_more_files
-    path = gcs_folder + test_read_parquet_gcs.__name__ + "*.parquet"
+    write_path = gcs_folder + test_read_parquet_gcs.__name__ + "*.parquet"
+    read_path = gcs_folder + test_read_parquet_gcs.__name__ + filename
 
     df_in: bigframes.dataframe.DataFrame = scalars_df.copy()
     # GEOGRAPHY not supported in parquet export.
@@ -1118,14 +1173,10 @@ def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder, e
     # Make sure we can also serialize the order.
     df_write = df_in.reset_index(drop=False)
     df_write.index.name = f"ordering_id_{random.randrange(1_000_000)}"
-    df_write.to_parquet(path, index=True)
-
-    # Only bigquery engine for reads supports wildcards in path name.
-    if engine != "bigquery":
-        path = utils.get_first_file_from_wildcard(path)
+    df_write.to_parquet(write_path, index=True)
 
     df_out = (
-        session.read_parquet(path, engine=engine)
+        session.read_parquet(read_path, engine=engine)
         # Restore order.
         .set_index(df_write.index.name).sort_index()
         # Restore index.

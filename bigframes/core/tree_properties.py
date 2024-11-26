@@ -32,12 +32,45 @@ def local_only(node: nodes.BigFrameNode) -> bool:
     return all(isinstance(node, nodes.ReadLocalNode) for node in node.roots)
 
 
-def peekable(node: nodes.BigFrameNode) -> bool:
+def can_fast_peek(node: nodes.BigFrameNode) -> bool:
     if local_only(node):
         return True
-    children_peekable = all(peekable(child) for child in node.child_nodes)
+    children_peekable = all(can_fast_peek(child) for child in node.child_nodes)
     self_peekable = not node.non_local
     return children_peekable and self_peekable
+
+
+def can_fast_head(node: nodes.BigFrameNode) -> bool:
+    """Can get head fast if can push head operator down to leafs and operators preserve rows."""
+    # To do fast head operation:
+    # (1) the underlying data must be arranged/indexed according to the logical ordering
+    # (2) transformations must support pushing down LIMIT or a filter on row numbers
+    return has_fast_offset_address(node) or has_fast_offset_address(node)
+
+
+def has_fast_orderby_limit(node: nodes.BigFrameNode) -> bool:
+    """True iff ORDER BY LIMIT can be performed without a large full table scan."""
+    # TODO: In theory compatible with some Slice nodes, potentially by adding OFFSET
+    if isinstance(node, nodes.LeafNode):
+        return node.fast_ordered_limit
+    if isinstance(node, (nodes.ProjectionNode, nodes.SelectionNode)):
+        return has_fast_orderby_limit(node.child)
+    return False
+
+
+def has_fast_offset_address(node: nodes.BigFrameNode) -> bool:
+    """True iff specific offsets can be scanned without a large full table scan."""
+    # TODO: In theory can push offset lookups through slice operators by translating indices
+    if isinstance(node, nodes.LeafNode):
+        return node.fast_offsets
+    if isinstance(node, (nodes.ProjectionNode, nodes.SelectionNode)):
+        return has_fast_offset_address(node.child)
+    return False
+
+
+def row_count(node: nodes.BigFrameNode) -> Optional[int]:
+    """Determine row count from local metadata, return None if unknown."""
+    return node.row_count
 
 
 # Replace modified_cost(node) = cost(apply_cache(node))
@@ -82,6 +115,9 @@ def select_cache_target(
         return empty_counts
 
     node_counts = _node_counts_inner(root)
+
+    if len(node_counts) == 0:
+        raise ValueError("node counts should be non-zero")
 
     return max(
         node_counts.keys(),

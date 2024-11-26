@@ -47,12 +47,11 @@ dependencies = [
     "google-cloud-iam >=2.12.1",
     "google-cloud-resource-manager >=1.10.3",
     "google-cloud-storage >=2.0.0",
-    "ibis-framework[bigquery] >=8.0.0,<9.0.0dev",
+    "ibis-framework[bigquery] >=9.0.0,<=9.2.0",
     "jellyfish >=0.8.9",
     "numpy >=1.24.0",
-    # TODO: Relax upper bound once we have fixed `system_prerelease` tests.
-    "pandas >=1.5.0",
-    "pyarrow >=8.0.0",
+    "pandas >=1.5.3",
+    "pyarrow >=10.0.1",
     "pydata-google-auth >=1.8.2",
     "requests >=2.27.1",
     "scikit-learn >=1.2.2",
@@ -60,7 +59,7 @@ dependencies = [
     # Keep sqlglot versions in sync with ibis-framework. This avoids problems
     # where the incorrect version of sqlglot is installed, such as
     # https://github.com/googleapis/python-bigquery-dataframes/issues/315
-    "sqlglot >=20.8.0,<=20.11",
+    "sqlglot >=23.6.3,<25.2",
     "tabulate >= 0.9",
     "ipywidgets >=7.7.1",
     "humanize >= 4.6.0",
@@ -71,6 +70,8 @@ extras = {
     "tests": [
         "pandas-gbq >=0.19.0",
     ],
+    # used for local engine, which is only needed for unit tests at present.
+    "polars": ["polars >= 1.7.0"],
     # Packages required for basic development flow.
     "dev": ["pytest", "pytest-mock", "pre-commit", "nox", "google-cloud-testutils"],
 }

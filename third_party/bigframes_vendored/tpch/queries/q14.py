@@ -5,13 +5,13 @@ from datetime import date
 import bigframes
 
 
-def q(dataset_id: str, session: bigframes.Session):
+def q(project_id: str, dataset_id: str, session: bigframes.Session):
     lineitem = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.LINEITEM",
+        f"{project_id}.{dataset_id}.LINEITEM",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     part = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.PART",
+        f"{project_id}.{dataset_id}.PART",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
 
@@ -26,9 +26,20 @@ def q(dataset_id: str, session: bigframes.Session):
         filtered["L_EXTENDEDPRICE"] * (1 - filtered["L_DISCOUNT"])
     ) * filtered["P_TYPE"].str.contains("PROMO").astype("Int64")
 
-    total_revenue = (filtered["L_EXTENDEDPRICE"] * (1 - filtered["L_DISCOUNT"])).sum()
-    promo_revenue = filtered["CONDI_REVENUE"].sum()
+    total_revenue = (
+        (filtered["L_EXTENDEDPRICE"] * (1 - filtered["L_DISCOUNT"]))
+        .to_frame(name="TEMP")
+        .sum()
+    )
 
-    promo_revenue_percent = 100.00 * promo_revenue / total_revenue
+    promo_revenue = filtered["CONDI_REVENUE"].to_frame(name="TEMP").sum()
 
-    _ = round(promo_revenue_percent, 2)
+    promo_revenue_percent = (
+        (100.00 * promo_revenue / total_revenue)
+        .sort_index()
+        .reset_index(drop=True)
+        .round(2)
+        .to_frame(name="PROMO_REVENUE")
+    )
+
+    promo_revenue_percent.to_gbq()

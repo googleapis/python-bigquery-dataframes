@@ -13,22 +13,20 @@
 # limitations under the License.
 
 import datetime
-from typing import Dict, List, Optional, Sequence
+from typing import Optional, Sequence
 import unittest.mock as mock
 
 import google.auth.credentials
 import google.cloud.bigquery
-import ibis
-import pandas
-import pyarrow as pa
 import pytest
 
 import bigframes
 import bigframes.clients
-import bigframes.core as core
 import bigframes.core.ordering
 import bigframes.dataframe
 import bigframes.session.clients
+import bigframes.session.executor
+import bigframes.session.metrics
 
 """Utilities for creating test resources."""
 
@@ -69,12 +67,6 @@ def create_bigquery_session(
         type(table).num_rows = mock.PropertyMock(return_value=1000000000)
         bqclient.get_table.return_value = table
 
-    if anonymous_dataset is None:
-        anonymous_dataset = google.cloud.bigquery.DatasetReference(
-            "test-project",
-            "test_dataset",
-        )
-
     def query_mock(query, *args, **kwargs):
         query_job = mock.create_autospec(google.cloud.bigquery.QueryJob)
         type(query_job).destination = mock.PropertyMock(
@@ -91,7 +83,16 @@ def create_bigquery_session(
 
         return query_job
 
+    existing_query_and_wait = bqclient.query_and_wait
+
+    def query_and_wait_mock(query, *args, **kwargs):
+        if query.startswith("SELECT CURRENT_TIMESTAMP()"):
+            return iter([[datetime.datetime.now()]])
+        else:
+            return existing_query_and_wait(query, *args, **kwargs)
+
     bqclient.query = query_mock
+    bqclient.query_and_wait = query_and_wait_mock
 
     clients_provider = mock.create_autospec(bigframes.session.clients.ClientsProvider)
     type(clients_provider).bqclient = mock.PropertyMock(return_value=bqclient)
@@ -116,24 +117,3 @@ def create_dataframe(
     monkeypatch.setattr(bigframes.core.global_session, "_global_session", session)
     bigframes.options.bigquery._session_started = True
     return bigframes.dataframe.DataFrame({"col": []}, session=session)
-
-
-def create_pandas_session(tables: Dict[str, pandas.DataFrame]) -> bigframes.Session:
-    # TODO(tswast): Refactor to make helper available for all tests. Consider
-    # providing a proper "local Session" for use by downstream developers.
-    session = mock.create_autospec(bigframes.Session, instance=True)
-    ibis_client = ibis.pandas.connect(tables)
-    type(session).ibis_client = mock.PropertyMock(return_value=ibis_client)
-    return session
-
-
-def create_arrayvalue(
-    df: pandas.DataFrame, total_ordering_columns: List[str]
-) -> core.ArrayValue:
-    session = create_pandas_session({"test_table": df})
-    return core.ArrayValue.from_pyarrow(
-        arrow_table=pa.Table.from_pandas(df, preserve_index=False),
-        session=session,
-    ).order_by(
-        [bigframes.core.ordering.ascending_over(col) for col in total_ordering_columns]
-    )

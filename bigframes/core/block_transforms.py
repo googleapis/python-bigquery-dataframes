@@ -15,11 +15,12 @@ from __future__ import annotations
 
 import functools
 import typing
-from typing import Sequence
+from typing import Optional, Sequence
 
+import bigframes_vendored.constants as constants
 import pandas as pd
 
-import bigframes.constants as constants
+import bigframes.constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
@@ -117,7 +118,7 @@ def quantile(
     )
     quantile_cols = []
     labels = []
-    if len(columns) * len(qs) > constants.MAX_COLUMNS:
+    if len(columns) * len(qs) > bigframes.constants.MAX_COLUMNS:
         raise NotImplementedError("Too many aggregates requested.")
     for col in columns:
         for q in qs:
@@ -195,8 +196,7 @@ def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
         else:
             output_column_ids.append(column)
 
-    # Force reproject since used `skip_project_unsafe` perviously
-    block = block.select_columns(output_column_ids)._force_reproject()
+    block = block.select_columns(output_column_ids)
     return block.with_column_labels(original_labels)
 
 
@@ -209,7 +209,7 @@ def _interpolate_column(
 ) -> typing.Tuple[blocks.Block, str]:
     if interpolate_method not in ["linear", "nearest", "ffill"]:
         raise ValueError("interpolate method not supported")
-    window_ordering = (ordering.OrderingExpression(ex.free_var(x_values)),)
+    window_ordering = (ordering.OrderingExpression(ex.deref(x_values)),)
     backwards_window = windows.rows(following=0, ordering=window_ordering)
     forwards_window = windows.rows(preceding=0, ordering=window_ordering)
 
@@ -372,7 +372,7 @@ def value_counts(
         block = block.order_by(
             [
                 ordering.OrderingExpression(
-                    ex.free_var(count_id),
+                    ex.deref(count_id),
                     direction=ordering.OrderingDirection.ASC
                     if ascending
                     else ordering.OrderingDirection.DESC,
@@ -386,10 +386,9 @@ def value_counts(
 
 def pct_change(block: blocks.Block, periods: int = 1) -> blocks.Block:
     column_labels = block.column_labels
-    window_spec = windows.rows(
-        preceding=periods if periods > 0 else None,
-        following=-periods if periods < 0 else None,
-    )
+
+    # Window framing clause is not allowed for analytic function lag.
+    window_spec = windows.unbound()
 
     original_columns = block.value_columns
     block, shift_columns = block.multi_apply_window_op(
@@ -430,7 +429,7 @@ def rank(
         nullity_col_ids.append(nullity_col_id)
         window_ordering = (
             ordering.OrderingExpression(
-                ex.free_var(col),
+                ex.deref(col),
                 ordering.OrderingDirection.ASC
                 if ascending
                 else ordering.OrderingDirection.DESC,
@@ -488,11 +487,19 @@ def dropna(
     block: blocks.Block,
     column_ids: typing.Sequence[str],
     how: typing.Literal["all", "any"] = "any",
+    subset: Optional[typing.Sequence[str]] = None,
 ):
     """
     Drop na entries from block
     """
-    predicates = [ops.notnull_op.as_expr(column_id) for column_id in column_ids]
+    if subset is None:
+        subset = column_ids
+
+    predicates = [
+        ops.notnull_op.as_expr(column_id)
+        for column_id in column_ids
+        if column_id in subset
+    ]
     if len(predicates) == 0:
         return block
     if how == "any":
@@ -514,7 +521,7 @@ def nsmallest(
         block = block.reversed()
     order_refs = [
         ordering.OrderingExpression(
-            ex.free_var(col_id), direction=ordering.OrderingDirection.ASC
+            ex.deref(col_id), direction=ordering.OrderingDirection.ASC
         )
         for col_id in column_ids
     ]
@@ -544,7 +551,7 @@ def nlargest(
         block = block.reversed()
     order_refs = [
         ordering.OrderingExpression(
-            ex.free_var(col_id), direction=ordering.OrderingDirection.DESC
+            ex.deref(col_id), direction=ordering.OrderingDirection.DESC
         )
         for col_id in column_ids
     ]
@@ -841,9 +848,9 @@ def _idx_extrema(
         )
         # Have to find the min for each
         order_refs = [
-            ordering.OrderingExpression(ex.free_var(value_col), direction),
+            ordering.OrderingExpression(ex.deref(value_col), direction),
             *[
-                ordering.OrderingExpression(ex.free_var(idx_col))
+                ordering.OrderingExpression(ex.deref(idx_col))
                 for idx_col in original_block.index_columns
             ],
         ]

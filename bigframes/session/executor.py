@@ -14,21 +14,40 @@
 
 from __future__ import annotations
 
+import abc
+import dataclasses
 import math
-from typing import cast, Iterable, Literal, Mapping, Optional, Sequence, Tuple, Union
+import os
+from typing import (
+    Callable,
+    cast,
+    Iterator,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 import warnings
 import weakref
 
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import google.cloud.bigquery.job as bq_job
+import google.cloud.bigquery.table as bq_table
+import google.cloud.bigquery_storage_v1
+import pyarrow
 
 import bigframes.core
 import bigframes.core.compile
 import bigframes.core.guid
+import bigframes.core.identifiers
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
+import bigframes.core.schema
 import bigframes.core.tree_properties as tree_properties
+import bigframes.features
 import bigframes.formatting_helpers as formatting_helpers
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
@@ -39,11 +58,134 @@ import bigframes.session.temp_storage
 QUERY_COMPLEXITY_LIMIT = 1e7
 # Number of times to factor out subqueries before giving up.
 MAX_SUBTREE_FACTORINGS = 5
-
 _MAX_CLUSTER_COLUMNS = 4
+# TODO: b/338258028 Enable pruning to reduce text size.
+ENABLE_PRUNING = False
 
 
-class BigQueryCachingExecutor:
+@dataclasses.dataclass(frozen=True)
+class ExecuteResult:
+    arrow_batches: Callable[[], Iterator[pyarrow.RecordBatch]]
+    schema: bigframes.core.schema.ArraySchema
+    query_job: Optional[bigquery.QueryJob] = None
+    total_bytes: Optional[int] = None
+    total_rows: Optional[int] = None
+
+    def to_arrow_table(self) -> pyarrow.Table:
+        # Need to provide schema if no result rows, as arrow can't infer
+        # If ther are rows, it is safest to infer schema from batches.
+        # Any discrepencies between predicted schema and actual schema will produce errors.
+        return pyarrow.Table.from_batches(
+            self.arrow_batches(),
+            self.schema.to_pyarrow() if not self.total_rows else None,
+        )
+
+
+class Executor(abc.ABC):
+    """
+    Interface for an executor, which compiles and executes ArrayValue objects.
+    """
+
+    def to_sql(
+        self,
+        array_value: bigframes.core.ArrayValue,
+        offset_column: Optional[str] = None,
+        col_id_overrides: Mapping[str, str] = {},
+        ordered: bool = False,
+        enable_cache: bool = True,
+    ) -> str:
+        """
+        Convert an ArrayValue to a sql query that will yield its value.
+        """
+        raise NotImplementedError("to_sql not implemented for this executor")
+
+    def execute(
+        self,
+        array_value: bigframes.core.ArrayValue,
+        *,
+        ordered: bool = True,
+        col_id_overrides: Mapping[str, str] = {},
+        use_explicit_destination: bool = False,
+        get_size_bytes: bool = False,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+    ):
+        """
+        Execute the ArrayValue, storing the result to a temporary session-owned table.
+        """
+        raise NotImplementedError("execute not implemented for this executor")
+
+    def export_gbq(
+        self,
+        array_value: bigframes.core.ArrayValue,
+        col_id_overrides: Mapping[str, str],
+        destination: bigquery.TableReference,
+        if_exists: Literal["fail", "replace", "append"] = "fail",
+        cluster_cols: Sequence[str] = [],
+    ) -> bigquery.QueryJob:
+        """
+        Export the ArrayValue to an existing BigQuery table.
+        """
+        raise NotImplementedError("export_gbq not implemented for this executor")
+
+    def export_gcs(
+        self,
+        array_value: bigframes.core.ArrayValue,
+        col_id_overrides: Mapping[str, str],
+        uri: str,
+        format: Literal["json", "csv", "parquet"],
+        export_options: Mapping[str, Union[bool, str]],
+    ) -> bigquery.QueryJob:
+        """
+        Export the ArrayValue to gcs.
+        """
+        raise NotImplementedError("export_gcs not implemented for this executor")
+
+    def dry_run(
+        self, array_value: bigframes.core.ArrayValue, ordered: bool = True
+    ) -> bigquery.QueryJob:
+        """
+        Dry run executing the ArrayValue.
+
+        Does not actually execute the data but will get stats and indicate any invalid query errors.
+        """
+        raise NotImplementedError("dry_run not implemented for this executor")
+
+    def peek(
+        self,
+        array_value: bigframes.core.ArrayValue,
+        n_rows: int,
+    ) -> ExecuteResult:
+        """
+        A 'peek' efficiently accesses a small number of rows in the dataframe.
+        """
+        raise NotImplementedError("peek not implemented for this executor")
+
+    # TODO: Remove this and replace with efficient slice operator that can use execute()
+    def head(
+        self, array_value: bigframes.core.ArrayValue, n_rows: int
+    ) -> ExecuteResult:
+        """
+        Preview the first n rows of the dataframe. This is less efficient than the unordered peek preview op.
+        """
+        raise NotImplementedError("head not implemented for this executor")
+
+    # TODO: This should be done through execute()
+    def get_row_count(self, array_value: bigframes.core.ArrayValue) -> int:
+        raise NotImplementedError("get_row_count not implemented for this executor")
+
+    def cached(
+        self,
+        array_value: bigframes.core.ArrayValue,
+        *,
+        force: bool = False,
+        use_session: bool = False,
+        cluster_cols: Sequence[str] = (),
+    ) -> None:
+        raise NotImplementedError("cached not implemented for this executor")
+
+
+class BigQueryCachingExecutor(Executor):
     """Computes BigFrames values using BigQuery Engine.
 
     This executor can cache expressions. If those expressions are executed later, this session
@@ -56,6 +198,8 @@ class BigQueryCachingExecutor:
         self,
         bqclient: bigquery.Client,
         storage_manager: bigframes.session.temp_storage.TemporaryGbqStorageManager,
+        bqstoragereadclient: google.cloud.bigquery_storage_v1.BigQueryReadClient,
+        *,
         strictly_ordered: bool = True,
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
     ):
@@ -69,6 +213,7 @@ class BigQueryCachingExecutor:
             nodes.BigFrameNode, nodes.BigFrameNode
         ] = weakref.WeakKeyDictionary()
         self.metrics = metrics
+        self.bqstoragereadclient = bqstoragereadclient
 
     def to_sql(
         self,
@@ -78,13 +223,12 @@ class BigQueryCachingExecutor:
         ordered: bool = False,
         enable_cache: bool = True,
     ) -> str:
-        """
-        Convert an ArrayValue to a sql query that will yield its value.
-        """
         if offset_column:
-            array_value = array_value.promote_offsets(offset_column)
+            array_value, internal_offset_col = array_value.promote_offsets()
+            col_id_overrides = dict(col_id_overrides)
+            col_id_overrides[internal_offset_col] = offset_column
         node = (
-            self._with_cached_executions(array_value.node)
+            self.replace_cached_subtrees(array_value.node)
             if enable_cache
             else array_value.node
         )
@@ -100,22 +244,54 @@ class BigQueryCachingExecutor:
         *,
         ordered: bool = True,
         col_id_overrides: Mapping[str, str] = {},
+        use_explicit_destination: bool = False,
+        get_size_bytes: bool = False,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
     ):
-        """
-        Execute the ArrayValue, storing the result to a temporary session-owned table.
-        """
         if bigframes.options.compute.enable_multi_query_execution:
             self._simplify_with_caching(array_value)
 
         sql = self.to_sql(
             array_value, ordered=ordered, col_id_overrides=col_id_overrides
         )
+        adjusted_schema = array_value.schema.rename(col_id_overrides)
         job_config = bigquery.QueryJobConfig()
+        # Use explicit destination to avoid 10GB limit of temporary table
+        if use_explicit_destination:
+            destination_table = self.storage_manager.create_temp_table(
+                adjusted_schema.to_bigquery(), cluster_cols=[]
+            )
+            job_config.destination = destination_table
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
-        return self._run_execute_query(
+        iterator, query_job = self._run_execute_query(
             sql=sql,
             job_config=job_config,
+            page_size=page_size,
+            max_results=max_results,
+        )
+
+        # Though we provide the read client, iterator may or may not use it based on what is efficient for the result
+        def iterator_supplier():
+            return iterator.to_arrow_iterable(bqstorage_client=self.bqstoragereadclient)
+
+        if get_size_bytes is True:
+            size_bytes = self.bqclient.get_table(query_job.destination).num_bytes
+        else:
+            size_bytes = None
+
+        # Runs strict validations to ensure internal type predictions and ibis are completely in sync
+        # Do not execute these validations outside of testing suite.
+        if "PYTEST_CURRENT_TEST" in os.environ and len(col_id_overrides) == 0:
+            self._validate_result_schema(array_value, iterator.schema)
+
+        return ExecuteResult(
+            arrow_batches=iterator_supplier,
+            schema=adjusted_schema,
+            query_job=query_job,
+            total_bytes=size_bytes,
+            total_rows=iterator.total_rows,
         )
 
     def export_gbq(
@@ -129,6 +305,9 @@ class BigQueryCachingExecutor:
         """
         Export the ArrayValue to an existing BigQuery table.
         """
+        if bigframes.options.compute.enable_multi_query_execution:
+            self._simplify_with_caching(array_value)
+
         dispositions = {
             "fail": bigquery.WriteDisposition.WRITE_EMPTY,
             "replace": bigquery.WriteDisposition.WRITE_TRUNCATE,
@@ -142,10 +321,11 @@ class BigQueryCachingExecutor:
         )
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
-        return self._run_execute_query(
+        _, query_job = self._run_execute_query(
             sql=sql,
             job_config=job_config,
         )
+        return query_job
 
     def export_gcs(
         self,
@@ -155,14 +335,11 @@ class BigQueryCachingExecutor:
         format: Literal["json", "csv", "parquet"],
         export_options: Mapping[str, Union[bool, str]],
     ):
-        """
-        Export the ArrayValue to gcs.
-        """
-        _, query_job = self.execute(
+        query_job = self.execute(
             array_value,
             ordered=False,
             col_id_overrides=col_id_overrides,
-        )
+        ).query_job
         result_table = query_job.destination
         export_data_statement = bq_io.create_export_data_statement(
             f"{result_table.project}.{result_table.dataset_id}.{result_table.table_id}",
@@ -176,34 +353,117 @@ class BigQueryCachingExecutor:
         self._wait_on_job(export_job)
         return query_job
 
-    def dry_run(self, array_value: bigframes.core.ArrayValue, ordered: bool = True):
-        """
-        Dry run executing the ArrayValue.
-
-        Does not actually execute the data but will get stats and indicate any invalid query errors.
-        """
+    def dry_run(
+        self, array_value: bigframes.core.ArrayValue, ordered: bool = True
+    ) -> bigquery.QueryJob:
         sql = self.to_sql(array_value, ordered=ordered)
         job_config = bigquery.QueryJobConfig(dry_run=True)
         bq_io.add_labels(job_config)
         query_job = self.bqclient.query(sql, job_config=job_config)
-        results_iterator = query_job.result()
-        return results_iterator, query_job
+        _ = query_job.result()
+        return query_job
 
     def peek(
-        self, array_value: bigframes.core.ArrayValue, n_rows: int
-    ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
-        """A 'peek' efficiently accesses a small number of rows in the dataframe."""
-        if not tree_properties.peekable(self._with_cached_executions(array_value.node)):
+        self,
+        array_value: bigframes.core.ArrayValue,
+        n_rows: int,
+    ) -> ExecuteResult:
+        """
+        A 'peek' efficiently accesses a small number of rows in the dataframe.
+        """
+        plan = self.replace_cached_subtrees(array_value.node)
+        if not tree_properties.can_fast_peek(plan):
             warnings.warn("Peeking this value cannot be done efficiently.")
-        sql = self.compiler.compile_peek(
-            self._with_cached_executions(array_value.node), n_rows
-        )
+
+        sql = self.compiler.compile_peek(plan, n_rows)
 
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
-        return self._run_execute_query(
-            sql=sql,
+        iterator, query_job = self._run_execute_query(sql=sql)
+        return ExecuteResult(
+            # Probably don't need read client for small peek results, but let client decide
+            arrow_batches=lambda: iterator.to_arrow_iterable(
+                bqstorage_client=self.bqstoragereadclient
+            ),
+            schema=array_value.schema,
+            query_job=query_job,
+            total_rows=iterator.total_rows,
         )
+
+    def head(
+        self, array_value: bigframes.core.ArrayValue, n_rows: int
+    ) -> ExecuteResult:
+        maybe_row_count = self._local_get_row_count(array_value)
+        if (maybe_row_count is not None) and (maybe_row_count <= n_rows):
+            return self.execute(array_value, ordered=True)
+
+        if not self.strictly_ordered and not array_value.node.explicitly_ordered:
+            # No user-provided ordering, so just get any N rows, its faster!
+            return self.peek(array_value, n_rows)
+
+        plan = self.replace_cached_subtrees(array_value.node)
+        if not tree_properties.can_fast_head(plan):
+            # If can't get head fast, we are going to need to execute the whole query
+            # Will want to do this in a way such that the result is reusable, but the first
+            # N values can be easily extracted.
+            # This currently requires clustering on offsets.
+            self._cache_with_offsets(array_value)
+            # Get a new optimized plan after caching
+            plan = self.replace_cached_subtrees(array_value.node)
+            assert tree_properties.can_fast_head(plan)
+
+        head_plan = generate_head_plan(plan, n_rows)
+        sql = self.compiler.compile_ordered(head_plan)
+
+        # TODO(swast): plumb through the api_name of the user-facing api that
+        # caused this query.
+        iterator, query_job = self._run_execute_query(sql=sql)
+        return ExecuteResult(
+            # Probably don't need read client for small head results, but let client decide
+            arrow_batches=lambda: iterator.to_arrow_iterable(
+                bqstorage_client=self.bqstoragereadclient
+            ),
+            schema=array_value.schema,
+            query_job=query_job,
+            total_rows=iterator.total_rows,
+        )
+
+    def get_row_count(self, array_value: bigframes.core.ArrayValue) -> int:
+        count = self._local_get_row_count(array_value)
+        if count is not None:
+            return count
+        else:
+            row_count_plan = self.replace_cached_subtrees(
+                generate_row_count_plan(array_value.node)
+            )
+            sql = self.compiler.compile_unordered(row_count_plan)
+            iter, _ = self._run_execute_query(sql)
+            return next(iter)[0]
+
+    def cached(
+        self,
+        array_value: bigframes.core.ArrayValue,
+        *,
+        force: bool = False,
+        use_session: bool = False,
+        cluster_cols: Sequence[str] = (),
+    ) -> None:
+        """Write the block to a session table."""
+        # use a heuristic for whether something needs to be cached
+        if (not force) and self._is_trivially_executable(array_value):
+            return
+        elif use_session:
+            self._cache_with_session_awareness(array_value)
+        else:
+            self._cache_with_cluster_cols(array_value, cluster_cols=cluster_cols)
+
+    def _local_get_row_count(
+        self, array_value: bigframes.core.ArrayValue
+    ) -> Optional[int]:
+        # optimized plan has cache materializations which will have row count metadata
+        # that is more likely to be usable than original leaf nodes.
+        plan = self.replace_cached_subtrees(array_value.node)
+        return tree_properties.row_count(plan)
 
     # Helpers
     def _run_execute_query(
@@ -211,7 +471,9 @@ class BigQueryCachingExecutor:
         sql: str,
         job_config: Optional[bq_job.QueryJobConfig] = None,
         api_name: Optional[str] = None,
-    ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+    ) -> Tuple[bq_table.RowIterator, bigquery.QueryJob]:
         """
         Starts BigQuery query job and waits for results.
         """
@@ -220,14 +482,20 @@ class BigQueryCachingExecutor:
             job_config.maximum_bytes_billed = (
                 bigframes.options.compute.maximum_bytes_billed
             )
-        # Note: add_labels is global scope which may have unexpected effects
-        bq_io.add_labels(job_config, api_name=api_name)
 
         if not self.strictly_ordered:
             job_config.labels["bigframes-mode"] = "unordered"
+
+        # Note: add_labels is global scope which may have unexpected effects
+        bq_io.add_labels(job_config, api_name=api_name)
         try:
             query_job = self.bqclient.query(sql, job_config=job_config)
-            return self._wait_on_job(query_job), query_job
+            return (
+                self._wait_on_job(
+                    query_job, max_results=max_results, page_size=page_size
+                ),
+                query_job,
+            )
 
         except google.api_core.exceptions.BadRequest as e:
             # Unfortunately, this error type does not have a separate error code or exception type
@@ -237,20 +505,30 @@ class BigQueryCachingExecutor:
             else:
                 raise
 
-    def _wait_on_job(self, query_job: bigquery.QueryJob) -> bigquery.table.RowIterator:
+    def _wait_on_job(
+        self,
+        query_job: bigquery.QueryJob,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+    ) -> bq_table.RowIterator:
         opts = bigframes.options.display
         if opts.progress_bar is not None and not query_job.configuration.dry_run:
             results_iterator = formatting_helpers.wait_for_query_job(
-                query_job, progress_bar=opts.progress_bar
+                query_job,
+                progress_bar=opts.progress_bar,
+                max_results=max_results,
+                page_size=page_size,
             )
         else:
-            results_iterator = query_job.result()
+            results_iterator = query_job.result(
+                max_results=max_results, page_size=page_size
+            )
 
         if self.metrics is not None:
             self.metrics.count_job_stats(query_job)
         return results_iterator
 
-    def _with_cached_executions(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
+    def replace_cached_subtrees(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         return tree_properties.replace_nodes(node, (dict(self._cached_executions)))
 
     def _is_trivially_executable(self, array_value: bigframes.core.ArrayValue):
@@ -261,7 +539,7 @@ class BigQueryCachingExecutor:
         # Once rewriting is available, will want to rewrite before
         # evaluating execution cost.
         return tree_properties.is_trivially_executable(
-            self._with_cached_executions(array_value.node)
+            self.replace_cached_subtrees(array_value.node)
         )
 
     def _cache_with_cluster_cols(
@@ -270,7 +548,7 @@ class BigQueryCachingExecutor:
         """Executes the query and uses the resulting table to rewrite future executions."""
 
         sql, schema, ordering_info = self.compiler.compile_raw(
-            self._with_cached_executions(array_value.node)
+            self.replace_cached_subtrees(array_value.node)
         )
         tmp_table = self._sql_as_cached_temp_table(
             sql,
@@ -285,20 +563,15 @@ class BigQueryCachingExecutor:
 
     def _cache_with_offsets(self, array_value: bigframes.core.ArrayValue):
         """Executes the query and uses the resulting table to rewrite future executions."""
-
-        if not self.strictly_ordered:
-            raise ValueError(
-                "Caching with offsets only supported in strictly ordered mode."
-            )
         offset_column = bigframes.core.guid.generate_guid("bigframes_offsets")
-        node_w_offsets = array_value.promote_offsets(offset_column).node
+        w_offsets, offset_column = array_value.promote_offsets()
         sql = self.compiler.compile_unordered(
-            self._with_cached_executions(node_w_offsets)
+            self.replace_cached_subtrees(w_offsets.node)
         )
 
         tmp_table = self._sql_as_cached_temp_table(
             sql,
-            node_w_offsets.schema.to_bigquery(),
+            w_offsets.schema.to_bigquery(),
             cluster_cols=[offset_column],
         )
         cached_replacement = array_value.as_cached(
@@ -310,15 +583,16 @@ class BigQueryCachingExecutor:
     def _cache_with_session_awareness(
         self,
         array_value: bigframes.core.ArrayValue,
-        session_forest: Iterable[nodes.BigFrameNode],
     ) -> None:
+        session_forest = [obj._block._expr.node for obj in array_value.session.objects]
         # These node types are cheap to re-compute
         target, cluster_cols = bigframes.session.planner.session_aware_cache_plan(
             array_value.node, list(session_forest)
         )
+        cluster_cols_sql_names = [id.sql for id in cluster_cols]
         if len(cluster_cols) > 0:
             self._cache_with_cluster_cols(
-                bigframes.core.ArrayValue(target), cluster_cols
+                bigframes.core.ArrayValue(target), cluster_cols_sql_names
             )
         elif self.strictly_ordered:
             self._cache_with_offsets(bigframes.core.ArrayValue(target))
@@ -329,7 +603,7 @@ class BigQueryCachingExecutor:
         """Attempts to handle the complexity by caching duplicated subtrees and breaking the query into pieces."""
         # Apply existing caching first
         for _ in range(MAX_SUBTREE_FACTORINGS):
-            node_with_cache = self._with_cached_executions(array_value.node)
+            node_with_cache = self.replace_cached_subtrees(array_value.node)
             if node_with_cache.planning_complexity < QUERY_COMPLEXITY_LIMIT:
                 return
 
@@ -375,4 +649,35 @@ class BigQueryCachingExecutor:
             job_config=job_config,
             api_name="cached",
         )
+        query_job.destination
+        query_job.result()
         return query_job.destination
+
+    def _validate_result_schema(
+        self,
+        array_value: bigframes.core.ArrayValue,
+        bq_schema: list[bigquery.schema.SchemaField],
+    ):
+        actual_schema = tuple(bq_schema)
+        ibis_schema = bigframes.core.compile.test_only_ibis_inferred_schema(
+            self.replace_cached_subtrees(array_value.node)
+        )
+        internal_schema = array_value.schema
+        if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
+            return
+        if internal_schema.to_bigquery() != actual_schema:
+            raise ValueError(
+                f"This error should only occur while testing. BigFrames internal schema: {internal_schema.to_bigquery()} does not match actual schema: {actual_schema}"
+            )
+        if ibis_schema.to_bigquery() != actual_schema:
+            raise ValueError(
+                f"This error should only occur while testing. Ibis schema: {ibis_schema.to_bigquery()} does not match actual schema: {actual_schema}"
+            )
+
+
+def generate_head_plan(node: nodes.BigFrameNode, n: int):
+    return nodes.SliceNode(node, start=None, stop=n)
+
+
+def generate_row_count_plan(node: nodes.BigFrameNode):
+    return nodes.RowCountNode(node)

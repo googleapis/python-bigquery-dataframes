@@ -17,6 +17,7 @@ import textwrap
 from typing import Any, cast, Dict, Iterable, Optional, Tuple, Union
 import warnings
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
 import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
 import geopandas as gpd  # type: ignore
@@ -29,7 +30,6 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 
-import bigframes.constants as constants
 import bigframes.dtypes
 
 # Type hints for Ibis data types supported by BigQuery DataFrame
@@ -89,7 +89,7 @@ IBIS_TO_BIGFRAMES.update(
 
 
 def cast_ibis_value(
-    value: ibis_types.Value, to_type: ibis_dtypes.DataType
+    value: ibis_types.Value, to_type: ibis_dtypes.DataType, safe: bool = False
 ) -> ibis_types.Value:
     """Perform compatible type casts of ibis values
 
@@ -144,10 +144,12 @@ def cast_ibis_value(
         ),
         ibis_dtypes.Decimal(precision=38, scale=9): (
             ibis_dtypes.float64,
+            ibis_dtypes.int64,
             ibis_dtypes.Decimal(precision=76, scale=38),
         ),
         ibis_dtypes.Decimal(precision=76, scale=38): (
             ibis_dtypes.float64,
+            ibis_dtypes.int64,
             ibis_dtypes.Decimal(precision=38, scale=9),
         ),
         ibis_dtypes.time: (
@@ -174,7 +176,7 @@ def cast_ibis_value(
     value = ibis_value_to_canonical_type(value)
     if value.type() in good_casts:
         if to_type in good_casts[value.type()]:
-            return value.cast(to_type)
+            return value.try_cast(to_type) if safe else value.cast(to_type)
     else:
         # this should never happen
         raise TypeError(
@@ -186,10 +188,16 @@ def cast_ibis_value(
     # BigQuery casts bools to lower case strings. Capitalize the result to match Pandas
     # TODO(bmil): remove this workaround after fixing Ibis
     if value.type() == ibis_dtypes.bool and to_type == ibis_dtypes.string:
-        return cast(ibis_types.StringValue, value.cast(to_type)).capitalize()
+        if safe:
+            return cast(ibis_types.StringValue, value.try_cast(to_type)).capitalize()
+        else:
+            return cast(ibis_types.StringValue, value.cast(to_type)).capitalize()
 
     if value.type() == ibis_dtypes.bool and to_type == ibis_dtypes.float64:
-        return value.cast(ibis_dtypes.int64).cast(ibis_dtypes.float64)
+        if safe:
+            return value.try_cast(ibis_dtypes.int64).try_cast(ibis_dtypes.float64)
+        else:
+            return value.cast(ibis_dtypes.int64).cast(ibis_dtypes.float64)
 
     if value.type() == ibis_dtypes.float64 and to_type == ibis_dtypes.bool:
         return value != ibis_types.literal(0)
@@ -328,7 +336,11 @@ def _ibis_dtype_to_arrow_dtype(ibis_dtype: ibis_dtypes.DataType) -> pa.DataType:
     if isinstance(ibis_dtype, ibis_dtypes.Struct):
         return pa.struct(
             [
-                (name, _ibis_dtype_to_arrow_dtype(dtype))
+                pa.field(
+                    name,
+                    _ibis_dtype_to_arrow_dtype(dtype),
+                    nullable=not pa.types.is_list(_ibis_dtype_to_arrow_dtype(dtype)),
+                )
                 for name, dtype in ibis_dtype.fields.items()
             ]
         )

@@ -19,76 +19,79 @@ This module should not depend on any others in the package.
 
 import datetime
 
-import bigframes_vendored.constants
-
-FEEDBACK_LINK = bigframes_vendored.constants.FEEDBACK_LINK
-ABSTRACT_METHOD_ERROR_MESSAGE = (
-    bigframes_vendored.constants.ABSTRACT_METHOD_ERROR_MESSAGE
-)
-
 DEFAULT_EXPIRATION = datetime.timedelta(days=7)
 
 # https://cloud.google.com/bigquery/docs/locations
-ALL_BIGQUERY_LOCATIONS = frozenset(
+BIGQUERY_REGIONS = frozenset(
     {
-        # regions
-        "us-east5",
-        "us-south1",
-        "us-central1",
-        "us-west4",
-        "us-west2",
-        "northamerica-northeast1",
-        "us-east4",
-        "us-west1",
-        "us-west3",
-        "southamerica-east1",
-        "southamerica-west1",
-        "us-east1",
-        "northamerica-northeast2",
-        "asia-south2",
+        "africa-south1",
+        "asia-east1",
         "asia-east2",
-        "asia-southeast2",
-        "australia-southeast2",
-        "asia-south1",
+        "asia-northeast1",
         "asia-northeast2",
         "asia-northeast3",
+        "asia-south1",
+        "asia-south2",
         "asia-southeast1",
+        "asia-southeast2",
         "australia-southeast1",
-        "asia-east1",
-        "asia-northeast1",
+        "australia-southeast2",
+        "europe-central2",
+        "europe-north1",
+        "europe-southwest1",
         "europe-west1",
         "europe-west10",
-        "europe-north1",
-        "europe-west3",
-        "europe-west2",
-        "europe-southwest1",
-        "europe-west8",
-        "europe-west4",
-        "europe-west9",
         "europe-west12",
-        "europe-central2",
+        "europe-west2",
+        "europe-west3",
+        "europe-west4",
         "europe-west6",
-        "me-central2",
+        "europe-west8",
+        "europe-west9",
         "me-central1",
-        "me-west1",
         "me-central2",
-        "me-central1",
         "me-west1",
-        "africa-south1",
-        # multi-regions
-        "US",
-        "EU",
+        "northamerica-northeast1",
+        "northamerica-northeast2",
+        "southamerica-east1",
+        "southamerica-west1",
+        "us-central1",
+        "us-east1",
+        "us-east4",
+        "us-east5",
+        "us-south1",
+        "us-west1",
+        "us-west2",
+        "us-west3",
+        "us-west4",
     }
 )
+BIGQUERY_MULTIREGIONS = frozenset(
+    {
+        "EU",
+        "US",
+    }
+)
+ALL_BIGQUERY_LOCATIONS = frozenset(BIGQUERY_REGIONS.union(BIGQUERY_MULTIREGIONS))
 
 # https://cloud.google.com/storage/docs/regional-endpoints
 REP_ENABLED_BIGQUERY_LOCATIONS = frozenset(
     {
-        "me-central2",
-        "europe-west9",
         "europe-west3",
+        "europe-west8",
+        "europe-west9",
+        "me-central2",
+        "us-central1",
+        "us-central2",
+        "us-east1",
         "us-east4",
+        "us-east5",
+        "us-east7",
+        "us-south1",
         "us-west1",
+        "us-west2",
+        "us-west3",
+        "us-west4",
     }
 )
 

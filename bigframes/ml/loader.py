@@ -17,10 +17,10 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Union
 
+import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 
 import bigframes
-import bigframes.constants as constants
 from bigframes.ml import (
     cluster,
     compose,
@@ -63,6 +63,10 @@ _BQML_ENDPOINT_TYPE_MAPPING = MappingProxyType(
         llm._GEMINI_PRO_ENDPOINT: llm.GeminiTextGenerator,
         llm._GEMINI_1P5_PRO_PREVIEW_ENDPOINT: llm.GeminiTextGenerator,
         llm._GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT: llm.GeminiTextGenerator,
+        llm._GEMINI_1P5_PRO_001_ENDPOINT: llm.GeminiTextGenerator,
+        llm._GEMINI_1P5_PRO_002_ENDPOINT: llm.GeminiTextGenerator,
+        llm._GEMINI_1P5_FLASH_001_ENDPOINT: llm.GeminiTextGenerator,
+        llm._GEMINI_1P5_FLASH_002_ENDPOINT: llm.GeminiTextGenerator,
         llm._CLAUDE_3_HAIKU_ENDPOINT: llm.Claude3TextGenerator,
         llm._CLAUDE_3_SONNET_ENDPOINT: llm.Claude3TextGenerator,
         llm._CLAUDE_3_5_SONNET_ENDPOINT: llm.Claude3TextGenerator,

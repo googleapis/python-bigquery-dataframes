@@ -13,37 +13,75 @@
 # limitations under the License.
 
 import typing
-from typing import Any, Iterable, Literal, Mapping, Optional, Union
+from typing import Any, Generator, Literal, Mapping, Optional, Tuple, Union
 
+import bigframes_vendored.constants as constants
 from google.cloud import bigquery
+import pandas as pd
 
-import bigframes.constants as constants
-from bigframes.core import blocks
+from bigframes.core import blocks, guid
 import bigframes.pandas as bpd
+from bigframes.session import Session
 
 # Internal type alias
-ArrayType = Union[bpd.DataFrame, bpd.Series]
+ArrayType = Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
+BigFramesArrayType = Union[bpd.DataFrame, bpd.Series]
 
 
-def convert_to_dataframe(*input: ArrayType) -> Iterable[bpd.DataFrame]:
-    return (_convert_to_dataframe(frame) for frame in input)
+def convert_to_dataframe(
+    *input: ArrayType,
+    session: Optional[Session] = None,
+) -> Generator[bpd.DataFrame, None, None]:
+    """Converts the input to BigFrames DataFrame.
+
+    Args:
+        session:
+            The session to convert local pandas instances to BigFrames counter-parts.
+            It is not used if the input itself is already a BigFrame data frame or series.
+
+    """
+    return (_convert_to_dataframe(frame, session) for frame in input)
 
 
-def _convert_to_dataframe(frame: ArrayType) -> bpd.DataFrame:
+def _convert_to_dataframe(
+    frame: ArrayType, session: Optional[Session] = None
+) -> bpd.DataFrame:
     if isinstance(frame, bpd.DataFrame):
         return frame
     if isinstance(frame, bpd.Series):
         return frame.to_frame()
+    if isinstance(frame, pd.DataFrame):
+        if session is None:
+            return bpd.read_pandas(frame)
+        else:
+            return session.read_pandas(frame)
+    if isinstance(frame, pd.Series):
+        if session is None:
+            return bpd.read_pandas(frame).to_frame()
+        else:
+            return session.read_pandas(frame).to_frame()
     raise ValueError(
         f"Unsupported type {type(frame)} to convert to DataFrame. {constants.FEEDBACK_LINK}"
     )
 
 
-def convert_to_series(*input: ArrayType) -> Iterable[bpd.Series]:
-    return (_convert_to_series(frame) for frame in input)
+def convert_to_series(
+    *input: ArrayType, session: Optional[Session] = None
+) -> Generator[bpd.Series, None, None]:
+    """Converts the input to BigFrames Series.
+
+    Args:
+        session:
+            The session to convert local pandas instances to BigFrames counter-parts.
+            It is not used if the input itself is already a BigFrame data frame or series.
+
+    """
+    return (_convert_to_series(frame, session) for frame in input)
 
 
-def _convert_to_series(frame: ArrayType) -> bpd.Series:
+def _convert_to_series(
+    frame: ArrayType, session: Optional[Session] = None
+) -> bpd.Series:
     if isinstance(frame, bpd.DataFrame):
         if len(frame.columns) != 1:
             raise ValueError(
@@ -55,6 +93,17 @@ def _convert_to_series(frame: ArrayType) -> bpd.Series:
         return typing.cast(bpd.Series, frame[label])
     if isinstance(frame, bpd.Series):
         return frame
+    if isinstance(frame, pd.DataFrame):
+        # Recursively call this method to re-use the length-checking logic
+        if session is None:
+            return _convert_to_series(bpd.read_pandas(frame))
+        else:
+            return _convert_to_series(session.read_pandas(frame), session)
+    if isinstance(frame, pd.Series):
+        if session is None:
+            return bpd.read_pandas(frame)
+        else:
+            return session.read_pandas(frame)
     raise ValueError(
         f"Unsupported type {type(frame)} to convert to Series. {constants.FEEDBACK_LINK}"
     )
@@ -106,3 +155,37 @@ def retrieve_params_from_bq_model(
             kwargs[bf_param] = bf_param_type(last_fitting[bqml_param])
 
     return kwargs
+
+
+def combine_training_and_evaluation_data(
+    X_train: bpd.DataFrame,
+    y_train: bpd.DataFrame,
+    X_eval: bpd.DataFrame,
+    y_eval: bpd.DataFrame,
+    bqml_options: dict,
+) -> Tuple[bpd.DataFrame, bpd.DataFrame, dict]:
+    """
+    Combine training data and labels with evlauation data and labels, and keep
+    them differentiated through a split column in the combined data and labels.
+    """
+
+    assert X_train.columns.equals(X_eval.columns)
+    assert y_train.columns.equals(y_eval.columns)
+
+    # create a custom split column for BQML and supply the evaluation
+    # data along with the training data in a combined single table
+    # https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create-dnn-models#data_split_col.
+    split_col = guid.generate_guid()
+    assert split_col not in X_train.columns
+
+    X_train[split_col] = False
+    X_eval[split_col] = True
+    X = bpd.concat([X_train, X_eval])
+    y = bpd.concat([y_train, y_eval])
+
+    # create options copy to not mutate the incoming one
+    bqml_options = bqml_options.copy()
+    bqml_options["data_split_method"] = "CUSTOM"
+    bqml_options["data_split_col"] = split_col
+
+    return X, y, bqml_options

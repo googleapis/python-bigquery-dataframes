@@ -16,17 +16,21 @@ from __future__ import annotations
 import dataclasses
 import functools
 import itertools
-from typing import Mapping, Optional, Sequence, Tuple
+from typing import cast, Generator, Mapping, Optional, Sequence, Tuple
 
 import bigframes.core.expression as scalar_exprs
+import bigframes.core.guid as guids
+import bigframes.core.identifiers as ids
 import bigframes.core.join_def as join_defs
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
+import bigframes.core.slices as slices
 import bigframes.operations as ops
 
-Selection = Tuple[Tuple[scalar_exprs.Expression, str], ...]
+Selection = Tuple[Tuple[scalar_exprs.Expression, ids.ColumnId], ...]
 
 REWRITABLE_NODE_TYPES = (
+    nodes.SelectionNode,
     nodes.ProjectionNode,
     nodes.FilterNode,
     nodes.ReversedNode,
@@ -39,7 +43,7 @@ class SquashedSelect:
     """Squash nodes together until target node, separating out the projection, filter and reordering expressions."""
 
     root: nodes.BigFrameNode
-    columns: Tuple[Tuple[scalar_exprs.Expression, str], ...]
+    columns: Tuple[Tuple[scalar_exprs.Expression, ids.ColumnId], ...]
     predicate: Optional[scalar_exprs.Expression]
     ordering: Tuple[order.OrderingExpression, ...]
     reverse_root: bool = False
@@ -50,11 +54,15 @@ class SquashedSelect:
     ) -> SquashedSelect:
         if node == target:
             selection = tuple(
-                (scalar_exprs.UnboundVariableExpression(id), id)
-                for id in get_node_column_ids(node)
+                (scalar_exprs.DerefOp(id), id) for id in get_node_column_ids(node)
             )
             return cls(node, selection, None, ())
-        if isinstance(node, nodes.ProjectionNode):
+
+        if isinstance(node, nodes.SelectionNode):
+            return cls.from_node_span(node.child, target).select(
+                node.input_output_pairs
+            )
+        elif isinstance(node, nodes.ProjectionNode):
             return cls.from_node_span(node.child, target).project(node.assignments)
         elif isinstance(node, nodes.FilterNode):
             return cls.from_node_span(node.child, target).filter(node.predicate)
@@ -66,25 +74,44 @@ class SquashedSelect:
             raise ValueError(f"Cannot rewrite node {node}")
 
     @property
-    def column_lookup(self) -> Mapping[str, scalar_exprs.Expression]:
+    def column_lookup(self) -> Mapping[ids.ColumnId, scalar_exprs.Expression]:
         return {col_id: expr for expr, col_id in self.columns}
 
-    def project(
-        self, projection: Tuple[Tuple[scalar_exprs.Expression, str], ...]
+    def select(
+        self, input_output_pairs: Tuple[Tuple[scalar_exprs.DerefOp, ids.ColumnId], ...]
     ) -> SquashedSelect:
         new_columns = tuple(
-            (expr.bind_all_variables(self.column_lookup), id) for expr, id in projection
+            (
+                input.bind_refs(self.column_lookup),
+                output,
+            )
+            for input, output in input_output_pairs
         )
         return SquashedSelect(
             self.root, new_columns, self.predicate, self.ordering, self.reverse_root
         )
 
+    def project(
+        self, projection: Tuple[Tuple[scalar_exprs.Expression, ids.ColumnId], ...]
+    ) -> SquashedSelect:
+        existing_columns = self.columns
+        new_columns = tuple(
+            (expr.bind_refs(self.column_lookup), id) for expr, id in projection
+        )
+        return SquashedSelect(
+            self.root,
+            (*existing_columns, *new_columns),
+            self.predicate,
+            self.ordering,
+            self.reverse_root,
+        )
+
     def filter(self, predicate: scalar_exprs.Expression) -> SquashedSelect:
         if self.predicate is None:
-            new_predicate = predicate.bind_all_variables(self.column_lookup)
+            new_predicate = predicate.bind_refs(self.column_lookup)
         else:
             new_predicate = ops.and_op.as_expr(
-                self.predicate, predicate.bind_all_variables(self.column_lookup)
+                self.predicate, predicate.bind_refs(self.column_lookup)
             )
         return SquashedSelect(
             self.root, self.columns, new_predicate, self.ordering, self.reverse_root
@@ -98,7 +125,7 @@ class SquashedSelect:
 
     def order_with(self, by: Tuple[order.OrderingExpression, ...]):
         adjusted_orderings = [
-            order_part.bind_variables(self.column_lookup) for order_part in by
+            order_part.bind_refs(self.column_lookup) for order_part in by
         ]
         new_ordering = (*adjusted_orderings, *self.ordering)
         return SquashedSelect(
@@ -111,8 +138,8 @@ class SquashedSelect:
         join_keys: Tuple[join_defs.CoalescedColumnMapping, ...],
     ) -> bool:
         """Determines whether the two selections can be merged into a single selection."""
-        r_exprs_by_id = {id: expr for expr, id in right.columns}
-        l_exprs_by_id = {id: expr for expr, id in self.columns}
+        r_exprs_by_id = {id.name: expr for expr, id in right.columns}
+        l_exprs_by_id = {id.name: expr for expr, id in self.columns}
         l_join_exprs = [
             l_exprs_by_id[join_key.left_source_id] for join_key in join_keys
         ]
@@ -204,7 +231,11 @@ class SquashedSelect:
             root = nodes.FilterNode(child=root, predicate=self.predicate)
         if self.ordering:
             root = nodes.OrderByNode(child=root, by=self.ordering)
-        return nodes.ProjectionNode(child=root, assignments=self.columns)
+        selection = tuple((scalar_exprs.DerefOp(id), id) for _, id in self.columns)
+        return nodes.SelectionNode(
+            child=nodes.ProjectionNode(child=root, assignments=self.columns),
+            input_output_pairs=selection,
+        )
 
 
 def join_as_projection(
@@ -239,14 +270,15 @@ def merge_expressions(
     rmask: Optional[scalar_exprs.Expression],
 ) -> Selection:
     new_selection: Selection = tuple()
-    l_exprs_by_id = {id: expr for expr, id in lselection}
-    r_exprs_by_id = {id: expr for expr, id in rselection}
+    # Assumption is simple ids
+    l_exprs_by_id = {id.name: expr for expr, id in lselection}
+    r_exprs_by_id = {id.name: expr for expr, id in rselection}
     for key in join_keys:
         # Join keys expressions are equivalent on both sides, so can choose either left or right key
         assert l_exprs_by_id[key.left_source_id] == r_exprs_by_id[key.right_source_id]
         expr = l_exprs_by_id[key.left_source_id]
         id = key.destination_id
-        new_selection = (*new_selection, (expr, id))
+        new_selection = (*new_selection, (expr, ids.ColumnId(id)))
     for mapping in mappings:
         if mapping.source_table == join_defs.JoinSide.LEFT:
             expr = l_exprs_by_id[mapping.source_id]
@@ -256,7 +288,7 @@ def merge_expressions(
             expr = r_exprs_by_id[mapping.source_id]
             if rmask is not None:
                 expr = apply_mask(expr, rmask)
-        new_selection = (*new_selection, (expr, mapping.destination_id))
+        new_selection = (*new_selection, (expr, ids.ColumnId(mapping.destination_id)))
     return new_selection
 
 
@@ -327,12 +359,8 @@ def decompose_conjunction(
         return (expr,)
 
 
-def get_node_column_ids(node: nodes.BigFrameNode) -> Tuple[str, ...]:
-    # TODO: Convert to use node.schema once that has been merged
-    # Note: this actually compiles the node to get the schema
-    import bigframes.core
-
-    return tuple(bigframes.core.ArrayValue(node).column_ids)
+def get_node_column_ids(node: nodes.BigFrameNode) -> Tuple[ids.ColumnId, ...]:
+    return tuple(field.id for field in node.fields)
 
 
 def common_selection_root(
@@ -355,3 +383,234 @@ def common_selection_root(
     if r_node in l_nodes:
         return r_node
     return None
+
+
+def pullup_limit_from_slice(
+    root: nodes.BigFrameNode,
+) -> Tuple[nodes.BigFrameNode, Optional[int]]:
+    """
+    This is a BQ-sql specific optimization that can be helpful as ORDER BY LIMIT is more efficient than WHERE + ROW_NUMBER().
+
+    Only use this if writing to an unclustered table. Clustering is not compatible with ORDER BY.
+    """
+    if isinstance(root, nodes.SliceNode):
+        # head case
+        # More cases could be handled, but this is by far the most important, as it is used by df.head(), df[:N]
+        if root.is_limit:
+            assert not root.start
+            assert root.step == 1
+            assert root.stop is not None
+            limit = root.stop
+            new_root, prior_limit = pullup_limit_from_slice(root.child)
+            if (prior_limit is not None) and (prior_limit < limit):
+                limit = prior_limit
+            return new_root, limit
+    elif (
+        isinstance(root, (nodes.SelectionNode, nodes.ProjectionNode))
+        and root.row_preserving
+    ):
+        new_child, prior_limit = pullup_limit_from_slice(root.child)
+        if prior_limit is not None:
+            return root.transform_children(lambda _: new_child), prior_limit
+    # Most ops don't support pulling up slice, like filter, agg, join, etc.
+    return root, None
+
+
+def replace_slice_ops(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
+    # TODO: we want to pull up some slices into limit op if near root.
+    if isinstance(root, nodes.SliceNode):
+        root = root.transform_children(replace_slice_ops)
+        return rewrite_slice(cast(nodes.SliceNode, root))
+    else:
+        return root.transform_children(replace_slice_ops)
+
+
+def rewrite_slice(node: nodes.SliceNode):
+    slice_def = (node.start, node.stop, node.step)
+
+    # no-op (eg. df[::1])
+    if slices.is_noop(slice_def, node.child.row_count):
+        return node.child
+
+    # No filtering, just reverse (eg. df[::-1])
+    if slices.is_reverse(slice_def, node.child.row_count):
+        return nodes.ReversedNode(node.child)
+
+    if node.child.row_count:
+        slice_def = slices.to_forward_offsets(slice_def, node.child.row_count)
+    return slice_as_filter(node.child, *slice_def)
+
+
+def slice_as_filter(
+    node: nodes.BigFrameNode, start: Optional[int], stop: Optional[int], step: int
+) -> nodes.BigFrameNode:
+    if (
+        ((start is None) or (start >= 0))
+        and ((stop is None) or (stop >= 0))
+        and (step > 0)
+    ):
+        node_w_offset = add_offsets(node)
+        predicate = convert_simple_slice(
+            scalar_exprs.DerefOp(node_w_offset.col_id), start or 0, stop, step
+        )
+        filtered = nodes.FilterNode(node_w_offset, predicate)
+        return drop_cols(filtered, (node_w_offset.col_id,))
+
+    # fallback cases, generate both forward and backward offsets
+    if step < 0:
+        forward_offsets = add_offsets(node)
+        reversed_offsets = add_offsets(nodes.ReversedNode(forward_offsets))
+        dual_indexed = reversed_offsets
+    else:
+        reversed_offsets = add_offsets(nodes.ReversedNode(node))
+        forward_offsets = add_offsets(nodes.ReversedNode(reversed_offsets))
+        dual_indexed = forward_offsets
+    default_start = 0 if step >= 0 else -1
+    predicate = convert_complex_slice(
+        scalar_exprs.DerefOp(forward_offsets.col_id),
+        scalar_exprs.DerefOp(reversed_offsets.col_id),
+        start if (start is not None) else default_start,
+        stop,
+        step,
+    )
+    filtered = nodes.FilterNode(dual_indexed, predicate)
+    return drop_cols(filtered, (forward_offsets.col_id, reversed_offsets.col_id))
+
+
+def add_offsets(node: nodes.BigFrameNode) -> nodes.PromoteOffsetsNode:
+    # Allow providing custom id generator?
+    offsets_id = ids.ColumnId(guids.generate_guid())
+    return nodes.PromoteOffsetsNode(node, offsets_id)
+
+
+def drop_cols(
+    node: nodes.BigFrameNode, drop_cols: Tuple[ids.ColumnId, ...]
+) -> nodes.SelectionNode:
+    # adding a whole node that redefines the schema is a lot of overhead, should do something more efficient
+    selections = tuple(
+        (scalar_exprs.DerefOp(id), id) for id in node.ids if id not in drop_cols
+    )
+    return nodes.SelectionNode(node, selections)
+
+
+def convert_simple_slice(
+    offsets: scalar_exprs.Expression,
+    start: int = 0,
+    stop: Optional[int] = None,
+    step: int = 1,
+) -> scalar_exprs.Expression:
+    """Performs slice but only for positive step size."""
+    assert start >= 0
+    assert (stop is None) or (stop >= 0)
+
+    conditions = []
+    if start > 0:
+        conditions.append(ops.ge_op.as_expr(offsets, scalar_exprs.const(start)))
+    if (stop is not None) and (stop >= 0):
+        conditions.append(ops.lt_op.as_expr(offsets, scalar_exprs.const(stop)))
+    if step > 1:
+        start_diff = ops.sub_op.as_expr(offsets, scalar_exprs.const(start))
+        step_cond = ops.eq_op.as_expr(
+            ops.mod_op.as_expr(start_diff, scalar_exprs.const(step)),
+            scalar_exprs.const(0),
+        )
+        conditions.append(step_cond)
+
+    return merge_predicates(conditions) or scalar_exprs.const(True)
+
+
+def convert_complex_slice(
+    forward_offsets: scalar_exprs.Expression,
+    reverse_offsets: scalar_exprs.Expression,
+    start: int,
+    stop: Optional[int],
+    step: int = 1,
+) -> scalar_exprs.Expression:
+    conditions = []
+    assert step != 0
+    if start or ((start is not None) and step < 0):
+        if start > 0 and step > 0:
+            start_cond = ops.ge_op.as_expr(forward_offsets, scalar_exprs.const(start))
+        elif start >= 0 and step < 0:
+            start_cond = ops.le_op.as_expr(forward_offsets, scalar_exprs.const(start))
+        elif start < 0 and step > 0:
+            start_cond = ops.le_op.as_expr(
+                reverse_offsets, scalar_exprs.const(-start - 1)
+            )
+        else:
+            assert start < 0 and step < 0
+            start_cond = ops.ge_op.as_expr(
+                reverse_offsets, scalar_exprs.const(-start - 1)
+            )
+        conditions.append(start_cond)
+    if stop is not None:
+        if stop >= 0 and step > 0:
+            stop_cond = ops.lt_op.as_expr(forward_offsets, scalar_exprs.const(stop))
+        elif stop >= 0 and step < 0:
+            stop_cond = ops.gt_op.as_expr(forward_offsets, scalar_exprs.const(stop))
+        elif stop < 0 and step > 0:
+            stop_cond = ops.gt_op.as_expr(
+                reverse_offsets, scalar_exprs.const(-stop - 1)
+            )
+        else:
+            assert (stop < 0) and (step < 0)
+            stop_cond = ops.lt_op.as_expr(
+                reverse_offsets, scalar_exprs.const(-stop - 1)
+            )
+        conditions.append(stop_cond)
+    if step != 1:
+        if step > 1 and start >= 0:
+            start_diff = ops.sub_op.as_expr(forward_offsets, scalar_exprs.const(start))
+        elif step > 1 and start < 0:
+            start_diff = ops.sub_op.as_expr(
+                reverse_offsets, scalar_exprs.const(-start + 1)
+            )
+        elif step < 0 and start >= 0:
+            start_diff = ops.add_op.as_expr(forward_offsets, scalar_exprs.const(start))
+        else:
+            assert step < 0 and start < 0
+            start_diff = ops.add_op.as_expr(
+                reverse_offsets, scalar_exprs.const(-start + 1)
+            )
+        step_cond = ops.eq_op.as_expr(
+            ops.mod_op.as_expr(start_diff, scalar_exprs.const(step)),
+            scalar_exprs.const(0),
+        )
+        conditions.append(step_cond)
+    return merge_predicates(conditions) or scalar_exprs.const(True)
+
+
+# TODO: May as well just outright remove selection nodes in this process.
+def remap_variables(
+    root: nodes.BigFrameNode, id_generator: Generator[ids.ColumnId, None, None]
+) -> Tuple[nodes.BigFrameNode, dict[ids.ColumnId, ids.ColumnId]]:
+    """
+    Remap all variables in the BFET using the id_generator.
+
+    Note: this will convert a DAG to a tree.
+    """
+    child_replacement_map = dict()
+    ref_mapping = dict()
+    # Sequential ids are assigned bottom-up left-to-right
+    for child in root.child_nodes:
+        new_child, child_var_mapping = remap_variables(child, id_generator=id_generator)
+        child_replacement_map[child] = new_child
+        ref_mapping.update(child_var_mapping)
+
+    # This is actually invalid until we've replaced all of children, refs and var defs
+    with_new_children = root.transform_children(
+        lambda node: child_replacement_map[node]
+    )
+
+    with_new_refs = with_new_children.remap_refs(ref_mapping)
+
+    node_var_mapping = {old_id: next(id_generator) for old_id in root.node_defined_ids}
+    with_new_vars = with_new_refs.remap_vars(node_var_mapping)
+    with_new_vars._validate()
+
+    return (
+        with_new_vars,
+        node_var_mapping
+        if root.defines_namespace
+        else (ref_mapping | node_var_mapping),
+    )

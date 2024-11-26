@@ -20,13 +20,12 @@ import decimal
 import typing
 from typing import Dict, Literal, Union
 
+import bigframes_vendored.constants as constants
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery
 import numpy as np
 import pandas as pd
 import pyarrow as pa
-
-import bigframes.constants as constants
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[
@@ -59,6 +58,25 @@ GEO_DTYPE = gpd.array.GeometryDtype()
 
 # Used when storing Null expressions
 DEFAULT_DTYPE = FLOAT_DTYPE
+
+LOCAL_SCALAR_TYPE = Union[
+    bool,
+    np.bool_,
+    int,
+    np.integer,
+    float,
+    np.floating,
+    decimal.Decimal,
+    str,
+    np.str_,
+    bytes,
+    np.bytes_,
+    datetime.datetime,
+    pd.Timestamp,
+    datetime.date,
+    datetime.time,
+]
+LOCAL_SCALAR_TYPES = typing.get_args(LOCAL_SCALAR_TYPE)
 
 
 # Will have a few dtype variants: simple(eg. int, string, bool), complex (eg. list, struct), and virtual (eg. micro intervals, categorical)
@@ -189,18 +207,18 @@ DtypeString = Literal[
     "binary[pyarrow]",
 ]
 
-BOOL_BIGFRAMES_TYPES = [pd.BooleanDtype()]
+BOOL_BIGFRAMES_TYPES = [BOOL_DTYPE]
 
 # Corresponds to the pandas concept of numeric type (such as when 'numeric_only' is specified in an operation)
 # Pandas is inconsistent, so two definitions are provided, each used in different contexts
 NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE = [
-    pd.Float64Dtype(),
-    pd.Int64Dtype(),
+    FLOAT_DTYPE,
+    INT_DTYPE,
 ]
 NUMERIC_BIGFRAMES_TYPES_PERMISSIVE = NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE + [
-    pd.BooleanDtype(),
-    pd.ArrowDtype(pa.decimal128(38, 9)),
-    pd.ArrowDtype(pa.decimal256(76, 38)),
+    BOOL_DTYPE,
+    NUMERIC_DTYPE,
+    BIGNUMERIC_DTYPE,
 ]
 
 
@@ -308,10 +326,10 @@ BIGFRAMES_STRING_TO_BIGFRAMES: Dict[DtypeString, Dtype] = {
 
 # special case - string[pyarrow] doesn't include the storage in its name, and both
 # "string" and "string[pyarrow]" are accepted
-BIGFRAMES_STRING_TO_BIGFRAMES["string[pyarrow]"] = pd.StringDtype(storage="pyarrow")
+BIGFRAMES_STRING_TO_BIGFRAMES["string[pyarrow]"] = STRING_DTYPE
 
 # special case - both "Int64" and "int64[pyarrow]" are accepted
-BIGFRAMES_STRING_TO_BIGFRAMES["int64[pyarrow]"] = pd.Int64Dtype()
+BIGFRAMES_STRING_TO_BIGFRAMES["int64[pyarrow]"] = INT_DTYPE
 
 # For the purposes of dataframe.memory_usage
 DTYPE_BYTE_SIZES = {
@@ -357,6 +375,8 @@ _BIGFRAMES_TO_ARROW = {
     for mapping in SIMPLE_TYPES
     if mapping.arrow_dtype is not None
 }
+# unidirectional mapping
+_BIGFRAMES_TO_ARROW[GEO_DTYPE] = pa.string()
 
 
 def bigframes_dtype_to_arrow_dtype(
@@ -383,10 +403,14 @@ def infer_literal_type(literal) -> typing.Optional[Dtype]:
         as_arrow = bigframes_dtype_to_arrow_dtype(common_type)
         return pd.ArrowDtype(as_arrow)
     if pd.api.types.is_dict_like(literal):
-        fields = [
-            (key, bigframes_dtype_to_arrow_dtype(infer_literal_type(literal[key])))
-            for key in literal.keys()
-        ]
+        fields = []
+        for key in literal.keys():
+            field_type = bigframes_dtype_to_arrow_dtype(
+                infer_literal_type(literal[key])
+            )
+            fields.append(
+                pa.field(key, field_type, nullable=(not pa.types.is_list(field_type)))
+            )
         return pd.ArrowDtype(pa.struct(fields))
     if pd.isna(literal):
         return None  # Null value without a definite type
@@ -438,10 +462,13 @@ def convert_schema_field(
     is_repeated = field.mode == "REPEATED"
     if field.field_type == "RECORD":
         mapped_fields = map(convert_schema_field, field.fields)
-        pa_struct = pa.struct(
-            (name, bigframes_dtype_to_arrow_dtype(dtype))
-            for name, dtype in mapped_fields
-        )
+        fields = []
+        for name, dtype in mapped_fields:
+            arrow_type = bigframes_dtype_to_arrow_dtype(dtype)
+            fields.append(
+                pa.field(name, arrow_type, nullable=not pa.types.is_list(arrow_type))
+            )
+        pa_struct = pa.struct(fields)
         pa_type = pa.list_(pa_struct) if is_repeated else pa_struct
         return field.name, pd.ArrowDtype(pa_type)
     elif (
@@ -552,14 +579,14 @@ def is_compatible(scalar: typing.Any, dtype: Dtype) -> typing.Optional[Dtype]:
     elif pd.api.types.is_numeric_dtype(dtype):
         # Implicit conversion currently only supported for numeric types
         if pd.api.types.is_bool(scalar):
-            return lcd_type(pd.BooleanDtype(), dtype)
+            return lcd_type(BOOL_DTYPE, dtype)
         if pd.api.types.is_float(scalar):
-            return lcd_type(pd.Float64Dtype(), dtype)
+            return lcd_type(FLOAT_DTYPE, dtype)
         if pd.api.types.is_integer(scalar):
-            return lcd_type(pd.Int64Dtype(), dtype)
+            return lcd_type(INT_DTYPE, dtype)
         if isinstance(scalar, decimal.Decimal):
             # TODO: Check context to see if can use NUMERIC instead of BIGNUMERIC
-            return lcd_type(pd.ArrowDtype(pa.decimal256(76, 38)), dtype)
+            return lcd_type(BIGNUMERIC_DTYPE, dtype)
     return None
 
 
@@ -573,11 +600,11 @@ def lcd_type(*dtypes: Dtype) -> Dtype:
         return unique_dtypes.pop()
     # Implicit conversion currently only supported for numeric types
     hierarchy: list[Dtype] = [
-        pd.BooleanDtype(),
-        pd.Int64Dtype(),
-        pd.ArrowDtype(pa.decimal128(38, 9)),
-        pd.ArrowDtype(pa.decimal256(76, 38)),
-        pd.Float64Dtype(),
+        BOOL_DTYPE,
+        INT_DTYPE,
+        NUMERIC_DTYPE,
+        BIGNUMERIC_DTYPE,
+        FLOAT_DTYPE,
     ]
     if any([dtype not in hierarchy for dtype in dtypes]):
         return None

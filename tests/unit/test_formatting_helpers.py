@@ -14,12 +14,13 @@
 
 import unittest.mock as mock
 
+import bigframes_vendored.constants as constants
 import google.api_core.exceptions as api_core_exceptions
 import google.cloud.bigquery as bigquery
 import pytest
 
-import bigframes.constants as constants
 import bigframes.formatting_helpers as formatting_helpers
+import bigframes.version
 
 
 def test_wait_for_query_job_error_includes_feedback_link():
@@ -44,3 +45,28 @@ def test_wait_for_job_error_includes_feedback_link():
 
     cap_exc.match("Test message 123.")
     cap_exc.match(constants.FEEDBACK_LINK)
+
+
+def test_wait_for_job_error_includes_version():
+    mock_job = mock.create_autospec(bigquery.LoadJob)
+    mock_job.result.side_effect = api_core_exceptions.BadRequest("Test message 123.")
+
+    with pytest.raises(api_core_exceptions.BadRequest) as cap_exc:
+        formatting_helpers.wait_for_job(mock_job)
+
+    cap_exc.match("Test message 123.")
+    cap_exc.match(bigframes.version.__version__)
+
+
+@pytest.mark.parametrize(
+    "test_input, expected", [(None, "N/A"), ("string", "N/A"), (100000, "100.0 kB")]
+)
+def test_get_formatted_bytes(test_input, expected):
+    assert formatting_helpers.get_formatted_bytes(test_input) == expected
+
+
+@pytest.mark.parametrize(
+    "test_input, expected", [(None, None), ("string", "string"), (100000, "a minute")]
+)
+def test_get_formatted_time(test_input, expected):
+    assert formatting_helpers.get_formatted_time(test_input) == expected

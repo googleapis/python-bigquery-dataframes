@@ -15,15 +15,16 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import functools
 import typing
 from typing import Union
 
 import numpy as np
 import pandas as pd
+from pandas.tseries.offsets import DateOffset
 import pyarrow as pa
 
-import bigframes.dtypes
 import bigframes.dtypes as dtypes
 import bigframes.operations.type as op_typing
 
@@ -148,11 +149,11 @@ class TernaryOp(ScalarOp):
 def _convert_expr_input(
     input: typing.Union[str, bigframes.core.expression.Expression]
 ) -> bigframes.core.expression.Expression:
-    """Allows creating free variables with just a string"""
+    """Allows creating column references with just a string"""
     import bigframes.core.expression
 
     if isinstance(input, str):
-        return bigframes.core.expression.UnboundVariableExpression(input)
+        return bigframes.core.expression.deref(input)
     else:
         return input
 
@@ -325,6 +326,10 @@ ln_op = create_unary_op(name="log", type_signature=op_typing.UNARY_REAL_NUMERIC)
 log10_op = create_unary_op(name="log10", type_signature=op_typing.UNARY_REAL_NUMERIC)
 log1p_op = create_unary_op(name="log1p", type_signature=op_typing.UNARY_REAL_NUMERIC)
 sqrt_op = create_unary_op(name="sqrt", type_signature=op_typing.UNARY_REAL_NUMERIC)
+## Blob Ops
+obj_fetch_metadata_op = create_unary_op(
+    name="obj_fetch_metadata", type_signature=op_typing.BLOB_TRANSFORM
+)
 
 
 # Parameterized unary ops
@@ -493,6 +498,7 @@ class AsTypeOp(UnaryOp):
     name: typing.ClassVar[str] = "astype"
     # TODO: Convert strings to dtype earlier
     to_type: dtypes.DtypeString | dtypes.Dtype
+    safe: bool = False
 
     def output_type(self, *input_types):
         # TODO: We should do this conversion earlier
@@ -524,6 +530,13 @@ class RemoteFunctionOp(UnaryOp):
     def output_type(self, *input_types):
         # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
         if hasattr(self.func, "output_dtype"):
+            if dtypes.is_array_like(self.func.output_dtype):
+                # TODO(b/284515241): remove this special handling to support
+                # array output types once BQ remote functions support ARRAY.
+                # Until then, use json serialized strings at the remote function
+                # level, and parse that to the intended output type at the
+                # bigframes level.
+                return dtypes.STRING_DTYPE
             return self.func.output_dtype
         else:
             raise AttributeError("output_dtype not defined")
@@ -546,9 +559,9 @@ class ToDatetimeOp(UnaryOp):
 
     def output_type(self, *input_types):
         if input_types[0] not in (
-            bigframes.dtypes.FLOAT_DTYPE,
-            bigframes.dtypes.INT_DTYPE,
-            bigframes.dtypes.STRING_DTYPE,
+            dtypes.FLOAT_DTYPE,
+            dtypes.INT_DTYPE,
+            dtypes.STRING_DTYPE,
         ):
             raise TypeError("expected string or numeric input")
         return pd.ArrowDtype(pa.timestamp("us", tz=None))
@@ -563,9 +576,9 @@ class ToTimestampOp(UnaryOp):
     def output_type(self, *input_types):
         # Must be numeric or string
         if input_types[0] not in (
-            bigframes.dtypes.FLOAT_DTYPE,
-            bigframes.dtypes.INT_DTYPE,
-            bigframes.dtypes.STRING_DTYPE,
+            dtypes.FLOAT_DTYPE,
+            dtypes.INT_DTYPE,
+            dtypes.STRING_DTYPE,
         ):
             raise TypeError("expected string or numeric input")
         return pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
@@ -587,6 +600,34 @@ class FloorDtOp(UnaryOp):
 
     def output_type(self, *input_types):
         return input_types[0]
+
+
+@dataclasses.dataclass(frozen=True)
+class DatetimeToIntegerLabelOp(BinaryOp):
+    name: typing.ClassVar[str] = "datetime_to_integer_label"
+    freq: DateOffset
+    closed: typing.Optional[typing.Literal["right", "left"]]
+    origin: Union[
+        Union[pd.Timestamp, datetime.datetime, np.datetime64, int, float, str],
+        typing.Literal["epoch", "start", "start_day", "end", "end_day"],
+    ]
+
+    def output_type(self, *input_types):
+        return dtypes.INT_DTYPE
+
+
+@dataclasses.dataclass(frozen=True)
+class IntegerLabelToDatetimeOp(BinaryOp):
+    name: typing.ClassVar[str] = "integer_label_to_datetime"
+    freq: DateOffset
+    label: typing.Optional[typing.Literal["right", "left"]]
+    origin: Union[
+        Union[pd.Timestamp, datetime.datetime, np.datetime64, int, float, str],
+        typing.Literal["epoch", "start", "start_day", "end", "end_day"],
+    ]
+
+    def output_type(self, *input_types):
+        return input_types[1]
 
 
 ## Array Ops
@@ -655,6 +696,23 @@ class JSONExtract(UnaryOp):
 @dataclasses.dataclass(frozen=True)
 class JSONExtractArray(UnaryOp):
     name: typing.ClassVar[str] = "json_extract_array"
+    json_path: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return pd.ArrowDtype(
+            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(dtypes.STRING_DTYPE))
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class JSONExtractStringArray(UnaryOp):
+    name: typing.ClassVar[str] = "json_extract_string_array"
     json_path: str
 
     def output_type(self, *input_types):
@@ -867,9 +925,34 @@ class CaseWhenOp(NaryOp):
 case_when_op = CaseWhenOp()
 
 
+@dataclasses.dataclass(frozen=True)
+class StructOp(NaryOp):
+    name: typing.ClassVar[str] = "struct"
+    column_names: tuple[str]
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        num_input_types = len(input_types)
+        # value1, value2, ...
+        assert num_input_types == len(self.column_names)
+        fields = []
+
+        for i in range(num_input_types):
+            arrow_type = dtypes.bigframes_dtype_to_arrow_dtype(input_types[i])
+            fields.append(
+                pa.field(
+                    self.column_names[i],
+                    arrow_type,
+                    nullable=(not pa.types.is_list(arrow_type)),
+                )
+            )
+        return pd.ArrowDtype(
+            pa.struct(fields)
+        )  # [(name1, value1), (name2, value2), ...]
+
+
 # Just parameterless unary ops for now
 # TODO: Parameter mappings
-NUMPY_TO_OP: typing.Final = {
+NUMPY_TO_OP: dict[np.ufunc, UnaryOp] = {
     np.sin: sin_op,
     np.cos: cos_op,
     np.tan: tan_op,
@@ -894,7 +977,7 @@ NUMPY_TO_OP: typing.Final = {
 }
 
 
-NUMPY_TO_BINOP: typing.Final = {
+NUMPY_TO_BINOP: dict[np.ufunc, BinaryOp] = {
     np.add: add_op,
     np.subtract: sub_op,
     np.multiply: mul_op,

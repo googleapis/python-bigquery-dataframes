@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import dataclasses
 import enum
-from typing import Literal, Mapping, NamedTuple, Tuple
+from typing import Literal, NamedTuple
 
 
 class JoinSide(enum.Enum):
@@ -50,24 +50,3 @@ class CoalescedColumnMapping:
     left_source_id: str
     right_source_id: str
     destination_id: str
-
-
-@dataclasses.dataclass(frozen=True)
-class JoinDefinition:
-    conditions: Tuple[JoinCondition, ...]
-    mappings: Tuple[JoinColumnMapping, ...]
-    type: JoinType
-
-    def get_left_mapping(self) -> Mapping[str, str]:
-        return {
-            i.source_id: i.destination_id
-            for i in self.mappings
-            if i.source_table == JoinSide.LEFT
-        }
-
-    def get_right_mapping(self) -> Mapping[str, str]:
-        return {
-            i.source_id: i.destination_id
-            for i in self.mappings
-            if i.source_table == JoinSide.RIGHT
-        }
