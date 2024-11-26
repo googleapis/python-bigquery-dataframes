@@ -64,13 +64,16 @@ def test_arima_plus_predict_default(
         check_index_type=False,
     )
 
+
 def test_arima_plus_predict_explain_default(
     time_series_arima_plus_model: forecasting.ARIMAPlus,
 ):
     utc = pytz.utc
     predictions = time_series_arima_plus_model.predict_explain().to_pandas()
     assert predictions.shape[0] == 369
-    predictions = predictions[predictions["time_series_type"] == "forecast"].reset_index(drop=True)
+    predictions = predictions[
+        predictions["time_series_type"] == "forecast"
+    ].reset_index(drop=True)
     assert predictions.shape[0] == 3
     result = predictions[["time_series_timestamp", "time_series_data"]]
     expected = pd.DataFrame(
@@ -83,7 +86,9 @@ def test_arima_plus_predict_explain_default(
             "time_series_data": [2727.693349, 2595.290749, 2370.86767],
         }
     )
-    expected["time_series_data"] = expected["time_series_data"].astype(pd.Float64Dtype())
+    expected["time_series_data"] = expected["time_series_data"].astype(
+        pd.Float64Dtype()
+    )
     expected["time_series_timestamp"] = expected["time_series_timestamp"].astype(
         pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
     )
@@ -126,7 +131,10 @@ def test_arima_plus_predict_params(time_series_arima_plus_model: forecasting.ARI
         check_index_type=False,
     )
 
-def test_arima_plus_predict_explain_params(time_series_arima_plus_model: forecasting.ARIMAPlus):
+
+def test_arima_plus_predict_explain_params(
+    time_series_arima_plus_model: forecasting.ARIMAPlus,
+):
     utc = pytz.utc
     predictions = time_series_arima_plus_model.predict_explain(
         horizon=4, confidence_level=0.9
@@ -144,7 +152,9 @@ def test_arima_plus_predict_explain_params(time_series_arima_plus_model: forecas
             "time_series_data": [2724.472284, 2593.368389, 2353.613034, 1781.623071],
         }
     )
-    expected["time_series_data"] = expected["time_series_data"].astype(pd.Float64Dtype())
+    expected["time_series_data"] = expected["time_series_data"].astype(
+        pd.Float64Dtype()
+    )
     expected["time_series_timestamp"] = expected["time_series_timestamp"].astype(
         pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
     )

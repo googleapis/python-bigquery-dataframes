@@ -252,7 +252,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         return self._bqml_model.forecast(
             options={"horizon": horizon, "confidence_level": confidence_level}
         )
-    
+
     def predict_explain(
         self, X=None, *, horizon: int = 3, confidence_level: float = 0.95
     ) -> bpd.DataFrame:
