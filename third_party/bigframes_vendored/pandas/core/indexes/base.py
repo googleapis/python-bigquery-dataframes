@@ -102,7 +102,7 @@ class Index:
             >>> mi = bpd.MultiIndex.from_arrays([['a'], ['b'], ['c']])
             >>> mi
             MultiIndex([('a', 'b', 'c')],
-            ...        )
+                       )
             >>> mi.nlevels
             3
 
