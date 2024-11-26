@@ -19,7 +19,7 @@ import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 import pandas as pd
 
-from bigframes.core import convert, global_session, guid
+from bigframes.core import convert, guid
 import bigframes.pandas as bpd
 from bigframes.session import Session
 
@@ -76,8 +76,6 @@ def batch_convert_to_series(
             It is not used if the input itself is already a BigFrame data frame or series.
 
     """
-    if session is None:
-        session = global_session.get_global_session()
     return (
         convert.to_bf_series(
             _get_only_column(frame), default_index=None, session=session
