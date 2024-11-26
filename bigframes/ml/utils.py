@@ -14,11 +14,13 @@
 
 import typing
 from typing import Any, Generator, Hashable, Literal, Mapping, Optional, Tuple, Union
+from typing import Any, Generator, Hashable, Literal, Mapping, Optional, Tuple, Union
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 import pandas as pd
 
+from bigframes.core import convert, global_session, guid
 from bigframes.core import convert, guid
 import bigframes.pandas as bpd
 from bigframes.session import Session
@@ -65,7 +67,7 @@ def _convert_to_dataframe(
     )
 
 
-def batch_convert_to_series(
+def batch_batch_to_series(
     *input: ArrayType, session: Optional[Session] = None
 ) -> Generator[bpd.Series, None, None]:
     """Converts the input to BigFrames Series.
@@ -76,6 +78,14 @@ def batch_convert_to_series(
             It is not used if the input itself is already a BigFrame data frame or series.
 
     """
+    return (
+        convert.to_bf_series(
+            _get_only_column(frame), default_index=None, session=session
+        )
+        for frame in input
+    )
+    if session is None:
+        session = global_session.get_global_session()
     return (
         convert.to_bf_series(
             _get_only_column(frame), default_index=None, session=session
@@ -93,7 +103,21 @@ def _get_only_column(input: ArrayType) -> Union[pd.Series, bpd.Series]:
             "To convert into Series, DataFrames can only contain one column. "
             f"Try input with only one column. {constants.FEEDBACK_LINK}"
         )
+def _get_only_column(input: ArrayType) -> Union[pd.Series, bpd.Series]:
+    if isinstance(input, pd.Series) or isinstance(input, bpd.Series):
+        return input
 
+    if len(input.columns) != 1:
+        raise ValueError(
+            "To convert into Series, DataFrames can only contain one column. "
+            f"Try input with only one column. {constants.FEEDBACK_LINK}"
+        )
+
+    label = typing.cast(Hashable, input.columns.tolist()[0])
+    if isinstance(input, pd.DataFrame):
+        return typing.cast(pd.Series, input[label])
+
+    return typing.cast(bpd.Series, input[label])
     label = typing.cast(Hashable, input.columns.tolist()[0])
     if isinstance(input, pd.DataFrame):
         return typing.cast(pd.Series, input[label])
