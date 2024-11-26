@@ -30,7 +30,7 @@ ArrayType = Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
 BigFramesArrayType = Union[bpd.DataFrame, bpd.Series]
 
 
-def convert_to_dataframe(
+def batch_convert_to_dataframe(
     *input: ArrayType,
     session: Optional[Session] = None,
 ) -> Generator[bpd.DataFrame, None, None]:
@@ -42,28 +42,9 @@ def convert_to_dataframe(
             It is not used if the input itself is already a BigFrame data frame or series.
 
     """
-    return (_convert_to_dataframe(frame, session) for frame in input)
-
-
-def _convert_to_dataframe(
-    frame: ArrayType, session: Optional[Session] = None
-) -> bpd.DataFrame:
-    if isinstance(frame, bpd.DataFrame):
-        return frame
-    if isinstance(frame, bpd.Series):
-        return frame.to_frame()
-    if isinstance(frame, pd.DataFrame):
-        if session is None:
-            return bpd.read_pandas(frame)
-        else:
-            return session.read_pandas(frame)
-    if isinstance(frame, pd.Series):
-        if session is None:
-            return bpd.read_pandas(frame).to_frame()
-        else:
-            return session.read_pandas(frame).to_frame()
-    raise ValueError(
-        f"Unsupported type {type(frame)} to convert to DataFrame. {constants.FEEDBACK_LINK}"
+    return (
+        convert.to_bf_dataframe(frame, default_index=None, session=session)
+        for frame in input
     )
 
 
