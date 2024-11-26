@@ -41,3 +41,18 @@ def test_geo_x(urban_areas_dfs):
         pd_result.astype(pd.Float64Dtype()),
         bf_result,
     )
+
+
+def test_geo_y(urban_areas_dfs):
+    bf_ua, pd_ua = urban_areas_dfs
+    bf_series: bigframes.geopandas.GeoSeries = bf_ua["internal_point_geom"].geo
+    pd_series: geopandas.GeoSeries = geopandas.GeoSeries(pd_ua["internal_point_geom"])
+    bf_result = bf_series.y.to_pandas()
+    pd_result = pd_series.y
+    # TODO: make bigframes geoseries.y reset the name
+    pd_result.name = "internal_point_geom"
+
+    assert_series_equal(
+        pd_result.astype(pd.Float64Dtype()),
+        bf_result,
+    )
