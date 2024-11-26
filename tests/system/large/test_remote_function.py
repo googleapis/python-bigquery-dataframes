@@ -24,6 +24,7 @@ import textwrap
 import google.api_core.exceptions
 from google.cloud import bigquery, functions_v2, storage
 import pandas
+import pyarrow
 import pytest
 import test_utils.prefixer
 
@@ -2143,6 +2144,92 @@ def test_df_apply_axis_1_multiple_params(session):
 
         # Let's make sure the read_gbq_function path works for this function
         foo_reuse = session.read_gbq_function(foo.bigframes_remote_function)
+        bf_result = bf_df.apply(foo_reuse, axis=1).to_pandas()
+        pandas.testing.assert_series_equal(
+            expected_result, bf_result, check_dtype=False, check_index_type=False
+        )
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            session.bqclient, session.cloudfunctionsclient, foo
+        )
+
+
+def test_df_apply_axis_1_multiple_params_array_output(session):
+    bf_df = bigframes.dataframe.DataFrame(
+        {
+            "Id": [1, 2, 3],
+            "Age": [22.5, 23, 23.5],
+            "Name": ["alpha", "beta", "gamma"],
+        }
+    )
+
+    expected_dtypes = (
+        bigframes.dtypes.INT_DTYPE,
+        bigframes.dtypes.FLOAT_DTYPE,
+        bigframes.dtypes.STRING_DTYPE,
+    )
+
+    # Assert the dataframe dtypes
+    assert tuple(bf_df.dtypes) == expected_dtypes
+
+    try:
+
+        @session.remote_function([int, float, str], list[str], reuse=False)
+        def foo(x, y, z):
+            return [str(x), str(y), z]
+
+        assert getattr(foo, "is_row_processor") is False
+        assert getattr(foo, "input_dtypes") == expected_dtypes
+        assert getattr(foo, "output_dtype") == pandas.ArrowDtype(
+            pyarrow.list_(
+                bigframes.dtypes.bigframes_dtype_to_arrow_dtype(
+                    bigframes.dtypes.STRING_DTYPE
+                )
+            )
+        )
+
+        # Fails to apply on dataframe with incompatible number of columns
+        with pytest.raises(
+            ValueError,
+            match="^Remote function takes 3 arguments but DataFrame has 2 columns\\.$",
+        ):
+            bf_df[["Id", "Age"]].apply(foo, axis=1)
+        with pytest.raises(
+            ValueError,
+            match="^Remote function takes 3 arguments but DataFrame has 4 columns\\.$",
+        ):
+            bf_df.assign(Country="lalaland").apply(foo, axis=1)
+
+        # Fails to apply on dataframe with incompatible column datatypes
+        with pytest.raises(
+            ValueError,
+            match="^Remote function takes arguments of types .* but DataFrame dtypes are .*",
+        ):
+            bf_df.assign(Age=bf_df["Age"].astype("Int64")).apply(foo, axis=1)
+
+        # Successfully applies to dataframe with matching number of columns
+        # and their datatypes
+        bf_result = bf_df.apply(foo, axis=1).to_pandas()
+
+        # Since this scenario is not pandas-like, let's handcraft the
+        # expected result
+        expected_result = pandas.Series(
+            [
+                ["1", "22.5", "alpha"],
+                ["2", "23", "beta"],
+                ["3", "23.5", "gamma"],
+            ]
+        )
+
+        pandas.testing.assert_series_equal(
+            expected_result, bf_result, check_dtype=False, check_index_type=False
+        )
+
+        # Let's make sure the read_gbq_function path works for this function
+        foo_reuse = session.read_gbq_function(
+            foo.bigframes_remote_function, output_type=list[str]
+        )
         bf_result = bf_df.apply(foo_reuse, axis=1).to_pandas()
         pandas.testing.assert_series_equal(
             expected_result, bf_result, check_dtype=False, check_index_type=False
