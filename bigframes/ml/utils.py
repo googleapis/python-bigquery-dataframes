@@ -19,7 +19,7 @@ import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 import pandas as pd
 
-from bigframes.core import convert, global_session, guid
+from bigframes.core import convert, guid
 import bigframes.pandas as bpd
 from bigframes.session import Session
 
@@ -75,16 +75,6 @@ def _validate_sessions(*input: ArrayType, session: Optional[Session]):
     )
     if len(session_ids) > 1:
         raise ValueError("Cannot convert data from multiple sessions")
-
-    session_ids.add(
-        global_session.get_global_session().session_id
-        if session is None
-        else session.session_id
-    )
-    if len(session_ids) > 1:
-        raise ValueError(
-            "Cannot convert data when their session is different from the specified session."
-        )
 
 
 def _get_only_column(input: ArrayType) -> Union[pd.Series, bpd.Series]:
