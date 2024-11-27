@@ -160,6 +160,14 @@ class LinearRegression(
 
         return self._bqml_model.predict(X)
 
+    def predict_explain(self, X: utils.ArrayType) -> bpd.DataFrame:
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before predict")
+
+        (X,) = utils.convert_to_dataframe(X)
+
+        return self._bqml_model.explain_predict(X)
+
     def score(
         self,
         X: utils.ArrayType,
