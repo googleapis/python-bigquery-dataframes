@@ -207,7 +207,8 @@ def format_option(key: str, value: Union[bool, str]) -> str:
 def add_and_trim_labels(job_config, api_name: Optional[str] = None):
     """
     Add additional labels to the job configuration and trim the total number of labels
-    to ensure they do not exceed the maximum limit allowed by BigQuery, which is 64 labels per job.
+    to ensure they do not exceed the maximum limit allowed by BigQuery, which is 64
+    labels per job.
     """
     api_methods = log_adapter.get_and_reset_api_methods(dry_run=job_config.dry_run)
     job_config.labels = create_job_configs_labels(
