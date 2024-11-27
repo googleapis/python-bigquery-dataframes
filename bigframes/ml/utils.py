@@ -48,7 +48,7 @@ def batch_convert_to_dataframe(
     )
 
 
-def batch_batch_to_series(
+def batch_convert_to_series(
     *input: ArrayType, session: Optional[Session] = None
 ) -> Generator[bpd.Series, None, None]:
     """Converts the input to BigFrames Series.
@@ -59,14 +59,6 @@ def batch_batch_to_series(
             It is not used if the input itself is already a BigFrame data frame or series.
 
     """
-    return (
-        convert.to_bf_series(
-            _get_only_column(frame), default_index=None, session=session
-        )
-        for frame in input
-    )
-    if session is None:
-        session = global_session.get_global_session()
     return (
         convert.to_bf_series(
             _get_only_column(frame), default_index=None, session=session
