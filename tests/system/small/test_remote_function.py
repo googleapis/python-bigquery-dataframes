@@ -840,40 +840,18 @@ def test_read_gbq_function_enforces_explicit_types(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_read_gbq_function_row_processor_error(
-    session,
-    bigquery_client,
-    bigqueryconnection_client,
-    cloudfunctions_client,
-    resourcemanager_client,
-    dataset_id_permanent,
-    bq_cf_connection,
-):
-    def func_rp0(num0: int, num1: int) -> int:
-        return num0 + num1
-
-    func_rp0 = rf.remote_function(
-        bigquery_client=bigquery_client,
-        bigquery_connection_client=bigqueryconnection_client,
-        dataset=dataset_id_permanent,
-        cloud_functions_client=cloudfunctions_client,
-        resource_manager_client=resourcemanager_client,
-        bigquery_connection=bq_cf_connection,
-        reuse=True,
-        name=get_rf_name(func_rp0),
-    )(func_rp0)
-
+def test_read_gbq_function_multiple_inputs_not_a_row_processor(session):
     with pytest.raises(ValueError) as context:
         # The remote function has two args, which cannot be row processed. Throw
         # a ValueError for it.
         rf.read_gbq_function(
-            function_name=func_rp0.bigframes_remote_function,  # type: ignore
+            function_name="bqutil.fn.cw_regexp_instr_2",
             is_row_processor=True,
             session=session,
         )
-    assert (
-        str(context.value)
-        == "The row processor cannot accept a multi-parameter function."
+    assert str(context.value) == (
+        "A multi-input function cannot be a row processor. A row processor function "
+        "takes in a single input representing the row."
     )
 
 

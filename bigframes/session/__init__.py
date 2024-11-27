@@ -1373,7 +1373,7 @@ class Session(
             ... def foo_0(num: int) -> float:
             ...     return num * 10
 
-        Then, use the pre-define remote function:
+        Then, read back the deployed BQ remote function:
 
             >>> func_ref_0 = bpd.read_gbq_function(
             ...     "bigframes-dev.bigframe_testing.foo_0",
@@ -1393,16 +1393,15 @@ class Session(
             Name: a, dtype: Float64
 
         It also supports row processing by using `is_row_processor=True`. Please
-        note, row processor only works well when the function has only one
+        note, row processor implies that the function has only one input
         parameter.
 
-            >>> import pandas as pd
             >>> @bpd.remote_function(
             ...     dataset='bigframe_testing',
             ...     reuse=True,
             ...     name='foo_1',
             ... )
-            ... def foo_1(s: pd.Series) -> float:
+            ... def foo_1(s: bpd.Series) -> float:
             ...     return s['a'] + s['b'] + s['c']
 
             >>> func_ref_1 = bpd.read_gbq_function(

@@ -131,7 +131,10 @@ def read_gbq_function(
         raise ValueError(f"Unknown function '{routine_ref}'. {constants.FEEDBACK_LINK}")
 
     if is_row_processor and len(routine.arguments) > 1:
-        raise ValueError("The row processor cannot accept a multi-parameter function.")
+        raise ValueError(
+            "A multi-input function cannot be a row processor. A row processor function "
+            "takes in a single input representing the row."
+        )
 
     try:
         ibis_signature = ibis_signature_from_routine(routine)
