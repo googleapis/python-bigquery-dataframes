@@ -37,14 +37,12 @@ from bigframes_vendored.ibis.common.deferred import (
     Variable,
 )
 from bigframes_vendored.ibis.common.typing import (
-    _ClassInfo,
     Coercible,
     CoercionError,
     format_typehint,
     get_bound_typevars,
     get_type_params,
     Sentinel,
-    UnionType,
 )
 from bigframes_vendored.ibis.util import import_object, is_iterable, unalias_package
 import toolz
@@ -134,7 +132,7 @@ class Pattern(Hashable):
         elif origin is Literal:
             # for literal types we check the value against the literal values
             return IsIn(args)
-        elif origin is UnionType or origin is Union:
+        elif origin is Union:
             # this is slightly more complicated because we need to handle
             # Optional[T] which is Union[T, None] and Union[T1, T2, ...]
             *rest, last = args
@@ -652,7 +650,7 @@ class InstanceOf(Slotted, Singleton, Pattern):
     """
 
     __slots__ = ("type",)
-    type: _ClassInfo
+    type: Any
 
     def __init__(self, typ):
         super().__init__(type=typ)

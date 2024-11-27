@@ -444,13 +444,6 @@ def experimental(func):
     return func
 
 
-def backend_entry_points() -> list[importlib.metadata.EntryPoint]:
-    """Get the list of installed `ibis.backend` entrypoints."""
-
-    eps = importlib.metadata.entry_points(group="ibis.backends")
-    return sorted(eps)
-
-
 _common_package_aliases = {
     "pa": "pyarrow",
     "pd": "pandas",

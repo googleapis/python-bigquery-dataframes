@@ -7,7 +7,7 @@ from collections import defaultdict
 import functools
 import inspect
 import re
-from types import UnionType
+import sys
 from typing import Union
 
 from bigframes_vendored.ibis.common.typing import (
@@ -16,6 +16,11 @@ from bigframes_vendored.ibis.common.typing import (
     get_origin,
 )
 from bigframes_vendored.ibis.util import import_object, unalias_package
+
+if sys.version_info >= (3, 10):
+    from types import UnionType
+else:
+    from bigframes_vendored.ibis.common.typing import UnionType
 
 
 def normalize(r: str | re.Pattern):

@@ -11,6 +11,7 @@ import warnings
 
 from bigframes_vendored.ibis import util
 from bigframes_vendored.ibis.backends import BaseBackend
+import bigframes_vendored.ibis.backends.bigquery as bigquery
 from bigframes_vendored.ibis.common.exceptions import IbisError
 from bigframes_vendored.ibis.config import options
 from bigframes_vendored.ibis.expr import api
@@ -32,14 +33,6 @@ __all__ = [  # noqa: PLE0604
 _KNOWN_BACKENDS = ["heavyai"]
 
 
-def __dir__() -> list[str]:
-    """Adds tab completion for ibis backends to the top-level module."""
-
-    out = set(__all__)
-    out.update(ep.name for ep in util.backend_entry_points())
-    return sorted(out)
-
-
 def load_backend(name: str) -> BaseBackend:
     """Load backends in a lazy way with `ibis.<backend-name>`.
 
@@ -56,39 +49,7 @@ def load_backend(name: str) -> BaseBackend:
     attribute is "cached", so this function is only called the first time.
 
     """
-
-    entry_points = {ep for ep in util.backend_entry_points() if ep.name == name}
-
-    if not entry_points:
-        msg = f"module 'ibis' has no attribute '{name}'. "
-        if name in _KNOWN_BACKENDS:
-            msg += f"""If you are trying to access the '{name}' backend,
-                    try installing it first with `pip install 'ibis-framework[{name}]'`"""
-        raise AttributeError(msg)
-
-    if len(entry_points) > 1:
-        raise RuntimeError(
-            f"{len(entry_points)} packages found for backend '{name}': "
-            f"{entry_points}\n"
-            "There should be only one, please uninstall the unused packages "
-            "and just leave the one that needs to be used."
-        )
-
-    import types
-
-    import ibis
-
-    (entry_point,) = entry_points
-    try:
-        module = entry_point.load()
-    except ImportError as exc:
-        raise ImportError(
-            f"Failed to import the {name} backend due to missing dependencies.\n\n"
-            f"You can pip or conda install the {name} backend as follows:\n\n"
-            f'  python -m pip install -U "ibis-framework[{name}]"  # pip install\n'
-            f"  conda install -c conda-forge ibis-{name}           # or conda install"
-        ) from exc
-    backend = module.Backend()
+    backend = bigquery.Backend()
     # The first time a backend is loaded, we register its options, and we set
     # it as an attribute of `ibis`, so `__getattr__` is not called again for it
     backend.register_options()
@@ -113,10 +74,14 @@ def load_backend(name: str) -> BaseBackend:
 
     connect.__doc__ = backend.do_connect.__doc__
     connect.__wrapped__ = backend.do_connect
-    connect.__module__ = f"ibis.{name}"
+    connect.__module__ = f"bigframes_vendored.ibis.{name}"
 
-    proxy = types.ModuleType(f"ibis.{name}")
-    setattr(ibis, name, proxy)
+    import types
+
+    import bigframes_vendored.ibis
+
+    proxy = types.ModuleType(f"bigframes_vendored.ibis.{name}")
+    setattr(bigframes_vendored.ibis, name, proxy)
     proxy.connect = connect
     proxy.compile = backend.compile
     proxy.has_operation = backend.has_operation
