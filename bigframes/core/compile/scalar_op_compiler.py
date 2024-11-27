@@ -20,7 +20,7 @@ import typing
 import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
-import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
+import bigframes_vendored.ibis.expr.operations as ibis_ops
 import bigframes_vendored.ibis.expr.operations.generic as ibis_generic
 import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import bigframes_vendored.ibis.expr.types as ibis_types
@@ -48,7 +48,7 @@ _OBJ_REF_STRUCT_SCHEMA = (
     ("authorizer", ibis_dtypes.String),
     ("details", ibis_dtypes.JSON),
 )
-_OBJ_REF_IBIS_DTYPE = ibis_dtypes.Struct.from_tuples(_OBJ_REF_STRUCT_SCHEMA)
+_OBJ_REF_IBIS_DTYPE = ibis_dtypes.Struct.from_tuples(_OBJ_REF_STRUCT_SCHEMA)  # type: ignore
 
 # Datetime constants
 UNIT_TO_US_CONVERSION_FACTORS = {
@@ -444,7 +444,7 @@ def expm1_op_impl(x: ibis_types.Value):
 
 @scalar_op_compiler.register_unary_op(ops.invert_op)
 def invert_op_impl(x: ibis_types.Value):
-    return x.__invert__()
+    return x.__invert__()  # type: ignore
 
 
 ## String Operation
@@ -569,15 +569,20 @@ def strpad_op_impl(x: ibis_types.Value, op: ops.StrPadOp):
     str_val = typing.cast(ibis_types.StringValue, x)
 
     # SQL pad operations will truncate, we do not want to truncate though.
-    pad_length = ibis_api.greatest(str_val.length(), op.length)
+    pad_length = typing.cast(
+        ibis_types.IntegerValue, ibis_api.greatest(str_val.length(), op.length)
+    )
     if op.side == "left":
         return str_val.lpad(pad_length, op.fillchar)
     elif op.side == "right":
         return str_val.rpad(pad_length, op.fillchar)
     else:  # side == both
         # Pad more on right side if can't pad both sides equally
-        lpad_amount = ((pad_length - str_val.length()) // 2) + str_val.length()
-        return str_val.lpad(lpad_amount, op.fillchar).rpad(pad_length, op.fillchar)
+        two = typing.cast(ibis_types.IntegerValue, 2)
+        lpad_amount = ((pad_length - str_val.length()) // two) + str_val.length()
+        return str_val.lpad(
+            length=typing.cast(ibis_types.IntegerValue, lpad_amount), pad=op.fillchar
+        ).rpad(pad_length, op.fillchar)
 
 
 @scalar_op_compiler.register_unary_op(ops.ReplaceStrOp, pass_op=True)
@@ -618,7 +623,7 @@ def endswith_op_impl(x: ibis_types.Value, op: ops.EndsWithOp):
 
 @scalar_op_compiler.register_unary_op(ops.StringSplitOp, pass_op=True)
 def stringsplit_op_impl(x: ibis_types.Value, op: ops.StringSplitOp):
-    return typing.cast(ibis_types.StringValue, x).split(op.pat)
+    return typing.cast(ibis_types.StringValue, x).split(delimiter=op.pat[0])
 
 
 @scalar_op_compiler.register_unary_op(ops.ZfillOp, pass_op=True)
@@ -733,7 +738,7 @@ def floor_dt_op_impl(x: ibis_types.Value, op: ops.FloorDtOp):
         ibis_freq = op.freq
     result_type = x.type()
     result = typing.cast(ibis_types.TimestampValue, x)
-    result = result.truncate(ibis_freq)
+    result = result.truncate(ibis_freq)  # type: ignore
     return result.cast(result_type)
 
 
@@ -773,41 +778,41 @@ def datetime_to_integer_label_non_fixed_frequency(
     n = op.freq.n
     if rule_code == "W-SUN":  # Weekly
         us = n * 7 * 24 * 60 * 60 * 1000000
-        x = x.truncate("week") + ibis_api.interval(days=6)
-        y = y.truncate("week") + ibis_api.interval(days=6)
+        x = x.truncate("week") + ibis_api.interval(days=6)  # type: ignore
+        y = y.truncate("week") + ibis_api.interval(days=6)  # type: ignore
         x_int = x.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast(ibis_dtypes.int64)
         first = y.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast(ibis_dtypes.int64)
         x_int_label = (
             ibis_api.case()
             .when(x_int == first, 0)
-            .else_((x_int - first - 1) // us + 1)
+            .else_((x_int - first - 1) // us + 1)  # type: ignore
             .end()
         )
     elif rule_code == "ME":  # Monthly
-        x_int = x.year() * 12 + x.month() - 1
-        first = y.year() * 12 + y.month() - 1
+        x_int = x.year() * 12 + x.month() - 1  # type: ignore
+        first = y.year() * 12 + y.month() - 1  # type: ignore
         x_int_label = (
             ibis_api.case()
             .when(x_int == first, 0)
-            .else_((x_int - first - 1) // n + 1)
+            .else_((x_int - first - 1) // n + 1)  # type: ignore
             .end()
         )
     elif rule_code == "QE-DEC":  # Quarterly
-        x_int = x.year() * 4 + x.quarter() - 1
-        first = y.year() * 4 + y.quarter() - 1
+        x_int = x.year() * 4 + x.quarter() - 1  # type: ignore
+        first = y.year() * 4 + y.quarter() - 1  # type: ignore
         x_int_label = (
             ibis_api.case()
             .when(x_int == first, 0)
-            .else_((x_int - first - 1) // n + 1)
+            .else_((x_int - first - 1) // n + 1)  # type: ignore
             .end()
         )
     elif rule_code == "YE-DEC":  # Yearly
-        x_int = x.year()
-        first = y.year()
+        x_int = x.year()  # type: ignore
+        first = y.year()  # type: ignore
         x_int_label = (
             ibis_api.case()
             .when(x_int == first, 0)
-            .else_((x_int - first - 1) // n + 1)
+            .else_((x_int - first - 1) // n + 1)  # type: ignore
             .end()
         )
     else:
@@ -838,7 +843,7 @@ def integer_label_to_datetime_op_fixed_frequency(
     first = calculate_resample_first(y, op.origin)
 
     x_label = (
-        (x * us + first)
+        (x * us + first)  # type: ignore
         .cast(ibis_dtypes.int64)
         .to_timestamp(unit="us")
         .cast(ibis_dtypes.Timestamp(timezone="UTC"))
@@ -859,11 +864,11 @@ def integer_label_to_datetime_op_non_fixed_frequency(
     if rule_code == "W-SUN":  # Weekly
         us = n * 7 * 24 * 60 * 60 * 1000000
         first = (
-            y.cast(ibis_dtypes.Timestamp(timezone="UTC")).truncate("week")
+            y.cast(ibis_dtypes.Timestamp(timezone="UTC")).truncate("week")  # type: ignore
             + ibis_api.interval(days=6)
         ).cast(ibis_dtypes.int64)
         x_label = (
-            (x * us + first)
+            (x * us + first)  # type: ignore
             .cast(ibis_dtypes.int64)
             .to_timestamp(unit="us")
             .cast(ibis_dtypes.Timestamp(timezone="UTC"))
@@ -872,39 +877,59 @@ def integer_label_to_datetime_op_non_fixed_frequency(
     elif rule_code == "ME":  # Monthly
         one = ibis_types.literal(1)
         twelve = ibis_types.literal(12)
-        first = y.year() * twelve + y.month() - one
+        first = y.year() * twelve + y.month() - one  # type: ignore
 
-        x = x * n + first
-        year = x // twelve
-        month = (x % twelve) + one
+        x = x * n + first  # type: ignore
+        year = x // twelve  # type: ignore
+        month = (x % twelve) + one  # type: ignore
 
         next_year = (month == twelve).ifelse(year + one, year)
         next_month = (month == twelve).ifelse(one, month + one)
-        next_month_date = ibis_api.timestamp(next_year, next_month, one, 0, 0, 0)
-
+        next_month_date = ibis_api.timestamp(
+            typing.cast(ibis_types.IntegerValue, next_year),
+            typing.cast(ibis_types.IntegerValue, next_month),
+            1,
+            0,
+            0,
+            0,
+        )
         x_label = next_month_date - ibis_api.interval(days=1)
     elif rule_code == "QE-DEC":  # Quarterly
         one = ibis_types.literal(1)
         three = ibis_types.literal(3)
         four = ibis_types.literal(4)
         twelve = ibis_types.literal(12)
-        first = y.year() * four + y.quarter() - one
+        first = y.year() * four + y.quarter() - one  # type: ignore
 
-        x = x * n + first
-        year = x // four
-        month = ((x % four) + one) * three
+        x = x * n + first  # type: ignore
+        year = x // four  # type: ignore
+        month = ((x % four) + one) * three  # type: ignore
 
         next_year = (month == twelve).ifelse(year + one, year)
         next_month = (month == twelve).ifelse(one, month + one)
-        next_month_date = ibis_api.timestamp(next_year, next_month, one, 0, 0, 0)
+        next_month_date = ibis_api.timestamp(
+            typing.cast(ibis_types.IntegerValue, next_year),
+            typing.cast(ibis_types.IntegerValue, next_month),
+            1,
+            0,
+            0,
+            0,
+        )
 
         x_label = next_month_date - ibis_api.interval(days=1)
     elif rule_code == "YE-DEC":  # Yearly
         one = ibis_types.literal(1)
-        first = y.year()
-        x = x * n + first
-        next_year = x + one
-        next_month_date = ibis_api.timestamp(next_year, 1, 1, 0, 0, 0)
+        first = y.year()  # type: ignore
+        x = x * n + first  # type: ignore
+        next_year = x + one  # type: ignore
+        next_month_date = ibis_api.timestamp(
+            typing.cast(ibis_types.IntegerValue, next_year),
+            1,
+            1,
+            0,
+            0,
+            0,
+        )
         x_label = next_month_date - ibis_api.interval(days=1)
 
     return x_label.cast(ibis_dtypes.Timestamp(timezone="UTC")).cast(y.type())
@@ -938,7 +963,7 @@ def year_op_impl(x: ibis_types.Value):
 @scalar_op_compiler.register_unary_op(ops.normalize_op)
 def normalize_op_impl(x: ibis_types.Value):
     result_type = x.type()
-    result = x.truncate("D")
+    result = x.truncate("D")  # type: ignore
     return result.cast(result_type)
 
 
@@ -965,9 +990,11 @@ def numeric_to_datetime(
 
     if unit not in UNIT_TO_US_CONVERSION_FACTORS:
         raise ValueError(f"Cannot convert input with unit '{unit}'.")
-    x_converted = x * UNIT_TO_US_CONVERSION_FACTORS[unit]
+    x_converted = x * typing.cast(
+        ibis_types.IntegerValue, UNIT_TO_US_CONVERSION_FACTORS[unit]
+    )
     x_converted = (
-        x_converted.try_cast(ibis_dtypes.int64)
+        x_converted.try_cast(ibis_dtypes.int64)  # type: ignore
         if safe
         else x_converted.cast(ibis_dtypes.int64)
     )
@@ -977,7 +1004,7 @@ def numeric_to_datetime(
     # approach appears to bypass a potential bug in Ibis's cast function,
     # allowing for subsequent casting to a timestamp type without timezone
     # information. Further investigation is needed to confirm this behavior.
-    return x_converted.to_timestamp(unit="us").cast(
+    return x_converted.to_timestamp(unit="us").cast(  # type: ignore
         ibis_dtypes.Timestamp(timezone="UTC")
     )
 
@@ -1001,7 +1028,7 @@ def astype_op_impl(x: ibis_types.Value, op: ops.AsTypeOp):
     if to_type == ibis_dtypes.int64 and x.type() == ibis_dtypes.time:
         # The conversion unit is set to "us" (microseconds) for consistency
         # with pandas converting time64[us][pyarrow] to int64[pyarrow].
-        return x.delta(ibis_api.time("00:00:00"), part="microsecond")
+        return x.delta(ibis_api.time("00:00:00"), part="microsecond")  # type: ignore
 
     if x.type() == ibis_dtypes.int64:
         # The conversion unit is set to "us" (microseconds) for consistency
@@ -1052,18 +1079,18 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
 @scalar_op_compiler.register_unary_op(ops.ToDatetimeOp, pass_op=True)
 def to_datetime_op_impl(x: ibis_types.Value, op: ops.ToDatetimeOp):
     if x.type() == ibis_dtypes.str:
-        return x.try_cast(ibis_dtypes.Timestamp(None))
+        return x.try_cast(ibis_dtypes.Timestamp(None))  # type: ignore
     else:
         # Numerical inputs.
         if op.format:
-            x = x.cast(ibis_dtypes.str).to_timestamp(op.format)
+            x = x.cast(ibis_dtypes.str).to_timestamp(op.format)  # type: ignore
         else:
             # The default unit is set to "ns" (nanoseconds) for consistency
             # with pandas, where "ns" is the default unit for datetime operations.
             unit = op.unit or "ns"
             x = numeric_to_datetime(x, unit)
 
-    return x.cast(ibis_dtypes.Timestamp(None))
+    return x.cast(ibis_dtypes.Timestamp(None))  # type: ignore
 
 
 @scalar_op_compiler.register_unary_op(ops.ToTimestampOp, pass_op=True)
@@ -1077,7 +1104,7 @@ def to_timestamp_op_impl(x: ibis_types.Value, op: ops.ToTimestampOp):
     else:
         # Numerical inputs.
         if op.format:
-            x = x.cast(ibis_dtypes.str).to_timestamp(op.format)
+            x = x.cast(ibis_dtypes.str).to_timestamp(op.format)  # type: ignore
         else:
             # The default unit is set to "ns" (nanoseconds) for consistency
             # with pandas, where "ns" is the default unit for datetime operations.
@@ -1140,11 +1167,11 @@ def json_set_op_impl(x: ibis_types.Value, y: ibis_types.Value, op: ops.JSONSet):
             json_obj=x,
             json_path=op.json_path,
             json_value=y,
-        ).to_expr()
+        )
     else:
         # Enabling JSON type eliminates the need for less efficient string conversions.
-        return vendored_ibis_ops.ToJsonString(
-            json_set(
+        return ibis_ops.ToJsonString(
+            json_set(  # type: ignore
                 json_obj=parse_json(x),
                 json_path=op.json_path,
                 json_value=y,
@@ -1501,7 +1528,7 @@ def _is_bignumeric(x: ibis_types.Value):
     if not isinstance(x, ibis_types.DecimalValue):
         return False
     # Should be exactly 76 for bignumeric
-    return x.precision > 70
+    return x.precision > 70  # type: ignore
 
 
 def _is_numeric(x: ibis_types.Value):
@@ -1522,7 +1549,10 @@ def mod_op(
 
     if x.type().is_integer() and y.type().is_integer():
         # both are ints, no casting necessary
-        return _int_mod(x, y)
+        return _int_mod(
+            typing.cast(ibis_types.IntegerValue, x),
+            typing.cast(ibis_types.IntegerValue, y),
+        )
 
     else:
         # bigquery doens't support float mod, so just cast to bignumeric and hope for the best
@@ -1534,7 +1564,7 @@ def mod_op(
             ibis_types.DecimalValue,
             y.cast(ibis_dtypes.Decimal(precision=76, scale=38, nullable=True)),
         )
-        mod_numeric = _bignumeric_mod(x_numeric, y_numeric)
+        mod_numeric = _bignumeric_mod(x_numeric, y_numeric)  # type: ignore
 
         # Cast back down based on original types
         if _is_bignumeric(x) or _is_bignumeric(y):
@@ -1699,7 +1729,7 @@ def where_op(
     replacement: ibis_types.Value,
 ) -> ibis_types.Value:
     """Returns x if y is true, otherwise returns z."""
-    return ibis_api.case().when(condition, original).else_(replacement).end()
+    return ibis_api.case().when(condition, original).else_(replacement).end()  # type: ignore
 
 
 @scalar_op_compiler.register_ternary_op(ops.clip_op)
@@ -1713,7 +1743,7 @@ def clip_op(
         not isinstance(upper, ibis_types.NullScalar)
     ):
         return (
-            ibis_api.case()
+            ibis_api.case()  # type: ignore
             .when(upper.isnull() | (original > upper), upper)
             .else_(original)
             .end()
@@ -1722,7 +1752,7 @@ def clip_op(
         upper, ibis_types.NullScalar
     ):
         return (
-            ibis_api.case()
+            ibis_api.case()  # type: ignore
             .when(lower.isnull() | (original < lower), lower)
             .else_(original)
             .end()
@@ -1734,7 +1764,7 @@ def clip_op(
     else:
         # Note: Pandas has unchanged behavior when upper bound and lower bound are flipped. This implementation requires that lower_bound < upper_bound
         return (
-            ibis_api.case()
+            ibis_api.case()  # type: ignore
             .when(lower.isnull() | (original < lower), lower)
             .when(upper.isnull() | (original > upper), upper)
             .else_(original)
@@ -1759,7 +1789,7 @@ def case_when_op(*cases_and_outputs: ibis_types.Value) -> ibis_types.Value:
     case_val = ibis_api.case()
     for predicate, output in zip(cases_and_outputs[::2], result_values):
         case_val = case_val.when(predicate, output)
-    return case_val.end()
+    return case_val.end()  # type: ignore
 
 
 @scalar_op_compiler.register_nary_op(ops.NaryRemoteFunctionOp, pass_op=True)
@@ -1797,7 +1827,7 @@ def _ibis_num(number: float):
 
 
 @ibis_udf.scalar.builtin
-def timestamp(a: str) -> ibis_dtypes.timestamp:
+def timestamp(a: str) -> ibis_dtypes.timestamp:  # type: ignore
     """Convert string to timestamp."""
 
 
@@ -1815,40 +1845,40 @@ def float_ceil(a: float) -> float:
 
 
 @ibis_udf.scalar.builtin(name="parse_json")
-def parse_json(a: str) -> ibis_dtypes.JSON:
+def parse_json(a: str) -> ibis_dtypes.JSON:  # type: ignore[empty-body]
     """Converts a JSON-formatted STRING value to a JSON value."""
 
 
 @ibis_udf.scalar.builtin(name="json_set")
-def json_set(
-    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str, json_value
+def json_set(  # type: ignore[empty-body]
+    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String, json_value
 ) -> ibis_dtypes.JSON:
     """Produces a new SQL JSON value with the specified JSON data inserted or replaced."""
 
 
 @ibis_udf.scalar.builtin(name="json_extract")
-def json_extract(
-    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str
+def json_extract(  # type: ignore[empty-body]
+    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
 ) -> ibis_dtypes.JSON:
     """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
 
 
 @ibis_udf.scalar.builtin(name="json_extract_array")
-def json_extract_array(
-    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str
+def json_extract_array(  # type: ignore[empty-body]
+    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
 ) -> ibis_dtypes.Array[ibis_dtypes.String]:
     """Extracts a JSON array and converts it to a SQL ARRAY of JSON-formatted STRINGs or JSON values."""
 
 
 @ibis_udf.scalar.builtin(name="json_extract_string_array")
-def json_extract_string_array(
-    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.str
+def json_extract_string_array(  # type: ignore[empty-body]
+    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
 ) -> ibis_dtypes.Array[ibis_dtypes.String]:
     """Extracts a JSON array and converts it to a SQL ARRAY of STRINGs."""
 
 
 @ibis_udf.scalar.builtin(name="ML.DISTANCE")
-def vector_distance(vector1, vector2, type: str) -> ibis_dtypes.Float64:
+def vector_distance(vector1, vector2, type: str) -> ibis_dtypes.Float64:  # type: ignore[empty-body]
     """Computes the distance between two vectors using specified type ("EUCLIDEAN", "MANHATTAN", or "COSINE")"""
 
 

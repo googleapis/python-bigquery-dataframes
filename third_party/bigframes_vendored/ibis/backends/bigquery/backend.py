@@ -1,4 +1,5 @@
-# Contains code from https://github.com/ibis-project/ibis/blob/main/ibis/backends/bigquery/__init__.py
+# Contains code from https://github.com/ibis-project/ibis/blob/9.2.0/ibis/backends/bigquery/__init__.py
+
 
 """BigQuery public API."""
 
@@ -25,7 +26,7 @@ from bigframes_vendored.ibis.backends.bigquery.datatypes import (
 )
 from bigframes_vendored.ibis.backends.sql import SQLBackend
 import bigframes_vendored.ibis.backends.sql.compilers as sc
-import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
+import bigframes_vendored.ibis.common.exceptions as com
 import bigframes_vendored.ibis.expr.operations as ops
 import bigframes_vendored.ibis.expr.schema as sch
 import bigframes_vendored.ibis.expr.types as ir
@@ -518,7 +519,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         catalog = table_loc.args["catalog"]  # args access will return None, not ''
         if table.catalog:
             if table_loc.catalog:
-                raise ibis_exceptions.IbisInputError(
+                raise com.IbisInputError(
                     "Cannot specify catalog both in the table name and as an argument"
                 )
             else:
@@ -528,7 +529,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         db = table_loc.args["db"]  # args access will return None, not ''
         if table.db:
             if table_loc.db:
-                raise ibis_exceptions.IbisInputError(
+                raise com.IbisInputError(
                     "Cannot specify database both in the table name and as an argument"
                 )
             else:
@@ -636,9 +637,48 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         return sql
 
     def execute(self, expr, params=None, limit="default", **kwargs):
-        raise ibis_exceptions.IbisError(
-            "BigFrames does not vendored these peice of codes"
+        """Compile and execute the given Ibis expression.
+        Compile and execute Ibis expression using this backend client
+        interface, returning results in-memory in the appropriate object type
+        Parameters
+        ----------
+        expr
+            Ibis expression to execute
+        limit
+            Retrieve at most this number of values/rows. Overrides any limit
+            already set on the expression.
+        params
+            Query parameters
+        kwargs
+            Extra arguments specific to the backend
+        Returns
+        -------
+        pd.DataFrame | pd.Series | scalar
+            Output from execution
+        """
+        from bigframes_vendored.ibis.backends.bigquery.converter import (
+            BigQueryPandasData,
         )
+
+        self._run_pre_execute_hooks(expr)
+
+        schema = expr.as_table().schema() - bigframes_vendored.ibis.schema(
+            {"_TABLE_SUFFIX": "string"}
+        )
+
+        sql = self.compile(expr, limit=limit, params=params, **kwargs)
+        self._log(sql)
+        query = self.raw_sql(sql, params=params, **kwargs)
+
+        arrow_t = query.to_arrow(
+            progress_bar_type=None, bqstorage_client=self.storage_client
+        )
+
+        result = BigQueryPandasData.convert_table(
+            arrow_t.to_pandas(timestamp_as_object=True), schema
+        )
+
+        return expr.__pandas_result__(result, schema=schema)
 
     def insert(
         self,
@@ -859,15 +899,13 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
 
         """
         if obj is None and schema is None:
-            raise ibis_exceptions.IbisError(
-                "One of the `schema` or `obj` parameter is required"
-            )
+            raise com.IbisError("One of the `schema` or `obj` parameter is required")
         if schema is not None:
             schema = bigframes_vendored.ibis.schema(schema)
 
         if isinstance(obj, ir.Table) and schema is not None:
             if not schema.equals(obj.schema()):
-                raise ibis_exceptions.IbisTypeError(
+                raise com.IbisTypeError(
                     "Provided schema and Ibis table schema are incompatible. Please "
                     "align the two schemas, or provide only one of the two arguments."
                 )
@@ -906,9 +944,7 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
         if temp:
             dataset = self._session_dataset.dataset_id
             if database is not None:
-                raise ibis_exceptions.IbisInputError(
-                    "Cannot specify database for temporary table"
-                )
+                raise com.IbisInputError("Cannot specify database for temporary table")
             database = self._session_dataset.project
         else:
             dataset = database or self.current_database

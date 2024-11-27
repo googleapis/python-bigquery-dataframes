@@ -509,6 +509,7 @@ class RemoteFunctionSession:
                 input_types=tuple(
                     third_party_ibis_bqtypes.BigQueryType.from_ibis(type_)
                     for type_ in ibis_signature.input_types
+                    if type_ is not None
                 ),
                 output_type=third_party_ibis_bqtypes.BigQueryType.from_ibis(
                     ibis_signature.output_type
@@ -544,7 +545,7 @@ class RemoteFunctionSession:
                 catalog=dataset_ref.project,
                 database=dataset_ref.dataset_id,
                 signature=(ibis_signature.input_types, ibis_signature.output_type),
-            )
+            )  # type: ignore
             func.bigframes_cloud_function = (
                 remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
             )
@@ -559,6 +560,7 @@ class RemoteFunctionSession:
                         input_type
                     )
                     for input_type in ibis_signature.input_types
+                    if input_type is not None
                 ]
             )
             func.output_dtype = (

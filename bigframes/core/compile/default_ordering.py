@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import cast
 
-import bigframes_vendored.ibis.expr.api as ibis_api
+import bigframes_vendored.ibis
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations as ibis_ops
 import bigframes_vendored.ibis.expr.types as ibis_types
@@ -48,16 +48,21 @@ def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringVa
     # Escape backslashes and use backslash as delineator
     escaped = cast(
         ibis_types.StringColumn,
-        result.fill_null("") if hasattr(result, "fill_null") else result.fillna(""),
+        result.fill_null(ibis_types.literal(""))
+        if hasattr(result, "fill_null")
+        else result.fillna(""),
     ).replace(
-        "\\", "\\\\"
-    )  # type: ignore
-    return cast(ibis_types.StringColumn, ibis_types.literal("\\")).concat(escaped)
+        "\\",  # type: ignore
+        "\\\\",  # type: ignore
+    )
+    return cast(ibis_types.StringColumn, bigframes_vendored.ibis.literal("\\")).concat(
+        escaped
+    )
 
 
 def gen_default_ordering(
     table: ibis_types.Table, use_double_hash: bool = True
-) -> list[ibis_types.Value]:
+) -> list[bigframes_vendored.ibis.Value]:
     ordering_hash_part = guid.generate_guid("bigframes_ordering_")
     ordering_hash_part2 = guid.generate_guid("bigframes_ordering_")
     ordering_rand_part = guid.generate_guid("bigframes_ordering_")
@@ -73,7 +78,7 @@ def gen_default_ordering(
     # By modifying value slightly, we get another hash uncorrelated with the first
     full_row_hash_p2 = (full_row_str + "_").hash().name(ordering_hash_part2)
     # Used to disambiguate between identical rows (which will have identical hash)
-    random_value = ibis_api.random().name(ordering_rand_part)
+    random_value = bigframes_vendored.ibis.random().name(ordering_rand_part)
 
     order_values = (
         [full_row_hash, full_row_hash_p2, random_value]

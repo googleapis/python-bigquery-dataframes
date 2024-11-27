@@ -56,13 +56,13 @@ def compile_aggregate(
     if isinstance(aggregate, ex.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
         if aggregate.op.can_order_by:
-            return compile_ordered_unary_agg(aggregate.op, input, order_by=order_by)
+            return compile_ordered_unary_agg(aggregate.op, input, order_by=order_by)  # type: ignore
         else:
-            return compile_unary_agg(aggregate.op, input)
+            return compile_unary_agg(aggregate.op, input)  # type: ignore
     elif isinstance(aggregate, ex.BinaryAggregation):
         left = scalar_compiler.compile_expression(aggregate.left, bindings=bindings)
         right = scalar_compiler.compile_expression(aggregate.right, bindings=bindings)
-        return compile_binary_agg(aggregate.op, left, right)
+        return compile_binary_agg(aggregate.op, left, right)  # type: ignore
     else:
         raise ValueError(f"Unexpected aggregation: {aggregate}")
 
@@ -76,7 +76,7 @@ def compile_analytic(
         return compile_nullary_agg(aggregate.op, window)
     elif isinstance(aggregate, ex.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
-        return compile_unary_agg(aggregate.op, input, window)
+        return compile_unary_agg(aggregate.op, input, window)  # type: ignore
     elif isinstance(aggregate, ex.BinaryAggregation):
         raise NotImplementedError("binary analytic operations not yet supported")
     else:
@@ -217,15 +217,15 @@ def _(
     def approx_top_count(expression, number: ibis_dtypes.int64):  # type: ignore
         ...
 
-    return_type = ibis_dtypes.Array(
-        ibis_dtypes.Struct.from_tuples(
+    ibis_return_type = ibis_dtypes.Array(
+        value_type=ibis_dtypes.Struct.from_tuples(
             [("value", column.type()), ("count", ibis_dtypes.int64)]
         )
-    )
-    approx_top_count.__annotations__["return"] = return_type
+    )  # type: ignore
+    approx_top_count.__annotations__["return"] = ibis_return_type
     udf_op = ibis_ops.udf.agg.builtin(approx_top_count)
 
-    return udf_op(expression=column, number=op.number)
+    return udf_op(expression=column, number=op.number)  # type: ignore
 
 
 @compile_unary_agg.register
@@ -285,7 +285,7 @@ def _(
         .else_(magnitude * pow(-1, negative_count_parity))
         .end()
     )
-    return float_result
+    return cast(ibis_types.NumericValue, float_result)
 
 
 @compile_unary_agg.register
@@ -603,8 +603,8 @@ def _(
         )
 
     return ibis_ops.ArrayAggregate(
-        column,
-        order_by=order_by,
+        column,  # type: ignore
+        order_by=order_by,  # type: ignore
     ).to_expr()
 
 

@@ -173,7 +173,7 @@ def read_gbq_function(
         catalog=routine_ref.project,
         database=routine_ref.dataset_id,
         signature=(ibis_signature.input_types, ibis_signature.output_type),
-    )
+    )  # type: ignore
     func.bigframes_remote_function = str(routine_ref)  # type: ignore
 
     # set input bigframes data types

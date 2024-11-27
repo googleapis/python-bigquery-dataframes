@@ -1,5 +1,4 @@
-# Contains code from
-# https://github.com/ibis-project/ibis/blob/697d325f13bdf2746a50e86204eb8834b1710bd6/ibis/backends/bigquery/datatypes.py
+# Contains code from https://github.com/ibis-project/ibis/blob/9.2.0/ibis/backends/bigquery/datatypes.py
 
 from __future__ import annotations
 
