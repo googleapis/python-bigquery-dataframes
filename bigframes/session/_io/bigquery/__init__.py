@@ -204,7 +204,11 @@ def format_option(key: str, value: Union[bool, str]) -> str:
     return f"{key}={repr(value)}"
 
 
-def add_labels(job_config, api_name: Optional[str] = None):
+def add_and_trim_labels(job_config, api_name: Optional[str] = None):
+    """
+    Add additional labels to the job configuration and trim the total number of labels
+    to ensure they do not exceed the maximum limit allowed by BigQuery, which is 64 labels per job.
+    """
     api_methods = log_adapter.get_and_reset_api_methods(dry_run=job_config.dry_run)
     job_config.labels = create_job_configs_labels(
         job_configs_labels=job_config.labels,
@@ -225,7 +229,9 @@ def start_query_with_client(
     """
     Starts query job and waits for results.
     """
-    add_labels(job_config, api_name=api_name)
+    # Note: Ensure no additional labels are added to job_config after this point,
+    # as `add_and_trim_labels` ensures the label count does not exceed 64.
+    add_and_trim_labels(job_config, api_name=api_name)
 
     try:
         query_job = bq_client.query(sql, job_config=job_config, timeout=timeout)
@@ -304,7 +310,10 @@ def create_bq_dataset_reference(
         bigquery.DatasetReference: The constructed reference to the anonymous dataset.
     """
     job_config = google.cloud.bigquery.QueryJobConfig()
-    add_labels(job_config, api_name=api_name)
+
+    # Note: Ensure no additional labels are added to job_config after this point,
+    # as `add_and_trim_labels` ensures the label count does not exceed 64.
+    add_and_trim_labels(job_config, api_name=api_name)
     query_job = bq_client.query(
         "SELECT 1", location=location, project=project, job_config=job_config
     )
