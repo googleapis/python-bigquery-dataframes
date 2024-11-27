@@ -19,7 +19,7 @@ import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 import pandas as pd
 
-from bigframes.core import convert, guid
+from bigframes.core import convert, global_session, guid
 import bigframes.pandas as bpd
 from bigframes.session import Session
 
@@ -40,6 +40,8 @@ def batch_convert_to_dataframe(
             It is not used if the input itself is already a BigFrame data frame or series.
 
     """
+    _validate_sessions(*input, session=session)
+
     return (
         convert.to_bf_dataframe(frame, default_index=None, session=session)
         for frame in input
@@ -57,12 +59,32 @@ def batch_convert_to_series(
             It is not used if the input itself is already a BigFrame data frame or series.
 
     """
+    _validate_sessions(*input, session=session)
+
     return (
         convert.to_bf_series(
             _get_only_column(frame), default_index=None, session=session
         )
         for frame in input
     )
+
+
+def _validate_sessions(*input: ArrayType, session: Optional[Session]):
+    session_ids = set(
+        i._session.session_id for i in input if isinstance(i, BigFramesArrayType)
+    )
+    if len(session_ids) > 1:
+        raise ValueError("Cannot convert data from multiple sessions")
+
+    session_ids.add(
+        global_session.get_global_session().session_id
+        if session is None
+        else session.session_id
+    )
+    if len(session_ids) > 1:
+        raise ValueError(
+            "Cannot convert data when their session is different from the specified session."
+        )
 
 
 def _get_only_column(input: ArrayType) -> Union[pd.Series, bpd.Series]:
