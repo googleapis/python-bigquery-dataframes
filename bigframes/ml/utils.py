@@ -71,7 +71,9 @@ def batch_convert_to_series(
 
 def _validate_sessions(*input: ArrayType, session: Optional[Session]):
     session_ids = set(
-        i._session.session_id for i in input if isinstance(i, BigFramesArrayType)
+        i._session.session_id
+        for i in input
+        if isinstance(i, bpd.DataFrame) or isinstance(i, bpd.Series)
     )
     if len(session_ids) > 1:
         raise ValueError("Cannot convert data from multiple sessions")
