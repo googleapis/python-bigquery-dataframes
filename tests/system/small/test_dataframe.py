@@ -331,11 +331,31 @@ def test_where_series_cond(scalars_df_index, scalars_pandas_df_index):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_where_series_multi_index(scalars_df_index, scalars_pandas_df_index):
+    # Test when a dataframe has multi-index or multi-columns.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+
+    dataframe_bf.columns = pd.MultiIndex.from_tuples(
+        [("str1", 1), ("str2", 2)], names=["STR", "INT"]
+    )
+    cond_bf = dataframe_bf["str1"] > 0
+
+    with pytest.raises(NotImplementedError) as context:
+        dataframe_bf.where(cond_bf).to_pandas()
+    assert (
+        str(context.value)
+        == "The dataframe.where() method does not support multi-index and/or multi-column."
+    )
+
+
 def test_where_series_cond_const_other(scalars_df_index, scalars_pandas_df_index):
     # Condition is a series, other is a constant.
     columns = ["int64_col", "float64_col"]
     dataframe_bf = scalars_df_index[columns]
     dataframe_pd = scalars_pandas_df_index[columns]
+    dataframe_bf.columns.name = "test_name"
+    dataframe_pd.columns.name = "test_name"
 
     cond_bf = dataframe_bf["int64_col"] > 0
     cond_pd = dataframe_pd["int64_col"] > 0

@@ -2043,6 +2043,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if isinstance(other, bigframes.series.Series):
             raise ValueError("Seires is not a supported replacement type!")
 
+        if self.columns.nlevels > 1 or self.index.nlevels > 1:
+            raise NotImplementedError(
+                "The dataframe.where() method does not support multi-index and/or multi-column."
+            )
+
         aligned_block, (_, _) = self._block.join(cond._block, how="left")
         # No left join is needed when 'other' is None or constant.
         if isinstance(other, bigframes.dataframe.DataFrame):
@@ -2086,7 +2091,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
             result_series[x] = series
 
-        return DataFrame(result_series)
+        result = DataFrame(result_series)
+        result.columns.name = self.columns.name
+        result.columns.names = self.columns.names
+        return result
 
     def dropna(
         self,
