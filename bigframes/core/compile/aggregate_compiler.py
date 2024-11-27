@@ -469,6 +469,15 @@ def _(
     return _apply_window_if_present(ibis.rank(), window) + 1
 
 
+@compile_nullary_agg.register
+def _(
+    op: agg_ops.RowNumberOp,
+    column: ibis_types.Column,
+    window=None,
+) -> ibis_types.IntegerValue:
+    return _apply_window_if_present(ibis.row_number(), window)
+
+
 @compile_unary_agg.register
 def _(
     op: agg_ops.DenseRankOp,

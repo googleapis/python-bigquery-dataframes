@@ -395,6 +395,21 @@ class RankOp(UnaryWindowOp):
     @property
     def order_independent(self):
         return True
+    
+@dataclasses.dataclass(frozen=True)
+class RowNumberOp(NullaryWindowOp):
+    name: ClassVar[str] = "row_number"
+
+    @property
+    def skips_nulls(self):
+        return False
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return dtypes.INT_DTYPE
+
+    @property
+    def order_independent(self):
+        return False
 
 
 @dataclasses.dataclass(frozen=True)

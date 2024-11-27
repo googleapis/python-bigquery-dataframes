@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Generator, Sequence, Literal
 
 import bigframes.core.expression
 import bigframes.core.guid
@@ -23,6 +23,9 @@ import bigframes.core.join_def
 import bigframes.core.nodes
 import bigframes.core.window_spec
 import bigframes.operations.aggregations
+import bigframes.operations
+
+import functools
 
 # Additive nodes leave existing columns completely intact, and only add new columns to the end
 ADDITIVE_NODES = (
@@ -90,26 +93,12 @@ def _linearize_trees(
     else:
         assert isinstance(append_tree, ADDITIVE_NODES)
         return append_tree.replace_child(_linearize_trees(base_tree, append_tree.child))
-
-
-def combine_nodes(
-    l_node: bigframes.core.nodes.BigFrameNode,
-    r_node: bigframes.core.nodes.BigFrameNode,
-) -> bigframes.core.nodes.BigFrameNode:
-    assert l_node.projection_base == r_node.projection_base
-    l_node, l_selection = pull_up_selection(l_node)
-    r_node, r_selection = pull_up_selection(
-        r_node, rename_vars=True
-    )  # Rename only right vars to avoid collisions with left vars
-    combined_selection = (*l_selection, *r_selection)
-    merged_node = _linearize_trees(l_node, r_node)
-    return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
-
-
+    
 def try_join_as_projection(
     l_node: bigframes.core.nodes.BigFrameNode,
     r_node: bigframes.core.nodes.BigFrameNode,
     join_keys: Tuple[Tuple[str, str], ...],
+    how: Literal["inner", "outer", "left", "right"]
 ) -> Optional[bigframes.core.nodes.BigFrameNode]:
     """Joins the two nodes"""
     if l_node.projection_base != r_node.projection_base:
@@ -124,8 +113,79 @@ def try_join_as_projection(
             r_node, right_id
         ):
             return None
-    return combine_nodes(l_node, r_node)
+        
+    if how == "inner":
+        return inner_join(l_node, r_node)
+    elif how == "outer":
+        return outer_join(l_node, r_node)
+    elif how == "left":
+        return left_join(l_node, r_node)
+    elif how == "right":
+        return right_join(l_node, r_node)    
+    raise ValueError(f"Unrecognized join type: {how}")
 
+
+def left_join(
+    l_node: bigframes.core.nodes.BigFrameNode,
+    r_node: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    assert l_node.projection_base == r_node.projection_base
+    l_node, l_selection = pull_up_selection(l_node)
+    r_node, r_selection = pull_up_selection(
+        r_node, rename_vars=True
+    )  # Rename only right vars to avoid collisions with left var
+
+    r_node, r_mask = pull_up_filters(r_node)
+
+    merged_node = _linearize_trees(l_node, r_node)
+    combined_selection = (*l_selection, *r_selection)
+    
+    return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
+
+def right_join(
+    l_node: bigframes.core.nodes.BigFrameNode,
+    r_node: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    assert l_node.projection_base == r_node.projection_base
+    l_node, l_selection = pull_up_selection(l_node)
+    r_node, r_selection = pull_up_selection(
+        r_node, rename_vars=True
+    )  # Rename only right vars to avoid collisions with left var
+
+    merged_node = _linearize_trees(l_node, r_node)
+    combined_selection = (*l_selection, *r_selection)
+    
+    return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
+
+def inner_join(
+    l_node: bigframes.core.nodes.BigFrameNode,
+    r_node: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    assert l_node.projection_base == r_node.projection_base
+    l_node, l_selection = pull_up_selection(l_node)
+    r_node, r_selection = pull_up_selection(
+        r_node, rename_vars=True
+    )  # Rename only right vars to avoid collisions with left var
+
+    merged_node = _linearize_trees(l_node, r_node)
+    combined_selection = (*l_selection, *r_selection)
+    
+    return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
+
+def outer_join(
+    l_node: bigframes.core.nodes.BigFrameNode,
+    r_node: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    assert l_node.projection_base == r_node.projection_base
+    l_node, l_selection = pull_up_selection(l_node)
+    r_node, r_selection = pull_up_selection(
+        r_node, rename_vars=True
+    )  # Rename only right vars to avoid collisions with left var
+
+    merged_node = _linearize_trees(l_node, r_node)
+    combined_selection = (*l_selection, *r_selection)
+    
+    return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
 
 def pull_up_selection(
     node: bigframes.core.nodes.BigFrameNode, rename_vars: bool = False
@@ -178,6 +238,8 @@ def pull_up_selection(
         )
         new_selection = (*child_selections, *added_selections)
         return new_node, new_selection
+    elif isinstance(node, bigframes.core.nodes.FilterNode):
+        return node.replace_child(child_node).remap_refs(mapping), child_selections
     elif isinstance(node, bigframes.core.nodes.SelectionNode):
         new_selection = tuple(
             (
@@ -188,3 +250,60 @@ def pull_up_selection(
         )
         return child_node, new_selection
     raise ValueError(f"Couldn't pull up select from node: {node}")
+
+
+def pull_up_filters(
+    node: bigframes.core.nodes.BigFrameNode
+) -> Tuple[bigframes.core.nodes.BigFrameNode, Tuple[bigframes.core.expression.Expression, ...]]:
+    """
+    Pull predicates up. May create extra variables, which caller will need to drop.
+    """
+    if node == node.projection_base:  # base case
+        return node, tuple(
+            (bigframes.core.expression.DerefOp(field.id), field.id)
+            for field in node.fields
+        )
+    if isinstance(node, bigframes.core.nodes.ProjectionNode):
+        child_node, child_predicates = pull_up_filters(node.child)
+        node = node.replace_child(child_node)
+        if len(child_predicates) > 0:
+            mask_expr = merge_predicates(child_predicates)
+            node = mask_projection(node, mask_expr)
+        # when pulling up filters, need to mask projection so invalid
+        # inputs don't get passed and create errors
+        return node, child_predicates
+    if isinstance(node, bigframes.core.nodes.FilterNode):
+        # TODO: Do we need to go mask all existing variables??
+        child_node, child_predicates = pull_up_filters(node.child)
+        return (child_node, (*child_predicates, *decompose_conjunction(node.predicate)))
+    else:
+        raise ValueError(f"Unsupported node type f{type(node)}")
+
+
+## Predicate helpers
+def mask_projection(
+    node: bigframes.core.nodes.ProjectionNode, mask: bigframes.core.expression.Expression
+) -> bigframes.core.nodes.ProjectionNode:
+    new_assignment = tuple(
+        (bigframes.operations.where_op.as_expr(ex, mask, bigframes.core.expression.const(None)), name)
+        for ex, name in node.assignments
+    )
+    return bigframes.core.nodes.ProjectionNode(node.child, new_assignment)
+
+def merge_predicates(
+    predicates: Sequence[bigframes.core.expression.Expression],
+) -> bigframes.core.expression.Expression:
+    if len(predicates) == 0:
+        raise ValueError("Must provide at least one predicate to merge")
+    return functools.reduce(bigframes.operations.and_op.as_expr, predicates)
+    
+def decompose_conjunction(
+    expr: bigframes.core.expression.Expression,
+) -> Generator[bigframes.core.expression.Expression, None, None]:
+    if isinstance(expr, bigframes.core.expression.OpExpression) and isinstance(
+        expr.op, type(bigframes.operations.and_op)
+    ):
+        yield from decompose_conjunction(expr.inputs[0])
+        yield from decompose_conjunction(expr.inputs[1])
+    else:
+        yield expr
