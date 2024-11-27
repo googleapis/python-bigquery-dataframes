@@ -25,27 +25,6 @@ class Index:
     """
 
     @property
-    def name(self):
-        """Returns Index name.
-
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> idx = bpd.Index([1, 2, 3], name='x')
-            >>> idx
-            Index([1, 2, 3], dtype='Int64', name='x')
-            >>> idx.name
-            'x'
-
-        Returns:
-            blocks.Label:
-                Index or MultiIndex name
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
-
-    @property
     def values(self):
         """Return an array representing the data in the Index.
 
