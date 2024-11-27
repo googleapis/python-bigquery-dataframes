@@ -15,6 +15,7 @@ from bigframes_vendored.ibis.expr.operations.reductions import *  # noqa: F401 F
 from bigframes_vendored.ibis.expr.operations.relations import *  # noqa: F401 F403
 from bigframes_vendored.ibis.expr.operations.sortkeys import *  # noqa: F401 F403
 from bigframes_vendored.ibis.expr.operations.strings import *  # noqa: F401 F403
+from bigframes_vendored.ibis.expr.operations.structs import *  # noqa: F401 F403
 from bigframes_vendored.ibis.expr.operations.subqueries import *  # noqa: F401 F403
 from bigframes_vendored.ibis.expr.operations.temporal import *  # noqa: F401 F403
 from bigframes_vendored.ibis.expr.operations.udf import *  # noqa: F401 F403

@@ -89,5 +89,6 @@ class UnwrapJSONBoolean(Value):
 
 # TODO(swast): Remove once supported upstream.
 # See: https://github.com/ibis-project/ibis/issues/9542
+@public
 class ToJsonString(Unary):
     dtype = dt.string
