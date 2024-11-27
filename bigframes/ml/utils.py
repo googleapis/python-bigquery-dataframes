@@ -14,14 +14,12 @@
 
 import typing
 from typing import Any, Generator, Hashable, Literal, Mapping, Optional, Tuple, Union
-from typing import Any, Generator, Hashable, Literal, Mapping, Optional, Tuple, Union
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 import pandas as pd
 
 from bigframes.core import convert, global_session, guid
-from bigframes.core import convert, guid
 import bigframes.pandas as bpd
 from bigframes.session import Session
 
@@ -76,6 +74,8 @@ def _get_only_column(input: ArrayType) -> Union[pd.Series, bpd.Series]:
             "To convert into Series, DataFrames can only contain one column. "
             f"Try input with only one column. {constants.FEEDBACK_LINK}"
         )
+
+
 def _get_only_column(input: ArrayType) -> Union[pd.Series, bpd.Series]:
     if isinstance(input, pd.Series) or isinstance(input, bpd.Series):
         return input
