@@ -19,7 +19,7 @@ import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 import pandas as pd
 
-from bigframes.core import convert, global_session, guid
+from bigframes.core import convert, guid
 import bigframes.pandas as bpd
 from bigframes.session import Session
 
@@ -75,27 +75,9 @@ def _get_only_column(input: ArrayType) -> Union[pd.Series, bpd.Series]:
             f"Try input with only one column. {constants.FEEDBACK_LINK}"
         )
 
-
-def _get_only_column(input: ArrayType) -> Union[pd.Series, bpd.Series]:
-    if isinstance(input, pd.Series) or isinstance(input, bpd.Series):
-        return input
-
-    if len(input.columns) != 1:
-        raise ValueError(
-            "To convert into Series, DataFrames can only contain one column. "
-            f"Try input with only one column. {constants.FEEDBACK_LINK}"
-        )
-
     label = typing.cast(Hashable, input.columns.tolist()[0])
     if isinstance(input, pd.DataFrame):
         return typing.cast(pd.Series, input[label])
-
-    return typing.cast(bpd.Series, input[label])
-    label = typing.cast(Hashable, input.columns.tolist()[0])
-    if isinstance(input, pd.DataFrame):
-        return typing.cast(pd.Series, input[label])
-
-    return typing.cast(bpd.Series, input[label])
 
 
 def parse_model_endpoint(model_endpoint: str) -> tuple[str, Optional[str]]:
