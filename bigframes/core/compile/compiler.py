@@ -83,7 +83,9 @@ class Compiler:
         if self.enable_pruning:
             used_fields = frozenset(field.id for field in node.fields)
             node = node.prune(used_fields)
-        node = functools.cache(rewrites.replace_slice_ops)(node)
+        node = bigframes.core.nodes.bottom_up(
+            node, rewrites.replace_slice_op, memoize=True
+        )
         if self.enable_densify_ids:
             original_names = [id.name for id in node.ids]
             node, _ = rewrites.remap_variables(

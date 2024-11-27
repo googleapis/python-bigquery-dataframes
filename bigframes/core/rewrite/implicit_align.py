@@ -51,7 +51,14 @@ def get_expression_spec(
     )
     curr_node = node
     while True:
-        if isinstance(curr_node, bigframes.core.nodes.SelectionNode):
+        if isinstance(curr_node, bigframes.core.nodes.RowJoinNode):
+            if id in curr_node.left_child.ids:
+                curr_node = curr_node.left_child
+                continue
+            else:
+                curr_node = curr_node.right_child
+                continue
+        elif isinstance(curr_node, bigframes.core.nodes.SelectionNode):
             select_mappings = {
                 col_id: ref for ref, col_id in curr_node.input_output_pairs
             }
@@ -63,6 +70,7 @@ def get_expression_spec(
             expression = expression.bind_refs(
                 proj_mappings, allow_partial_bindings=True
             )
+
         elif isinstance(
             curr_node,
             (
@@ -90,6 +98,14 @@ def _linearize_trees(
     else:
         assert isinstance(append_tree, ADDITIVE_NODES)
         return append_tree.replace_child(_linearize_trees(base_tree, append_tree.child))
+
+
+def rewrite_row_join(
+    node: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    if isinstance(node, bigframes.core.nodes.RowJoinNode):
+        return combine_nodes(node.left_child, node.right_child)
+    return node
 
 
 def combine_nodes(
@@ -124,7 +140,7 @@ def try_join_as_projection(
             r_node, right_id
         ):
             return None
-    return combine_nodes(l_node, r_node)
+    return bigframes.core.nodes.RowJoinNode(l_node, r_node)
 
 
 def pull_up_selection(
