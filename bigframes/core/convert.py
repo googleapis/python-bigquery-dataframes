@@ -54,8 +54,6 @@ def to_bf_series(
         bigframes.pandas.Series
     """
     if isinstance(obj, series.Series):
-        if session is not None and session.session_id != obj._session.session_id:
-            raise ValueError("Cannot change session during conversion.")
         return obj
 
     if session is None:
@@ -120,8 +118,6 @@ def to_bf_dataframe(
     session: Optional[session.Session] = None,
 ) -> dataframe.DataFrame:
     if isinstance(obj, dataframe.DataFrame):
-        if session is not None and session.session_id != obj._session.session_id:
-            raise ValueError("Cannot change session during conversion.")
         return obj
 
     if isinstance(obj, pd.DataFrame):
