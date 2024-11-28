@@ -62,8 +62,10 @@ dependencies = [
     "sqlglot >=23.6.3,<25.2",
     "tabulate >= 0.9",
     "ipywidgets >=7.7.1",
-    "humanize >= 4.6.0",
-    "matplotlib >= 3.7.1",
+    "humanize >=4.6.0",
+    "matplotlib >=3.7.1",
+    # "db-dtypes >=1.3.0",
+    "db-dtypes @ git+https://github.com/googleapis/python-db-dtypes-pandas.git@4b84e4a6fada5ecfa7f910dca61e6de714abdb9d",
 ]
 extras = {
     # Optional test dependencies packages. If they're missed, may skip some tests.

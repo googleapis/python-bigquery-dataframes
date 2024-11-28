@@ -14,6 +14,7 @@
 
 from typing import Tuple
 
+import db_dtypes  # type:ignore
 import google.api_core.exceptions
 import pandas as pd
 import pandas.testing
@@ -248,22 +249,20 @@ def test_to_pandas_array_struct_correct_result(session):
 
 
 def test_load_json(session):
-    df = session.read_gbq(
-        """SELECT
-        JSON_OBJECT('foo', 10, 'bar', TRUE) AS json_column
-        """
-    )
+    df = session.read_gbq("SELECT JSON_OBJECT('foo', 10, 'bar', TRUE) AS json_column")
+    assert df.dtypes["json_column"] == db_dtypes.JSONDtype()
+    assert isinstance(df["json_column"][0], dict)
+    assert df["json_column"][0]["bar"]
+    assert df["json_column"][0]["foo"] == 10
 
     result = df.to_pandas()
-    expected = pd.DataFrame(
-        {
-            "json_column": ['{"bar":true,"foo":10}'],
-        },
-        dtype=pd.StringDtype(storage="pyarrow"),
+    pd_df = pd.DataFrame(
+        {"json_column": [{"bar": True, "foo": 10}]},
+        dtype=db_dtypes.JSONDtype(),
     )
-    expected.index = expected.index.astype("Int64")
-    pd.testing.assert_series_equal(result.dtypes, expected.dtypes)
-    pd.testing.assert_series_equal(result["json_column"], expected["json_column"])
+    pd_df.index = pd_df.index.astype("Int64")
+    pd.testing.assert_series_equal(result.dtypes, pd_df.dtypes)
+    pd.testing.assert_series_equal(result["json_column"], pd_df["json_column"])
 
 
 def test_to_pandas_batches_w_correct_dtypes(scalars_df_default_index):
