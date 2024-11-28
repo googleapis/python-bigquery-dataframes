@@ -15,13 +15,13 @@ from bigframes_vendored.ibis.backends.sql.compilers.base import (
     SQLGlotCompiler,
     STAR,
 )
-from ibis import util
-from ibis.backends.sql.datatypes import BigQueryType, BigQueryUDFType
-from ibis.backends.sql.rewrites import (
+from bigframes_vendored.ibis.backends.sql.rewrites import (
     exclude_unsupported_window_frame_from_ops,
     exclude_unsupported_window_frame_from_rank,
     exclude_unsupported_window_frame_from_row_number,
 )
+from ibis import util
+from ibis.backends.sql.datatypes import BigQueryType, BigQueryUDFType
 import ibis.common.exceptions as com
 from ibis.common.temporal import DateUnit, IntervalUnit, TimestampUnit, TimeUnit
 import ibis.expr.datatypes as dt
@@ -246,17 +246,6 @@ class BigQueryCompiler(SQLGlotCompiler):
 
         sources.append(result)
         return sources
-
-    @staticmethod
-    def _minimize_spec(start, end, spec):
-        if (
-            start is None
-            and isinstance(getattr(end, "value", None), ops.Literal)
-            and end.value.value == 0
-            and end.following
-        ):
-            return None
-        return spec
 
     def visit_BoundingBox(self, op, *, arg):
         name = type(op).__name__[len("Geo") :].lower()
