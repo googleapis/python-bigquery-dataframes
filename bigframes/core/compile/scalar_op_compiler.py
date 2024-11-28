@@ -623,7 +623,7 @@ def endswith_op_impl(x: ibis_types.Value, op: ops.EndsWithOp):
 
 @scalar_op_compiler.register_unary_op(ops.StringSplitOp, pass_op=True)
 def stringsplit_op_impl(x: ibis_types.Value, op: ops.StringSplitOp):
-    return typing.cast(ibis_types.StringValue, x).split(delimiter=op.pat[0])
+    return typing.cast(ibis_types.StringValue, x).split(delimiter=op.pat)  # type: ignore
 
 
 @scalar_op_compiler.register_unary_op(ops.ZfillOp, pass_op=True)
