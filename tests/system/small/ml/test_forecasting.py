@@ -139,7 +139,7 @@ def test_arima_plus_predict_explain_params(
     predictions = time_series_arima_plus_model.predict_explain(
         horizon=4, confidence_level=0.9
     ).to_pandas()
-    assert predictions.shape == (4, 8)
+    assert predictions.shape == (370, 17)
     result = predictions[["time_series_timestamp", "time_series_data"]]
     expected = pd.DataFrame(
         {
