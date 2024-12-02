@@ -1161,6 +1161,30 @@ def test_apply_series_scalar_callable(
     pandas.testing.assert_series_equal(bf_result, pd_result)
 
 
+def test_apply_from_read_gbq_function(dataset_id_permanent):
+    @bpd.remote_function(
+        dataset=dataset_id_permanent,
+        reuse=False,
+        name="tenfold",
+    )
+    def tenfold(num: float) -> float:
+        return num * 10.0
+
+    # Read back the deployed BQ remote function via read_gbq_function.
+    func_ref = bpd.read_gbq_function(
+        function_name=tenfold.bigframes_remote_function,
+        is_row_processor=False,
+    )
+
+    data = {"a": [1.0, 2.0], "b": [3.0, 4.0], "c": [5.0, 6.0]}
+    bdf = bpd.DataFrame(data)
+    # Applying the remote function in different ways should result in the same results.
+    result = bdf.apply(tenfold).to_pandas()
+    result_gbq = bdf.apply(func_ref).to_pandas()
+
+    pandas.testing.assert_frame_equal(result, result_gbq)
+
+
 def test_df_pipe(
     scalars_df_index,
     scalars_pandas_df_index,
