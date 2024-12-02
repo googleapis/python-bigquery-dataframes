@@ -276,8 +276,8 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         Returns:
             bigframes.dataframe.DataFrame: The predicted DataFrames.
         """
-        if horizon < 1 or horizon > 1000:
-            raise ValueError(f"horizon must be [1, 1000], but is {horizon}.")
+        if horizon < 1:
+            raise ValueError(f"horizon must be at least 1, but is {horizon}.")
         if confidence_level < 0.0 or confidence_level >= 1.0:
             raise ValueError(
                 f"confidence_level must be [0.0, 1.0), but is {confidence_level}."
