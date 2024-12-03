@@ -1365,18 +1365,14 @@ class Session(
         Another use case is to define your own remote funtion (or UDFs) and use
         it later. For example, define the remote function:
 
-            >>> @bpd.remote_function(
-            ...     dataset='bigframe_testing',
-            ...     reuse=True,
-            ...     name='foo_0',
-            ... )
-            ... def foo_0(num: int) -> float:
+            >>> @bpd.remote_function()
+            ... def tenfold(num: int) -> float:
             ...     return num * 10
 
         Then, read back the deployed BQ remote function:
 
             >>> func_ref_0 = bpd.read_gbq_function(
-            ...     "bigframes-dev.bigframe_testing.foo_0",
+            ...     tenfold.bigframes_remote_function,
             ... )
 
             >>> df = bpd.DataFrame({'a': [1, 2], 'b': [3, 4], 'c': [5, 6]})
@@ -1396,16 +1392,12 @@ class Session(
         note, row processor implies that the function has only one input
         parameter.
 
-            >>> @bpd.remote_function(
-            ...     dataset='bigframe_testing',
-            ...     reuse=True,
-            ...     name='foo_1',
-            ... )
-            ... def foo_1(s: bpd.Series) -> float:
+            >>> @bpd.remote_function()
+            ... def row_sum(s: bpd.Series) -> float:
             ...     return s['a'] + s['b'] + s['c']
 
             >>> func_ref_1 = bpd.read_gbq_function(
-            ...     "bigframes-dev.bigframe_testing.foo_1",
+            ...     row_sum.bigframes_remote_function,
             ...     is_row_processor=True,
             ... )
 

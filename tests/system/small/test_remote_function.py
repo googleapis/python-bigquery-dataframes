@@ -844,60 +844,14 @@ def test_read_gbq_function_multiple_inputs_not_a_row_processor(session):
     with pytest.raises(ValueError) as context:
         # The remote function has two args, which cannot be row processed. Throw
         # a ValueError for it.
-        rf.read_gbq_function(
+        session.read_gbq_function(
             function_name="bqutil.fn.cw_regexp_instr_2",
             is_row_processor=True,
-            session=session,
         )
     assert str(context.value) == (
         "A multi-input function cannot be a row processor. A row processor function "
         "takes in a single input representing the row."
     )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_read_gbq_function_row_processor(
-    session,
-    bigquery_client,
-    bigqueryconnection_client,
-    cloudfunctions_client,
-    resourcemanager_client,
-    dataset_id_permanent,
-    bq_cf_connection,
-):
-    def func_rp1(s):
-        return s["a"] + s["b"] + s["c"]
-
-    func_rp1 = rf.remote_function(
-        [bigframes.series.Series],
-        int,
-        bigquery_client=bigquery_client,
-        bigquery_connection_client=bigqueryconnection_client,
-        dataset=dataset_id_permanent,
-        cloud_functions_client=cloudfunctions_client,
-        resource_manager_client=resourcemanager_client,
-        bigquery_connection=bq_cf_connection,
-        reuse=True,
-        name=get_rf_name(func_rp1),
-    )(func_rp1)
-
-    func_ref_rp1 = rf.read_gbq_function(
-        function_name=func_rp1.bigframes_remote_function,  # type: ignore
-        is_row_processor=True,
-        session=session,
-    )
-
-    assert func_rp1.bigframes_remote_function  # type: ignore
-    assert func_rp1.bigframes_cloud_function  # type: ignore
-    assert func_ref_rp1.bigframes_remote_function
-    assert not hasattr(func_ref_rp1, "bigframes_cloud_function")
-    assert func_rp1.bigframes_remote_function == func_ref_rp1.bigframes_remote_function  # type: ignore
-
-    bdf = bigframes.pandas.DataFrame({"a": [1, 2], "b": [3, 4], "c": [5, 6]})
-    actual_result = bdf.apply(func_rp1, axis=1).to_frame()
-    expected_result = bdf.apply(func_ref_rp1, axis=1).to_frame()
-
-    assert_pandas_df_equal(actual_result.to_pandas(), expected_result.to_pandas())
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -941,6 +895,23 @@ def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
     # array of ints, ignore this mismatch by using check_exact=False.
     pd.testing.assert_series_equal(
         pd_result, bf_result, check_dtype=False, check_exact=False
+    )
+
+    # Read back the deployed BQ remote function using read_gbq_function.
+    func_ref = session.read_gbq_function(
+        function_name=add_ints_remote.bigframes_remote_function,  # type: ignore
+        is_row_processor=True,
+    )
+
+    assert add_ints_remote.bigframes_remote_function  # type: ignore
+    assert add_ints_remote.bigframes_cloud_function  # type: ignore
+    assert func_ref.bigframes_remote_function
+    assert not hasattr(func_ref, "bigframes_cloud_function")
+    assert add_ints_remote.bigframes_remote_function == func_ref.bigframes_remote_function  # type: ignore
+
+    bf_result_gbq = scalars_df[columns].apply(func_ref, axis=1).to_pandas()
+    pd.testing.assert_series_equal(
+        pd_result, bf_result_gbq, check_dtype=False, check_exact=False
     )
 
 
