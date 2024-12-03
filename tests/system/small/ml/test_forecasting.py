@@ -142,21 +142,21 @@ def test_arima_plus_predict_explain_params(
     assert predictions.shape[0] >= 1
     prediction_columns = set(predictions.columns)
     expected_columns = {
-        'time_series_timestamp',
-        'time_series_type',
-        'time_series_data',
-        'time_series_adjusted_data',
-        'standard_error',
-        'confidence_level',
-        'prediction_interval_lower_bound',
-        'trend',
-        'seasonal_period_yearly',
-        'seasonal_period_quarterly',
-        'seasonal_period_monthly',
-        'seasonal_period_weekly',
-        'seasonal_period_daily',
-        'holiday_effect',
-        }
+        "time_series_timestamp",
+        "time_series_type",
+        "time_series_data",
+        "time_series_adjusted_data",
+        "standard_error",
+        "confidence_level",
+        "prediction_interval_lower_bound",
+        "trend",
+        "seasonal_period_yearly",
+        "seasonal_period_quarterly",
+        "seasonal_period_monthly",
+        "seasonal_period_weekly",
+        "seasonal_period_daily",
+        "holiday_effect",
+    }
     assert expected_columns <= prediction_columns
 
 
