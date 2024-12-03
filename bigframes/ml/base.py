@@ -33,7 +33,11 @@ import bigframes.pandas as bpd
 
 class BaseEstimator(bigframes_vendored.sklearn.base.BaseEstimator, abc.ABC):
     """
+<<<<<<< HEAD
     A BigQuery DataFrames machine learning component following the SKLearn API
+=======
+    A BigQuery DataFrames machine learning component follows sklearn API
+>>>>>>> c9318d02 (docs(bigquery): update minor changes for bigframes/ml/base.py)
     design Ref: https://bit.ly/3NyhKjN
 
     The estimator is the fundamental abstraction for all learning components. This includes learning
