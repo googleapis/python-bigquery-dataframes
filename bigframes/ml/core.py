@@ -47,8 +47,10 @@ class BqmlModel(BaseBqml):
     def __init__(self, session: bigframes.Session, model: bigquery.Model):
         self._session = session
         self._model = model
+        model_ref = self._model.reference
+        assert model_ref is not None
         self._model_manipulation_sql_generator = ml_sql.ModelManipulationSqlGenerator(
-            self.model_name
+            model_ref
         )
 
     def _apply_ml_tvf(
@@ -305,9 +307,11 @@ class BqmlModelFactory:
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
         if y_train is None:
-            input_data = X_train.cache()
+            input_data = X_train.reset_index(drop=True).cache()
         else:
-            input_data = X_train.join(y_train, how="outer").cache()
+            input_data = (
+                X_train.join(y_train, how="outer").reset_index(drop=True).cache()
+            )
             options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
 
         session = X_train._session

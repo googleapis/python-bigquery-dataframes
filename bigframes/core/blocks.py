@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import datetime
 import functools
 import itertools
 import random
@@ -43,6 +44,7 @@ import warnings
 
 import bigframes_vendored.constants as constants
 import google.cloud.bigquery as bigquery
+import numpy
 import pandas as pd
 import pyarrow as pa
 
@@ -634,7 +636,7 @@ class Block:
             )
         else:
             total_rows = execute_result.total_rows
-            arrow = self.session._executor.execute(self.expr).to_arrow_table()
+            arrow = execute_result.to_arrow_table()
             df = io_pandas.arrow_to_pandas(arrow, schema=self.expr.schema)
             self._copy_index_to_pandas(df)
 
@@ -1388,7 +1390,7 @@ class Block:
                 expr,
                 column_labels=self.column_labels,
                 index_columns=self.index_columns,
-                index_labels=self.column_labels.names,
+                index_labels=self._index_labels,
             )
 
     def _standard_stats(self, column_id) -> typing.Sequence[agg_ops.UnaryAggregateOp]:
@@ -1463,83 +1465,16 @@ class Block:
         self,
         start: typing.Optional[int] = None,
         stop: typing.Optional[int] = None,
-        step: typing.Optional[int] = None,
-    ) -> bigframes.core.blocks.Block:
-        if step is None:
-            step = 1
+        step: int = 1,
+    ) -> Block:
         if step == 0:
-            raise ValueError("slice step cannot be zero")
-        if step < 0:
-            reverse_start = (-start - 1) if start else 0
-            reverse_stop = (-stop - 1) if stop else None
-            reverse_step = -step
-            return self.reversed()._forward_slice(
-                reverse_start, reverse_stop, reverse_step
-            )
-        return self._forward_slice(start or 0, stop, step)
-
-    def _forward_slice(self, start: int = 0, stop=None, step: int = 1):
-        """Performs slice but only for positive step size."""
-        if step <= 0:
-            raise ValueError("forward_slice only supports positive step size")
-
-        use_postive_offsets = (
-            (start > 0)
-            or ((stop is not None) and (stop >= 0))
-            or ((step > 1) and (start >= 0))
+            raise ValueError("Slice step size must be non-zero")
+        return Block(
+            self.expr.slice(start, stop, step),
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=self._index_labels,
         )
-        use_negative_offsets = (
-            (start < 0) or (stop and (stop < 0)) or ((step > 1) and (start < 0))
-        )
-
-        block = self
-
-        # only generate offsets that are used
-        positive_offsets = None
-        negative_offsets = None
-
-        if use_postive_offsets:
-            block, positive_offsets = self.promote_offsets()
-        if use_negative_offsets:
-            block, negative_offsets = block.reversed().promote_offsets()
-            block = block.reversed()
-
-        conditions = []
-        if start != 0:
-            if start > 0:
-                assert positive_offsets
-                conditions.append(ops.ge_op.as_expr(positive_offsets, ex.const(start)))
-            else:
-                assert negative_offsets
-                conditions.append(
-                    ops.le_op.as_expr(negative_offsets, ex.const(-start - 1))
-                )
-        if stop is not None:
-            if stop >= 0:
-                assert positive_offsets
-                conditions.append(ops.lt_op.as_expr(positive_offsets, ex.const(stop)))
-            else:
-                assert negative_offsets
-                conditions.append(
-                    ops.gt_op.as_expr(negative_offsets, ex.const(-stop - 1))
-                )
-        if step > 1:
-            if start >= 0:
-                assert positive_offsets
-                start_diff = ops.sub_op.as_expr(positive_offsets, ex.const(start))
-            else:
-                assert negative_offsets
-                start_diff = ops.sub_op.as_expr(negative_offsets, ex.const(-start + 1))
-            step_cond = ops.eq_op.as_expr(
-                ops.mod_op.as_expr(start_diff, ex.const(step)), ex.const(0)
-            )
-            conditions.append(step_cond)
-
-        for cond in conditions:
-            block, cond_id = block.project_expr(cond)
-            block = block.filter_by_id(cond_id)
-
-        return block.select_columns(self.value_columns)
 
     # Using cache to optimize for Jupyter Notebook's behavior where both '__repr__'
     # and '__repr_html__' are called in a single display action, reducing redundant
@@ -1555,10 +1490,11 @@ class Block:
         Returns a tuple of the dataframe and the overall number of rows of the query.
         """
 
+        # head caches full underlying expression, so row_count will be free after
         head_result = self.session._executor.head(self.expr, max_results)
         count = self.session._executor.get_row_count(self.expr)
 
-        arrow = self.session._executor.execute(self.expr).to_arrow_table()
+        arrow = head_result.to_arrow_table()
         df = io_pandas.arrow_to_pandas(arrow, schema=self.expr.schema)
         self._copy_index_to_pandas(df)
         return df, count, head_result.query_job
@@ -1833,6 +1769,179 @@ class Block:
             .drop_levels([result.index_columns[-1]])
             .with_transpose_cache(self)
         )
+
+    def _generate_sequence(
+        self,
+        start,
+        stop,
+        step: int = 1,
+    ):
+        range_expr = self.expr.from_range(
+            start,
+            stop,
+            step,
+        )
+
+        return Block(
+            range_expr,
+            column_labels=["min"],
+            index_columns=[],
+        )
+
+    def _generate_resample_label(
+        self,
+        rule: str,
+        closed: Optional[Literal["right", "left"]] = None,
+        label: Optional[Literal["right", "left"]] = None,
+        on: Optional[Label] = None,
+        level: typing.Union[LevelType, typing.Sequence[LevelType]] = None,
+        origin: Union[
+            Union[pd.Timestamp, datetime.datetime, numpy.datetime64, int, float, str],
+            Literal["epoch", "start", "start_day", "end", "end_day"],
+        ] = "start_day",
+    ) -> Block:
+        # Validate and resolve the index or column to use for grouping
+        if on is None:
+            if len(self.index_columns) == 0:
+                raise ValueError(
+                    f"No index for resampling. Expected {bigframes.dtypes.DATETIME_DTYPE} or "
+                    f"{bigframes.dtypes.TIMESTAMP_DTYPE} index or 'on' parameter specifying a column."
+                )
+            if len(self.index_columns) > 1 and (level is None):
+                raise ValueError(
+                    "Multiple indices are not supported for this operation"
+                    " when 'level' is not set."
+                )
+            level = level or 0
+            col_id = self.index.resolve_level(level)[0]
+            # Reset index to make the resampling level a column, then drop all other index columns.
+            # This simplifies processing by focusing solely on the column required for resampling.
+            block = self.reset_index(drop=False)
+            block = block.drop_columns(
+                [col for col in self.index.column_ids if col != col_id]
+            )
+        elif level is not None:
+            raise ValueError("The Grouper cannot specify both a key and a level!")
+        else:
+            matches = self.label_to_col_id.get(on, [])
+            if len(matches) > 1:
+                raise ValueError(
+                    f"Multiple columns matching id {on} were found. {constants.FEEDBACK_LINK}"
+                )
+            if len(matches) == 0:
+                raise KeyError(f"The grouper name {on} is not found")
+
+            col_id = matches[0]
+            block = self
+        if level is None:
+            dtype = self._column_type(col_id)
+        elif isinstance(level, int):
+            dtype = self.index.dtypes[level]
+        else:
+            dtype = self.index.dtypes[self.index.names.index(level)]
+
+        if dtype not in (
+            bigframes.dtypes.DATETIME_DTYPE,
+            bigframes.dtypes.TIMESTAMP_DTYPE,
+        ):
+            raise TypeError(
+                f"Invalid column type: {dtype}. Expected types are "
+                f"{bigframes.dtypes.DATETIME_DTYPE}, or "
+                f"{bigframes.dtypes.TIMESTAMP_DTYPE}."
+            )
+
+        freq = pd.tseries.frequencies.to_offset(rule)
+        assert freq is not None
+
+        if origin not in ("epoch", "start", "start_day"):
+            raise ValueError(
+                "'origin' should be equal to 'epoch', 'start' or 'start_day'"
+                f". Got '{origin}' instead."
+            )
+
+        agg_specs = [
+            (
+                ex.UnaryAggregation(agg_ops.min_op, ex.deref(col_id)),
+                guid.generate_guid(),
+            ),
+        ]
+        origin_block = Block(
+            block.expr.aggregate(agg_specs, dropna=True),
+            column_labels=["origin"],
+            index_columns=[],
+        )
+
+        col_level = block.value_columns.index(col_id)
+
+        block = block.merge(
+            origin_block, how="cross", left_join_ids=[], right_join_ids=[], sort=True
+        )
+
+        # After merging, the original column ids are altered. 'col_level' is the index of
+        # the datetime column used for resampling. 'block.value_columns[-1]' is the
+        # 'origin' column, which is the minimum datetime value.
+        block, label_col_id = block.apply_binary_op(
+            block.value_columns[col_level],
+            block.value_columns[-1],
+            op=ops.DatetimeToIntegerLabelOp(freq=freq, closed=closed, origin=origin),
+        )
+        block = block.drop_columns([block.value_columns[-2]])
+
+        # Generate integer label sequence.
+        min_agg_specs = [
+            (
+                ex.UnaryAggregation(agg_ops.min_op, ex.deref(label_col_id)),
+                guid.generate_guid(),
+            ),
+        ]
+        max_agg_specs = [
+            (
+                ex.UnaryAggregation(agg_ops.max_op, ex.deref(label_col_id)),
+                guid.generate_guid(),
+            ),
+        ]
+        label_start = block.expr.aggregate(min_agg_specs, dropna=True)
+        label_stop = block.expr.aggregate(max_agg_specs, dropna=True)
+
+        label_block = block._generate_sequence(
+            start=label_start,
+            stop=label_stop,
+        )
+
+        label_block = label_block.merge(
+            origin_block, how="cross", left_join_ids=[], right_join_ids=[], sort=True
+        )
+
+        block = label_block.merge(
+            block,
+            how="left",
+            left_join_ids=[label_block.value_columns[0]],
+            right_join_ids=[label_col_id],
+            sort=True,
+        )
+
+        block, resample_label_id = block.apply_binary_op(
+            block.value_columns[0],
+            block.value_columns[1],
+            op=ops.IntegerLabelToDatetimeOp(freq=freq, label=label, origin=origin),
+        )
+
+        # After multiple merges, the columns:
+        # - block.value_columns[0] is the integer label sequence,
+        # - block.value_columns[1] is the origin column (minimum datetime value),
+        # - col_level+2 represents the datetime column used for resampling,
+        # - block.value_columns[-2] is the integer label column derived from the datetime column.
+        # These columns are no longer needed.
+        block = block.drop_columns(
+            [
+                block.value_columns[0],
+                block.value_columns[1],
+                block.value_columns[col_level + 2],
+                block.value_columns[-2],
+            ]
+        )
+
+        return block.set_index([resample_label_id])
 
     def _create_stack_column(self, col_label: typing.Tuple, stack_labels: pd.Index):
         dtype = None
@@ -2232,7 +2341,9 @@ class Block:
         # Handle null index, which only supports row join
         # This is the canonical way of aligning on null index, so always allow (ignore block_identity_join)
         if self.index.nlevels == other.index.nlevels == 0:
-            result = try_row_join(self, other, how=how)
+            result = try_legacy_row_join(self, other, how=how) or try_new_row_join(
+                self, other
+            )
             if result is not None:
                 return result
             raise bigframes.exceptions.NullIndexError(
@@ -2245,7 +2356,9 @@ class Block:
             and (self.index.nlevels == other.index.nlevels)
             and (self.index.dtypes == other.index.dtypes)
         ):
-            result = try_row_join(self, other, how=how)
+            result = try_legacy_row_join(self, other, how=how) or try_new_row_join(
+                self, other
+            )
             if result is not None:
                 return result
 
@@ -2256,15 +2369,6 @@ class Block:
         else:  # Handles cases where one or both sides are multi-indexed
             # Always sort mult-index join
             return join_multi_indexed(self, other, how=how, sort=sort)
-
-    def _force_reproject(self) -> Block:
-        """Forces a reprojection of the underlying tables expression. Used to force predicate/order application before subsequent operations."""
-        return Block(
-            self._expr._reproject_to_table(),
-            index_columns=self.index_columns,
-            column_labels=self.column_labels,
-            index_labels=self.index.names,
-        )
 
     def is_monotonic_increasing(
         self, column_id: typing.Union[str, Sequence[str]]
@@ -2326,14 +2430,12 @@ class Block:
     def cached(self, *, force: bool = False, session_aware: bool = False) -> None:
         """Write the block to a session table."""
         # use a heuristic for whether something needs to be cached
-        if (not force) and self.session._executor._is_trivially_executable(self.expr):
-            return
-        elif session_aware:
-            self.session._executor._cache_with_session_awareness(self.expr)
-        else:
-            self.session._executor._cache_with_cluster_cols(
-                self.expr, cluster_cols=self.index_columns
-            )
+        self.session._executor.cached(
+            self.expr,
+            force=force,
+            use_session=session_aware,
+            cluster_cols=self.index_columns,
+        )
 
     def _is_monotonic(
         self, column_ids: typing.Union[str, Sequence[str]], increasing: bool
@@ -2595,7 +2697,35 @@ class BlockIndexProperties:
         return len(set(self.names)) == len(self.names)
 
 
-def try_row_join(
+def try_new_row_join(
+    left: Block, right: Block
+) -> Optional[Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]]:
+    join_keys = tuple(
+        (left_id, right_id)
+        for left_id, right_id in zip(left.index_columns, right.index_columns)
+    )
+    join_result = left.expr.try_row_join(right.expr, join_keys)
+    if join_result is None:  # did not succeed
+        return None
+    combined_expr, (get_column_left, get_column_right) = join_result
+    # Keep the left index column, and drop the matching right column
+    index_cols_post_join = [get_column_left[id] for id in left.index_columns]
+    combined_expr = combined_expr.drop_columns(
+        [get_column_right[id] for id in right.index_columns]
+    )
+    block = Block(
+        combined_expr,
+        index_columns=index_cols_post_join,
+        column_labels=left.column_labels.append(right.column_labels),
+        index_labels=left.index.names,
+    )
+    return (
+        block,
+        (get_column_left, get_column_right),
+    )
+
+
+def try_legacy_row_join(
     left: Block,
     right: Block,
     *,
@@ -2629,7 +2759,7 @@ def try_row_join(
         )
         for id in right.value_columns
     ]
-    combined_expr = left_expr.try_align_as_projection(
+    combined_expr = left_expr.try_legacy_row_join(
         right_expr,
         join_type=how,
         join_keys=join_keys,
@@ -3039,7 +3169,7 @@ def _pd_index_to_array_value(
     rows = []
     labels_as_tuples = utils.index_as_tuples(index)
     for row_offset in range(len(index)):
-        id_gen = bigframes.core.identifiers.standard_identifiers()
+        id_gen = bigframes.core.identifiers.standard_id_strings()
         row_label = labels_as_tuples[row_offset]
         row_label = (row_label,) if not isinstance(row_label, tuple) else row_label
         row = {}

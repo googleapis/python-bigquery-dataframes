@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import datetime
 import functools
 import inspect
 import itertools
@@ -53,11 +54,15 @@ import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
+import bigframes.operations.blob as blob
 import bigframes.operations.datetimes as dt
 import bigframes.operations.lists as lists
 import bigframes.operations.plotting as plotting
 import bigframes.operations.strings as strings
 import bigframes.operations.structs as structs
+
+if typing.TYPE_CHECKING:
+    import bigframes.geopandas.geoseries
 
 LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
@@ -89,6 +94,20 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def dtypes(self):
         return self._dtype
+
+    @property
+    def geo(self) -> bigframes.geopandas.geoseries.GeoSeries:
+        """
+        Accessor object for geography properties of the Series values.
+
+        Returns:
+            bigframes.geopandas.geoseries.GeoSeries:
+                An accessor containing geography methods.
+
+        """
+        import bigframes.geopandas.geoseries
+
+        return bigframes.geopandas.geoseries.GeoSeries(self)
 
     @property
     @validations.requires_index
@@ -168,6 +187,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def list(self) -> lists.ListAccessor:
         return lists.ListAccessor(self._block)
+
+    @property
+    def blob(self) -> blob.BlobAccessor:
+        return blob.BlobAccessor(self._block)
 
     @property
     @validations.requires_ordering()
@@ -334,8 +357,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def astype(
         self,
         dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
+        *,
+        errors: Literal["raise", "null"] = "raise",
     ) -> Series:
-        return self._apply_unary_op(bigframes.operations.AsTypeOp(to_type=dtype))
+        if errors not in ["raise", "null"]:
+            raise ValueError("Argument 'errors' must be one of 'raise' or 'null'")
+        return self._apply_unary_op(
+            bigframes.operations.AsTypeOp(to_type=dtype, safe=(errors == "null"))
+        )
 
     def to_pandas(
         self,
@@ -1116,6 +1145,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         # TODO: enforce stricter alignment
         return self._apply_binary_op(other, ops.ne_op)
 
+    def items(self):
+        for batch_df in self._block.to_pandas_batches():
+            assert (
+                batch_df.shape[1] == 1
+            ), f"Expected 1 column in the dataframe, but got {batch_df.shape[1]}."
+            for item in batch_df.squeeze(axis=1).items():
+                yield item
+
     def where(self, cond, other=None):
         value_id, cond_id, other_id, block = self._align3(cond, other)
         block, result_id = block.project_expr(
@@ -1600,9 +1637,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)
         return Series(block)
 
-    @validations.requires_ordering()
-    def unique(self) -> Series:
-        return self.drop_duplicates()
+    def unique(self, keep_order=True) -> Series:
+        if keep_order:
+            validations.enforce_ordered(self, "unique(keep_order != False)")
+            return self.drop_duplicates()
+        block, result = self._block.aggregate(
+            [self._value_column],
+            [(self._value_column, agg_ops.AnyValueOp())],
+            dropna=False,
+        )
+        return Series(block.select_columns(result).reset_index())
 
     def duplicated(self, keep: str = "first") -> Series:
         if keep is not False:
@@ -1635,7 +1679,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         provided_name = name if name else self.name
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
         block = self._block.with_column_labels(
-            [provided_name] if provided_name else ["0"]
+            [provided_name] if provided_name else [0]
         )
         return bigframes.dataframe.DataFrame(block)
 
@@ -1818,6 +1862,72 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )
         )
 
+    @validations.requires_ordering()
+    def _resample(
+        self,
+        rule: str,
+        *,
+        closed: Optional[Literal["right", "left"]] = None,
+        label: Optional[Literal["right", "left"]] = None,
+        level: Optional[LevelsType] = None,
+        origin: Union[
+            Union[
+                pandas.Timestamp, datetime.datetime, numpy.datetime64, int, float, str
+            ],
+            Literal["epoch", "start", "start_day", "end", "end_day"],
+        ] = "start_day",
+    ) -> bigframes.core.groupby.SeriesGroupBy:
+        """Internal function to support resample. Resample time-series data.
+
+        **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> import pandas as pd
+        >>> bpd.options.display.progress_bar = None
+
+        >>> data = {
+        ...     "timestamp_col": pd.date_range(
+        ...         start="2021-01-01 13:00:00", periods=30, freq="1s"
+        ...     ),
+        ...     "int64_col": range(30),
+        ... }
+        >>> s = bpd.DataFrame(data).set_index("timestamp_col")
+        >>> s._resample(rule="7s", origin="epoch").min()
+                             int64_col
+        2021-01-01 12:59:56          0
+        2021-01-01 13:00:03          3
+        2021-01-01 13:00:10         10
+        2021-01-01 13:00:17         17
+        2021-01-01 13:00:24         24
+        <BLANKLINE>
+        [5 rows x 1 columns]
+
+
+        Args:
+            rule (str):
+                The offset string representing target conversion.
+            level (str or int, default None):
+                For a MultiIndex, level (name or number) to use for resampling.
+                level must be datetime-like.
+            origin(str, default 'start_day'):
+                The timestamp on which to adjust the grouping. Must be one of the following:
+                'epoch': origin is 1970-01-01
+                'start': origin is the first value of the timeseries
+                'start_day': origin is the first day at midnight of the timeseries
+        Returns:
+            SeriesGroupBy: SeriesGroupBy object.
+        """
+        block = self._block._generate_resample_label(
+            rule=rule,
+            closed=closed,
+            label=label,
+            on=None,
+            level=level,
+            origin=origin,
+        )
+        series = Series(block)
+        return series.groupby(level=0)
+
     def __array_ufunc__(
         self, ufunc: numpy.ufunc, method: str, *inputs, **kwargs
     ) -> Series:
@@ -1856,9 +1966,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         step: typing.Optional[int] = None,
     ) -> bigframes.series.Series:
         return bigframes.series.Series(
-            self._block.slice(start=start, stop=stop, step=step).select_column(
-                self._value_column
-            ),
+            self._block.slice(
+                start=start, stop=stop, step=step if (step is not None) else 1
+            ).select_column(self._value_column),
         )
 
     def cache(self):

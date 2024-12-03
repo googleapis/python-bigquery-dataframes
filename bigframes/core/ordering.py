@@ -20,8 +20,8 @@ import math
 import typing
 from typing import Mapping, Optional, Sequence, Set
 
-import ibis.expr.datatypes as ibis_dtypes
-import ibis.expr.types as ibis_types
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
+import bigframes_vendored.ibis.expr.types as ibis_types
 
 import bigframes.core.expression as expression
 import bigframes.core.identifiers as ids
@@ -54,6 +54,10 @@ class OrderingExpression:
     scalar_expression: expression.Expression
     direction: OrderingDirection = OrderingDirection.ASC
     na_last: bool = True
+
+    @property
+    def referenced_columns(self) -> Set[ids.ColumnId]:
+        return set(self.scalar_expression.column_references)
 
     def remap_column_refs(
         self,
@@ -120,7 +124,7 @@ class RowOrdering:
         return set(
             col
             for part in self.ordering_value_columns
-            for col in part.scalar_expression.column_references
+            for col in part.referenced_columns
         )
 
     @property
@@ -131,6 +135,10 @@ class RowOrdering:
     @property
     def is_sequential(self) -> bool:
         return self.integer_encoding.is_encoded and self.integer_encoding.is_sequential
+
+    @property
+    def is_total_ordering(self) -> bool:
+        return False
 
     @property
     def total_order_col(self) -> Optional[OrderingExpression]:
@@ -214,6 +222,11 @@ class RowOrdering:
 class TotalOrdering(RowOrdering):
     """Immutable object that holds information about the ordering of rows in a ArrayValue object. Guaranteed to be unambiguous."""
 
+    def __post_init__(self):
+        assert set(ref.id for ref in self.total_ordering_columns).issubset(
+            self.referenced_columns
+        )
+
     # A table has a total ordering defined by the identities of a set of 1 or more columns.
     # These columns must always be part of the ordering, in order to guarantee that the ordering is total.
     # Therefore, any modifications(or drops) done to these columns must result in hidden copies being made.
@@ -228,6 +241,19 @@ class TotalOrdering(RowOrdering):
             integer_encoding=IntegerEncoding(True, is_sequential=True),
             total_ordering_columns=frozenset({expression.deref(col)}),
         )
+
+    @classmethod
+    def from_primary_key(cls, primary_key: Sequence[str]) -> TotalOrdering:
+        return TotalOrdering(
+            tuple(ascending_over(col) for col in primary_key),
+            total_ordering_columns=frozenset(
+                {expression.deref(col) for col in primary_key}
+            ),
+        )
+
+    @property
+    def is_total_ordering(self) -> bool:
+        return True
 
     def with_non_sequential(self):
         """Create a copy that is marked as non-sequential.

@@ -59,6 +59,7 @@ import bigframes.session.executor
 import bigframes.session.metrics
 import bigframes.session.planner
 import bigframes.session.temp_storage
+import bigframes.session.time as session_time
 import bigframes.version
 
 # Avoid circular imports.
@@ -128,6 +129,8 @@ class GbqDataLoader:
         self._metrics = metrics
         # Unfortunate circular reference, but need to pass reference when constructing objects
         self._session = session
+        self._clock = session_time.BigQuerySyncedClock(bqclient)
+        self._clock.sync()
 
     def read_pandas_load_job(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
@@ -155,10 +158,12 @@ class GbqDataLoader:
             ordering_col = f"rowid_{suffix}"
             suffix += 1
 
+        # Maybe should just convert to pyarrow or parquet?
         pandas_dataframe_copy = pandas_dataframe.copy()
         pandas_dataframe_copy.index.names = new_idx_ids
         pandas_dataframe_copy.columns = pandas.Index(new_col_ids)
         pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
+        pandas_dataframe_copy = pandas_dataframe_copy.reset_index(drop=False)
 
         job_config = bigquery.LoadJobConfig()
         # Specify the datetime dtypes, which is auto-detected as timestamp types.
@@ -246,7 +251,7 @@ class GbqDataLoader:
         time_travel_timestamp, table = bf_read_gbq_table.get_table_metadata(
             self._bqclient,
             table_ref=table_ref,
-            api_name=api_name,
+            bq_time=self._clock.get_time(),
             cache=self._df_snapshot,
             use_cache=use_cache,
         )
@@ -300,7 +305,9 @@ class GbqDataLoader:
         ):
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.
-            all_columns = itertools.chain(index_cols, columns) if columns else ()
+            all_columns: Iterable[str] = (
+                itertools.chain(index_cols, columns) if columns else ()
+            )
             query = bf_io_bigquery.to_query(
                 query,
                 columns=all_columns,
@@ -338,9 +345,18 @@ class GbqDataLoader:
             else (*columns, *[col for col in index_cols if col not in columns])
         )
 
-        enable_snapshot = enable_snapshot and bf_read_gbq_table.validate_table(
-            self._bqclient, table_ref, all_columns, time_travel_timestamp, filter_str
-        )
+        try:
+            enable_snapshot = enable_snapshot and bf_read_gbq_table.validate_table(
+                self._bqclient,
+                table,
+                all_columns,
+                time_travel_timestamp,
+                filter_str,
+            )
+        except google.api_core.exceptions.Forbidden as ex:
+            if "Drive credentials" in ex.message:
+                ex.message += "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
+            raise
 
         # ----------------------------
         # Create ordering and validate
@@ -521,6 +537,9 @@ class GbqDataLoader:
             api_name=api_name,
             configuration=configuration,
         )
+
+        if self._metrics is not None:
+            self._metrics.count_job_stats(query_job)
 
         # If there was no destination table, that means the query must have
         # been DDL or DML. Return some job metadata, instead.

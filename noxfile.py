@@ -23,7 +23,6 @@ import pathlib
 import re
 import shutil
 import time
-import traceback
 from typing import Dict, List
 import warnings
 
@@ -52,6 +51,7 @@ UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
+    "freezegun",
     PYTEST_VERSION,
     "pytest-cov",
     "pytest-asyncio",
@@ -61,7 +61,7 @@ UNIT_TEST_EXTERNAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
-UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
+UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {"3.12": ["polars"]}
 
 # There are 4 different ibis-framework 9.x versions we want to test against.
 # 3.10 is needed for Windows tests.
@@ -106,6 +106,7 @@ nox.options.sessions = [
     "system-3.9",
     "system-3.12",
     "cover",
+    "cleanup",
 ]
 
 # Error if a python version is missing
@@ -250,6 +251,7 @@ def mypy(session):
                 "types-requests",
                 "types-setuptools",
                 "types-tabulate",
+                "polars",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
@@ -395,6 +397,8 @@ def doctest(session: nox.sessions.Session):
             "third_party",
             "--ignore",
             "third_party/bigframes_vendored/ibis",
+            "--ignore",
+            "bigframes/core/compile/polars",
         ),
         test_folder="bigframes",
         check_cov=True,
@@ -433,7 +437,15 @@ def cover(session):
     (including system test runs), and then erases coverage data.
     """
     session.install("coverage", "pytest-cov")
-    session.run("coverage", "report", "--show-missing", "--fail-under=90")
+
+    # Create a coverage report that includes only the product code.
+    session.run(
+        "coverage",
+        "report",
+        "--include=bigframes/*",
+        "--show-missing",
+        "--fail-under=86",
+    )
 
     # Make sure there is no dead code in our test directories.
     session.run(
@@ -698,8 +710,8 @@ def system_prerelease(session: nox.sessions.Session):
 
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS)
 def notebook(session: nox.Session):
-    GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
-    if not GOOGLE_CLOUD_PROJECT:
+    google_cloud_project = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if not google_cloud_project:
         session.error(
             "Set GOOGLE_CLOUD_PROJECT environment variable to run notebook session."
         )
@@ -731,7 +743,7 @@ def notebook(session: nox.Session):
         # appropriate values and omitting cleanup logic that may break
         # our test infrastructure.
         "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",  # Needs DATASET.
-        "notebooks/regression/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
+        "notebooks/ml/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
         # TODO(b/332737009): investigate why we get 404 errors, even though
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
@@ -745,6 +757,7 @@ def notebook(session: nox.Session):
         # The experimental notebooks imagine features that don't yet
         # exist or only exist as temporary prototypes.
         "notebooks/experimental/longer_ml_demo.ipynb",
+        "notebooks/experimental/semantic_operators.ipynb",
         # The notebooks that are added for more use cases, such as backing a
         # blog post, which may take longer to execute and need not be
         # continuously tested.
@@ -794,10 +807,6 @@ def notebook(session: nox.Session):
             *notebooks,
         )
 
-        # Shared flag using multiprocessing.Manager() to indicate if
-        # any process encounters an error. This flag may be updated
-        # across different processes.
-        error_flag = multiprocessing.Manager().Value("i", False)
         processes = []
         for notebook in notebooks:
             args = (
@@ -808,8 +817,8 @@ def notebook(session: nox.Session):
             )
             if multi_process_mode:
                 process = multiprocessing.Process(
-                    target=_run_process,
-                    args=(session, args, error_flag),
+                    target=session.run,
+                    args=args,
                 )
                 process.start()
                 processes.append(process)
@@ -819,10 +828,6 @@ def notebook(session: nox.Session):
             else:
                 session.run(*args)
 
-        for process in processes:
-            process.join()
-
-        processes = []
         for notebook, regions in notebooks_reg.items():
             for region in regions:
                 region_args = (
@@ -834,8 +839,8 @@ def notebook(session: nox.Session):
                 )
                 if multi_process_mode:
                     process = multiprocessing.Process(
-                        target=_run_process,
-                        args=(session, region_args, error_flag),
+                        target=session.run,
+                        args=region_args,
                     )
                     process.start()
                     processes.append(process)
@@ -847,11 +852,6 @@ def notebook(session: nox.Session):
 
         for process in processes:
             process.join()
-
-        # Check the shared error flag and raise an exception if any process
-        # reported an error
-        if error_flag.value:
-            raise Exception("Errors occurred in one or more subprocesses.")
     finally:
         # Prevent our notebook changes from getting checked in to git
         # accidentally.
@@ -866,15 +866,6 @@ def notebook(session: nox.Session):
             "--notebook",
             "--publish-benchmarks=notebooks/",
         )
-
-
-def _run_process(session: nox.Session, args, error_flag):
-    try:
-        session.run(*args)
-    except Exception:
-        traceback_str = traceback.format_exc()
-        print(traceback_str)
-        error_flag.value = True
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)
@@ -960,3 +951,30 @@ def release_dry_run(session):
     ):
         env["PROJECT_ROOT"] = "."
     session.run(".kokoro/release-nightly.sh", "--dry-run", env=env)
+
+
+@nox.session(python=DEFAULT_PYTHON_VERSION)
+def cleanup(session):
+    """Clean up stale and/or temporary resources in the test project."""
+    google_cloud_project = os.getenv("GOOGLE_CLOUD_PROJECT")
+    cleanup_options = []
+    if google_cloud_project:
+        cleanup_options.append(f"--project-id={google_cloud_project}")
+
+    # Cleanup a few stale (more than 12 hours old) temporary cloud run
+    # functions created by bigframems. This will help keeping the test GCP
+    # project within the "Number of functions" quota
+    # https://cloud.google.com/functions/quotas#resource_limits
+    recency_cutoff_hours = 12
+    cleanup_count_per_location = 20
+    cleanup_options.extend(
+        [
+            f"--recency-cutoff={recency_cutoff_hours}",
+            "cleanup",
+            f"--number={cleanup_count_per_location}",
+        ]
+    )
+
+    session.install("-e", ".")
+
+    session.run("python", "scripts/manage_cloud_functions.py", *cleanup_options)

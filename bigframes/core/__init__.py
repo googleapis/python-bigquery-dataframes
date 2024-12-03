@@ -26,7 +26,6 @@ import pandas
 import pyarrow as pa
 import pyarrow.feather as pa_feather
 
-import bigframes.core.compile
 import bigframes.core.expression as ex
 import bigframes.core.guid
 import bigframes.core.identifiers as ids
@@ -35,7 +34,6 @@ import bigframes.core.local_data as local_data
 import bigframes.core.nodes as nodes
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.ordering as orderings
-import bigframes.core.rewrite
 import bigframes.core.schema as schemata
 import bigframes.core.tree_properties
 import bigframes.core.utils
@@ -43,7 +41,6 @@ from bigframes.core.window_spec import WindowSpec
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
-import bigframes.session._io.bigquery
 
 if typing.TYPE_CHECKING:
     from bigframes.session import Session
@@ -67,13 +64,32 @@ class ArrayValue:
 
         iobytes = io.BytesIO()
         pa_feather.write_feather(adapted_table, iobytes)
+        # Scan all columns by default, we define this list as it can be pruned while preserving source_def
+        scan_list = nodes.ScanList(
+            tuple(
+                nodes.ScanItem(ids.ColumnId(item.column), item.dtype, item.column)
+                for item in schema.items
+            )
+        )
+
         node = nodes.ReadLocalNode(
             iobytes.getvalue(),
             data_schema=schema,
             session=session,
             n_rows=arrow_table.num_rows,
+            scan_list=scan_list,
         )
         return cls(node)
+
+    @classmethod
+    def from_range(cls, start, end, step):
+        return cls(
+            nodes.FromRangeNode(
+                start=start.node,
+                end=end.node,
+                step=step,
+            )
+        )
 
     @classmethod
     def from_table(
@@ -94,14 +110,30 @@ class ArrayValue:
                 "Interpreting JSON column(s) as StringDtype. This behavior may change in future versions.",
                 bigframes.exceptions.PreviewWarning,
             )
+        # define data source only for needed columns, this makes row-hashing cheaper
+        table_def = nodes.GbqTable.from_table(table, columns=schema.names)
+
+        # create ordering from info
+        ordering = None
+        if offsets_col:
+            ordering = orderings.TotalOrdering.from_offset_col(offsets_col)
+        elif primary_key:
+            ordering = orderings.TotalOrdering.from_primary_key(primary_key)
+
+        # Scan all columns by default, we define this list as it can be pruned while preserving source_def
+        scan_list = nodes.ScanList(
+            tuple(
+                nodes.ScanItem(ids.ColumnId(item.column), item.dtype, item.column)
+                for item in schema.items
+            )
+        )
+        source_def = nodes.BigqueryDataSource(
+            table=table_def, at_time=at_time, sql_predicate=predicate, ordering=ordering
+        )
         node = nodes.ReadTableNode(
-            table=nodes.GbqTable.from_table(table),
-            total_order_cols=(offsets_col,) if offsets_col else tuple(primary_key),
-            order_col_is_sequential=(offsets_col is not None),
-            columns=schema,
-            at_time=at_time,
+            source=source_def,
+            scan_list=scan_list,
             table_session=session,
-            sql_predicate=predicate,
         )
         return cls(node)
 
@@ -123,10 +155,6 @@ class ArrayValue:
     def schema(self) -> schemata.ArraySchema:
         return self.node.schema
 
-    @functools.cached_property
-    def _compiled_schema(self) -> schemata.ArraySchema:
-        return bigframes.core.compile.test_only_ibis_inferred_schema(self.node)
-
     @property
     def explicitly_ordered(self) -> bool:
         # see BigFrameNode.explicitly_ordered
@@ -147,17 +175,29 @@ class ArrayValue:
         ordering: Optional[orderings.RowOrdering],
     ) -> ArrayValue:
         """
-        Replace the node with an equivalent one that references a tabel where the value has been materialized to.
+        Replace the node with an equivalent one that references a table where the value has been materialized to.
         """
+        table = nodes.GbqTable.from_table(cache_table)
+        source = nodes.BigqueryDataSource(table, ordering=ordering)
+        # Assumption: GBQ cached table uses field name as bq column name
+        scan_list = nodes.ScanList(
+            tuple(
+                nodes.ScanItem(field.id, field.dtype, field.id.name)
+                for field in self.node.fields
+            )
+        )
         node = nodes.CachedTableNode(
             original_node=self.node,
-            table=nodes.GbqTable.from_table(cache_table),
-            ordering=ordering,
+            source=source,
+            table_session=self.session,
+            scan_list=scan_list,
         )
         return ArrayValue(node)
 
     def _try_evaluate_local(self):
         """Use only for unit testing paths - not fully featured. Will throw exception if fails."""
+        import bigframes.core.compile
+
         return bigframes.core.compile.test_only_try_evaluate(self.node)
 
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
@@ -183,6 +223,23 @@ class ArrayValue:
 
     def reversed(self) -> ArrayValue:
         return ArrayValue(nodes.ReversedNode(child=self.node))
+
+    def slice(
+        self, start: Optional[int], stop: Optional[int], step: Optional[int]
+    ) -> ArrayValue:
+        if self.node.order_ambiguous and not (self.session._strictly_ordered):
+            warnings.warn(
+                "Window ordering may be ambiguous, this can cause unstable results.",
+                bigframes.exceptions.AmbiguousWindowWarning,
+            )
+        return ArrayValue(
+            nodes.SliceNode(
+                self.node,
+                start=start,
+                stop=stop,
+                step=step if (step is not None) else 1,
+            )
+        )
 
     def promote_offsets(self) -> Tuple[ArrayValue, str]:
         """
@@ -210,7 +267,13 @@ class ArrayValue:
     def concat(self, other: typing.Sequence[ArrayValue]) -> ArrayValue:
         """Append together multiple ArrayValue objects."""
         return ArrayValue(
-            nodes.ConcatNode(children=tuple([self.node, *[val.node for val in other]]))
+            nodes.ConcatNode(
+                children=tuple([self.node, *[val.node for val in other]]),
+                output_ids=tuple(
+                    ids.ColumnId(bigframes.core.guid.generate_guid())
+                    for id in self.column_ids
+                ),
+            )
         )
 
     def compute_values(self, assignments: Sequence[ex.Expression]):
@@ -349,58 +412,84 @@ class ArrayValue:
             output_name,
         )
 
-    def _reproject_to_table(self) -> ArrayValue:
-        """
-        Internal operators that projects the internal representation into a
-        new ibis table expression where each value column is a direct
-        reference to a column in that table expression. Needed after
-        some operations such as window operations that cannot be used
-        recursively in projections.
-        """
-        return ArrayValue(
-            nodes.ReprojectOpNode(
-                child=self.node,
-            )
-        )
-
     def relational_join(
         self,
         other: ArrayValue,
         conditions: typing.Tuple[typing.Tuple[str, str], ...] = (),
         type: typing.Literal["inner", "outer", "left", "right", "cross"] = "inner",
     ) -> typing.Tuple[ArrayValue, typing.Tuple[dict[str, str], dict[str, str]]]:
+        l_mapping = {  # Identity mapping, only rename right side
+            lcol.name: lcol.name for lcol in self.node.ids
+        }
+        other_node, r_mapping = self.prepare_join_names(other)
         join_node = nodes.JoinNode(
             left_child=self.node,
-            right_child=other.node,
+            right_child=other_node,
             conditions=tuple(
-                (ex.deref(l_col), ex.deref(r_col)) for l_col, r_col in conditions
+                (ex.deref(l_mapping[l_col]), ex.deref(r_mapping[r_col]))
+                for l_col, r_col in conditions
             ),
             type=type,
         )
-        # Maps input ids to output ids for caller convenience
-        l_size = len(self.node.schema)
-        l_mapping = {
-            lcol: ocol
-            for lcol, ocol in zip(
-                self.node.schema.names, join_node.schema.names[:l_size]
-            )
-        }
-        r_mapping = {
-            rcol: ocol
-            for rcol, ocol in zip(
-                other.node.schema.names, join_node.schema.names[l_size:]
-            )
-        }
         return ArrayValue(join_node), (l_mapping, r_mapping)
 
-    def try_align_as_projection(
+    def try_row_join(
+        self,
+        other: ArrayValue,
+        conditions: typing.Tuple[typing.Tuple[str, str], ...] = (),
+    ) -> Optional[
+        typing.Tuple[ArrayValue, typing.Tuple[dict[str, str], dict[str, str]]]
+    ]:
+        l_mapping = {  # Identity mapping, only rename right side
+            lcol.name: lcol.name for lcol in self.node.ids
+        }
+        other_node, r_mapping = self.prepare_join_names(other)
+        import bigframes.core.rewrite
+
+        result_node = bigframes.core.rewrite.try_join_as_projection(
+            self.node, other_node, conditions
+        )
+        if result_node is None:
+            return None
+
+        return (
+            ArrayValue(result_node),
+            (l_mapping, r_mapping),
+        )
+
+    def prepare_join_names(
+        self, other: ArrayValue
+    ) -> Tuple[bigframes.core.nodes.BigFrameNode, dict[str, str]]:
+        if set(other.node.ids) & set(self.node.ids):
+            r_mapping = {  # Rename conflicting names
+                rcol.name: rcol.name
+                if (rcol.name not in self.column_ids)
+                else bigframes.core.guid.generate_guid()
+                for rcol in other.node.ids
+            }
+            return (
+                nodes.SelectionNode(
+                    other.node,
+                    tuple(
+                        (ex.deref(old_id), ids.ColumnId(new_id))
+                        for old_id, new_id in r_mapping.items()
+                    ),
+                ),
+                r_mapping,
+            )
+        else:
+            return other.node, {id: id for id in other.column_ids}
+
+    def try_legacy_row_join(
         self,
         other: ArrayValue,
         join_type: join_def.JoinType,
         join_keys: typing.Tuple[join_def.CoalescedColumnMapping, ...],
         mappings: typing.Tuple[join_def.JoinColumnMapping, ...],
     ) -> typing.Optional[ArrayValue]:
-        result = bigframes.core.rewrite.join_as_projection(
+        import bigframes.core.rewrite
+
+        result = bigframes.core.rewrite.legacy_join_as_projection(
             self.node, other.node, join_keys, mappings, join_type
         )
         if result is not None:
@@ -432,11 +521,4 @@ class ArrayValue:
         return self._gen_namespaced_uids(1)[0]
 
     def _gen_namespaced_uids(self, n: int) -> List[str]:
-        i = len(self.node.defined_variables)
-        genned_ids: List[str] = []
-        while len(genned_ids) < n:
-            attempted_id = f"col_{i}"
-            if attempted_id not in self.node.defined_variables:
-                genned_ids.append(attempted_id)
-            i = i + 1
-        return genned_ids
+        return [ids.ColumnId.unique().name for _ in range(n)]

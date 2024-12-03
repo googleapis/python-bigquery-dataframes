@@ -74,12 +74,15 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.plotting as plotting
+import bigframes.operations.semantics
 import bigframes.operations.structs
 import bigframes.series
 import bigframes.series as bf_series
 import bigframes.session._io.bigquery
 
 if typing.TYPE_CHECKING:
+    from _typeshed import SupportsRichComparison
+
     import bigframes.session
 
     SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
@@ -362,8 +365,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def astype(
         self,
         dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
+        *,
+        errors: Literal["raise", "null"] = "raise",
     ) -> DataFrame:
-        return self._apply_unary_op(ops.AsTypeOp(to_type=dtype))
+        if errors not in ["raise", "null"]:
+            raise ValueError("Arg 'error' must be one of 'raise' or 'null'")
+        return self._apply_unary_op(
+            ops.AsTypeOp(to_type=dtype, safe=(errors == "null"))
+        )
 
     def _to_sql_query(
         self, include_index: bool, enable_cache: bool = True
@@ -376,7 +385,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 whether to include index columns.
 
         Returns:
-            a tuple of (sql_string, index_column_id_list, index_column_label_list).
+            Tuple[sql_string, index_column_id_list, index_column_label_list]:
                 If include_index is set to False, index_column_id_list and index_column_label_list
                 return empty lists.
         """
@@ -384,7 +393,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def sql(self) -> str:
-        """Compiles this DataFrame's expression tree to SQL."""
+        """Compiles this DataFrame's expression tree to SQL.
+
+        Returns:
+            str:
+                string representing the compiled SQL.
+        """
         include_index = self._has_index and (
             self.index.name is not None or len(self.index.names) > 1
         )
@@ -396,8 +410,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """BigQuery job metadata for the most recent query.
 
         Returns:
-            The most recent `QueryJob
-            <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
+            None or google.cloud.bigquery.QueryJob:
+                The most recent `QueryJob
+                <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
         """
         if self._query_job is None:
             self._set_internal_query_job(self._compute_dry_run())
@@ -689,7 +704,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        self._cached()
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -726,7 +740,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         how: str = "outer",
         reverse: bool = False,
     ):
-        if isinstance(other, (float, int, bool)):
+        if isinstance(other, bigframes.dtypes.LOCAL_SCALAR_TYPES):
             return self._apply_scalar_binop(other, op, reverse=reverse)
         elif isinstance(other, DataFrame):
             return self._apply_dataframe_binop(other, op, how=how, reverse=reverse)
@@ -744,7 +758,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def _apply_scalar_binop(
-        self, other: float | int, op: ops.BinaryOp, reverse: bool = False
+        self,
+        other: bigframes.dtypes.LOCAL_SCALAR_TYPE,
+        op: ops.BinaryOp,
+        reverse: bool = False,
     ) -> DataFrame:
         if reverse:
             expr = op.as_expr(
@@ -768,7 +785,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         reverse: bool = False,
     ) -> DataFrame:
         bf_series = bigframes.core.convert.to_bf_series(
-            other, self.index, self._session
+            other, self.index if self._has_index else None, self._session
         )
         aligned_block, columns, expr_pairs = self._block._align_axis_0(
             bf_series._block, how=how
@@ -2464,7 +2481,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             values = [values]
 
         # Unlike pivot, pivot_table has values always ordered.
-        values.sort()
+        values.sort(key=lambda val: typing.cast("SupportsRichComparison", val))
 
         keys = index + columns
         agged = self.groupby(keys, dropna=True)[values].agg(aggfunc)
@@ -2679,6 +2696,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self, other: DataFrame, *, on: Optional[str] = None, how: str = "left"
     ) -> DataFrame:
         left, right = self, other
+
         if not left.columns.intersection(right.columns).empty:
             raise NotImplementedError(
                 f"Deduping column names is not implemented. {constants.FEEDBACK_LINK}"
@@ -2704,11 +2722,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             # Switch left index with on column
             left_columns = left.columns
-            left_idx_original_names = left.index.names
+            left_idx_original_names = left.index.names if left._has_index else ()
             left_idx_names_in_cols = [
-                f"bigframes_left_idx_name_{i}" for i in range(len(left.index.names))
+                f"bigframes_left_idx_name_{i}"
+                for i in range(len(left_idx_original_names))
             ]
-            left.index.names = left_idx_names_in_cols
+            if left._has_index:
+                left.index.names = left_idx_names_in_cols
             left = left.reset_index(drop=False)
             left = left.set_index(on)
 
@@ -2719,11 +2739,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             combined_df = combined_df.set_index(left_idx_names_in_cols)
 
             # To be consistent with Pandas
-            combined_df.index.names = (
-                left_idx_original_names
-                if how in ("inner", "left")
-                else ([None] * len(combined_df.index.names))
-            )
+            if combined_df._has_index:
+                combined_df.index.names = (
+                    left_idx_original_names
+                    if how in ("inner", "left")
+                    else ([None] * len(combined_df.index.names))
+                )
 
             # Reorder columns
             combined_df = combined_df[list(left_columns) + list(right.columns)]
@@ -2979,6 +3000,88 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         blocks = self._block.split(ns=ns, fracs=fracs, random_state=random_state)
         return [DataFrame(block) for block in blocks]
 
+    @validations.requires_ordering()
+    def _resample(
+        self,
+        rule: str,
+        *,
+        on: blocks.Label = None,
+        level: Optional[LevelsType] = None,
+        origin: Union[
+            Union[
+                pandas.Timestamp, datetime.datetime, numpy.datetime64, int, float, str
+            ],
+            Literal["epoch", "start", "start_day", "end", "end_day"],
+        ] = "start_day",
+    ) -> bigframes.core.groupby.DataFrameGroupBy:
+        """Internal function to support resample. Resample time-series data.
+
+        **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> import pandas as pd
+        >>> bpd.options.display.progress_bar = None
+
+        >>> data = {
+        ...     "timestamp_col": pd.date_range(
+        ...         start="2021-01-01 13:00:00", periods=30, freq="1s"
+        ...     ),
+        ...     "int64_col": range(30),
+        ...     "int64_too": range(10, 40),
+        ... }
+
+        Resample on a DataFrame with index:
+
+        >>> df = bpd.DataFrame(data).set_index("timestamp_col")
+        >>> df._resample(rule="7s").min()
+                             int64_col  int64_too
+        2021-01-01 12:59:55          0         10
+        2021-01-01 13:00:02          2         12
+        2021-01-01 13:00:09          9         19
+        2021-01-01 13:00:16         16         26
+        2021-01-01 13:00:23         23         33
+        <BLANKLINE>
+        [5 rows x 2 columns]
+
+        Resample with column and origin set to 'start':
+
+        >>> df = bpd.DataFrame(data)
+        >>> df._resample(rule="7s", on = "timestamp_col", origin="start").min()
+                             int64_col  int64_too
+        2021-01-01 13:00:00          0         10
+        2021-01-01 13:00:07          7         17
+        2021-01-01 13:00:14         14         24
+        2021-01-01 13:00:21         21         31
+        2021-01-01 13:00:28         28         38
+        <BLANKLINE>
+        [5 rows x 2 columns]
+
+        Args:
+            rule (str):
+                The offset string representing target conversion.
+            on (str, default None):
+                For a DataFrame, column to use instead of index for resampling. Column
+                must be datetime-like.
+            level (str or int, default None):
+                For a MultiIndex, level (name or number) to use for resampling.
+                level must be datetime-like.
+            origin(str, default 'start_day'):
+                The timestamp on which to adjust the grouping. Must be one of the following:
+                'epoch': origin is 1970-01-01
+                'start': origin is the first value of the timeseries
+                'start_day': origin is the first day at midnight of the timeseries
+        Returns:
+            DataFrameGroupBy: DataFrameGroupBy object.
+        """
+        block = self._block._generate_resample_label(
+            rule=rule,
+            on=on,
+            level=level,
+            origin=origin,
+        )
+        df = DataFrame(block)
+        return df.groupby(level=0)
+
     @classmethod
     def from_dict(
         cls,
@@ -3097,6 +3200,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         clustering_columns: Union[pandas.Index, Iterable[typing.Hashable]] = (),
         labels: dict[str, str] = {},
     ) -> str:
+        index = index and self._has_index
         temp_table_ref = None
 
         if destination_table is None:
@@ -3640,7 +3744,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         stop: typing.Optional[int] = None,
         step: typing.Optional[int] = None,
     ) -> DataFrame:
-        block = self._block.slice(start=start, stop=stop, step=step)
+        block = self._block.slice(
+            start=start, stop=stop, step=step if (step is not None) else 1
+        )
         return DataFrame(block)
 
     def __array_ufunc__(
@@ -3676,7 +3782,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Useful if the dataframe will be used multiple times, as this will avoid recomputating the shared intermediate value.
 
         Returns:
-            DataFrame: Self
+            bigframes.pandas.DataFrame: DataFrame
         """
         return self._cached(force=True)
 
@@ -3793,3 +3899,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise bigframes.exceptions.NullIndexError(
                 f"DataFrame cannot perform {opname} as it has no index. Set an index using set_index."
             )
+
+    @property
+    def semantics(self):
+        return bigframes.operations.semantics.Semantics(self)
