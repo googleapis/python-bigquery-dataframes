@@ -656,7 +656,7 @@ class BigQueryCachingExecutor(Executor):
     def _validate_result_schema(
         self,
         array_value: bigframes.core.ArrayValue,
-        bq_schema: list[bigquery.schema.SchemaField],
+        bq_schema: list[bigquery.SchemaField],
     ):
         actual_schema = tuple(bq_schema)
         ibis_schema = bigframes.core.compile.test_only_ibis_inferred_schema(
@@ -665,6 +665,12 @@ class BigQueryCachingExecutor(Executor):
         internal_schema = array_value.schema
         if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
             return
+
+        # JSON acutual schema can be STRING.
+        for schema_field in internal_schema.to_bigquery():
+            if schema_field.field_type == "JSON":
+                return
+
         if internal_schema.to_bigquery() != actual_schema:
             raise ValueError(
                 f"This error should only occur while testing. BigFrames internal schema: {internal_schema.to_bigquery()} does not match actual schema: {actual_schema}"

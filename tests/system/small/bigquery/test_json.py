@@ -200,3 +200,10 @@ def test_json_extract_string_array_as_float_array_from_array_strings():
 def test_json_extract_string_array_w_invalid_series_type():
     with pytest.raises(TypeError):
         bbq.json_extract_string_array(bpd.Series([1, 2]))
+
+
+def test_json_in_struct():
+    df = bpd.read_gbq(
+        "SELECT STRUCT(JSON '{\\\"a\\\": 1}' AS data, 1 AS number) as struct_col"
+    )
+    assert df["struct_col"].struct.field("data")[0] == '{"a":1}'
