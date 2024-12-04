@@ -149,21 +149,31 @@ def try_join_as_projection(
         r_node, rename_vars=True
     )  # Rename only right vars to avoid collisions with left var
 
+    base_node = l_node.projection_base
+    row_filter: Optional[bigframes.core.expression.Expression] = None
     if how == "outer":
-        merged_node, l_mask = _linearize_outer(l_node.projection_base, l_node)
+        merged_node, l_mask = _linearize_outer(base_node, l_node)
         merged_node, r_mask = _linearize_outer(merged_node, r_node)
+        row_filter =  bigframes.operations.or_op.as_expr(merge_predicates(l_mask), merge_predicates(r_mask))
     elif how == "left":
-        merged_node, r_mask = _linearize_outer(l_node, r_node)
-        l_mask = []
+        merged_node, l_mask = _linearize_outer(base_node, l_node)
+        merged_node, r_mask = _linearize_outer(merged_node, r_node)
+        row_filter = merge_predicates(l_mask)
     elif how == "right":
-        merged_node, l_mask = _linearize_outer(r_node, l_node)
-        r_mask = []
+        merged_node, l_mask = _linearize_outer(base_node, l_node)
+        merged_node, r_mask = _linearize_outer(merged_node, r_node)
+        row_filter = merge_predicates(r_mask)
     elif how == "inner":
-        merged_node = _linearize_inner(l_node, r_node)
-        l_mask = r_mask = []
-    else:
+        merged_node, l_mask = _linearize_outer(base_node, l_node)
+        merged_node, r_mask = _linearize_outer(merged_node, r_node)
+        row_filter = merge_predicates([*l_mask, *r_mask])
+    else: 
         raise ValueError(f"Unexpected join type: {how}")
+    
+    merged_node.validate_tree()
 
+    if l_mask and r_mask:
+        merge_node = bigframes.core.nodes.FilterNode(merged_node, row_filter)
     if l_mask:
         merged_node = bigframes.core.nodes.ProjectionNode(
             merged_node,
@@ -175,7 +185,7 @@ def try_join_as_projection(
                 for ref, _ in l_selection
             ),
         )
-        r_selection = tuple(
+        l_selection = tuple(
             zip(
                 map(
                     lambda x: bigframes.core.expression.DerefOp(x.id),
@@ -205,8 +215,13 @@ def try_join_as_projection(
             )
         )
 
+    merged_node.validate_tree()
+
+
     combined_selection = (*l_selection, *r_selection)
-    return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
+    result = bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
+    result.validate_tree()
+    return result
 
 
 def pull_up_selection(
@@ -234,7 +249,7 @@ def pull_up_selection(
             (bigframes.core.expression.DerefOp(field.id), field.id)
             for field in node.fields
         )
-    assert isinstance(node, (bigframes.core.nodes.SelectionNode, *ADDITIVE_NODES))
+    assert isinstance(node, (bigframes.core.nodes.SelectionNode, bigframes.core.nodes.FilterNode, *ADDITIVE_NODES))
     child_node, child_selections = pull_up_selection(
         node.child, rename_vars=rename_vars
     )

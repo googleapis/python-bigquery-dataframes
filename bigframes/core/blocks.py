@@ -2707,7 +2707,10 @@ def try_new_row_join(
         return None
     combined_expr, (get_column_left, get_column_right) = join_result
     # Keep the left index column, and drop the matching right column
-    index_cols_post_join = [get_column_left[id] for id in left.index_columns]
+    if how == "right":
+        index_cols_post_join = [get_column_right[id] for id in right.index_columns]
+    else:
+        index_cols_post_join = [get_column_left[id] for id in left.index_columns]
     combined_expr = combined_expr.drop_columns(
         [get_column_right[id] for id in right.index_columns]
     )
