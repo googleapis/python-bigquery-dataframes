@@ -1291,8 +1291,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             map_data,
             session=self._get_block().expr.session,
         ).set_index("_bigframes_keys")
-        result = result.join(map_df)
-        result = result.sort_index()
+        result = result.join(map_df).sort_index()
         index_columns = [f"_bigframes_level_{i}" for i in range(orig_columns.nlevels)]
         result = result.set_index(index_columns)
         result.index.names = orig_columns.names
@@ -1388,8 +1387,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             map_data,
             session=self._get_block().expr.session,
         ).set_index("_bigframes_keys")
-        result = result.join(map_df)
-        result = result.sort_index()
+        result = result.join(map_df).sort_index()
         index_columns = [f"_bigframes_level_{i}" for i in range(orig_columns.nlevels)]
         result = result.set_index(index_columns)
         result.index.names = orig_columns.names
