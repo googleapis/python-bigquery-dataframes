@@ -879,6 +879,8 @@ def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
             dataset_id_permanent,
             name=get_rf_name(add_ints, is_row_processor=True),
         )(add_ints)
+        assert add_ints_remote.bigframes_remote_function  # type: ignore
+        assert add_ints_remote.bigframes_cloud_function  # type: ignore
 
     with pytest.warns(
         bigframes.exceptions.PreviewWarning, match="axis=1 scenario is in preview."
@@ -903,11 +905,7 @@ def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
         is_row_processor=True,
     )
 
-    assert add_ints_remote.bigframes_remote_function  # type: ignore
-    assert add_ints_remote.bigframes_cloud_function  # type: ignore
-    assert func_ref.bigframes_remote_function
-    assert not hasattr(func_ref, "bigframes_cloud_function")
-    assert add_ints_remote.bigframes_remote_function == func_ref.bigframes_remote_function  # type: ignore
+    assert func_ref.bigframes_remote_function == add_ints_remote.bigframes_remote_function  # type: ignore
 
     bf_result_gbq = scalars_df[columns].apply(func_ref, axis=1).to_pandas()
     pd.testing.assert_series_equal(

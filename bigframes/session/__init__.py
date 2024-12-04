@@ -1362,8 +1362,8 @@ class Session(
             2    TestCad$123456Str
             dtype: string
 
-        Another use case is to define your own remote funtion (or UDFs) and use
-        it later. For example, define the remote function:
+        Another use case is to define your own remote funtion and use it later.
+        For example, define the remote function:
 
             >>> @bpd.remote_function()
             ... def tenfold(num: int) -> float:
@@ -1371,7 +1371,7 @@ class Session(
 
         Then, read back the deployed BQ remote function:
 
-            >>> func_ref_0 = bpd.read_gbq_function(
+            >>> tenfold_ref = bpd.read_gbq_function(
             ...     tenfold.bigframes_remote_function,
             ... )
 
@@ -1383,7 +1383,7 @@ class Session(
             <BLANKLINE>
             [2 rows x 3 columns]
 
-            >>> df['a'].apply(func_ref_0)
+            >>> df['a'].apply(tenfold_ref)
             0    10.0
             1    20.0
             Name: a, dtype: Float64
@@ -1396,7 +1396,7 @@ class Session(
             ... def row_sum(s: bpd.Series) -> float:
             ...     return s['a'] + s['b'] + s['c']
 
-            >>> func_ref_1 = bpd.read_gbq_function(
+            >>> row_sum_ref = bpd.read_gbq_function(
             ...     row_sum.bigframes_remote_function,
             ...     is_row_processor=True,
             ... )
@@ -1409,7 +1409,7 @@ class Session(
             <BLANKLINE>
             [2 rows x 3 columns]
 
-            >>> df.apply(func_ref_1, axis=1)
+            >>> df.apply(row_sum_ref, axis=1)
             0     9.0
             1    12.0
             dtype: Float64
