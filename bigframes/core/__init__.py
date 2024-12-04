@@ -29,7 +29,6 @@ import pyarrow.feather as pa_feather
 import bigframes.core.expression as ex
 import bigframes.core.guid
 import bigframes.core.identifiers as ids
-import bigframes.core.join_def as join_def
 import bigframes.core.local_data as local_data
 import bigframes.core.nodes as nodes
 from bigframes.core.ordering import OrderingExpression
@@ -437,6 +436,7 @@ class ArrayValue:
         self,
         other: ArrayValue,
         conditions: typing.Tuple[typing.Tuple[str, str], ...] = (),
+        how: typing.Literal["inner", "left", "outer", "right"] = "inner",
     ) -> Optional[
         typing.Tuple[ArrayValue, typing.Tuple[dict[str, str], dict[str, str]]]
     ]:
@@ -447,7 +447,7 @@ class ArrayValue:
         import bigframes.core.rewrite
 
         result_node = bigframes.core.rewrite.try_join_as_projection(
-            self.node, other_node, conditions
+            self.node, other_node, conditions, how=how
         )
         if result_node is None:
             return None
@@ -479,22 +479,6 @@ class ArrayValue:
             )
         else:
             return other.node, {id: id for id in other.column_ids}
-
-    def try_legacy_row_join(
-        self,
-        other: ArrayValue,
-        join_type: join_def.JoinType,
-        join_keys: typing.Tuple[join_def.CoalescedColumnMapping, ...],
-        mappings: typing.Tuple[join_def.JoinColumnMapping, ...],
-    ) -> typing.Optional[ArrayValue]:
-        import bigframes.core.rewrite
-
-        result = bigframes.core.rewrite.legacy_join_as_projection(
-            self.node, other.node, join_keys, mappings, join_type
-        )
-        if result is not None:
-            return ArrayValue(result)
-        return None
 
     def explode(self, column_ids: typing.Sequence[str]) -> ArrayValue:
         assert len(column_ids) > 0

@@ -395,9 +395,11 @@ class RankOp(UnaryWindowOp):
     @property
     def order_independent(self):
         return True
-    
+
+
+# TODO: Support Nullary ops property in BFET
 @dataclasses.dataclass(frozen=True)
-class RowNumberOp(NullaryWindowOp):
+class RowNumberOp(UnaryWindowOp):
     name: ClassVar[str] = "row_number"
 
     @property

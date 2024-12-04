@@ -475,7 +475,7 @@ def _(
     column: ibis_types.Column,
     window=None,
 ) -> ibis_types.IntegerValue:
-    return _apply_window_if_present(ibis.row_number(), window)
+    return _apply_window_if_present(ibis_api.row_number(), window)
 
 
 @compile_unary_agg.register

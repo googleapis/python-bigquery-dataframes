@@ -45,6 +45,8 @@ OVERHEAD_VARIABLES = 5
 
 COLUMN_SET = frozenset[bfet_ids.ColumnId]
 
+IMPLICIT_JOINER_MASKING = True
+
 
 @dataclasses.dataclass(frozen=True)
 class Field:
@@ -961,6 +963,10 @@ class FilterNode(UnaryNode):
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return ()
+
+    @property
+    def projection_base(self) -> BigFrameNode:
+        return self.child.projection_base if IMPLICIT_JOINER_MASKING else self
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         consumed_ids = used_cols.union(self.predicate.column_references)
