@@ -1223,8 +1223,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             sort=False,
         )
 
-        frame = DataFrame(block)
-        frame = frame.dropna(subset=["_bigframes_value_x", "_bigframes_value_y"])
+        frame = DataFrame(block).dropna(
+            subset=["_bigframes_value_x", "_bigframes_value_y"]
+        )
 
         paired_mean_frame = (
             frame.groupby(["_bigframes_variable_x", "_bigframes_variable_y"])
@@ -1330,8 +1331,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             sort=False,
         )
 
-        frame = DataFrame(block)
-        frame = frame.dropna(subset=["_bigframes_value_x", "_bigframes_value_y"])
+        frame = DataFrame(block).dropna(
+            subset=["_bigframes_value_x", "_bigframes_value_y"]
+        )
 
         paired_mean_frame = (
             frame.groupby(["_bigframes_variable_x", "_bigframes_variable_y"])
