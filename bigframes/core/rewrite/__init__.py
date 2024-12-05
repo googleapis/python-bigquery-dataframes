@@ -13,7 +13,10 @@
 # limitations under the License.
 
 from bigframes.core.rewrite.identifiers import remap_variables
-from bigframes.core.rewrite.implicit_align import try_join_as_projection
+from bigframes.core.rewrite.implicit_align import (
+    convert_relational_join,
+    try_join_as_projection,
+)
 from bigframes.core.rewrite.slices import pullup_limit_from_slice, replace_slice_ops
 
 __all__ = [
@@ -21,4 +24,5 @@ __all__ = [
     "replace_slice_ops",
     "pullup_limit_from_slice",
     "remap_variables",
+    "convert_relational_join",
 ]

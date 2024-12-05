@@ -2341,7 +2341,7 @@ class Block:
         # Handle null index, which only supports row join
         # This is the canonical way of aligning on null index, so always allow (ignore block_identity_join)
         if self.index.nlevels == other.index.nlevels == 0:
-            result = try_row_join(self, other, how=how)
+            result = try_row_join(self, other)
             if result is not None:
                 return result
             raise bigframes.exceptions.NullIndexError(
@@ -2354,7 +2354,7 @@ class Block:
             and (self.index.nlevels == other.index.nlevels)
             and (self.index.dtypes == other.index.dtypes)
         ):
-            result = try_row_join(self, other, how=how)
+            result = try_row_join(self, other)
             if result is not None:
                 return result
 
@@ -2696,32 +2696,22 @@ class BlockIndexProperties:
 def try_row_join(
     left: Block,
     right: Block,
-    how: Literal["inner", "left", "right", "outer"],
-    preserve_index_keys=True,
 ) -> Optional[Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]]:
-    if how == "outer" and preserve_index_keys:
-        return try_full_outer_row_join(left, right)
 
     join_keys = tuple(
         (left_id, right_id)
         for left_id, right_id in zip(left.index_columns, right.index_columns)
     )
-    join_result = left.expr.try_row_join(right.expr, join_keys, how=how)
+    join_result = left.expr.try_row_join(right.expr, join_keys)
     if join_result is None:  # did not succeed
         return None
     combined_expr, (get_column_left, get_column_right) = join_result
 
-    # Problem: we need to coalesce, since we are applying the filters
-    if how != "right":
-        index_cols_post_join = [get_column_left[id] for id in left.index_columns]
-        combined_expr = combined_expr.drop_columns(
-            [get_column_right[id] for id in right.index_columns]
-        )
-    else:
-        index_cols_post_join = [get_column_right[id] for id in right.index_columns]
-        combined_expr = combined_expr.drop_columns(
-            [get_column_left[id] for id in left.index_columns]
-        )
+    # Can use either side's index columns, as they match exactly
+    index_cols_post_join = [get_column_right[id] for id in right.index_columns]
+    combined_expr = combined_expr.drop_columns(
+        [get_column_left[id] for id in left.index_columns]
+    )
 
     block = Block(
         combined_expr,
@@ -2732,50 +2722,6 @@ def try_row_join(
     return (
         block,
         (get_column_left, get_column_right),
-    )
-
-
-def try_full_outer_row_join(
-    left: Block,
-    right: Block,
-) -> Optional[Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]]:
-    # this variant preserves the index by doing two left joins and an inner join
-    index_block = left.drop_columns(left.value_columns)
-    l_result = try_row_join(index_block, left, how="left")
-    r_result = try_row_join(index_block, right, how="left")
-    if l_result is None or r_result is None:
-        return None
-    index_w_left, (l_index_map, l_value_map) = l_result
-    index_w_right, (r_index_map, r_value_map) = r_result
-
-    final_result = try_row_join(
-        index_w_left, index_w_right, how="outer", preserve_index_keys=False
-    )
-    if final_result is None:
-        return None
-
-    final_block, (left_outer_map, right_outer_map) = final_result
-
-    left_indices = {
-        index_col: left_outer_map[l_index_map[index_col]]
-        for index_col in left.index_columns
-    }
-    right_indices = {
-        index_col: right_outer_map[r_index_map[index_col]]
-        for index_col in right.index_columns
-    }
-    left_values = {
-        value_col: left_outer_map[l_value_map[value_col]]
-        for value_col in left.value_columns
-    }
-    right_values = {
-        value_col: right_outer_map[r_value_map[value_col]]
-        for value_col in right.value_columns
-    }
-
-    return final_block, (
-        {**left_indices, **left_values},
-        {**right_indices, **right_values},
     )
 
 

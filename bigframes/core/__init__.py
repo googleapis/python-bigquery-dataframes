@@ -436,7 +436,6 @@ class ArrayValue:
         self,
         other: ArrayValue,
         conditions: typing.Tuple[typing.Tuple[str, str], ...] = (),
-        how: typing.Literal["inner", "left", "outer", "right"] = "inner",
     ) -> Optional[
         typing.Tuple[ArrayValue, typing.Tuple[dict[str, str], dict[str, str]]]
     ]:
@@ -447,7 +446,7 @@ class ArrayValue:
         import bigframes.core.rewrite
 
         result_node = bigframes.core.rewrite.try_join_as_projection(
-            self.node, other_node, conditions, how=how
+            self.node, other_node, conditions
         )
         if result_node is None:
             return None

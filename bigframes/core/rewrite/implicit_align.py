@@ -40,7 +40,6 @@ ADDITIVE_NODES = (
 )
 ALIGNABLE_NODES = (
     *ADDITIVE_NODES,
-    bigframes.core.nodes.FilterNode,
     bigframes.core.nodes.SelectionNode,
 )
 
@@ -92,17 +91,13 @@ def get_expression_spec(
         curr_node = curr_node.child
 
 
-def try_join_as_projection(
+def can_row_join(
     l_node: bigframes.core.nodes.BigFrameNode,
     r_node: bigframes.core.nodes.BigFrameNode,
     join_keys: Tuple[Tuple[str, str], ...],
-    how: Literal["inner", "outer", "left", "right"],
-) -> Optional[bigframes.core.nodes.BigFrameNode]:
-    """Joins the two nodes"""
+):
     if l_node.projection_base != r_node.projection_base:
-        return None
-
-    divergent_node = first_common_descendant(l_node, r_node)
+        return False
 
     # check join keys are equivalent by normalizing the expressions as much as posisble
     # instead of just comparing ids
@@ -112,6 +107,76 @@ def try_join_as_projection(
         right_id = bigframes.core.identifiers.ColumnId(r_key)
         if get_expression_spec(l_node, left_id) != get_expression_spec(
             r_node, right_id
+        ):
+            return False
+    return True
+
+
+def try_join_as_projection(
+    l_node: bigframes.core.nodes.BigFrameNode,
+    r_node: bigframes.core.nodes.BigFrameNode,
+    join_keys: Tuple[Tuple[str, str], ...],
+) -> Optional[bigframes.core.nodes.BigFrameNode]:
+    """Joins the two nodes"""
+    if not can_row_join(l_node, r_node, join_keys):
+        return None
+
+    divergent_node = first_common_descendant(l_node, r_node)
+
+    l_node, l_selection = pull_up_selection(l_node, stop=divergent_node)
+    r_node, r_selection = pull_up_selection(
+        r_node, stop=divergent_node, rename_vars=True
+    )
+
+    def _linearize_trees(
+        base_tree: bigframes.core.nodes.BigFrameNode,
+        append_tree: bigframes.core.nodes.BigFrameNode,
+    ) -> bigframes.core.nodes.BigFrameNode:
+        """Linearize two divergent tree who only diverge through different additive nodes."""
+        assert append_tree.projection_base == base_tree.projection_base
+        # base case: append tree does not have any additive nodes to linearize
+        if append_tree == divergent_node:
+            return base_tree
+        else:
+            assert isinstance(append_tree, ADDITIVE_NODES)
+            return append_tree.replace_child(
+                _linearize_trees(base_tree, append_tree.child)
+            )
+
+    return bigframes.core.nodes.SelectionNode(
+        _linearize_trees(l_node, r_node), (*l_selection, *r_selection)
+    )
+
+
+def convert_relational_join(
+    node: bigframes.core.nodes.JoinNode,
+) -> Optional[bigframes.core.nodes.BigFrameNode]:
+    """
+    Converts a true relational join into a projection.
+    This is a compile-time rewrite only - and must preserve value exactly.
+    """
+    l_node = node.left_child
+    r_node = node.right_child
+    join_keys = node.conditions
+    how = node.type
+
+    if how not in ("inner", "left", "right", "outer"):
+        return None
+
+    # TODO: Include filter
+    if l_node.projection_base != r_node.projection_base:
+        return None
+
+    # TODO: Check (joint) uniqueness of join keys
+
+    divergent_node = first_common_descendant(l_node, r_node)
+
+    # check join keys are equivalent by normalizing the expressions as much as posisble
+    # instead of just comparing ids
+    for l_key, r_key in join_keys:
+        # Caller is block, so they still work with raw strings rather than ids
+        if get_expression_spec(l_node, l_key.id) != get_expression_spec(
+            r_node, r_key.id
         ):
             return None
 
@@ -141,7 +206,7 @@ def try_join_as_projection(
 
     # add back all the destructive operators we pulled out according to join type
     return mask_filter_select(
-        merged_node, l_selection, l_filters, r_selection, r_filters, how=how
+        merged_node, l_selection, l_filters, r_selection, r_filters, how=how  # type: ignore
     )
 
 
@@ -405,7 +470,6 @@ def decompose_conjunction(
 def first_common_descendant(
     left: bigframes.core.nodes.BigFrameNode, right: bigframes.core.nodes.BigFrameNode
 ) -> bigframes.core.nodes.BigFrameNode:
-    assert left.projection_base == right.projection_base
     l_depth = projection_depth(left)
     r_depth = projection_depth(right)
     diff = r_depth - l_depth
