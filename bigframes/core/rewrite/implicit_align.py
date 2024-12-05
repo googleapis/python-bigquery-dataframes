@@ -503,9 +503,9 @@ def find_shared_descendant(
         return None
 
     l_depth = distance(left, l_floor)
-    assert l_depth
+    assert l_depth is not None
     r_depth = distance(right, r_floor)
-    assert r_depth
+    assert r_depth is not None
     diff = r_depth - l_depth
 
     while left != right:
@@ -541,4 +541,5 @@ def distance(
         return 0
     else:
         child_distances = (distance(child, target) for child in root.child_nodes)
-        return min((d for d in child_distances if d is not None), default=None)
+        nearest_d = min((d for d in child_distances if d is not None), default=None)
+        return (1 + nearest_d) if (nearest_d is not None) else None
