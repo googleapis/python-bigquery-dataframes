@@ -59,11 +59,30 @@ class Compiler:
         node = self.set_output_names(node, output_ids)
         if ordered:
             node, limit = rewrites.pullup_limit_from_slice(node)
-            return self.compile_ordered_ir(self._preprocess(node)).to_sql(
-                ordered=True, limit=limit
-            )
+            ir = self.compile_ordered_ir(self._preprocess(node))
+            ir = self._patch_json_type(node, ir)
+            return ir.to_sql(ordered=True, limit=limit)
         else:
-            return self.compile_unordered_ir(self._preprocess(node)).to_sql()
+            ir = self.compile_unordered_ir(self._preprocess(node))  # type: ignore
+            ir = self._patch_json_type(node, ir)
+            return ir.to_sql()
+
+    def _patch_json_type(
+        self, node: nodes.BigFrameNode, ir: compiled.OrderedIR | compiled.UnorderedIR
+    ):
+        # Patch back to json type
+        json_col_ids = set()
+        for schema in node.schema.items:
+            if getattr(schema.dtype, "is_json", False):
+                json_col_ids.add(schema.column)
+        value_cols = tuple(
+            compile_scalar.parse_json(value).name(value.get_name())
+            if (value.type().is_string() and value.get_name() in json_col_ids)
+            else value
+            for value in ir.columns
+        )
+
+        return ir._select(value_cols)
 
     def compile_peek_sql(self, node: nodes.BigFrameNode, n_rows: int) -> str:
         return self.compile_unordered_ir(self._preprocess(node)).peek_sql(n_rows)

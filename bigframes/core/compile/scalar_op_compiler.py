@@ -1196,6 +1196,11 @@ def json_extract_string_array_op_impl(
     return json_extract_string_array(json_obj=x, json_path=op.json_path)
 
 
+@scalar_op_compiler.register_unary_op(ops.parse_json_op)
+def parse_json_impl(x: ibis_types.Value):
+    return parse_json(json_str=x)
+
+
 # Blob Ops
 @scalar_op_compiler.register_unary_op(ops.obj_fetch_metadata_op)
 def obj_fetch_metadata_op_impl(x: ibis_types.Value):
@@ -1845,7 +1850,7 @@ def float_ceil(a: float) -> float:
 
 
 @ibis_udf.scalar.builtin(name="parse_json")
-def parse_json(a: str) -> ibis_dtypes.JSON:  # type: ignore[empty-body]
+def parse_json(json_str: str) -> ibis_dtypes.JSON:  # type: ignore[empty-body]
     """Converts a JSON-formatted STRING value to a JSON value."""
 
 

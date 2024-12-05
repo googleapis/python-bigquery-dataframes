@@ -727,6 +727,10 @@ class JSONExtractStringArray(UnaryOp):
         )
 
 
+parse_json_op = create_unary_op(
+    name="parse_json", type_signature=op_typing.STRING_TO_JSON
+)
+
 # Binary Ops
 fillna_op = create_binary_op(name="fillna", type_signature=op_typing.COERCE)
 maximum_op = create_binary_op(name="maximum", type_signature=op_typing.COERCE)
