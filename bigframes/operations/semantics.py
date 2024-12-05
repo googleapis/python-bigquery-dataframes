@@ -652,7 +652,7 @@ class Semantics:
             >>> df = bpd.DataFrame({"creatures": ["salmon", "sea urchin", "frog", "chimpanzee"]})
             >>> df.semantics.search("creatures", "monkey", top_k=1, model=model, score_column='distance')
                 creatures  distance
-            3  chimpanzee  0.781101
+            3  chimpanzee  0.635844
             <BLANKLINE>
             [1 rows x 2 columns]
 
