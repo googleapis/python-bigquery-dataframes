@@ -615,6 +615,8 @@ class TextEmbeddingGenerator(base.BaseEstimator):
         connection_name (str or None):
             Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
             If None, use default connection in session context.
+        max_rows (int or None):
+            The maximum number of rows that this model can process per call.
     """
 
     def __init__(
@@ -625,6 +627,7 @@ class TextEmbeddingGenerator(base.BaseEstimator):
         ] = "text-embedding-004",
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
+        max_rows: Optional[int] = None,
     ):
         self.model_name = model_name
         self.session = session or bpd.get_global_session()
@@ -639,6 +642,7 @@ class TextEmbeddingGenerator(base.BaseEstimator):
 
         self._bqml_model_factory = globals.bqml_model_factory()
         self._bqml_model: core.BqmlModel = self._create_bqml_model()
+        self._max_rows = max_rows
 
     def _create_bqml_model(self):
         # Parse and create connection if needed.
@@ -707,10 +711,19 @@ class TextEmbeddingGenerator(base.BaseEstimator):
 
         Returns:
             bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
+
+        Raises:
+            ValueError if X contains more rows than the max_rows, which was specified in the constructor. No rows will be proceed in such a case.
         """
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
+
+        x_len = len(X)
+        if self._max_rows and x_len > self._max_rows:
+            raise ValueError(
+                f"Input has {x_len} rows, which exceeds limit {self._max_rows}"
+            )
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -769,6 +782,8 @@ class GeminiTextGenerator(base.BaseEstimator):
             permission if the connection isn't fully set up.
         max_iterations (Optional[int], Default to 300):
             The number of steps to run when performing supervised tuning.
+        max_rows (int or None):
+            The maximum number of rows that this model can process per call.
     """
 
     def __init__(
@@ -786,6 +801,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
         max_iterations: int = 300,
+        max_rows: Optional[int] = None,
     ):
         self.model_name = model_name
         self.session = session or bpd.get_global_session()
@@ -801,6 +817,7 @@ class GeminiTextGenerator(base.BaseEstimator):
 
         self._bqml_model_factory = globals.bqml_model_factory()
         self._bqml_model: core.BqmlModel = self._create_bqml_model()
+        self._max_rows = max_rows
 
     def _create_bqml_model(self):
         # Parse and create connection if needed.
@@ -954,6 +971,9 @@ class GeminiTextGenerator(base.BaseEstimator):
 
         Returns:
             bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
+
+        Raises:
+            ValueError if X contains more rows than the max_rows, which was specified in the constructor. No rows will be proceed in such a case.
         """
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
@@ -972,6 +992,12 @@ class GeminiTextGenerator(base.BaseEstimator):
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
+
+        x_len = len(X)
+        if self._max_rows and x_len > self._max_rows:
+            raise ValueError(
+                f"Input has {x_len} rows, which exceeds limit {self._max_rows}"
+            )
 
         if len(X.columns) == 1:
             # BQML identified the column by name
