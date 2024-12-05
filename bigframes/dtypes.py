@@ -221,8 +221,12 @@ NUMERIC_BIGFRAMES_TYPES_PERMISSIVE = NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE + [
     BIGNUMERIC_DTYPE,
 ]
 
+TEMPORAL_BIGFRAMES_TYPES = [TIME_DTYPE, DATE_DTYPE, TIMESTAMP_DTYPE, DATETIME_DTYPE]
+# Temporal types that are considered as "numeric" by Pandas
+TEMPORAL_NUMERIC_BIGFRAMES_TYPES = [DATE_DTYPE, TIMESTAMP_DTYPE, DATETIME_DTYPE]
 
-## dtype predicates - use these to maintain consistency
+
+# dtype predicates - use these to maintain consistency
 def is_datetime_like(type_: ExpressionType) -> bool:
     return type_ in (DATETIME_DTYPE, TIMESTAMP_DTYPE)
 
@@ -630,7 +634,7 @@ def can_coerce(source_type: ExpressionType, target_type: ExpressionType) -> bool
         return True  # None can be coerced to any supported type
     else:
         return (source_type == STRING_DTYPE) and (
-            target_type in (DATETIME_DTYPE, TIMESTAMP_DTYPE, TIME_DTYPE, DATE_DTYPE)
+            target_type in TEMPORAL_BIGFRAMES_TYPES
         )
 
 

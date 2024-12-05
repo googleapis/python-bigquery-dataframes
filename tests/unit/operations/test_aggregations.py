@@ -68,10 +68,10 @@ def test_is_agg_op_supported_numeric_support_all(dtype, op):
     [
         (dtypes.STRING_DTYPE, {count_op, nunique_op}),
         (dtypes.BYTES_DTYPE, {count_op, nunique_op}),
-        (dtypes.DATE_DTYPE, set()),
-        (dtypes.TIME_DTYPE, set()),
-        (dtypes.DATETIME_DTYPE, set()),
-        (dtypes.TIMESTAMP_DTYPE, set()),
+        (dtypes.DATE_DTYPE, {count_op, nunique_op, min_op, max_op}),
+        (dtypes.TIME_DTYPE, {count_op, nunique_op, min_op, max_op}),
+        (dtypes.DATETIME_DTYPE, {count_op, nunique_op, min_op, max_op}),
+        (dtypes.TIMESTAMP_DTYPE, {count_op, nunique_op, min_op, max_op}),
         (dtypes.GEO_DTYPE, set()),
     ],
 )

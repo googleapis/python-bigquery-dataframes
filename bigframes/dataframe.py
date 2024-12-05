@@ -514,6 +514,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(self._block.select_columns(selected_columns))
 
+    def _select_exact_dtypes(
+        self, dtypes: Sequence[bigframes.dtypes.Dtype]
+    ) -> DataFrame:
+        """Selects columns without considering inheritance relationships."""
+        columns = [
+            col_id
+            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
+            if dtype in dtypes
+        ]
+        return DataFrame(self._block.select_columns(columns))
+
     def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
 
@@ -2321,7 +2332,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def describe(self, include: None | Literal["all"] = None) -> DataFrame:
         if include is None:
-            numeric_df = self._drop_non_numeric(permissive=False)
+            numeric_df = self._select_exact_dtypes(
+                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
+                + bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
+            )
             if len(numeric_df.columns) == 0:
                 # Describe eligible non-numeric columns
                 return self._describe_non_numeric()
@@ -2349,9 +2363,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError(f"Unsupported include type: {include}")
 
     def _describe_numeric(self) -> DataFrame:
-        return typing.cast(
+        number_df_result = typing.cast(
             DataFrame,
-            self._drop_non_numeric(permissive=False).agg(
+            self._select_exact_dtypes(
+                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
+            ).agg(
                 [
                     "count",
                     "mean",
@@ -2364,16 +2380,41 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 ]
             ),
         )
+        temporal_df_result = typing.cast(
+            DataFrame,
+            self._select_exact_dtypes(
+                bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
+            ).agg(["count"]),
+        )
+
+        if len(number_df_result.columns) == 0:
+            return temporal_df_result
+        elif len(temporal_df_result.columns) == 0:
+            return number_df_result
+        else:
+            import bigframes.core.reshape as rs
+
+            original_columns = self._select_exact_dtypes(
+                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
+                + bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
+            ).columns
+
+            # Use reindex after join to preserve the original column order.
+            return rs.concat(
+                [number_df_result, temporal_df_result],
+                axis=1,
+            )._reindex_columns(original_columns)
 
     def _describe_non_numeric(self) -> DataFrame:
         return typing.cast(
             DataFrame,
-            self.select_dtypes(
-                include={
+            self._select_exact_dtypes(
+                [
                     bigframes.dtypes.STRING_DTYPE,
                     bigframes.dtypes.BOOL_DTYPE,
                     bigframes.dtypes.BYTES_DTYPE,
-                }
+                    bigframes.dtypes.TIME_DTYPE,
+                ]
             ).agg(["count", "nunique"]),
         )
 
