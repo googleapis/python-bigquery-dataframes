@@ -2341,8 +2341,8 @@ class Block:
         # Handle null index, which only supports row join
         # This is the canonical way of aligning on null index, so always allow (ignore block_identity_join)
         if self.index.nlevels == other.index.nlevels == 0:
-            result = try_legacy_row_join(self, other, how=how) or try_new_row_join(
-                self, other
+            result = try_new_row_join(self, other) or try_legacy_row_join(
+                self, other, how=how
             )
             if result is not None:
                 return result
@@ -2356,8 +2356,8 @@ class Block:
             and (self.index.nlevels == other.index.nlevels)
             and (self.index.dtypes == other.index.dtypes)
         ):
-            result = try_legacy_row_join(self, other, how=how) or try_new_row_join(
-                self, other
+            result = try_new_row_join(self, other) or try_legacy_row_join(
+                self, other, how=how
             )
             if result is not None:
                 return result

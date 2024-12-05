@@ -173,7 +173,9 @@ class PolarsCompiler:
 
         # TODO: Create standard way to configure BFET -> BFET rewrites
         # Polars has incomplete slice support in lazy mode
-        node = bigframes.core.rewrite.replace_slice_ops(array_value.node)
+        node = bigframes.core.nodes.bottom_up(
+            array_value.node, bigframes.core.rewrite.replace_slice_op, memoize=True
+        )
         return self.compile_node(node)
 
     @functools.singledispatchmethod
@@ -273,6 +275,12 @@ class PolarsCompiler:
     @compile_node.register
     def compile_concat(self, node: nodes.ConcatNode):
         return pl.concat(self.compile_node(child) for child in node.child_nodes)
+
+    @compile_node.register
+    def compile_row_join(self, node: nodes.RowJoinNode):
+        return pl.concat(
+            (self.compile_node(child) for child in node.child_nodes), how="horizontal"
+        )
 
     @compile_node.register
     def compile_agg(self, node: nodes.AggregateNode):
