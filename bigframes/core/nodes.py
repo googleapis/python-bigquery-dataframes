@@ -85,8 +85,12 @@ class BigFrameNode(abc.ABC):
         """Direct children of this node"""
         return tuple([])
 
-    @property
+    @functools.cached_property
     def projection_base(self) -> BigFrameNode:
+        import bigframes.core.rewrite.implicit_align
+
+        if isinstance(self, bigframes.core.rewrite.implicit_align.ALIGNABLE_NODES):
+            return self.child.projection_base
         return self
 
     @property
@@ -921,10 +925,6 @@ class PromoteOffsetsNode(UnaryNode):
         return (self.col_id,)
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
-
-    @property
     def added_fields(self) -> Tuple[Field, ...]:
         return (Field(self.col_id, bigframes.dtypes.INT_DTYPE),)
 
@@ -963,10 +963,6 @@ class FilterNode(UnaryNode):
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return ()
-
-    @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base if IMPLICIT_JOINER_MASKING else self
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         consumed_ids = used_cols.union(self.predicate.column_references)
@@ -1102,10 +1098,6 @@ class SelectionNode(UnaryNode):
         return True
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
-
-    @property
     def row_count(self) -> Optional[int]:
         return self.child.row_count
 
@@ -1178,10 +1170,6 @@ class ProjectionNode(UnaryNode):
     @property
     def row_count(self) -> Optional[int]:
         return self.child.row_count
-
-    @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
@@ -1366,10 +1354,6 @@ class WindowOpNode(UnaryNode):
     @property
     def variables_introduced(self) -> int:
         return 1
-
-    @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
 
     @property
     def added_fields(self) -> Tuple[Field, ...]:
