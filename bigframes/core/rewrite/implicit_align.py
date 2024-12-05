@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations
 
+import collections
 import dataclasses
 import functools
 from typing import cast, Generator, Literal, Optional, Sequence, Tuple
@@ -22,6 +23,7 @@ import bigframes.core.guid
 import bigframes.core.identifiers
 import bigframes.core.join_def
 import bigframes.core.nodes
+import bigframes.core.tree_properties
 import bigframes.core.window_spec
 import bigframes.operations
 import bigframes.operations.aggregations
@@ -38,9 +40,15 @@ ADDITIVE_NODES = (
     bigframes.core.nodes.WindowOpNode,
     bigframes.core.nodes.PromoteOffsetsNode,
 )
+# Combination of selects and additive nodes can be merged as an explicit keyless "row join"
 ALIGNABLE_NODES = (
     *ADDITIVE_NODES,
     bigframes.core.nodes.SelectionNode,
+)
+# Filter nodes can be rewritten at compile time only
+REWRITABLE_NODES = (
+    *ALIGNABLE_NODES,
+    bigframes.core.nodes.FilterNode,
 )
 
 
@@ -112,16 +120,20 @@ def can_row_join(
     return True
 
 
-def try_join_as_projection(
+def try_row_join(
     l_node: bigframes.core.nodes.BigFrameNode,
     r_node: bigframes.core.nodes.BigFrameNode,
     join_keys: Tuple[Tuple[str, str], ...],
 ) -> Optional[bigframes.core.nodes.BigFrameNode]:
-    """Joins the two nodes"""
+    """
+    Joins the two nodes by matching rows by identity. This is only possible when the lineage between the two nodes shares the same source of row identity.
+    """
     if not can_row_join(l_node, r_node, join_keys):
         return None
 
-    divergent_node = first_common_descendant(l_node, r_node)
+    divergent_node = find_shared_descendant(l_node, r_node, mode="alignable")
+    if divergent_node is None:
+        return None
 
     l_node, l_selection = pull_up_selection(l_node, stop=divergent_node)
     r_node, r_selection = pull_up_selection(
@@ -149,27 +161,35 @@ def try_join_as_projection(
 
 
 def convert_relational_join(
-    node: bigframes.core.nodes.JoinNode,
-) -> Optional[bigframes.core.nodes.BigFrameNode]:
+    node: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
     """
     Converts a true relational join into a projection.
     This is a compile-time rewrite only - and must preserve value exactly.
     """
+    if not isinstance(node, bigframes.core.nodes.JoinNode):
+        return node
+
     l_node = node.left_child
     r_node = node.right_child
     join_keys = node.conditions
     how = node.type
 
     if how not in ("inner", "left", "right", "outer"):
-        return None
+        return node  # can't convert cross joins
 
-    # TODO: Include filter
-    if l_node.projection_base != r_node.projection_base:
-        return None
+    if not bigframes.core.tree_properties.is_unique_key(
+        l_node, set(l_ref.id for l_ref, _ in join_keys)
+    ):
+        return node
+    if not bigframes.core.tree_properties.is_unique_key(
+        r_node, set(r_ref.id for _, r_ref in join_keys)
+    ):
+        return node
 
-    # TODO: Check (joint) uniqueness of join keys
-
-    divergent_node = first_common_descendant(l_node, r_node)
+    divergent_node = find_shared_descendant(l_node, r_node, mode="rewritable")
+    if divergent_node is None:
+        return node  # lineage not compatible with rewrite
 
     # check join keys are equivalent by normalizing the expressions as much as posisble
     # instead of just comparing ids
@@ -178,7 +198,7 @@ def convert_relational_join(
         if get_expression_spec(l_node, l_key.id) != get_expression_spec(
             r_node, r_key.id
         ):
-            return None
+            return node
 
     l_node, l_selection = pull_up_selection(l_node, stop=divergent_node)
     r_node, r_selection = pull_up_selection(
@@ -353,8 +373,7 @@ def pull_up_filters(
     root: bigframes.core.nodes.BigFrameNode,
     stop: bigframes.core.nodes.BigFrameNode,
 ) -> Tuple[bigframes.core.nodes.BigFrameNode, Predicates]:
-    """Linearize two divergent tree who only diverge through different additive nodes."""
-    # base case: append tree does not have any additive nodes to linearize
+    """Pull filter nodes out of a tree section."""
     if root == stop:
         return root, ()
     elif isinstance(root, bigframes.core.nodes.FilterNode):
@@ -467,11 +486,26 @@ def decompose_conjunction(
         yield expr
 
 
-def first_common_descendant(
-    left: bigframes.core.nodes.BigFrameNode, right: bigframes.core.nodes.BigFrameNode
-) -> bigframes.core.nodes.BigFrameNode:
-    l_depth = projection_depth(left)
-    r_depth = projection_depth(right)
+def find_shared_descendant(
+    left: bigframes.core.nodes.BigFrameNode,
+    right: bigframes.core.nodes.BigFrameNode,
+    mode: Literal["alignable", "rewritable"],
+) -> Optional[bigframes.core.nodes.BigFrameNode]:
+    assert mode in ["alignable", "rewritable"]
+    node_types = ALIGNABLE_NODES if mode == "alignable" else REWRITABLE_NODES
+
+    l_floor = find_first(left, lambda x: not isinstance(x, node_types))
+    r_floor = find_first(right, lambda x: not isinstance(x, node_types))
+    assert l_floor
+    assert r_floor
+
+    if l_floor != r_floor:
+        return None
+
+    l_depth = distance(left, l_floor)
+    assert l_depth
+    r_depth = distance(right, r_floor)
+    assert r_depth
     diff = r_depth - l_depth
 
     while left != right:
@@ -481,12 +515,30 @@ def first_common_descendant(
         if diff > 0:
             right = cast(bigframes.core.nodes.UnaryNode, right).child
             diff -= 1
+
     return left
 
 
-def projection_depth(node: bigframes.core.nodes.BigFrameNode) -> int:
-    if node == node.projection_base:
+def find_first(
+    root: bigframes.core.nodes.BigFrameNode, predicate
+) -> Optional[bigframes.core.nodes.BigFrameNode]:
+    """BFS search"""
+    queue: collections.deque[bigframes.core.nodes.BigFrameNode] = collections.deque()
+    queue.append(root)
+    while queue:
+        item = queue.popleft()
+        if predicate(item):
+            return item
+        else:
+            queue.extend(item.child_nodes)
+    return None
+
+
+def distance(
+    root: bigframes.core.nodes.BigFrameNode, target: bigframes.core.nodes.BigFrameNode
+) -> Optional[int]:
+    if root == target:
         return 0
     else:
-        assert isinstance(node, bigframes.core.nodes.UnaryNode)
-        return 1 + projection_depth(node.child)
+        child_distances = (distance(child, target) for child in root.child_nodes)
+        return min((d for d in child_distances if d is not None), default=None)
