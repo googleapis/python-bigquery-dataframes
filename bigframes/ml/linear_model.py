@@ -164,7 +164,7 @@ class LinearRegression(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X)
 
         return self._bqml_model.explain_predict(X)
 
