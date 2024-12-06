@@ -225,11 +225,6 @@ STRING_PREDICATE = FixedOutputType(
     bigframes.dtypes.BOOL_DTYPE,
     description="string-like",
 )
-STRING_TO_JSON = FixedOutputType(
-    bigframes.dtypes.is_string_like,
-    bigframes.dtypes.JSON_DTYPE,
-    description="string-like",
-)
 DATELIKE_ACCESSOR = FixedOutputType(
     bigframes.dtypes.is_date_like, bigframes.dtypes.INT_DTYPE, description="date-like"
 )

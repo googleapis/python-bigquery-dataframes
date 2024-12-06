@@ -202,6 +202,7 @@ def test_json_extract_string_array_w_invalid_series_type():
         bbq.json_extract_string_array(bpd.Series([1, 2]))
 
 
+# b/381148539
 def test_json_in_struct():
     df = bpd.read_gbq(
         "SELECT STRUCT(JSON '{\\\"a\\\": 1}' AS data, 1 AS number) as struct_col"

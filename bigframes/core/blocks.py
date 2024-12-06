@@ -1489,7 +1489,6 @@ class Block:
 
         Returns a tuple of the dataframe and the overall number of rows of the query.
         """
-        # self.apply_unary_op("ml_generate_embedding_statistics", ops.parse_json)
 
         # head caches full underlying expression, so row_count will be free after
         head_result = self.session._executor.head(self.expr, max_results)
