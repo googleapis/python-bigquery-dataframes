@@ -528,13 +528,11 @@ class BigQueryCachingExecutor(Executor):
         return results_iterator
 
     def preprocess_tree(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
-        node = bigframes.core.nodes.top_down(
-            node, lambda x: self._cached_executions.get(x, x)
+        w_cache = tree_properties.replace_nodes(node, (dict(self._cached_executions)))
+        w_joins_rewrite = bigframes.core.nodes.bottom_up(
+            w_cache, bigframes.core.rewrite.convert_relational_join, memoize=True
         )
-        node = bigframes.core.nodes.bottom_up(
-            node, bigframes.core.rewrite.convert_relational_join, memoize=True
-        )
-        return node
+        return w_joins_rewrite
 
     def _is_trivially_executable(self, array_value: bigframes.core.ArrayValue):
         """
