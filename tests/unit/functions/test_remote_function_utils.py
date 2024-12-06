@@ -32,6 +32,31 @@ from bigframes.functions import _utils
             id="None",
         ),
         pytest.param(
+            {"python_output_type": bool},
+            '{"value": {"python_output_type": "bool"}}',
+            id="bool",
+        ),
+        pytest.param(
+            {"python_output_type": bytes},
+            '{"value": {"python_output_type": "bytes"}}',
+            id="bytes",
+        ),
+        pytest.param(
+            {"python_output_type": float},
+            '{"value": {"python_output_type": "float"}}',
+            id="float",
+        ),
+        pytest.param(
+            {"python_output_type": int},
+            '{"value": {"python_output_type": "int"}}',
+            id="int",
+        ),
+        pytest.param(
+            {"python_output_type": str},
+            '{"value": {"python_output_type": "str"}}',
+            id="str",
+        ),
+        pytest.param(
             {"python_output_type": list[bool]},
             '{"value": {"python_output_type": "list[bool]"}}',
             id="list-bool",
@@ -55,23 +80,6 @@ from bigframes.functions import _utils
 )
 def test_get_bigframes_metadata(metadata_options, metadata_string):
     assert _utils.get_bigframes_metadata(**metadata_options) == metadata_string
-
-
-@pytest.mark.parametrize(
-    "type_",
-    (
-        bool,
-        bytes,
-        float,
-        int,
-        str,
-    ),
-)
-def test_get_bigframes_metadata_unsupported(type_):
-    with pytest.raises(ValueError) as context:
-        _utils.get_bigframes_metadata(python_output_type=type_)
-
-    assert str(context.value) == (f"python_output_type {type_} is not supported.")
 
 
 @pytest.mark.parametrize(

@@ -985,7 +985,9 @@ def test_read_gbq_function_allows_only_list_of_type_as_explicit_output_type(
         body="TO_JSON_STRING([x, x+1, x+2])",
         arguments=[arg],
         return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.STRING),
-        description=f'{{"value": {{"python_output_type": "{python_output_type.__name__}"}}}}',
+        description=rf_utils.get_bigframes_metadata(
+            python_output_type=python_output_type
+        ),
         type_=bigquery.RoutineType.SCALAR_FUNCTION,
     )
 

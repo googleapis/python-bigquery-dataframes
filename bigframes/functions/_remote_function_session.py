@@ -33,6 +33,9 @@ from typing import (
 import warnings
 
 import bigframes_vendored.constants as constants
+import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
+import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import cloudpickle
 import google.api_core.exceptions
 from google.cloud import (
@@ -47,8 +50,6 @@ from bigframes import clients
 if TYPE_CHECKING:
     from bigframes.session import Session
 
-import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
-import ibis
 import pandas
 
 from . import _remote_function_client as rf_client
@@ -511,13 +512,13 @@ class RemoteFunctionSession:
             # ibis, BQ remote functions and cloud functions integration
             ibis_output_type_for_bqrf = ibis_signature.output_type
             bqrf_metadata = None
-            if isinstance(ibis_signature.output_type, ibis.expr.datatypes.Array):
+            if isinstance(ibis_signature.output_type, ibis_dtypes.Array):
                 # TODO(b/284515241): remove this special handling to support
                 # array output types once BQ remote functions support ARRAY.
                 # Until then, use json serialized strings at the cloud function
                 # and BQ level, and parse that to the intended output type at
                 # the bigframes level.
-                ibis_output_type_for_bqrf = ibis.expr.datatypes.String()
+                ibis_output_type_for_bqrf = ibis_dtypes.String()
                 bqrf_metadata = _utils.get_bigframes_metadata(
                     python_output_type=output_type
                 )
@@ -534,6 +535,7 @@ class RemoteFunctionSession:
                 input_types=tuple(
                     third_party_ibis_bqtypes.BigQueryType.from_ibis(type_)
                     for type_ in ibis_signature.input_types
+                    if type_ is not None
                 ),
                 output_type=bqrf_output_type,
                 reuse=reuse,
@@ -562,13 +564,13 @@ class RemoteFunctionSession:
             )
 
             # TODO: Move ibis logic to compiler step
-            node = ibis.udf.scalar.builtin(
+            node = ibis_udf.scalar.builtin(
                 func,
                 name=rf_name,
                 catalog=dataset_ref.project,
                 database=dataset_ref.dataset_id,
                 signature=(ibis_signature.input_types, ibis_output_type_for_bqrf),
-            )
+            )  # type: ignore
             func.bigframes_cloud_function = (
                 remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
             )
@@ -583,6 +585,7 @@ class RemoteFunctionSession:
                         input_type
                     )
                     for input_type in ibis_signature.input_types
+                    if input_type is not None
                 ]
             )
             func.output_dtype = (

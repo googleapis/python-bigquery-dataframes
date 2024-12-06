@@ -19,10 +19,10 @@ import json
 import typing
 from typing import cast, List, NamedTuple, Optional, Sequence, Set
 
+import bigframes_vendored.ibis.expr.datatypes.core as ibis_dtypes
 import cloudpickle
 import google.api_core.exceptions
 from google.cloud import bigquery, functions_v2
-import ibis.expr.datatypes
 import numpy
 import pandas
 import pyarrow
@@ -194,9 +194,9 @@ def get_remote_function_name(function_hash, session_id, uniq_suffix=None):
 
 class IbisSignature(NamedTuple):
     parameter_names: List[str]
-    input_types: List[Optional[ibis.expr.datatypes.DataType]]
-    output_type: ibis.expr.datatypes.DataType
-    output_type_override: Optional[ibis.expr.datatypes.DataType] = None
+    input_types: List[Optional[ibis_dtypes.DataType]]
+    output_type: ibis_dtypes.DataType
+    output_type_override: Optional[ibis_dtypes.DataType] = None
 
 
 def ibis_signature_from_python_signature(
@@ -205,7 +205,7 @@ def ibis_signature_from_python_signature(
     output_type: type,
 ) -> IbisSignature:
 
-    ibis_input_types = [
+    ibis_input_types: List[Optional[ibis_dtypes.DataType]] = [
         bigframes.core.compile.ibis_types.ibis_type_from_python_type(t)
         for t in input_types
     ]
@@ -250,15 +250,17 @@ def get_python_output_type_from_bigframes_metadata(
 
 
 def get_bigframes_metadata(*, python_output_type: Optional[type] = None) -> str:
-    if python_output_type not in [list[type_] for type_ in bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES]:  # type: ignore
-        raise ValueError(f"python_output_type {python_output_type} is not supported.")
-
     # Let's keep the actual metadata inside one level of nesting so that in
-    # future we can use a top level key (parallel to "value"), so that "value"
-    # can be interpreted according to the "version"
+    # future we can use a top level key "version" (parallel to "value"), so that
+    # "value" can be interpreted according to the "version". Absence of
+    # "version" should be interpreted as default version.
     inner_metadata = {}
     if python_output_type:
-        inner_metadata["python_output_type"] = repr(python_output_type)
+        if typing.get_origin(python_output_type) is list:
+            python_output_type_ser = repr(python_output_type)
+        else:
+            python_output_type_ser = python_output_type.__name__
+        inner_metadata["python_output_type"] = python_output_type_ser
 
     metadata = {"value": inner_metadata}
     metadata_ser = json.dumps(metadata)
