@@ -1173,9 +1173,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             results.append(result)
 
         if all([isinstance(val, bigframes.series.Series) for val in results]):
-            import bigframes.core.reshape as rs
-
-            return rs.concat(results, axis=1)
+            import bigframes.core.reshape.api
+            return bigframes.core.reshape.api.concat(results, axis=1)
         else:
             raise ValueError("'func' must return Series")
 
@@ -2338,10 +2337,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             elif len(non_numeric_result.columns) == 0:
                 return numeric_result
             else:
-                import bigframes.core.reshape as rs
+                import bigframes.core.reshape.api
 
                 # Use reindex after join to preserve the original column order.
-                return rs.concat(
+                return bigframes.core.reshape.api.concat(
                     [non_numeric_result, numeric_result], axis=1
                 )._reindex_columns(self.columns)
 
