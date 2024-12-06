@@ -107,11 +107,9 @@ def test_linear_reg_model_predict(penguins_linear_model, new_penguins_df):
 
 
 def test_to_gbq_saved_linear_reg_model_scores(
-    penguins_linear_model, dataset_id, penguins_df_default_index
+    penguins_linear_model, table_id_unique, penguins_df_default_index
 ):
-    saved_model = penguins_linear_model.to_gbq(
-        f"{dataset_id}.test_penguins_model", replace=True
-    )
+    saved_model = penguins_linear_model.to_gbq(table_id_unique, replace=True)
     df = penguins_df_default_index.dropna()
     X_test = df[
         [
@@ -146,10 +144,10 @@ def test_to_gbq_saved_linear_reg_model_scores(
     )
 
 
-def test_to_gbq_replace(penguins_linear_model, dataset_id):
-    penguins_linear_model.to_gbq(f"{dataset_id}.test_penguins_model", replace=True)
+def test_to_gbq_replace(penguins_linear_model, table_id_unique):
+    penguins_linear_model.to_gbq(table_id_unique, replace=True)
     with pytest.raises(google.api_core.exceptions.Conflict):
-        penguins_linear_model.to_gbq(f"{dataset_id}.test_penguins_model")
+        penguins_linear_model.to_gbq(table_id_unique)
 
 
 def test_logistic_model_score(penguins_logistic_model, penguins_df_default_index):
@@ -242,11 +240,9 @@ def test_logistic_model_predict(penguins_logistic_model, new_penguins_df):
 
 
 def test_logistic_model_to_gbq_saved_score(
-    penguins_logistic_model, dataset_id, penguins_df_default_index
+    penguins_logistic_model, table_id_unique, penguins_df_default_index
 ):
-    saved_model = penguins_logistic_model.to_gbq(
-        f"{dataset_id}.test_penguins_model", replace=True
-    )
+    saved_model = penguins_logistic_model.to_gbq(table_id_unique, replace=True)
     df = penguins_df_default_index.dropna()
     X_test = df[
         [
@@ -279,11 +275,3 @@ def test_logistic_model_to_gbq_saved_score(
         # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
     )
-
-
-def test_logistic_model_to_gbq_replace(penguins_logistic_model, dataset_id):
-    penguins_logistic_model.to_gbq(
-        f"{dataset_id}.test_penguins_model_replace", replace=True
-    )
-    with pytest.raises(google.api_core.exceptions.Conflict):
-        penguins_logistic_model.to_gbq(f"{dataset_id}.test_penguins_model_replace")
