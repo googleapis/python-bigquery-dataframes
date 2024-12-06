@@ -2257,13 +2257,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
 
             for dtype, agg in itertools.product(self.dtypes, aggregations):
-                if not bigframes.operations.aggregations.is_agg_op_supported(
-                    dtype, agg
-                ):
-                    raise NotImplementedError(
-                        f"Type {dtype} does not support aggregation {agg}. "
-                        f"Share your usecase with the BigQuery DataFrames team at the {constants.FEEDBACK_LINK}"
-                    )
+                agg.output_type(dtype) # Raises exception if the agg does not support the dtype.
 
             return DataFrame(
                 self._block.summarize(
