@@ -2257,7 +2257,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
 
             for dtype, agg in itertools.product(self.dtypes, aggregations):
-                agg.output_type(dtype) # Raises exception if the agg does not support the dtype.
+                agg.output_type(
+                    dtype
+                )  # Raises exception if the agg does not support the dtype.
 
             return DataFrame(
                 self._block.summarize(
