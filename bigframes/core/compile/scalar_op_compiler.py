@@ -1845,7 +1845,7 @@ def float_ceil(a: float) -> float:
 
 
 @ibis_udf.scalar.builtin(name="parse_json")
-def parse_json(a: str) -> ibis_dtypes.JSON:  # type: ignore[empty-body]
+def parse_json(json_str: str) -> ibis_dtypes.JSON:  # type: ignore[empty-body]
     """Converts a JSON-formatted STRING value to a JSON value."""
 
 
