@@ -13,22 +13,42 @@
 # limitations under the License.
 from __future__ import annotations
 
+import collections
 import dataclasses
-from typing import Optional, Tuple
+import functools
+from typing import cast, Generator, Literal, Optional, Sequence, Tuple
 
 import bigframes.core.expression
 import bigframes.core.guid
 import bigframes.core.identifiers
 import bigframes.core.join_def
 import bigframes.core.nodes
+import bigframes.core.tree_properties
 import bigframes.core.window_spec
+import bigframes.operations
 import bigframes.operations.aggregations
+
+Predicates = Sequence[bigframes.core.expression.Expression]
+Selection = Tuple[
+    Tuple[bigframes.core.expression.DerefOp, bigframes.core.identifiers.ColumnId],
+    ...,
+]
 
 # Additive nodes leave existing columns completely intact, and only add new columns to the end
 ADDITIVE_NODES = (
     bigframes.core.nodes.ProjectionNode,
     bigframes.core.nodes.WindowOpNode,
     bigframes.core.nodes.PromoteOffsetsNode,
+)
+# Combination of selects and additive nodes can be merged as an explicit keyless "row join"
+ALIGNABLE_NODES = (
+    *ADDITIVE_NODES,
+    bigframes.core.nodes.SelectionNode,
+)
+# Filter nodes can be rewritten at compile time only
+REWRITABLE_NODES = (
+    *ALIGNABLE_NODES,
+    bigframes.core.nodes.FilterNode,
 )
 
 
@@ -68,6 +88,7 @@ def get_expression_spec(
             (
                 bigframes.core.nodes.WindowOpNode,
                 bigframes.core.nodes.PromoteOffsetsNode,
+                bigframes.core.nodes.FilterNode,
             ),
         ):
             # we don't yet have a way of normalizing window ops into a ExpressionSpec, which only
@@ -78,42 +99,14 @@ def get_expression_spec(
         curr_node = curr_node.child
 
 
-def _linearize_trees(
-    base_tree: bigframes.core.nodes.BigFrameNode,
-    append_tree: bigframes.core.nodes.BigFrameNode,
-) -> bigframes.core.nodes.BigFrameNode:
-    """Linearize two divergent tree who only diverge through different additive nodes."""
-    assert append_tree.projection_base == base_tree.projection_base
-    # base case: append tree does not have any additive nodes to linearize
-    if append_tree == append_tree.projection_base:
-        return base_tree
-    else:
-        assert isinstance(append_tree, ADDITIVE_NODES)
-        return append_tree.replace_child(_linearize_trees(base_tree, append_tree.child))
-
-
-def combine_nodes(
-    l_node: bigframes.core.nodes.BigFrameNode,
-    r_node: bigframes.core.nodes.BigFrameNode,
-) -> bigframes.core.nodes.BigFrameNode:
-    assert l_node.projection_base == r_node.projection_base
-    l_node, l_selection = pull_up_selection(l_node)
-    r_node, r_selection = pull_up_selection(
-        r_node, rename_vars=True
-    )  # Rename only right vars to avoid collisions with left vars
-    combined_selection = (*l_selection, *r_selection)
-    merged_node = _linearize_trees(l_node, r_node)
-    return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
-
-
-def try_join_as_projection(
+def can_row_join(
     l_node: bigframes.core.nodes.BigFrameNode,
     r_node: bigframes.core.nodes.BigFrameNode,
     join_keys: Tuple[Tuple[str, str], ...],
-) -> Optional[bigframes.core.nodes.BigFrameNode]:
-    """Joins the two nodes"""
+):
     if l_node.projection_base != r_node.projection_base:
-        return None
+        return False
+
     # check join keys are equivalent by normalizing the expressions as much as posisble
     # instead of just comparing ids
     for l_key, r_key in join_keys:
@@ -123,19 +116,196 @@ def try_join_as_projection(
         if get_expression_spec(l_node, left_id) != get_expression_spec(
             r_node, right_id
         ):
-            return None
-    return combine_nodes(l_node, r_node)
+            return False
+    return True
+
+
+def try_row_join(
+    l_node: bigframes.core.nodes.BigFrameNode,
+    r_node: bigframes.core.nodes.BigFrameNode,
+    join_keys: Tuple[Tuple[str, str], ...],
+) -> Optional[bigframes.core.nodes.BigFrameNode]:
+    """
+    Joins the two nodes by matching rows by identity. This is only possible when the lineage between the two nodes shares the same source of row identity.
+    """
+    if not can_row_join(l_node, r_node, join_keys):
+        return None
+
+    divergent_node = find_shared_descendant(l_node, r_node, mode="alignable")
+    if divergent_node is None:
+        return None
+
+    l_node, l_selection = pull_up_selection(l_node, stop=divergent_node)
+    r_node, r_selection = pull_up_selection(
+        r_node, stop=divergent_node, rename_vars=True
+    )
+
+    def _linearize_trees(
+        base_tree: bigframes.core.nodes.BigFrameNode,
+        append_tree: bigframes.core.nodes.BigFrameNode,
+    ) -> bigframes.core.nodes.BigFrameNode:
+        """Linearize two divergent tree who only diverge through different additive nodes."""
+        assert append_tree.projection_base == base_tree.projection_base
+        # base case: append tree does not have any additive nodes to linearize
+        if append_tree == divergent_node:
+            return base_tree
+        else:
+            assert isinstance(append_tree, ADDITIVE_NODES)
+            return append_tree.replace_child(
+                _linearize_trees(base_tree, append_tree.child)
+            )
+
+    return bigframes.core.nodes.SelectionNode(
+        _linearize_trees(l_node, r_node), (*l_selection, *r_selection)
+    )
+
+
+def convert_relational_join(
+    node: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    """
+    Converts a true relational join into a projection.
+    This is a compile-time rewrite only - and must preserve value exactly.
+    """
+    if not isinstance(node, bigframes.core.nodes.JoinNode):
+        return node
+
+    l_node = node.left_child
+    r_node = node.right_child
+    join_keys = node.conditions
+    how = node.type
+
+    if how not in ("inner", "left", "right", "outer"):
+        return node  # can't convert cross joins
+
+    if not bigframes.core.tree_properties.is_unique_key(
+        l_node, set(l_ref.id for l_ref, _ in join_keys)
+    ):
+        return node
+    if not bigframes.core.tree_properties.is_unique_key(
+        r_node, set(r_ref.id for _, r_ref in join_keys)
+    ):
+        return node
+
+    divergent_node = find_shared_descendant(l_node, r_node, mode="rewritable")
+    if divergent_node is None:
+        return node  # lineage not compatible with rewrite
+
+    # check join keys are equivalent by normalizing the expressions as much as posisble
+    # instead of just comparing ids
+    for l_key, r_key in join_keys:
+        # Caller is block, so they still work with raw strings rather than ids
+        if get_expression_spec(l_node, l_key.id) != get_expression_spec(
+            r_node, r_key.id
+        ):
+            return node
+
+    l_node, l_selection = pull_up_selection(l_node, stop=divergent_node)
+    r_node, r_selection = pull_up_selection(
+        r_node, stop=divergent_node, rename_vars=True
+    )
+    l_node, l_filters = pull_up_filters(l_node, stop=divergent_node)
+    r_node, r_filters = pull_up_filters(r_node, stop=divergent_node)
+
+    def _linearize_trees(
+        base_tree: bigframes.core.nodes.BigFrameNode,
+        append_tree: bigframes.core.nodes.BigFrameNode,
+    ) -> bigframes.core.nodes.BigFrameNode:
+        """Linearize two divergent tree who only diverge through different additive nodes."""
+        assert append_tree.projection_base == base_tree.projection_base
+        # base case: append tree does not have any additive nodes to linearize
+        if append_tree == divergent_node:
+            return base_tree
+        else:
+            assert isinstance(append_tree, ADDITIVE_NODES)
+            return append_tree.replace_child(
+                _linearize_trees(base_tree, append_tree.child)
+            )
+
+    merged_node = _linearize_trees(l_node, r_node)
+
+    # add back all the destructive operators we pulled out according to join type
+    return mask_filter_select(
+        merged_node, l_selection, l_filters, r_selection, r_filters, how=how  # type: ignore
+    )
+
+
+def mask_filter_select(
+    raw_node: bigframes.core.nodes.BigFrameNode,
+    l_selection: Selection,
+    l_mask: Predicates,
+    r_selection: Selection,
+    r_mask: Predicates,
+    how: Literal["inner", "outer", "left", "right"],
+) -> bigframes.core.nodes.BigFrameNode:
+    node = raw_node
+    # TODO: don't apply unnecessary row filters!!!!
+    row_filter: Optional[bigframes.core.expression.Expression] = None
+    if how == "outer" and (l_mask and r_mask):
+        row_filter = bigframes.operations.or_op.as_expr(
+            merge_predicates(l_mask), merge_predicates(r_mask)
+        )
+    elif (how == "left") and l_mask:
+        row_filter = merge_predicates(l_mask)
+    elif (how == "right") and r_mask:
+        row_filter = merge_predicates(r_mask)
+    elif (how == "inner") and (l_mask or r_mask):
+        row_filter = merge_predicates([*l_mask, *r_mask])
+
+    if row_filter:
+        node = bigframes.core.nodes.FilterNode(node, row_filter)
+
+    if l_mask and how in ("outer", "right"):
+        node = bigframes.core.nodes.ProjectionNode(
+            node,
+            assignments=tuple(
+                (
+                    apply_mask_expr(ref, merge_predicates(l_mask)),
+                    bigframes.core.identifiers.ColumnId.unique(),
+                )
+                for ref, _ in l_selection
+            ),
+        )
+        l_selection = tuple(
+            zip(
+                map(
+                    lambda x: bigframes.core.expression.DerefOp(x.id),
+                    node.added_fields,
+                ),
+                map(lambda x: x[1], l_selection),
+            )
+        )
+    if r_mask and how in ("outer", "left"):
+        node = bigframes.core.nodes.ProjectionNode(
+            node,
+            assignments=tuple(
+                (
+                    apply_mask_expr(ref, merge_predicates(r_mask)),
+                    bigframes.core.identifiers.ColumnId.unique(),
+                )
+                for ref, _ in r_selection
+            ),
+        )
+        r_selection = tuple(
+            zip(
+                map(
+                    lambda x: bigframes.core.expression.DerefOp(x.id),
+                    node.added_fields,
+                ),
+                map(lambda x: x[1], r_selection),
+            )
+        )
+
+    result = bigframes.core.nodes.SelectionNode(node, (*l_selection, *r_selection))
+    result.validate_tree()
+    return result
 
 
 def pull_up_selection(
-    node: bigframes.core.nodes.BigFrameNode, rename_vars: bool = False
-) -> Tuple[
-    bigframes.core.nodes.BigFrameNode,
-    Tuple[
-        Tuple[bigframes.core.expression.DerefOp, bigframes.core.identifiers.ColumnId],
-        ...,
-    ],
-]:
+    node: bigframes.core.nodes.BigFrameNode,
+    stop: bigframes.core.nodes.BigFrameNode,
+    rename_vars: bool = False,
+) -> Tuple[bigframes.core.nodes.BigFrameNode, Selection]:
     """Remove all selection nodes above the base node. Returns stripped tree.
 
     Args:
@@ -147,14 +317,21 @@ def pull_up_selection(
     Returns:
         BigFrameNode, Selections
     """
-    if node == node.projection_base:  # base case
+    if node == stop:  # base case
         return node, tuple(
             (bigframes.core.expression.DerefOp(field.id), field.id)
             for field in node.fields
         )
-    assert isinstance(node, (bigframes.core.nodes.SelectionNode, *ADDITIVE_NODES))
+    assert isinstance(
+        node,
+        (
+            bigframes.core.nodes.SelectionNode,
+            bigframes.core.nodes.FilterNode,
+            *ADDITIVE_NODES,
+        ),
+    )
     child_node, child_selections = pull_up_selection(
-        node.child, rename_vars=rename_vars
+        node.child, stop, rename_vars=rename_vars
     )
     mapping = {out: ref.id for ref, out in child_selections}
     if isinstance(node, ADDITIVE_NODES):
@@ -178,6 +355,8 @@ def pull_up_selection(
         )
         new_selection = (*child_selections, *added_selections)
         return new_node, new_selection
+    elif isinstance(node, bigframes.core.nodes.FilterNode):
+        return node.replace_child(child_node).remap_refs(mapping), child_selections
     elif isinstance(node, bigframes.core.nodes.SelectionNode):
         new_selection = tuple(
             (
@@ -188,3 +367,179 @@ def pull_up_selection(
         )
         return child_node, new_selection
     raise ValueError(f"Couldn't pull up select from node: {node}")
+
+
+def pull_up_filters(
+    root: bigframes.core.nodes.BigFrameNode,
+    stop: bigframes.core.nodes.BigFrameNode,
+) -> Tuple[bigframes.core.nodes.BigFrameNode, Predicates]:
+    """Pull filter nodes out of a tree section."""
+    if root == stop:
+        return root, ()
+    elif isinstance(root, bigframes.core.nodes.FilterNode):
+        this_mask = decompose_conjunction(root.predicate)
+        child_result, child_mask = pull_up_filters(root.child, stop)
+        return child_result, (*child_mask, *this_mask)
+    elif isinstance(root, ADDITIVE_NODES):
+        assert isinstance(root, ADDITIVE_NODES)
+        child_result, child_mask = pull_up_filters(root.child, stop)
+        return (
+            mask_node(root.replace_child(child_result), child_mask),
+            child_mask,
+        )
+    raise ValueError(f"Unexpected node: {root}")
+
+
+## Predicate helpers
+@functools.singledispatch
+def mask_node(
+    node: bigframes.core.nodes.BigFrameNode,
+    mask: Sequence[bigframes.core.expression.Expression],
+) -> bigframes.core.nodes.BigFrameNode:
+    raise ValueError(f"Unexpected node: {node}")
+
+
+@mask_node.register
+def _(
+    node: bigframes.core.nodes.ProjectionNode,
+    mask: Sequence[bigframes.core.expression.Expression],
+) -> bigframes.core.nodes.BigFrameNode:
+    if not mask:
+        return node
+    mask_expr = merge_predicates(mask)
+    new_assignment = tuple(
+        (apply_mask_expr(ex, mask_expr), name) for ex, name in node.assignments
+    )
+    return bigframes.core.nodes.ProjectionNode(node.child, new_assignment)
+
+
+@mask_node.register
+def _(
+    node: bigframes.core.nodes.WindowOpNode,
+    mask: Sequence[bigframes.core.expression.Expression],
+) -> bigframes.core.nodes.BigFrameNode:
+    if not mask:
+        return node
+    mask_expr = merge_predicates(mask)
+    grouping_keys = node.window_spec.grouping_keys
+    new_id = bigframes.core.identifiers.ColumnId.unique()
+    new_child = bigframes.core.nodes.ProjectionNode(
+        node.child, assignments=((mask_expr, new_id),)
+    )
+    new_window_spec = dataclasses.replace(
+        node.window_spec,
+        grouping_keys=(*grouping_keys, bigframes.core.expression.DerefOp(new_id)),
+    )
+    return dataclasses.replace(node, child=new_child, window_spec=new_window_spec)
+
+
+@mask_node.register
+def _(
+    node: bigframes.core.nodes.PromoteOffsetsNode,
+    mask: Sequence[bigframes.core.expression.Expression],
+) -> bigframes.core.nodes.BigFrameNode:
+    if not mask:
+        return node
+    mask_expr = merge_predicates(mask)
+    new_id = bigframes.core.identifiers.ColumnId.unique()
+    new_child = bigframes.core.nodes.ProjectionNode(
+        node.child, assignments=((mask_expr, new_id),)
+    )
+    new_window_spec = bigframes.core.WindowSpec(
+        grouping_keys=(bigframes.core.expression.DerefOp(new_id),)
+    )
+    return bigframes.core.nodes.WindowOpNode(
+        new_child,
+        column_name=bigframes.core.expression.DerefOp(new_id),
+        output_name=node.col_id,
+        op=bigframes.operations.aggregations.RowNumberOp(),
+        window_spec=new_window_spec,
+    )
+
+
+def apply_mask_expr(
+    expr: bigframes.core.expression.Expression,
+    mask: bigframes.core.expression.Expression,
+) -> bigframes.core.expression.Expression:
+    return bigframes.operations.where_op.as_expr(
+        expr, mask, bigframes.core.expression.const(None)
+    )
+
+
+def merge_predicates(
+    predicates: Sequence[bigframes.core.expression.Expression],
+) -> bigframes.core.expression.Expression:
+    if len(predicates) == 0:
+        raise ValueError("Must provide at least one predicate to merge")
+    return functools.reduce(bigframes.operations.and_op.as_expr, predicates)
+
+
+def decompose_conjunction(
+    expr: bigframes.core.expression.Expression,
+) -> Generator[bigframes.core.expression.Expression, None, None]:
+    if isinstance(expr, bigframes.core.expression.OpExpression) and isinstance(
+        expr.op, type(bigframes.operations.and_op)
+    ):
+        yield from decompose_conjunction(expr.inputs[0])
+        yield from decompose_conjunction(expr.inputs[1])
+    else:
+        yield expr
+
+
+def find_shared_descendant(
+    left: bigframes.core.nodes.BigFrameNode,
+    right: bigframes.core.nodes.BigFrameNode,
+    mode: Literal["alignable", "rewritable"],
+) -> Optional[bigframes.core.nodes.BigFrameNode]:
+    assert mode in ["alignable", "rewritable"]
+    node_types = ALIGNABLE_NODES if mode == "alignable" else REWRITABLE_NODES
+
+    l_floor = find_first(left, lambda x: not isinstance(x, node_types))
+    r_floor = find_first(right, lambda x: not isinstance(x, node_types))
+    assert l_floor
+    assert r_floor
+
+    if l_floor != r_floor:
+        return None
+
+    l_depth = distance(left, l_floor)
+    assert l_depth is not None
+    r_depth = distance(right, r_floor)
+    assert r_depth is not None
+    diff = r_depth - l_depth
+
+    while left != right:
+        if diff <= 0:
+            left = cast(bigframes.core.nodes.UnaryNode, left).child
+            diff += 1
+        if diff > 0:
+            right = cast(bigframes.core.nodes.UnaryNode, right).child
+            diff -= 1
+
+    return left
+
+
+def find_first(
+    root: bigframes.core.nodes.BigFrameNode, predicate
+) -> Optional[bigframes.core.nodes.BigFrameNode]:
+    """BFS search"""
+    queue: collections.deque[bigframes.core.nodes.BigFrameNode] = collections.deque()
+    queue.append(root)
+    while queue:
+        item = queue.popleft()
+        if predicate(item):
+            return item
+        else:
+            queue.extend(item.child_nodes)
+    return None
+
+
+def distance(
+    root: bigframes.core.nodes.BigFrameNode, target: bigframes.core.nodes.BigFrameNode
+) -> Optional[int]:
+    if root == target:
+        return 0
+    else:
+        child_distances = (distance(child, target) for child in root.child_nodes)
+        nearest_d = min((d for d in child_distances if d is not None), default=None)
+        return (1 + nearest_d) if (nearest_d is not None) else None

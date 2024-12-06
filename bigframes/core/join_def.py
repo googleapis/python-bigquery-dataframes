@@ -13,40 +13,9 @@
 # limitations under the License.
 from __future__ import annotations
 
-import dataclasses
-import enum
-from typing import Literal, NamedTuple
-
-
-class JoinSide(enum.Enum):
-    LEFT = 0
-    RIGHT = 1
-
-    def inverse(self) -> JoinSide:
-        if self == JoinSide.LEFT:
-            return JoinSide.RIGHT
-        return JoinSide.LEFT
-
-
-JoinType = Literal["inner", "outer", "left", "right", "cross"]
+from typing import NamedTuple
 
 
 class JoinCondition(NamedTuple):
     left_id: str
     right_id: str
-
-
-@dataclasses.dataclass(frozen=True)
-class JoinColumnMapping:
-    source_table: JoinSide
-    source_id: str
-    destination_id: str
-
-
-@dataclasses.dataclass(frozen=True)
-class CoalescedColumnMapping:
-    """Special column mapping used only by implicit joiner only"""
-
-    left_source_id: str
-    right_source_id: str
-    destination_id: str

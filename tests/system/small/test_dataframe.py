@@ -2379,7 +2379,7 @@ all_joins = pytest.mark.parametrize(
 
 
 @all_joins
-def test_join_same_table(scalars_dfs_maybe_ordered, how):
+def test_join_same_table_w_sort(scalars_dfs_maybe_ordered, how):
     bf_df, pd_df = scalars_dfs_maybe_ordered
     if not bf_df._session._strictly_ordered and how == "cross":
         pytest.skip("Cross join not supported in partial ordering mode.")
