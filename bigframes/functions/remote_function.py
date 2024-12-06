@@ -54,8 +54,29 @@ class ReturnTypeMissingError(ValueError):
 
 # TODO: Move this to compile folder
 def ibis_signature_from_routine(routine: bigquery.Routine) -> _utils.IbisSignature:
-    if not routine.return_type:
+    if routine.return_type:
+        ibis_output_type = bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
+            routine.return_type.type_kind
+        )
+    else:
         raise ReturnTypeMissingError
+
+    ibis_output_type_override: Optional[ibis.expr.datatypes.DataType] = None
+    if python_output_type := _utils.get_python_output_type_from_bigframes_metadata(
+        routine.description
+    ):
+        if not isinstance(ibis_output_type, ibis.expr.datatypes.String):
+            raise TypeError(
+                "An explicit output_type should be provided only for a BigQuery function with STRING output."
+            )
+        if typing.get_origin(python_output_type) is list:
+            ibis_output_type_override = bigframes.core.compile.ibis_types.ibis_array_output_type_from_python_type(
+                cast(type, python_output_type)
+            )
+        else:
+            raise TypeError(
+                "Currently only list of a type is supported for output_type."
+            )
 
     return _utils.IbisSignature(
         parameter_names=[arg.name for arg in routine.arguments],
@@ -67,9 +88,8 @@ def ibis_signature_from_routine(routine: bigquery.Routine) -> _utils.IbisSignatu
             else None
             for arg in routine.arguments
         ],
-        output_type=bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
-            routine.return_type.type_kind
-        ),
+        output_type=ibis_output_type,
+        output_type_override=ibis_output_type_override,
     )
 
 
@@ -111,7 +131,6 @@ def read_gbq_function(
     *,
     session: Session,
     is_row_processor: bool = False,
-    output_type: Optional[type] = None,
 ):
     """
     Read an existing BigQuery function and prepare it for use in future queries.
@@ -201,24 +220,10 @@ def read_gbq_function(
         )
     func.input_dtypes = tuple(function_input_dtypes)  # type: ignore
 
-    # set output bigframes data types
-    ibis_output_type = ibis_signature.output_type
-    if output_type is not None:
-        if not isinstance(ibis_signature.output_type, ibis.expr.datatypes.String):
-            raise TypeError(
-                "An explicit output_type should be provided only for a BigQuery function with STRING output."
-            )
-        if typing.get_origin(output_type) is list:
-            ibis_output_type = bigframes.core.compile.ibis_types.ibis_array_output_type_from_python_type(
-                cast(type, output_type)
-            )
-        else:
-            raise TypeError(
-                "Currently only list of a type is supported for output_type."
-            )
-
     func.output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(  # type: ignore
-        ibis_output_type
+        ibis_signature.output_type_override
+        if ibis_signature.output_type_override
+        else ibis_signature.output_type
     )
 
     func.is_row_processor = is_row_processor  # type: ignore

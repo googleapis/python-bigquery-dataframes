@@ -15,13 +15,14 @@
 
 import hashlib
 import inspect
+import json
 import typing
 from typing import cast, List, NamedTuple, Optional, Sequence, Set
 
 import cloudpickle
 import google.api_core.exceptions
 from google.cloud import bigquery, functions_v2
-import ibis.expr.datatypes.core
+import ibis.expr.datatypes
 import numpy
 import pandas
 import pyarrow
@@ -193,8 +194,9 @@ def get_remote_function_name(function_hash, session_id, uniq_suffix=None):
 
 class IbisSignature(NamedTuple):
     parameter_names: List[str]
-    input_types: List[Optional[ibis.expr.datatypes.core.DataType]]
-    output_type: ibis.expr.datatypes.core.DataType
+    input_types: List[Optional[ibis.expr.datatypes.DataType]]
+    output_type: ibis.expr.datatypes.DataType
+    output_type_override: Optional[ibis.expr.datatypes.DataType] = None
 
 
 def ibis_signature_from_python_signature(
@@ -224,3 +226,50 @@ def ibis_signature_from_python_signature(
         input_types=ibis_input_types,
         output_type=ibis_output_type,
     )
+
+
+def get_python_output_type_from_bigframes_metadata(
+    metadata_text: str,
+) -> Optional[type]:
+    try:
+        metadata_dict = json.loads(metadata_text)
+    except (TypeError, json.decoder.JSONDecodeError):
+        return None
+
+    try:
+        output_type = metadata_dict["value"]["python_output_type"]
+    except KeyError:
+        return None
+
+    try:
+        python_output_type = eval(output_type)
+    except NameError:
+        return None
+
+    return python_output_type
+
+
+def get_bigframes_metadata(*, python_output_type: Optional[type] = None) -> str:
+    if python_output_type not in [list[type_] for type_ in bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES]:  # type: ignore
+        raise ValueError(f"python_output_type {python_output_type} is not supported.")
+
+    # Let's keep the actual metadata inside one level of nesting so that in
+    # future we can use a top level key (parallel to "value"), so that "value"
+    # can be interpreted according to the "version"
+    inner_metadata = {}
+    if python_output_type:
+        inner_metadata["python_output_type"] = repr(python_output_type)
+
+    metadata = {"value": inner_metadata}
+    metadata_ser = json.dumps(metadata)
+
+    # let's make sure the serialized value is deserializable
+    if (
+        get_python_output_type_from_bigframes_metadata(metadata_ser)
+        != python_output_type
+    ):
+        raise ValueError(
+            f"python_output_type {python_output_type} is not serializable."
+        )
+
+    return metadata_ser

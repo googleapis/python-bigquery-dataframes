@@ -2227,9 +2227,7 @@ def test_df_apply_axis_1_multiple_params_array_output(session):
         )
 
         # Let's make sure the read_gbq_function path works for this function
-        foo_reuse = session.read_gbq_function(
-            foo.bigframes_remote_function, output_type=list[str]
-        )
+        foo_reuse = session.read_gbq_function(foo.bigframes_remote_function)
         bf_result = bf_df.apply(foo_reuse, axis=1).to_pandas()
         pandas.testing.assert_series_equal(
             expected_result, bf_result, check_dtype=False, check_index_type=False
@@ -2335,7 +2333,6 @@ def test_df_apply_axis_1_array_output(session, scalars_dfs):
         generate_stats_reuse = session.read_gbq_function(
             generate_stats.bigframes_remote_function,
             is_row_processor=True,
-            output_type=list[int],
         )
         bf_result = scalars_df[columns].apply(generate_stats_reuse, axis=1).to_pandas()
         pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
@@ -2600,7 +2597,7 @@ def test_remote_function_array_output(
 
         # Let's make sure the read_gbq_function path works for this function
         featurize_reuse = session.read_gbq_function(
-            featurize.bigframes_remote_function, output_type=list[array_dtype]  # type: ignore
+            featurize.bigframes_remote_function  # type: ignore
         )
         bf_result = scalars_df["int64_too"].apply(featurize_reuse).to_pandas()
         pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)

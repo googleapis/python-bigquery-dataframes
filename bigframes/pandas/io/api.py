@@ -301,13 +301,11 @@ read_parquet.__doc__ = inspect.getdoc(bigframes.session.Session.read_parquet)
 def read_gbq_function(
     function_name: str,
     is_row_processor: bool = False,
-    output_type: Optional[type] = None,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq_function,
         function_name=function_name,
         is_row_processor=is_row_processor,
-        output_type=output_type,
     )
 
 

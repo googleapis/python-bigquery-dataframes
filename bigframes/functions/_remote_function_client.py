@@ -95,6 +95,7 @@ class RemoteFunctionClient:
         endpoint,
         bq_function_name,
         max_batching_rows,
+        metadata,
     ):
         """Create a BigQuery remote function given the artifacts of a user defined
         function and the http endpoint of a corresponding cloud function."""
@@ -120,9 +121,14 @@ class RemoteFunctionClient:
             "max_batching_rows": max_batching_rows,
         }
 
+        if metadata:
+            # We are using the description field to store this structured
+            # bigframes specific metadata for the lack of a better option
+            remote_function_options["description"] = metadata
+
         remote_function_options_str = ", ".join(
             [
-                f'{key}="{val}"' if isinstance(val, str) else f"{key}={val}"
+                f"{key}='{val}'" if isinstance(val, str) else f"{key}={val}"
                 for key, val in remote_function_options.items()
                 if val is not None
             ]
@@ -380,6 +386,7 @@ class RemoteFunctionClient:
         cloud_function_vpc_connector,
         cloud_function_memory_mib,
         cloud_function_ingress_settings,
+        bq_metadata,
     ):
         """Provision a BigQuery remote function."""
         # Augment user package requirements with any internal package
@@ -459,6 +466,7 @@ class RemoteFunctionClient:
                 cf_endpoint,
                 remote_function_name,
                 max_batching_rows,
+                bq_metadata,
             )
 
             created_new = True

@@ -873,9 +873,7 @@ def test_read_gbq_function_enforces_output_array_type(
 
     # Create the routine in BigQuery and read it back using read_gbq_function.
     bigquery_client.create_routine(sql_routine, exists_ok=True)
-    func = rf.read_gbq_function(
-        str(sql_routine.reference), session=session, output_type=array_type
-    )
+    func = rf.read_gbq_function(str(sql_routine.reference), session=session)
 
     # test that the function works as expected
     s = bigframes.series.Series([1, 10, 100])
@@ -915,6 +913,7 @@ def test_read_gbq_function_allows_explicit_output_type_only_on_string_outputs(
         body="x+1",
         arguments=[arg],
         return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
+        description=rf_utils.get_bigframes_metadata(python_output_type=array_type),
         type_=bigquery.RoutineType.SCALAR_FUNCTION,
     )
 
@@ -927,9 +926,7 @@ def test_read_gbq_function_allows_explicit_output_type_only_on_string_outputs(
         TypeError,
         match="An explicit output_type should be provided only for a BigQuery function with STRING output.",
     ):
-        rf.read_gbq_function(
-            str(sql_routine.reference), session=session, output_type=array_type
-        )
+        rf.read_gbq_function(str(sql_routine.reference), session=session)
 
 
 @pytest.mark.parametrize(
@@ -955,18 +952,17 @@ def test_read_gbq_function_allows_list_of_type_as_explicit_output_type(
         body="CAST(x AS STRING)",
         arguments=[arg],
         return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.STRING),
+        description=rf_utils.get_bigframes_metadata(python_output_type=array_type),
         type_=bigquery.RoutineType.SCALAR_FUNCTION,
     )
 
     # Create the routine in BigQuery and read it back using read_gbq_function.
     bigquery_client.create_routine(sql_routine, exists_ok=True)
-    rf.read_gbq_function(
-        str(sql_routine.reference), session=session, output_type=array_type
-    )
+    rf.read_gbq_function(str(sql_routine.reference), session=session)
 
 
 @pytest.mark.parametrize(
-    ("array_type",),
+    ("python_output_type",),
     [
         pytest.param(bool, id="bool"),
         pytest.param(float, id="float"),
@@ -977,7 +973,7 @@ def test_read_gbq_function_allows_list_of_type_as_explicit_output_type(
 )
 @pytest.mark.flaky(retries=2, delay=120)
 def test_read_gbq_function_allows_only_list_of_type_as_explicit_output_type(
-    session, bigquery_client, dataset_id, array_type
+    session, bigquery_client, dataset_id, python_output_type
 ):
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
     arg = bigquery.RoutineArgument(
@@ -989,6 +985,7 @@ def test_read_gbq_function_allows_only_list_of_type_as_explicit_output_type(
         body="TO_JSON_STRING([x, x+1, x+2])",
         arguments=[arg],
         return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.STRING),
+        description=f'{{"value": {{"python_output_type": "{python_output_type.__name__}"}}}}',
         type_=bigquery.RoutineType.SCALAR_FUNCTION,
     )
 
@@ -1000,9 +997,7 @@ def test_read_gbq_function_allows_only_list_of_type_as_explicit_output_type(
     with pytest.raises(
         TypeError, match="Currently only list of a type is supported for output_type."
     ):
-        rf.read_gbq_function(
-            str(sql_routine.reference), session=session, output_type=array_type
-        )
+        rf.read_gbq_function(str(sql_routine.reference), session=session)
 
 
 @pytest.mark.flaky(retries=2, delay=120)

@@ -510,6 +510,7 @@ class RemoteFunctionSession:
             # resolve the output type that can be supported in the bigframes,
             # ibis, BQ remote functions and cloud functions integration
             ibis_output_type_for_bqrf = ibis_signature.output_type
+            bqrf_metadata = None
             if isinstance(ibis_signature.output_type, ibis.expr.datatypes.Array):
                 # TODO(b/284515241): remove this special handling to support
                 # array output types once BQ remote functions support ARRAY.
@@ -517,6 +518,9 @@ class RemoteFunctionSession:
                 # and BQ level, and parse that to the intended output type at
                 # the bigframes level.
                 ibis_output_type_for_bqrf = ibis.expr.datatypes.String()
+                bqrf_metadata = _utils.get_bigframes_metadata(
+                    python_output_type=output_type
+                )
             bqrf_output_type = third_party_ibis_bqtypes.BigQueryType.from_ibis(
                 ibis_output_type_for_bqrf
             )
@@ -542,6 +546,7 @@ class RemoteFunctionSession:
                 cloud_function_vpc_connector=cloud_function_vpc_connector,
                 cloud_function_memory_mib=cloud_function_memory_mib,
                 cloud_function_ingress_settings=cloud_function_ingress_settings,
+                bq_metadata=bqrf_metadata,
             )
 
             # TODO(shobs): Find a better way to support udfs with param named "name".
