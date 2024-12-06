@@ -76,7 +76,10 @@ class Compiler:
             if getattr(schema.dtype, "is_json", False):
                 json_col_ids.add(schema.column)
         value_cols = tuple(
-            compile_scalar.parse_json(value).name(value.get_name())
+            typing.cast(
+                ibis_types.Value,
+                compile_scalar.parse_json(value).name(value.get_name()),
+            )
             if (value.type().is_string() and value.get_name() in json_col_ids)
             else value
             for value in ir.columns
