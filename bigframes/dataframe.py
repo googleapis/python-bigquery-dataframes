@@ -1174,6 +1174,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if all([isinstance(val, bigframes.series.Series) for val in results]):
             import bigframes.core.reshape.api
+
             return bigframes.core.reshape.api.concat(results, axis=1)
         else:
             raise ValueError("'func' must return Series")
