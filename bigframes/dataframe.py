@@ -140,9 +140,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         elif (
             utils.is_dict_like(data)
             and len(data) >= 1
-            and any(isinstance(data[key], bigframes.series.Series) for key in data.keys())
+            and any(
+                isinstance(data[key], bigframes.series.Series) for key in data.keys()
+            )
         ):
-            if not all(isinstance(data[key], bigframes.series.Series) for key in data.keys()):
+            if not all(
+                isinstance(data[key], bigframes.series.Series) for key in data.keys()
+            ):
                 # TODO(tbergeron): Support local list/series data by converting to memtable.
                 raise NotImplementedError(
                     f"Cannot mix Series with other types. {constants.FEEDBACK_LINK}"
