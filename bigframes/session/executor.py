@@ -348,7 +348,10 @@ class BigQueryCachingExecutor(Executor):
             export_options=dict(export_options),
         )
         job_config = bigquery.QueryJobConfig()
-        bq_io.add_labels(job_config, api_name=f"dataframe-to_{format.lower()}")
+
+        # Note: Ensure no additional labels are added to job_config after this point,
+        # as `add_and_trim_labels` ensures the label count does not exceed 64.
+        bq_io.add_and_trim_labels(job_config, api_name=f"dataframe-to_{format.lower()}")
         export_job = self.bqclient.query(export_data_statement, job_config=job_config)
         self._wait_on_job(export_job)
         return query_job
@@ -358,7 +361,9 @@ class BigQueryCachingExecutor(Executor):
     ) -> bigquery.QueryJob:
         sql = self.to_sql(array_value, ordered=ordered)
         job_config = bigquery.QueryJobConfig(dry_run=True)
-        bq_io.add_labels(job_config)
+        # Note: Ensure no additional labels are added to job_config after this point,
+        # as `add_and_trim_labels` ensures the label count does not exceed 64.
+        bq_io.add_and_trim_labels(job_config)
         query_job = self.bqclient.query(sql, job_config=job_config)
         _ = query_job.result()
         return query_job
@@ -486,8 +491,10 @@ class BigQueryCachingExecutor(Executor):
         if not self.strictly_ordered:
             job_config.labels["bigframes-mode"] = "unordered"
 
-        # Note: add_labels is global scope which may have unexpected effects
-        bq_io.add_labels(job_config, api_name=api_name)
+        # Note: add_and_trim_labels is global scope which may have unexpected effects
+        # Ensure no additional labels are added to job_config after this point,
+        # as `add_and_trim_labels` ensures the label count does not exceed 64.
+        bq_io.add_and_trim_labels(job_config, api_name=api_name)
         try:
             query_job = self.bqclient.query(sql, job_config=job_config)
             return (
