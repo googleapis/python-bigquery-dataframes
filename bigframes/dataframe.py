@@ -77,7 +77,6 @@ import bigframes.operations.plotting as plotting
 import bigframes.operations.semantics
 import bigframes.operations.structs
 import bigframes.series
-import bigframes.series as bf_series
 import bigframes.session._io.bigquery
 
 if typing.TYPE_CHECKING:
@@ -141,9 +140,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         elif (
             utils.is_dict_like(data)
             and len(data) >= 1
-            and any(isinstance(data[key], bf_series.Series) for key in data.keys())
+            and any(isinstance(data[key], bigframes.series.Series) for key in data.keys())
         ):
-            if not all(isinstance(data[key], bf_series.Series) for key in data.keys()):
+            if not all(isinstance(data[key], bigframes.series.Series) for key in data.keys()):
                 # TODO(tbergeron): Support local list/series data by converting to memtable.
                 raise NotImplementedError(
                     f"Cannot mix Series with other types. {constants.FEEDBACK_LINK}"
@@ -151,13 +150,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             keys = list(data.keys())
             first_label, first_series = keys[0], data[keys[0]]
             block = (
-                typing.cast(bf_series.Series, first_series)
+                typing.cast(bigframes.series.Series, first_series)
                 ._get_block()
                 .with_column_labels([first_label])
             )
 
             for key in keys[1:]:
-                other = typing.cast(bf_series.Series, data[key])
+                other = typing.cast(bigframes.series.Series, data[key])
                 other_block = other._block.with_column_labels([key])
                 # Pandas will keep original sorting if all indices are aligned.
                 # We cannot detect this easily however, and so always sort on index
@@ -1173,9 +1172,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             results.append(result)
 
         if all([isinstance(val, bigframes.series.Series) for val in results]):
-            import bigframes.core.reshape.api
+            import bigframes.core.reshape.api as rs
 
-            return bigframes.core.reshape.api.concat(results, axis=1)
+            return rs.concat(results, axis=1)
         else:
             raise ValueError("'func' must return Series")
 
@@ -2338,10 +2337,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             elif len(non_numeric_result.columns) == 0:
                 return numeric_result
             else:
-                import bigframes.core.reshape.api
+                import bigframes.core.reshape.api as rs
 
                 # Use reindex after join to preserve the original column order.
-                return bigframes.core.reshape.api.concat(
+                return rs.concat(
                     [non_numeric_result, numeric_result], axis=1
                 )._reindex_columns(self.columns)
 
@@ -3800,7 +3799,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @validations.requires_ordering()
     def dot(self, other: _DataFrameOrSeries) -> _DataFrameOrSeries:
-        if not isinstance(other, (DataFrame, bf_series.Series)):
+        if not isinstance(other, (DataFrame, bigframes.series.Series)):
             raise NotImplementedError(
                 f"Only DataFrame or Series operand is supported. {constants.FEEDBACK_LINK}"
             )
@@ -3875,7 +3874,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         result = result[other_frame.columns]
 
-        if isinstance(other, bf_series.Series):
+        if isinstance(other, bigframes.series.Series):
             # There should be exactly one column in the result
             result = result[result.columns[0]].rename()
 
