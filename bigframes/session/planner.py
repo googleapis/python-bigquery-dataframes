@@ -15,71 +15,55 @@
 from __future__ import annotations
 
 import itertools
-from typing import Sequence, Tuple
+from typing import Sequence
 
-import bigframes.core.expression as ex
 import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
 import bigframes.core.pruning as predicate_pruning
-import bigframes.core.tree_properties as traversals
+import functools
 import bigframes.dtypes
+import bigframes.core.expression
 
-
-def session_aware_cache_plan(
-    root: nodes.BigFrameNode, session_forest: Sequence[nodes.BigFrameNode]
-) -> Tuple[nodes.BigFrameNode, list[ids.ColumnId]]:
+def select_cluster_cols(
+    cache_node: nodes.BigFrameNode, session_forest: Sequence[nodes.BigFrameNode]
+) -> set[ids.ColumnId]:
     """
-    Determines the best node to cache given a target and a list of object roots for objects in a session.
-
-    Returns the node to cache, and optionally a clustering column.
+    Determines the best cluster cols for materializing a target node give a list of session trees.
     """
-    node_counts = traversals.count_nodes(session_forest)
-    # These node types are cheap to re-compute, so it makes more sense to cache their children.
-    de_cachable_types = (nodes.FilterNode, nodes.ProjectionNode, nodes.SelectionNode)
-    caching_target = cur_node = root
-    caching_target_refs = node_counts.get(caching_target, 0)
-
-    filters: list[
-        ex.Expression
-    ] = []  # accumulate filters into this as traverse downwards
-    clusterable_cols: set[ids.ColumnId] = set()
-    while isinstance(cur_node, de_cachable_types):
-        if isinstance(cur_node, nodes.FilterNode):
+    @functools.cache
+    def find_direct_predicates(cache_node, root_node: nodes.BigFrameNode) -> set[bigframes.core.expression.Expression]:
+        if isinstance(root_node, nodes.FilterNode):
             # Filter node doesn't define any variables, so no need to chain expressions
-            filters.append(cur_node.predicate)
-        elif isinstance(cur_node, nodes.ProjectionNode):
+            filters.append(root_node.predicate)
+        elif isinstance(root_node, nodes.ProjectionNode):
             # Projection defines the variables that are used in the filter expressions, need to substitute variables with their scalar expressions
             # that instead reference variables in the child node.
-            bindings = {name: expr for expr, name in cur_node.assignments}
+            bindings = {name: expr for expr, name in root_node.assignments}
             filters = [
                 i.bind_refs(bindings, allow_partial_bindings=True) for i in filters
             ]
-        elif isinstance(cur_node, nodes.SelectionNode):
-            bindings = {output: input for input, output in cur_node.input_output_pairs}
+        elif isinstance(root_node, nodes.SelectionNode):
+            bindings = {output: input for input, output in root_node.input_output_pairs}
             filters = [i.bind_refs(bindings) for i in filters]
         else:
-            raise ValueError(f"Unexpected de-cached node: {cur_node}")
+            return frozenset().union(find_direct_predicates(cache_node, child) for child in root_node.child_nodes)
 
-        cur_node = cur_node.child
-        cur_node_refs = node_counts.get(cur_node, 0)
-        if cur_node_refs > caching_target_refs:
-            caching_target, caching_target_refs = cur_node, cur_node_refs
-            cluster_compatible_cols = {
-                field.id
-                for field in cur_node.fields
-                if bigframes.dtypes.is_clusterable(field.dtype)
-            }
-            # Cluster cols only consider the target object and not other sesssion objects
-            clusterable_cols = set(
-                itertools.chain.from_iterable(
-                    map(
-                        lambda f: predicate_pruning.cluster_cols_for_predicate(
-                            f, cluster_compatible_cols
-                        ),
-                        filters,
-                    )
-                )
+
+    cluster_compatible_cols = {
+                    field.id
+                    for field in cur_node.fields
+                    if bigframes.dtypes.is_clusterable(field.dtype)
+                }
+    clusterable_cols = set(
+        itertools.chain.from_iterable(
+            map(
+                lambda f: predicate_pruning.cluster_cols_for_predicate(
+                    f, cluster_compatible_cols
+                ),
+                filters,
             )
+        )
+    )
     # BQ supports up to 4 cluster columns, just prioritize by alphabetical ordering
     # TODO: Prioritize caching columns by estimated filter selectivity
-    return caching_target, sorted(list(clusterable_cols))[:4]
+    return sorted(list(clusterable_cols))[:4]

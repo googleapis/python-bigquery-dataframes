@@ -177,10 +177,6 @@ class Executor(abc.ABC):
     def cached(
         self,
         array_value: bigframes.core.ArrayValue,
-        *,
-        force: bool = False,
-        use_session: bool = False,
-        cluster_cols: Sequence[str] = (),
     ) -> None:
         raise NotImplementedError("cached not implemented for this executor")
 
@@ -209,6 +205,9 @@ class BigQueryCachingExecutor(Executor):
             bigframes.core.compile.SQLCompiler(strict=strictly_ordered)
         )
         self.strictly_ordered: bool = strictly_ordered
+        self._need_caching: weakref.WeakSet[
+            nodes.BigFrameNode
+        ] = weakref.WeakSet()
         self._cached_executions: weakref.WeakKeyDictionary[
             nodes.BigFrameNode, nodes.BigFrameNode
         ] = weakref.WeakKeyDictionary()
@@ -443,19 +442,10 @@ class BigQueryCachingExecutor(Executor):
     def cached(
         self,
         array_value: bigframes.core.ArrayValue,
-        *,
-        force: bool = False,
-        use_session: bool = False,
-        cluster_cols: Sequence[str] = (),
     ) -> None:
         """Write the block to a session table."""
         # use a heuristic for whether something needs to be cached
-        if (not force) and self._is_trivially_executable(array_value):
-            return
-        elif use_session:
-            self._cache_with_session_awareness(array_value)
-        else:
-            self._cache_with_cluster_cols(array_value, cluster_cols=cluster_cols)
+        self._need_caching.add(array_value.node)
 
     def _local_get_row_count(
         self, array_value: bigframes.core.ArrayValue
@@ -466,6 +456,12 @@ class BigQueryCachingExecutor(Executor):
         return tree_properties.row_count(plan)
 
     # Helpers
+    def _cache_subtrees(self, root: nodes.BigFrameNode):
+        for child in root.child_nodes:
+            self._cache_subtrees(child)
+        if root in self._need_caching:
+            self._cache_with_offsets(root)
+
     def _run_execute_query(
         self,
         sql: str,
@@ -531,6 +527,19 @@ class BigQueryCachingExecutor(Executor):
     def replace_cached_subtrees(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         return tree_properties.replace_nodes(node, (dict(self._cached_executions)))
 
+    def _materialize_to_cache(self, node: nodes.BigFrameNode):
+        session_forest = [obj._block._expr.node for obj in node.session.objects]
+        # So there are a few different options to balance when clustering
+        # 1. Cluster by ordering - this is often correlated with other
+        # 2. Cluster by immediate need - This is often best
+        # 3. Cluster by session need
+        cluster_cols = bigframes.session.planner.select_cluster_cols(node, session_forest)
+        if cluster_cols or not self.strictly_ordered:
+            self._cache_with_cluster_cols(bigframes.core.ArrayValue(node), cluster_cols)
+        else:
+            # even in strict ordering mode, probably enough to materialize some ordering key
+            self._cache_with_offsets(bigframes.core.ArrayValue(node))
+
     def _is_trivially_executable(self, array_value: bigframes.core.ArrayValue):
         """
         Can the block be evaluated very cheaply?
@@ -580,25 +589,6 @@ class BigQueryCachingExecutor(Executor):
         ).node
         self._cached_executions[array_value.node] = cached_replacement
 
-    def _cache_with_session_awareness(
-        self,
-        array_value: bigframes.core.ArrayValue,
-    ) -> None:
-        session_forest = [obj._block._expr.node for obj in array_value.session.objects]
-        # These node types are cheap to re-compute
-        target, cluster_cols = bigframes.session.planner.session_aware_cache_plan(
-            array_value.node, list(session_forest)
-        )
-        cluster_cols_sql_names = [id.sql for id in cluster_cols]
-        if len(cluster_cols) > 0:
-            self._cache_with_cluster_cols(
-                bigframes.core.ArrayValue(target), cluster_cols_sql_names
-            )
-        elif self.strictly_ordered:
-            self._cache_with_offsets(bigframes.core.ArrayValue(target))
-        else:
-            self._cache_with_cluster_cols(bigframes.core.ArrayValue(target), [])
-
     def _simplify_with_caching(self, array_value: bigframes.core.ArrayValue):
         """Attempts to handle the complexity by caching duplicated subtrees and breaking the query into pieces."""
         # Apply existing caching first
@@ -626,7 +616,7 @@ class BigQueryCachingExecutor(Executor):
             # No good subtrees to cache, just return original tree
             return False
 
-        self._cache_with_cluster_cols(bigframes.core.ArrayValue(selection), [])
+        self._materialize_to_cache(selection)
         return True
 
     def _sql_as_cached_temp_table(
