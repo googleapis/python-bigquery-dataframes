@@ -183,6 +183,21 @@ class LocDataFrameIndexer:
         value: bigframes.dataframe.SingleItemValue,
     ):
         if (
+            isinstance(key, slice)
+            and (key.start is None or key.start == 0)
+            and (key.step is None or key.step == 1)
+            and key.stop is None
+        ):
+            df = self._dataframe.assign(
+                **{
+                    col_name: _try_convert_scalar_value_dtype(
+                        value, self._dataframe[col_name].dtype
+                    )
+                    for col_name in self._dataframe.columns
+                }
+            )
+            self._dataframe._set_block(df._get_block())
+        elif (
             isinstance(key, tuple)
             and len(key) == 2
             and isinstance(key[0], slice)
@@ -222,7 +237,7 @@ class LocDataFrameIndexer:
                 )
         else:
             raise NotImplementedError(
-                "Only DataFrame.loc[:, 'column'] and DataFrame.loc[bool series, 'column'] = Scalar are supported."
+                "Only DataFrame.loc[:], DataFrame.loc[:, 'column'] and DataFrame.loc[bool series, 'column'] = Scalar are supported."
                 f"{constants.FEEDBACK_LINK}"
             )
 
@@ -501,3 +516,16 @@ def _iloc_getitem_series_or_dataframe(
         )
     else:
         raise TypeError(f"Invalid argument type. {constants.FEEDBACK_LINK}")
+
+
+def _try_convert_scalar_value_dtype(value, dtype):
+    # Check if the target data type is a string or if the value is a boolean.
+    # If either condition is true, return the original value without conversion.
+    if dtype == bigframes.dtypes.STRING_DTYPE or isinstance(value, bool):
+        return value
+
+    try:
+        return pd.Series([value], dtype=dtype).iloc[0]
+    except (TypeError, ValueError, NotImplementedError):
+        # If conversion fails, return the original value
+        return value
