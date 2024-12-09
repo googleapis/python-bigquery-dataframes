@@ -47,9 +47,11 @@ _PALM2_EMBEDDING_GENERATOR_ENDPOINTS = (
     _EMBEDDING_GENERATOR_GECKO_MULTILINGUAL_ENDPOINT,
 )
 
+_TEXT_EMBEDDING_005_ENDPOINT = "text-embedding-005"
 _TEXT_EMBEDDING_004_ENDPOINT = "text-embedding-004"
 _TEXT_MULTILINGUAL_EMBEDDING_002_ENDPOINT = "text-multilingual-embedding-002"
 _TEXT_EMBEDDING_ENDPOINTS = (
+    _TEXT_EMBEDDING_005_ENDPOINT,
     _TEXT_EMBEDDING_004_ENDPOINT,
     _TEXT_MULTILINGUAL_EMBEDDING_002_ENDPOINT,
 )
@@ -239,7 +241,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
         Returns:
             PaLM2TextGenerator: Fitted estimator.
         """
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
 
         options = self._bqml_options
         options["endpoint"] = self.model_name + "@001"
@@ -327,7 +329,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
-        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -392,7 +394,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         if len(X.columns) != 1 or len(y.columns) != 1:
             raise ValueError(
@@ -554,7 +556,7 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
         """
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
-        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -606,8 +608,8 @@ class TextEmbeddingGenerator(base.BaseEstimator):
 
     Args:
         model_name (str, Default to "text-embedding-004"):
-            The model for text embedding. Possible values are "text-embedding-004" or "text-multilingual-embedding-002".
-            text-embedding models returns model embeddings for text inputs.
+            The model for text embedding. Possible values are "text-embedding-005", "text-embedding-004"
+            or "text-multilingual-embedding-002". text-embedding models returns model embeddings for text inputs.
             text-multilingual-embedding models returns model embeddings for text inputs which support over 100 languages.
             Default to "text-embedding-004".
         session (bigframes.Session or None):
@@ -621,7 +623,9 @@ class TextEmbeddingGenerator(base.BaseEstimator):
         self,
         *,
         model_name: Literal[
-            "text-embedding-004", "text-multilingual-embedding-002"
+            "text-embedding-005",
+            "text-embedding-004",
+            "text-multilingual-embedding-002",
         ] = "text-embedding-004",
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
@@ -710,7 +714,7 @@ class TextEmbeddingGenerator(base.BaseEstimator):
         """
 
         # Params reference: https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models
-        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -891,7 +895,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         if self._bqml_model.model_name.startswith("gemini-1.5"):
             raise NotImplementedError("Fit is not supported for gemini-1.5 model.")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
 
         options = self._bqml_options
         options["endpoint"] = "gemini-1.0-pro-002"
@@ -971,7 +975,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
-        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -1041,7 +1045,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         if self._bqml_model.model_name.startswith("gemini-1.5"):
             raise NotImplementedError("Score is not supported for gemini-1.5 model.")
 
-        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         if len(X.columns) != 1 or len(y.columns) != 1:
             raise ValueError(
@@ -1255,7 +1259,7 @@ class Claude3TextGenerator(base.BaseEstimator):
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
-        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
