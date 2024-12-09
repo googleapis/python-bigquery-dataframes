@@ -88,7 +88,7 @@ def select_cache_target(
 
     @functools.cache
     def _with_caching(subtree: nodes.BigFrameNode) -> nodes.BigFrameNode:
-        return replace_nodes(subtree, cache)
+        return nodes.top_down(subtree, lambda x: cache.get(x, x), memoize=True)
 
     def _combine_counts(
         left: Dict[nodes.BigFrameNode, int], right: Dict[nodes.BigFrameNode, int]
@@ -168,11 +168,10 @@ def replace_nodes(
     root: nodes.BigFrameNode,
     replacements: dict[nodes.BigFrameNode, nodes.BigFrameNode],
 ):
-    @functools.cache
     def apply_substition(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         if node in replacements.keys():
             return replacements[node]
         else:
-            return node.transform_children(apply_substition)
+            return node
 
-    return apply_substition(root)
+    return nodes.top_down(root, apply_substition, memoize=True)
