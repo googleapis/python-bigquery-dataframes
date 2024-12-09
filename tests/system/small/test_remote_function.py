@@ -868,6 +868,7 @@ def test_read_gbq_function_enforces_output_array_type(
         body="TO_JSON_STRING([x, x+1, x+2])",
         arguments=[arg],
         return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.STRING),
+        description=rf_utils.get_bigframes_metadata(python_output_type=array_type),
         type_=bigquery.RoutineType.SCALAR_FUNCTION,
     )
 
