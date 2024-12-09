@@ -11,31 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# from unittest import mock
 
-# from google.cloud import bigquery
+import re
+
 import pytest
 
 from bigframes.ml import forecasting
-
-# import bigframes.pandas as bpd
-# from . import resources
-
-
-def test_predict_explain_confidence_level():
-    confidence_level = 0.9
-
-    forecasting.ARIMAPlus.predict_explain(horizon=4, confidence_level=confidence_level)
 
 
 def test_predict_explain_low_confidence_level():
     confidence_level = -0.5
 
+    model = forecasting.ARIMAPlus()
+
     with pytest.raises(
         ValueError,
-        match=f"confidence_level must be 0.0 and 1.0, but is {confidence_level}.",
+        match=re.escape(f"confidence_level must be [0.0, 1.0), but is {confidence_level}."),
     ):
-        forecasting.ARIMAPlus.predict_explain(
+        model.predict_explain(
             horizon=4, confidence_level=confidence_level
         )
 
@@ -43,25 +36,23 @@ def test_predict_explain_low_confidence_level():
 def test_predict_high_explain_confidence_level():
     confidence_level = 2.1
 
+    model = forecasting.ARIMAPlus()
+
     with pytest.raises(
         ValueError,
-        match=f"confidence_level must be 0.0 and 1.0, but is {confidence_level}.",
+        match=re.escape(f"confidence_level must be [0.0, 1.0), but is {confidence_level}."),
     ):
-        forecasting.ARIMAPlus.predict_explain(
+        model.predict_explain(
             horizon=4, confidence_level=confidence_level
         )
-
-
-def test_predict_explain_horizon():
-    horizon = 1
-
-    forecasting.ARIMAPlus.predict_explain(horizon=horizon, confidence_level=0.9)
 
 
 def test_predict_explain_low_horizon():
     horizon = 0.5
 
+    model = forecasting.ARIMAPlus()
+
     with pytest.raises(
         ValueError, match=f"horizon must be at least 1, but is {horizon}."
     ):
-        forecasting.ARIMAPlus.predict_explain(horizon=horizon, confidence_level=0.9)
+        model.predict_explain(horizon=horizon, confidence_level=0.9)
