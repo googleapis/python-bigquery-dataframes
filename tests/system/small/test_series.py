@@ -1450,7 +1450,7 @@ def test_binop_opposite_filters(scalars_dfs):
 
     # Passes with ignore_order=False only with some dependency sets
     # TODO: Determine desired behavior and make test more strict
-    assert_series_equal(bf_result, pd_result, ignore_order=True)
+    assert_series_equal(bf_result, pd_result, ignore_order=False)
 
 
 def test_binop_left_filtered(scalars_dfs):

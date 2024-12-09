@@ -397,6 +397,23 @@ class RankOp(UnaryWindowOp):
         return True
 
 
+# TODO: Support Nullary ops property in BFET
+@dataclasses.dataclass(frozen=True)
+class RowNumberOp(UnaryWindowOp):
+    name: ClassVar[str] = "row_number"
+
+    @property
+    def skips_nulls(self):
+        return False
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return dtypes.INT_DTYPE
+
+    @property
+    def order_independent(self):
+        return False
+
+
 @dataclasses.dataclass(frozen=True)
 class DenseRankOp(UnaryWindowOp):
     @property
