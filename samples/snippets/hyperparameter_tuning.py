@@ -24,6 +24,7 @@ def test_hyperparameter_tuning(random_model_id: str) -> None:
 
     # Drop rows with nulls to get training data
     training_data = bq_df.dropna(subset=["tip_amount"])
-    bq_df.iloc[:10000]
+    # limit to only the first 10,000 rows
+    training_data.iloc[:10000]
     # [END bigquery_dataframes_bqml_hyperparameter_table]
     assert training_data is not None
