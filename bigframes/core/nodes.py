@@ -124,12 +124,6 @@ class BigFrameNode(abc.ABC):
 
     @functools.cache
     def validate_tree(self) -> bool:
-        def validate_node(node: BigFrameNode):
-            self._validate()
-            field_list = list(self.fields)
-            if len(set(field_list)) != len(field_list):
-                raise ValueError(f"Non unique field ids {list(self.fields)}")
-
         for child in self.child_nodes:
             child.validate_tree()
         self._validate()
