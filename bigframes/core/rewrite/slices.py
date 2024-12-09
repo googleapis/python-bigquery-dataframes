@@ -55,13 +55,12 @@ def pullup_limit_from_slice(
     return root, None
 
 
-def replace_slice_ops(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
+def replace_slice_op(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
     # TODO: we want to pull up some slices into limit op if near root.
     if isinstance(root, nodes.SliceNode):
-        root = root.transform_children(replace_slice_ops)
         return rewrite_slice(cast(nodes.SliceNode, root))
     else:
-        return root.transform_children(replace_slice_ops)
+        return root
 
 
 def rewrite_slice(node: nodes.SliceNode):

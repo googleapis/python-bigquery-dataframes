@@ -168,11 +168,10 @@ def replace_nodes(
     root: nodes.BigFrameNode,
     replacements: dict[nodes.BigFrameNode, nodes.BigFrameNode],
 ):
-    @functools.cache
     def apply_substition(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         if node in replacements.keys():
             return replacements[node]
         else:
             return node.transform_children(apply_substition)
 
-    return apply_substition(root)
+    return nodes.top_down(root, apply_substition, memoize=True)

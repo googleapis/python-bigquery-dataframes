@@ -482,6 +482,77 @@ class JoinNode(BigFrameNode):
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
+class RowJoinNode(BigFrameNode):
+    left_child: BigFrameNode
+    right_child: BigFrameNode
+
+    def _validate(self):
+        assert not (
+            set(self.left_child.ids) & set(self.right_child.ids)
+        ), "Join ids collide"
+
+    @property
+    def row_preserving(self) -> bool:
+        return True
+
+    @property
+    def child_nodes(self) -> typing.Sequence[BigFrameNode]:
+        return (self.left_child, self.right_child)
+
+    @property
+    def order_ambiguous(self) -> bool:
+        return False
+
+    @property
+    def explicitly_ordered(self) -> bool:
+        # Do not consider user pre-join ordering intent - they need to re-order post-join in unordered mode.
+        return True
+
+    @property
+    def fields(self) -> Iterable[Field]:
+        return itertools.chain(self.left_child.fields, self.right_child.fields)
+
+    @functools.cached_property
+    def variables_introduced(self) -> int:
+        return 0
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.left_child.row_count
+
+    @property
+    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+        return ()
+
+    @property
+    def projection_base(self) -> BigFrameNode:
+        assert self.left_child.projection_base == self.right_child.projection_base
+        return self.left_child.projection_base
+
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        transformed = dataclasses.replace(
+            self, left_child=t(self.left_child), right_child=t(self.right_child)
+        )
+        if self == transformed:
+            # reusing existing object speeds up eq, and saves a small amount of memory
+            return self
+        return transformed
+
+    def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
+        return self.transform_children(lambda x: x.prune(used_cols))
+
+    def remap_vars(
+        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+    ) -> BigFrameNode:
+        return self
+
+    def remap_refs(self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]):
+        return self
+
+
+@dataclasses.dataclass(frozen=True, eq=False)
 class ConcatNode(BigFrameNode):
     # TODO: Explcitly map column ids from each child
     children: Tuple[BigFrameNode, ...]
@@ -1506,3 +1577,42 @@ class ExplodeNode(UnaryNode):
     ) -> BigFrameNode:
         new_ids = tuple(id.remap_column_refs(mappings) for id in self.column_ids)
         return dataclasses.replace(self, column_ids=new_ids)  # type: ignore
+
+
+def top_down(
+    root: BigFrameNode,
+    transform: Callable[[BigFrameNode], BigFrameNode],
+    *,
+    memoize=False,
+    validate=False,
+):
+    def top_down_internal(root: BigFrameNode) -> BigFrameNode:
+        return transform(root).transform_children(transform)
+
+    if memoize:
+        # MUST reassign to the same name or caching won't work recursively
+        top_down_internal = functools.cache(top_down_internal)
+    result = top_down_internal(root)
+    if validate:
+        result.validate_tree()
+    return result
+
+
+def bottom_up(
+    root: BigFrameNode,
+    transform: Callable[[BigFrameNode], BigFrameNode],
+    *,
+    memoize=False,
+    validate=False,
+):
+    def bottom_up_internal(root: BigFrameNode) -> BigFrameNode:
+        return transform(root.transform_children(bottom_up_internal))
+
+    if memoize:
+        # MUST reassign to the same name or caching won't work recursively
+        bottom_up_internal = functools.cache(bottom_up_internal)
+
+    result = bottom_up_internal(root)
+    if validate:
+        result.validate_tree()
+    return result
