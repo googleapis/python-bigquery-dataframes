@@ -135,7 +135,6 @@ def test_arima_plus_predict_params(time_series_arima_plus_model: forecasting.ARI
 def test_arima_plus_predict_explain_params(
     time_series_arima_plus_model: forecasting.ARIMAPlus,
 ):
-    utc = pytz.utc
     predictions = time_series_arima_plus_model.predict_explain(
         horizon=4, confidence_level=0.9
     ).to_pandas()
