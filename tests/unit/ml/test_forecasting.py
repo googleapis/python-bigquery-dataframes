@@ -48,7 +48,7 @@ def test_predict_high_explain_confidence_level():
 
 
 def test_predict_explain_low_horizon():
-    horizon = 0.5
+    horizon = -1
 
     model = forecasting.ARIMAPlus()
 
