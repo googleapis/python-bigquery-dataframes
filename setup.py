@@ -41,7 +41,7 @@ dependencies = [
     "google-auth >=2.15.0,<3.0dev",
     "google-cloud-bigtable >=2.24.0",
     "google-cloud-pubsub >=2.21.4",
-    "google-cloud-bigquery[bqstorage,pandas] >=3.16.0",
+    "google-cloud-bigquery[bqstorage,pandas] >=3.18.0",
     "google-cloud-functions >=1.12.0",
     "google-cloud-bigquery-connection >=1.12.0",
     "google-cloud-iam >=2.12.1",
@@ -51,6 +51,7 @@ dependencies = [
     "jellyfish >=0.8.9",
     "numpy >=1.24.0",
     "pandas >=1.5.3",
+    "pandas-gbq >=0.24.0",
     "pyarrow >=10.0.1",
     "pydata-google-auth >=1.8.2",
     "requests >=2.27.1",
@@ -67,9 +68,7 @@ dependencies = [
 ]
 extras = {
     # Optional test dependencies packages. If they're missed, may skip some tests.
-    "tests": [
-        "pandas-gbq >=0.19.0",
-    ],
+    "tests": [],
     # Packages required for basic development flow.
     "dev": ["pytest", "pytest-mock", "pre-commit", "nox", "google-cloud-testutils"],
 }

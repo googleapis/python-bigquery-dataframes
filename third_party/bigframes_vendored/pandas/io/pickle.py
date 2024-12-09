@@ -18,6 +18,8 @@ class PickleIOMixin:
         filepath_or_buffer: FilePath | ReadPickleBuffer,
         compression: CompressionOptions = "infer",
         storage_options: StorageOptions = None,
+        *,
+        write_engine="default",
     ):
         """Load pickled BigFrames object (or any object) from file.
 
@@ -62,6 +64,16 @@ class PickleIOMixin:
                 starting with “s3://”, and “gcs://”) the key-value pairs are forwarded to
                 fsspec.open. Please see fsspec and urllib for more details, and for more
                 examples on storage options refer here.
+            write_engine (str):
+                How data should be written to BigQuery (if at all). Supported
+                values:
+
+                * "default":
+                  Select either "bigquery_inline" or "bigquery_load",
+                  depending on data size.
+                * "bigquery_inline": Inline data in BigQuery SQL.
+                * "bigquery_load": Use a BigQuery load job.
+                * "bigquery_streaming": Use the BigQuery streaming JSON API.
 
         Returns:
             bigframes.dataframe.DataFrame or bigframes.series.Series: same type as object
