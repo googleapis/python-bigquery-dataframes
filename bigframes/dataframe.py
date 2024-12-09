@@ -2579,7 +2579,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         elif len(temporal_df_result.columns) == 0:
             return number_df_result
         else:
-            import bigframes.core.reshape as rs
+            import bigframes.core.reshape.api as rs
 
             original_columns = self._select_exact_dtypes(
                 bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
