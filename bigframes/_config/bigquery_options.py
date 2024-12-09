@@ -91,6 +91,7 @@ class BigQueryOptions:
         skip_bq_connection_check: bool = False,
         *,
         ordering_mode: Literal["strict", "partial"] = "strict",
+        client_endpoints_override: dict = {},
     ):
         self._credentials = credentials
         self._project = project
@@ -103,6 +104,7 @@ class BigQueryOptions:
         self._session_started = False
         # Determines the ordering strictness for the session.
         self._ordering_mode = _validate_ordering_mode(ordering_mode)
+        self._client_endpoints_override = client_endpoints_override
 
     @property
     def application_name(self) -> Optional[str]:
@@ -235,8 +237,10 @@ class BigQueryOptions:
 
         .. note::
             Use of regional endpoints is a feature in Preview and available only
-            in regions "europe-west3", "europe-west9", "europe-west8",
-            "me-central2", "us-east4" and "us-west1".
+            in regions "europe-west3", "europe-west8", "europe-west9",
+            "me-central2", "us-central1", "us-central2", "us-east1", "us-east4",
+            "us-east5", "us-east7", "us-south1", "us-west1", "us-west2", "us-west3"
+            and "us-west4".
 
         .. deprecated:: 0.13.0
             Use of locational endpoints is available only in selected projects.
@@ -315,3 +319,21 @@ class BigQueryOptions:
     @ordering_mode.setter
     def ordering_mode(self, ordering_mode: Literal["strict", "partial"]) -> None:
         self._ordering_mode = _validate_ordering_mode(ordering_mode)
+
+    @property
+    def client_endpoints_override(self) -> dict:
+        """Option that sets the BQ client endpoints addresses directly as a dict. Possible keys are "bqclient", "bqconnectionclient", "bqstoragereadclient"."""
+        return self._client_endpoints_override
+
+    @client_endpoints_override.setter
+    def client_endpoints_override(self, value: dict):
+        warnings.warn(
+            "This is an advanced configuration option for directly setting endpoints. Incorrect use may lead to unexpected behavior or system instability. Proceed only if you fully understand its implications."
+        )
+
+        if self._session_started and self._client_endpoints_override != value:
+            raise ValueError(
+                SESSION_STARTED_MESSAGE.format(attribute="client_endpoints_override")
+            )
+
+        self._client_endpoints_override = value

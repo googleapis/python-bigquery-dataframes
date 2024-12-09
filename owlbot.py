@@ -61,7 +61,7 @@ s.move(
 # ----------------------------------------------------------------------------
 
 # Encourage sharring all relevant versions in bug reports.
-assert 1 == s.replace(
+assert 1 == s.replace(  # bug_report.md
     [".github/ISSUE_TEMPLATE/bug_report.md"],
     re.escape("#### Steps to reproduce\n"),
     textwrap.dedent(
@@ -70,7 +70,6 @@ assert 1 == s.replace(
         import sys
         import bigframes
         import google.cloud.bigquery
-        import ibis
         import pandas
         import pyarrow
         import sqlglot
@@ -78,7 +77,6 @@ assert 1 == s.replace(
         print(f"Python: {sys.version}")
         print(f"bigframes=={bigframes.__version__}")
         print(f"google-cloud-bigquery=={google.cloud.bigquery.__version__}")
-        print(f"ibis=={ibis.__version__}")
         print(f"pandas=={pandas.__version__}")
         print(f"pyarrow=={pyarrow.__version__}")
         print(f"sqlglot=={sqlglot.__version__}")
@@ -90,7 +88,7 @@ assert 1 == s.replace(
 )
 
 # Make sure build includes all necessary files.
-assert 1 == s.replace(
+assert 1 == s.replace(  # MANIFEST.in
     ["MANIFEST.in"],
     re.escape("recursive-include google"),
     "recursive-include third_party/bigframes_vendored *\nrecursive-include bigframes",
@@ -98,15 +96,15 @@ assert 1 == s.replace(
 
 # Even though BigQuery DataFrames isn't technically a client library, we are
 # opting into Cloud RAD for docs hosting.
-assert 1 == s.replace(
+assert 1 == s.replace(  # common.cfg
     [".kokoro/docs/common.cfg"],
-    re.escape('value: "docs-staging-v2-staging"'),
+    re.escape('value: "docs-staging-v2-dev"'),
     'value: "docs-staging-v2"',
 )
 
 # Use a custom table of contents since the default one isn't organized well
 # enough for the number of classes we have.
-assert 1 == s.replace(
+assert 1 == s.replace(  # publish-docs.sh
     [".kokoro/publish-docs.sh"],
     (
         re.escape("# upload docs")
@@ -124,14 +122,14 @@ assert 1 == s.replace(
 )
 
 # Fixup the documentation.
-assert 1 == s.replace(
+assert 1 == s.replace(  # docs/conf.py
     ["docs/conf.py"],
     re.escape("Google Cloud Client Libraries for bigframes"),
     "BigQuery DataFrames provides DataFrame APIs on the BigQuery engine",
 )
 
 # Don't omit `*/core/*.py` when counting test coverages
-assert 1 == s.replace(
+assert 1 == s.replace(  # .coveragerc
     [".coveragerc"],
     re.escape("  */core/*.py\n"),
     "",

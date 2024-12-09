@@ -27,7 +27,6 @@ from typing import (
     IO,
     Iterable,
     Literal,
-    Mapping,
     MutableSequence,
     Optional,
     Sequence,
@@ -38,15 +37,13 @@ import warnings
 import weakref
 
 import bigframes_vendored.constants as constants
-import bigframes_vendored.ibis.backends.bigquery  # noqa
+import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery  # noqa
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
 import bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
 import bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 import google.cloud.bigquery as bigquery
 import google.cloud.storage as storage  # type: ignore
-import ibis
-import ibis.backends.bigquery as ibis_bigquery
 import numpy as np
 import pandas
 from pandas._typing import (
@@ -59,7 +56,6 @@ import pyarrow as pa
 
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
-import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.compile
 import bigframes.core.guid
@@ -189,6 +185,7 @@ class Session(
                 credentials=context.credentials,
                 application_name=context.application_name,
                 bq_kms_key_name=self._bq_kms_key_name,
+                client_endpoints_override=context.client_endpoints_override,
             )
 
         # TODO(shobs): Remove this logic after https://github.com/ibis-project/ibis/issues/8494
@@ -199,9 +196,10 @@ class Session(
 
         # Only used to fetch remote function metadata.
         # TODO: Remove in favor of raw bq client
+
         self.ibis_client = typing.cast(
             ibis_bigquery.Backend,
-            ibis.bigquery.connect(
+            ibis_bigquery.Backend().connect(
                 project_id=context.project,
                 client=self.bqclient,
                 storage_client=self.bqstoragereadclient,
@@ -259,12 +257,14 @@ class Session(
                 kms_key=self._bq_kms_key_name,
             )
         )
-        self._executor = bigframes.session.executor.BigQueryCachingExecutor(
-            bqclient=self._clients_provider.bqclient,
-            bqstoragereadclient=self._clients_provider.bqstoragereadclient,
-            storage_manager=self._temp_storage_manager,
-            strictly_ordered=self._strictly_ordered,
-            metrics=self._metrics,
+        self._executor: bigframes.session.executor.Executor = (
+            bigframes.session.executor.BigQueryCachingExecutor(
+                bqclient=self._clients_provider.bqclient,
+                bqstoragereadclient=self._clients_provider.bqstoragereadclient,
+                storage_manager=self._temp_storage_manager,
+                strictly_ordered=self._strictly_ordered,
+                metrics=self._metrics,
+            )
         )
         self._loader = bigframes.session.loader.GbqDataLoader(
             session=self,
@@ -276,7 +276,23 @@ class Session(
         )
 
     def __del__(self):
-        """Automatic cleanup of internal resources"""
+        """Automatic cleanup of internal resources."""
+        self.close()
+
+    def __enter__(self):
+        """Enter the runtime context of the Session object.
+
+        See [With Statement Context Managers](https://docs.python.org/3/reference/datamodel.html#with-statement-context-managers)
+        for more details.
+        """
+        return self
+
+    def __exit__(self, *_):
+        """Exit the runtime context of the Session object.
+
+        See [With Statement Context Managers](https://docs.python.org/3/reference/datamodel.html#with-statement-context-managers)
+        for more details.
+        """
         self.close()
 
     @property
@@ -478,6 +494,14 @@ class Session(
             [2 rows x 3 columns]
 
         See also: :meth:`Session.read_gbq`.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                A DataFrame representing results of the query or table.
+
+        Raises:
+            ValueError:
+                When both ``columns`` and ``col_order`` are specified.
         """
         # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
         # these docstrings are inline.
@@ -522,6 +546,14 @@ class Session(
             >>> df = bpd.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
 
         See also: :meth:`Session.read_gbq`.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                A DataFrame representing results of the query or table.
+
+        Raises:
+            ValueError:
+                When both ``columns`` and ``col_order`` are specified.
         """
         # NOTE: This method doesn't (yet) exist in pandas or pandas-gbq, so
         # these docstrings are inline.
@@ -558,6 +590,10 @@ class Session(
             >>> bpd.options.display.progress_bar = None
 
             >>> sdf = bst.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
+
+        Returns:
+            bigframes.streaming.dataframe.StreamingDataFrame:
+               A StreamingDataFrame representing results of the table.
         """
         warnings.warn(
             "The bigframes.streaming module is a preview feature, and subject to change.",
@@ -681,6 +717,10 @@ class Session(
 
         Returns:
             An equivalent bigframes.pandas.(DataFrame/Series/Index) object
+
+        Raises:
+            ValueError:
+                When the object is not a Pandas DataFrame.
         """
         import bigframes.series as series
 
@@ -964,7 +1004,7 @@ class Session(
 
         if isinstance(pandas_obj, pandas.Series):
             if pandas_obj.name is None:
-                pandas_obj.name = "0"
+                pandas_obj.name = 0
             bigframes_df = self._read_pandas(pandas_obj.to_frame(), "read_pickle")
             return bigframes_df[bigframes_df.columns[0]]
         return self._read_pandas(
@@ -995,6 +1035,14 @@ class Session(
                 path, table, job_config=job_config
             )
         else:
+            if "*" in path:
+                raise ValueError(
+                    "The provided path contains a wildcard character (*), which is not "
+                    "supported by the current engine. To read files from wildcard paths, "
+                    "please use the 'bigquery' engine by setting `engine='bigquery'` in "
+                    "your configuration."
+                )
+
             read_parquet_kwargs: Dict[str, Any] = {}
             if pandas.__version__.startswith("1."):
                 read_parquet_kwargs["use_nullable_dtypes"] = True
@@ -1471,24 +1519,6 @@ class Session(
 
         return bf_io_bigquery.start_query_with_client(
             self.bqclient, sql, job_config, metrics=self._metrics
-        )
-
-    def _export(
-        self,
-        array_value: core.ArrayValue,
-        destination: bigquery.TableReference,
-        *,
-        if_exists: Literal["fail", "replace", "append"] = "fail",
-        col_id_overrides: Mapping[str, str] = {},
-        cluster_cols: Sequence[str],
-    ) -> tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
-        # Note: cluster_cols use pre-override column ids
-        return self._executor.export_gbq(
-            array_value,
-            destination=destination,
-            col_id_overrides=col_id_overrides,
-            if_exists=if_exists,
-            cluster_cols=cluster_cols,
         )
 
 

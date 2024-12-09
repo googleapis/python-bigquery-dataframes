@@ -196,7 +196,7 @@ def test_text_generator_predict_with_params_success(
 
 @pytest.mark.parametrize(
     "model_name",
-    ("text-embedding-004", "text-multilingual-embedding-002"),
+    ("text-embedding-005", "text-embedding-004", "text-multilingual-embedding-002"),
 )
 def test_create_load_text_embedding_generator_model(
     dataset_id, model_name, session, bq_connection
@@ -218,7 +218,7 @@ def test_create_load_text_embedding_generator_model(
 
 @pytest.mark.parametrize(
     "model_name",
-    ("text-embedding-004", "text-multilingual-embedding-002"),
+    ("text-embedding-005", "text-embedding-004", "text-multilingual-embedding-002"),
 )
 @pytest.mark.flaky(retries=2)
 def test_text_embedding_generator_predict_default_params_success(
@@ -236,7 +236,7 @@ def test_text_embedding_generator_predict_default_params_success(
 
 @pytest.mark.parametrize(
     "model_name",
-    ("text-embedding-004", "text-multilingual-embedding-002"),
+    ("text-embedding-005", "text-embedding-004", "text-multilingual-embedding-002"),
 )
 @pytest.mark.flaky(retries=2)
 def test_text_embedding_generator_multi_cols_predict_success(
@@ -264,7 +264,9 @@ def test_text_embedding_generator_multi_cols_predict_success(
         "gemini-1.5-pro-preview-0514",
         "gemini-1.5-flash-preview-0514",
         "gemini-1.5-pro-001",
+        "gemini-1.5-pro-002",
         "gemini-1.5-flash-001",
+        "gemini-1.5-flash-002",
     ),
 )
 def test_create_load_gemini_text_generator_model(
@@ -292,7 +294,9 @@ def test_create_load_gemini_text_generator_model(
         "gemini-1.5-pro-preview-0514",
         "gemini-1.5-flash-preview-0514",
         "gemini-1.5-pro-001",
+        "gemini-1.5-pro-002",
         "gemini-1.5-flash-001",
+        "gemini-1.5-flash-002",
     ),
 )
 @pytest.mark.flaky(retries=2)
@@ -315,7 +319,9 @@ def test_gemini_text_generator_predict_default_params_success(
         "gemini-1.5-pro-preview-0514",
         "gemini-1.5-flash-preview-0514",
         "gemini-1.5-pro-001",
+        "gemini-1.5-pro-002",
         "gemini-1.5-flash-001",
+        "gemini-1.5-flash-002",
     ),
 )
 @pytest.mark.flaky(retries=2)
@@ -340,7 +346,9 @@ def test_gemini_text_generator_predict_with_params_success(
         "gemini-1.5-pro-preview-0514",
         "gemini-1.5-flash-preview-0514",
         "gemini-1.5-pro-001",
+        "gemini-1.5-pro-002",
         "gemini-1.5-flash-001",
+        "gemini-1.5-flash-002",
     ),
 )
 @pytest.mark.flaky(retries=2)

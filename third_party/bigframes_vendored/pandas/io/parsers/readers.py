@@ -157,9 +157,13 @@ class ReaderIOMixin:
             **kwargs:
                 keyword arguments for `pandas.read_csv` when not using the BigQuery engine.
 
-
         Returns:
-            bigframes.dataframe.DataFrame: A BigQuery DataFrames.
+            bigframes.pandas.DataFrame: A BigQuery DataFrames.
+
+        Raises:
+            bigframes.exceptions.DefaultIndexWarning:
+                Using the default index is discouraged, such as with clustered
+                or partitioned tables without primary keys.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -250,7 +254,14 @@ class ReaderIOMixin:
                 keyword arguments for `pandas.read_json` when not using the BigQuery engine.
 
         Returns:
-            bigframes.dataframe.DataFrame:
+            bigframes.pandas.DataFrame:
                 The DataFrame representing JSON contents.
+
+        Raises:
+            bigframes.exceptions.DefaultIndexWarning:
+                Using the default index is discouraged, such as with clustered
+                or partitioned tables without primary keys.
+            ValueError:
+                ``lines`` is only valid when ``orient`` is ``records``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

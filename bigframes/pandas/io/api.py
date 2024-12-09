@@ -46,7 +46,6 @@ import bigframes._config as config
 import bigframes.core.blocks
 import bigframes.core.global_session as global_session
 import bigframes.core.indexes
-import bigframes.core.joins
 import bigframes.core.reshape
 import bigframes.core.tools
 import bigframes.dataframe
@@ -55,7 +54,6 @@ import bigframes.series
 import bigframes.session
 import bigframes.session._io.bigquery
 import bigframes.session.clients
-import bigframes.version
 
 # Note: the following methods are duplicated from Session. This duplication
 # enables the following:
@@ -361,6 +359,7 @@ def _set_default_session_location_if_possible(query):
         credentials=config.options.bigquery.credentials,
         application_name=config.options.bigquery.application_name,
         bq_kms_key_name=config.options.bigquery.kms_key_name,
+        client_endpoints_override=config.options.bigquery.client_endpoints_override,
     )
 
     bqclient = clients_provider.bqclient

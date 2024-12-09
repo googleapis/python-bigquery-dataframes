@@ -27,6 +27,7 @@ import pyarrow.types  # type: ignore
 
 import bigframes.core.schema
 import bigframes.core.utils as utils
+import bigframes.dtypes
 import bigframes.features
 
 
@@ -113,6 +114,12 @@ def arrow_to_pandas(
                 else mask.to_numpy(zero_copy_only=False),
             )
             series = pandas.Series(pd_array, dtype=dtype)
+        elif dtype == bigframes.dtypes.STRING_DTYPE:
+            # Pyarrow may be large_string
+            # Need to manually cast, as some pandas versions break otherwise
+            series = column.cast(pyarrow.string()).to_pandas(
+                types_mapper=lambda _: dtype
+            )
         elif isinstance(dtype, pandas.ArrowDtype):
             series = _arrow_to_pandas_arrowdtype(column, dtype)
         else:

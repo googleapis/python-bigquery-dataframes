@@ -38,9 +38,9 @@ def test_semantics_experiment_off_raise_error():
         pytest.param(2, None, id="two"),
         pytest.param(3, None, id="three"),
         pytest.param(4, None, id="four"),
-        pytest.param(5, "Year", id="two_w_cluster_column"),
-        pytest.param(6, "Year", id="three_w_cluster_column"),
-        pytest.param(7, "Year", id="four_w_cluster_column"),
+        pytest.param(5, "Years", id="two_w_cluster_column"),
+        pytest.param(6, "Years", id="three_w_cluster_column"),
+        pytest.param(7, "Years", id="four_w_cluster_column"),
     ],
 )
 def test_agg(session, gemini_flash_model, max_agg_rows, cluster_column):
@@ -56,7 +56,7 @@ def test_agg(session, gemini_flash_model, max_agg_rows, cluster_column):
                 "Shuttle Island",
                 "The Great Gatsby",
             ],
-            "Year": [1997, 2013, 2023, 2015, 2010, 2010, 2013],
+            "Years": [1997, 2013, 2023, 2015, 2010, 2010, 2013],
         },
         session=session,
     )
@@ -70,6 +70,29 @@ def test_agg(session, gemini_flash_model, max_agg_rows, cluster_column):
 
     expected_s = pd.Series(["Leonardo \n"], dtype=dtypes.STRING_DTYPE)
     expected_s.name = "Movies"
+    pandas.testing.assert_series_equal(actual_s, expected_s, check_index_type=False)
+
+
+def test_agg_w_int_column(session, gemini_flash_model):
+    bigframes.options.experiments.semantic_operators = True
+    df = dataframe.DataFrame(
+        data={
+            "Movies": [
+                "Killers of the Flower Moon",
+                "The Great Gatsby",
+            ],
+            "Years": [2023, 2013],
+        },
+        session=session,
+    )
+    instruction = "Find the {Years} Leonardo DiCaprio acted in the most movies. Answer with the year only."
+    actual_s = df.semantics.agg(
+        instruction,
+        model=gemini_flash_model,
+    ).to_pandas()
+
+    expected_s = pd.Series(["2013 \n"], dtype=dtypes.STRING_DTYPE)
+    expected_s.name = "Years"
     pandas.testing.assert_series_equal(actual_s, expected_s, check_index_type=False)
 
 
@@ -90,11 +113,6 @@ def test_agg(session, gemini_flash_model, max_agg_rows, cluster_column):
             "{Movies} is better than {Movies}",
             id="two_columns",
             marks=pytest.mark.xfail(raises=NotImplementedError),
-        ),
-        pytest.param(
-            "{Year}",
-            id="invalid_type",
-            marks=pytest.mark.xfail(raises=TypeError),
         ),
     ],
 )
@@ -207,15 +225,21 @@ def test_cluster_by_invalid_model(session, gemini_flash_model):
 def test_filter(session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame(
-        data={"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]},
+        data={
+            "country": ["USA", "Germany"],
+            "city": ["Seattle", "Berlin"],
+            "year": [2023, 2024],
+        },
         session=session,
     )
 
     actual_df = df.semantics.filter(
-        "{city} is the capital of {country}", gemini_flash_model
+        "{city} is the capital of {country} in {year}", gemini_flash_model
     ).to_pandas()
 
-    expected_df = pd.DataFrame({"country": ["Germany"], "city": ["Berlin"]}, index=[1])
+    expected_df = pd.DataFrame(
+        {"country": ["Germany"], "city": ["Berlin"], "year": [2024]}, index=[1]
+    )
     pandas.testing.assert_frame_equal(
         actual_df, expected_df, check_dtype=False, check_index_type=False
     )
@@ -282,12 +306,13 @@ def test_map(session, gemini_flash_model):
         data={
             "ingredient_1": ["Burger Bun", "Soy Bean"],
             "ingredient_2": ["Beef Patty", "Bittern"],
+            "gluten-free": [True, True],
         },
         session=session,
     )
 
     actual_df = df.semantics.map(
-        "What is the food made from {ingredient_1} and {ingredient_2}? One word only.",
+        "What is the {gluten-free} food made from {ingredient_1} and {ingredient_2}? One word only.",
         "food",
         gemini_flash_model,
     ).to_pandas()
@@ -298,6 +323,7 @@ def test_map(session, gemini_flash_model):
         {
             "ingredient_1": ["Burger Bun", "Soy Bean"],
             "ingredient_2": ["Beef Patty", "Bittern"],
+            "gluten-free": [True, True],
             "food": ["burger", "tofu"],
         }
     )
@@ -361,7 +387,21 @@ def test_map_invalid_model_raise_error():
         )
 
 
-def test_join(session, gemini_flash_model):
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        pytest.param("{city} is in {country}", id="no_dataframe_reference"),
+        pytest.param("{left.city} is in {country}", id="has_left_dataframe_reference"),
+        pytest.param(
+            "{city} is in {right.country}",
+            id="has_right_dataframe_reference",
+        ),
+        pytest.param(
+            "{left.city} is in {right.country}", id="has_both_dataframe_references"
+        ),
+    ],
+)
+def test_join(instruction, session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
     cities = dataframe.DataFrame(
         data={
@@ -376,7 +416,7 @@ def test_join(session, gemini_flash_model):
 
     actual_df = cities.semantics.join(
         countries,
-        "{city} belongs to {country}",
+        instruction,
         gemini_flash_model,
     ).to_pandas()
 
@@ -406,7 +446,7 @@ def test_self_join(session, gemini_flash_model):
 
     actual_df = animals.semantics.join(
         animals,
-        "{animal_left} is heavier than {animal_right}",
+        "{left.animal} is heavier than {right.animal}",
         gemini_flash_model,
     ).to_pandas()
 
@@ -457,22 +497,12 @@ def test_join_data_too_large_raise_error(session, gemini_flash_model):
             id="ambiguous_column",
         ),
         pytest.param(
-            "{city_left} is in {country}",
-            r"Unnecessary suffix for .+",
-            id="suffix_on_left_unique_column",
+            "{right.city} is in {country}", r"Column .+ not found", id="wrong_prefix"
         ),
         pytest.param(
-            "{city} is in {region_right}",
-            r"Unnecessary suffix for .+",
-            id="suffix_on_right_unique_column",
-        ),
-        pytest.param(
-            "{city_right} is in {country}", r"Column .+ not found", id="wrong_suffix"
-        ),
-        pytest.param(
-            "{city} is in {continent_right}",
+            "{city} is in {right.continent}",
             r"Column .+ not found",
-            id="suffix_on_non_existing_column",
+            id="prefix_on_non_existing_column",
         ),
     ],
 )
@@ -723,11 +753,6 @@ def test_sim_join_data_too_large_raises_error(session, text_embedding_generator)
             "{Animals} and {Animals}",
             id="two_columns",
             marks=pytest.mark.xfail(raises=NotImplementedError),
-        ),
-        pytest.param(
-            "{ID}",
-            id="invalid_dtypes",
-            marks=pytest.mark.xfail(raises=TypeError),
         ),
         pytest.param(
             "{index}",

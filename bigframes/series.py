@@ -54,11 +54,15 @@ import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
+import bigframes.operations.blob as blob
 import bigframes.operations.datetimes as dt
 import bigframes.operations.lists as lists
 import bigframes.operations.plotting as plotting
 import bigframes.operations.strings as strings
 import bigframes.operations.structs as structs
+
+if typing.TYPE_CHECKING:
+    import bigframes.geopandas.geoseries
 
 LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
@@ -90,6 +94,20 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def dtypes(self):
         return self._dtype
+
+    @property
+    def geo(self) -> bigframes.geopandas.geoseries.GeoSeries:
+        """
+        Accessor object for geography properties of the Series values.
+
+        Returns:
+            bigframes.geopandas.geoseries.GeoSeries:
+                An accessor containing geography methods.
+
+        """
+        import bigframes.geopandas.geoseries
+
+        return bigframes.geopandas.geoseries.GeoSeries(self)
 
     @property
     @validations.requires_index
@@ -169,6 +187,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def list(self) -> lists.ListAccessor:
         return lists.ListAccessor(self._block)
+
+    @property
+    def blob(self) -> blob.BlobAccessor:
+        return blob.BlobAccessor(self._block)
 
     @property
     @validations.requires_ordering()
@@ -335,8 +357,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def astype(
         self,
         dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
+        *,
+        errors: Literal["raise", "null"] = "raise",
     ) -> Series:
-        return self._apply_unary_op(bigframes.operations.AsTypeOp(to_type=dtype))
+        if errors not in ["raise", "null"]:
+            raise ValueError("Argument 'errors' must be one of 'raise' or 'null'")
+        return self._apply_unary_op(
+            bigframes.operations.AsTypeOp(to_type=dtype, safe=(errors == "null"))
+        )
 
     def to_pandas(
         self,
@@ -690,12 +718,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def isin(self, values) -> "Series" | None:
+        if isinstance(values, (Series,)):
+            self._block.isin(values._block)
         if not _is_list_like(values):
             raise TypeError(
                 "only list-like objects are allowed to be passed to "
                 f"isin(), you passed a [{type(values).__name__}]"
             )
-
         return self._apply_unary_op(
             ops.IsInOp(values=tuple(values), match_nulls=True)
         ).fillna(value=False)
@@ -1116,6 +1145,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def ne(self, other: object) -> Series:
         # TODO: enforce stricter alignment
         return self._apply_binary_op(other, ops.ne_op)
+
+    def items(self):
+        for batch_df in self._block.to_pandas_batches():
+            assert (
+                batch_df.shape[1] == 1
+            ), f"Expected 1 column in the dataframe, but got {batch_df.shape[1]}."
+            for item in batch_df.squeeze(axis=1).items():
+                yield item
 
     def where(self, cond, other=None):
         value_id, cond_id, other_id, block = self._align3(cond, other)
@@ -1601,9 +1638,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)
         return Series(block)
 
-    @validations.requires_ordering()
-    def unique(self) -> Series:
-        return self.drop_duplicates()
+    def unique(self, keep_order=True) -> Series:
+        if keep_order:
+            validations.enforce_ordered(self, "unique(keep_order != False)")
+            return self.drop_duplicates()
+        block, result = self._block.aggregate(
+            [self._value_column],
+            [(self._value_column, agg_ops.AnyValueOp())],
+            dropna=False,
+        )
+        return Series(block.select_columns(result).reset_index())
 
     def duplicated(self, keep: str = "first") -> Series:
         if keep is not False:
@@ -1636,7 +1680,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         provided_name = name if name else self.name
         # To be consistent with Pandas, it assigns 0 as the column name if missing. 0 is the first element of RangeIndex.
         block = self._block.with_column_labels(
-            [provided_name] if provided_name else ["0"]
+            [provided_name] if provided_name else [0]
         )
         return bigframes.dataframe.DataFrame(block)
 

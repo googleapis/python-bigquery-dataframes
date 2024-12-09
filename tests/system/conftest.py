@@ -22,6 +22,7 @@ import traceback
 import typing
 from typing import Dict, Generator, Optional
 
+import bigframes_vendored.ibis.backends as ibis_backends
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import google.cloud.bigquery_connection_v1 as bigquery_connection_v1
@@ -29,7 +30,6 @@ import google.cloud.exceptions
 import google.cloud.functions_v2 as functions_v2
 import google.cloud.resourcemanager_v3 as resourcemanager_v3
 import google.cloud.storage as storage  # type: ignore
-import ibis.backends
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -107,7 +107,7 @@ def bigquery_client_tokyo(session_tokyo: bigframes.Session) -> bigquery.Client:
 
 
 @pytest.fixture(scope="session")
-def ibis_client(session: bigframes.Session) -> ibis.backends.BaseBackend:
+def ibis_client(session: bigframes.Session) -> ibis_backends.BaseBackend:
     return session.ibis_client
 
 
@@ -246,6 +246,11 @@ def table_id_not_created(dataset_id: str):
     return f"{dataset_id}.{prefixer.create_prefix()}"
 
 
+@pytest.fixture(scope="function")
+def table_id_unique(dataset_id: str):
+    return f"{dataset_id}.{prefixer.create_prefix()}"
+
+
 @pytest.fixture(scope="session")
 def scalars_schema(bigquery_client: bigquery.Client):
     # TODO(swast): Add missing scalar data types such as BIGNUMERIC.
@@ -298,6 +303,7 @@ def load_test_data_tables(
         ("nested", "nested_schema.json", "nested.jsonl"),
         ("nested_structs", "nested_structs_schema.json", "nested_structs.jsonl"),
         ("repeated", "repeated_schema.json", "repeated.jsonl"),
+        ("json", "json_schema.json", "json.jsonl"),
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
         ("time_series", "time_series_schema.json", "time_series.jsonl"),
         ("hockey_players", "hockey_players.json", "hockey_players.jsonl"),
@@ -382,6 +388,11 @@ def nested_structs_table_id(test_data_tables) -> str:
 @pytest.fixture(scope="session")
 def repeated_table_id(test_data_tables) -> str:
     return test_data_tables["repeated"]
+
+
+@pytest.fixture(scope="session")
+def json_table_id(test_data_tables) -> str:
+    return test_data_tables["json"]
 
 
 @pytest.fixture(scope="session")
@@ -475,6 +486,25 @@ def repeated_pandas_df() -> pd.DataFrame:
 
     df = pd.read_json(
         DATA_DIR / "repeated.jsonl",
+        lines=True,
+    )
+    df = df.set_index("rowindex")
+    return df
+
+
+@pytest.fixture(scope="session")
+def json_df(
+    json_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """Returns a DataFrame containing columns of JSON type."""
+    return session.read_gbq(json_table_id, index_col="rowindex")
+
+
+@pytest.fixture(scope="session")
+def json_pandas_df() -> pd.DataFrame:
+    """Returns a DataFrame containing columns of JSON type."""
+    df = pd.read_json(
+        DATA_DIR / "json.jsonl",
         lines=True,
     )
     df = df.set_index("rowindex")
@@ -579,6 +609,28 @@ def scalars_dfs_maybe_ordered(
         maybe_ordered_session.read_pandas(scalars_pandas_df_index),
         scalars_pandas_df_index,
     )
+
+
+@pytest.fixture(scope="session")
+def scalars_df_numeric_150_columns_maybe_ordered(
+    maybe_ordered_session,
+    scalars_pandas_df_index,
+):
+    """DataFrame pointing at test data."""
+    # TODO(b/379911038): After the error fixed, add numeric type.
+    pandas_df = scalars_pandas_df_index.reset_index(drop=False)[
+        [
+            "rowindex",
+            "rowindex_2",
+            "float64_col",
+            "int64_col",
+            "int64_too",
+        ]
+        * 30
+    ]
+
+    df = maybe_ordered_session.read_pandas(pandas_df)
+    return (df, pandas_df)
 
 
 @pytest.fixture(scope="session")

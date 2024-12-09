@@ -77,7 +77,6 @@ import bigframes.operations.plotting as plotting
 import bigframes.operations.semantics
 import bigframes.operations.structs
 import bigframes.series
-import bigframes.series as bf_series
 import bigframes.session._io.bigquery
 
 if typing.TYPE_CHECKING:
@@ -141,9 +140,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         elif (
             utils.is_dict_like(data)
             and len(data) >= 1
-            and any(isinstance(data[key], bf_series.Series) for key in data.keys())
+            and any(
+                isinstance(data[key], bigframes.series.Series) for key in data.keys()
+            )
         ):
-            if not all(isinstance(data[key], bf_series.Series) for key in data.keys()):
+            if not all(
+                isinstance(data[key], bigframes.series.Series) for key in data.keys()
+            ):
                 # TODO(tbergeron): Support local list/series data by converting to memtable.
                 raise NotImplementedError(
                     f"Cannot mix Series with other types. {constants.FEEDBACK_LINK}"
@@ -151,13 +154,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             keys = list(data.keys())
             first_label, first_series = keys[0], data[keys[0]]
             block = (
-                typing.cast(bf_series.Series, first_series)
+                typing.cast(bigframes.series.Series, first_series)
                 ._get_block()
                 .with_column_labels([first_label])
             )
 
             for key in keys[1:]:
-                other = typing.cast(bf_series.Series, data[key])
+                other = typing.cast(bigframes.series.Series, data[key])
                 other_block = other._block.with_column_labels([key])
                 # Pandas will keep original sorting if all indices are aligned.
                 # We cannot detect this easily however, and so always sort on index
@@ -365,8 +368,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def astype(
         self,
         dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
+        *,
+        errors: Literal["raise", "null"] = "raise",
     ) -> DataFrame:
-        return self._apply_unary_op(ops.AsTypeOp(to_type=dtype))
+        if errors not in ["raise", "null"]:
+            raise ValueError("Arg 'error' must be one of 'raise' or 'null'")
+        return self._apply_unary_op(
+            ops.AsTypeOp(to_type=dtype, safe=(errors == "null"))
+        )
 
     def _to_sql_query(
         self, include_index: bool, enable_cache: bool = True
@@ -379,7 +388,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 whether to include index columns.
 
         Returns:
-            a tuple of (sql_string, index_column_id_list, index_column_label_list).
+            Tuple[sql_string, index_column_id_list, index_column_label_list]:
                 If include_index is set to False, index_column_id_list and index_column_label_list
                 return empty lists.
         """
@@ -387,7 +396,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def sql(self) -> str:
-        """Compiles this DataFrame's expression tree to SQL."""
+        """Compiles this DataFrame's expression tree to SQL.
+
+        Returns:
+            str:
+                string representing the compiled SQL.
+        """
         include_index = self._has_index and (
             self.index.name is not None or len(self.index.names) > 1
         )
@@ -399,8 +413,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """BigQuery job metadata for the most recent query.
 
         Returns:
-            The most recent `QueryJob
-            <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
+            None or google.cloud.bigquery.QueryJob:
+                The most recent `QueryJob
+                <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
         """
         if self._query_job is None:
             self._set_internal_query_job(self._compute_dry_run())
@@ -728,7 +743,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         how: str = "outer",
         reverse: bool = False,
     ):
-        if isinstance(other, (float, int, bool)):
+        if isinstance(other, bigframes.dtypes.LOCAL_SCALAR_TYPES):
             return self._apply_scalar_binop(other, op, reverse=reverse)
         elif isinstance(other, DataFrame):
             return self._apply_dataframe_binop(other, op, how=how, reverse=reverse)
@@ -746,7 +761,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def _apply_scalar_binop(
-        self, other: float | int, op: ops.BinaryOp, reverse: bool = False
+        self,
+        other: bigframes.dtypes.LOCAL_SCALAR_TYPE,
+        op: ops.BinaryOp,
+        reverse: bool = False,
     ) -> DataFrame:
         if reverse:
             expr = op.as_expr(
@@ -1158,7 +1176,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             results.append(result)
 
         if all([isinstance(val, bigframes.series.Series) for val in results]):
-            import bigframes.core.reshape as rs
+            import bigframes.core.reshape.api as rs
 
             return rs.concat(results, axis=1)
         else:
@@ -1182,7 +1200,107 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             frame = self._drop_non_numeric()
 
-        return DataFrame(frame._block.calculate_pairwise_metric(op=agg_ops.CorrOp()))
+        orig_columns = frame.columns
+        # Replace column names with 0 to n - 1 to keep order
+        # and avoid the influence of duplicated column name
+        frame.columns = pandas.Index(range(len(orig_columns)))
+        frame = frame.astype(bigframes.dtypes.FLOAT_DTYPE)
+        block = frame._block
+
+        # A new column that uniquely identifies each row
+        block, ordering_col = frame._block.promote_offsets(label="_bigframes_idx")
+
+        val_col_ids = [
+            col_id for col_id in block.value_columns if col_id != ordering_col
+        ]
+
+        block = block.melt(
+            [ordering_col], val_col_ids, ["_bigframes_variable"], "_bigframes_value"
+        )
+
+        block = block.merge(
+            block,
+            left_join_ids=[ordering_col],
+            right_join_ids=[ordering_col],
+            how="inner",
+            sort=False,
+        )
+
+        frame = DataFrame(block).dropna(
+            subset=["_bigframes_value_x", "_bigframes_value_y"]
+        )
+
+        paired_mean_frame = (
+            frame.groupby(["_bigframes_variable_x", "_bigframes_variable_y"])
+            .agg(
+                _bigframes_paired_mean_x=bigframes.pandas.NamedAgg(
+                    column="_bigframes_value_x", aggfunc="mean"
+                ),
+                _bigframes_paired_mean_y=bigframes.pandas.NamedAgg(
+                    column="_bigframes_value_y", aggfunc="mean"
+                ),
+            )
+            .reset_index()
+        )
+
+        frame = frame.merge(
+            paired_mean_frame, on=["_bigframes_variable_x", "_bigframes_variable_y"]
+        )
+        frame["_bigframes_value_x"] -= frame["_bigframes_paired_mean_x"]
+        frame["_bigframes_value_y"] -= frame["_bigframes_paired_mean_y"]
+
+        frame["_bigframes_dividend"] = (
+            frame["_bigframes_value_x"] * frame["_bigframes_value_y"]
+        )
+        frame["_bigframes_x_square"] = (
+            frame["_bigframes_value_x"] * frame["_bigframes_value_x"]
+        )
+        frame["_bigframes_y_square"] = (
+            frame["_bigframes_value_y"] * frame["_bigframes_value_y"]
+        )
+
+        result = (
+            frame.groupby(["_bigframes_variable_x", "_bigframes_variable_y"])
+            .agg(
+                _bigframes_dividend_sum=bigframes.pandas.NamedAgg(
+                    column="_bigframes_dividend", aggfunc="sum"
+                ),
+                _bigframes_x_square_sum=bigframes.pandas.NamedAgg(
+                    column="_bigframes_x_square", aggfunc="sum"
+                ),
+                _bigframes_y_square_sum=bigframes.pandas.NamedAgg(
+                    column="_bigframes_y_square", aggfunc="sum"
+                ),
+            )
+            .reset_index()
+        )
+        result["_bigframes_corr"] = result["_bigframes_dividend_sum"] / (
+            (
+                result["_bigframes_x_square_sum"] * result["_bigframes_y_square_sum"]
+            )._apply_unary_op(ops.sqrt_op)
+        )
+        result = result._pivot(
+            index="_bigframes_variable_x",
+            columns="_bigframes_variable_y",
+            values="_bigframes_corr",
+        )
+
+        map_data = {
+            f"_bigframes_level_{i}": orig_columns.get_level_values(i)
+            for i in range(orig_columns.nlevels)
+        }
+        map_data["_bigframes_keys"] = range(len(orig_columns))
+        map_df = bigframes.dataframe.DataFrame(
+            map_data,
+            session=self._get_block().expr.session,
+        ).set_index("_bigframes_keys")
+        result = result.join(map_df).sort_index()
+        index_columns = [f"_bigframes_level_{i}" for i in range(orig_columns.nlevels)]
+        result = result.set_index(index_columns)
+        result.index.names = orig_columns.names
+        result.columns = orig_columns
+
+        return result
 
     def cov(self, *, numeric_only: bool = False) -> DataFrame:
         if not numeric_only:
@@ -1190,7 +1308,95 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             frame = self._drop_non_numeric()
 
-        return DataFrame(frame._block.calculate_pairwise_metric(agg_ops.CovOp()))
+        orig_columns = frame.columns
+        # Replace column names with 0 to n - 1 to keep order
+        # and avoid the influence of duplicated column name
+        frame.columns = pandas.Index(range(len(orig_columns)))
+        frame = frame.astype(bigframes.dtypes.FLOAT_DTYPE)
+        block = frame._block
+
+        # A new column that uniquely identifies each row
+        block, ordering_col = frame._block.promote_offsets(label="_bigframes_idx")
+
+        val_col_ids = [
+            col_id for col_id in block.value_columns if col_id != ordering_col
+        ]
+
+        block = block.melt(
+            [ordering_col], val_col_ids, ["_bigframes_variable"], "_bigframes_value"
+        )
+        block = block.merge(
+            block,
+            left_join_ids=[ordering_col],
+            right_join_ids=[ordering_col],
+            how="inner",
+            sort=False,
+        )
+
+        frame = DataFrame(block).dropna(
+            subset=["_bigframes_value_x", "_bigframes_value_y"]
+        )
+
+        paired_mean_frame = (
+            frame.groupby(["_bigframes_variable_x", "_bigframes_variable_y"])
+            .agg(
+                _bigframes_paired_mean_x=bigframes.pandas.NamedAgg(
+                    column="_bigframes_value_x", aggfunc="mean"
+                ),
+                _bigframes_paired_mean_y=bigframes.pandas.NamedAgg(
+                    column="_bigframes_value_y", aggfunc="mean"
+                ),
+            )
+            .reset_index()
+        )
+
+        frame = frame.merge(
+            paired_mean_frame, on=["_bigframes_variable_x", "_bigframes_variable_y"]
+        )
+        frame["_bigframes_value_x"] -= frame["_bigframes_paired_mean_x"]
+        frame["_bigframes_value_y"] -= frame["_bigframes_paired_mean_y"]
+
+        frame["_bigframes_dividend"] = (
+            frame["_bigframes_value_x"] * frame["_bigframes_value_y"]
+        )
+
+        result = (
+            frame.groupby(["_bigframes_variable_x", "_bigframes_variable_y"])
+            .agg(
+                _bigframes_dividend_sum=bigframes.pandas.NamedAgg(
+                    column="_bigframes_dividend", aggfunc="sum"
+                ),
+                _bigframes_dividend_count=bigframes.pandas.NamedAgg(
+                    column="_bigframes_dividend", aggfunc="count"
+                ),
+            )
+            .reset_index()
+        )
+        result["_bigframes_cov"] = result["_bigframes_dividend_sum"] / (
+            result["_bigframes_dividend_count"] - 1
+        )
+        result = result._pivot(
+            index="_bigframes_variable_x",
+            columns="_bigframes_variable_y",
+            values="_bigframes_cov",
+        )
+
+        map_data = {
+            f"_bigframes_level_{i}": orig_columns.get_level_values(i)
+            for i in range(orig_columns.nlevels)
+        }
+        map_data["_bigframes_keys"] = range(len(orig_columns))
+        map_df = bigframes.dataframe.DataFrame(
+            map_data,
+            session=self._get_block().expr.session,
+        ).set_index("_bigframes_keys")
+        result = result.join(map_df).sort_index()
+        index_columns = [f"_bigframes_level_{i}" for i in range(orig_columns.nlevels)]
+        result = result.set_index(index_columns)
+        result.index.names = orig_columns.names
+        result.columns = orig_columns
+
+        return result
 
     def to_arrow(
         self,
@@ -2323,7 +2529,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             elif len(non_numeric_result.columns) == 0:
                 return numeric_result
             else:
-                import bigframes.core.reshape as rs
+                import bigframes.core.reshape.api as rs
 
                 # Use reindex after join to preserve the original column order.
                 return rs.concat(
@@ -2681,6 +2887,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self, other: DataFrame, *, on: Optional[str] = None, how: str = "left"
     ) -> DataFrame:
         left, right = self, other
+
         if not left.columns.intersection(right.columns).empty:
             raise NotImplementedError(
                 f"Deduping column names is not implemented. {constants.FEEDBACK_LINK}"
@@ -2706,11 +2913,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             # Switch left index with on column
             left_columns = left.columns
-            left_idx_original_names = left.index.names
+            left_idx_original_names = left.index.names if left._has_index else ()
             left_idx_names_in_cols = [
-                f"bigframes_left_idx_name_{i}" for i in range(len(left.index.names))
+                f"bigframes_left_idx_name_{i}"
+                for i in range(len(left_idx_original_names))
             ]
-            left.index.names = left_idx_names_in_cols
+            if left._has_index:
+                left.index.names = left_idx_names_in_cols
             left = left.reset_index(drop=False)
             left = left.set_index(on)
 
@@ -2721,11 +2930,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             combined_df = combined_df.set_index(left_idx_names_in_cols)
 
             # To be consistent with Pandas
-            combined_df.index.names = (
-                left_idx_original_names
-                if how in ("inner", "left")
-                else ([None] * len(combined_df.index.names))
-            )
+            if combined_df._has_index:
+                combined_df.index.names = (
+                    left_idx_original_names
+                    if how in ("inner", "left")
+                    else ([None] * len(combined_df.index.names))
+                )
 
             # Reorder columns
             combined_df = combined_df[list(left_columns) + list(right.columns)]
@@ -3763,7 +3973,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Useful if the dataframe will be used multiple times, as this will avoid recomputating the shared intermediate value.
 
         Returns:
-            DataFrame: Self
+            bigframes.pandas.DataFrame: DataFrame
         """
         return self._cached(force=True)
 
@@ -3781,7 +3991,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @validations.requires_ordering()
     def dot(self, other: _DataFrameOrSeries) -> _DataFrameOrSeries:
-        if not isinstance(other, (DataFrame, bf_series.Series)):
+        if not isinstance(other, (DataFrame, bigframes.series.Series)):
             raise NotImplementedError(
                 f"Only DataFrame or Series operand is supported. {constants.FEEDBACK_LINK}"
             )
@@ -3856,7 +4066,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         result = result[other_frame.columns]
 
-        if isinstance(other, bf_series.Series):
+        if isinstance(other, bigframes.series.Series):
             # There should be exactly one column in the result
             result = result[result.columns[0]].rename()
 

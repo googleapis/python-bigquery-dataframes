@@ -19,15 +19,15 @@ import itertools
 import typing
 from typing import Collection, Literal, Optional, Sequence
 
+import bigframes_vendored.ibis
 import bigframes_vendored.ibis.backends.bigquery.backend as ibis_bigquery
+import bigframes_vendored.ibis.backends.bigquery.datatypes as ibis_bigquery_dtatatypes
+import bigframes_vendored.ibis.common.deferred as ibis_deferred  # type: ignore
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
+import bigframes_vendored.ibis.expr.operations as ibis_ops
+import bigframes_vendored.ibis.expr.schema as ibis_schema
+import bigframes_vendored.ibis.expr.types as ibis_types
 import google.cloud.bigquery
-import ibis
-import ibis.backends.bigquery.datatypes
-import ibis.common.deferred  # type: ignore
-import ibis.expr.datatypes as ibis_dtypes
-import ibis.expr.operations as ibis_ops
-import ibis.expr.schema as ibis_schema
-import ibis.expr.types as ibis_types
 import pandas
 
 import bigframes.core.compile.aggregate_compiler as agg_compiler
@@ -74,10 +74,10 @@ class BaseIbisIR(abc.ABC):
         # TODO(swast): Validate that each column references the same table (or
         # no table for literal values).
         self._columns = tuple(
-            column.resolve(table)
+            column.resolve(table)  # type:ignore
             # TODO(https://github.com/ibis-project/ibis/issues/7613): use
             # public API to refer to Deferred type.
-            if isinstance(column, ibis.common.deferred.Deferred) else column
+            if isinstance(column, ibis_deferred.Deferred) else column
             for column in columns
         )
         # To allow for more efficient lookup by column name, create a
@@ -202,7 +202,12 @@ class BaseIbisIR(abc.ABC):
             )
             # Must have deterministic ordering, so order by the unique "by" column
             ordering = TotalOrdering(
-                tuple([OrderingExpression(column_id) for column_id in by_column_ids]),
+                tuple(
+                    [
+                        OrderingExpression(ex.DerefOp(ref.id.local_normalized))
+                        for ref in by_column_ids
+                    ]
+                ),
                 total_ordering_columns=frozenset(
                     [ex.DerefOp(ref.id.local_normalized) for ref in by_column_ids]
                 ),
@@ -266,31 +271,26 @@ class UnorderedIR(BaseIbisIR):
     def to_sql(
         self,
         offset_column: typing.Optional[str] = None,
-        col_id_overrides: typing.Mapping[str, str] = {},
         ordered: bool = False,
     ) -> str:
         if offset_column or ordered:
             raise ValueError("Cannot produce sorted sql in partial ordering mode")
-        sql = ibis_bigquery.Backend().compile(
-            self._to_ibis_expr(
-                col_id_overrides=col_id_overrides,
-            )
-        )
+        sql = ibis_bigquery.Backend().compile(self._to_ibis_expr())
         return typing.cast(str, sql)
 
-    def row_count(self) -> OrderedIR:
+    def row_count(self, name: str) -> OrderedIR:
         original_table = self._to_ibis_expr()
         ibis_table = original_table.agg(
             [
-                original_table.count().name("count"),
+                original_table.count().name(name),
             ]
         )
         return OrderedIR(
             ibis_table,
-            (ibis_table["count"],),
+            (ibis_table[name],),
             ordering=TotalOrdering(
-                ordering_value_columns=(ascending_over("count"),),
-                total_ordering_columns=frozenset([ex.deref("count")]),
+                ordering_value_columns=(ascending_over(name),),
+                total_ordering_columns=frozenset([ex.deref(name)]),
             ),
         )
 
@@ -299,7 +299,6 @@ class UnorderedIR(BaseIbisIR):
         *,
         expose_hidden_cols: bool = False,
         fraction: Optional[float] = None,
-        col_id_overrides: typing.Mapping[str, str] = {},
     ):
         """
         Creates an Ibis table expression representing the DataFrame.
@@ -320,8 +319,6 @@ class UnorderedIR(BaseIbisIR):
                 If True, include the hidden ordering columns in the results.
                 Only compatible with `order_by` and `unordered`
                 ``ordering_mode``.
-            col_id_overrides:
-                overrides the column ids for the result
         Returns:
             An ibis expression representing the data help by the ArrayValue object.
         """
@@ -339,19 +336,17 @@ class UnorderedIR(BaseIbisIR):
         # Special case for empty tables, since we can't create an empty
         # projection.
         if not columns:
-            return ibis.memtable([])
+            return bigframes_vendored.ibis.memtable([])
 
         table = self._table.select(columns)
         base_table = table
         if self._reduced_predicate is not None:
             table = table.filter(base_table[PREDICATE_COLUMN])
         table = table.drop(*columns_to_drop)
-        if col_id_overrides:
-            table = table.rename(
-                {value: key for key, value in col_id_overrides.items()}
-            )
         if fraction is not None:
-            table = table.filter(ibis.random() < ibis.literal(fraction))
+            table = table.filter(
+                bigframes_vendored.ibis.random() < ibis_types.literal(fraction)
+            )
         return table
 
     def filter(self, predicate: ex.Expression) -> UnorderedIR:
@@ -364,7 +359,7 @@ class UnorderedIR(BaseIbisIR):
 
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         condition = op_compiler.compile_expression(predicate, bindings)
-        return self._filter(condition)
+        return self._filter(condition)  # type:ignore
 
     def _filter(self, predicate_value: ibis_types.BooleanValue) -> UnorderedIR:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
@@ -413,12 +408,15 @@ class UnorderedIR(BaseIbisIR):
 
         # The offset array ensures null represents empty arrays after unnesting.
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
-        offset_array = ibis.range(
+        offset_array = bigframes_vendored.ibis.range(
             0,
-            ibis.greatest(
+            bigframes_vendored.ibis.greatest(
                 1,  # We always want at least 1 element to fill in NULLs for empty arrays.
-                ibis.least(*[table[column_id].length() for column_id in column_ids]),
+                bigframes_vendored.ibis.least(
+                    *[table[column_id].length() for column_id in column_ids]
+                ),
             ),
+            1,
         ).name(offset_array_id)
         table_w_offset_array = table.select(
             offset_array,
@@ -445,7 +443,7 @@ class UnorderedIR(BaseIbisIR):
         columns = [table_w_unnest[column_name] for column_name in self._column_names]
         return UnorderedIR(
             table_w_unnest,
-            columns=columns,
+            columns=columns,  # type: ignore
         )
 
     def as_ordered_ir(self) -> OrderedIR:
@@ -544,10 +542,10 @@ class OrderedIR(BaseIbisIR):
         # dictionary mapping names to column values.
         self._column_names = {
             (
-                column.resolve(table)
+                column.resolve(table)  # type: ignore
                 # TODO(https://github.com/ibis-project/ibis/issues/7613): use
                 # public API to refer to Deferred type.
-                if isinstance(column, ibis.common.deferred.Deferred)
+                if isinstance(column, ibis_deferred.Deferred)
                 else column
             ).get_name(): column
             for column in self._columns
@@ -607,7 +605,9 @@ class OrderedIR(BaseIbisIR):
         ]
         ibis_schema.append((ORDER_ID_COLUMN, ibis_dtypes.int64))
 
-        keys_memtable = ibis.memtable(ibis_values, schema=ibis.schema(ibis_schema))
+        keys_memtable = bigframes_vendored.ibis.memtable(
+            ibis_values, schema=bigframes_vendored.ibis.schema(ibis_schema)
+        )
 
         return cls(
             keys_memtable,
@@ -726,12 +726,15 @@ class OrderedIR(BaseIbisIR):
         column_ids = tuple(ref.id.sql for ref in columns)
 
         offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
-        offset_array = ibis.range(
+        offset_array = bigframes_vendored.ibis.range(
             0,
-            ibis.greatest(
+            bigframes_vendored.ibis.greatest(
                 1,  # We always want at least 1 element to fill in NULLs for empty arrays.
-                ibis.least(*[table[column_id].length() for column_id in column_ids]),
+                bigframes_vendored.ibis.least(
+                    *[table[column_id].length() for column_id in column_ids]
+                ),
             ),
+            1,
         ).name(offset_array_id)
         table_w_offset_array = table.select(
             offset_array,
@@ -781,7 +784,7 @@ class OrderedIR(BaseIbisIR):
 
         return OrderedIR(
             table_w_unnest,
-            columns=columns,
+            columns=columns,  # type: ignore
             hidden_ordering_columns=hidden_ordering_columns,
             ordering=ordering,
         )
@@ -814,10 +817,10 @@ class OrderedIR(BaseIbisIR):
         if not can_directly_window:
             return self._reproject_to_table().promote_offsets(col_id)
 
-        window = ibis.window(order_by=self._ibis_order)
+        window = bigframes_vendored.ibis.window(order_by=self._ibis_order)
         if self._predicates:
             window = window.group_by(self._reduced_predicate)
-        offsets = ibis.row_number().over(window)
+        offsets = bigframes_vendored.ibis.row_number().over(window)
         expr_builder = self.builder()
         expr_builder.columns = [
             *self.columns,
@@ -880,7 +883,7 @@ class OrderedIR(BaseIbisIR):
 
         clauses = []
         if op.skips_nulls and not never_skip_nulls:
-            clauses.append((column.isnull(), ibis.null()))
+            clauses.append((column.isnull(), ibis_types.null()))
         if window_spec.min_periods:
             if op.skips_nulls:
                 # Most operations do not count NULL values towards min_periods
@@ -901,15 +904,15 @@ class OrderedIR(BaseIbisIR):
             clauses.append(
                 (
                     observation_count < ibis_types.literal(window_spec.min_periods),
-                    ibis.null(),
+                    ibis_types.null(),
                 )
             )
         if clauses:
-            case_statement = ibis.case()
+            case_statement = bigframes_vendored.ibis.case()
             for clause in clauses:
                 case_statement = case_statement.when(clause[0], clause[1])
             case_statement = case_statement.else_(window_op).end()  # type: ignore
-            window_op = case_statement
+            window_op = case_statement  # type: ignore
 
         result = self._set_or_replace_by_id(output_name, window_op)
         return result
@@ -941,7 +944,6 @@ class OrderedIR(BaseIbisIR):
 
     def to_sql(
         self,
-        col_id_overrides: typing.Mapping[str, str] = {},
         ordered: bool = False,
         limit: Optional[int] = None,
     ) -> str:
@@ -951,17 +953,13 @@ class OrderedIR(BaseIbisIR):
             sql = ibis_bigquery.Backend().compile(
                 baked_ir._to_ibis_expr(
                     ordering_mode="unordered",
-                    col_id_overrides=col_id_overrides,
                     expose_hidden_cols=True,
                 )
             )
-            output_columns = [
-                col_id_overrides.get(col, col) for col in baked_ir.column_ids
-            ]
             sql = (
                 bigframes.core.compile.googlesql.Select()
                 .from_(sql)
-                .select(output_columns)
+                .select(self.column_ids)
                 .sql()
             )
 
@@ -979,7 +977,6 @@ class OrderedIR(BaseIbisIR):
             sql = ibis_bigquery.Backend().compile(
                 self._to_ibis_expr(
                     ordering_mode="unordered",
-                    col_id_overrides=col_id_overrides,
                     expose_hidden_cols=False,
                 )
             )
@@ -987,25 +984,26 @@ class OrderedIR(BaseIbisIR):
 
     def raw_sql_and_schema(
         self,
+        column_ids: typing.Sequence[str],
     ) -> typing.Tuple[str, typing.Sequence[google.cloud.bigquery.SchemaField]]:
         """Return sql with all hidden columns. Used to cache with ordering information.
 
         Also returns schema, as the extra ordering columns are determined compile-time.
         """
+        col_id_overrides = dict(zip(self.column_ids, column_ids))
         all_columns = (*self.column_ids, *self._hidden_ordering_column_names.keys())
         as_ibis = self._to_ibis_expr(
             ordering_mode="unordered",
             expose_hidden_cols=True,
-        ).select(all_columns)
+        )
+        as_ibis = as_ibis.select(all_columns).rename(col_id_overrides)
 
         # Ibis will produce non-nullable schema types, but bigframes should always be nullable
         fixed_ibis_schema = ibis_schema.Schema.from_tuples(
             (name, dtype.copy(nullable=True))
             for (name, dtype) in as_ibis.schema().items()
         )
-        bq_schema = ibis.backends.bigquery.datatypes.BigQuerySchema.from_ibis(
-            fixed_ibis_schema
-        )
+        bq_schema = ibis_bigquery_dtatatypes.BigQuerySchema.from_ibis(fixed_ibis_schema)
         return ibis_bigquery.Backend().compile(as_ibis), bq_schema
 
     def _to_ibis_expr(
@@ -1013,7 +1011,6 @@ class OrderedIR(BaseIbisIR):
         *,
         expose_hidden_cols: bool = False,
         fraction: Optional[float] = None,
-        col_id_overrides: typing.Mapping[str, str] = {},
         ordering_mode: Literal["string_encoded", "unordered"],
         order_col_name: Optional[str] = ORDER_ID_COLUMN,
     ):
@@ -1043,8 +1040,6 @@ class OrderedIR(BaseIbisIR):
             order_col_name:
                 If the ordering mode outputs a single ordering or offsets
                 column, use this as the column name.
-            col_id_overrides:
-                overrides the column ids for the result
         Returns:
             An ibis expression representing the data help by the ArrayValue object.
         """
@@ -1076,7 +1071,7 @@ class OrderedIR(BaseIbisIR):
         # Special case for empty tables, since we can't create an empty
         # projection.
         if not columns:
-            return ibis.memtable([])
+            return bigframes_vendored.ibis.memtable([])
 
         # Make sure we don't have any unbound (deferred) columns.
         table = self._table.select(columns)
@@ -1086,12 +1081,10 @@ class OrderedIR(BaseIbisIR):
         if self._reduced_predicate is not None:
             table = table.filter(base_table[PREDICATE_COLUMN])
         table = table.drop(*columns_to_drop)
-        if col_id_overrides:
-            table = table.rename(
-                {value: key for key, value in col_id_overrides.items()}
-            )
         if fraction is not None:
-            table = table.filter(ibis.random() < ibis.literal(fraction))
+            table = table.filter(
+                bigframes_vendored.ibis.random() < ibis_types.literal(fraction)
+            )
         return table
 
     def filter(self, predicate: ex.Expression) -> OrderedIR:
@@ -1104,7 +1097,7 @@ class OrderedIR(BaseIbisIR):
 
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         condition = op_compiler.compile_expression(predicate, bindings)
-        return self._filter(condition)
+        return self._filter(condition)  # type: ignore
 
     def _filter(self, predicate_value: ibis_types.BooleanValue) -> OrderedIR:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
@@ -1272,10 +1265,10 @@ class OrderedIR(BaseIbisIR):
             )
             return typing.cast(ibis_types.IntegerColumn, offsets)
         else:
-            window = ibis.window(order_by=self._ibis_order)
+            window = bigframes_vendored.ibis.window(order_by=self._ibis_order)
             if self._predicates:
                 window = window.group_by(self._reduced_predicate)
-            offsets = ibis.row_number().over(window)
+            offsets = bigframes_vendored.ibis.row_number().over(window)
             return typing.cast(ibis_types.IntegerColumn, offsets)
 
     def _create_string_ordering_column(self) -> ibis_types.StringColumn:
@@ -1297,11 +1290,12 @@ class OrderedIR(BaseIbisIR):
             )
         else:
             # Have to build string from scratch
-            window = ibis.window(order_by=self._ibis_order)
+            window = bigframes_vendored.ibis.window(order_by=self._ibis_order)
             if self._predicates:
                 window = window.group_by(self._reduced_predicate)
             row_nums = typing.cast(
-                ibis_types.IntegerColumn, ibis.row_number().over(window)
+                ibis_types.IntegerColumn,
+                bigframes_vendored.ibis.row_number().over(window),
             )
             return encode_order_string(row_nums)
 
@@ -1344,7 +1338,7 @@ class OrderedIR(BaseIbisIR):
             order_by = None
 
         bounds = window_spec.bounds
-        window = ibis.window(order_by=order_by, group_by=group_by)
+        window = bigframes_vendored.ibis.window(order_by=order_by, group_by=group_by)
         if bounds is not None:
             if isinstance(bounds, RangeWindowBounds):
                 window = window.preceding_following(
@@ -1423,17 +1417,19 @@ def _convert_ordering_to_table_values(
             ordering_col.scalar_expression, value_lookup
         )
         ordering_value = (
-            ibis.asc(expr) if ordering_col.direction.is_ascending else ibis.desc(expr)
+            bigframes_vendored.ibis.asc(expr)  # type: ignore
+            if ordering_col.direction.is_ascending
+            else bigframes_vendored.ibis.desc(expr)  # type: ignore
         )
         # Bigquery SQL considers NULLS to be "smallest" values, but we need to override in these cases.
         if (not ordering_col.na_last) and (not ordering_col.direction.is_ascending):
             # Force nulls to be first
             is_null_val = typing.cast(ibis_types.Column, expr.isnull())
-            ordering_values.append(ibis.desc(is_null_val))
+            ordering_values.append(bigframes_vendored.ibis.desc(is_null_val))
         elif (ordering_col.na_last) and (ordering_col.direction.is_ascending):
             # Force nulls to be last
             is_null_val = typing.cast(ibis_types.Column, expr.isnull())
-            ordering_values.append(ibis.asc(is_null_val))
+            ordering_values.append(bigframes_vendored.ibis.asc(is_null_val))
         ordering_values.append(ordering_value)
     return ordering_values
 

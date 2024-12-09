@@ -47,7 +47,7 @@ _BQML_PARAMS_MAPPING = {
 
 @log_adapter.class_logger
 class LinearRegression(
-    base.SupervisedTrainablePredictor,
+    base.SupervisedTrainableWithEvaluationPredictor,
     bigframes_vendored.sklearn.linear_model._base.LinearRegression,
 ):
     __doc__ = bigframes_vendored.sklearn.linear_model._base.LinearRegression.__doc__
@@ -128,37 +128,47 @@ class LinearRegression(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> LinearRegression:
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
+
+        bqml_options = self._bqml_options
+
+        if X_eval is not None and y_eval is not None:
+            X_eval, y_eval = utils.batch_convert_to_dataframe(X_eval, y_eval)
+            X, y, bqml_options = utils.combine_training_and_evaluation_data(
+                X, y, X_eval, y_eval, bqml_options
+            )
 
         self._bqml_model = self._bqml_model_factory.create_model(
             X,
             y,
             transforms=transforms,
-            options=self._bqml_options,
+            options=bqml_options,
         )
         return self
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X)
 
         return self._bqml_model.predict(X)
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)
@@ -183,7 +193,7 @@ class LinearRegression(
 
 @log_adapter.class_logger
 class LogisticRegression(
-    base.SupervisedTrainablePredictor,
+    base.SupervisedTrainableWithEvaluationPredictor,
     bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression,
 ):
     __doc__ = (
@@ -280,41 +290,50 @@ class LogisticRegression(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> LogisticRegression:
-        """Fit model with transforms."""
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
+
+        bqml_options = self._bqml_options
+
+        if X_eval is not None and y_eval is not None:
+            X_eval, y_eval = utils.batch_convert_to_dataframe(X_eval, y_eval)
+            X, y, bqml_options = utils.combine_training_and_evaluation_data(
+                X, y, X_eval, y_eval, bqml_options
+            )
 
         self._bqml_model = self._bqml_model_factory.create_model(
             X,
             y,
             transforms=transforms,
-            options=self._bqml_options,
+            options=bqml_options,
         )
         return self
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)
