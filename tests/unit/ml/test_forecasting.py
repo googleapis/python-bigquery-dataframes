@@ -26,11 +26,11 @@ def test_predict_explain_low_confidence_level():
 
     with pytest.raises(
         ValueError,
-        match=re.escape(f"confidence_level must be [0.0, 1.0), but is {confidence_level}."),
+        match=re.escape(
+            f"confidence_level must be [0.0, 1.0), but is {confidence_level}."
+        ),
     ):
-        model.predict_explain(
-            horizon=4, confidence_level=confidence_level
-        )
+        model.predict_explain(horizon=4, confidence_level=confidence_level)
 
 
 def test_predict_high_explain_confidence_level():
@@ -40,11 +40,11 @@ def test_predict_high_explain_confidence_level():
 
     with pytest.raises(
         ValueError,
-        match=re.escape(f"confidence_level must be [0.0, 1.0), but is {confidence_level}."),
+        match=re.escape(
+            f"confidence_level must be [0.0, 1.0), but is {confidence_level}."
+        ),
     ):
-        model.predict_explain(
-            horizon=4, confidence_level=confidence_level
-        )
+        model.predict_explain(horizon=4, confidence_level=confidence_level)
 
 
 def test_predict_explain_low_horizon():
