@@ -106,12 +106,13 @@ MAX_INLINE_DF_BYTES = 5000
 
 logger = logging.getLogger(__name__)
 
-# Excludes geography, bytes, and nested (array, struct) datatypes
+# Excludes geography and nested (array, struct) datatypes
 INLINABLE_DTYPES: Sequence[bigframes.dtypes.Dtype] = (
     pandas.BooleanDtype(),
     pandas.Float64Dtype(),
     pandas.Int64Dtype(),
     pandas.StringDtype(storage="pyarrow"),
+    pandas.ArrowDtype(pa.binary()),
     pandas.ArrowDtype(pa.date32()),
     pandas.ArrowDtype(pa.time64("us")),
     pandas.ArrowDtype(pa.timestamp("us")),
@@ -803,7 +804,8 @@ class Session(
                 return None
 
         inline_types = inline_df._block.expr.schema.dtypes
-        # Ibis has problems escaping bytes literals, which will cause syntax errors server-side.
+
+        # Make sure all types are inlinable to avoid escaping errors.
         noninlinable_types = [
             dtype for dtype in inline_types if dtype not in INLINABLE_DTYPES
         ]
@@ -813,6 +815,7 @@ class Session(
         if should_raise:
             raise ValueError(
                 f"Could not inline with a BigQuery type: `{noninlinable_types}`. "
+                f"{constants.FEEDBACK_LINK}"
             )
         else:
             return None
