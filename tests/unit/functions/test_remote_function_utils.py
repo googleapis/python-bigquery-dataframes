@@ -165,7 +165,7 @@ def test_get_python_output_type_from_bigframes_metadata(
     "array_of",
     sorted(
         bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES,
-        key=lambda type_: type_.__name__,
+        key=lambda type_: str(type),
     ),
 )
 def test_metadata_roundtrip_supported_array_types(array_of):
