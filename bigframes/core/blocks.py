@@ -2337,9 +2337,7 @@ class Block:
         # Handle null index, which only supports row join
         # This is the canonical way of aligning on null index, so always allow (ignore block_identity_join)
         if self.index.nlevels == other.index.nlevels == 0:
-            result = try_legacy_row_join(self, other, how=how) or try_new_row_join(
-                self, other
-            )
+            result = try_row_join(self, other)
             if result is not None:
                 return result
             raise bigframes.exceptions.NullIndexError(
@@ -2352,9 +2350,7 @@ class Block:
             and (self.index.nlevels == other.index.nlevels)
             and (self.index.dtypes == other.index.dtypes)
         ):
-            result = try_legacy_row_join(self, other, how=how) or try_new_row_join(
-                self, other
-            )
+            result = try_row_join(self, other)
             if result is not None:
                 return result
 
@@ -2693,9 +2689,11 @@ class BlockIndexProperties:
         return len(set(self.names)) == len(self.names)
 
 
-def try_new_row_join(
-    left: Block, right: Block
+def try_row_join(
+    left: Block,
+    right: Block,
 ) -> Optional[Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]]:
+
     join_keys = tuple(
         (left_id, right_id)
         for left_id, right_id in zip(left.index_columns, right.index_columns)
@@ -2704,71 +2702,17 @@ def try_new_row_join(
     if join_result is None:  # did not succeed
         return None
     combined_expr, (get_column_left, get_column_right) = join_result
-    # Keep the left index column, and drop the matching right column
-    index_cols_post_join = [get_column_left[id] for id in left.index_columns]
+
+    # Can use either side's index columns, as they match exactly
+    index_cols_post_join = [get_column_right[id] for id in right.index_columns]
     combined_expr = combined_expr.drop_columns(
-        [get_column_right[id] for id in right.index_columns]
+        [get_column_left[id] for id in left.index_columns]
     )
+
     block = Block(
         combined_expr,
         index_columns=index_cols_post_join,
         column_labels=left.column_labels.append(right.column_labels),
-        index_labels=left.index.names,
-    )
-    return (
-        block,
-        (get_column_left, get_column_right),
-    )
-
-
-def try_legacy_row_join(
-    left: Block,
-    right: Block,
-    *,
-    how="left",
-) -> Optional[Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]]:
-    """Joins two blocks that have a common root expression by merging the projections."""
-    left_expr = left.expr
-    right_expr = right.expr
-    # Create a new array value, mapping from both, then left, and then right
-    join_keys = tuple(
-        join_defs.CoalescedColumnMapping(
-            left_source_id=left_id,
-            right_source_id=right_id,
-            destination_id=guid.generate_guid(),
-        )
-        for left_id, right_id in zip(left.index_columns, right.index_columns)
-    )
-    left_mappings = [
-        join_defs.JoinColumnMapping(
-            source_table=join_defs.JoinSide.LEFT,
-            source_id=id,
-            destination_id=guid.generate_guid(),
-        )
-        for id in left.value_columns
-    ]
-    right_mappings = [
-        join_defs.JoinColumnMapping(
-            source_table=join_defs.JoinSide.RIGHT,
-            source_id=id,
-            destination_id=guid.generate_guid(),
-        )
-        for id in right.value_columns
-    ]
-    combined_expr = left_expr.try_legacy_row_join(
-        right_expr,
-        join_type=how,
-        join_keys=join_keys,
-        mappings=(*left_mappings, *right_mappings),
-    )
-    if combined_expr is None:
-        return None
-    get_column_left = {m.source_id: m.destination_id for m in left_mappings}
-    get_column_right = {m.source_id: m.destination_id for m in right_mappings}
-    block = Block(
-        combined_expr,
-        column_labels=[*left.column_labels, *right.column_labels],
-        index_columns=(key.destination_id for key in join_keys),
         index_labels=left.index.names,
     )
     return (

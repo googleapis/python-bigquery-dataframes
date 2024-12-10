@@ -45,6 +45,8 @@ OVERHEAD_VARIABLES = 5
 
 COLUMN_SET = frozenset[bfet_ids.ColumnId]
 
+IMPLICIT_JOINER_MASKING = True
+
 
 @dataclasses.dataclass(frozen=True)
 class Field:
@@ -83,8 +85,12 @@ class BigFrameNode(abc.ABC):
         """Direct children of this node"""
         return tuple([])
 
-    @property
+    @functools.cached_property
     def projection_base(self) -> BigFrameNode:
+        import bigframes.core.rewrite.implicit_align
+
+        if isinstance(self, bigframes.core.rewrite.implicit_align.ALIGNABLE_NODES):
+            return self.child.projection_base
         return self
 
     @property
@@ -919,10 +925,6 @@ class PromoteOffsetsNode(UnaryNode):
         return (self.col_id,)
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
-
-    @property
     def added_fields(self) -> Tuple[Field, ...]:
         return (Field(self.col_id, bigframes.dtypes.INT_DTYPE),)
 
@@ -1096,10 +1098,6 @@ class SelectionNode(UnaryNode):
         return True
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
-
-    @property
     def row_count(self) -> Optional[int]:
         return self.child.row_count
 
@@ -1172,10 +1170,6 @@ class ProjectionNode(UnaryNode):
     @property
     def row_count(self) -> Optional[int]:
         return self.child.row_count
-
-    @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
@@ -1362,10 +1356,6 @@ class WindowOpNode(UnaryNode):
         return 1
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
-
-    @property
     def added_fields(self) -> Tuple[Field, ...]:
         return (self.added_field,)
 
@@ -1506,3 +1496,42 @@ class ExplodeNode(UnaryNode):
     ) -> BigFrameNode:
         new_ids = tuple(id.remap_column_refs(mappings) for id in self.column_ids)
         return dataclasses.replace(self, column_ids=new_ids)  # type: ignore
+
+
+def top_down(
+    root: BigFrameNode,
+    transform: Callable[[BigFrameNode], BigFrameNode],
+    *,
+    memoize=False,
+    validate=False,
+):
+    def top_down_internal(root: BigFrameNode) -> BigFrameNode:
+        return transform(root).transform_children(transform)
+
+    if memoize:
+        # MUST reassign to the same name or caching won't work recursively
+        top_down_internal = functools.cache(top_down_internal)
+    result = top_down_internal(root)
+    if validate:
+        result.validate_tree()
+    return result
+
+
+def bottom_up(
+    root: BigFrameNode,
+    transform: Callable[[BigFrameNode], BigFrameNode],
+    *,
+    memoize=False,
+    validate=False,
+):
+    def bottom_up_internal(root: BigFrameNode) -> BigFrameNode:
+        return transform(root.transform_children(bottom_up_internal))
+
+    if memoize:
+        # MUST reassign to the same name or caching won't work recursively
+        bottom_up_internal = functools.cache(bottom_up_internal)
+
+    result = bottom_up_internal(root)
+    if validate:
+        result.validate_tree()
+    return result

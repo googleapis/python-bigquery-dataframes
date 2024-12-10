@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import functools
 import itertools
-from typing import Callable, Dict, Optional, Sequence
+from typing import Callable, Dict, Optional, Sequence, Set
 
+import bigframes.core.identifiers
 import bigframes.core.nodes as nodes
 
 
@@ -168,11 +169,65 @@ def replace_nodes(
     root: nodes.BigFrameNode,
     replacements: dict[nodes.BigFrameNode, nodes.BigFrameNode],
 ):
-    @functools.cache
     def apply_substition(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         if node in replacements.keys():
             return replacements[node]
         else:
             return node.transform_children(apply_substition)
 
-    return apply_substition(root)
+    return nodes.top_down(root, apply_substition, memoize=True)
+
+
+def is_unique_key(
+    root: nodes.BigFrameNode, key: Set[bigframes.core.identifiers.ColumnId]
+) -> bool:
+    """
+    Does the set of columns together from a unique key for the rows.
+
+    False negatives may occur, but won't give false positives.
+
+    Not very strict, extra column ids are ok and will just be ignored.
+    """
+    if root.row_count == 1:
+        return True
+    if key.issuperset(root.ids):
+        return True
+    if isinstance(root, bigframes.core.nodes.AggregateNode):
+        return key.issuperset(set(root.by_column_ids))
+    if isinstance(root, bigframes.core.nodes.SelectionNode):
+        mapping = {v: k.id for k, v in root.input_output_pairs}
+        remapped_key = set(mapping[k] for k in key if k in mapping)
+        return is_unique_key(root.child, remapped_key)
+    if isinstance(root, bigframes.core.nodes.ReadTableNode):
+        ordering = root.source.ordering
+        if (ordering is not None) and isinstance(
+            ordering, bigframes.core.orderings.TotalOrdering
+        ):
+            return key.issuperset(ref.id for ref in ordering.total_ordering_columns)
+        return False
+    if isinstance(root, bigframes.core.nodes.PromoteOffsetsNode):
+        return key.issuperset({root.col_id}) or is_unique_key(root.child, key)
+    if isinstance(root, bigframes.core.nodes.FromRangeNode):
+        return key.issuperset({root.output_id})
+    if isinstance(root, bigframes.core.nodes.ConcatNode):
+        return False
+    if isinstance(root, bigframes.core.nodes.JoinNode):
+        return is_unique_key(root.left_child, key) and is_unique_key(
+            root.right_child, key
+        )
+    if isinstance(root, bigframes.core.nodes.ExplodeNode):
+        return key.issuperset(set(root.column_ids)) and is_unique_key(root.child, key)
+    elif isinstance(
+        root,
+        (
+            bigframes.core.nodes.WindowOpNode,  # row id preserving
+            bigframes.core.nodes.ProjectionNode,
+            bigframes.core.nodes.RandomSampleNode,
+            bigframes.core.nodes.OrderByNode,
+            bigframes.core.nodes.ReversedNode,
+            bigframes.core.nodes.SliceNode,
+            bigframes.core.nodes.FilterNode,
+        ),
+    ):
+        return is_unique_key(root.child, key)
+    return False
