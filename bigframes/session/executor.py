@@ -667,8 +667,11 @@ class BigQueryCachingExecutor(Executor):
         if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
             return
 
-        # JSON acutual schema can be STRING.
+        # Since we are patching JSON to/from STRING in ibis compiler, the schemas aren't match
         for schema_field in internal_schema.to_bigquery():
+            if schema_field.field_type == "JSON":
+                return
+        for schema_field in ibis_schema.to_bigquery():
             if schema_field.field_type == "JSON":
                 return
 

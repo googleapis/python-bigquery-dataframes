@@ -56,11 +56,7 @@ BIGNUMERIC_DTYPE = pd.ArrowDtype(pa.decimal256(76, 38))
 # No arrow equivalent
 GEO_DTYPE = gpd.array.GeometryDtype()
 # JSON
-JSON_DTYPE = pd.StringDtype(storage="pyarrow")
-# Monkey patching as JSON workaround
-JSON_DTYPE.is_json = True  # type: ignore
-# To be updated when pa.json is supported. Using large_string as a walkaround.
-JSON_PA_DTYPE = pa.large_string()
+JSON_DTYPE = pd.ArrowDtype(pa.large_string())
 
 # Used when storing Null expressions
 DEFAULT_DTYPE = FLOAT_DTYPE
@@ -137,6 +133,13 @@ SIMPLE_TYPES = (
         type_kind=("STRING",),
         orderable=True,
         clusterable=True,
+    ),
+    SimpleDtypeInfo(
+        dtype=JSON_DTYPE,
+        arrow_dtype=pa.large_string(),
+        type_kind=("JSON",),
+        orderable=False,
+        clusterable=False,
     ),
     SimpleDtypeInfo(
         dtype=DATE_DTYPE,
@@ -278,7 +281,7 @@ def is_struct_like(type_: ExpressionType) -> bool:
 
 def is_json_like(type_: ExpressionType) -> bool:
     # TODO: Add JSON type support
-    return type_ == JSON_DTYPE  # Including JSON string
+    return type_ == JSON_DTYPE or type_ == STRING_DTYPE  # Including JSON string
 
 
 def is_json_encoding_type(type_: ExpressionType) -> bool:
@@ -362,8 +365,6 @@ _ARROW_TO_BIGFRAMES = {
 
 
 def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
-    if arrow_dtype == JSON_PA_DTYPE:
-        return JSON_DTYPE
     if arrow_dtype in _ARROW_TO_BIGFRAMES:
         return _ARROW_TO_BIGFRAMES[arrow_dtype]
     if pa.types.is_list(arrow_dtype):
@@ -390,8 +391,6 @@ _BIGFRAMES_TO_ARROW[GEO_DTYPE] = pa.string()
 def bigframes_dtype_to_arrow_dtype(
     bigframes_dtype: Dtype,
 ) -> pa.DataType:
-    if getattr(bigframes_dtype, "is_json", False):
-        return JSON_PA_DTYPE
     if bigframes_dtype in _BIGFRAMES_TO_ARROW:
         return _BIGFRAMES_TO_ARROW[bigframes_dtype]
     if isinstance(bigframes_dtype, pd.ArrowDtype):
@@ -479,8 +478,6 @@ def convert_schema_field(
         pa_struct = pa.struct(fields)
         pa_type = pa.list_(pa_struct) if is_repeated else pa_struct
         return field.name, pd.ArrowDtype(pa_type)
-    elif field.field_type == "JSON":
-        return field.name, JSON_DTYPE
     elif field.field_type in _TK_TO_BIGFRAMES:
         if is_repeated:
             pa_type = pa.list_(
@@ -496,8 +493,6 @@ def convert_to_schema_field(
     name: str,
     bigframes_dtype: Dtype,
 ) -> google.cloud.bigquery.SchemaField:
-    if getattr(bigframes_dtype, "is_json", False):
-        return google.cloud.bigquery.SchemaField(name, "JSON")
     if bigframes_dtype in _BIGFRAMES_TO_TK:
         return google.cloud.bigquery.SchemaField(
             name, _BIGFRAMES_TO_TK[bigframes_dtype]

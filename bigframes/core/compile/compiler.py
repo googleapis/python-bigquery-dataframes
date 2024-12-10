@@ -70,10 +70,12 @@ class Compiler:
     def _patch_json_type(
         self, node: nodes.BigFrameNode, ir: compiled.OrderedIR | compiled.UnorderedIR
     ):
-        # Patch back to json type
+        # Patch back to json type by applying parse_json on json_str columns
+        import bigframes.dtypes
+
         json_col_ids = set()
         for schema in node.schema.items:
-            if getattr(schema.dtype, "is_json", False):
+            if schema.dtype == bigframes.dtypes.JSON_DTYPE:
                 json_col_ids.add(schema.column)
         value_cols = tuple(
             typing.cast(

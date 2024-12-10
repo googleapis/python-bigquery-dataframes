@@ -134,6 +134,7 @@ def test_json_extract_from_string():
         actual.to_pandas(),
         expected.to_pandas(),
         check_names=False,
+        check_dtype=False,  # json_extract returns string type. While _get_series_from_json gives a JSON series (pa.large_string).
     )
 
 
