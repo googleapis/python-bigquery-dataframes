@@ -109,11 +109,11 @@ def test_linear_reg_model_predict(penguins_linear_model, new_penguins_df):
 def test_linear_reg_model_predict_explain(penguins_linear_model, new_penguins_df):
     predictions = penguins_linear_model.predict_explain(new_penguins_df).to_pandas()
     assert predictions.shape == (3, 12)
-    result = predictions[["predicted_body_mass_g", "baseline_prediction_value"]]
+    result = predictions[["predicted_body_mass_g", "approximation_error"]]
     expected = pandas.DataFrame(
         {
             "predicted_body_mass_g": [4030.1, 3280.8, 3177.9],
-            "baseline_prediction_value": [9362.7, 9362.7, 9362.7],
+            "approximation_error": [0.0, 0.0, 0.0],
         },
         dtype="Float64",
         index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
