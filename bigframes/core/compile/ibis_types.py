@@ -46,6 +46,7 @@ IbisDtype = Union[
     ibis_dtypes.Binary,
     ibis_dtypes.Decimal,
     ibis_dtypes.GeoSpatial,
+    ibis_dtypes.JSON,
 ]
 
 
@@ -74,6 +75,7 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, bigframes.dtypes.Dtype]] = (
         ibis_dtypes.GeoSpatial(geotype="geography", srid=4326, nullable=True),
         gpd.array.GeometryDtype(),
     ),
+    (ibis_dtypes.json, pd.ArrowDtype(pa.large_string())),
 )
 
 BIGFRAMES_TO_IBIS: Dict[bigframes.dtypes.Dtype, ibis_dtypes.DataType] = {
@@ -314,7 +316,7 @@ def ibis_dtype_to_bigframes_dtype(
             "Interpreting JSON as string. This behavior may change in future versions.",
             bigframes.exceptions.PreviewWarning,
         )
-        return bigframes.dtypes.STRING_DTYPE
+        return bigframes.dtypes.JSON_DTYPE
 
     if ibis_dtype in IBIS_TO_BIGFRAMES:
         return IBIS_TO_BIGFRAMES[ibis_dtype]
