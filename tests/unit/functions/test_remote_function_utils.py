@@ -163,7 +163,10 @@ def test_get_python_output_type_from_bigframes_metadata(
 
 @pytest.mark.parametrize(
     "array_of",
-    bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES,
+    sorted(
+        bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES,
+        key=lambda type_: type_.__name__,
+    ),
 )
 def test_metadata_roundtrip_supported_array_types(array_of):
     ser = _utils.get_bigframes_metadata(python_output_type=list[array_of])  # type: ignore
