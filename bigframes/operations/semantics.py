@@ -481,7 +481,7 @@ class Semantics:
             )["ml_generate_text_llm_result"],
         )
 
-        from bigframes.core.reshape import concat
+        from bigframes.core.reshape.api import concat
 
         return concat([self._df, results.rename(output_column)], axis=1)
 
@@ -647,12 +647,12 @@ class Semantics:
             >>> bigframes.options.experiments.semantic_operators = True
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-004")
+            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
 
             >>> df = bpd.DataFrame({"creatures": ["salmon", "sea urchin", "frog", "chimpanzee"]})
             >>> df.semantics.search("creatures", "monkey", top_k=1, model=model, score_column='distance')
                 creatures  distance
-            3  chimpanzee  0.781101
+            3  chimpanzee  0.635844
             <BLANKLINE>
             [1 rows x 2 columns]
 
@@ -945,7 +945,7 @@ class Semantics:
             >>> bigframes.options.experiments.semantic_operators = True
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-004")
+            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
 
             >>> df1 = bpd.DataFrame({'animal': ['monkey', 'spider']})
             >>> df2 = bpd.DataFrame({'animal': ['scorpion', 'baboon']})
