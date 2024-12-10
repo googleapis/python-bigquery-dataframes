@@ -634,7 +634,8 @@ def can_coerce(source_type: ExpressionType, target_type: ExpressionType) -> bool
         return True  # None can be coerced to any supported type
     else:
         return (source_type == STRING_DTYPE) and (
-            target_type in (DATETIME_DTYPE, TIMESTAMP_DTYPE, TIME_DTYPE, DATE_DTYPE)
+            target_type
+            in (DATETIME_DTYPE, TIMESTAMP_DTYPE, TIME_DTYPE, DATE_DTYPE, JSON_DTYPE)
         )
 
 
