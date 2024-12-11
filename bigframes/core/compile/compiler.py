@@ -28,6 +28,7 @@ import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
 import bigframes.core.compile.default_ordering as default_ordering
 import bigframes.core.compile.ibis_types
+import bigframes.core.compile.isin
 import bigframes.core.compile.scalar_op_compiler
 import bigframes.core.compile.scalar_op_compiler as compile_scalar
 import bigframes.core.compile.schema_translator
@@ -162,6 +163,27 @@ class Compiler:
                 right=right_unordered,
                 type=node.type,
                 conditions=condition_pairs,
+            )
+
+    @_compile_node.register
+    def compile_isin(self, node: nodes.InNode, ordered: bool = True):
+        if ordered:
+            left_ordered = self.compile_ordered_ir(node.left_child)
+            right_ordered = self.compile_unordered_ir(node.right_child)
+            return bigframes.core.compile.isin.isin_ordered(
+                left=left_ordered,
+                right=right_ordered,
+                indicator_col=node.indicator_col.sql,
+                conditions=(node.left_col.id.sql, node.right_col.id.sql),
+            )
+        else:
+            left_unordered = self.compile_unordered_ir(node.left_child)
+            right_unordered = self.compile_unordered_ir(node.right_child)
+            return bigframes.core.compile.isin.isin_unordered(
+                left=left_unordered,
+                right=right_unordered,
+                indicator_col=node.indicator_col.sql,
+                conditions=(node.left_col.id.sql, node.right_col.id.sql),
             )
 
     @_compile_node.register
