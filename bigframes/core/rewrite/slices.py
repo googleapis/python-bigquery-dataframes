@@ -64,9 +64,11 @@ def replace_slice_ops(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
         return root.transform_children(replace_slice_ops)
 
 
-def rewrite_slice(node: nodes.SliceNode):
-    slice_def = (node.start, node.stop, node.step)
+def rewrite_slice(node: nodes.BigFrameNode):
+    if not isinstance(node, nodes.SliceNode):
+        return node
 
+    slice_def = (node.start, node.stop, node.step)
     # no-op (eg. df[::1])
     if slices.is_noop(slice_def, node.child.row_count):
         return node.child
