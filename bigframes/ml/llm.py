@@ -913,8 +913,11 @@ class GeminiTextGenerator(base.BaseEstimator):
         Returns:
             GeminiTextGenerator: Fitted estimator.
         """
-        if self._bqml_model.model_name.startswith("gemini-1.5"):
-            raise NotImplementedError("Fit is not supported for gemini-1.5 model.")
+        supported_models = ["gemini-pro", "gemini-1.5-pro-002", "gemini-1.5-flash-002"]
+        if self.model_name not in supported_models:
+            raise NotImplementedError(
+                "Score is not supported models other than gemini-pro or gemini-1.5 model."
+            )
 
         X, y = utils.batch_convert_to_dataframe(X, y)
 
