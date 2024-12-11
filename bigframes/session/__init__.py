@@ -739,7 +739,8 @@ class Session(
         if isinstance(pandas_dataframe, pandas.Index):
             return self._read_pandas(
                 pandas.DataFrame(index=pandas_dataframe),
-                "read_pandas, write_engine=write_engine",
+                "read_pandas",
+                write_engine=write_engine,
             ).index
         if isinstance(pandas_dataframe, pandas.DataFrame):
             return self._read_pandas(
