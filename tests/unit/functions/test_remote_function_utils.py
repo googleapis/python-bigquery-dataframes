@@ -161,14 +161,8 @@ def test_get_python_output_type_from_bigframes_metadata(
     )
 
 
-@pytest.mark.parametrize(
-    "array_of",
-    sorted(
-        bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES,
-        key=lambda type_: str(type),
-    ),
-)
-def test_metadata_roundtrip_supported_array_types(array_of):
-    ser = _utils.get_bigframes_metadata(python_output_type=list[array_of])  # type: ignore
-    deser = _utils.get_python_output_type_from_bigframes_metadata(ser)
-    assert deser == list[array_of]  # type: ignore
+def test_metadata_roundtrip_supported_array_types():
+    for array_of in bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES:
+        ser = _utils.get_bigframes_metadata(python_output_type=list[array_of])  # type: ignore
+        deser = _utils.get_python_output_type_from_bigframes_metadata(ser)
+        assert deser == list[array_of]  # type: ignore
