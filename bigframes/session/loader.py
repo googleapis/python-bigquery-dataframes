@@ -34,7 +34,7 @@ import google.cloud.functions_v2
 import google.cloud.resourcemanager_v3
 import jellyfish
 import pandas
-import pandas_gbq.schema.pandas_to_bigquery
+import pandas_gbq.schema.pandas_to_bigquery  # type: ignore
 
 import bigframes.clients
 import bigframes.constants
