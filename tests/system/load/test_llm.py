@@ -76,7 +76,6 @@ def test_llm_gemini_configure_fit(
         ],
         index=3,
     )
-    # TODO(ashleyxu b/335492787): After bqml rolled out version control: save, load, check parameters to ensure configuration was kept
 
 
 @pytest.mark.flaky(retries=2)

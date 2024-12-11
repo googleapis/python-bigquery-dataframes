@@ -892,6 +892,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         Returns:
             GeminiTextGenerator: Fitted estimator.
         """
+        # Support gemini-1.5 and gemini-pro
         supported_models = ["gemini-pro", "gemini-1.5-pro-002", "gemini-1.5-flash-002"]
         if self.model_name not in supported_models:
             raise NotImplementedError(
