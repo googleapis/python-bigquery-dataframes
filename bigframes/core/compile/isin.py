@@ -36,6 +36,7 @@ def isin_ordered(
     Arguments:
         left: Expression for left table to join.
         right: Expression for right table to join.
+        indicator_col: the output column, indicating if left elements are in right elements
         conditions: Id pairs to compare
     Returns:
         The joined expression.
@@ -60,7 +61,9 @@ def isin_ordered(
     return compiled.OrderedIR(
         left_table,
         columns=columns,
-        hidden_ordering_columns=left._hidden_column_ids,
+        hidden_ordering_columns=tuple(
+            left_table[col] for col in left._hidden_column_ids
+        ),
         ordering=left._ordering,
     )
 

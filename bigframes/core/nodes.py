@@ -427,6 +427,10 @@ class InNode(BigFrameNode):
         return True
 
     @property
+    def projection_base(self) -> BigFrameNode:
+        return self.left_child.projection_base
+
+    @property
     def fields(self) -> Iterable[Field]:
         return itertools.chain(
             self.left_child.fields,
@@ -472,7 +476,7 @@ class InNode(BigFrameNode):
         )
 
     def remap_refs(self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]):
-        return dataclasses.replace(self, left_col=self.left_col.remap_column_refs(mappings), right_col=self.right_col.remap_column_refs(mappings))  # type: ignore
+        return dataclasses.replace(self, left_col=self.left_col.remap_column_refs(mappings, allow_partial_bindings=True), right_col=self.right_col.remap_column_refs(mappings, allow_partial_bindings=True))  # type: ignore
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
