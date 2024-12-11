@@ -161,6 +161,29 @@ def test_read_csv_pandas_engines_index_col_sequential_int64_not_supported(engine
         )
 
 
+@pytest.mark.parametrize(
+    ("engine", "write_engine"),
+    (
+        ("bigquery", "bigquery_streaming"),
+        ("bigquery", "bigquery_inline"),
+    ),
+)
+def test_read_csv_with_incompatible_write_engine(engine, write_engine):
+    session = resources.create_bigquery_session()
+
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            f"write_engine={repr(write_engine)} is incompatible with engine={repr(engine)}"
+        ),
+    ):
+        session.read_csv(
+            "gs://cloud-samples-data/bigquery/us-states/us-states.csv",
+            engine=engine,
+            write_engine=write_engine,
+        )
+
+
 @pytest.mark.parametrize("missing_parts_table_id", [(""), ("table")])
 def test_read_gbq_missing_parts(missing_parts_table_id):
     session = resources.create_bigquery_session()

@@ -16,6 +16,9 @@
 
 This module should not depend on any others in the package.
 """
+
+from typing import Literal
+
 import bigframes_vendored.version
 
 FEEDBACK_LINK = (
@@ -29,3 +32,20 @@ ABSTRACT_METHOD_ERROR_MESSAGE = (
     "Please share this stacktrace and how you reached it with the BigQuery DataFrames team. "
     f"{FEEDBACK_LINK}"
 )
+
+WRITE_ENGINE_ERROR_TEMPLATE = (
+    "write_engine='{write_engine}' is incompatible with engine='{engine}'. "
+    f"{FEEDBACK_LINK}"
+)
+
+# TODO(swast): Use unpack operator to avoid redundancy when Python 3.11 is
+# the minimum version.
+VALID_WRITE_ENGINES = [
+    "default",
+    "bigquery_inline",
+    "bigquery_load",
+    "bigquery_streaming",
+]
+WriteEngineType = Literal[
+    "default", "bigquery_inline", "bigquery_load", "bigquery_streaming"
+]
