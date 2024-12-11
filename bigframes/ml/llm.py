@@ -764,7 +764,7 @@ class GeminiTextGenerator(base.BaseEstimator):
 
     Args:
         model_name (str, Default to "gemini-pro"):
-            The model for natural language tasks. Accepted values are "gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514", "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-1.5-flash-001" and "gemini-1.5-flash-002". Default to "gemini-pro".
+            The model for natural language tasks. Accepted values are "gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514", "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-1.5-flash-001", "gemini-1.5-flash-002" and "gemini-2.0-flash-exp". Default to "gemini-pro".
 
         .. note::
             "gemini-2.0-flash-exp", "gemini-1.5-pro-preview-0514" and "gemini-1.5-flash-preview-0514" is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
