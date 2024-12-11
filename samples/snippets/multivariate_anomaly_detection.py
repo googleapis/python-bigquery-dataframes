@@ -73,6 +73,26 @@ def test_multivariate_anomaly_detection(random_model_id: str) -> None:
         "bigquery-public-data.epa_historical_air_quality.temperature_daily_summary"
     )
 
+    # Filter for Seattle and the relevant parameter
+    filtered_temperature_df = wind_speed_df[
+        (wind_speed_df["city_name"] == "Seattle")
+        & (wind_speed_df["parameter_name"] == "Wind Speed - Resultant")
+    ]
+    # Group by date_local and calculate the average arithmetic_mean
+    grouped_temperature_df = (
+        filtered_temperature_df.groupby("date_local")
+        .agg({"arithmetic_mean": "mean"})
+        .reset_index()
+    )
+
+    # Rename the columns
+    grouped_temperature_df = grouped_temperature_df.rename(
+        columns={"arithmetic_mean": "pm25", "date_local": "date"}
+    )
+
+    # Assign only the pm25 and date columns to the table
+    temperature_df = grouped_temperature_df[["pm25", "date"]]
+
     # Merge the dataframes
     # seattle_air_quality_daily = pm25_daily.merge(wind_speed_df, on='date').merge(temperature_df, on='date')
     # Rename the 'date' column if necessary (optional)
