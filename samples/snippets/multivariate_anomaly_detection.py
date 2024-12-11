@@ -29,24 +29,45 @@ def test_multivariate_anomaly_detection(random_model_id: str) -> None:
         & (pm25_df["parameter_name"] == "Acceptable PM2.5 AQI & Speciation Mass")
     ]
     # Group by date_local and calculate the average arithmetic_mean
-    result_df = (
+    grouped_pm25_df = (
         filtered_pm25_df.groupby("date_local")
         .agg({"arithmetic_mean": "mean"})
         .reset_index()
     )
 
     # Rename the columns
-    result_df = result_df.rename(
+    grouped_pm25_df = grouped_pm25_df.rename(
         columns={"arithmetic_mean": "pm25", "date_local": "date"}
     )
 
     # Assign only the pm25 and date columns to the table
-    pm25_df = result_df[["pm25", "date"]]
+    pm25_df = grouped_pm25_df[["pm25", "date"]]
 
     # Load wind_speed data
     wind_speed_df = bpd.read_gbq(
         "bigquery-public-data.epa_historical_air_quality.wind_daily_summary"
     )
+
+    # Filter for Seattle and the relevant parameter
+    filtered_wind_df = wind_speed_df[
+        (wind_speed_df["city_name"] == "Seattle")
+        & (wind_speed_df["parameter_name"] == "Wind Speed - Resultant")
+    ]
+    # Group by date_local and calculate the average arithmetic_mean
+    grouped_wind_df = (
+        filtered_wind_df.groupby("date_local")
+        .agg({"arithmetic_mean": "mean"})
+        .reset_index()
+    )
+
+    # Rename the columns
+    grouped_wind_df = grouped_wind_df.rename(
+        columns={"arithmetic_mean": "pm25", "date_local": "date"}
+    )
+
+    # Assign only the pm25 and date columns to the table
+    wind_speed_df = grouped_wind_df[["pm25", "date"]]
+
     # Load temperature data
     temperature_df = bpd.read_gbq(
         "bigquery-public-data.epa_historical_air_quality.temperature_daily_summary"
