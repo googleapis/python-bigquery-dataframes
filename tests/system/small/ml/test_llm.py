@@ -425,7 +425,7 @@ def test_llm_palm_score_params(llm_fine_tune_df_default_index):
         "gemini-1.5-flash-002",
     ),
 )
-def test_llm_gemini_score(llm_fine_tune_df_default_index, model_name):
+def test_llm_gemini_pro_score(model_name, llm_fine_tune_df_default_index):
     model = llm.GeminiTextGenerator(model_name=model_name)
 
     # Check score to ensure the model was fitted
