@@ -162,16 +162,3 @@ def count_nodes(forest: Sequence[nodes.BigFrameNode]) -> dict[nodes.BigFrameNode
 
     counts = [_node_counts_inner(root) for root in forest]
     return functools.reduce(_combine_counts, counts, empty_counts)
-
-
-def replace_nodes(
-    root: nodes.BigFrameNode,
-    replacements: dict[nodes.BigFrameNode, nodes.BigFrameNode],
-):
-    def apply_substition(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
-        if node in replacements.keys():
-            return replacements[node]
-        else:
-            return node
-
-    return nodes.top_down(root, apply_substition, memoize=True)
