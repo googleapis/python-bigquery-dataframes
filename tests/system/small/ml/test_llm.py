@@ -473,3 +473,16 @@ def test_palm2_text_embedding_deprecated():
             llm.PaLM2TextEmbeddingGenerator()
         except (Exception):
             pass
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "gemini-1.5-pro-preview-0514",
+        "gemini-1.5-flash-preview-0514",
+        "gemini-2.0-flash-exp",
+    ),
+)
+def test_gemini_preview_model_warnings(model_name):
+    with pytest.warns(exceptions.PreviewWarning):
+        llm.GeminiTextGenerator(model_name=model_name)
