@@ -139,20 +139,20 @@ class GbqDataLoader:
         df_and_labels = bf_io_pandas.pandas_to_bq_compatible(pandas_dataframe)
         pandas_dataframe_copy = df_and_labels.df
         new_idx_ids = pandas_dataframe_copy.index.names
-        new_col_ids = pandas_dataframe_copy.columns
         ordering_col = df_and_labels.ordering_col
+        schema: list[
+            bigquery.SchemaField
+        ] = pandas_gbq.schema.pandas_to_bigquery.dataframe_to_bigquery_fields(
+            pandas_dataframe_copy,
+            index=True,
+        )
 
         job_config = bigquery.LoadJobConfig()
-        # Specify the datetime dtypes, which is auto-detected as timestamp types.
-        schema: list[bigquery.SchemaField] = []
-        for column, dtype in zip(new_col_ids, pandas_dataframe.dtypes):
-            if dtype == "timestamp[us][pyarrow]":
-                schema.append(
-                    bigquery.SchemaField(column, bigquery.enums.SqlTypeNames.DATETIME)
-                )
         job_config.schema = schema
 
-        # Clustering probably not needed anyways as pandas tables are small
+        # TODO: Remove this. It's likely that the slower load job due to
+        # clustering doesn't improve speed of queries because pandas tables are
+        # small.
         cluster_cols = [ordering_col]
         job_config.clustering_fields = cluster_cols
 
@@ -194,7 +194,9 @@ class GbqDataLoader:
         pandas_dataframe_copy = df_and_labels.df
         new_idx_ids = pandas_dataframe_copy.index.names
         ordering_col = df_and_labels.ordering_col
-        schema = pandas_gbq.schema.pandas_to_bigquery.dataframe_to_bigquery_fields(
+        schema: list[
+            bigquery.SchemaField
+        ] = pandas_gbq.schema.pandas_to_bigquery.dataframe_to_bigquery_fields(
             pandas_dataframe_copy,
             index=True,
         )
