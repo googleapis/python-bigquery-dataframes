@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Optional, Tuple
+from typing import cast, Optional, Tuple
 
 import bigframes.core.expression
 import bigframes.core.guid
@@ -68,6 +68,7 @@ def get_expression_spec(
             (
                 bigframes.core.nodes.WindowOpNode,
                 bigframes.core.nodes.PromoteOffsetsNode,
+                bigframes.core.nodes.InNode,
             ),
         ):
             # we don't yet have a way of normalizing window ops into a ExpressionSpec, which only
@@ -75,7 +76,7 @@ def get_expression_spec(
             pass
         else:
             return ExpressionSpec(expression, curr_node)
-        curr_node = curr_node.child
+        curr_node = curr_node.child_nodes[0]
 
 
 def _linearize_trees(
@@ -87,6 +88,10 @@ def _linearize_trees(
     # base case: append tree does not have any additive nodes to linearize
     if append_tree == append_tree.projection_base:
         return base_tree
+    if isinstance(append_tree, bigframes.core.nodes.InNode):
+        return dataclasses.replace(
+            append_tree, left_child=_linearize_trees(base_tree, append_tree.left_child)
+        )
     else:
         assert isinstance(append_tree, ADDITIVE_NODES)
         return append_tree.replace_child(_linearize_trees(base_tree, append_tree.child))
@@ -152,6 +157,31 @@ def pull_up_selection(
             (bigframes.core.expression.DerefOp(field.id), field.id)
             for field in node.fields
         )
+    # InNode needs special handling, as its a binary node, but row identity is from left side only.
+    # TODO: Merge code with unary op paths
+    if isinstance(node, bigframes.core.nodes.InNode):
+        child_node, child_selections = pull_up_selection(
+            node.left_child, rename_vars=rename_vars
+        )
+        mapping = {out: ref.id for ref, out in child_selections}
+
+        new_in_node: bigframes.core.nodes.InNode = dataclasses.replace(
+            node, left_child=child_node
+        )
+        new_in_node = new_in_node.remap_refs(mapping)
+        if rename_vars:
+            new_in_node = cast(
+                bigframes.core.nodes.InNode,
+                new_in_node.remap_vars(
+                    {node.indicator_col: bigframes.core.identifiers.ColumnId.unique()}
+                ),
+            )
+        added_selection = (
+            bigframes.core.expression.DerefOp(new_in_node.indicator_col),
+            node.indicator_col,
+        )
+        new_selection = (*child_selections, added_selection)
+        return new_in_node, new_selection
     assert isinstance(node, (bigframes.core.nodes.SelectionNode, *ADDITIVE_NODES))
     child_node, child_selections = pull_up_selection(
         node.child, rename_vars=rename_vars
