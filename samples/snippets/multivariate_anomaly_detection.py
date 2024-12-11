@@ -20,12 +20,13 @@ def test_multivariate_anomaly_detection(random_model_id: str) -> None:
 
     # Load pm25_daily data and filter for seattle and Acceptable PM2.5 AQI & Speciation Mass
     pm25_df = bpd.read_gbq(
-        "bigquery-public-data.epa_historical_air_quality.pm25_frm_daily_summary"
+        "bigquery-public-data.epa_historical_air_quality.pm25_nonfrm_daily_summary"
     )
+
     # Filter for Seattle and the relevant parameter
     seattle_pm25_df = pm25_df[
         (pm25_df["city_name"] == "Seattle")
-        & (pm25_df["parameter_name"] == "PM2.5 - Local Conditions")
+        & (pm25_df["parameter_name"] == "Acceptable PM2.5 AQI & Speciation Mass")
     ]
     # Group by date_local and calculate the average arithmetic_mean
     result_df = (
@@ -33,10 +34,12 @@ def test_multivariate_anomaly_detection(random_model_id: str) -> None:
         .agg({"arithmetic_mean": "mean"})
         .reset_index()
     )
+
     # Rename the columns
     result_df = result_df.rename(
         columns={"arithmetic_mean": "pm25", "date_local": "date"}
     )
+    pm25_df = result_df[["pm25", "date"]]
 
     # Load wind_speed data
     wind_speed_df = bpd.read_gbq(
