@@ -895,7 +895,12 @@ class GeminiTextGenerator(base.BaseEstimator):
         X: utils.ArrayType,
         y: utils.ArrayType,
     ) -> GeminiTextGenerator:
+<<<<<<< HEAD
         """Fine tune GeminiTextGenerator model. Only support "gemini-pro" model for now.
+=======
+        """Fine tune GeminiTextGenerator model. Only support "gemini-pro", "gemini-1.5-pro-002",
+           "gemini-1.5-flash-002" models for now.
+>>>>>>> 8be16d3b (update testcase and docs for better clarification)
 
         .. note::
 
@@ -916,7 +921,8 @@ class GeminiTextGenerator(base.BaseEstimator):
         supported_models = ["gemini-pro", "gemini-1.5-pro-002", "gemini-1.5-flash-002"]
         if self.model_name not in supported_models:
             raise NotImplementedError(
-                "Score is not supported models other than gemini-pro or gemini-1.5 model."
+                "Score is not supported for models other than gemini-pro, \
+                    gemini-1.5-pro-002, or gemini-1.5-flash-002 model."
             )
 
         X, y = utils.batch_convert_to_dataframe(X, y)
@@ -1067,9 +1073,18 @@ class GeminiTextGenerator(base.BaseEstimator):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
+<<<<<<< HEAD
         # TODO(ashleyxu): Support gemini-1.5 when the rollout is ready. b/344891364.
         if self._bqml_model.model_name.startswith("gemini-1.5"):
             raise NotImplementedError("Score is not supported for gemini-1.5 model.")
+=======
+        supported_models = ["gemini-pro", "gemini-1.5-pro-002", "gemini-1.5-flash-002"]
+        if self.model_name not in supported_models:
+            raise NotImplementedError(
+                "Score is not supported models other than gemini-pro \
+                , gemini-1.5-pro-002, or gemini-1.5-flash-2 model."
+            )
+>>>>>>> 8be16d3b (update testcase and docs for better clarification)
 
         X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
