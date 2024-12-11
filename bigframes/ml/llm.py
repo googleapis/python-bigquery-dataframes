@@ -874,7 +874,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         X: utils.ArrayType,
         y: utils.ArrayType,
     ) -> GeminiTextGenerator:
-        """Fine tune GeminiTextGenerator model. Only support "gemini-pro" model for now.
+        """Fine tune GeminiTextGenerator model. Only support "gemini-pro" and "gemini-1.5" models for now.
 
         .. note::
 
@@ -892,8 +892,11 @@ class GeminiTextGenerator(base.BaseEstimator):
         Returns:
             GeminiTextGenerator: Fitted estimator.
         """
-        if self._bqml_model.model_name.startswith("gemini-1.5"):
-            raise NotImplementedError("Fit is not supported for gemini-1.5 model.")
+        supported_models = ["gemini-pro", "gemini-1.5-pro-002", "gemini-1.5-flash-002"]
+        if self.model_name not in supported_models:
+            raise NotImplementedError(
+                "Score is not supported models other than gemini-pro or gemini-1.5 model."
+            )
 
         X, y = utils.batch_convert_to_dataframe(X, y)
 
@@ -1009,7 +1012,7 @@ class GeminiTextGenerator(base.BaseEstimator):
             "text_generation", "classification", "summarization", "question_answering"
         ] = "text_generation",
     ) -> bpd.DataFrame:
-        """Calculate evaluation metrics of the model. Only "gemini-pro" model is supported for now.
+        """Calculate evaluation metrics of the model. Only "gemini-pro" and "gemini-1.5" models are supported for now.
 
         .. note::
 
@@ -1041,9 +1044,12 @@ class GeminiTextGenerator(base.BaseEstimator):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        # TODO(ashleyxu): Support gemini-1.5 when the rollout is ready. b/344891364.
-        if self._bqml_model.model_name.startswith("gemini-1.5"):
-            raise NotImplementedError("Score is not supported for gemini-1.5 model.")
+        # Support gemini-1.5 and gemini-pro
+        supported_models = ["gemini-pro", "gemini-1.5-pro-002", "gemini-1.5-flash-002"]
+        if self.model_name not in supported_models:
+            raise NotImplementedError(
+                "Score is not supported models other than gemini-pro or gemini-1.5 model."
+            )
 
         X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
