@@ -19,7 +19,9 @@ from typing import cast, Hashable, Iterable, Sequence
 import bigframes_vendored.pandas.core.indexes.multi as vendored_pandas_multindex
 import pandas
 
+import bigframes.core.blocks as blocks
 from bigframes.core.indexes.base import Index
+import bigframes.dataframe
 
 
 class MultiIndex(Index, vendored_pandas_multindex.MultiIndex):
@@ -46,3 +48,28 @@ class MultiIndex(Index, vendored_pandas_multindex.MultiIndex):
         pd_index = pandas.MultiIndex.from_arrays(arrays, sortorder, names)
         # Index.__new__ should detect multiple levels and properly create a multiindex
         return cast(MultiIndex, Index(pd_index))
+
+    def to_frame(
+        self,
+        index: bool = True,
+        name: Sequence[blocks.Label] | blocks.Label | None = None,
+    ) -> bigframes.dataframe.DataFrame:
+        columns = [
+            [self.values[j][i] for j in range(len(self.values))]
+            for i in range(len(self.values[0]))
+        ]
+        if isinstance(name, Sequence):
+            if len(name) != len(columns):
+                raise ValueError(
+                    "Length of provided names must match length of MultiIndex columns"
+                )
+            data = {name[i]: column for i, column in enumerate(columns)}
+        elif name is None:
+            data = {i: column for i, column in enumerate(columns)}
+        else:
+            raise ValueError("'name' parameter must be of type Sequence")
+        original_index = columns
+        result = bigframes.dataframe.DataFrame(
+            data, index=original_index if index else None
+        )
+        return result
