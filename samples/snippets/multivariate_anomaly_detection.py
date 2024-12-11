@@ -76,7 +76,7 @@ def test_multivariate_anomaly_detection(random_model_id: str) -> None:
     # Filter for Seattle and the relevant parameter
     filtered_temperature_df = temperature_df[
         (temperature_df["city_name"] == "Seattle")
-        & (temperature_df["parameter_name"] == "Wind Speed - Resultant")
+        & (temperature_df["parameter_name"] == "Outdoor Temperature")
     ]
     # Group by date_local and calculate the average arithmetic_mean
     grouped_temperature_df = (
