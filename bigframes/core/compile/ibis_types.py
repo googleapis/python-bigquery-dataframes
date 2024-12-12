@@ -24,7 +24,6 @@ import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 from bigframes_vendored.ibis.expr.datatypes.core import (
     dtype as python_type_to_bigquery_type,
 )
-import bigframes_vendored.ibis.expr.operations as ibis_ops
 import bigframes_vendored.ibis.expr.types as ibis_types
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
@@ -221,12 +220,6 @@ def ibis_value_to_canonical_type(value: ibis_types.Value) -> ibis_types.Value:
     """
     ibis_type = value.type()
     name = value.get_name()
-    if ibis_type.is_json():
-        value = ibis_ops.ToJsonString(value).to_expr()  # type: ignore
-        value = (
-            value.case().when("null", bigframes_vendored.ibis.null()).else_(value).end()
-        )
-        return value.name(name)
     # Allow REQUIRED fields to be joined with NULLABLE fields.
     nullable_type = ibis_type.copy(nullable=True)
     return value.cast(nullable_type).name(name)
