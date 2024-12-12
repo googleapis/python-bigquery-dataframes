@@ -79,7 +79,16 @@ _GEMINI_PREVIEW_ENDPOINTS = (
     _GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT,
     _GEMINI_2_FLASH_EXP_ENDPOINT,
 )
+<<<<<<< HEAD
 _GEMINI_FINE_TUNE_SCORE_ENDPOINTS = (
+=======
+_GEMINI_FINE_TUNE_ENDPOINTS = (
+    _GEMINI_PRO_ENDPOINT,
+    _GEMINI_1P5_PRO_002_ENDPOINT,
+    _GEMINI_1P5_FLASH_002_ENDPOINT,
+)
+_GEMINI_SCORE_ENDPOINTS = (
+>>>>>>> ed001b82 (fix syntax issue)
     _GEMINI_PRO_ENDPOINT,
     _GEMINI_1P5_PRO_002_ENDPOINT,
     _GEMINI_1P5_FLASH_002_ENDPOINT,
@@ -918,10 +927,9 @@ class GeminiTextGenerator(base.BaseEstimator):
         Returns:
             GeminiTextGenerator: Fitted estimator.
         """
-        supported_models = ["gemini-pro", "gemini-1.5-pro-002", "gemini-1.5-flash-002"]
-        if self.model_name not in supported_models:
+        if self.model_name not in _GEMINI_FINE_TUNE_ENDPOINTS:
             raise NotImplementedError(
-                "Score is not supported for models other than gemini-pro, \
+                "fit() only supports gemini-pro, \
                     gemini-1.5-pro-002, or gemini-1.5-flash-002 model."
             )
 
@@ -1041,7 +1049,11 @@ class GeminiTextGenerator(base.BaseEstimator):
             "text_generation", "classification", "summarization", "question_answering"
         ] = "text_generation",
     ) -> bpd.DataFrame:
+<<<<<<< HEAD
         """Calculate evaluation metrics of the model. Only "gemini-pro" model is supported for now.
+=======
+        """Calculate evaluation metrics of the model. Only support "gemini-pro" and "gemini-1.5-pro-002", and "gemini-1.5-flash-002".
+>>>>>>> ed001b82 (fix syntax issue)
 
         .. note::
 
@@ -1074,15 +1086,19 @@ class GeminiTextGenerator(base.BaseEstimator):
             raise RuntimeError("A model must be fitted before score")
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         # TODO(ashleyxu): Support gemini-1.5 when the rollout is ready. b/344891364.
         if self._bqml_model.model_name.startswith("gemini-1.5"):
             raise NotImplementedError("Score is not supported for gemini-1.5 model.")
 =======
         supported_models = ["gemini-pro", "gemini-1.5-pro-002", "gemini-1.5-flash-002"]
         if self.model_name not in supported_models:
+=======
+        if self.model_name not in _GEMINI_SCORE_ENDPOINTS:
+>>>>>>> ed001b82 (fix syntax issue)
             raise NotImplementedError(
-                "Score is not supported models other than gemini-pro \
-                , gemini-1.5-pro-002, or gemini-1.5-flash-2 model."
+                "score() only supports gemini-pro \
+                , gemini-1.5-pro-002, and gemini-1.5-flash-2 model."
             )
 >>>>>>> 8be16d3b (update testcase and docs for better clarification)
 
