@@ -517,6 +517,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(self._block.select_columns(selected_columns))
 
+    def _select_exact_dtypes(
+        self, dtypes: Sequence[bigframes.dtypes.Dtype]
+    ) -> DataFrame:
+        """Selects columns without considering inheritance relationships."""
+        columns = [
+            col_id
+            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
+            if dtype in dtypes
+        ]
+        return DataFrame(self._block.select_columns(columns))
+
     def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
 
@@ -2230,6 +2241,63 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for item in df.itertuples(index=index, name=name):
                 yield item
 
+    def where(self, cond, other=None):
+        if isinstance(other, bigframes.series.Series):
+            raise ValueError("Seires is not a supported replacement type!")
+
+        if self.columns.nlevels > 1 or self.index.nlevels > 1:
+            raise NotImplementedError(
+                "The dataframe.where() method does not support multi-index and/or multi-column."
+            )
+
+        aligned_block, (_, _) = self._block.join(cond._block, how="left")
+        # No left join is needed when 'other' is None or constant.
+        if isinstance(other, bigframes.dataframe.DataFrame):
+            aligned_block, (_, _) = aligned_block.join(other._block, how="left")
+        self_len = len(self._block.value_columns)
+        cond_len = len(cond._block.value_columns)
+
+        ids = aligned_block.value_columns[:self_len]
+        labels = aligned_block.column_labels[:self_len]
+        self_col = {x: ex.deref(y) for x, y in zip(labels, ids)}
+
+        if isinstance(cond, bigframes.series.Series) and cond.name in self_col:
+            # This is when 'cond' is a valid series.
+            y = aligned_block.value_columns[self_len]
+            cond_col = {x: ex.deref(y) for x in self_col.keys()}
+        else:
+            # This is when 'cond' is a dataframe.
+            ids = aligned_block.value_columns[self_len : self_len + cond_len]
+            labels = aligned_block.column_labels[self_len : self_len + cond_len]
+            cond_col = {x: ex.deref(y) for x, y in zip(labels, ids)}
+
+        if isinstance(other, DataFrame):
+            other_len = len(self._block.value_columns)
+            ids = aligned_block.value_columns[-other_len:]
+            labels = aligned_block.column_labels[-other_len:]
+            other_col = {x: ex.deref(y) for x, y in zip(labels, ids)}
+        else:
+            # This is when 'other' is None or constant.
+            labels = aligned_block.column_labels[:self_len]
+            other_col = {x: ex.const(other) for x in labels}  # type: ignore
+
+        result_series = {}
+        for x, self_id in self_col.items():
+            cond_id = cond_col[x] if x in cond_col else ex.const(False)
+            other_id = other_col[x] if x in other_col else ex.const(None)
+            result_block, result_id = aligned_block.project_expr(
+                ops.where_op.as_expr(self_id, cond_id, other_id)
+            )
+            series = bigframes.series.Series(
+                result_block.select_column(result_id).with_column_labels([x])
+            )
+            result_series[x] = series
+
+        result = DataFrame(result_series)
+        result.columns.name = self.columns.name
+        result.columns.names = self.columns.names
+        return result
+
     def dropna(
         self,
         *,
@@ -2437,13 +2505,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
 
             for dtype, agg in itertools.product(self.dtypes, aggregations):
-                if not bigframes.operations.aggregations.is_agg_op_supported(
-                    dtype, agg
-                ):
-                    raise NotImplementedError(
-                        f"Type {dtype} does not support aggregation {agg}. "
-                        f"Share your usecase with the BigQuery DataFrames team at the {constants.FEEDBACK_LINK}"
-                    )
+                agg.output_type(
+                    dtype
+                )  # Raises exception if the agg does not support the dtype.
 
             return DataFrame(
                 self._block.summarize(
@@ -2512,7 +2576,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def describe(self, include: None | Literal["all"] = None) -> DataFrame:
         if include is None:
-            numeric_df = self._drop_non_numeric(permissive=False)
+            numeric_df = self._select_exact_dtypes(
+                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
+                + bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
+            )
             if len(numeric_df.columns) == 0:
                 # Describe eligible non-numeric columns
                 return self._describe_non_numeric()
@@ -2540,9 +2607,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError(f"Unsupported include type: {include}")
 
     def _describe_numeric(self) -> DataFrame:
-        return typing.cast(
+        number_df_result = typing.cast(
             DataFrame,
-            self._drop_non_numeric(permissive=False).agg(
+            self._select_exact_dtypes(
+                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
+            ).agg(
                 [
                     "count",
                     "mean",
@@ -2555,16 +2624,41 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 ]
             ),
         )
+        temporal_df_result = typing.cast(
+            DataFrame,
+            self._select_exact_dtypes(
+                bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
+            ).agg(["count"]),
+        )
+
+        if len(number_df_result.columns) == 0:
+            return temporal_df_result
+        elif len(temporal_df_result.columns) == 0:
+            return number_df_result
+        else:
+            import bigframes.core.reshape.api as rs
+
+            original_columns = self._select_exact_dtypes(
+                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
+                + bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
+            ).columns
+
+            # Use reindex after join to preserve the original column order.
+            return rs.concat(
+                [number_df_result, temporal_df_result],
+                axis=1,
+            )._reindex_columns(original_columns)
 
     def _describe_non_numeric(self) -> DataFrame:
         return typing.cast(
             DataFrame,
-            self.select_dtypes(
-                include={
+            self._select_exact_dtypes(
+                [
                     bigframes.dtypes.STRING_DTYPE,
                     bigframes.dtypes.BOOL_DTYPE,
                     bigframes.dtypes.BYTES_DTYPE,
-                }
+                    bigframes.dtypes.TIME_DTYPE,
+                ]
             ).agg(["count", "nunique"]),
         )
 
