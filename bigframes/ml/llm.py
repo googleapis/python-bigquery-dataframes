@@ -919,7 +919,9 @@ class GeminiTextGenerator(base.BaseEstimator):
         X, y = utils.batch_convert_to_dataframe(X, y)
 
         options = self._bqml_options
-        options["endpoint"] = "gemini-1.0-pro-002"
+        options["endpoint"] = (
+            "gemini-1.0-pro-002" if self.model_name == "gemini-pro" else self.model_name
+        )
         options["prompt_col"] = X.columns.tolist()[0]
 
         self._bqml_model = self._bqml_model_factory.create_llm_remote_model(
