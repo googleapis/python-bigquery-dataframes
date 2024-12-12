@@ -912,6 +912,8 @@ class Block:
             input_varname = input_varnames[0]
 
         block = self
+
+        result_ids = []
         for col_id in columns:
             label = self.col_id_to_label[col_id]
             block, result_id = block.project_expr(
@@ -919,7 +921,8 @@ class Block:
                 label=label,
             )
             block = block.copy_values(result_id, col_id)
-            block = block.drop_columns([result_id])
+            result_ids.append(result_id)
+        block = block.drop_columns(result_ids)
         # Special case, we can preserve transpose cache for full-frame unary ops
         if (self._transpose_cache is not None) and set(self.value_columns) == set(
             columns
@@ -1315,50 +1318,6 @@ class Block:
             expr,
             column_labels=self._get_labels_for_columns(column_ids),
             index_columns=index_cols,
-        )
-
-    def calculate_pairwise_metric(self, op=agg_ops.CorrOp()):
-        """
-        Returns a block object to compute pairwise metrics among all value columns in this block.
-
-        The metric to be computed is specified by the `op` parameter, which can be either a
-        correlation operation (default) or a covariance operation.
-        """
-        if len(self.value_columns) > 30:
-            raise NotImplementedError(
-                "This function supports dataframes with 30 columns or fewer. "
-                f"Provided dataframe has {len(self.value_columns)} columns. {constants.FEEDBACK_LINK}"
-            )
-
-        aggregations = [
-            (
-                ex.BinaryAggregation(op, ex.deref(left_col), ex.deref(right_col)),
-                f"{left_col}-{right_col}",
-            )
-            for left_col in self.value_columns
-            for right_col in self.value_columns
-        ]
-        expr = self.expr.aggregate(aggregations)
-
-        input_count = len(self.value_columns)
-        unpivot_columns = tuple(
-            tuple(expr.column_ids[input_count * i : input_count * (i + 1)])
-            for i in range(input_count)
-        )
-        labels = self._get_labels_for_columns(self.value_columns)
-
-        # TODO(b/340896143): fix type error
-        expr, (index_col_ids, _, _) = unpivot(
-            expr,
-            row_labels=labels,
-            unpivot_columns=unpivot_columns,
-        )
-
-        return Block(
-            expr,
-            column_labels=self.column_labels,
-            index_columns=index_col_ids,
-            index_labels=self.column_labels.names,
         )
 
     def explode(
@@ -2059,6 +2018,41 @@ class Block:
         if ignore_index:
             result_block = result_block.reset_index()
         return result_block
+
+    def isin(self, other: Block):
+        # TODO: Support multiple other columns and match on label
+        # TODO: Model as explicit "IN" subquery/join to better allow db to optimize
+        assert len(other.value_columns) == 1
+        unique_other_values = other.expr.select_columns(
+            [other.value_columns[0]]
+        ).aggregate((), by_column_ids=(other.value_columns[0],), dropna=False)
+        block = self
+        # for each original column, join with other
+        for i in range(len(self.value_columns)):
+            block = block._isin_inner(block.value_columns[i], unique_other_values)
+        return block
+
+    def _isin_inner(self: Block, col: str, unique_values: core.ArrayValue) -> Block:
+        unique_values, const = unique_values.create_constant(
+            True, dtype=bigframes.dtypes.BOOL_DTYPE
+        )
+        expr, (l_map, r_map) = self._expr.relational_join(
+            unique_values, ((col, unique_values.column_ids[0]),), type="left"
+        )
+        expr, matches = expr.project_to_id(ops.notnull_op.as_expr(r_map[const]))
+
+        new_index_cols = tuple(l_map[idx_col] for idx_col in self.index_columns)
+        new_value_cols = tuple(
+            l_map[val_col] if val_col != col else matches
+            for val_col in self.value_columns
+        )
+        expr = expr.select_columns((*new_index_cols, *new_value_cols))
+        return Block(
+            expr,
+            index_columns=new_index_cols,
+            column_labels=self.column_labels,
+            index_labels=self._index_labels,
+        )
 
     def merge(
         self,
