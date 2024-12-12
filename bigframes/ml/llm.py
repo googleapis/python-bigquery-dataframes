@@ -79,6 +79,16 @@ _GEMINI_PREVIEW_ENDPOINTS = (
     _GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT,
     _GEMINI_2_FLASH_EXP_ENDPOINT,
 )
+_GEMINI_FINE_TUNE_ENDPOINTS = (
+    _GEMINI_PRO_ENDPOINT,
+    _GEMINI_1P5_PRO_002_ENDPOINT,
+    _GEMINI_1P5_FLASH_002_ENDPOINT,
+)
+_GEMINI_SCORE_ENDPOINTS = (
+    _GEMINI_PRO_ENDPOINT,
+    _GEMINI_1P5_PRO_002_ENDPOINT,
+    _GEMINI_1P5_FLASH_002_ENDPOINT,
+)
 
 _CLAUDE_3_SONNET_ENDPOINT = "claude-3-sonnet"
 _CLAUDE_3_HAIKU_ENDPOINT = "claude-3-haiku"
@@ -909,10 +919,9 @@ class GeminiTextGenerator(base.BaseEstimator):
         Returns:
             GeminiTextGenerator: Fitted estimator.
         """
-        supported_models = ["gemini-pro", "gemini-1.5-pro-002", "gemini-1.5-flash-002"]
-        if self.model_name not in supported_models:
+        if self.model_name not in _GEMINI_FINE_TUNE_ENDPOINTS:
             raise NotImplementedError(
-                "Score is not supported for models other than gemini-pro, \
+                "fit() only supports gemini-pro, \
                     gemini-1.5-pro-002, or gemini-1.5-flash-002 model."
             )
 
@@ -1032,7 +1041,7 @@ class GeminiTextGenerator(base.BaseEstimator):
             "text_generation", "classification", "summarization", "question_answering"
         ] = "text_generation",
     ) -> bpd.DataFrame:
-        """Calculate evaluation metrics of the model. Only "gemini-pro" and "gemini-1.5" models are supported for now.
+        """Calculate evaluation metrics of the model. Only support "gemini-pro" and "gemini-1.5-pro-002", and "gemini-1.5-flash-002".
 
         .. note::
 
@@ -1064,11 +1073,10 @@ class GeminiTextGenerator(base.BaseEstimator):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        supported_models = ["gemini-pro", "gemini-1.5-pro-002", "gemini-1.5-flash-002"]
-        if self.model_name not in supported_models:
+        if self.model_name not in _GEMINI_SCORE_ENDPOINTS:
             raise NotImplementedError(
-                "Score is not supported models other than gemini-pro \
-                , gemini-1.5-pro-002, or gemini-1.5-flash-2 model."
+                "score() only supports gemini-pro \
+                , gemini-1.5-pro-002, and gemini-1.5-flash-2 model."
             )
 
         X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
