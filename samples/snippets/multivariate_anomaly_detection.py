@@ -93,14 +93,12 @@ def test_multivariate_anomaly_detection(random_model_id: str) -> None:
     # Assign only the pm25 and date columns to the table
     temperature_df = grouped_temperature_df[["pm25", "date"]]
 
-    # Merge the dataframes
-    # seattle_air_quality_daily = pm25_daily.merge(wind_speed_df, on='date').merge(temperature_df, on='date')
-    # Rename the 'date' column if necessary (optional)
-    # seattle_air_quality_daily = seattle_air_quality_daily.rename(columns={"date": "date"})
-
-    # Create the table (bpd.read_gbq(seattle_air_quality)?)
-
+    # Merge the tables
+    seattle_air_quality_daily = pm25_df.merge(wind_speed_df, on="date").merge(
+        temperature_df, on="date"
+    )
     # [END bigquery_dataframes_anomaly_prepare]
     pm25_df is not None
     wind_speed_df is not None
     temperature_df is not None
+    seattle_air_quality_daily is not None
