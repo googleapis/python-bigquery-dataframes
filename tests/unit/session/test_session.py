@@ -164,8 +164,15 @@ def test_read_csv_pandas_engines_index_col_sequential_int64_not_supported(engine
 @pytest.mark.parametrize(
     ("engine", "write_engine"),
     (
+        # Can't use bigquery parsing if parsing the data locally to upload.
         ("bigquery", "bigquery_streaming"),
         ("bigquery", "bigquery_inline"),
+        # No local parsing engines are compatible with bigquery_external_table.
+        (None, "bigquery_external_table"),
+        ("c", "bigquery_external_table"),
+        ("pyarrow", "bigquery_external_table"),
+        ("python", "bigquery_external_table"),
+        ("python-fwf", "bigquery_external_table"),
     ),
 )
 def test_read_csv_with_incompatible_write_engine(engine, write_engine):
@@ -174,7 +181,7 @@ def test_read_csv_with_incompatible_write_engine(engine, write_engine):
     with pytest.raises(
         NotImplementedError,
         match=re.escape(
-            f"write_engine={repr(write_engine)} is incompatible with engine={repr(engine)}"
+            f"Can't use parsing engine={repr(engine)} with write_engine={repr(write_engine)}, which"
         ),
     ):
         session.read_csv(

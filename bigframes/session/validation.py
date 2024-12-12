@@ -23,14 +23,16 @@ def validate_engine_compatibility(engine, write_engine):
         "bigquery_streaming",
     ):
         raise NotImplementedError(
-            bigframes_vendored.constants.WRITE_ENGINE_ERROR_TEMPLATE.format(
-                engine=engine, write_engine=write_engine
+            bigframes_vendored.constants.WRITE_ENGINE_REQUIRES_LOCAL_ENGINE_TEMPLATE.format(
+                engine=repr(engine),
+                write_engine=repr(write_engine),
             )
         )
 
     if engine != "bigquery" and write_engine in ("bigquery_external_table",):
         raise NotImplementedError(
-            bigframes_vendored.constants.WRITE_ENGINE_ERROR_TEMPLATE.format(
-                engine=engine, write_engine=write_engine
+            bigframes_vendored.constants.WRITE_ENGINE_REQUIRES_BIGQUERY_ENGINE_TEMPLATE.format(
+                engine=repr(engine),
+                write_engine=repr(write_engine),
             )
         )

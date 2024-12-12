@@ -17,6 +17,7 @@
 This module should not depend on any others in the package.
 """
 
+import typing
 from typing import Literal
 
 import bigframes_vendored.version
@@ -33,19 +34,19 @@ ABSTRACT_METHOD_ERROR_MESSAGE = (
     f"{FEEDBACK_LINK}"
 )
 
-WRITE_ENGINE_ERROR_TEMPLATE = (
-    "write_engine='{write_engine}' is incompatible with engine='{engine}'. "
-    f"{FEEDBACK_LINK}"
+WRITE_ENGINE_TEMPLATE = (
+    "Can't use parsing engine={engine} with write_engine={write_engine}, which "
+)
+WRITE_ENGINE_REQUIRES_LOCAL_ENGINE_TEMPLATE = (
+    WRITE_ENGINE_TEMPLATE + "requires a local parsing engine. " + FEEDBACK_LINK
+)
+WRITE_ENGINE_REQUIRES_BIGQUERY_ENGINE_TEMPLATE = (
+    WRITE_ENGINE_TEMPLATE
+    + "requires the engine='bigquery' parsing engine. "
+    + FEEDBACK_LINK
 )
 
-# TODO(swast): Use unpack operator to avoid redundancy when Python 3.11 is
-# the minimum version.
-VALID_WRITE_ENGINES = [
-    "default",
-    "bigquery_inline",
-    "bigquery_load",
-    "bigquery_streaming",
-]
 WriteEngineType = Literal[
     "default", "bigquery_inline", "bigquery_load", "bigquery_streaming"
 ]
+VALID_WRITE_ENGINES = typing.get_args(WriteEngineType)
