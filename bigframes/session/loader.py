@@ -140,6 +140,11 @@ class GbqDataLoader:
         pandas_dataframe_copy = df_and_labels.df
         new_idx_ids = pandas_dataframe_copy.index.names
         ordering_col = df_and_labels.ordering_col
+
+        # TODO(https://github.com/googleapis/python-bigquery-pandas/issues/760):
+        # Once pandas-gbq can show a link to the running load job like
+        # bigframes does, switch to using pandas-gbq to load the
+        # bigquery-compatible pandas DataFrame.
         schema: list[
             bigquery.SchemaField
         ] = pandas_gbq.schema.pandas_to_bigquery.dataframe_to_bigquery_fields(
@@ -194,6 +199,10 @@ class GbqDataLoader:
         pandas_dataframe_copy = df_and_labels.df
         new_idx_ids = pandas_dataframe_copy.index.names
         ordering_col = df_and_labels.ordering_col
+
+        # TODO(https://github.com/googleapis/python-bigquery-pandas/issues/300):
+        # Once pandas-gbq can do streaming inserts (again), switch to using
+        # pandas-gbq to write the bigquery-compatible pandas DataFrame.
         schema: list[
             bigquery.SchemaField
         ] = pandas_gbq.schema.pandas_to_bigquery.dataframe_to_bigquery_fields(

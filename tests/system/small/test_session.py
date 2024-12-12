@@ -26,7 +26,6 @@ import google
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas as pd
-import pyarrow as pa
 import pytest
 
 import bigframes
@@ -624,7 +623,7 @@ def test_read_pandas_index(session):
 
 
 def test_read_pandas_w_unsupported_mixed_dtype(session):
-    with pytest.raises(pa.ArrowInvalid, match="Could not convert"):
+    with pytest.raises(ValueError, match="Could not convert"):
         session.read_pandas(pd.DataFrame({"a": [1, "hello"]}))
 
 

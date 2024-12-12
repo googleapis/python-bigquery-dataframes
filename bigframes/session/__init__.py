@@ -828,10 +828,10 @@ class Session(
     ) -> dataframe.DataFrame:
         try:
             return self._loader.read_pandas_load_job(pandas_dataframe, api_name)
-        except pa.ArrowInvalid as e:
-            raise pa.ArrowInvalid(
-                f"Could not convert with a BigQuery type: `{e}`. "
-            ) from e
+        except (pa.ArrowInvalid, pa.ArrowTypeError) as exc:
+            raise ValueError(
+                f"Could not convert with a BigQuery type: `{exc}`."
+            ) from exc
 
     def _read_pandas_streaming(
         self,
