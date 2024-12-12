@@ -144,15 +144,9 @@ class ReaderIOMixin:
                 https://docs.python.org/3/library/codecs.html#standard-encodings
                 The BigQuery engine only supports `UTF-8` and `ISO-8859-1`.
             write_engine (str):
-                How data should be written to BigQuery (if at all). Supported
-                values:
-
-                * "default":
-                  Select either "bigquery_inline" or "bigquery_load",
-                  depending on data size.
-                * "bigquery_inline": Inline data in BigQuery SQL.
-                * "bigquery_load": Use a BigQuery load job.
-                * "bigquery_streaming": Use the BigQuery streaming JSON API.
+                How data should be written to BigQuery (if at all). See
+                :func:`bigframes.pandas.read_pandas` for a full description of
+                supported values.
 
             **kwargs:
                 keyword arguments for `pandas.read_csv` when not using the BigQuery engine.
@@ -240,15 +234,9 @@ class ReaderIOMixin:
                 Type of engine to use. If `engine="bigquery"` is specified, then BigQuery's load API will be used.
                 Otherwise, the engine will be passed to `pandas.read_json`.
             write_engine (str):
-                How data should be written to BigQuery (if at all). Supported
-                values:
-
-                * "default":
-                  Select either "bigquery_inline" or "bigquery_load",
-                  depending on data size.
-                * "bigquery_inline": Inline data in BigQuery SQL.
-                * "bigquery_load": Use a BigQuery load job.
-                * "bigquery_streaming": Use the BigQuery streaming JSON API.
+                How data should be written to BigQuery (if at all). See
+                :func:`bigframes.pandas.read_pandas` for a full description of
+                supported values.
 
             **kwargs:
                 keyword arguments for `pandas.read_json` when not using the BigQuery engine.

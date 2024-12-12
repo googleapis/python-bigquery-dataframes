@@ -710,11 +710,19 @@ class Session(
                 values:
 
                 * "default":
-                  Select either "bigquery_inline" or "bigquery_load",
-                  depending on data size.
-                * "bigquery_inline": Inline data in BigQuery SQL.
-                * "bigquery_load": Use a BigQuery load job.
-                * "bigquery_streaming": Use the BigQuery streaming JSON API.
+                  (Recommended) Select an appropriate mechanism to write data
+                  to BigQuery. Depends on data size and supported data types.
+                * "bigquery_inline":
+                  Inline data in BigQuery SQL. Use this when you know the data
+                  is small enough to fit within BigQuery's 1 MB query text size
+                  limit.
+                * "bigquery_load":
+                  Use a BigQuery load job. Use this for larger data sizes.
+                * "bigquery_streaming":
+                  Use the BigQuery streaming JSON API. Use this if your
+                  workload is such that you exhaust the BigQuery load job
+                  quota and your data cannot be embedded in SQL due to size or
+                  data type limitations.
 
         Returns:
             An equivalent bigframes.pandas.(DataFrame/Series/Index) object
