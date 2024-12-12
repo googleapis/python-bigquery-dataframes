@@ -246,6 +246,11 @@ def table_id_not_created(dataset_id: str):
     return f"{dataset_id}.{prefixer.create_prefix()}"
 
 
+@pytest.fixture(scope="function")
+def table_id_unique(dataset_id: str):
+    return f"{dataset_id}.{prefixer.create_prefix()}"
+
+
 @pytest.fixture(scope="session")
 def scalars_schema(bigquery_client: bigquery.Client):
     # TODO(swast): Add missing scalar data types such as BIGNUMERIC.
@@ -604,6 +609,28 @@ def scalars_dfs_maybe_ordered(
         maybe_ordered_session.read_pandas(scalars_pandas_df_index),
         scalars_pandas_df_index,
     )
+
+
+@pytest.fixture(scope="session")
+def scalars_df_numeric_150_columns_maybe_ordered(
+    maybe_ordered_session,
+    scalars_pandas_df_index,
+):
+    """DataFrame pointing at test data."""
+    # TODO(b/379911038): After the error fixed, add numeric type.
+    pandas_df = scalars_pandas_df_index.reset_index(drop=False)[
+        [
+            "rowindex",
+            "rowindex_2",
+            "float64_col",
+            "int64_col",
+            "int64_too",
+        ]
+        * 30
+    ]
+
+    df = maybe_ordered_session.read_pandas(pandas_df)
+    return (df, pandas_df)
 
 
 @pytest.fixture(scope="session")
@@ -1331,4 +1358,4 @@ def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent
         # backend flakiness.
         #
         # Let's stop further clean up and leave it to later.
-        traceback.print_exception(exc)
+        traceback.print_exception(type(exc), exc, None)
