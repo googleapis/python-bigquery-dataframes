@@ -2609,6 +2609,47 @@ def test_remote_function_array_output(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_array_output_partial_ordering_mode(
+    unordered_session, scalars_dfs, dataset_id, bq_cf_connection
+):
+    try:
+
+        @unordered_session.remote_function(
+            dataset=dataset_id,
+            bigquery_connection=bq_cf_connection,
+            reuse=False,
+        )
+        def featurize(x: float) -> list[float]:  # type: ignore
+            return [x, x + 1, x + 2]
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_int64_col = scalars_df["float64_col"].dropna()
+        bf_result = bf_int64_col.apply(featurize).to_pandas()
+
+        pd_int64_col = scalars_pandas_df["float64_col"].dropna()
+        pd_result = pd_int64_col.apply(featurize)
+
+        # ignore any dtype disparity
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+        # Let's make sure the read_gbq_function path works for this function
+        featurize_reuse = unordered_session.read_gbq_function(
+            featurize.bigframes_remote_function  # type: ignore
+        )
+        bf_int64_col = scalars_df["float64_col"].dropna()
+        bf_result = bf_int64_col.apply(featurize_reuse).to_pandas()
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_remote_function_assets(
+            unordered_session.bqclient,
+            unordered_session.cloudfunctionsclient,
+            featurize,
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_array_output_multiindex(
     session, scalars_dfs, dataset_id, bq_cf_connection
 ):
