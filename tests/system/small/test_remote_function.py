@@ -840,7 +840,7 @@ def test_read_gbq_function_enforces_explicit_types(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_df_apply(session, scalars_dfs, dataset_id_permanent):
+def test_df_apply(session, scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bdf = bigframes.pandas.DataFrame(
         {
