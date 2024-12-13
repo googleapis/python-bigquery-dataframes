@@ -14,9 +14,8 @@
 from __future__ import annotations
 
 import dataclasses
-import functools
 import itertools
-from typing import Mapping, Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple
 
 import bigframes.core.expression as scalar_exprs
 import bigframes.core.identifiers as ids
@@ -24,6 +23,7 @@ import bigframes.core.join_def as join_defs
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
 import bigframes.core.rewrite.implicit_align
+import bigframes.core.rewrite.predicates
 import bigframes.operations as ops
 
 Selection = Tuple[Tuple[scalar_exprs.Expression, ids.ColumnId], ...]
@@ -43,7 +43,7 @@ class SquashedSelect:
 
     root: nodes.BigFrameNode
     columns: Tuple[Tuple[scalar_exprs.Expression, ids.ColumnId], ...]
-    predicate: Optional[scalar_exprs.Expression]
+    predicates: Tuple[scalar_exprs.Expression, ...]
     ordering: Tuple[order.OrderingExpression, ...]
     reverse_root: bool = False
 
@@ -51,106 +51,19 @@ class SquashedSelect:
     def from_node_span(
         cls, node: nodes.BigFrameNode, target: nodes.BigFrameNode
     ) -> SquashedSelect:
-        if node == target:
-            selection = tuple((scalar_exprs.DerefOp(id), id) for id in node.ids)
-            return cls(node, selection, None, ())
-
-        if isinstance(node, nodes.SelectionNode):
-            return cls.from_node_span(node.child, target).select(
-                node.input_output_pairs
-            )
-        elif isinstance(node, nodes.ProjectionNode):
-            return cls.from_node_span(node.child, target).project(node.assignments)
-        elif isinstance(node, nodes.FilterNode):
-            return cls.from_node_span(node.child, target).filter(node.predicate)
-        elif isinstance(node, nodes.ReversedNode):
-            return cls.from_node_span(node.child, target).reverse()
-        elif isinstance(node, nodes.OrderByNode):
-            return cls.from_node_span(node.child, target).order_with(node.by)
-        else:
-            raise ValueError(f"Cannot rewrite node {node}")
-
-    @property
-    def column_lookup(self) -> Mapping[ids.ColumnId, scalar_exprs.Expression]:
-        return {col_id: expr for expr, col_id in self.columns}
-
-    def select(
-        self, input_output_pairs: Tuple[Tuple[scalar_exprs.DerefOp, ids.ColumnId], ...]
-    ) -> SquashedSelect:
-        new_columns = tuple(
-            (
-                input.bind_refs(self.column_lookup),
-                output,
-            )
-            for input, output in input_output_pairs
+        node, selection = bigframes.core.rewrite.implicit_align.pull_up_selection(
+            node, target, rename_vars=True
         )
-        return SquashedSelect(
-            self.root, new_columns, self.predicate, self.ordering, self.reverse_root
+        node, filters = bigframes.core.rewrite.implicit_align.pull_up_filters(
+            node, target
         )
-
-    def project(
-        self, projection: Tuple[Tuple[scalar_exprs.Expression, ids.ColumnId], ...]
-    ) -> SquashedSelect:
-        existing_columns = self.columns
-        new_columns = tuple(
-            (expr.bind_refs(self.column_lookup), id) for expr, id in projection
+        node, ordering = bigframes.core.rewrite.implicit_align.pull_up_order(
+            node, target
         )
-        return SquashedSelect(
-            self.root,
-            (*existing_columns, *new_columns),
-            self.predicate,
-            self.ordering,
-            self.reverse_root,
+        node, reverse_root = bigframes.core.rewrite.implicit_align.pull_up_reverse(
+            node, target
         )
-
-    def filter(self, predicate: scalar_exprs.Expression) -> SquashedSelect:
-        if self.predicate is None:
-            new_predicate = predicate.bind_refs(self.column_lookup)
-        else:
-            new_predicate = ops.and_op.as_expr(
-                self.predicate, predicate.bind_refs(self.column_lookup)
-            )
-        return SquashedSelect(
-            self.root, self.columns, new_predicate, self.ordering, self.reverse_root
-        )
-
-    def reverse(self) -> SquashedSelect:
-        new_ordering = tuple(expr.with_reverse() for expr in self.ordering)
-        return SquashedSelect(
-            self.root, self.columns, self.predicate, new_ordering, not self.reverse_root
-        )
-
-    def order_with(self, by: Tuple[order.OrderingExpression, ...]):
-        adjusted_orderings = [
-            order_part.bind_refs(self.column_lookup) for order_part in by
-        ]
-        new_ordering = (*adjusted_orderings, *self.ordering)
-        return SquashedSelect(
-            self.root, self.columns, self.predicate, new_ordering, self.reverse_root
-        )
-
-    def can_merge(
-        self,
-        right: SquashedSelect,
-        join_keys: Tuple[join_defs.CoalescedColumnMapping, ...],
-    ) -> bool:
-        """Determines whether the two selections can be merged into a single selection."""
-        r_exprs_by_id = {id.name: expr for expr, id in right.columns}
-        l_exprs_by_id = {id.name: expr for expr, id in self.columns}
-        l_join_exprs = [
-            l_exprs_by_id[join_key.left_source_id] for join_key in join_keys
-        ]
-        r_join_exprs = [
-            r_exprs_by_id[join_key.right_source_id] for join_key in join_keys
-        ]
-
-        if self.root != right.root:
-            return False
-        if len(l_join_exprs) != len(r_join_exprs):
-            return False
-        if any(l_expr != r_expr for l_expr, r_expr in zip(l_join_exprs, r_join_exprs)):
-            return False
-        return True
+        return SquashedSelect(node, selection, filters, ordering, reverse_root)
 
     def merge(
         self,
@@ -159,23 +72,35 @@ class SquashedSelect:
         join_keys: Tuple[join_defs.CoalescedColumnMapping, ...],
         mappings: Tuple[join_defs.JoinColumnMapping, ...],
     ) -> SquashedSelect:
-        if self.root != right.root:
-            raise ValueError("Cannot merge expressions with different roots")
+        new_root = bigframes.core.rewrite.implicit_align.linearize_trees(
+            self.root, right.root
+        )
         # Mask columns and remap names to expected schema
         lselection = self.columns
         rselection = right.columns
-        if join_type == "inner":
-            new_predicate = and_predicates(self.predicate, right.predicate)
-        elif join_type == "outer":
-            new_predicate = or_predicates(self.predicate, right.predicate)
+        if join_type == "outer":
+            new_predicate = or_predicates(self.predicates, right.predicates)
+            new_predicates = (new_predicate,) if new_predicate else ()
+        elif join_type == "inner":
+            new_predicate = and_predicates(self.predicates, right.predicates)
+            new_predicates = (new_predicate,) if new_predicate else ()
         elif join_type == "left":
-            new_predicate = self.predicate
+            new_predicates = self.predicates
         elif join_type == "right":
-            new_predicate = right.predicate
+            new_predicates = right.predicates
 
-        l_relative, r_relative = relative_predicates(self.predicate, right.predicate)
-        lmask = l_relative if join_type in {"right", "outer"} else None
-        rmask = r_relative if join_type in {"left", "outer"} else None
+        l_relative, r_relative = bigframes.core.rewrite.predicates.relative_predicates(
+            self.predicates, right.predicates
+        )
+        if join_type in {"right", "outer"} and len(l_relative) > 0:
+            lmask = bigframes.core.rewrite.predicates.merge_predicates(l_relative)
+        else:
+            lmask = None
+        if join_type in {"left", "outer"} and len(r_relative) > 0:
+            rmask = bigframes.core.rewrite.predicates.merge_predicates(r_relative)
+        else:
+            rmask = None
+
         new_columns = merge_expressions(
             join_keys, mappings, lselection, rselection, lmask, rmask
         )
@@ -190,7 +115,9 @@ class SquashedSelect:
                 prefix = order.OrderingExpression(lmask, order.OrderingDirection.DESC)
                 left_ordering = tuple(
                     order.OrderingExpression(
-                        apply_mask(ref.scalar_expression, lmask),
+                        bigframes.core.rewrite.predicates.apply_mask_expr(
+                            ref.scalar_expression, lmask
+                        ),
                         ref.direction,
                         ref.na_last,
                     )
@@ -199,7 +126,9 @@ class SquashedSelect:
                 right_ordering = (
                     tuple(
                         order.OrderingExpression(
-                            apply_mask(ref.scalar_expression, rmask),
+                            bigframes.core.rewrite.predicates.apply_mask_expr(
+                                ref.scalar_expression, rmask
+                            ),
                             ref.direction,
                             ref.na_last,
                         )
@@ -216,7 +145,7 @@ class SquashedSelect:
         else:
             raise ValueError(f"Unexpected join type {join_type}")
         return SquashedSelect(
-            self.root, new_columns, new_predicate, new_ordering, reverse_root
+            new_root, new_columns, new_predicates, new_ordering, reverse_root
         )
 
     def expand(self) -> nodes.BigFrameNode:
@@ -224,8 +153,13 @@ class SquashedSelect:
         root = self.root
         if self.reverse_root:
             root = nodes.ReversedNode(child=root)
-        if self.predicate:
-            root = nodes.FilterNode(child=root, predicate=self.predicate)
+        if len(self.predicates) > 0:
+            root = nodes.FilterNode(
+                child=root,
+                predicate=bigframes.core.rewrite.predicates.merge_predicates(
+                    self.predicates
+                ),
+            )
         if self.ordering:
             root = nodes.OrderByNode(child=root, by=self.ordering)
         selection = tuple((scalar_exprs.DerefOp(id), id) for _, id in self.columns)
@@ -242,20 +176,29 @@ def legacy_join_as_projection(
     mappings: Tuple[join_defs.JoinColumnMapping, ...],
     how: join_defs.JoinType,
 ) -> Optional[nodes.BigFrameNode]:
-    rewrite_common_node = common_selection_root(l_node, r_node)
-    if rewrite_common_node is not None:
-        left_side = SquashedSelect.from_node_span(l_node, rewrite_common_node)
-        right_side = SquashedSelect.from_node_span(r_node, rewrite_common_node)
-        if not left_side.can_merge(right_side, join_keys):
-            # Most likely because join keys didn't match
-            return None
-        merged = left_side.merge(right_side, how, join_keys, mappings)
-        assert (
-            merged is not None
-        ), "Couldn't merge nodes. This shouldn't happen. Please share full stacktrace with the BigQuery DataFrames team at bigframes-feedback@google.com."
-        return merged.expand()
-    else:
+    rewrite_common_node = bigframes.core.rewrite.implicit_align.first_shared_descendent(
+        l_node, r_node, descendable_types=LEGACY_REWRITER_NODES
+    )
+    if rewrite_common_node is None:
         return None
+
+    # check join keys are equivalent by normalizing the expressions as much as posisble
+    # instead of just comparing ids
+    for join_key in join_keys:
+        # Caller is block, so they still work with raw strings rather than ids
+        left_id = ids.ColumnId(join_key.left_source_id)
+        right_id = ids.ColumnId(join_key.right_source_id)
+        if bigframes.core.rewrite.implicit_align.get_expression_spec(
+            l_node, left_id
+        ) != bigframes.core.rewrite.implicit_align.get_expression_spec(
+            r_node, right_id
+        ):
+            return None
+
+    left_side = SquashedSelect.from_node_span(l_node, rewrite_common_node)
+    right_side = SquashedSelect.from_node_span(r_node, rewrite_common_node)
+    merged = left_side.merge(right_side, how, join_keys, mappings)
+    return merged.expand()
 
 
 def merge_expressions(
@@ -271,95 +214,43 @@ def merge_expressions(
     l_exprs_by_id = {id.name: expr for expr, id in lselection}
     r_exprs_by_id = {id.name: expr for expr, id in rselection}
     for key in join_keys:
-        # Join keys expressions are equivalent on both sides, so can choose either left or right key
-        assert l_exprs_by_id[key.left_source_id] == r_exprs_by_id[key.right_source_id]
         expr = l_exprs_by_id[key.left_source_id]
         id = key.destination_id
         new_selection = (*new_selection, (expr, ids.ColumnId(id)))
     for mapping in mappings:
         if mapping.source_table == join_defs.JoinSide.LEFT:
             expr = l_exprs_by_id[mapping.source_id]
-            if lmask is not None:
-                expr = apply_mask(expr, lmask)
+            if lmask:
+                expr = bigframes.core.rewrite.predicates.apply_mask_expr(expr, lmask)
         else:  # Right
             expr = r_exprs_by_id[mapping.source_id]
-            if rmask is not None:
-                expr = apply_mask(expr, rmask)
+            if rmask:
+                expr = bigframes.core.rewrite.predicates.apply_mask_expr(expr, rmask)
         new_selection = (*new_selection, (expr, ids.ColumnId(mapping.destination_id)))
     return new_selection
 
 
 def and_predicates(
-    expr1: Optional[scalar_exprs.Expression], expr2: Optional[scalar_exprs.Expression]
+    left_predicates: Sequence[scalar_exprs.Expression],
+    right_predicates: Sequence[scalar_exprs.Expression],
 ) -> Optional[scalar_exprs.Expression]:
-    if expr1 is None:
-        return expr2
-    if expr2 is None:
-        return expr1
-    left_predicates = decompose_conjunction(expr1)
-    right_predicates = decompose_conjunction(expr2)
+    if not (left_predicates or right_predicates):
+        return None
     # remove common predicates
     all_predicates = itertools.chain(
         left_predicates, [p for p in right_predicates if p not in left_predicates]
     )
-    return merge_predicates(list(all_predicates))
+    return bigframes.core.rewrite.predicates.merge_predicates(list(all_predicates))
 
 
 def or_predicates(
-    expr1: Optional[scalar_exprs.Expression], expr2: Optional[scalar_exprs.Expression]
+    l_predicates: Sequence[scalar_exprs.Expression],
+    r_predicates: Sequence[scalar_exprs.Expression],
 ) -> Optional[scalar_exprs.Expression]:
-    if (expr1 is None) or (expr2 is None):
+    if (not l_predicates) or (not r_predicates):
         return None
     # TODO(tbergeron): Factor out common predicates
-    return ops.or_op.as_expr(expr1, expr2)
-
-
-def relative_predicates(
-    expr1: Optional[scalar_exprs.Expression], expr2: Optional[scalar_exprs.Expression]
-) -> Tuple[Optional[scalar_exprs.Expression], Optional[scalar_exprs.Expression]]:
-    left_predicates = decompose_conjunction(expr1) if expr1 else ()
-    right_predicates = decompose_conjunction(expr2) if expr2 else ()
-    left_relative = tuple(
-        pred for pred in left_predicates if pred not in right_predicates
-    )
-    right_relative = tuple(
-        pred for pred in right_predicates if pred not in left_predicates
-    )
-    return merge_predicates(left_relative), merge_predicates(right_relative)
-
-
-def apply_mask(
-    expr: scalar_exprs.Expression, mask: scalar_exprs.Expression
-) -> scalar_exprs.Expression:
-    return ops.where_op.as_expr(expr, mask, scalar_exprs.const(None))
-
-
-def merge_predicates(
-    predicates: Sequence[scalar_exprs.Expression],
-) -> Optional[scalar_exprs.Expression]:
-    if len(predicates) == 0:
-        return None
-
-    return functools.reduce(ops.and_op.as_expr, predicates)
-
-
-def decompose_conjunction(
-    expr: scalar_exprs.Expression,
-) -> Tuple[scalar_exprs.Expression, ...]:
-    if isinstance(expr, scalar_exprs.OpExpression) and isinstance(
-        expr.op, type(ops.and_op)
-    ):
-        return tuple(
-            itertools.chain.from_iterable(decompose_conjunction(i) for i in expr.inputs)
-        )
-    else:
-        return (expr,)
-
-
-def common_selection_root(
-    l_tree: nodes.BigFrameNode, r_tree: nodes.BigFrameNode
-) -> Optional[nodes.BigFrameNode]:
-    """Find common subtree between join subtrees"""
-    return bigframes.core.rewrite.implicit_align.first_shared_descendent(
-        l_tree, r_tree, descendable_types=LEGACY_REWRITER_NODES
+    return ops.or_op.as_expr(
+        bigframes.core.rewrite.predicates.merge_predicates(l_predicates),
+        bigframes.core.rewrite.predicates.merge_predicates(r_predicates),
     )
