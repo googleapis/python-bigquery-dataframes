@@ -843,21 +843,31 @@ def test_read_gbq_function_requires_explicit_types(
 
 
 @pytest.mark.parametrize(
+    ("session_fixture",),
+    [
+        pytest.param("session"),
+        pytest.param("unordered_session"),
+    ],
+)
+@pytest.mark.parametrize(
     ("array_type", "expected_data"),
     [
         pytest.param(None, ["[1,2,3]", "[10,11,12]", "[100,101,102]"], id="None"),
         pytest.param(
             list[str],
             [["1", "2", "3"], ["10", "11", "12"], ["100", "101", "102"]],
-            id="str",
+            id="list-str",
         ),
-        pytest.param(list[int], [[1, 2, 3], [10, 11, 12], [100, 101, 102]], id="int"),
+        pytest.param(
+            list[int], [[1, 2, 3], [10, 11, 12], [100, 101, 102]], id="list-int"
+        ),
     ],
 )
 @pytest.mark.flaky(retries=2, delay=120)
-def test_read_gbq_function_enforces_output_array_type(
-    session, bigquery_client, dataset_id, array_type, expected_data
+def test_read_gbq_function_respects_python_output_type(
+    request, session_fixture, bigquery_client, dataset_id, array_type, expected_data
 ):
+    session = request.getfixturevalue(session_fixture)
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
     arg = bigquery.RoutineArgument(
         name="x",
@@ -901,7 +911,7 @@ def test_read_gbq_function_enforces_output_array_type(
     ],
 )
 @pytest.mark.flaky(retries=2, delay=120)
-def test_read_gbq_function_allows_explicit_output_type_only_on_string_outputs(
+def test_read_gbq_function_supports_python_output_type_only_for_string_outputs(
     session, bigquery_client, dataset_id, array_type
 ):
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
@@ -940,7 +950,7 @@ def test_read_gbq_function_allows_explicit_output_type_only_on_string_outputs(
     ],
 )
 @pytest.mark.flaky(retries=2, delay=120)
-def test_read_gbq_function_allows_list_of_type_as_explicit_output_type(
+def test_read_gbq_function_supported_python_output_type(
     session, bigquery_client, dataset_id, array_type
 ):
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
@@ -973,7 +983,7 @@ def test_read_gbq_function_allows_list_of_type_as_explicit_output_type(
     ],
 )
 @pytest.mark.flaky(retries=2, delay=120)
-def test_read_gbq_function_allows_only_list_of_type_as_explicit_output_type(
+def test_read_gbq_function_unsupported_python_output_type(
     session, bigquery_client, dataset_id, python_output_type
 ):
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
@@ -998,7 +1008,8 @@ def test_read_gbq_function_allows_only_list_of_type_as_explicit_output_type(
     # reading back will fail because we currently allow specifying an explicit
     # output_type for BQ functions with STRING output
     with pytest.raises(
-        TypeError, match="Currently only list of a type is supported for output_type."
+        TypeError,
+        match="Currently only list of a type is supported as python output type.",
     ):
         rf.read_gbq_function(str(sql_routine.reference), session=session)
 

@@ -75,7 +75,7 @@ def ibis_signature_from_routine(routine: bigquery.Routine) -> _utils.IbisSignatu
             )
         else:
             raise TypeError(
-                "Currently only list of a type is supported for output_type."
+                "Currently only list of a type is supported as python output type."
             )
 
     return _utils.IbisSignature(
