@@ -281,7 +281,7 @@ def test_get_column(scalars_dfs, col_name, expected_dtype):
 def test_get_column_w_json(json_df, json_pandas_df):
     series = json_df["json_col"]
     series_pandas = series.to_pandas()
-    assert series.dtype == pd.StringDtype(storage="pyarrow")
+    assert series.dtype == pd.ArrowDtype(pa.large_string())
     assert series_pandas.shape[0] == json_pandas_df.shape[0]
 
 
@@ -1193,6 +1193,46 @@ def test_isin_raise_error(scalars_df_index, scalars_pandas_df_index):
 def test_isin(scalars_dfs, col_name, test_set):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[col_name].isin(test_set).to_pandas()
+    pd_result = scalars_pandas_df[col_name].isin(test_set).astype("boolean")
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(
+    (
+        "col_name",
+        "test_set",
+    ),
+    [
+        (
+            "int64_col",
+            [314159, 2.0, 3, pd.NA],
+        ),
+        (
+            "int64_col",
+            [2, 55555, 4],
+        ),
+        (
+            "float64_col",
+            [-123.456, 1.25, pd.NA],
+        ),
+        (
+            "int64_too",
+            [1, 2, pd.NA],
+        ),
+        (
+            "string_col",
+            ["Hello, World!", "Hi", "こんにちは"],
+        ),
+    ],
+)
+def test_isin_bigframes_values(scalars_dfs, col_name, test_set, session):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = (
+        scalars_df[col_name].isin(series.Series(test_set, session=session)).to_pandas()
+    )
     pd_result = scalars_pandas_df[col_name].isin(test_set).astype("boolean")
     pd.testing.assert_series_equal(
         pd_result,
