@@ -840,6 +840,30 @@ def test_read_gbq_function_enforces_explicit_types(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply(session, scalars_dfs, dataset_id_permanent):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bdf = bigframes.pandas.DataFrame(
+        {
+            "Column1": scalars_df["string_col"],
+            "Column2": scalars_df["string_col"],
+        }
+    )
+
+    func_ref = session.read_gbq_function("bqutil.fn.cw_lower_case_ascii_only")
+    bf_result = bdf.apply(func_ref).to_pandas()
+    # The str.lower() method has the same functionality as func_ref.
+    pd_result = pd.DataFrame(
+        {
+            "Column1": scalars_pandas_df["string_col"].str.lower(),
+            "Column2": scalars_pandas_df["string_col"].str.lower(),
+        }
+    )
+
+    pd.testing.assert_series_equal(pd_result["Column1"], bf_result["Column1"])
+    pd.testing.assert_series_equal(pd_result["Column2"], bf_result["Column2"])
+
+
+@pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
     columns = [
         "bool_col",

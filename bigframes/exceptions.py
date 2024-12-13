@@ -77,3 +77,6 @@ class ApiDeprecationWarning(FutureWarning):
 
 class BadIndexerKeyWarning(Warning):
     """The indexer key is not used correctly."""
+
+class ArgsAndKwargsNotSupportedWarning(Warning):
+    """The args and kwargs are not supported."""

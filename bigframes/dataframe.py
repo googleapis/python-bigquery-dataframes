@@ -3675,6 +3675,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         # Per-column apply
         if hasattr(func, "bigframes_remote_function"):
+            if args or kwargs:
+                warnings.warn(
+                    "The args and kwargs are not supported in the remote function.",
+                    category=bigframes.exceptions.ArgsAndKwargsNotSupportedWarning,
+                )
             results = {name: col.apply(func) for name, col in self.items()}
         else:
             results = {name: func(col, *args, **kwargs) for name, col in self.items()}
