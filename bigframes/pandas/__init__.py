@@ -21,7 +21,7 @@ from datetime import datetime
 import inspect
 import sys
 import typing
-from typing import Any, List, Literal, Optional, Sequence, Union
+from typing import Literal, Optional, Sequence, Union
 
 import bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetimes
 import pandas
