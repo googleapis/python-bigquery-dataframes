@@ -79,12 +79,7 @@ _GEMINI_PREVIEW_ENDPOINTS = (
     _GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT,
     _GEMINI_2_FLASH_EXP_ENDPOINT,
 )
-_GEMINI_FINE_TUNE_ENDPOINTS = (
-    _GEMINI_PRO_ENDPOINT,
-    _GEMINI_1P5_PRO_002_ENDPOINT,
-    _GEMINI_1P5_FLASH_002_ENDPOINT,
-)
-_GEMINI_SCORE_ENDPOINTS = (
+_GEMINI_FINE_TUNE_SCORE_ENDPOINTS = (
     _GEMINI_PRO_ENDPOINT,
     _GEMINI_1P5_PRO_002_ENDPOINT,
     _GEMINI_1P5_FLASH_002_ENDPOINT,
@@ -919,7 +914,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         Returns:
             GeminiTextGenerator: Fitted estimator.
         """
-        if self.model_name not in _GEMINI_FINE_TUNE_ENDPOINTS:
+        if self.model_name not in _GEMINI_FINE_TUNE_SCORE_ENDPOINTS:
             raise NotImplementedError(
                 "fit() only supports gemini-pro, \
                     gemini-1.5-pro-002, or gemini-1.5-flash-002 model."
@@ -1073,7 +1068,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        if self.model_name not in _GEMINI_SCORE_ENDPOINTS:
+        if self.model_name not in _GEMINI_FINE_TUNE_SCORE_ENDPOINTS:
             raise NotImplementedError(
                 "score() only supports gemini-pro \
                 , gemini-1.5-pro-002, and gemini-1.5-flash-2 model."
