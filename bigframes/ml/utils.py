@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import typing
-from typing import Any, Generator, Literal, Mapping, Optional, Tuple, Union
+from typing import Any, Generator, Hashable, Literal, Mapping, Optional, Tuple, Union
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 import pandas as pd
 
-from bigframes.core import blocks, guid
+from bigframes.core import convert, guid
 import bigframes.pandas as bpd
 from bigframes.session import Session
 
@@ -28,7 +28,7 @@ ArrayType = Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series]
 BigFramesArrayType = Union[bpd.DataFrame, bpd.Series]
 
 
-def convert_to_dataframe(
+def batch_convert_to_dataframe(
     *input: ArrayType,
     session: Optional[Session] = None,
 ) -> Generator[bpd.DataFrame, None, None]:
@@ -40,32 +40,15 @@ def convert_to_dataframe(
             It is not used if the input itself is already a BigFrame data frame or series.
 
     """
-    return (_convert_to_dataframe(frame, session) for frame in input)
+    _validate_sessions(*input, session=session)
 
-
-def _convert_to_dataframe(
-    frame: ArrayType, session: Optional[Session] = None
-) -> bpd.DataFrame:
-    if isinstance(frame, bpd.DataFrame):
-        return frame
-    if isinstance(frame, bpd.Series):
-        return frame.to_frame()
-    if isinstance(frame, pd.DataFrame):
-        if session is None:
-            return bpd.read_pandas(frame)
-        else:
-            return session.read_pandas(frame)
-    if isinstance(frame, pd.Series):
-        if session is None:
-            return bpd.read_pandas(frame).to_frame()
-        else:
-            return session.read_pandas(frame).to_frame()
-    raise ValueError(
-        f"Unsupported type {type(frame)} to convert to DataFrame. {constants.FEEDBACK_LINK}"
+    return (
+        convert.to_bf_dataframe(frame, default_index=None, session=session)
+        for frame in input
     )
 
 
-def convert_to_series(
+def batch_convert_to_series(
     *input: ArrayType, session: Optional[Session] = None
 ) -> Generator[bpd.Series, None, None]:
     """Converts the input to BigFrames Series.
@@ -76,37 +59,40 @@ def convert_to_series(
             It is not used if the input itself is already a BigFrame data frame or series.
 
     """
-    return (_convert_to_series(frame, session) for frame in input)
+    _validate_sessions(*input, session=session)
 
-
-def _convert_to_series(
-    frame: ArrayType, session: Optional[Session] = None
-) -> bpd.Series:
-    if isinstance(frame, bpd.DataFrame):
-        if len(frame.columns) != 1:
-            raise ValueError(
-                "To convert into Series, DataFrames can only contain one column. "
-                f"Try input with only one column. {constants.FEEDBACK_LINK}"
-            )
-
-        label = typing.cast(blocks.Label, frame.columns.tolist()[0])
-        return typing.cast(bpd.Series, frame[label])
-    if isinstance(frame, bpd.Series):
-        return frame
-    if isinstance(frame, pd.DataFrame):
-        # Recursively call this method to re-use the length-checking logic
-        if session is None:
-            return _convert_to_series(bpd.read_pandas(frame))
-        else:
-            return _convert_to_series(session.read_pandas(frame), session)
-    if isinstance(frame, pd.Series):
-        if session is None:
-            return bpd.read_pandas(frame)
-        else:
-            return session.read_pandas(frame)
-    raise ValueError(
-        f"Unsupported type {type(frame)} to convert to Series. {constants.FEEDBACK_LINK}"
+    return (
+        convert.to_bf_series(
+            _get_only_column(frame), default_index=None, session=session
+        )
+        for frame in input
     )
+
+
+def _validate_sessions(*input: ArrayType, session: Optional[Session]):
+    session_ids = set(
+        i._session.session_id
+        for i in input
+        if isinstance(i, bpd.DataFrame) or isinstance(i, bpd.Series)
+    )
+    if len(session_ids) > 1:
+        raise ValueError("Cannot convert data from multiple sessions")
+
+
+def _get_only_column(input: ArrayType) -> Union[pd.Series, bpd.Series]:
+    if isinstance(input, pd.Series) or isinstance(input, bpd.Series):
+        return input
+
+    if len(input.columns) != 1:
+        raise ValueError(
+            "To convert into Series, DataFrames can only contain one column. "
+            f"Try input with only one column. {constants.FEEDBACK_LINK}"
+        )
+
+    label = typing.cast(Hashable, input.columns.tolist()[0])
+    if isinstance(input, pd.DataFrame):
+        return typing.cast(pd.Series, input[label])
+    return typing.cast(bpd.Series, input[label])  # type: ignore
 
 
 def parse_model_endpoint(model_endpoint: str) -> tuple[str, Optional[str]]:

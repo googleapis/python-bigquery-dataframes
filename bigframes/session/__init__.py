@@ -37,15 +37,13 @@ import warnings
 import weakref
 
 import bigframes_vendored.constants as constants
-import bigframes_vendored.ibis.backends.bigquery  # noqa
+import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery  # noqa
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
 import bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
 import bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 import google.cloud.bigquery as bigquery
 import google.cloud.storage as storage  # type: ignore
-import ibis
-import ibis.backends.bigquery as ibis_bigquery
 import numpy as np
 import pandas
 from pandas._typing import (
@@ -197,9 +195,10 @@ class Session(
 
         # Only used to fetch remote function metadata.
         # TODO: Remove in favor of raw bq client
+
         self.ibis_client = typing.cast(
             ibis_bigquery.Backend,
-            ibis.bigquery.connect(
+            ibis_bigquery.Backend().connect(
                 project_id=context.project,
                 client=self.bqclient,
                 storage_client=self.bqstoragereadclient,
@@ -1362,6 +1361,58 @@ class Session(
             1    TestStr123456Cad$
             2    TestCad$123456Str
             dtype: string
+
+        Another use case is to define your own remote funtion and use it later.
+        For example, define the remote function:
+
+            >>> @bpd.remote_function()
+            ... def tenfold(num: int) -> float:
+            ...     return num * 10
+
+        Then, read back the deployed BQ remote function:
+
+            >>> tenfold_ref = bpd.read_gbq_function(
+            ...     tenfold.bigframes_remote_function,
+            ... )
+
+            >>> df = bpd.DataFrame({'a': [1, 2], 'b': [3, 4], 'c': [5, 6]})
+            >>> df
+                a   b   c
+            0   1   3   5
+            1   2   4   6
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+            >>> df['a'].apply(tenfold_ref)
+            0    10.0
+            1    20.0
+            Name: a, dtype: Float64
+
+        It also supports row processing by using `is_row_processor=True`. Please
+        note, row processor implies that the function has only one input
+        parameter.
+
+            >>> @bpd.remote_function()
+            ... def row_sum(s: bpd.Series) -> float:
+            ...     return s['a'] + s['b'] + s['c']
+
+            >>> row_sum_ref = bpd.read_gbq_function(
+            ...     row_sum.bigframes_remote_function,
+            ...     is_row_processor=True,
+            ... )
+
+            >>> df = bpd.DataFrame({'a': [1, 2], 'b': [3, 4], 'c': [5, 6]})
+            >>> df
+                a   b   c
+            0   1   3   5
+            1   2   4   6
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+            >>> df.apply(row_sum_ref, axis=1)
+            0     9.0
+            1    12.0
+            dtype: Float64
 
         Args:
             function_name (str):

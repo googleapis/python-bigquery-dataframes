@@ -22,6 +22,7 @@ import traceback
 import typing
 from typing import Dict, Generator, Optional
 
+import bigframes_vendored.ibis.backends as ibis_backends
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import google.cloud.bigquery_connection_v1 as bigquery_connection_v1
@@ -29,7 +30,6 @@ import google.cloud.exceptions
 import google.cloud.functions_v2 as functions_v2
 import google.cloud.resourcemanager_v3 as resourcemanager_v3
 import google.cloud.storage as storage  # type: ignore
-import ibis.backends
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -107,7 +107,7 @@ def bigquery_client_tokyo(session_tokyo: bigframes.Session) -> bigquery.Client:
 
 
 @pytest.fixture(scope="session")
-def ibis_client(session: bigframes.Session) -> ibis.backends.BaseBackend:
+def ibis_client(session: bigframes.Session) -> ibis_backends.BaseBackend:
     return session.ibis_client
 
 
@@ -243,6 +243,11 @@ def dataset_id_permanent_tokyo(
 
 @pytest.fixture(scope="session")
 def table_id_not_created(dataset_id: str):
+    return f"{dataset_id}.{prefixer.create_prefix()}"
+
+
+@pytest.fixture(scope="function")
+def table_id_unique(dataset_id: str):
     return f"{dataset_id}.{prefixer.create_prefix()}"
 
 
@@ -610,6 +615,28 @@ def scalars_dfs_maybe_ordered(
         maybe_ordered_session.read_pandas(scalars_pandas_df_index),
         scalars_pandas_df_index,
     )
+
+
+@pytest.fixture(scope="session")
+def scalars_df_numeric_150_columns_maybe_ordered(
+    maybe_ordered_session,
+    scalars_pandas_df_index,
+):
+    """DataFrame pointing at test data."""
+    # TODO(b/379911038): After the error fixed, add numeric type.
+    pandas_df = scalars_pandas_df_index.reset_index(drop=False)[
+        [
+            "rowindex",
+            "rowindex_2",
+            "float64_col",
+            "int64_col",
+            "int64_too",
+        ]
+        * 30
+    ]
+
+    df = maybe_ordered_session.read_pandas(pandas_df)
+    return (df, pandas_df)
 
 
 @pytest.fixture(scope="session")
