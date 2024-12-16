@@ -520,6 +520,10 @@ class RowJoinNode(BigFrameNode):
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return ()
 
+    @property
+    def added_fields(self) -> Tuple[Field, ...]:
+        return tuple(self.right_child.fields)
+
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
     ) -> BigFrameNode:
@@ -1585,8 +1589,9 @@ def bottom_up(
     root: BigFrameNode,
     transform: Callable[[BigFrameNode], BigFrameNode],
     *,
-    memoize=False,
-    validate=False,
+    stop: Optional[Callable[[BigFrameNode], bool]] = None,
+    memoize: bool = False,
+    validate: bool = False,
 ) -> BigFrameNode:
     """
     Perform a bottom-up transformation of the BigFrameNode tree.
@@ -1595,6 +1600,8 @@ def bottom_up(
     """
 
     def bottom_up_internal(root: BigFrameNode) -> BigFrameNode:
+        if (stop is not None) and (stop(root)):
+            return root
         return transform(root.transform_children(bottom_up_internal))
 
     if memoize:

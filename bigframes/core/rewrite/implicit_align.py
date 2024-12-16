@@ -13,7 +13,6 @@
 # limitations under the License.
 from __future__ import annotations
 
-import dataclasses
 from typing import Iterable, Optional, Tuple
 
 import bigframes.core.expression
@@ -37,87 +36,18 @@ ALIGNABLE_NODES = (
 )
 
 
-@dataclasses.dataclass(frozen=True)
-class ExpressionSpec:
-    expression: bigframes.core.expression.Expression
-    node: bigframes.core.nodes.BigFrameNode
+def rewrite_row_join(
+    node: bigframes.core.nodes.BigFrameNode,
+):
+    if not isinstance(node, bigframes.core.nodes.RowJoinNode):
+        return node
 
-
-def get_expression_spec(
-    node: bigframes.core.nodes.BigFrameNode, id: bigframes.core.identifiers.ColumnId
-) -> ExpressionSpec:
-    """Normalizes column value by chaining expressions across multiple selection and projection nodes if possible.
-    This normalization helps identify whether columns are equivalent.
-    """
-    # TODO: While we chain expression fragments from different nodes
-    # we could further normalize with constant folding and other scalar expression rewrites
-    expression: bigframes.core.expression.Expression = (
-        bigframes.core.expression.DerefOp(id)
-    )
-    curr_node = node
-    while True:
-        if isinstance(curr_node, bigframes.core.nodes.RowJoinNode):
-            if id in curr_node.left_child.ids:
-                curr_node = curr_node.left_child
-                continue
-            else:
-                curr_node = curr_node.right_child
-                continue
-        elif isinstance(curr_node, bigframes.core.nodes.SelectionNode):
-            select_mappings = {
-                col_id: ref for ref, col_id in curr_node.input_output_pairs
-            }
-            expression = expression.bind_refs(
-                select_mappings, allow_partial_bindings=True
-            )
-        elif isinstance(curr_node, bigframes.core.nodes.ProjectionNode):
-            proj_mappings = {col_id: expr for expr, col_id in curr_node.assignments}
-            expression = expression.bind_refs(
-                proj_mappings, allow_partial_bindings=True
-            )
-
-        elif isinstance(
-            curr_node,
-            (
-                bigframes.core.nodes.WindowOpNode,
-                bigframes.core.nodes.PromoteOffsetsNode,
-            ),
-        ):
-            if set(expression.column_references).isdisjoint(
-                field.id for field in curr_node.added_fields
-            ):
-                # we don't yet have a way of normalizing window ops into a ExpressionSpec, which only
-                # handles normalizing scalar expressions at the moment.
-                pass
-            else:
-                return ExpressionSpec(expression, curr_node)
-        else:
-            return ExpressionSpec(expression, curr_node)
-        curr_node = curr_node.child
-
-
-def try_row_join(
-    l_node: bigframes.core.nodes.BigFrameNode,
-    r_node: bigframes.core.nodes.BigFrameNode,
-    join_keys: Tuple[Tuple[str, str], ...],
-) -> Optional[bigframes.core.nodes.BigFrameNode]:
-    """Joins the two nodes"""
+    l_node = node.left_child
+    r_node = node.right_child
     divergent_node = first_shared_descendent(
         l_node, r_node, descendable_types=ALIGNABLE_NODES
     )
-    if divergent_node is None:
-        return None
-    # check join keys are equivalent by normalizing the expressions as much as posisble
-    # instead of just comparing ids
-    for l_key, r_key in join_keys:
-        # Caller is block, so they still work with raw strings rather than ids
-        left_id = bigframes.core.identifiers.ColumnId(l_key)
-        right_id = bigframes.core.identifiers.ColumnId(r_key)
-        if get_expression_spec(l_node, left_id) != get_expression_spec(
-            r_node, right_id
-        ):
-            return None
-
+    assert divergent_node is not None
     l_node, l_selection = pull_up_selection(l_node, stop=divergent_node)
     r_node, r_selection = pull_up_selection(
         r_node, stop=divergent_node, rename_vars=True
@@ -211,10 +141,10 @@ def pull_up_selection(
 def first_shared_descendent(
     left: bigframes.core.nodes.BigFrameNode,
     right: bigframes.core.nodes.BigFrameNode,
-    descendable_types: Tuple[type[bigframes.core.nodes.UnaryNode], ...],
+    descendable_types: Tuple[type[bigframes.core.nodes.BigFrameNode], ...],
 ) -> Optional[bigframes.core.nodes.BigFrameNode]:
-    l_path = tuple(descend(left, descendable_types))
-    r_path = tuple(descend(right, descendable_types))
+    l_path = tuple(descend_left(left, descendable_types))
+    r_path = tuple(descend_left(right, descendable_types))
     if l_path[-1] != r_path[-1]:
         return None
 
@@ -225,10 +155,10 @@ def first_shared_descendent(
     raise ValueError()
 
 
-def descend(
+def descend_left(
     root: bigframes.core.nodes.BigFrameNode,
-    descendable_types: Tuple[type[bigframes.core.nodes.UnaryNode], ...],
+    descendable_types: Tuple[type[bigframes.core.nodes.BigFrameNode], ...],
 ) -> Iterable[bigframes.core.nodes.BigFrameNode]:
     yield root
     if isinstance(root, descendable_types):
-        yield from descend(root.child, descendable_types)
+        yield from descend_left(root.child_nodes[0], descendable_types)

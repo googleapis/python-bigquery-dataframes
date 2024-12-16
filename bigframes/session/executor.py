@@ -529,6 +529,11 @@ class BigQueryCachingExecutor(Executor):
         return results_iterator
 
     def preprocess_tree(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
+        # Note rewriting row joins invalidates caching here
+        # TODO: Make row join and caching mutually compatible
+        node = bigframes.core.nodes.bottom_up(
+            node, bigframes.core.rewrite.rewrite_row_join, memoize=True
+        )
         return nodes.top_down(
             node, lambda x: self._cached_executions.get(x, x), memoize=True
         )
