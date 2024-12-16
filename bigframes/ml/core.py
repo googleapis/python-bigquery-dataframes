@@ -123,6 +123,12 @@ class BqmlModel(BaseBqml):
             self._model_manipulation_sql_generator.ml_predict,
         )
 
+    def explain_predict(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
+        return self._apply_ml_tvf(
+            input_data,
+            self._model_manipulation_sql_generator.ml_explain_predict,
+        )
+
     def transform(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         return self._apply_ml_tvf(
             input_data,
@@ -171,6 +177,14 @@ class BqmlModel(BaseBqml):
     def forecast(self, options: Mapping[str, int | float]) -> bpd.DataFrame:
         sql = self._model_manipulation_sql_generator.ml_forecast(struct_options=options)
         return self._session.read_gbq(sql, index_col="forecast_timestamp").reset_index()
+
+    def explain_forecast(self, options: Mapping[str, int | float]) -> bpd.DataFrame:
+        sql = self._model_manipulation_sql_generator.ml_explain_forecast(
+            struct_options=options
+        )
+        return self._session.read_gbq(
+            sql, index_col="time_series_timestamp"
+        ).reset_index()
 
     def evaluate(self, input_data: Optional[bpd.DataFrame] = None):
         sql = self._model_manipulation_sql_generator.ml_evaluate(

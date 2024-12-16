@@ -134,12 +134,12 @@ class LinearRegression(
         X_eval: Optional[utils.ArrayType] = None,
         y_eval: Optional[utils.ArrayType] = None,
     ) -> LinearRegression:
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
 
         bqml_options = self._bqml_options
 
         if X_eval is not None and y_eval is not None:
-            X_eval, y_eval = utils.convert_to_dataframe(X_eval, y_eval)
+            X_eval, y_eval = utils.batch_convert_to_dataframe(X_eval, y_eval)
             X, y, bqml_options = utils.combine_training_and_evaluation_data(
                 X, y, X_eval, y_eval, bqml_options
             )
@@ -156,9 +156,37 @@ class LinearRegression(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X)
 
         return self._bqml_model.predict(X)
+
+    def predict_explain(
+        self,
+        X: utils.ArrayType,
+    ) -> bpd.DataFrame:
+        """
+        Explain predictions for a linear regression model.
+
+        .. note::
+            Output matches that of the BigQuery ML.EXPLAIN_PREDICT function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-predict
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or
+            pandas.core.frame.DataFrame or pandas.core.series.Series):
+                Series or a DataFrame to explain its predictions.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                The predicted DataFrames with explanation columns.
+        """
+        # TODO(b/377366612): Add support for `top_k_features` parameter
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before predict")
+
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
+
+        return self._bqml_model.explain_predict(X)
 
     def score(
         self,
@@ -168,7 +196,7 @@ class LinearRegression(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)
@@ -296,12 +324,12 @@ class LogisticRegression(
         X_eval: Optional[utils.ArrayType] = None,
         y_eval: Optional[utils.ArrayType] = None,
     ) -> LogisticRegression:
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
 
         bqml_options = self._bqml_options
 
         if X_eval is not None and y_eval is not None:
-            X_eval, y_eval = utils.convert_to_dataframe(X_eval, y_eval)
+            X_eval, y_eval = utils.batch_convert_to_dataframe(X_eval, y_eval)
             X, y, bqml_options = utils.combine_training_and_evaluation_data(
                 X, y, X_eval, y_eval, bqml_options
             )
@@ -321,7 +349,7 @@ class LogisticRegression(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
-        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
@@ -333,7 +361,7 @@ class LogisticRegression(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)

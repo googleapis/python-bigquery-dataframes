@@ -13,18 +13,14 @@
 # limitations under the License.
 
 from bigframes.core.rewrite.identifiers import remap_variables
-from bigframes.core.rewrite.implicit_align import (
-    combine_nodes,
-    rewrite_row_join,
-    try_join_as_projection,
-)
+from bigframes.core.rewrite.implicit_align import try_row_join
 from bigframes.core.rewrite.legacy_align import legacy_join_as_projection
-from bigframes.core.rewrite.slices import pullup_limit_from_slice, replace_slice_op
+from bigframes.core.rewrite.slices import pullup_limit_from_slice, rewrite_slice
 
 __all__ = [
     "legacy_join_as_projection",
-    "try_join_as_projection",
-    "replace_slice_op",
+    "try_row_join",
+    "rewrite_slice",
     "pullup_limit_from_slice",
     "remap_variables",
     "combine_nodes",

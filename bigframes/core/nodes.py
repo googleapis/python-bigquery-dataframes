@@ -84,10 +84,6 @@ class BigFrameNode(abc.ABC):
         return tuple([])
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self
-
-    @property
     @abc.abstractmethod
     def row_count(self) -> typing.Optional[int]:
         return None
@@ -523,11 +519,6 @@ class RowJoinNode(BigFrameNode):
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return ()
-
-    @property
-    def projection_base(self) -> BigFrameNode:
-        assert self.left_child.projection_base == self.right_child.projection_base
-        return self.left_child.projection_base
 
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
@@ -990,10 +981,6 @@ class PromoteOffsetsNode(UnaryNode):
         return (self.col_id,)
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
-
-    @property
     def added_fields(self) -> Tuple[Field, ...]:
         return (Field(self.col_id, bigframes.dtypes.INT_DTYPE),)
 
@@ -1167,10 +1154,6 @@ class SelectionNode(UnaryNode):
         return True
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
-
-    @property
     def row_count(self) -> Optional[int]:
         return self.child.row_count
 
@@ -1243,10 +1226,6 @@ class ProjectionNode(UnaryNode):
     @property
     def row_count(self) -> Optional[int]:
         return self.child.row_count
-
-    @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
@@ -1433,10 +1412,6 @@ class WindowOpNode(UnaryNode):
         return 1
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
-
-    @property
     def added_fields(self) -> Tuple[Field, ...]:
         return (self.added_field,)
 
@@ -1579,19 +1554,27 @@ class ExplodeNode(UnaryNode):
         return dataclasses.replace(self, column_ids=new_ids)  # type: ignore
 
 
+# Tree operators
 def top_down(
     root: BigFrameNode,
     transform: Callable[[BigFrameNode], BigFrameNode],
     *,
     memoize=False,
     validate=False,
-):
+) -> BigFrameNode:
+    """
+    Perform a top-down transformation of the BigFrameNode tree.
+
+    If memoize=True, recursive calls are memoized within the scope of the traversal only.
+    """
+
     def top_down_internal(root: BigFrameNode) -> BigFrameNode:
-        return transform(root).transform_children(transform)
+        return transform(root).transform_children(top_down_internal)
 
     if memoize:
         # MUST reassign to the same name or caching won't work recursively
         top_down_internal = functools.cache(top_down_internal)
+
     result = top_down_internal(root)
     if validate:
         result.validate_tree()
@@ -1604,7 +1587,13 @@ def bottom_up(
     *,
     memoize=False,
     validate=False,
-):
+) -> BigFrameNode:
+    """
+    Perform a bottom-up transformation of the BigFrameNode tree.
+
+    If memoize=True, recursive calls are memoized within the scope of the traversal only.
+    """
+
     def bottom_up_internal(root: BigFrameNode) -> BigFrameNode:
         return transform(root.transform_children(bottom_up_internal))
 

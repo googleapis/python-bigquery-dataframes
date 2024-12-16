@@ -18,14 +18,15 @@ from typing import Any, cast, Dict, Iterable, Optional, Tuple, Union
 import warnings
 
 import bigframes_vendored.constants as constants
+import bigframes_vendored.ibis
 import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
-import bigframes_vendored.ibis.expr.operations as vendored_ibis_ops
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
+from bigframes_vendored.ibis.expr.datatypes.core import (
+    dtype as python_type_to_bigquery_type,
+)
+import bigframes_vendored.ibis.expr.types as ibis_types
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
-import ibis
-import ibis.expr.datatypes as ibis_dtypes
-from ibis.expr.datatypes.core import dtype as python_type_to_bigquery_type
-import ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -41,6 +42,10 @@ IbisDtype = Union[
     ibis_dtypes.Date,
     ibis_dtypes.Time,
     ibis_dtypes.Timestamp,
+    ibis_dtypes.Binary,
+    ibis_dtypes.Decimal,
+    ibis_dtypes.GeoSpatial,
+    ibis_dtypes.JSON,
 ]
 
 
@@ -69,6 +74,7 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, bigframes.dtypes.Dtype]] = (
         ibis_dtypes.GeoSpatial(geotype="geography", srid=4326, nullable=True),
         gpd.array.GeometryDtype(),
     ),
+    (ibis_dtypes.json, pd.ArrowDtype(pa.large_string())),
 )
 
 BIGFRAMES_TO_IBIS: Dict[bigframes.dtypes.Dtype, ibis_dtypes.DataType] = {
@@ -214,10 +220,6 @@ def ibis_value_to_canonical_type(value: ibis_types.Value) -> ibis_types.Value:
     """
     ibis_type = value.type()
     name = value.get_name()
-    if ibis_type.is_json():
-        value = vendored_ibis_ops.ToJsonString(value).to_expr()
-        value = value.case().when("null", ibis.null()).else_(value).end()
-        return value.name(name)
     # Allow REQUIRED fields to be joined with NULLABLE fields.
     nullable_type = ibis_type.copy(nullable=True)
     return value.cast(nullable_type).name(name)
@@ -307,13 +309,13 @@ def ibis_dtype_to_bigframes_dtype(
             "Interpreting JSON as string. This behavior may change in future versions.",
             bigframes.exceptions.PreviewWarning,
         )
-        return bigframes.dtypes.STRING_DTYPE
+        return bigframes.dtypes.JSON_DTYPE
 
     if ibis_dtype in IBIS_TO_BIGFRAMES:
         return IBIS_TO_BIGFRAMES[ibis_dtype]
     elif isinstance(ibis_dtype, ibis_dtypes.Decimal):
         # Temporary workaround for ibis decimal issue (b/323387826)
-        if ibis_dtype.precision >= 76:
+        if ibis_dtype.precision is not None and ibis_dtype.precision >= 76:
             return pd.ArrowDtype(pa.decimal256(76, 38))
         else:
             return pd.ArrowDtype(pa.decimal128(38, 9))
@@ -412,7 +414,7 @@ def literal_to_ibis_scalar(
     if (force_dtype == gpd.array.GeometryDtype()) and pd.isna(literal):
         # Ibis has bug for casting nulltype to geospatial, so we perform intermediate cast first
         geotype = ibis_dtypes.GeoSpatial(geotype="geography", srid=4326, nullable=True)
-        return ibis.literal(None, geotype)
+        return bigframes_vendored.ibis.literal(None, geotype)
     ibis_dtype = BIGFRAMES_TO_IBIS[force_dtype] if force_dtype else None
 
     if pd.api.types.is_list_like(literal):
@@ -424,28 +426,29 @@ def literal_to_ibis_scalar(
         return tuple(literal)
     if not pd.api.types.is_list_like(literal) and pd.isna(literal):
         if ibis_dtype:
-            return ibis.null().cast(ibis_dtype)
+            return bigframes_vendored.ibis.null().cast(ibis_dtype)
         else:
-            return ibis.null()
+            return bigframes_vendored.ibis.null()
 
-    scalar_expr = ibis.literal(literal)
+    scalar_expr = bigframes_vendored.ibis.literal(literal)
     if ibis_dtype:
-        scalar_expr = ibis.literal(literal, ibis_dtype)
+        scalar_expr = bigframes_vendored.ibis.literal(literal, ibis_dtype)
     elif scalar_expr.type().is_floating():
-        scalar_expr = ibis.literal(literal, ibis_dtypes.float64)
+        scalar_expr = bigframes_vendored.ibis.literal(literal, ibis_dtypes.float64)
     elif scalar_expr.type().is_integer():
-        scalar_expr = ibis.literal(literal, ibis_dtypes.int64)
+        scalar_expr = bigframes_vendored.ibis.literal(literal, ibis_dtypes.int64)
     elif scalar_expr.type().is_decimal():
-        precision = scalar_expr.type().precision
-        scale = scalar_expr.type().scale
+        scalar_expr_type = cast(ibis_dtypes.Decimal, scalar_expr.type())
+        precision = scalar_expr_type.precision
+        scale = scalar_expr_type.scale
         if (not precision and not scale) or (
             precision and scale and scale <= 9 and precision + (9 - scale) <= 38
         ):
-            scalar_expr = ibis.literal(
+            scalar_expr = bigframes_vendored.ibis.literal(
                 literal, ibis_dtypes.decimal(precision=38, scale=9)
             )
         elif precision and scale and scale <= 38 and precision + (38 - scale) <= 76:
-            scalar_expr = ibis.literal(
+            scalar_expr = bigframes_vendored.ibis.literal(
                 literal, ibis_dtypes.decimal(precision=76, scale=38)
             )
         else:
