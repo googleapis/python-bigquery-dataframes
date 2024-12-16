@@ -168,12 +168,12 @@ class LinearRegression(
         Explain predictions for a linear regression model.
 
         .. note::
-
-        Output matches that of the BigQuery ML.EXPLAIN_PREDICT function.
-        See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-predict
+            Output matches that of the BigQuery ML.EXPLAIN_PREDICT function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-predict
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or
+            pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Series or a DataFrame to explain its predictions.
 
         Returns:
