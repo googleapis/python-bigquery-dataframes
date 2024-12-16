@@ -30,8 +30,12 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
 
     @property
     def x(self) -> bigframes.series.Series:
-        return self._apply_unary_op(ops.geo_x_op)
+        series = self._apply_unary_op(ops.geo_x_op)
+        series.name = None
+        return series
 
     @property
     def y(self) -> bigframes.series.Series:
-        return self._apply_unary_op(ops.geo_y_op)
+        series = self._apply_unary_op(ops.geo_y_op)
+        series.name = None
+        return series

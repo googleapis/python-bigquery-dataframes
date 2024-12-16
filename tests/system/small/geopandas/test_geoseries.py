@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import geopandas
+import google.api_core.exceptions
 import pandas as pd
 import pytest
 
@@ -34,13 +35,19 @@ def test_geo_x(urban_areas_dfs):
     pd_series: geopandas.GeoSeries = geopandas.GeoSeries(pd_ua["internal_point_geom"])
     bf_result = bf_series.x.to_pandas()
     pd_result = pd_series.x
-    # TODO: make bigframes geoseries.x reset the name
-    pd_result.name = "internal_point_geom"
 
     assert_series_equal(
         pd_result.astype(pd.Float64Dtype()),
         bf_result,
     )
+
+
+def test_geo_x_non_point(urban_areas_dfs):
+    bf_ua, _ = urban_areas_dfs
+    bf_series: bigframes.geopandas.GeoSeries = bf_ua["urban_area_geom"].geo
+
+    with pytest.raises(google.api_core.exceptions.BadRequest, match="ST_X"):
+        bf_series.x.to_pandas()
 
 
 def test_geo_y(urban_areas_dfs):
@@ -49,8 +56,6 @@ def test_geo_y(urban_areas_dfs):
     pd_series: geopandas.GeoSeries = geopandas.GeoSeries(pd_ua["internal_point_geom"])
     bf_result = bf_series.y.to_pandas()
     pd_result = pd_series.y
-    # TODO: make bigframes geoseries.y reset the name
-    pd_result.name = "internal_point_geom"
 
     assert_series_equal(
         pd_result.astype(pd.Float64Dtype()),
