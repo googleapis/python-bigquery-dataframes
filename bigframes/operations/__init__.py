@@ -889,26 +889,7 @@ class ObjMakeRef(BinaryOp):
         if not all(map(dtypes.is_string_like, input_types)):
             raise TypeError("obj.make_ref requires string-like arguments")
 
-        fields = [
-            pa.field(
-                "uri",
-                pa.string(),
-            ),
-            pa.field(
-                "version",
-                pa.string(),
-            ),
-            pa.field(
-                "authorizer",
-                pa.string(),
-            ),
-            pa.field(
-                "details",
-                pa.large_string(),
-            ),
-        ]
-
-        return pd.ArrowDtype(pa.struct(fields))
+        return dtypes.OBJ_REF_DTYPE
 
 
 obj_make_ref_op = ObjMakeRef()
