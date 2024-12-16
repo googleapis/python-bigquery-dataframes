@@ -286,6 +286,22 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         return self._apply_binary_op(others, ops.strconcat_op, alignment=join)
 
     def to_blob(self, connection_name: Optional[str] = None) -> series.Series:
+        """Create a BigFrames Blob series from a series of URIs.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+
+        Args:
+            connection_name (str or None, default None):
+                Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
+                If None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
+                permission if the connection isn't fully set up.
+
+        Returns:
+            bigframes.series.Series: Blob Series.
+
+        """
         if not bigframes.options.experiments.blob:
             raise NotImplementedError()
 
