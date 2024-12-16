@@ -180,7 +180,7 @@ class LinearRegression(
             bigframes.pandas.DataFrame:
                 The predicted DataFrames with explanation columns.
         """
-        # TODO(b/377366612): Add support for `to_k_features` parameter
+        # TODO(b/377366612): Add support for `top_k_features` parameter
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 

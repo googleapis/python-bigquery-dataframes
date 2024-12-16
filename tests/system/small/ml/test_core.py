@@ -270,15 +270,13 @@ def test_model_predict_explain(
     expected = pd.DataFrame(
         {
             "predicted_body_mass_g": [4030.1, 3280.8, 3177.9],
-            "baseline_prediction_value": [9362.692906, 9362.692906, 9362.692906],
+            "approximation_error": [0.0, 0.0, 0.0],
         },
         dtype="Float64",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
     pd.testing.assert_frame_equal(
-        predictions[
-            ["predicted_body_mass_g", "baseline_prediction_value"]
-        ].sort_index(),
+        predictions[["predicted_body_mass_g", "approximation_error"]].sort_index(),
         expected,
         check_exact=False,
         rtol=0.1,
@@ -333,15 +331,13 @@ def test_model_predict_explain_with_unnamed_index(
     expected = pd.DataFrame(
         {
             "predicted_body_mass_g": [4030.1, 3177.9],
-            "baseline_prediction_value": [9362.692906, 9362.692906],
+            "approximation_error": [0.0, 0.0],
         },
         dtype="Float64",
         index=pd.Index([0, 2], dtype="Int64"),
     )
     pd.testing.assert_frame_equal(
-        predictions[
-            ["predicted_body_mass_g", "baseline_prediction_value"]
-        ].sort_index(),
+        predictions[["predicted_body_mass_g", "approximation_error"]].sort_index(),
         expected,
         check_exact=False,
         rtol=0.1,
