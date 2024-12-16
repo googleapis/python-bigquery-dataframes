@@ -880,6 +880,40 @@ class JSONSet(BinaryOp):
         return left_type
 
 
+## Blob Ops
+@dataclasses.dataclass(frozen=True)
+class ObjMakeRef(BinaryOp):
+    name: typing.ClassVar[str] = "obj.make_ref"
+
+    def output_type(self, *input_types):
+        if not all(map(dtypes.is_string_like, input_types)):
+            raise TypeError("obj.make_ref requires string-like arguments")
+
+        fields = [
+            pa.field(
+                "uri",
+                pa.string(),
+            ),
+            pa.field(
+                "version",
+                pa.string(),
+            ),
+            pa.field(
+                "authorizer",
+                pa.string(),
+            ),
+            pa.field(
+                "details",
+                pa.large_string(),
+            ),
+        ]
+
+        return pd.ArrowDtype(pa.struct(fields))
+
+
+obj_make_ref_op = ObjMakeRef()
+
+
 # Ternary Ops
 @dataclasses.dataclass(frozen=True)
 class WhereOp(TernaryOp):

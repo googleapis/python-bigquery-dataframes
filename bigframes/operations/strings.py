@@ -20,6 +20,7 @@ from typing import cast, Literal, Optional, Union
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.strings.accessor as vendorstr
 
+from bigframes import clients
 from bigframes.core import log_adapter
 import bigframes.dataframe as df
 import bigframes.operations as ops
@@ -283,6 +284,19 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         join: Literal["outer", "left"] = "left",
     ) -> series.Series:
         return self._apply_binary_op(others, ops.strconcat_op, alignment=join)
+
+    def to_blob(self, connection_name: Optional[str] = None) -> series.Series:
+        if not bigframes.options.experiments.blob:
+            raise NotImplementedError()
+
+        session = self._block.session
+        connection_name = connection_name or session._bq_connection
+        self.connection_name = clients.resolve_full_bq_connection_name(
+            connection_name,
+            default_project=session._project,
+            default_location=session._location,
+        )
+        return self._apply_binary_op(connection_name, ops.obj_make_ref_op)
 
 
 def _parse_flags(flags: int) -> Optional[str]:
