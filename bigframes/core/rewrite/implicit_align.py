@@ -89,7 +89,33 @@ def _rewrite_row_join_node(
             )
 
     merged_node = _linearize_trees(l_node, r_node)
+    # RowJoin rewrites can otherwise create too deep a tree
+    merged_node = bigframes.core.nodes.bottom_up(
+        merged_node,
+        fold_projections,
+        stop=lambda x: divergent_node in x.child_nodes,
+        memoize=True,
+    )
     return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
+
+
+def fold_projections(
+    root: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    """If root and child are projection nodes, merge them."""
+    if not isinstance(root, bigframes.core.nodes.ProjectionNode):
+        return root
+    if not isinstance(root.child, bigframes.core.nodes.ProjectionNode):
+        return root
+    mapping = {id: expr for expr, id in root.child.assignments}
+    new_exprs = (
+        *root.child.assignments,
+        *(
+            (expr.bind_refs(mapping, allow_partial_bindings=True), id)
+            for expr, id in root.assignments
+        ),
+    )
+    return bigframes.core.nodes.ProjectionNode(root.child.child, new_exprs)
 
 
 def pull_up_selection(
