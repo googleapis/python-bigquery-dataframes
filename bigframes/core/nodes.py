@@ -210,6 +210,12 @@ class BigFrameNode(abc.ABC):
         ...
 
     @functools.cached_property
+    def height(self) -> int:
+        if len(self.child_nodes) == 0:
+            return 0
+        return max(child.height for child in self.child_nodes) + 1
+
+    @functools.cached_property
     def total_variables(self) -> int:
         return self.variables_introduced + sum(
             map(lambda x: x.total_variables, self.child_nodes)

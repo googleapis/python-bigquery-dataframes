@@ -228,9 +228,7 @@ class BigQueryCachingExecutor(Executor):
             array_value, internal_offset_col = array_value.promote_offsets()
             col_id_overrides = dict(col_id_overrides)
             col_id_overrides[internal_offset_col] = offset_column
-        node = (
-            self.preprocess_tree(array_value.node) if enable_cache else array_value.node
-        )
+        node = self.preprocess_tree(array_value.node, use_cache=enable_cache)
         if ordered:
             return self.compiler.compile_ordered(
                 node, col_id_overrides=col_id_overrides
@@ -528,16 +526,21 @@ class BigQueryCachingExecutor(Executor):
             self.metrics.count_job_stats(query_job)
         return results_iterator
 
-    def preprocess_tree(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
+    def preprocess_tree(
+        self, node: nodes.BigFrameNode, *, use_cache: bool = True
+    ) -> nodes.BigFrameNode:
         # At each node top=down we do the smallest possibel rewrite to apply the row join
         # After that we apply caching. Sometimes the RowJoin will have invalidated the caching
         # TODO: Make row join and caching mutually compatible
         def preprocess_node(node):
             with_row_join_rewritten = bigframes.core.rewrite.rewrite_row_join(node)
-            with_cache = self._cached_executions.get(
-                with_row_join_rewritten, with_row_join_rewritten
+            return (
+                self._cached_executions.get(
+                    with_row_join_rewritten, with_row_join_rewritten
+                )
+                if use_cache
+                else with_row_join_rewritten
             )
-            return with_cache
 
         return nodes.top_down(node, preprocess_node, memoize=True)
 

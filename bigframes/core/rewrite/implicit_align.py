@@ -13,7 +13,8 @@
 # limitations under the License.
 from __future__ import annotations
 
-from typing import Iterable, Optional, Tuple
+import itertools
+from typing import Optional, Set, Tuple
 
 import bigframes.core.expression
 import bigframes.core.guid
@@ -46,7 +47,7 @@ def rewrite_row_join(
     l_node = node.left_child
     r_node = node.right_child
     divergent_node = first_shared_descendent(
-        l_node, r_node, descendable_types=ALIGNABLE_NODES
+        {l_node, r_node}, descendable_types=ALIGNABLE_NODES
     )
     assert divergent_node is not None
     # Inner handler can't RowJoinNode, so bottom up apply the algorithm locally
@@ -158,26 +159,24 @@ def pull_up_selection(
 
 ## Traversal helpers
 def first_shared_descendent(
-    left: bigframes.core.nodes.BigFrameNode,
-    right: bigframes.core.nodes.BigFrameNode,
+    roots: Set[bigframes.core.nodes.BigFrameNode],
     descendable_types: Tuple[type[bigframes.core.nodes.BigFrameNode], ...],
 ) -> Optional[bigframes.core.nodes.BigFrameNode]:
-    l_path = tuple(descend_left(left, descendable_types))
-    r_path = tuple(descend_left(right, descendable_types))
-    if l_path[-1] != r_path[-1]:
+    if not roots:
         return None
+    if len(roots) == 1:
+        return next(iter(roots))
 
-    for l_node, r_node in zip(l_path[-len(r_path) :], r_path[-len(l_path) :]):
-        if l_node == r_node:
-            return l_node
-    # should be impossible, as l_path[-1] == r_path[-1]
-    raise ValueError()
+    min_height = min(root.height for root in roots)
+    to_descend = set(root for root in roots if root.height > min_height)
+    if not to_descend:
+        to_descend = roots
 
+    if any(not isinstance(root, descendable_types) for root in to_descend):
+        return None
+    as_is = roots - to_descend
+    descended = set(
+        itertools.chain.from_iterable(root.child_nodes for root in to_descend)
+    )
 
-def descend_left(
-    root: bigframes.core.nodes.BigFrameNode,
-    descendable_types: Tuple[type[bigframes.core.nodes.BigFrameNode], ...],
-) -> Iterable[bigframes.core.nodes.BigFrameNode]:
-    yield root
-    if isinstance(root, descendable_types):
-        yield from descend_left(root.child_nodes[0], descendable_types)
+    return first_shared_descendent(as_is.union(descended), descendable_types)
