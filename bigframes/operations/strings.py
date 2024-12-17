@@ -285,7 +285,7 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
     ) -> series.Series:
         return self._apply_binary_op(others, ops.strconcat_op, alignment=join)
 
-    def to_blob(self, connection_name: Optional[str] = None) -> series.Series:
+    def to_blob(self, connection: Optional[str] = None) -> series.Series:
         """Create a BigFrames Blob series from a series of URIs.
 
         .. note::
@@ -293,7 +293,7 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
 
 
         Args:
-            connection_name (str or None, default None):
+            connection (str or None, default None):
                 Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
                 If None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
                 permission if the connection isn't fully set up.
@@ -306,13 +306,13 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
             raise NotImplementedError()
 
         session = self._block.session
-        connection_name = connection_name or session._bq_connection
-        self.connection_name = clients.resolve_full_bq_connection_name(
-            connection_name,
+        connection = connection or session._bq_connection
+        connection = clients.resolve_full_bq_connection_name(
+            connection,
             default_project=session._project,
             default_location=session._location,
         )
-        return self._apply_binary_op(connection_name, ops.obj_make_ref_op)
+        return self._apply_binary_op(connection, ops.obj_make_ref_op)
 
 
 def _parse_flags(flags: int) -> Optional[str]:
