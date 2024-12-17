@@ -37,3 +37,20 @@ def test_create_single_timeseries() -> None:
     total_visits.plot.line()
 
     # [END bigquery_dataframes_single_timeseries_forecasting_model_tutorial]
+
+    # [START bigquery_dataframes_single_timeseries_forecasting_model_tutorial_create]
+    from bigframes.ml import forecasting
+    import bigframes.pandas as bpd
+
+    model = forecasting.ARIMAPlus()
+    model.auto_arima = True
+    model.data_frequency = "auto_frequency"
+    model.decompose_time_series = True
+
+    X = total_visits
+    y = parsed_date
+
+    model.fit(X, y)
+    # [END bigquery_dataframes_single_timeseries_forecasting_model_tutorial_create]
+    assert total_visits is not None
+    assert model is not None
