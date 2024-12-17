@@ -22,17 +22,6 @@ from tqdm import tqdm
 
 import bigframes
 
-
-def execute_query(query):
-    client = bigquery.Client()
-    job_config = bigquery.QueryJobConfig(use_query_cache=False)
-    query_job = client.query(query, job_config=job_config)
-    query_job.result()
-    df = query_job.to_dataframe()
-    df.columns = df.columns.str.upper()
-    return df
-
-
 project_id = "bigframes-dev-perf"
 dataset_id = "tpch_0001g"
 line_item_ds = f"bigframes-dev-perf.{dataset_id}.LINEITEM"
@@ -736,6 +725,16 @@ q22_query = f"""
 """
 
 
+def _execute_query(query):
+    client = bigquery.Client()
+    job_config = bigquery.QueryJobConfig(use_query_cache=False)
+    query_job = client.query(query, job_config=job_config)
+    query_job.result()
+    df = query_job.to_dataframe()
+    df.columns = df.columns.str.upper()
+    return df
+
+
 def _initialize_session(ordered: bool):
     context = bigframes.BigQueryOptions(
         location="US", ordering_mode="strict" if ordered else "partial"
@@ -776,7 +775,7 @@ def verify(query_num=None):
                     r"(\w+)\.to_gbq\(\)", r"return \1.to_pandas()", file_content
                 )
                 file_content = re.sub(r"_\s*=\s*(\w+)", r"return \1", file_content)
-                sql_result = execute_query(sql_query)
+                sql_result = _execute_query(sql_query)
 
                 print(f"Checking {file_path} in ordered session")
                 bigframes_query = (
