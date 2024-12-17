@@ -783,9 +783,15 @@ def verify(query_num=None):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Run specific or all SQL query simulations."
-    )
+    """
+    Runs verification of TPCH benchmark script outputs to ensure correctness for a specified query or all queries
+    with 1GB dataset.
+
+    Example:
+        python scripts/tpch_result_verify.py -q 15  # Verifies TPCH query number 15
+        python scripts/tpch_result_verify.py       # Verifies all TPCH queries from 1 to 22
+    """
+    parser = argparse.ArgumentParser()
     parser.add_argument("-q", "--query_number", type=int, default=None)
     args = parser.parse_args()
 
