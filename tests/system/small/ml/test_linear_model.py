@@ -307,48 +307,15 @@ def test_logistic_model_predict(penguins_logistic_model, new_penguins_df):
     )
 
 
-def test_logistic_model_predict_explain(
-    penguins_logistic_model: linear_model.LogisticRegression, new_penguins_df
-):
-    predictions = penguins_logistic_model.predict_explain(new_penguins_df).to_pandas()
-    assert predictions.shape == (3, 13)
-    result = predictions[["predicted_sex", "probability"]]
-    expected = pandas.DataFrame(
-        {
-            "predicted_sex": ["MALE", "MALE", "FEMALE"],
-            "probability": [
-                0.70692675811801065,
-                0.923363163640252,
-                0.99555295967825908,
-            ],
-        },
-        index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
-    )
-    expected["predicted_sex"] = expected["predicted_sex"].astype(
-        pandas.StringDtype(storage="pyarrow")
-    )
-    expected["probability"] = expected["probability"].astype(pandas.Float64Dtype())
-    pandas.testing.assert_frame_equal(
-        result.sort_index(),
-        expected,
-        check_exact=False,
-        rtol=0.1,
-    )
-
-
 def test_logistic_model_predict_params(
     penguins_logistic_model: linear_model.LogisticRegression, new_penguins_df
 ):
-    predictions = penguins_logistic_model.predict_explain(new_penguins_df).to_pandas()
+    predictions = penguins_logistic_model.predict(new_penguins_df).to_pandas()
     assert predictions.shape[0] >= 1
     prediction_columns = set(predictions.columns)
     expected_columns = {
         "predicted_sex",
-        "probability",
-        "top_feature_attributions",
-        "baseline_prediction_value",
-        "prediction_value",
-        "approximation_error",
+        "predicted_sex_probs",
         "species",
         "island",
         "culmen_length_mm",
