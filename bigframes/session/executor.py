@@ -529,14 +529,17 @@ class BigQueryCachingExecutor(Executor):
         return results_iterator
 
     def preprocess_tree(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
-        # Note rewriting row joins invalidates caching here
+        # At each node top=down we do the smallest possibel rewrite to apply the row join
+        # After that we apply caching. Sometimes the RowJoin will have invalidated the caching
         # TODO: Make row join and caching mutually compatible
-        node = bigframes.core.nodes.bottom_up(
-            node, bigframes.core.rewrite.rewrite_row_join, memoize=True
-        )
-        return nodes.top_down(
-            node, lambda x: self._cached_executions.get(x, x), memoize=True
-        )
+        def preprocess_node(node):
+            with_row_join_rewritten = bigframes.core.rewrite.rewrite_row_join(node)
+            with_cache = self._cached_executions.get(
+                with_row_join_rewritten, with_row_join_rewritten
+            )
+            return with_cache
+
+        return nodes.top_down(node, preprocess_node, memoize=True)
 
     def _is_trivially_executable(self, array_value: bigframes.core.ArrayValue):
         """

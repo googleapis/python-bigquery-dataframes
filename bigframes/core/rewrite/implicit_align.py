@@ -33,12 +33,13 @@ ADDITIVE_NODES = (
 ALIGNABLE_NODES = (
     *ADDITIVE_NODES,
     bigframes.core.nodes.SelectionNode,
+    bigframes.core.nodes.RowJoinNode,
 )
 
 
 def rewrite_row_join(
     node: bigframes.core.nodes.BigFrameNode,
-):
+) -> bigframes.core.nodes.BigFrameNode:
     if not isinstance(node, bigframes.core.nodes.RowJoinNode):
         return node
 
@@ -48,6 +49,24 @@ def rewrite_row_join(
         l_node, r_node, descendable_types=ALIGNABLE_NODES
     )
     assert divergent_node is not None
+    # Inner handler can't RowJoinNode, so bottom up apply the algorithm locally
+    return bigframes.core.nodes.bottom_up(
+        node,
+        lambda x: _rewrite_row_join_node(x, divergent_node),
+        stop=lambda x: x == divergent_node,
+        memoize=True,
+    )
+
+
+def _rewrite_row_join_node(
+    node: bigframes.core.nodes.BigFrameNode,
+    divergent_node: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    if not isinstance(node, bigframes.core.nodes.RowJoinNode):
+        return node
+
+    l_node = node.left_child
+    r_node = node.right_child
     l_node, l_selection = pull_up_selection(l_node, stop=divergent_node)
     r_node, r_selection = pull_up_selection(
         r_node, stop=divergent_node, rename_vars=True

@@ -24,16 +24,13 @@ import bigframes.core.nodes
 import bigframes.core.window_spec
 import bigframes.operations.aggregations
 
-# Additive nodes leave existing columns completely intact, and only add new columns to the end
-ADDITIVE_NODES = (
+# TODO: Push this into the Node definitions
+PRESERVES_ROWS = (
     bigframes.core.nodes.ProjectionNode,
     bigframes.core.nodes.WindowOpNode,
     bigframes.core.nodes.PromoteOffsetsNode,
-)
-# Combination of selects and additive nodes can be merged as an explicit keyless "row join"
-ALIGNABLE_NODES = (
-    *ADDITIVE_NODES,
     bigframes.core.nodes.SelectionNode,
+    bigframes.core.nodes.RowJoinNode,
 )
 
 
@@ -96,6 +93,14 @@ def get_expression_spec(
         curr_node = curr_node.child
 
 
+def row_identity_source(
+    node: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    if isinstance(node, PRESERVES_ROWS):
+        return row_identity_source(node.child_nodes[0])
+    return node
+
+
 def try_row_join(
     l_node: bigframes.core.nodes.BigFrameNode,
     r_node: bigframes.core.nodes.BigFrameNode,
@@ -104,6 +109,8 @@ def try_row_join(
     """Joins the two nodes"""
     # check join keys are equivalent by normalizing the expressions as much as posisble
     # instead of just comparing ids
+    if row_identity_source(l_node) != row_identity_source(r_node):
+        return None
     for l_key, r_key in join_keys:
         # Caller is block, so they still work with raw strings rather than ids
         left_id = bigframes.core.identifiers.ColumnId(l_key)
