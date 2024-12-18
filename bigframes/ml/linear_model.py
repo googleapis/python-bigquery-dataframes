@@ -177,7 +177,7 @@ class LinearRegression(
             X (bigframes.dataframe.DataFrame or bigframes.series.Series or
             pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Series or a DataFrame to explain its predictions.
-            top_k_features (Int, default 5):
+            top_k_features (int, default 5):
                 an INT64 value that specifies how many top feature attribution
                 pairs are generated for each row of input data. The features are
                 ranked by the absolute values of their attributions.
@@ -190,7 +190,11 @@ class LinearRegression(
             bigframes.pandas.DataFrame:
                 The predicted DataFrames with explanation columns.
         """
-        # TODO(b/377366612): Add validation for `top_k_features` raising ValueError
+        if top_k_features < 1:
+            raise ValueError(
+                f"top_k_features must be at least 1, but is {top_k_features}."
+            )
+
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
@@ -382,7 +386,7 @@ class LogisticRegression(
             X (bigframes.dataframe.DataFrame or bigframes.series.Series or
             pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Series or a DataFrame to explain its predictions.
-            top_k_features (Int, default 5):
+            top_k_features (int, default 5):
                 an INT64 value that specifies how many top feature attribution
                 pairs are generated for each row of input data. The features are
                 ranked by the absolute values of their attributions.
@@ -395,7 +399,11 @@ class LogisticRegression(
             bigframes.pandas.DataFrame:
                 The predicted DataFrames with explanation columns.
         """
-        # TODO(b/377366612): Add validation for `top_k_features` raising ValueError
+        if top_k_features < 1:
+            raise ValueError(
+                f"top_k_features must be at least 1, but is {top_k_features}."
+            )
+
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
