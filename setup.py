@@ -34,6 +34,7 @@ description = (
 release_status = "Development Status :: 5 - Production/Stable"
 dependencies = [
     # please keep these in sync with the minimum versions in testing/constraints-3.9.txt
+    "bigquery-magics >= 0.5.0",
     "cloudpickle >= 2.0.0",
     "fsspec >=2023.3.0",
     "gcsfs >=2023.3.0",
