@@ -309,7 +309,7 @@ read_gbq_function.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_fu
 
 def from_glob_path(
     path: str, *, connection: Optional[str] = None, name: Optional[str] = None
-):
+) -> bigframes.dataframe.DataFrame:
     return global_session.with_default_session(
         bigframes.session.Session.from_glob_path,
         path=path,
