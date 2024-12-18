@@ -1500,13 +1500,13 @@ class Session(
         return table
 
     def from_glob_path(
-        self, path, *, connection: Optional[str] = None, name: Optional[str] = None
+        self, path: str, *, connection: Optional[str] = None, name: Optional[str] = None
     ) -> dataframe.DataFrame:
-        """Create a BigFrames DataFrame that contains a BigFrames Blob column from a global wildcard path.
+        r"""Create a BigFrames DataFrame that contains a BigFrames Blob column from a global wildcard path.
 
         Args:
             path (str):
-                The wildcard global path, such as gs://<bucket>/<folder>/*.
+                The wildcard global path, such as "gs://<bucket>/<folder>/\*".
             connection (str or None, default None):
                 Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
                 If None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
