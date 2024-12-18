@@ -196,15 +196,15 @@ def first_shared_descendent(
         return next(iter(roots))
 
     min_height = min(root.height for root in roots)
-    to_descend = set(root for root in roots if root.height > min_height)
-    if not to_descend:
-        to_descend = roots
+    roots_to_descend = set(root for root in roots if root.height > min_height)
+    if not roots_to_descend:
+        roots_to_descend = roots
 
-    if any(not isinstance(root, descendable_types) for root in to_descend):
+    if any(not isinstance(root, descendable_types) for root in roots_to_descend):
         return None
-    as_is = roots - to_descend
+    as_is = roots - roots_to_descend
     descended = set(
-        itertools.chain.from_iterable(root.child_nodes for root in to_descend)
+        itertools.chain.from_iterable(root.child_nodes for root in roots_to_descend)
     )
 
     return first_shared_descendent(as_is.union(descended), descendable_types)
