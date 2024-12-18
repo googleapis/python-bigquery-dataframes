@@ -110,12 +110,15 @@ def fold_projections(
     if not isinstance(root.child, bigframes.core.nodes.ProjectionNode):
         return root
     mapping = {id: expr for expr, id in root.child.assignments}
-    new_exprs = (
-        *root.child.assignments,
-        *(
-            (expr.bind_refs(mapping, allow_partial_bindings=True), id)
-            for expr, id in root.assignments
-        ),
+    root_assignments = (
+        (expr.bind_refs(mapping, allow_partial_bindings=True), id)
+        for expr, id in root.assignments
+    )
+    new_exprs = tuple(
+        itertools.chain(
+            root.child.assignments,
+            root_assignments,
+        )
     )
     return bigframes.core.nodes.ProjectionNode(root.child.child, new_exprs)
 
