@@ -13,6 +13,9 @@
 # limitations under the License.
 
 import argparse
+import importlib.util
+import inspect
+import pathlib
 import time
 
 import bigframes
@@ -84,6 +87,27 @@ def get_execution_time(func, current_path, suffix, *args, **kwargs):
         log_file.write(f"{runtime}\n")
 
 
+def import_local_module(module_name, base_path=pathlib.Path.cwd() / "third_party"):
+    """
+    Dynamically imports the latest benchmark scripts from a specified local directory,
+    allowing these scripts to be used across different versions of libraries. This setup
+    ensures that benchmark tests can be conducted using the most up-to-date scripts,
+    irrespective of the library version being tested.
+    """
+    relative_path = pathlib.Path(*module_name.split("."))
+    module_file_path = base_path / relative_path.with_suffix(".py")
+    spec = importlib.util.spec_from_file_location(module_name, module_file_path)
+    if spec is None:
+        raise ImportError(f"Cannot load module {module_name} from {base_path}")
+
+    module = importlib.util.module_from_spec(spec)
+
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    return module
+
+
 def _str_to_bool(value):
     if value == "True":
         return True
@@ -94,9 +118,18 @@ def _str_to_bool(value):
 
 
 def _initialize_session(ordered: bool):
-    context = bigframes.BigQueryOptions(
-        location="US", ordering_mode="strict" if ordered else "partial"
-    )
+    options_signature = inspect.signature(bigframes.BigQueryOptions.__init__)
+    if "ordering_mode" in options_signature.parameters:
+        context = bigframes.BigQueryOptions(
+            location="US", ordering_mode="strict" if ordered else "partial"
+        )
+    # Older versions of bigframes
+    elif "_strictly_ordered" in options_signature.parameters:
+        context = bigframes.BigQueryOptions(location="US", _strictly_ordered=ordered)  # type: ignore
+    elif not ordered:
+        raise ValueError("Unordered mode not supported")
+    else:
+        context = bigframes.BigQueryOptions(location="US")
     session = bigframes.Session(context=context)
     print(f"Initialized {'ordered' if ordered else 'unordered'} session.")
     return session
