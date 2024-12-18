@@ -42,15 +42,24 @@ def test_create_single_timeseries() -> None:
     from bigframes.ml import forecasting
     import bigframes.pandas as bpd
 
+    # Create a time series model to forecast total site visits:
+    # The auto_arima option defaults to True, so the auto.ARIMA algorithm automatically
+    # tunes the hyperparameters in the model.
+    # The data_frequency option defaults to 'auto_frequency so the training
+    # process automatically infers the data frequency of the input time series.
+    # The decompose_time_series option defaults to True, so that information about
+    # the time series data is returned when you evaluate the model in the next step.
     model = forecasting.ARIMAPlus()
     model.auto_arima = True
     model.data_frequency = "auto_frequency"
     model.decompose_time_series = True
 
+    # Use the data loaded in the previous step to fit the model
     X = total_visits
     y = parsed_date
 
     model.fit(X, y)
     # [END bigquery_dataframes_single_timeseries_forecasting_model_tutorial_create]
-    assert total_visits is not None
     assert model is not None
+    assert parsed_date is not None
+    assert total_visits is not None
