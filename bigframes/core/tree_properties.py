@@ -45,7 +45,7 @@ def can_fast_head(node: nodes.BigFrameNode) -> bool:
     # To do fast head operation:
     # (1) the underlying data must be arranged/indexed according to the logical ordering
     # (2) transformations must support pushing down LIMIT or a filter on row numbers
-    return has_fast_offset_address(node) or has_fast_offset_address(node)
+    return has_fast_offset_address(node) or has_fast_orderby_limit(node)
 
 
 def has_fast_orderby_limit(node: nodes.BigFrameNode) -> bool:
