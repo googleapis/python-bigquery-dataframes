@@ -3959,7 +3959,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return result_series
 
         # Per-column apply
-        results = {name: func(col, *args, **kwargs) for name, col in self.items()}
+        if hasattr(func, "bigframes_remote_function"):
+            if args or kwargs:
+                warnings.warn(
+                    "The args and kwargs are not supported in the remote function.",
+                    category=bigframes.exceptions.ArgsAndKwargsNotSupportedWarning,
+                )
+            results = {name: col.apply(func) for name, col in self.items()}
+        else:
+            results = {name: func(col, *args, **kwargs) for name, col in self.items()}
+
         if all(
             [
                 isinstance(val, bigframes.series.Series) or utils.is_list_like(val)
