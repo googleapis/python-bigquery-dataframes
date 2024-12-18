@@ -160,6 +160,15 @@ class BigFrameNode(abc.ABC):
         )
         return set(roots)
 
+    @property
+    def all_nodes(self) -> Iterable[BigFrameNode]:
+        yield self
+        for child in self.child_nodes:
+            yield from child.all_nodes
+
+    def contains(self, node: BigFrameNode) -> bool:
+        return node in set(self.all_nodes)
+
     # TODO: Store some local data lazily for select, aggregate nodes.
     @property
     @abc.abstractmethod

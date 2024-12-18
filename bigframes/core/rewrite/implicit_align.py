@@ -68,6 +68,7 @@ def _rewrite_row_join_node(
 
     l_node = node.left_child
     r_node = node.right_child
+
     l_node, l_selection = pull_up_selection(l_node, stop=divergent_node)
     r_node, r_selection = pull_up_selection(
         r_node, stop=divergent_node, rename_vars=True
@@ -89,11 +90,12 @@ def _rewrite_row_join_node(
             )
 
     merged_node = _linearize_trees(l_node, r_node)
+
     # RowJoin rewrites can otherwise create too deep a tree
     merged_node = bigframes.core.nodes.bottom_up(
         merged_node,
         fold_projections,
-        stop=lambda x: divergent_node in x.child_nodes,
+        stop=lambda x: (x == divergent_node) or (divergent_node in x.child_nodes),
         memoize=True,
     )
     return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
