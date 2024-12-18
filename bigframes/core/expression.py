@@ -40,6 +40,15 @@ def free_var(id: str) -> UnboundVariableExpression:
     return UnboundVariableExpression(id)
 
 
+def contains_op(expr: Expression, op: type[bigframes.operations.ScalarOp]):
+    if isinstance(expr, OpExpression):
+        if isinstance(expr.op, op):
+            return True
+        else:
+            return any(contains_op(subexpr, op) for subexpr in expr.inputs)
+    return False
+
+
 @dataclasses.dataclass(frozen=True)
 class Aggregation(abc.ABC):
     """Represents windowing or aggregation over a column."""
