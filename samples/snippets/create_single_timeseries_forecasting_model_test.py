@@ -22,17 +22,19 @@ def test_create_single_timeseries() -> None:
     # Read and visualize the time series you want to forecast.
     df = bpd.read_gbq("bigquery-public-data.google_analytics_sample.ga_sessions_*")
     parsed_date = bpd.to_datetime(df.date, format="%Y%m%d", utc=True)
+    parsed_date.name = "parsed_date"
     visits = df["totals"].struct.field("visits")
+    visits.name = "total_visits"
     total_visits = visits.groupby(parsed_date).sum()
 
     # Expected output: total_visits.head()
-    # date
+    # parsed_date
     # 2016-08-01 00:00:00+00:00    1711
     # 2016-08-02 00:00:00+00:00    2140
     # 2016-08-03 00:00:00+00:00    2890
     # 2016-08-04 00:00:00+00:00    3161
     # 2016-08-05 00:00:00+00:00    2702
-    # Name: visits, dtype: Int64
+    # Name: total_visits, dtype: Int64
 
     total_visits.plot.line()
 
@@ -55,8 +57,10 @@ def test_create_single_timeseries() -> None:
     model.decompose_time_series = True
 
     # Use the data loaded in the previous step to fit the model
-    X = total_visits
-    y = parsed_date
+    training_data = total_visits.to_frame().reset_index(drop=False)
+
+    X = training_data[["parsed_date"]]
+    y = training_data[["total_visits"]]
 
     model.fit(X, y)
     # [END bigquery_dataframes_single_timeseries_forecasting_model_tutorial_create]
