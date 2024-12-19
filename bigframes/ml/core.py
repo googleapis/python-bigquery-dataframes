@@ -24,6 +24,7 @@ from google.cloud import bigquery
 
 import bigframes
 import bigframes.constants as constants
+import bigframes.dtypes as dtypes
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.ml import sql as ml_sql
 import bigframes.pandas as bpd
@@ -389,8 +390,8 @@ class BqmlModelFactory:
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> BqmlModel:
         assert (
-            X_train.columns.size == 1
-        ), "Time series timestamp input must only contain 1 column."
+            X_train.columns.size >= 1
+        ), "Time series timestamp input must contain at least 1 column."
         assert (
             y_train.columns.size == 1
         ), "Time stamp data input must only contain 1 column."
@@ -399,7 +400,17 @@ class BqmlModelFactory:
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
         input_data = X_train.join(y_train, how="outer").cache()
-        options.update({"TIME_SERIES_TIMESTAMP_COL": X_train.columns.tolist()[0]})
+        time_dtypes = [dtypes.TIMESTAMP_DTYPE, dtypes.DATE_DTYPE, dtypes.DATETIME_DTYPE]
+        options.update(
+            {
+                "TIME_SERIES_TIMESTAMP_COL": X_train.select_dtypes(
+                    include=time_dtypes
+                ).columns.tolist()[0]
+            }
+        )
+        id_columns = X_train.select_dtypes(exclude=time_dtypes).columns.tolist()
+        if len(id_columns) > 0:
+            options.update({"TIME_SERIES_ID_COL": id_columns})
         options.update({"TIME_SERIES_DATA_COL": y_train.columns.tolist()[0]})
 
         session = X_train._session

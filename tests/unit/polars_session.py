@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import dataclasses
-from typing import Mapping, Optional, Union
+from typing import Mapping, Optional, Sequence, Union
 import weakref
 
 import polars
@@ -33,6 +33,17 @@ import bigframes.session.metrics
 @dataclasses.dataclass
 class TestExecutor(bigframes.session.executor.Executor):
     compiler = bigframes.core.compile.polars.PolarsCompiler()
+
+    def cached(
+        self,
+        array_value: bigframes.core.ArrayValue,
+        *,
+        force: bool = False,
+        use_session: bool = False,
+        cluster_cols: Sequence[str] = (),
+    ) -> None:
+        #  no-op
+        pass
 
     def execute(
         self,

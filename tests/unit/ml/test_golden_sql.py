@@ -17,47 +17,9 @@ from unittest import mock
 from google.cloud import bigquery
 import pandas as pd
 import pytest
-import pytest_mock
 
-import bigframes
 from bigframes.ml import core, linear_model
 import bigframes.pandas as bpd
-
-TEMP_MODEL_ID = bigquery.ModelReference.from_string(
-    "test-project._anon123.temp_model_id"
-)
-
-
-@pytest.fixture
-def mock_session():
-    mock_session = mock.create_autospec(spec=bigframes.Session)
-
-    mock_session._anonymous_dataset = bigquery.DatasetReference(
-        TEMP_MODEL_ID.project, TEMP_MODEL_ID.dataset_id
-    )
-    mock_session._bq_kms_key_name = None
-    mock_session._metrics = None
-
-    query_job = mock.create_autospec(bigquery.QueryJob)
-    type(query_job).destination = mock.PropertyMock(
-        return_value=bigquery.TableReference(
-            mock_session._anonymous_dataset, TEMP_MODEL_ID.model_id
-        )
-    )
-    mock_session._start_query_ml_ddl.return_value = (None, query_job)
-
-    return mock_session
-
-
-@pytest.fixture
-def bqml_model_factory(mocker: pytest_mock.MockerFixture):
-    mocker.patch(
-        "bigframes.ml.core.BqmlModelFactory._create_model_ref",
-        return_value=TEMP_MODEL_ID,
-    )
-    bqml_model_factory = core.BqmlModelFactory()
-
-    return bqml_model_factory
 
 
 @pytest.fixture

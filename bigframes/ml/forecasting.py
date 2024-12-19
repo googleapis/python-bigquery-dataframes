@@ -188,7 +188,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                A dataframe of training timestamp.
+                A dataframe of training timestamp and id columns.
 
             y (bigframes.dataframe.DataFrame or bigframes.series.Series):
                 Target values for training.
@@ -199,9 +199,9 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         Returns:
             ARIMAPlus: Fitted estimator.
         """
-        if X.columns.size != 1:
+        if X.columns.size < 1:
             raise ValueError(
-                "Time series timestamp input X must only contain 1 column."
+                "Time series timestamp input X must contain at least 1 feature."
             )
         if y.columns.size != 1:
             raise ValueError("Time series data input y must only contain 1 column.")
