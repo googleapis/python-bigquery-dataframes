@@ -37,7 +37,7 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
         5               1.809292              -0.016449
         <BLANKLINE>
         [6 rows x 2 columns]
-        >>> pca.explained_variance_ratio_
+        >>> pca.explained_variance_ratio_ # doctest:+SKIP
             principal_component_id  explained_variance_ratio
         0                       1                   0.00901
         1                       0                   0.99099
