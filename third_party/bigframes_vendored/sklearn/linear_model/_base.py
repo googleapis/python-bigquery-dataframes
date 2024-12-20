@@ -66,6 +66,7 @@ class LinearRegression(RegressorMixin, LinearModel):
 
         >>> from bigframes.ml.linear_model import LinearRegression
         >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.progress_bar = None
 
         >>> # initialize data of lists.
         >>> data = {
