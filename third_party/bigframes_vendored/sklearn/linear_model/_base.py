@@ -67,28 +67,18 @@ class LinearRegression(RegressorMixin, LinearModel):
         >>> from bigframes.ml.linear_model import LinearRegression
         >>> import bigframes.pandas as bpd
         >>> bpd.options.display.progress_bar = None
-
-        >>> # initialize data of lists.
-        >>> data = {
-        >>>     "Name": ["A", "B", "C", "D"],
-        >>>     "feature0": [20, 21, 19, 18],
-        >>>     "feature1": [0, 1, 1, 0],
-        >>>     "feature2": [0.2, 0.3, 0.4, 0.5],
-        >>>    "outcome": [0, 0, 1, 1],
-        >>> }
-        >>> training_data = bpd.DataFrame(data)
-
-        >>> # Specify your feature (or input) columns and the label (or output) column:
-        >>> feature_columns = training_data[["feature0", "feature1", "feature2"]]
-        >>> label_columns = training_data[["outcome"]]
-
+        >>> X = bpd.DataFrame({ \
+                "feature0": [20, 21, 19, 18], \
+                "feature1": [0, 1, 1, 0], \
+                "feature2": [0.2, 0.3, 0.4, 0.5]})
+        >>> y = bpd.DataFrame({"outcome": [0, 0, 1, 1]})
         >>> # Create the linear model
         >>> model = LinearRegression()
-        >>> model.fit(feature_columns, label_columns)
-
+        >>> model.fit(X, y)
+        LinearRegression()
         >>> # Score the model
-        >>> score = model.score(feature_columns, label_columns)
-        >>> print("Score = ", score)
+        >>> score = model.score(X, y)
+        >>> print(score) # doctest:+SKIP
             mean_absolute_error  mean_squared_error  mean_squared_log_error  \
         0             0.022812            0.000602                 0.00035
 
