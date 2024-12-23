@@ -15,6 +15,7 @@ Generalized Linear Models.
 # License: BSD 3 clause
 # Original location: https://github.com/scikit-learn/scikit-learn/blob/main/sklearn/linear_model/_base.py
 
+
 from abc import ABCMeta
 
 from bigframes_vendored.sklearn.base import (
@@ -84,6 +85,7 @@ class LinearRegression(RegressorMixin, LinearModel):
 
             median_absolute_error  r2_score  explained_variance
         0               0.015077  0.997591            0.997591
+
 
     Args:
         optimize_strategy (str, default "auto_strategy"):
