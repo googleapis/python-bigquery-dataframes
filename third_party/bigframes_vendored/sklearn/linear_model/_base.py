@@ -82,7 +82,6 @@ class LinearRegression(RegressorMixin, LinearModel):
         >>> print(score) # doctest:+SKIP
             mean_absolute_error  mean_squared_error  mean_squared_log_error  \
         0             0.022812            0.000602                 0.00035
-
             median_absolute_error  r2_score  explained_variance
         0               0.015077  0.997591            0.997591
 
