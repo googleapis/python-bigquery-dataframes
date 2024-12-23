@@ -4,6 +4,33 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.30.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.29.0...v1.30.0) (2024-12-23)
+
+
+### Features
+
+* Add `GeoSeries.x` and `GeoSeries.y` ([#1126](https://github.com/googleapis/python-bigquery-dataframes/issues/1126)) ([4c3548f](https://github.com/googleapis/python-bigquery-dataframes/commit/4c3548f060ba7ce649aa368fa9367dfc769ae0c3))
+* Add `LinearRegression.predict_explain()` to generate `ML.EXPLAIN_PREDICT`  columns ([#1190](https://github.com/googleapis/python-bigquery-dataframes/issues/1190)) ([e13eca2](https://github.com/googleapis/python-bigquery-dataframes/commit/e13eca2128b2bf8a914a5ce781b82dffb95563a8))
+* Add `LogisticRegression.predict_explain()` to generate `ML.EXPLAIN_PREDICT` columns ([#1222](https://github.com/googleapis/python-bigquery-dataframes/issues/1222)) ([bcbc732](https://github.com/googleapis/python-bigquery-dataframes/commit/bcbc732f321ab31f8fb6b995aeb908ac87750587))
+* Add Gemini-pro-1.5 to GeminiTextGenerator Tuning and Support score() method in Gemini-pro-1.5 ([#1208](https://github.com/googleapis/python-bigquery-dataframes/issues/1208)) ([298fc73](https://github.com/googleapis/python-bigquery-dataframes/commit/298fc73985daf565033347dcf40afd0d5560c717))
+* Support dataframe where method ([#1166](https://github.com/googleapis/python-bigquery-dataframes/issues/1166)) ([71b4053](https://github.com/googleapis/python-bigquery-dataframes/commit/71b4053f855239cc3b2f659a6bfa776e38a1d4d3))
+
+
+### Bug Fixes
+
+* Arima model series input. ([#1237](https://github.com/googleapis/python-bigquery-dataframes/issues/1237)) ([f7d52d9](https://github.com/googleapis/python-bigquery-dataframes/commit/f7d52d916e8fb6362abc56b3a27cdd994e994214))
+* Json in struct destination type ([#1187](https://github.com/googleapis/python-bigquery-dataframes/issues/1187)) ([200c9bb](https://github.com/googleapis/python-bigquery-dataframes/commit/200c9bbcf020913710de86822e2e2917484932fa))
+* Throw an error message when setting is_row_processor=True to read a multi param function ([#1160](https://github.com/googleapis/python-bigquery-dataframes/issues/1160)) ([b2816a5](https://github.com/googleapis/python-bigquery-dataframes/commit/b2816a5df2d03b97757b46a004ac54d86d1e26a1))
+
+
+### Documentation
+
+* Add an "open in BQ Studio" link to all BigFrames sample notebooks ([#1223](https://github.com/googleapis/python-bigquery-dataframes/issues/1223)) ([e0a8288](https://github.com/googleapis/python-bigquery-dataframes/commit/e0a82888cd34fa2404ac68229dc38496cb22c67b))
+* Add examples for ml PCA and SimpleImputer ([#1236](https://github.com/googleapis/python-bigquery-dataframes/issues/1236)) ([0d84459](https://github.com/googleapis/python-bigquery-dataframes/commit/0d84459a083bbad2cb694da0256c4ff4a2438d4e))
+* Add KMeans example ([#1234](https://github.com/googleapis/python-bigquery-dataframes/issues/1234)) ([d87ab97](https://github.com/googleapis/python-bigquery-dataframes/commit/d87ab97011d09784ab528ec1ab1df7f3591502a6))
+* Add linear model example ([#1235](https://github.com/googleapis/python-bigquery-dataframes/issues/1235)) ([2c3e1fd](https://github.com/googleapis/python-bigquery-dataframes/commit/2c3e1fde7614057ac3deb637993134e7a9661c3d))
+* Add ml.model_selection examples ([#1238](https://github.com/googleapis/python-bigquery-dataframes/issues/1238)) ([50648e4](https://github.com/googleapis/python-bigquery-dataframes/commit/50648e4d5d7c0b8b41d9a9605a9923ead73a7831))
+
 ## [1.29.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.28.0...v1.29.0) (2024-12-12)
 
 
