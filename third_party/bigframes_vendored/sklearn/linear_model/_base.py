@@ -15,7 +15,6 @@ Generalized Linear Models.
 # License: BSD 3 clause
 # Original location: https://github.com/scikit-learn/scikit-learn/blob/main/sklearn/linear_model/_base.py
 
-
 from abc import ABCMeta
 
 from bigframes_vendored.sklearn.base import (
@@ -77,6 +76,7 @@ class LinearRegression(RegressorMixin, LinearModel):
         >>> model = LinearRegression()
         >>> model.fit(X, y)
         LinearRegression()
+
         >>> # Score the model
         >>> score = model.score(X, y)
         >>> print(score) # doctest:+SKIP
