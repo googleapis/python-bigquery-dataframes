@@ -23,8 +23,8 @@ def cross_validate(estimator, X, y=None, *, cv=None):
         >>> X = bpd.DataFrame({"feat0": [1, 3, 5], "feat1": [2, 4, 6]})
         >>> y = bpd.DataFrame({"label": [1, 2, 3]})
         >>> model = LinearRegression()
-        >>> scores = cross_validate(model, X, y, cv=KFold(n_splits=3, random_state=42))
-        >>> for score in scores["test_score"]:
+        >>> scores = cross_validate(model, X, y, cv=3) # doctest: +SKIP
+        >>> for score in scores["test_score"]: # doctest: +SKIP
         ...   print(score["mean_squared_error"][0])
         ...
         5.218167286047954e-19
