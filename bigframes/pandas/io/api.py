@@ -45,7 +45,6 @@ import bigframes._config as config
 import bigframes.core.blocks
 import bigframes.core.global_session as global_session
 import bigframes.core.indexes
-import bigframes.core.joins
 import bigframes.core.reshape
 import bigframes.core.tools
 import bigframes.dataframe
@@ -54,7 +53,6 @@ import bigframes.series
 import bigframes.session
 import bigframes.session._io.bigquery
 import bigframes.session.clients
-import bigframes.version
 
 # Note: the following methods are duplicated from Session. This duplication
 # enables the following:
@@ -307,6 +305,20 @@ def read_gbq_function(function_name: str, is_row_processor: bool = False):
 
 
 read_gbq_function.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_function)
+
+
+def from_glob_path(
+    path: str, *, connection: Optional[str] = None, name: Optional[str] = None
+) -> bigframes.dataframe.DataFrame:
+    return global_session.with_default_session(
+        bigframes.session.Session.from_glob_path,
+        path=path,
+        connection=connection,
+        name=name,
+    )
+
+
+from_glob_path.__doc__ = inspect.getdoc(bigframes.session.Session.from_glob_path)
 
 
 def _set_default_session_location_if_possible(query):

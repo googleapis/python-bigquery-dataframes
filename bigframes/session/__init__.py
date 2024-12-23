@@ -37,15 +37,13 @@ import warnings
 import weakref
 
 import bigframes_vendored.constants as constants
-import bigframes_vendored.ibis.backends.bigquery  # noqa
+import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery  # noqa
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
 import bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
 import bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 import google.cloud.bigquery as bigquery
 import google.cloud.storage as storage  # type: ignore
-import ibis
-import ibis.backends.bigquery as ibis_bigquery
 import numpy as np
 import pandas
 from pandas._typing import (
@@ -197,9 +195,10 @@ class Session(
 
         # Only used to fetch remote function metadata.
         # TODO: Remove in favor of raw bq client
+
         self.ibis_client = typing.cast(
             ibis_bigquery.Backend,
-            ibis.bigquery.connect(
+            ibis_bigquery.Backend().connect(
                 project_id=context.project,
                 client=self.bqclient,
                 storage_client=self.bqstoragereadclient,
@@ -1363,6 +1362,58 @@ class Session(
             2    TestCad$123456Str
             dtype: string
 
+        Another use case is to define your own remote funtion and use it later.
+        For example, define the remote function:
+
+            >>> @bpd.remote_function()
+            ... def tenfold(num: int) -> float:
+            ...     return num * 10
+
+        Then, read back the deployed BQ remote function:
+
+            >>> tenfold_ref = bpd.read_gbq_function(
+            ...     tenfold.bigframes_remote_function,
+            ... )
+
+            >>> df = bpd.DataFrame({'a': [1, 2], 'b': [3, 4], 'c': [5, 6]})
+            >>> df
+                a   b   c
+            0   1   3   5
+            1   2   4   6
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+            >>> df['a'].apply(tenfold_ref)
+            0    10.0
+            1    20.0
+            Name: a, dtype: Float64
+
+        It also supports row processing by using `is_row_processor=True`. Please
+        note, row processor implies that the function has only one input
+        parameter.
+
+            >>> @bpd.remote_function()
+            ... def row_sum(s: bpd.Series) -> float:
+            ...     return s['a'] + s['b'] + s['c']
+
+            >>> row_sum_ref = bpd.read_gbq_function(
+            ...     row_sum.bigframes_remote_function,
+            ...     is_row_processor=True,
+            ... )
+
+            >>> df = bpd.DataFrame({'a': [1, 2], 'b': [3, 4], 'c': [5, 6]})
+            >>> df
+                a   b   c
+            0   1   3   5
+            1   2   4   6
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+            >>> df.apply(row_sum_ref, axis=1)
+            0     9.0
+            1    12.0
+            dtype: Float64
+
         Args:
             function_name (str):
                 The function's name in BigQuery in the format
@@ -1423,6 +1474,63 @@ class Session(
         return bf_io_bigquery.start_query_with_client(
             self.bqclient, sql, job_config, metrics=self._metrics
         )
+
+    def _create_object_table(self, path: str, connection: str) -> str:
+        """Create a random id Object Table from the input path and connection."""
+        table = str(self._loader._storage_manager._random_table())
+
+        import textwrap
+
+        sql = textwrap.dedent(
+            f"""
+            CREATE EXTERNAL TABLE `{table}`
+            WITH CONNECTION `{connection}`
+            OPTIONS(
+                object_metadata = 'SIMPLE',
+                uris = ['{path}']);
+            """
+        )
+        bf_io_bigquery.start_query_with_client(
+            self.bqclient,
+            sql,
+            job_config=bigquery.QueryJobConfig(),
+            metrics=self._metrics,
+        )
+
+        return table
+
+    def from_glob_path(
+        self, path: str, *, connection: Optional[str] = None, name: Optional[str] = None
+    ) -> dataframe.DataFrame:
+        r"""Create a BigFrames DataFrame that contains a BigFrames Blob column from a global wildcard path.
+
+        Args:
+            path (str):
+                The wildcard global path, such as "gs://<bucket>/<folder>/\*".
+            connection (str or None, default None):
+                Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
+                If None, use default connection in session context. BigQuery DataFrame will try to create the connection and attach
+                permission if the connection isn't fully set up.
+            name (str):
+                The column name of the Blob column.
+        Returns:
+            bigframes.pandas.DataFrame:
+                Result BigFrames DataFrame.
+        """
+        if not bigframes.options.experiments.blob:
+            raise NotImplementedError()
+
+        connection = connection or self._bq_connection
+        connection = bigframes.clients.resolve_full_bq_connection_name(
+            connection,
+            default_project=self._project,
+            default_location=self._location,
+        )
+
+        table = self._create_object_table(path, connection)
+
+        s = self.read_gbq(table)["uri"].str.to_blob(connection)
+        return s.rename(name).to_frame()
 
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
