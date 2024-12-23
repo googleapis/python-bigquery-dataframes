@@ -444,9 +444,9 @@ class ArrayValue:
             lcol.name: lcol.name for lcol in self.node.ids
         }
         other_node, r_mapping = self.prepare_join_names(other)
-        import bigframes.core.rewrite
+        import bigframes.core.row_join
 
-        result_node = bigframes.core.rewrite.try_row_join(
+        result_node = bigframes.core.row_join.try_row_join(
             self.node, other_node, conditions
         )
         if result_node is None:

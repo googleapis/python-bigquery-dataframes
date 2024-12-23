@@ -242,6 +242,26 @@ def legacy_join_as_projection(
     mappings: Tuple[join_defs.JoinColumnMapping, ...],
     how: join_defs.JoinType,
 ) -> Optional[nodes.BigFrameNode]:
+    # New alignment logic creates RowJoinNode, need to remove these to apply legacy join logic
+
+    def stop_condition(node: nodes.BigFrameNode) -> bool:
+        return not isinstance(node, (*LEGACY_REWRITER_NODES, nodes.RowJoinNode))
+
+    # Legacy joiner can't handle RowJoinNode, so rewrite them.
+    # This is temporary measure while both legacy and new alignment logic coexist
+    l_node = nodes.bottom_up(
+        l_node,
+        bigframes.core.rewrite.implicit_align.rewrite_row_join,
+        stop=stop_condition,
+        memoize=True,
+    )
+    r_node = nodes.bottom_up(
+        r_node,
+        bigframes.core.rewrite.implicit_align.rewrite_row_join,
+        stop=stop_condition,
+        memoize=True,
+    )
+
     rewrite_common_node = common_selection_root(l_node, r_node)
     if rewrite_common_node is not None:
         left_side = SquashedSelect.from_node_span(l_node, rewrite_common_node)
@@ -361,5 +381,5 @@ def common_selection_root(
 ) -> Optional[nodes.BigFrameNode]:
     """Find common subtree between join subtrees"""
     return bigframes.core.rewrite.implicit_align.first_shared_descendent(
-        l_tree, r_tree, descendable_types=LEGACY_REWRITER_NODES
+        {l_tree, r_tree}, descendable_types=LEGACY_REWRITER_NODES
     )
