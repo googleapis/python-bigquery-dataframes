@@ -14,6 +14,8 @@
 
 """BigQuery DataFrames provides a DataFrame API scaled by the BigQuery engine."""
 
+import IPython
+
 from bigframes._config import option_context, options
 from bigframes._config.bigquery_options import BigQueryOptions
 from bigframes.core.global_session import close_session, get_global_session
@@ -21,6 +23,20 @@ import bigframes.enums as enums
 import bigframes.exceptions as exceptions
 from bigframes.session import connect, Session
 from bigframes.version import __version__
+
+
+def load_ipython_extension(ipython):
+    """Called by IPython when this module is loaded as an IPython extension."""
+    # Import here to avoid circular imports.
+    import bigframes.magics
+
+    if ipython is not None:
+        bigframes.magics.load_ipython_extension(ipython)
+
+
+# Automatically load the extension, to make the magics easier to discover.
+load_ipython_extension(IPython.get_ipython())
+
 
 __all__ = [
     "options",
