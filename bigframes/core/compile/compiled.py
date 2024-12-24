@@ -48,6 +48,7 @@ from bigframes.core.ordering import (
 import bigframes.core.sql
 from bigframes.core.window_spec import RangeWindowBounds, RowsWindowBounds, WindowSpec
 import bigframes.dtypes
+import bigframes.operations
 import bigframes.operations.aggregations as agg_ops
 
 ORDER_ID_COLUMN = "bigframes_ordering_id"
@@ -132,12 +133,22 @@ class BaseIbisIR(abc.ABC):
         expression_id_pairs: typing.Tuple[typing.Tuple[ex.Expression, str], ...],
     ) -> T:
         """Apply an expression to the ArrayValue and assign the output to a column."""
+
+        # Remote ops are expensive so force reprojection before to ensure filters get applied first
+        any_remote_op = any(
+            ex.contains_op(expr, bigframes.operations.RemoteFunctionOp)
+            for expr, _ in expression_id_pairs
+        )
+        if any_remote_op and len(self._predicates) > 0:
+            return self._reproject_to_table().projection(expression_id_pairs)
+
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         new_values = [
             op_compiler.compile_expression(expression, bindings).name(id)
             for expression, id in expression_id_pairs
         ]
         result = self._select(tuple([*self._columns, *new_values]))  # type: ignore
+
         return result
 
     def selection(
