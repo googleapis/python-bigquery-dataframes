@@ -392,6 +392,7 @@ def test_gemini_text_generator_retry_success(session, bq_connection):
             ]
         },
         index=[0, 1, 2],
+        session=session,
     )
     df1 = EqCmpAllDataFrame(
         {
@@ -402,6 +403,7 @@ def test_gemini_text_generator_retry_success(session, bq_connection):
             ],
         },
         index=[1, 2],
+        session=session,
     )
     df2 = EqCmpAllDataFrame(
         {
@@ -411,9 +413,11 @@ def test_gemini_text_generator_retry_success(session, bq_connection):
             ],
         },
         index=[1],
+        session=session,
     )
 
     mock_bqml_model = mock.create_autospec(spec=core.BqmlModel)
+    type(mock_bqml_model).session = mock.PropertyMock(return_value=session)
 
     # Responses. Retry twice then all succeeded.
     mock_bqml_model.generate_text.side_effect = [
@@ -427,6 +431,7 @@ def test_gemini_text_generator_retry_success(session, bq_connection):
                 ],
             },
             index=[0, 1, 2],
+            session=session,
         ),
         EqCmpAllDataFrame(
             {
@@ -437,6 +442,7 @@ def test_gemini_text_generator_retry_success(session, bq_connection):
                 ],
             },
             index=[1, 2],
+            session=session,
         ),
         EqCmpAllDataFrame(
             {
@@ -446,6 +452,7 @@ def test_gemini_text_generator_retry_success(session, bq_connection):
                 ],
             },
             index=[1],
+            session=session,
         ),
     ]
     options = {
@@ -501,6 +508,7 @@ def test_gemini_text_generator_retry_no_progress(session, bq_connection):
             ]
         },
         index=[0, 1, 2],
+        session=session,
     )
     df1 = EqCmpAllDataFrame(
         {
@@ -511,11 +519,12 @@ def test_gemini_text_generator_retry_no_progress(session, bq_connection):
             ],
         },
         index=[1, 2],
+        session=session,
     )
 
     mock_bqml_model = mock.create_autospec(spec=core.BqmlModel)
-
-    # Responses. Retry once, no progress just stop.
+    type(mock_bqml_model).session = mock.PropertyMock(return_value=session)
+    # Responses. Retry once, no progress, just stop.
     mock_bqml_model.generate_text.side_effect = [
         EqCmpAllDataFrame(
             {
@@ -527,6 +536,7 @@ def test_gemini_text_generator_retry_no_progress(session, bq_connection):
                 ],
             },
             index=[0, 1, 2],
+            session=session,
         ),
         EqCmpAllDataFrame(
             {
@@ -537,6 +547,7 @@ def test_gemini_text_generator_retry_no_progress(session, bq_connection):
                 ],
             },
             index=[1, 2],
+            session=session,
         ),
     ]
     options = {
