@@ -553,7 +553,7 @@ def test_gemini_text_generator_retry_no_progress(session, bq_connection):
     )
     gemini_text_generator_model._bqml_model = mock_bqml_model
 
-    # Only retry once
+    # No progress, only conduct retry once
     result = gemini_text_generator_model.predict(df0, retry=3)
 
     mock_bqml_model.generate_text.assert_has_calls(
