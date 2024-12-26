@@ -1029,7 +1029,7 @@ class GeminiTextGenerator(base.BaseEstimator):
             "ground_with_google_search": ground_with_google_search,
         }
 
-        df_result = None
+        df_result = bpd.DataFrame(session=self._bqml_model.session)  # placeholder
         df_fail = X
         for _ in range(retry + 1):
             df = self._bqml_model.generate_text(df_fail, options)
@@ -1041,7 +1041,9 @@ class GeminiTextGenerator(base.BaseEstimator):
                 warnings.warn("Can't make any progress, stop retrying.", RuntimeWarning)
                 break
 
-            df_result = bpd.concat([df_result, df_succ]) if df_result else df_succ  # type: ignore
+            df_result = (
+                bpd.concat([df_result, df_succ]) if not df_result.empty else df_succ
+            )
 
             if df_fail.empty:
                 break
@@ -1052,7 +1054,7 @@ class GeminiTextGenerator(base.BaseEstimator):
                 RuntimeWarning,
             )
 
-        df_result = bpd.concat([df_result, df_fail])  # type: ignore
+        df_result = cast(bpd.DataFrame, bpd.concat([df_result, df_fail]))
 
         return df_result
 
