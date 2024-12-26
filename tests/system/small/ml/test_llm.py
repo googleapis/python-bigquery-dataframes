@@ -382,9 +382,8 @@ class EqCmpAllDataFrame(bpd.DataFrame):
 
 
 def test_gemini_text_generator_retry_success(session, bq_connection):
-
     # Requests.
-    df = EqCmpAllDataFrame(
+    df0 = EqCmpAllDataFrame(
         {
             "prompt": [
                 "What is BigQuery?",
@@ -394,7 +393,6 @@ def test_gemini_text_generator_retry_success(session, bq_connection):
         },
         index=[0, 1, 2],
     )
-
     df1 = EqCmpAllDataFrame(
         {
             "ml_generate_text_status": ["error", "error"],
@@ -465,11 +463,11 @@ def test_gemini_text_generator_retry_success(session, bq_connection):
     gemini_text_generator_model._bqml_model = mock_bqml_model
 
     # 3rd retry isn't triggered
-    result = gemini_text_generator_model.predict(df, retry=3)
+    result = gemini_text_generator_model.predict(df0, retry=3)
 
     mock_bqml_model.generate_text.assert_has_calls(
         [
-            mock.call(df, options),
+            mock.call(df0, options),
             mock.call(df1, options),
             mock.call(df2, options),
         ]
@@ -486,6 +484,96 @@ def test_gemini_text_generator_retry_success(session, bq_connection):
                 ],
             },
             index=[0, 2, 1],
+        ),
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
+def test_gemini_text_generator_retry_no_progress(session, bq_connection):
+    # Requests.
+    df0 = EqCmpAllDataFrame(
+        {
+            "prompt": [
+                "What is BigQuery?",
+                "What is BQML?",
+                "What is BigQuery DataFrame?",
+            ]
+        },
+        index=[0, 1, 2],
+    )
+    df1 = EqCmpAllDataFrame(
+        {
+            "ml_generate_text_status": ["error", "error"],
+            "prompt": [
+                "What is BQML?",
+                "What is BigQuery DataFrame?",
+            ],
+        },
+        index=[1, 2],
+    )
+
+    mock_bqml_model = mock.create_autospec(spec=core.BqmlModel)
+
+    # Responses. Retry once, no progress just stop.
+    mock_bqml_model.generate_text.side_effect = [
+        EqCmpAllDataFrame(
+            {
+                "ml_generate_text_status": ["", "error", "error"],
+                "prompt": [
+                    "What is BigQuery?",
+                    "What is BQML?",
+                    "What is BigQuery DataFrame?",
+                ],
+            },
+            index=[0, 1, 2],
+        ),
+        EqCmpAllDataFrame(
+            {
+                "ml_generate_text_status": ["error", "error"],
+                "prompt": [
+                    "What is BQML?",
+                    "What is BigQuery DataFrame?",
+                ],
+            },
+            index=[1, 2],
+        ),
+    ]
+    options = {
+        "temperature": 0.9,
+        "max_output_tokens": 8192,
+        "top_k": 40,
+        "top_p": 1.0,
+        "flatten_json_output": True,
+        "ground_with_google_search": False,
+    }
+
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        connection_name=bq_connection, session=session
+    )
+    gemini_text_generator_model._bqml_model = mock_bqml_model
+
+    # 3rd retry isn't triggered
+    result = gemini_text_generator_model.predict(df0, retry=3)
+
+    mock_bqml_model.generate_text.assert_has_calls(
+        [
+            mock.call(df0, options),
+            mock.call(df1, options),
+        ]
+    )
+    pd.testing.assert_frame_equal(
+        result.to_pandas(),
+        pd.DataFrame(
+            {
+                "ml_generate_text_status": ["", "error", "error"],
+                "prompt": [
+                    "What is BigQuery?",
+                    "What is BQML?",
+                    "What is BigQuery DataFrame?",
+                ],
+            },
+            index=[0, 1, 2],
         ),
         check_dtype=False,
         check_index_type=False,
