@@ -946,7 +946,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         top_k: int = 40,
         top_p: float = 1.0,
         ground_with_google_search: bool = False,
-        retry: int = 0,
+        max_retries: int = 0,
     ) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
@@ -985,8 +985,8 @@ class GeminiTextGenerator(base.BaseEstimator):
                 page for details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models
                 The default is `False`.
 
-            retry (int, default 0):
-                Number of retry rounds if any rows failed in the prediction. Each round need to make progress (has succeeded rows) to continue the next retry round.
+            max_retries (int, default 0):
+                Max number of retry rounds if any rows failed in the prediction. Each round need to make progress (has succeeded rows) to continue the next retry round.
                 Each round will append newly succeeded rows. When the max retry rounds is reached, the remaining failed rows will be appended to the end of the result.
 
         Returns:
@@ -1008,9 +1008,9 @@ class GeminiTextGenerator(base.BaseEstimator):
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
-        if retry < 0:
+        if max_retries < 0:
             raise ValueError(
-                f"retry must be larger than or equal to 0, but is {retry}."
+                f"retry must be larger than or equal to 0, but is {max_retries}."
             )
 
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
@@ -1031,7 +1031,7 @@ class GeminiTextGenerator(base.BaseEstimator):
 
         df_result = bpd.DataFrame(session=self._bqml_model.session)  # placeholder
         df_fail = X
-        for _ in range(retry + 1):
+        for _ in range(max_retries + 1):
             df = self._bqml_model.generate_text(df_fail, options)
 
             df_succ = df[df[_ML_GENERATE_TEXT_STATUS].str.len() == 0]
