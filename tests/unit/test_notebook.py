@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from bigframes.core.reshape.concat import concat
-from bigframes.core.reshape.encoding import get_dummies
-from bigframes.core.reshape.merge import merge
-from bigframes.core.reshape.tile import cut, qcut
 
-__all__ = ["concat", "get_dummies", "merge", "cut", "qcut"]
+import os.path
+
+
+def test_template_notebook_exists():
+    # This notebook is meant for being used as a BigFrames usage template and
+    # could be dynamically linked in places such as BQ Studio and IDE extensions.
+    # Let's make sure it exists in the well known path.
+    assert os.path.exists("notebooks/getting_started/bq_dataframes_template.ipynb")

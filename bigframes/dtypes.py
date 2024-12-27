@@ -57,6 +57,28 @@ BIGNUMERIC_DTYPE = pd.ArrowDtype(pa.decimal256(76, 38))
 GEO_DTYPE = gpd.array.GeometryDtype()
 # JSON
 JSON_DTYPE = pd.ArrowDtype(pa.large_string())
+OBJ_REF_DTYPE = pd.ArrowDtype(
+    pa.struct(
+        (
+            pa.field(
+                "uri",
+                pa.string(),
+            ),
+            pa.field(
+                "version",
+                pa.string(),
+            ),
+            pa.field(
+                "authorizer",
+                pa.string(),
+            ),
+            pa.field(
+                "details",
+                pa.large_string(),  # JSON
+            ),
+        )
+    )
+)
 
 # Used when storing Null expressions
 DEFAULT_DTYPE = FLOAT_DTYPE
@@ -253,6 +275,10 @@ def is_time_like(type_: ExpressionType) -> bool:
     return type_ in (DATETIME_DTYPE, TIMESTAMP_DTYPE, TIME_DTYPE)
 
 
+def is_geo_like(type_: ExpressionType) -> bool:
+    return type_ in (GEO_DTYPE,)
+
+
 def is_binary_like(type_: ExpressionType) -> bool:
     return type_ in (BOOL_DTYPE, BYTES_DTYPE, INT_DTYPE)
 
@@ -380,12 +406,19 @@ def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
         return pd.ArrowDtype(arrow_dtype)
     if pa.types.is_struct(arrow_dtype):
         return pd.ArrowDtype(arrow_dtype)
+
+    # BigFrames doesn't distinguish between string and large_string because the
+    # largest string (2 GB) is already larger than the largest BigQuery row.
+    if pa.types.is_string(arrow_dtype) or pa.types.is_large_string(arrow_dtype):
+        return STRING_DTYPE
+
     if arrow_dtype == pa.null():
         return DEFAULT_DTYPE
-    else:
-        raise ValueError(
-            f"Unexpected Arrow data type {arrow_dtype}. {constants.FEEDBACK_LINK}"
-        )
+
+    # No other types matched.
+    raise ValueError(
+        f"Unexpected Arrow data type {arrow_dtype}. {constants.FEEDBACK_LINK}"
+    )
 
 
 _BIGFRAMES_TO_ARROW = {

@@ -967,6 +967,17 @@ def normalize_op_impl(x: ibis_types.Value):
     return result.cast(result_type)
 
 
+# Geo Ops
+@scalar_op_compiler.register_unary_op(ops.geo_x_op)
+def geo_x_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).x()
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_y_op)
+def geo_y_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).y()
+
+
 # Parameterized ops
 @scalar_op_compiler.register_unary_op(ops.StructFieldOp, pass_op=True)
 def struct_field_op_impl(x: ibis_types.Value, op: ops.StructFieldOp):
@@ -1201,8 +1212,13 @@ def json_extract_string_array_op_impl(
 
 # Blob Ops
 @scalar_op_compiler.register_unary_op(ops.obj_fetch_metadata_op)
-def obj_fetch_metadata_op_impl(x: ibis_types.Value):
-    return obj_fetch_metadata(obj_ref=x)
+def obj_fetch_metadata_op_impl(obj_ref: ibis_types.Value):
+    return obj_fetch_metadata(obj_ref=obj_ref)
+
+
+@scalar_op_compiler.register_unary_op(ops.ObjGetAccessUrl, pass_op=True)
+def obj_get_access_url_op_impl(obj_ref: ibis_types.Value, op: ops.ObjGetAccessUrl):
+    return obj_get_access_url(obj_ref=obj_ref, mode=op.mode)
 
 
 ### Binary Ops
@@ -1724,6 +1740,12 @@ def binary_remote_function_op_impl(
     return x_transformed
 
 
+# Blob Ops
+@scalar_op_compiler.register_binary_op(ops.obj_make_ref_op)
+def obj_make_ref_op(x: ibis_types.Value, y: ibis_types.Value):
+    return obj_make_ref(uri=x, authorizer=y)
+
+
 # Ternary Operations
 @scalar_op_compiler.register_ternary_op(ops.where_op)
 def where_op(
@@ -1895,3 +1917,13 @@ def vector_distance(vector1, vector2, type: str) -> ibis_dtypes.Float64:  # type
 @ibis_udf.scalar.builtin(name="OBJ.FETCH_METADATA")
 def obj_fetch_metadata(obj_ref: _OBJ_REF_IBIS_DTYPE) -> _OBJ_REF_IBIS_DTYPE:  # type: ignore
     """Fetch metadata from ObjectRef Struct."""
+
+
+@ibis_udf.scalar.builtin(name="OBJ.MAKE_REF")
+def obj_make_ref(uri: str, authorizer: str) -> _OBJ_REF_IBIS_DTYPE:  # type: ignore
+    """Make ObjectRef Struct from uri and connection."""
+
+
+@ibis_udf.scalar.builtin(name="OBJ.GET_ACCESS_URL")
+def obj_get_access_url(obj_ref: _OBJ_REF_IBIS_DTYPE, mode: ibis_dtypes.String) -> ibis_dtypes.JSON:  # type: ignore
+    """Get access url (as ObjectRefRumtime JSON) from ObjectRef."""
