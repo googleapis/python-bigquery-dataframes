@@ -1054,7 +1054,10 @@ class GeminiTextGenerator(base.BaseEstimator):
                 RuntimeWarning,
             )
 
-        df_result = cast(bpd.DataFrame, bpd.concat([df_result, df_fail]))
+        df_result = cast(
+            bpd.DataFrame,
+            bpd.concat([df_result, df_fail]) if not df_result.empty else df_fail,
+        )
 
         return df_result
 
