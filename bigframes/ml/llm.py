@@ -1010,7 +1010,7 @@ class GeminiTextGenerator(base.BaseEstimator):
 
         if max_retries < 0:
             raise ValueError(
-                f"retry must be larger than or equal to 0, but is {max_retries}."
+                f"max_retries must be larger than or equal to 0, but is {max_retries}."
             )
 
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
