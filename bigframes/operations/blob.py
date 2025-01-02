@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 import IPython.display as ipy_display
 import requests
 
@@ -66,3 +68,24 @@ class BlobAccessor(base.SeriesMethods):
             read_url = str(read_url).strip('"')
             response = requests.get(read_url)
             ipy_display.display(ipy_display.Image(response.content))
+
+    def image_blur(
+        self,
+        ksize: tuple[int, int],
+        *,
+        dst: bigframes.series.Series,
+        connection: Optional[str] = None,
+    ) -> bigframes.series.Series:
+        import bigframes.blob._functions as blob_func
+
+        image_blur_udf = blob_func.TransformFunction(
+            blob_func.image_blur_func,
+            ["opencv-python", "numpy", "requests"],
+            session=self._block.session,
+        ).udf(connection)
+
+        s = bigframes.series.Series(self._block)
+        df = s.to_frame().join(dst.to_frame())
+        df["ksize_x"], df["ksize_y"] = ksize
+
+        return df.apply(image_blur_udf, axis=1)
