@@ -367,15 +367,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def astype(
         self,
-        dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
+        dtype: Union[
+            bigframes.dtypes.DtypeString,
+            bigframes.dtypes.Dtype,
+            dict[str, Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype]],
+        ],
         *,
         errors: Literal["raise", "null"] = "raise",
     ) -> DataFrame:
         if errors not in ["raise", "null"]:
             raise ValueError("Arg 'error' must be one of 'raise' or 'null'")
-        return self._apply_unary_op(
-            ops.AsTypeOp(to_type=dtype, safe=(errors == "null"))
-        )
+
+        safe_cast = errors == "null"
+
+        if dtype in typing.get_args(bigframes.dtypes.DtypeString) or isinstance(
+            dtype, bigframes.dtypes.Dtype
+        ):
+            return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
+
+        if isinstance(dtype, dict):
+            block = self._block
+            for col, to_type in dtype.items():
+                block, _ = block.apply_unary_op(
+                    col, ops.AsTypeOp(to_type, safe_cast), result_label=col
+                )
+            return DataFrame(block)
+
+        raise ValueError(f"Invalid type {type(dtype)} for dtype input.")
 
     def _to_sql_query(
         self, include_index: bool, enable_cache: bool = True
