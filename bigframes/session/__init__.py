@@ -633,7 +633,8 @@ class Session(
                 to load from the default project.
 
         Returns:
-            A bigframes.ml Model, Transformer or Pipeline wrapping the model.
+            bigframes.ml model:
+                A bigframes.ml Model, Transformer or Pipeline wrapping the model.
         """
         import bigframes.ml.loader
 
@@ -1537,12 +1538,13 @@ class Session(
                 a pandas Series.
 
         Returns:
-            callable: A function object pointing to the BigQuery function read
-            from BigQuery.
+            callable:
+                A function object pointing to the BigQuery function read
+                from BigQuery.
 
-            The object is similar to the one created by the `remote_function`
-            decorator, including the `bigframes_remote_function` property, but
-            not including the `bigframes_cloud_function` property.
+                The object is similar to the one created by the `remote_function`
+                decorator, including the `bigframes_remote_function` property, but
+                not including the `bigframes_cloud_function` property.
         """
 
         return bigframes_rf.read_gbq_function(
