@@ -318,6 +318,10 @@ class BigQueryOptions:
 
     @ordering_mode.setter
     def ordering_mode(self, ordering_mode: Literal["strict", "partial"]) -> None:
+        if self._session_started and self._ordering_mode != value:
+            raise ValueError(
+                SESSION_STARTED_MESSAGE.format(attribute="ordering_mode")
+            )
         self._ordering_mode = _validate_ordering_mode(ordering_mode)
 
     @property
