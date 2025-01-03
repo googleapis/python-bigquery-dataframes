@@ -98,7 +98,7 @@ def image_blur_func(
 ) -> str:
     import json
 
-    import cv2 as cv
+    import cv2 as cv  # type: ignore
     import numpy as np
     import requests
 
