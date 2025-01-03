@@ -20,8 +20,8 @@ import warnings
 
 import numpy as np
 
-import bigframes.core.guid as guid
-import bigframes.dtypes as dtypes
+from bigframes import dtypes, exceptions
+from bigframes.core import guid
 
 
 class Semantics:
@@ -122,8 +122,7 @@ class Semantics:
             )
 
         work_estimate = len(self._df) * int(max_agg_rows / (max_agg_rows - 1))
-        if not self._confirm_operation(work_estimate):
-            return None
+        self._confirm_operation(work_estimate)
 
         df: bigframes.dataframe.DataFrame = self._df.copy()
         for column in columns:
@@ -300,8 +299,7 @@ class Semantics:
                 "It must be greater than 1."
             )
 
-        if not self._confirm_operation(len(self._df)):
-            return None
+        self._confirm_operation(len(self._df))
 
         df: bigframes.dataframe.DataFrame = self._df.copy()
         embeddings_df = model.predict(df[column])
@@ -374,8 +372,7 @@ class Semantics:
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
 
-        if not self._confirm_operation(len(self._df)):
-            return None
+        self._confirm_operation(len(self._df))
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         for column in columns:
@@ -472,8 +469,7 @@ class Semantics:
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
 
-        if not self._confirm_operation(len(self._df)):
-            return None
+        self._confirm_operation(len(self._df))
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         for column in columns:
@@ -574,8 +570,7 @@ class Semantics:
             )
 
         work_estimate = len(self._df) * len(other)
-        if not self._confirm_operation(work_estimate):
-            return None
+        self._confirm_operation(work_estimate)
 
         left_columns = []
         right_columns = []
@@ -689,8 +684,7 @@ class Semantics:
         if search_column not in self._df.columns:
             raise ValueError(f"Column `{search_column}` not found")
 
-        if not self._confirm_operation(len(self._df)):
-            return None
+        self._confirm_operation(len(self._df))
 
         import bigframes.ml.llm as llm
 
@@ -816,8 +810,7 @@ class Semantics:
             )
 
         work_estimate = int(len(self._df) * (len(self._df) - 1) / 2)
-        if not self._confirm_operation(work_estimate):
-            return None
+        self._confirm_operation(work_estimate)
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         column = columns[0]
@@ -1018,8 +1011,7 @@ class Semantics:
             raise ValueError("top_k must be an integer greater than or equal to 1.")
 
         work_estimate = len(self._df) * len(other)
-        if not self._confirm_operation(work_estimate):
-            return None
+        self._confirm_operation(work_estimate)
 
         base_table_embedding_column = guid.generate_guid()
         base_table = self._attach_embedding(
@@ -1094,20 +1086,24 @@ class Semantics:
             raise TypeError("Model is not GeminiText Generator")
 
     @staticmethod
-    def _confirm_operation(row_count: int) -> bool:
-        """Returns true only if we can proceed with the operation."""
+    def _confirm_operation(row_count: int):
+        """Raises OperationAbortedError when the confirmation fails"""
         import bigframes
 
-        threshold = bigframes.options.compute.sem_ops_confirmation_threshold
+        threshold = bigframes.options.compute.semantic_ops_confirmation_threshold
 
         if threshold is None or row_count <= threshold:
-            return True
+            return
 
         # Separate the prompt out. In IDE such VS Code, leaving prompt in the
         # input function makes it less visible to the end user.
-        print(f"This operation will process about {row_count} rows. Proceed? [Y/n]")
-        reply = input().lower()
-        if reply == "" or reply == "y" or reply == "yes":
-            return True
-
-        return False
+        print(f"This operation will process about {row_count} rows.")
+        print(
+            """You can raise the confirmation threshold by setting 
+            `bigframes.options.compute.semantic_ops_confirmation_threshold` to a higher value. 
+            To completely turn off the confirmation check, set the threshold to `None`."""
+        )
+        print("Proceed? [Y/n]")
+        reply = input().casefold()
+        if reply not in {"y", "yes", ""}:
+            raise exceptions.OperationAbortedError("Operation was cancelled.")

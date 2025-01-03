@@ -66,10 +66,10 @@ class ComputeOptions:
             engine to handle. However this comes at the cost of increase cost and latency.
         extra_query_labels (Dict[str, Any], Options):
             Stores additional custom labels for query configuration.
-        sem_ops_confirmation_threshold (int, Options):
+        semmantic_ops_confirmation_threshold (int, optional):
             Guards against unexepcted processing of large amount of rows by semantic operators.
             If the number of rows exceeds the threshold, the user will be asked to confirm
-            their operations to resume. The default value is 25. Set the value to None
+            their operations to resume. The default value is 0. Set the value to None
             to turn off the guard.
     """
 
@@ -78,7 +78,7 @@ class ComputeOptions:
     extra_query_labels: Dict[str, Any] = dataclasses.field(
         default_factory=dict, init=False
     )
-    sem_ops_confirmation_threshold: Optional[int] = 25
+    semantic_ops_confirmation_threshold: Optional[int] = 0
 
     def assign_extra_query_labels(self, **kwargs: Any) -> None:
         """

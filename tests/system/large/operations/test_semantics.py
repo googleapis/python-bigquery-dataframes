@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import nullcontext
 from unittest.mock import patch
 
 import pandas as pd
@@ -19,8 +20,7 @@ import pandas.testing
 import pytest
 
 import bigframes
-import bigframes.dataframe as dataframe
-import bigframes.dtypes as dtypes
+from bigframes import dataframe, dtypes, exceptions
 
 
 def test_semantics_experiment_off_raise_error():
@@ -47,7 +47,7 @@ def test_semantics_experiment_off_raise_error():
 )
 def test_agg(session, gemini_flash_model, max_agg_rows, cluster_column):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={
             "Movies": [
@@ -76,12 +76,18 @@ def test_agg(session, gemini_flash_model, max_agg_rows, cluster_column):
     pandas.testing.assert_series_equal(actual_s, expected_s, check_index_type=False)
 
 
-@pytest.mark.parametrize(("reply", "should_execute"), [("y", True), ("n", False)])
-def test_agg_with_confirmation(
-    session, gemini_flash_model, reply, should_execute, monkeypatch
-):
+@pytest.mark.parametrize(
+    ("reply"),
+    [
+        pytest.param("y"),
+        pytest.param(
+            "n", marks=pytest.mark.xfail(raises=exceptions.OperationAbortedError)
+        ),
+    ],
+)
+def test_agg_with_confirmation(session, gemini_flash_model, reply, monkeypatch):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 0
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 0
     df = dataframe.DataFrame(
         data={
             "Movies": [
@@ -98,22 +104,17 @@ def test_agg_with_confirmation(
         session=session,
     )
     instruction = "Find the shared first name of actors in {Movies}. One word answer."
-    monkeypatch.setattr("builtins.input", lambda _: reply)
+    monkeypatch.setattr("builtins.input", lambda: reply)
 
-    result = df.semantics.agg(
+    df.semantics.agg(
         instruction,
         model=gemini_flash_model,
     )
 
-    if should_execute:
-        assert result is not None
-    else:
-        assert result is None
-
 
 def test_agg_w_int_column(session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={
             "Movies": [
@@ -157,7 +158,7 @@ def test_agg_w_int_column(session, gemini_flash_model):
 )
 def test_agg_invalid_instruction_raise_error(instruction, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={
             "Movies": [
@@ -186,7 +187,7 @@ def test_agg_invalid_instruction_raise_error(instruction, gemini_flash_model):
 )
 def test_agg_invalid_cluster_column_raise_error(gemini_flash_model, cluster_column):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={
             "Movies": [
@@ -210,7 +211,7 @@ def test_agg_invalid_cluster_column_raise_error(gemini_flash_model, cluster_colu
 )
 def test_cluster_by(session, text_embedding_generator, n_clusters):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         (
             {
@@ -240,12 +241,20 @@ def test_cluster_by(session, text_embedding_generator, n_clusters):
     assert len(result[output_column].unique()) <= n_clusters
 
 
-@pytest.mark.parametrize(("reply", "should_execute"), [("y", True), ("n", False)])
+@pytest.mark.parametrize(
+    ("reply"),
+    [
+        pytest.param("y"),
+        pytest.param(
+            "n", marks=pytest.mark.xfail(raises=exceptions.OperationAbortedError)
+        ),
+    ],
+)
 def test_cluster_by_with_confirmation(
-    session, text_embedding_generator, reply, should_execute, monkeypatch
+    session, text_embedding_generator, reply, monkeypatch
 ):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 0
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 0
     df = dataframe.DataFrame(
         (
             {
@@ -262,24 +271,19 @@ def test_cluster_by_with_confirmation(
         ),
         session=session,
     )
-    monkeypatch.setattr("builtins.input", lambda _: reply)
+    monkeypatch.setattr("builtins.input", lambda: reply)
 
-    result = df.semantics.cluster_by(
+    df.semantics.cluster_by(
         "Item",
         "cluster id",
         text_embedding_generator,
         n_clusters=2,
     )
 
-    if should_execute:
-        assert result is not None
-    else:
-        assert result is None
-
 
 def test_cluster_by_invalid_column(session, text_embedding_generator):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
 
     df = dataframe.DataFrame(
         ({"Product": ["Smartphone", "Laptop", "Coffee Maker", "T-shirt", "Jeans"]}),
@@ -298,7 +302,7 @@ def test_cluster_by_invalid_column(session, text_embedding_generator):
 
 def test_cluster_by_invalid_model(session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
 
     df = dataframe.DataFrame(
         ({"Product": ["Smartphone", "Laptop", "Coffee Maker", "T-shirt", "Jeans"]}),
@@ -317,7 +321,7 @@ def test_cluster_by_invalid_model(session, gemini_flash_model):
 
 def test_filter(session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={
             "country": ["USA", "Germany"],
@@ -339,12 +343,18 @@ def test_filter(session, gemini_flash_model):
     )
 
 
-@pytest.mark.parametrize(("reply", "should_execute"), [("y", True), ("n", False)])
-def test_filter_with_confirmation(
-    session, gemini_flash_model, reply, should_execute, monkeypatch
-):
+@pytest.mark.parametrize(
+    ("reply"),
+    [
+        pytest.param("y"),
+        pytest.param(
+            "n", marks=pytest.mark.xfail(raises=exceptions.OperationAbortedError)
+        ),
+    ],
+)
+def test_filter_with_confirmation(session, gemini_flash_model, reply, monkeypatch):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 0
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 0
     df = dataframe.DataFrame(
         data={
             "country": ["USA", "Germany"],
@@ -353,21 +363,16 @@ def test_filter_with_confirmation(
         },
         session=session,
     )
-    monkeypatch.setattr("builtins.input", lambda _: reply)
+    monkeypatch.setattr("builtins.input", lambda: reply)
 
-    result = df.semantics.filter(
+    df.semantics.filter(
         "{city} is the capital of {country} in {year}", gemini_flash_model
     )
-
-    if should_execute:
-        assert result is not None
-    else:
-        assert result is None
 
 
 def test_filter_single_column_reference(session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]},
         session=session,
@@ -405,7 +410,7 @@ def test_filter_single_column_reference(session, gemini_flash_model):
 )
 def test_filter_invalid_instruction_raise_error(instruction, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame({"id": [1, 2], "city": ["Seattle", "Berlin"]})
 
     with pytest.raises(ValueError):
@@ -414,7 +419,7 @@ def test_filter_invalid_instruction_raise_error(instruction, gemini_flash_model)
 
 def test_filter_invalid_model_raise_error():
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}
     )
@@ -425,7 +430,7 @@ def test_filter_invalid_model_raise_error():
 
 def test_map(session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={
             "ingredient_1": ["Burger Bun", "Soy Bean"],
@@ -460,12 +465,18 @@ def test_map(session, gemini_flash_model):
     )
 
 
-@pytest.mark.parametrize(("reply", "should_execute"), [("y", True), ("n", False)])
-def test_map_with_confirmation(
-    session, gemini_flash_model, reply, should_execute, monkeypatch
-):
+@pytest.mark.parametrize(
+    ("reply"),
+    [
+        pytest.param("y"),
+        pytest.param(
+            "n", marks=pytest.mark.xfail(raises=exceptions.OperationAbortedError)
+        ),
+    ],
+)
+def test_map_with_confirmation(session, gemini_flash_model, reply, monkeypatch):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 0
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 0
     df = dataframe.DataFrame(
         data={
             "ingredient_1": ["Burger Bun", "Soy Bean"],
@@ -474,18 +485,13 @@ def test_map_with_confirmation(
         },
         session=session,
     )
-    monkeypatch.setattr("builtins.input", lambda _: reply)
+    monkeypatch.setattr("builtins.input", lambda: reply)
 
-    result = df.semantics.map(
+    df.semantics.map(
         "What is the {gluten-free} food made from {ingredient_1} and {ingredient_2}? One word only.",
         "food",
         gemini_flash_model,
     )
-
-    if should_execute:
-        assert result is not None
-    else:
-        assert result is None
 
 
 @pytest.mark.parametrize(
@@ -510,7 +516,7 @@ def test_map_with_confirmation(
 )
 def test_map_invalid_instruction_raise_error(instruction, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={
             "id": [1, 2],
@@ -525,7 +531,7 @@ def test_map_invalid_instruction_raise_error(instruction, gemini_flash_model):
 
 def test_map_invalid_model_raise_error():
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={
             "ingredient_1": ["Burger Bun", "Soy Bean"],
@@ -557,7 +563,7 @@ def test_map_invalid_model_raise_error():
 )
 def test_join(instruction, session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     cities = dataframe.DataFrame(
         data={
             "city": ["Seattle", "Berlin"],
@@ -590,12 +596,18 @@ def test_join(instruction, session, gemini_flash_model):
     )
 
 
-@pytest.mark.parametrize(("reply", "should_execute"), [("y", True), ("n", False)])
-def test_join_with_confirmation(
-    session, gemini_flash_model, reply, should_execute, monkeypatch
-):
+@pytest.mark.parametrize(
+    ("reply"),
+    [
+        pytest.param("y"),
+        pytest.param(
+            "n", marks=pytest.mark.xfail(raises=exceptions.OperationAbortedError)
+        ),
+    ],
+)
+def test_join_with_confirmation(session, gemini_flash_model, reply, monkeypatch):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 0
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 0
     cities = dataframe.DataFrame(
         data={
             "city": ["Seattle", "Berlin"],
@@ -606,23 +618,18 @@ def test_join_with_confirmation(
         data={"country": ["USA", "UK", "Germany"]},
         session=session,
     )
-    monkeypatch.setattr("builtins.input", lambda _: reply)
+    monkeypatch.setattr("builtins.input", lambda: reply)
 
-    result = cities.semantics.join(
+    cities.semantics.join(
         countries,
         "{city} is in {country}",
         gemini_flash_model,
     )
 
-    if should_execute:
-        assert result is not None
-    else:
-        assert result is None
-
 
 def test_self_join(session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     animals = dataframe.DataFrame(
         data={
             "animal": ["spider", "capybara"],
@@ -653,7 +660,7 @@ def test_self_join(session, gemini_flash_model):
 
 def test_join_data_too_large_raise_error(session, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     cities = dataframe.DataFrame(
         data={
             "city": ["Seattle", "Berlin"],
@@ -697,7 +704,7 @@ def test_join_invalid_instruction_raise_error(
     instruction, error_pattern, gemini_flash_model
 ):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df1 = dataframe.DataFrame(
         {"city": ["Seattle", "Berlin"], "country": ["USA", "Germany"]}
     )
@@ -714,7 +721,7 @@ def test_join_invalid_instruction_raise_error(
 
 def test_join_invalid_model_raise_error():
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     cities = dataframe.DataFrame({"city": ["Seattle", "Berlin"]})
     countries = dataframe.DataFrame({"country": ["USA", "UK", "Germany"]})
 
@@ -731,7 +738,7 @@ def test_join_invalid_model_raise_error():
 )
 def test_search(session, text_embedding_generator, score_column):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={"creatures": ["salmon", "sea urchin", "baboons", "frog", "chimpanzee"]},
         session=session,
@@ -761,34 +768,37 @@ def test_search(session, text_embedding_generator, score_column):
         assert score_column in actual_result.columns
 
 
-@pytest.mark.parametrize(("reply", "should_execute"), [("y", True), ("n", False)])
+@pytest.mark.parametrize(
+    ("reply"),
+    [
+        pytest.param("y"),
+        pytest.param(
+            "n", marks=pytest.mark.xfail(raises=exceptions.OperationAbortedError)
+        ),
+    ],
+)
 def test_search_with_confirmation(
-    session, text_embedding_generator, reply, should_execute, monkeypatch
+    session, text_embedding_generator, reply, monkeypatch
 ):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 0
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 0
     df = dataframe.DataFrame(
         data={"creatures": ["salmon", "sea urchin", "baboons", "frog", "chimpanzee"]},
         session=session,
     )
-    monkeypatch.setattr("builtins.input", lambda _: reply)
+    monkeypatch.setattr("builtins.input", lambda: reply)
 
-    result = df.semantics.search(
+    df.semantics.search(
         "creatures",
         "monkey",
         top_k=2,
         model=text_embedding_generator,
     )
 
-    if should_execute:
-        assert result is not None
-    else:
-        assert result is None
-
 
 def test_search_invalid_column_raises_error(session, text_embedding_generator):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={"creatures": ["salmon", "sea urchin", "baboons", "frog", "chimpanzee"]},
         session=session,
@@ -802,7 +812,7 @@ def test_search_invalid_column_raises_error(session, text_embedding_generator):
 
 def test_search_invalid_model_raises_error(session):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={"creatures": ["salmon", "sea urchin", "baboons", "frog", "chimpanzee"]},
         session=session,
@@ -814,7 +824,7 @@ def test_search_invalid_model_raises_error(session):
 
 def test_search_invalid_top_k_raises_error(session, text_embedding_generator):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         data={"creatures": ["salmon", "sea urchin", "baboons", "frog", "chimpanzee"]},
         session=session,
@@ -835,7 +845,7 @@ def test_search_invalid_top_k_raises_error(session, text_embedding_generator):
 )
 def test_sim_join(session, text_embedding_generator, score_column):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df1 = dataframe.DataFrame(
         data={"creatures": ["salmon", "cat"]},
         session=session,
@@ -870,12 +880,20 @@ def test_sim_join(session, text_embedding_generator, score_column):
         assert score_column in actual_result.columns
 
 
-@pytest.mark.parametrize(("reply", "should_execute"), [("y", True), ("n", False)])
+@pytest.mark.parametrize(
+    ("reply"),
+    [
+        pytest.param("y"),
+        pytest.param(
+            "n", marks=pytest.mark.xfail(raises=exceptions.OperationAbortedError)
+        ),
+    ],
+)
 def test_sim_join_with_confirmation(
-    session, text_embedding_generator, reply, should_execute, monkeypatch
+    session, text_embedding_generator, reply, monkeypatch
 ):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 0
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 0
     df1 = dataframe.DataFrame(
         data={"creatures": ["salmon", "cat"]},
         session=session,
@@ -884,20 +902,15 @@ def test_sim_join_with_confirmation(
         data={"creatures": ["dog", "tuna"]},
         session=session,
     )
-    monkeypatch.setattr("builtins.input", lambda _: reply)
+    monkeypatch.setattr("builtins.input", lambda: reply)
 
-    result = df1.semantics.sim_join(
+    df1.semantics.sim_join(
         df2,
         left_on="creatures",
         right_on="creatures",
         model=text_embedding_generator,
         top_k=1,
     )
-
-    if should_execute:
-        assert result is not None
-    else:
-        assert result is None
 
 
 @pytest.mark.parametrize(
@@ -911,7 +924,7 @@ def test_sim_join_invalid_column_raises_error(
     session, text_embedding_generator, left_on, right_on
 ):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df1 = dataframe.DataFrame(
         data={"creatures": ["salmon", "cat"]},
         session=session,
@@ -929,7 +942,7 @@ def test_sim_join_invalid_column_raises_error(
 
 def test_sim_join_invalid_model_raises_error(session):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df1 = dataframe.DataFrame(
         data={"creatures": ["salmon", "cat"]},
         session=session,
@@ -947,7 +960,7 @@ def test_sim_join_invalid_model_raises_error(session):
 
 def test_sim_join_invalid_top_k_raises_error(session, text_embedding_generator):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df1 = dataframe.DataFrame(
         data={"creatures": ["salmon", "cat"]},
         session=session,
@@ -969,7 +982,7 @@ def test_sim_join_invalid_top_k_raises_error(session, text_embedding_generator):
 
 def test_sim_join_data_too_large_raises_error(session, text_embedding_generator):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df1 = dataframe.DataFrame(
         data={"creatures": ["salmon", "cat"]},
         session=session,
@@ -1016,7 +1029,7 @@ def test_sim_join_data_too_large_raises_error(session, text_embedding_generator)
 )
 def test_top_k_invalid_instruction_raise_error(instruction, gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame(
         {
             "Animals": ["Dog", "Cat", "Bird", "Horse"],
@@ -1029,7 +1042,7 @@ def test_top_k_invalid_instruction_raise_error(instruction, gemini_flash_model):
 
 def test_top_k_invalid_k_raise_error(gemini_flash_model):
     bigframes.options.experiments.semantic_operators = True
-    bigframes.options.compute.sem_ops_confirmation_threshold = 10
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 10
     df = dataframe.DataFrame({"Animals": ["Dog", "Cat", "Bird", "Horse"]})
     with pytest.raises(ValueError):
         df.semantics.top_k(
@@ -1044,7 +1057,7 @@ def test_confirm_operation__below_threshold_do_not_confirm(mock_input):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame({})
 
-    bigframes.options.compute.sem_ops_confirmation_threshold = 3
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 3
     df.semantics._confirm_operation(1)
 
     mock_input.assert_not_called()
@@ -1055,22 +1068,28 @@ def test_confirm_operation__threshold_is_none_do_not_confirm(mock_input):
     bigframes.options.experiments.semantic_operators = True
     df = dataframe.DataFrame({})
 
-    bigframes.options.compute.sem_ops_confirmation_threshold = None
+    bigframes.options.compute.semantic_ops_confirmation_threshold = None
     df.semantics._confirm_operation(100)
 
     mock_input.assert_not_called()
 
 
 @pytest.mark.parametrize(
-    ("reply", "expected"),
-    [("y", True), ("yes", True), ("", True), ("n", False), ("something", False)],
+    ("reply", "expectation"),
+    [
+        ("y", nullcontext()),
+        ("yes", nullcontext()),
+        ("", nullcontext()),
+        ("n", pytest.raises(exceptions.OperationAbortedError)),
+        ("something", pytest.raises(exceptions.OperationAbortedError)),
+    ],
 )
-def test_confirm_operation__above_threshold_confirm(reply, expected, monkeypatch):
+def test_confirm_operation__above_threshold_confirm(reply, expectation, monkeypatch):
     bigframes.options.experiments.semantic_operators = True
-    monkeypatch.setattr("builtins.input", lambda _: reply)
+    monkeypatch.setattr("builtins.input", lambda: reply)
     df = dataframe.DataFrame({})
 
-    bigframes.options.compute.sem_ops_confirmation_threshold = 3
-    actual = df.semantics._confirm_operation(4)
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 3
 
-    assert actual is expected
+    with expectation as e:
+        assert df.semantics._confirm_operation(4) == e
