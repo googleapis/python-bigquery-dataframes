@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 import inspect
 from typing import Callable, Iterable
 
@@ -23,14 +24,23 @@ import bigframes.session._io.bigquery as bf_io_bigquery
 _PYTHON_TO_BQ_TYPES = {int: "INT64", float: "FLOAT64", str: "STRING", bytes: "BYTES"}
 
 
+@dataclass
+class FunctionDef:
+    func: Callable  # function body
+    requirements: Iterable[str]  # required packages
+
+
 # TODO(garrettwu): migrate to bigframes UDF when it is available
 class TransformFunction:
+    """Definition of a Python UDF."""
+
     def __init__(
-        self, func: Callable, requirements: Iterable[str], session: bigframes.Session
+        self, func_def: FunctionDef, session: bigframes.Session, connection: str
     ):
-        self._func = func
-        self._requirements = requirements
+        self._func = func_def.func
+        self._requirements = func_def.requirements
         self._session = session
+        self._connection = connection
 
     def input_bq_signature(self):
         sig = inspect.signature(self._func)
@@ -43,7 +53,7 @@ class TransformFunction:
         sig = inspect.signature(self._func)
         return _PYTHON_TO_BQ_TYPES[sig.return_annotation]
 
-    def create_udf(self, connection):
+    def create_udf(self):
         udf_name = str(self._session._loader._storage_manager._random_table())
 
         func_body = inspect.getsource(self._func)
@@ -53,7 +63,7 @@ class TransformFunction:
         sql = f"""
 CREATE OR REPLACE FUNCTION `{udf_name}`({self.input_bq_signature()})
 RETURNS {self.output_bq_type()} LANGUAGE python
-WITH CONNECTION `{connection}`
+WITH CONNECTION `{self._connection}`
 OPTIONS (entry_point='{func_name}', runtime_version='python-3.11', packages={packages})
 AS r\"\"\"
 
@@ -73,8 +83,8 @@ AS r\"\"\"
 
         return udf_name
 
-    def udf(self, connection):
-        udf_name = self.create_udf(connection)
+    def udf(self):
+        udf_name = self.create_udf()
         return self._session.read_gbq_function(udf_name)
 
 
@@ -110,3 +120,6 @@ def image_blur_func(
     )
 
     return dst_obj_ref_rt
+
+
+image_blur_def = FunctionDef(image_blur_func, ["opencv-python", "numpy", "requests"])

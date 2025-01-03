@@ -19,6 +19,7 @@ from typing import Optional
 import IPython.display as ipy_display
 import requests
 
+from bigframes import clients
 from bigframes.operations import base
 import bigframes.operations as ops
 import bigframes.series
@@ -78,14 +79,28 @@ class BlobAccessor(base.SeriesMethods):
     ) -> bigframes.series.Series:
         import bigframes.blob._functions as blob_func
 
-        image_blur_udf = blob_func.TransformFunction(
-            blob_func.image_blur_func,
-            ["opencv-python", "numpy", "requests"],
-            session=self._block.session,
-        ).udf(connection)
+        connection = connection or self._block.session._bq_connection
+        connection = clients.resolve_full_bq_connection_name(
+            connection,
+            default_project=self._block.session._project,
+            default_location=self._block.session._location,
+        )
 
-        s = bigframes.series.Series(self._block)
-        df = s.to_frame().join(dst.to_frame())
+        image_blur_udf = blob_func.TransformFunction(
+            blob_func.image_blur_def,
+            session=self._block.session,
+            connection=connection,
+        ).udf()
+
+        src_rt = bigframes.series.Series(self._block)._apply_unary_op(
+            ops.ObjGetAccessUrl(mode="R")
+        )
+        dst_rt = dst._apply_unary_op(ops.ObjGetAccessUrl(mode="RW"))
+
+        src_rt = src_rt._apply_unary_op(ops.to_json_string_op)
+        dst_rt = dst_rt._apply_unary_op(ops.to_json_string_op)
+
+        df = src_rt.to_frame().join(dst_rt.to_frame(), how="outer")
         df["ksize_x"], df["ksize_y"] = ksize
 
         return df.apply(image_blur_udf, axis=1)
