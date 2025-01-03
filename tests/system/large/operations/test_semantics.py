@@ -27,7 +27,6 @@ THRESHOLD_OPTION = "compute.semantic_ops_confirmation_threshold"
 
 
 def test_semantics_experiment_off_raise_error():
-    # bigframes.options.experiments.semantic_operators = False
     df = dataframe.DataFrame(
         {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}
     )
