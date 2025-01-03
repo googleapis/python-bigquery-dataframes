@@ -1102,8 +1102,8 @@ class Semantics:
         if threshold is None or row_count <= threshold:
             return True
 
-        # Separate the prompt out. In IDE such VS Code, leaving prompt in the 
-        # input function makes it less visible to the end user. 
+        # Separate the prompt out. In IDE such VS Code, leaving prompt in the
+        # input function makes it less visible to the end user.
         print(f"This operation will process about {row_count} rows. Proceed? [Y/n]")
         reply = input().lower()
         if reply == "" or reply == "y" or reply == "yes":
