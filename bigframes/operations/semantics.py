@@ -1095,6 +1095,11 @@ class Semantics:
         if threshold is None or row_count <= threshold:
             return
 
+        if bigframes.options.compute.semantic_ops_threshold_autofail:
+            raise exceptions.OperationAbortedError(
+                f"Operation was cancelled because your work estimate is {row_count} rows, which exceeds the threshold {threshold} rows."
+            )
+
         # Separate the prompt out. In IDE such VS Code, leaving prompt in the
         # input function makes it less visible to the end user.
         print(f"This operation will process about {row_count} rows.")

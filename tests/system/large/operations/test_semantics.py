@@ -1074,6 +1074,20 @@ def test_confirm_operation__threshold_is_none_do_not_confirm(mock_input):
     mock_input.assert_not_called()
 
 
+@patch("builtins.input", return_value="")
+def test_confirm_operation__threshold_autofail_do_not_confirm(mock_input):
+    bigframes.options.experiments.semantic_operators = True
+    df = dataframe.DataFrame({})
+
+    bigframes.options.compute.semantic_ops_confirmation_threshold = 1
+    bigframes.options.compute.semantic_ops_threshold_autofail = True
+
+    with pytest.raises(exceptions.OperationAbortedError):
+        df.semantics._confirm_operation(100)
+
+    mock_input.assert_not_called()
+
+
 @pytest.mark.parametrize(
     ("reply", "expectation"),
     [

@@ -71,6 +71,9 @@ class ComputeOptions:
             If the number of rows exceeds the threshold, the user will be asked to confirm
             their operations to resume. The default value is 0. Set the value to None
             to turn off the guard.
+        semmantic_ops_confirmation_threshold (bool):
+            Guards against unexepcted processing of large amount of rows by semantic operators.
+            When set to True, the operation automatically fails without asking for user inputs.
     """
 
     maximum_bytes_billed: Optional[int] = None
@@ -79,6 +82,7 @@ class ComputeOptions:
         default_factory=dict, init=False
     )
     semantic_ops_confirmation_threshold: Optional[int] = 0
+    semantic_ops_threshold_autofail = False
 
     def assign_extra_query_labels(self, **kwargs: Any) -> None:
         """
