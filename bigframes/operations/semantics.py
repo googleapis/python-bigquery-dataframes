@@ -115,6 +115,16 @@ class Semantics:
         self._validate_model(model)
         columns = self._parse_columns(instruction)
 
+        if max_agg_rows <= 1:
+            raise ValueError(
+                f"Invalid value for `max_agg_rows`: {max_agg_rows}."
+                "It must be greater than 1."
+            )
+
+        work_estimate = len(self._df) * int(max_agg_rows / (max_agg_rows - 1))
+        if not self._confirm_operation(work_estimate):
+            return None
+
         df: bigframes.dataframe.DataFrame = self._df.copy()
         for column in columns:
             if column not in self._df.columns:
@@ -133,12 +143,6 @@ class Semantics:
             warnings.warn(
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
-            )
-
-        if max_agg_rows <= 1:
-            raise ValueError(
-                f"Invalid value for `max_agg_rows`: {max_agg_rows}."
-                "It must be greater than 1."
             )
 
         user_instruction = self._format_instruction(instruction, columns)
@@ -296,6 +300,9 @@ class Semantics:
                 "It must be greater than 1."
             )
 
+        if not self._confirm_operation(len(self._df)):
+            return None
+
         df: bigframes.dataframe.DataFrame = self._df.copy()
         embeddings_df = model.predict(df[column])
 
@@ -366,6 +373,9 @@ class Semantics:
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+
+        if not self._confirm_operation(len(self._df)):
+            return None
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         for column in columns:
@@ -462,6 +472,9 @@ class Semantics:
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
 
+        if not self._confirm_operation(len(self._df)):
+            return None
+
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         for column in columns:
             if df[column].dtype != dtypes.STRING_DTYPE:
@@ -490,7 +503,6 @@ class Semantics:
         other,
         instruction: str,
         model,
-        max_rows: int = 1000,
         ground_with_google_search: bool = False,
     ):
         """
@@ -561,12 +573,9 @@ class Semantics:
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
 
-        joined_table_rows = len(self._df) * len(other)
-
-        if joined_table_rows > max_rows:
-            raise ValueError(
-                f"Number of rows that need processing is {joined_table_rows}, which exceeds row limit {max_rows}."
-            )
+        work_estimate = len(self._df) * len(other)
+        if not self._confirm_operation(work_estimate):
+            return None
 
         left_columns = []
         right_columns = []
@@ -679,6 +688,9 @@ class Semantics:
 
         if search_column not in self._df.columns:
             raise ValueError(f"Column `{search_column}` not found")
+
+        if not self._confirm_operation(len(self._df)):
+            return None
 
         import bigframes.ml.llm as llm
 
@@ -802,6 +814,10 @@ class Semantics:
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+
+        work_estimate = int(len(self._df) * (len(self._df) - 1) / 2)
+        if not self._confirm_operation(work_estimate):
+            return None
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         column = columns[0]
@@ -1001,6 +1017,10 @@ class Semantics:
         if top_k < 1:
             raise ValueError("top_k must be an integer greater than or equal to 1.")
 
+        work_estimate = len(self._df) * len(other)
+        if not self._confirm_operation(work_estimate):
+            return None
+
         base_table_embedding_column = guid.generate_guid()
         base_table = self._attach_embedding(
             other, right_on, base_table_embedding_column, model
@@ -1072,3 +1092,21 @@ class Semantics:
 
         if not isinstance(model, GeminiTextGenerator):
             raise TypeError("Model is not GeminiText Generator")
+
+    @staticmethod
+    def _confirm_operation(row_count: int) -> bool:
+        import bigframes
+
+        threshold = bigframes.options.compute.sem_ops_confirmation_threshold
+
+        if threshold is None or row_count <= threshold:
+            return True
+
+        # Separate the prompt out. In IDE such VS Code, leaving prompt in the 
+        # input function makes it less visible to the end user. 
+        print(f"This operation will process about {row_count} rows. Proceed? [Y/n]")
+        reply = input().lower()
+        if reply == "" or reply == "y" or reply == "yes":
+            return True
+
+        return False
