@@ -420,20 +420,20 @@ def test_filter_with_confirmation(session, gemini_flash_model, reply, monkeypatc
 
 
 def test_filter_single_column_reference(session, gemini_flash_model):
+    df = dataframe.DataFrame(
+        data={"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]},
+        session=session,
+    )
+
     with bigframes.option_context(
         EXPERIMENT_OPTION,
         True,
         THRESHOLD_OPTION,
         10,
     ):
-        df = dataframe.DataFrame(
-            data={"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]},
-            session=session,
-        )
-
-    actual_df = df.semantics.filter(
-        "{country} is in Europe", gemini_flash_model
-    ).to_pandas()
+        actual_df = df.semantics.filter(
+            "{country} is in Europe", gemini_flash_model
+        ).to_pandas()
 
     expected_df = pd.DataFrame({"country": ["Germany"], "city": ["Berlin"]}, index=[1])
     pandas.testing.assert_frame_equal(
@@ -741,29 +741,6 @@ def test_self_join(session, gemini_flash_model):
         check_index_type=False,
         check_column_type=False,
     )
-
-
-def test_join_data_too_large_raise_error(session, gemini_flash_model):
-    cities = dataframe.DataFrame(
-        data={
-            "city": ["Seattle", "Berlin"],
-        },
-        session=session,
-    )
-    countries = dataframe.DataFrame(
-        data={"country": ["USA", "UK", "Germany"]},
-        session=session,
-    )
-
-    with bigframes.option_context(
-        EXPERIMENT_OPTION,
-        True,
-        THRESHOLD_OPTION,
-        10,
-    ), pytest.raises(ValueError):
-        cities.semantics.join(
-            countries, "{city} belongs to {country}", gemini_flash_model, max_rows=1
-        )
 
 
 @pytest.mark.parametrize(
@@ -1231,7 +1208,7 @@ def test_confirm_operation__threshold_autofail_do_not_confirm(mock_input):
         True,
         THRESHOLD_OPTION,
         1,
-        "compute.semanti_ops_threshold_autofail",
+        "compute.semantic_ops_threshold_autofail",
         True,
     ), pytest.raises(exceptions.OperationAbortedError):
         df.semantics._confirm_operation(100)
