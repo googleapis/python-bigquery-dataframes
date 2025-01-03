@@ -24,15 +24,17 @@ import bigframes.session._io.bigquery as bf_io_bigquery
 _PYTHON_TO_BQ_TYPES = {int: "INT64", float: "FLOAT64", str: "STRING", bytes: "BYTES"}
 
 
-@dataclass
+@dataclass(frozen=True)
 class FunctionDef:
+    """Definition of a Python UDF."""
+
     func: Callable  # function body
     requirements: Iterable[str]  # required packages
 
 
 # TODO(garrettwu): migrate to bigframes UDF when it is available
 class TransformFunction:
-    """Definition of a Python UDF."""
+    """Simple transform function class to deal with Python UDF."""
 
     def __init__(
         self, func_def: FunctionDef, session: bigframes.Session, connection: str
@@ -42,18 +44,19 @@ class TransformFunction:
         self._session = session
         self._connection = connection
 
-    def input_bq_signature(self):
+    def _input_bq_signature(self):
         sig = inspect.signature(self._func)
         inputs = []
         for k, v in sig.parameters.items():
             inputs.append(f"{k} {_PYTHON_TO_BQ_TYPES[v.annotation]}")
         return ", ".join(inputs)
 
-    def output_bq_type(self):
+    def _output_bq_type(self):
         sig = inspect.signature(self._func)
         return _PYTHON_TO_BQ_TYPES[sig.return_annotation]
 
-    def create_udf(self):
+    def _create_udf(self):
+        """Create Python UDF in BQ. Return name of the UDF."""
         udf_name = str(self._session._loader._storage_manager._random_table())
 
         func_body = inspect.getsource(self._func)
@@ -61,8 +64,8 @@ class TransformFunction:
         packages = str(list(self._requirements))
 
         sql = f"""
-CREATE OR REPLACE FUNCTION `{udf_name}`({self.input_bq_signature()})
-RETURNS {self.output_bq_type()} LANGUAGE python
+CREATE OR REPLACE FUNCTION `{udf_name}`({self._input_bq_signature()})
+RETURNS {self._output_bq_type()} LANGUAGE python
 WITH CONNECTION `{self._connection}`
 OPTIONS (entry_point='{func_name}', runtime_version='python-3.11', packages={packages})
 AS r\"\"\"
@@ -84,10 +87,12 @@ AS r\"\"\"
         return udf_name
 
     def udf(self):
-        udf_name = self.create_udf()
+        """Create and return the UDF object."""
+        udf_name = self._create_udf()
         return self._session.read_gbq_function(udf_name)
 
 
+# Blur images. Takes ObjectRefRuntime as JSON string. Outputs ObjectRefRuntime JSON string.
 def image_blur_func(
     src_obj_ref_rt: str, dst_obj_ref_rt: str, ksize_x: int, ksize_y: int
 ) -> str:

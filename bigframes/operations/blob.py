@@ -77,6 +77,19 @@ class BlobAccessor(base.SeriesMethods):
         dst: bigframes.series.Series,
         connection: Optional[str] = None,
     ) -> bigframes.series.Series:
+        """Blurs images.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Args:
+            ksize (tuple(int, int)): Kernel size.
+            dst (bigframes.series.Series): Destination blob series.
+            connection (str or None, default None): BQ connection used for internet transactions. If None, uses default connection of the session.
+
+        Returns:
+            JSON: Runtime info of the Blob.
+        """
         import bigframes.blob._functions as blob_func
 
         connection = connection or self._block.session._bq_connection
