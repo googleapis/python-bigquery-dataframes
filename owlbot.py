@@ -54,8 +54,8 @@ s.move(
         ".kokoro/build.sh",
         ".kokoro/continuous/common.cfg",
         ".kokoro/presubmit/common.cfg",
-        # Temporary workaround to update docs job to use python 3.10
-        ".github/workflows/docs.yml",
+        # Remove exclusion below once python 3.7 is dropped in templates
+        ".github/workflows/unittest.yml",
     ],
 )
 
