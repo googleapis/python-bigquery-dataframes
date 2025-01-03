@@ -1099,9 +1099,7 @@ class Semantics:
         # input function makes it less visible to the end user.
         print(f"This operation will process about {row_count} rows.")
         print(
-            """You can raise the confirmation threshold by setting 
-            `bigframes.options.compute.semantic_ops_confirmation_threshold` to a higher value. 
-            To completely turn off the confirmation check, set the threshold to `None`."""
+            "You can raise the confirmation threshold by setting `bigframes.options.compute.semantic_ops_confirmation_threshold` to a higher value. To completely turn off the confirmation check, set the threshold to `None`."
         )
         print("Proceed? [Y/n]")
         reply = input().casefold()
