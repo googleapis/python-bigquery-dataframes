@@ -53,6 +53,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -246,6 +247,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.TextEmbeddingGenerator()
@@ -319,6 +321,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -410,6 +413,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -510,6 +514,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -649,6 +654,7 @@ class Semantics:
 
             >>> import bigframes
             >>> bigframes.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
@@ -749,6 +755,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -949,9 +956,8 @@ class Semantics:
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
-
-            >>> import bigframes
-            >>> bigframes.options.experiments.semantic_operators = True
+            >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
