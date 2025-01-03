@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import re
+from unittest import mock
 import warnings
 
+import google.auth.credentials
 import pytest
 
 import bigframes
@@ -88,7 +90,9 @@ def test_setter_if_session_started_but_setting_the_same_value(
 
 def test_setter_if_session_started_but_setting_the_same_credentials_object():
     options = bigquery_options.BigQueryOptions()
-    original_object = object()
+    original_object = mock.create_autospec(
+        google.auth.credentials.Credentials, instance=True
+    )
     options.credentials = original_object
     assert options.credentials is original_object
 
