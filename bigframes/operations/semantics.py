@@ -1095,6 +1095,7 @@ class Semantics:
 
     @staticmethod
     def _confirm_operation(row_count: int) -> bool:
+        """Returns true only if we can proceed with the operation."""
         import bigframes
 
         threshold = bigframes.options.compute.sem_ops_confirmation_threshold
