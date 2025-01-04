@@ -39,6 +39,9 @@ import bigframes.core.nodes as nodes
 import bigframes.core.ordering as bf_ordering
 import bigframes.core.rewrite as rewrites
 
+# Modified version of functools cache methods to workaround https://github.com/python/cpython/issues/112215
+import third_party.bigframes_vendored.cpython.functools as vendored_functools
+
 if typing.TYPE_CHECKING:
     import bigframes.core
     import bigframes.session
@@ -112,8 +115,7 @@ class Compiler:
     def compile_unordered_ir(self, node: nodes.BigFrameNode) -> compiled.UnorderedIR:
         return typing.cast(compiled.UnorderedIR, self.compile_node(node, False))
 
-    # TODO: Remove cache when schema no longer requires compilation to derive schema (and therefor only compiles for execution)
-    @functools.lru_cache(maxsize=5000)
+    @vendored_functools.lru_cache(maxsize=5000)
     def compile_node(
         self, node: nodes.BigFrameNode, ordered: bool = True
     ) -> compiled.UnorderedIR | compiled.OrderedIR:
