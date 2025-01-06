@@ -641,8 +641,7 @@ class Session(
                 to load from the default project.
 
         Returns:
-            model:
-                A bigframes.ml Model, Transformer or Pipeline wrapping the model.
+            A bigframes.ml Model, Transformer or Pipeline wrapping the model.
         """
         import bigframes.ml.loader
 
@@ -1371,13 +1370,14 @@ class Session(
                 `all`, `internal-only`, `internal-and-gclb`. See for more details
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
         Returns:
-            callable: A remote function object pointing to the cloud assets created
-            in the background to support the remote execution. The cloud assets can be
-            located through the following properties set in the object:
+            collections.abc.Callable:
+                A remote function object pointing to the cloud assets created
+                in the background to support the remote execution. The cloud assets can be
+                located through the following properties set in the object:
 
-            `bigframes_cloud_function` - The google cloud function deployed for the user defined code.
+                `bigframes_cloud_function` - The google cloud function deployed for the user defined code.
 
-            `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
+                `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
         """
         return self._remote_function_session.remote_function(
             input_types,
@@ -1546,7 +1546,7 @@ class Session(
                 a pandas Series.
 
         Returns:
-            callable:
+            collections.abc.Callable:
                 A function object pointing to the BigQuery function read
                 from BigQuery.
 
