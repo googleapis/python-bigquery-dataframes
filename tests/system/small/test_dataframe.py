@@ -5222,3 +5222,10 @@ def test_astype(scalars_dfs, dtype):
     pd_result = pd_df.astype(dtype)
 
     pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
+
+
+def test_astype_invalid_type_fail(scalars_dfs):
+    bf_df, _ = scalars_dfs
+
+    with pytest.raises(ValueError):
+        bf_df.astype(123)
