@@ -641,7 +641,7 @@ class Session(
                 to load from the default project.
 
         Returns:
-            bigframes.ml model:
+            model:
                 A bigframes.ml Model, Transformer or Pipeline wrapping the model.
         """
         import bigframes.ml.loader
