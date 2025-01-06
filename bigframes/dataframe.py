@@ -386,12 +386,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
 
         if isinstance(dtype, dict):
-            block = self._block
+            result = self.copy()
             for col, to_type in dtype.items():
-                block, _ = block.apply_unary_op(
-                    col, ops.AsTypeOp(to_type, safe_cast), result_label=col
-                )
-            return DataFrame(block)
+                result[col] = result[col].astype(to_type)
+            return result
 
         raise ValueError(f"Invalid type {type(dtype)} for dtype input.")
 
