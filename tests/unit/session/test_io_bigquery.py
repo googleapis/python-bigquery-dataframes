@@ -17,14 +17,12 @@ import re
 from typing import Iterable
 
 import google.cloud.bigquery as bigquery
-import google.cloud.bigquery_storage_v1
 import pytest
 
 import bigframes
 from bigframes.core import log_adapter
 import bigframes.pandas as bpd
 import bigframes.session._io.bigquery as io_bq
-import bigframes.session.executor as bf_exe
 from tests.unit import resources
 
 
@@ -44,37 +42,6 @@ def mock_bq_client(mocker):
     mock_client.query.return_value = mock_query_job
 
     return mock_client
-
-
-@pytest.fixture(scope="function")
-def mock_storage_manager(mocker):
-    return mocker.Mock(spec=bigframes.session.temp_storage.TemporaryGbqStorageManager)
-
-
-@pytest.fixture(scope="function")
-def mock_bq_storage_read_client(mocker):
-    return mocker.Mock(spec=google.cloud.bigquery_storage_v1.BigQueryReadClient)
-
-
-@pytest.fixture(scope="function")
-def mock_array_value(mocker):
-    return mocker.Mock(spec=bigframes.core.ArrayValue)
-
-
-@pytest.fixture(scope="function")
-def patch_bq_caching_executor(mocker):
-    mock_execute_result = mocker.Mock(spec=bf_exe.ExecuteResult)
-    mock_execute_result.query_job.destination.project = "some_project"
-    mock_execute_result.query_job.destination.dataset_id = "some_dataset"
-    mock_execute_result.query_job.destination.table_id = "some_table"
-
-    with mocker.patch.object(
-        bf_exe.BigQueryCachingExecutor, "to_sql", return_value='select * from "abc"'
-    ):
-        with mocker.patch.object(
-            bf_exe.BigQueryCachingExecutor, "execute", return_value=mock_execute_result
-        ):
-            yield
 
 
 def test_create_job_configs_labels_is_none():
@@ -273,183 +240,6 @@ def test_start_query_with_client_labels_length_limit_met(
     assert "dataframe-head" in job_config.labels.values()
     assert "bigframes-api" in job_config.labels.keys()
     assert "source" in job_config.labels.keys()
-
-
-@pytest.mark.parametrize(
-    ("location", "project", "api_name"),
-    [(None, None, None), ("us", "abc", "test_api")],
-)
-def test_create_bq_dataset_reference_length_limit_met(
-    mock_bq_client, location, project, api_name
-):
-    df = bpd.DataFrame(
-        {"col1": [1, 2], "col2": [3, 4]}, session=resources.create_bigquery_session()
-    )
-
-    df.max()
-    for _ in range(64):
-        df.head()
-
-    io_bq.create_bq_dataset_reference(
-        mock_bq_client,
-        location=location,
-        project=project,
-        api_name=api_name,
-    )
-    _, kwargs = mock_bq_client.query.call_args
-    job_config = kwargs["job_config"]
-
-    assert job_config.labels is not None
-    assert len(job_config.labels) == 64
-    assert "dataframe-max" not in job_config.labels.values()
-    assert "dataframe-head" in job_config.labels.values()
-    assert "bigframes-api" in job_config.labels.keys()
-
-
-@pytest.mark.parametrize(
-    ("strictly_ordered", "format"),
-    [(True, "json"), (False, "csv"), (True, "json")],
-)
-def test_export_gcs_length_limit_met(
-    mock_bq_client,
-    mock_storage_manager,
-    mock_bq_storage_read_client,
-    mock_array_value,
-    strictly_ordered,
-    format,
-    patch_bq_caching_executor,
-):
-    bigquery_caching_executor = bf_exe.BigQueryCachingExecutor(
-        mock_bq_client,
-        mock_storage_manager,
-        mock_bq_storage_read_client,
-        strictly_ordered=strictly_ordered,
-    )
-
-    df = bpd.DataFrame(
-        {"col1": [1, 2], "col2": [3, 4]}, session=resources.create_bigquery_session()
-    )
-
-    df.max()
-    for _ in range(63):
-        df.head()
-
-    bigquery_caching_executor.export_gcs(
-        mock_array_value,
-        col_id_overrides={"a": "b", "c": "d"},
-        uri="abc",
-        format=format,
-        export_options={"aa": True, "bb": "cc"},
-    )
-
-    _, kwargs = mock_bq_client.query.call_args
-    job_config = kwargs["job_config"]
-
-    assert job_config.labels is not None
-    assert len(job_config.labels) == 64
-    assert "dataframe-max" not in job_config.labels.values()
-    assert "dataframe-head" in job_config.labels.values()
-    assert "bigframes-api" in job_config.labels.keys()
-
-
-@pytest.mark.parametrize(
-    ("strictly_ordered", "ordered"),
-    [(True, False), (False, True)],
-)
-def test_dry_run_length_limit_met(
-    mock_bq_client,
-    mock_storage_manager,
-    mock_bq_storage_read_client,
-    mock_array_value,
-    strictly_ordered,
-    ordered,
-    patch_bq_caching_executor,
-):
-    bigquery_caching_executor = bf_exe.BigQueryCachingExecutor(
-        mock_bq_client,
-        mock_storage_manager,
-        mock_bq_storage_read_client,
-        strictly_ordered=strictly_ordered,
-    )
-
-    df = bpd.DataFrame(
-        {"col1": [1, 2], "col2": [3, 4]}, session=resources.create_bigquery_session()
-    )
-
-    df.max()
-    for _ in range(64):
-        df.head()
-
-    bigquery_caching_executor.dry_run(mock_array_value, ordered=ordered)
-
-    _, kwargs = mock_bq_client.query.call_args
-    job_config = kwargs["job_config"]
-
-    assert job_config.labels is not None
-    assert len(job_config.labels) == 64
-    assert "dataframe-max" not in job_config.labels.values()
-    assert "dataframe-head" in job_config.labels.values()
-    assert "bigframes-api" in job_config.labels.keys()
-
-
-@pytest.mark.parametrize(
-    ("strictly_ordered", "api_name", "page_size", "max_results"),
-    [(True, None, None, None), (False, "test_api", 100, 10)],
-)
-def test__run_execute_query_length_limit_met(
-    mock_bq_client,
-    mock_storage_manager,
-    mock_bq_storage_read_client,
-    strictly_ordered,
-    api_name,
-    page_size,
-    max_results,
-):
-    sql = "select * from abc"
-
-    bigquery_caching_executor = bf_exe.BigQueryCachingExecutor(
-        mock_bq_client,
-        mock_storage_manager,
-        mock_bq_storage_read_client,
-        strictly_ordered=strictly_ordered,
-    )
-
-    cur_labels = {
-        "bigframes-api": "read_pandas",
-        "source": "bigquery-dataframes-temp",
-    }
-    for i in range(10):
-        key = f"bigframes-api-test-{i}"
-        value = f"test{i}"
-        cur_labels[key] = value
-
-    job_config = bigquery.job.QueryJobConfig()
-    job_config.labels = cur_labels
-
-    df = bpd.DataFrame(
-        {"col1": [1, 2], "col2": [3, 4]}, session=resources.create_bigquery_session()
-    )
-
-    df.max()
-    for _ in range(60):
-        df.head()
-
-    bigquery_caching_executor._run_execute_query(
-        sql,
-        job_config=job_config,
-        api_name=api_name,
-        page_size=page_size,
-        max_results=max_results,
-    )
-
-    _, kwargs = mock_bq_client.query.call_args
-    job_config = kwargs["job_config"]
-
-    assert job_config.labels is not None
-    assert len(job_config.labels) == 64
-    assert "dataframe-max" not in job_config.labels.values()
-    assert "dataframe-head" in job_config.labels.values()
-    assert "bigframes-api" in job_config.labels.keys()
 
 
 def test_create_temp_table_default_expiration():

@@ -222,7 +222,10 @@ def start_query_with_client(
     bq_client: bigquery.Client,
     sql: str,
     job_config: bigquery.job.QueryJobConfig,
+    location: Optional[str] = None,
+    project: Optional[str] = None,
     max_results: Optional[int] = None,
+    page_size: Optional[int] = None,
     timeout: Optional[float] = None,
     api_name: Optional[str] = None,
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
@@ -230,12 +233,17 @@ def start_query_with_client(
     """
     Starts query job and waits for results.
     """
-    # Note: Ensure no additional labels are added to job_config after this point,
-    # as `add_and_trim_labels` ensures the label count does not exceed 64.
-    add_and_trim_labels(job_config, api_name=api_name)
-
     try:
-        query_job = bq_client.query(sql, job_config=job_config, timeout=timeout)
+        # Note: Ensure no additional labels are added to job_config after this point,
+        # as `add_and_trim_labels` ensures the label count does not exceed 64.
+        add_and_trim_labels(job_config, api_name=api_name)
+        query_job = bq_client.query(
+            sql,
+            job_config=job_config,
+            location=location,
+            project=project,
+            timeout=timeout,
+        )
     except google.api_core.exceptions.Forbidden as ex:
         if "Drive credentials" in ex.message:
             ex.message += CHECK_DRIVE_PERMISSIONS
@@ -244,10 +252,15 @@ def start_query_with_client(
     opts = bigframes.options.display
     if opts.progress_bar is not None and not query_job.configuration.dry_run:
         results_iterator = formatting_helpers.wait_for_query_job(
-            query_job, max_results=max_results, progress_bar=opts.progress_bar
+            query_job,
+            max_results=max_results,
+            progress_bar=opts.progress_bar,
+            page_size=page_size,
         )
     else:
-        results_iterator = query_job.result(max_results=max_results)
+        results_iterator = query_job.result(
+            max_results=max_results, page_size=page_size
+        )
 
     if metrics is not None:
         metrics.count_job_stats(query_job)
@@ -312,13 +325,14 @@ def create_bq_dataset_reference(
     """
     job_config = google.cloud.bigquery.QueryJobConfig()
 
-    # Note: Ensure no additional labels are added to job_config after this point,
-    # as `add_and_trim_labels` ensures the label count does not exceed 64.
-    add_and_trim_labels(job_config, api_name=api_name)
-    query_job = bq_client.query(
-        "SELECT 1", location=location, project=project, job_config=job_config
+    _, query_job = start_query_with_client(
+        bq_client,
+        "SELECT 1",
+        location=location,
+        job_config=job_config,
+        project=project,
+        api_name=api_name,
     )
-    query_job.result()  # blocks until finished
 
     # The anonymous dataset is used by BigQuery to write query results and
     # session tables. BigQuery DataFrames also writes temp tables directly
