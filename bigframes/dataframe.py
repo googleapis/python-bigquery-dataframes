@@ -3963,13 +3963,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # In Bigframes remote function, DataFrame '.apply' method is specifically
         # designed to work with row-wise or column-wise operations, where the input
         # to the applied function should be a Series, not a scalar.
-        if hasattr(func, 'is_row_processor') and not func.is_row_processor:
+        if hasattr(func, "is_row_processor") and not func.is_row_processor:
             raise NotImplementedError(
                 "In Bigframes remote function, DataFrame '.apply()' does not "
                 "support element-wise application. Please use '.map()' instead."
             )
 
-        if hasattr(func, 'bigframes_remote_function') and (args or kwargs):
+        if hasattr(func, "bigframes_remote_function") and (args or kwargs):
             warnings.warn(
                 "The args and kwargs are not supported in the remote function.",
                 category=bigframes.exceptions.ArgsAndKwargsNotSupportedWarning,
