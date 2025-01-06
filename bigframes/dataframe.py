@@ -3958,16 +3958,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             result_series.name = None
             return result_series
 
+        # This is when the func as a remote function is applied to each element of
+        # the dataframe (not supported).
+        # In Bigframes remote function, DataFrame '.apply' method is specifically
+        # designed to work with row-wise or column-wise operations, where the input
+        # to the applied function should be a Series, not a scalar.
+        if hasattr(func, 'is_row_processor') and not func.is_row_processor:
+            raise NotImplementedError(
+                "In Bigframes remote function, DataFrame '.apply()' does not "
+                "support element-wise application. Please use '.map()' instead."
+            )
+
+        if hasattr(func, 'bigframes_remote_function') and (args or kwargs):
+            warnings.warn(
+                "The args and kwargs are not supported in the remote function.",
+                category=bigframes.exceptions.ArgsAndKwargsNotSupportedWarning,
+            )
+
         # Per-column apply
-        if hasattr(func, "bigframes_remote_function"):
-            if args or kwargs:
-                warnings.warn(
-                    "The args and kwargs are not supported in the remote function.",
-                    category=bigframes.exceptions.ArgsAndKwargsNotSupportedWarning,
-                )
-            results = {name: col.apply(func) for name, col in self.items()}
-        else:
-            results = {name: func(col, *args, **kwargs) for name, col in self.items()}
+        results = {name: func(col, *args, **kwargs) for name, col in self.items()}
 
         if all(
             [
