@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from google.cloud import bigquery
 
@@ -65,7 +65,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
             The data frequency of the input time series.
             Possible values are "auto_frequency", "per_minute", "hourly", "daily", "weekly", "monthly", "quarterly", "yearly"
 
-        include_drift (bool, defalut False):
+        include_drift (bool, default False):
             Determines whether the model should include a linear drift term or not. The drift term is applicable when non-seasonal d is 1.
 
         holiday_region (str or None, default None):
@@ -180,8 +180,8 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
     ):
         """Fit the model to training data.
@@ -199,14 +199,14 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         Returns:
             ARIMAPlus: Fitted estimator.
         """
+        X, y = utils.batch_convert_to_dataframe(X, y)
+
         if X.columns.size != 1:
             raise ValueError(
                 "Time series timestamp input X must only contain 1 column."
             )
         if y.columns.size != 1:
             raise ValueError("Time series data input y must only contain 1 column.")
-
-        X, y = utils.convert_to_dataframe(X, y)
 
         self._bqml_model = self._bqml_model_factory.create_time_series_model(
             X,
@@ -253,6 +253,43 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
             options={"horizon": horizon, "confidence_level": confidence_level}
         )
 
+    def predict_explain(
+        self, X=None, *, horizon: int = 3, confidence_level: float = 0.95
+    ) -> bpd.DataFrame:
+        """Explain Forecast time series at future horizon.
+
+        .. note::
+
+            Output matches that of the BigQuery ML.EXPLAIN_FORECAST function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-forecast
+
+        Args:
+            X (default None):
+                ignored, to be compatible with other APIs.
+            horizon (int, default: 3):
+                an int value that specifies the number of time points to forecast.
+                The default value is 3, and the maximum value is 1000.
+            confidence_level (float, default 0.95):
+                A float value that specifies percentage of the future values that fall in the prediction interval.
+                The valid input range is [0.0, 1.0).
+
+        Returns:
+            bigframes.dataframe.DataFrame: The predicted DataFrames.
+        """
+        if horizon < 1:
+            raise ValueError(f"horizon must be at least 1, but is {horizon}.")
+        if confidence_level < 0.0 or confidence_level >= 1.0:
+            raise ValueError(
+                f"confidence_level must be [0.0, 1.0), but is {confidence_level}."
+            )
+
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before predict")
+
+        return self._bqml_model.explain_forecast(
+            options={"horizon": horizon, "confidence_level": confidence_level}
+        )
+
     @property
     def coef_(
         self,
@@ -276,14 +313,14 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
 
     def detect_anomalies(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
         *,
         anomaly_prob_threshold: float = 0.95,
     ) -> bpd.DataFrame:
         """Detect the anomaly data points of the input.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Series or a DataFrame to detect anomalies.
             anomaly_prob_threshold (float, default 0.95):
                 Identifies the custom threshold to use for anomaly detection. The value must be in the range [0, 1), with a default value of 0.95.
@@ -298,7 +335,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before detect_anomalies")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.detect_anomalies(
             X, options={"anomaly_prob_threshold": anomaly_prob_threshold}
@@ -306,8 +343,8 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> bpd.DataFrame:
         """Calculate evaluation metrics of the model.
 
@@ -318,11 +355,11 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
             for the outputs relevant to this model type.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 A BigQuery DataFrame only contains 1 column as
                 evaluation timestamp. The timestamp must be within the horizon
                 of the model, which by default is 1000 data points.
-            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 A BigQuery DataFrame only contains 1 column as
                 evaluation numeric values.
 
@@ -331,7 +368,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)

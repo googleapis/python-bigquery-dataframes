@@ -38,9 +38,20 @@ def llm_remote_text_df(session, llm_remote_text_pandas_df):
     return session.read_pandas(llm_remote_text_pandas_df)
 
 
-@pytest.mark.flaky(retries=2)
-def test_llm_gemini_configure_fit(llm_fine_tune_df_default_index, llm_remote_text_df):
-    model = llm.GeminiTextGenerator(model_name="gemini-pro", max_iterations=1)
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "gemini-pro",
+        "gemini-1.5-pro-002",
+        "gemini-1.5-flash-002",
+    ),
+)
+def test_llm_gemini_configure_fit(
+    session, model_name, llm_fine_tune_df_default_index, llm_remote_text_df
+):
+    model = llm.GeminiTextGenerator(
+        session=session, model_name=model_name, max_iterations=1
+    )
 
     X_train = llm_fine_tune_df_default_index[["prompt"]]
     y_train = llm_fine_tune_df_default_index[["label"]]
@@ -65,7 +76,26 @@ def test_llm_gemini_configure_fit(llm_fine_tune_df_default_index, llm_remote_tex
         ],
         index=3,
     )
-    # TODO(ashleyxu b/335492787): After bqml rolled out version control: save, load, check parameters to ensure configuration was kept
+
+
+@pytest.mark.flaky(retries=2)
+def test_llm_gemini_w_ground_with_google_search(llm_remote_text_df):
+    model = llm.GeminiTextGenerator(model_name="gemini-pro", max_iterations=1)
+    df = model.predict(
+        llm_remote_text_df["prompt"],
+        ground_with_google_search=True,
+    ).to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        df,
+        columns=[
+            "ml_generate_text_llm_result",
+            "ml_generate_text_rai_result",
+            "ml_generate_text_grounding_result",
+            "ml_generate_text_status",
+            "prompt",
+        ],
+        index=3,
+    )
 
 
 # (b/366290533): Claude models are of extremely low capacity. The tests should reside in small tests. Moving these here just to protect BQML's shared capacity(as load test only runs once per day.) and make sure we still have minimum coverage.

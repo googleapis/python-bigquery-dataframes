@@ -59,6 +59,10 @@ class QueryComplexityError(RuntimeError):
     """Query plan is too complex to execute."""
 
 
+class OperationAbortedError(RuntimeError):
+    """Operation is aborted."""
+
+
 class TimeTravelDisabledWarning(Warning):
     """A query was reattempted without time travel."""
 
@@ -73,3 +77,7 @@ class UnknownDataTypeWarning(Warning):
 
 class ApiDeprecationWarning(FutureWarning):
     """The API has been deprecated."""
+
+
+class BadIndexerKeyWarning(Warning):
+    """The indexer key is not used correctly."""

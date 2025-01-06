@@ -25,7 +25,6 @@ import pandas as pd
 from pandas.tseries.offsets import DateOffset
 import pyarrow as pa
 
-import bigframes.dtypes
 import bigframes.dtypes as dtypes
 import bigframes.operations.type as op_typing
 
@@ -315,6 +314,19 @@ arccosh_op = create_unary_op(
 arctanh_op = create_unary_op(
     name="arctanh", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+# Geo Ops
+geo_x_op = create_unary_op(
+    name="geo_x",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.FLOAT_DTYPE, description="geo-like"
+    ),
+)
+geo_y_op = create_unary_op(
+    name="geo_y",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.FLOAT_DTYPE, description="geo-like"
+    ),
+)
 ## Numeric Ops
 floor_op = create_unary_op(name="floor", type_signature=op_typing.UNARY_REAL_NUMERIC)
 ceil_op = create_unary_op(name="ceil", type_signature=op_typing.UNARY_REAL_NUMERIC)
@@ -327,6 +339,10 @@ ln_op = create_unary_op(name="log", type_signature=op_typing.UNARY_REAL_NUMERIC)
 log10_op = create_unary_op(name="log10", type_signature=op_typing.UNARY_REAL_NUMERIC)
 log1p_op = create_unary_op(name="log1p", type_signature=op_typing.UNARY_REAL_NUMERIC)
 sqrt_op = create_unary_op(name="sqrt", type_signature=op_typing.UNARY_REAL_NUMERIC)
+## Blob Ops
+obj_fetch_metadata_op = create_unary_op(
+    name="obj_fetch_metadata", type_signature=op_typing.BLOB_TRANSFORM
+)
 
 
 # Parameterized unary ops
@@ -495,6 +511,7 @@ class AsTypeOp(UnaryOp):
     name: typing.ClassVar[str] = "astype"
     # TODO: Convert strings to dtype earlier
     to_type: dtypes.DtypeString | dtypes.Dtype
+    safe: bool = False
 
     def output_type(self, *input_types):
         # TODO: We should do this conversion earlier
@@ -526,6 +543,13 @@ class RemoteFunctionOp(UnaryOp):
     def output_type(self, *input_types):
         # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
         if hasattr(self.func, "output_dtype"):
+            if dtypes.is_array_like(self.func.output_dtype):
+                # TODO(b/284515241): remove this special handling to support
+                # array output types once BQ remote functions support ARRAY.
+                # Until then, use json serialized strings at the remote function
+                # level, and parse that to the intended output type at the
+                # bigframes level.
+                return dtypes.STRING_DTYPE
             return self.func.output_dtype
         else:
             raise AttributeError("output_dtype not defined")
@@ -548,9 +572,9 @@ class ToDatetimeOp(UnaryOp):
 
     def output_type(self, *input_types):
         if input_types[0] not in (
-            bigframes.dtypes.FLOAT_DTYPE,
-            bigframes.dtypes.INT_DTYPE,
-            bigframes.dtypes.STRING_DTYPE,
+            dtypes.FLOAT_DTYPE,
+            dtypes.INT_DTYPE,
+            dtypes.STRING_DTYPE,
         ):
             raise TypeError("expected string or numeric input")
         return pd.ArrowDtype(pa.timestamp("us", tz=None))
@@ -565,9 +589,9 @@ class ToTimestampOp(UnaryOp):
     def output_type(self, *input_types):
         # Must be numeric or string
         if input_types[0] not in (
-            bigframes.dtypes.FLOAT_DTYPE,
-            bigframes.dtypes.INT_DTYPE,
-            bigframes.dtypes.STRING_DTYPE,
+            dtypes.FLOAT_DTYPE,
+            dtypes.INT_DTYPE,
+            dtypes.STRING_DTYPE,
         ):
             raise TypeError("expected string or numeric input")
         return pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
@@ -697,6 +721,50 @@ class JSONExtractArray(UnaryOp):
         return pd.ArrowDtype(
             pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(dtypes.STRING_DTYPE))
         )
+
+
+@dataclasses.dataclass(frozen=True)
+class JSONExtractStringArray(UnaryOp):
+    name: typing.ClassVar[str] = "json_extract_string_array"
+    json_path: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return pd.ArrowDtype(
+            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(dtypes.STRING_DTYPE))
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class ToJSONString(UnaryOp):
+    name: typing.ClassVar[str] = "to_json_string"
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return dtypes.STRING_DTYPE
+
+
+to_json_string_op = ToJSONString()
+
+
+## Blob Ops
+@dataclasses.dataclass(frozen=True)
+class ObjGetAccessUrl(UnaryOp):
+    name: typing.ClassVar[str] = "obj_get_access_url"
+    mode: str  # access mode, e.g. R read, W write, RW read & write
+
+    def output_type(self, *input_types):
+        return dtypes.JSON_DTYPE
 
 
 # Binary Ops
@@ -850,6 +918,21 @@ class JSONSet(BinaryOp):
 
         # After JSON type implementation, ONLY return JSON data.
         return left_type
+
+
+## Blob Ops
+@dataclasses.dataclass(frozen=True)
+class ObjMakeRef(BinaryOp):
+    name: typing.ClassVar[str] = "obj.make_ref"
+
+    def output_type(self, *input_types):
+        if not all(map(dtypes.is_string_like, input_types)):
+            raise TypeError("obj.make_ref requires string-like arguments")
+
+        return dtypes.OBJ_REF_DTYPE
+
+
+obj_make_ref_op = ObjMakeRef()
 
 
 # Ternary Ops

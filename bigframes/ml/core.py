@@ -123,6 +123,17 @@ class BqmlModel(BaseBqml):
             self._model_manipulation_sql_generator.ml_predict,
         )
 
+    def explain_predict(
+        self, input_data: bpd.DataFrame, options: Mapping[str, int | float]
+    ) -> bpd.DataFrame:
+        return self._apply_ml_tvf(
+            input_data,
+            lambda source_sql: self._model_manipulation_sql_generator.ml_explain_predict(
+                source_sql=source_sql,
+                struct_options=options,
+            ),
+        )
+
     def transform(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         return self._apply_ml_tvf(
             input_data,
@@ -171,6 +182,14 @@ class BqmlModel(BaseBqml):
     def forecast(self, options: Mapping[str, int | float]) -> bpd.DataFrame:
         sql = self._model_manipulation_sql_generator.ml_forecast(struct_options=options)
         return self._session.read_gbq(sql, index_col="forecast_timestamp").reset_index()
+
+    def explain_forecast(self, options: Mapping[str, int | float]) -> bpd.DataFrame:
+        sql = self._model_manipulation_sql_generator.ml_explain_forecast(
+            struct_options=options
+        )
+        return self._session.read_gbq(
+            sql, index_col="time_series_timestamp"
+        ).reset_index()
 
     def evaluate(self, input_data: Optional[bpd.DataFrame] = None):
         sql = self._model_manipulation_sql_generator.ml_evaluate(
@@ -307,9 +326,11 @@ class BqmlModelFactory:
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
         if y_train is None:
-            input_data = X_train.cache()
+            input_data = X_train.reset_index(drop=True).cache()
         else:
-            input_data = X_train.join(y_train, how="outer").cache()
+            input_data = (
+                X_train.join(y_train, how="outer").reset_index(drop=True).cache()
+            )
             options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
 
         session = X_train._session

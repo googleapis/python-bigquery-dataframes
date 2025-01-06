@@ -51,6 +51,7 @@ UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
+    "freezegun",
     PYTEST_VERSION,
     "pytest-cov",
     "pytest-asyncio",
@@ -60,7 +61,7 @@ UNIT_TEST_EXTERNAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
-UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
+UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {"3.12": ["polars"]}
 
 # There are 4 different ibis-framework 9.x versions we want to test against.
 # 3.10 is needed for Windows tests.
@@ -105,6 +106,7 @@ nox.options.sessions = [
     "system-3.9",
     "system-3.12",
     "cover",
+    "cleanup",
 ]
 
 # Error if a python version is missing
@@ -249,6 +251,7 @@ def mypy(session):
                 "types-requests",
                 "types-setuptools",
                 "types-tabulate",
+                "polars",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
@@ -394,6 +397,8 @@ def doctest(session: nox.sessions.Session):
             "third_party",
             "--ignore",
             "third_party/bigframes_vendored/ibis",
+            "--ignore",
+            "bigframes/core/compile/polars",
         ),
         test_folder="bigframes",
         check_cov=True,
@@ -432,7 +437,15 @@ def cover(session):
     (including system test runs), and then erases coverage data.
     """
     session.install("coverage", "pytest-cov")
-    session.run("coverage", "report", "--show-missing", "--fail-under=90")
+
+    # Create a coverage report that includes only the product code.
+    session.run(
+        "coverage",
+        "report",
+        "--include=bigframes/*",
+        "--show-missing",
+        "--fail-under=86",
+    )
 
     # Make sure there is no dead code in our test directories.
     session.run(
@@ -607,9 +620,10 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
         "git+https://github.com/googleapis/python-bigquery-storage.git#egg=google-cloud-bigquery-storage",
     )
     already_installed.add("google-cloud-bigquery-storage")
-
-    # Workaround to install pandas-gbq >=0.15.0, which is required by test only.
-    session.install("--no-deps", "pandas-gbq")
+    session.install(
+        "--upgrade",
+        "git+https://github.com/googleapis/python-bigquery-pandas.git#egg=pandas-gbq",
+    )
     already_installed.add("pandas-gbq")
 
     session.install(
@@ -736,6 +750,7 @@ def notebook(session: nox.Session):
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
         "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
+        "notebooks/generative_ai/bq_dataframes_llm_gemini_2.ipynb",  # Gemini 2.0 backend hasn't ready in prod.
         # TODO(b/366290533): to protect BQML quota
         "notebooks/generative_ai/bq_dataframes_llm_claude3_museum_art.ipynb",
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
@@ -944,25 +959,24 @@ def release_dry_run(session):
 def cleanup(session):
     """Clean up stale and/or temporary resources in the test project."""
     google_cloud_project = os.getenv("GOOGLE_CLOUD_PROJECT")
-    if not google_cloud_project:
-        session.error(
-            "Set GOOGLE_CLOUD_PROJECT environment variable to run notebook session."
-        )
+    cleanup_options = []
+    if google_cloud_project:
+        cleanup_options.append(f"--project-id={google_cloud_project}")
 
     # Cleanup a few stale (more than 12 hours old) temporary cloud run
     # functions created by bigframems. This will help keeping the test GCP
     # project within the "Number of functions" quota
     # https://cloud.google.com/functions/quotas#resource_limits
     recency_cutoff_hours = 12
-    cleanup_count_per_location = 10
+    cleanup_count_per_location = 20
+    cleanup_options.extend(
+        [
+            f"--recency-cutoff={recency_cutoff_hours}",
+            "cleanup",
+            f"--number={cleanup_count_per_location}",
+        ]
+    )
 
     session.install("-e", ".")
 
-    session.run(
-        "python",
-        "scripts/manage_cloud_functions.py",
-        f"--project-id={google_cloud_project}",
-        f"--recency-cutoff={recency_cutoff_hours}",
-        "cleanup",
-        f"--number={cleanup_count_per_location}",
-    )
+    session.run("python", "scripts/manage_cloud_functions.py", *cleanup_options)

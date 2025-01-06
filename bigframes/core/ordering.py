@@ -20,8 +20,8 @@ import math
 import typing
 from typing import Mapping, Optional, Sequence, Set
 
-import ibis.expr.datatypes as ibis_dtypes
-import ibis.expr.types as ibis_types
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
+import bigframes_vendored.ibis.expr.types as ibis_types
 
 import bigframes.core.expression as expression
 import bigframes.core.identifiers as ids
@@ -221,6 +221,11 @@ class RowOrdering:
 @dataclass(frozen=True)
 class TotalOrdering(RowOrdering):
     """Immutable object that holds information about the ordering of rows in a ArrayValue object. Guaranteed to be unambiguous."""
+
+    def __post_init__(self):
+        assert set(ref.id for ref in self.total_ordering_columns).issubset(
+            self.referenced_columns
+        )
 
     # A table has a total ordering defined by the identities of a set of 1 or more columns.
     # These columns must always be part of the ordering, in order to guarantee that the ordering is total.

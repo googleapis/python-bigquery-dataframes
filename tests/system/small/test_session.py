@@ -26,7 +26,6 @@ import google
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas as pd
-import pyarrow as pa
 import pytest
 
 import bigframes
@@ -399,7 +398,7 @@ def test_read_gbq_twice_with_same_timestamp(session, penguins_table_id):
 )
 def test_read_gbq_on_linked_dataset_warns(session, source_table):
     with warnings.catch_warnings(record=True) as warned:
-        session.read_gbq(source_table)
+        session.read_gbq(source_table, use_cache=False)
         assert len(warned) == 1
         assert warned[0].category == bigframes.exceptions.TimeTravelDisabledWarning
 
@@ -635,7 +634,7 @@ def test_read_pandas_index(session):
 
 
 def test_read_pandas_w_unsupported_mixed_dtype(session):
-    with pytest.raises(pa.ArrowInvalid, match="Could not convert"):
+    with pytest.raises(ValueError, match="Could not convert"):
         session.read_pandas(pd.DataFrame({"a": [1, "hello"]}))
 
 
@@ -696,7 +695,16 @@ def test_read_pandas_tokyo(
 
 
 @utils.skip_legacy_pandas
-def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
+@pytest.mark.parametrize(
+    ("write_engine",),
+    (
+        ("default",),
+        ("bigquery_inline",),
+        ("bigquery_load",),
+        ("bigquery_streaming",),
+    ),
+)
+def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder, write_engine):
     scalars_df, _ = scalars_dfs
     path = gcs_folder + "test_read_csv_gcs_default_engine_w_index*.csv"
     read_path = utils.get_first_file_from_wildcard(path)
@@ -707,6 +715,7 @@ def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
         read_path,
         # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
         dtype=dtype,
+        write_engine=write_engine,
     )
 
     # TODO(chelsealin): If we serialize the index, can more easily compare values.
@@ -1137,17 +1146,46 @@ def test_read_pickle_gcs(session, penguins_pandas_df_default_index, gcs_folder):
 
 
 @pytest.mark.parametrize(
-    ("engine",),
+    ("engine", "filename"),
     (
-        ("auto",),
-        ("bigquery",),
+        pytest.param(
+            "auto",
+            "000000000000.parquet",
+            id="auto",
+        ),
+        pytest.param(
+            "pyarrow",
+            "000000000000.parquet",
+            id="pyarrow",
+        ),
+        pytest.param(
+            "bigquery",
+            "000000000000.parquet",
+            id="bigquery",
+        ),
+        pytest.param(
+            "bigquery",
+            "*.parquet",
+            id="bigquery_wildcard",
+        ),
+        pytest.param(
+            "auto",
+            "*.parquet",
+            id="auto_wildcard",
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+            ),
+        ),
     ),
 )
-def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder, engine):
+def test_read_parquet_gcs(
+    session: bigframes.Session, scalars_dfs, gcs_folder, engine, filename
+):
     scalars_df, _ = scalars_dfs
     # Include wildcard so that multiple files can be written/read if > 1 GB.
     # https://cloud.google.com/bigquery/docs/exporting-data#exporting_data_into_one_or_more_files
-    path = gcs_folder + test_read_parquet_gcs.__name__ + "*.parquet"
+    write_path = gcs_folder + test_read_parquet_gcs.__name__ + "*.parquet"
+    read_path = gcs_folder + test_read_parquet_gcs.__name__ + filename
 
     df_in: bigframes.dataframe.DataFrame = scalars_df.copy()
     # GEOGRAPHY not supported in parquet export.
@@ -1155,14 +1193,10 @@ def test_read_parquet_gcs(session: bigframes.Session, scalars_dfs, gcs_folder, e
     # Make sure we can also serialize the order.
     df_write = df_in.reset_index(drop=False)
     df_write.index.name = f"ordering_id_{random.randrange(1_000_000)}"
-    df_write.to_parquet(path, index=True)
-
-    # Only bigquery engine for reads supports wildcards in path name.
-    if engine != "bigquery":
-        path = utils.get_first_file_from_wildcard(path)
+    df_write.to_parquet(write_path, index=True)
 
     df_out = (
-        session.read_parquet(path, engine=engine)
+        session.read_parquet(read_path, engine=engine)
         # Restore order.
         .set_index(df_write.index.name).sort_index()
         # Restore index.

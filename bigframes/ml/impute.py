@@ -18,7 +18,7 @@ scikit-learn's preprocessing module: https://scikit-learn.org/stable/modules/imp
 from __future__ import annotations
 
 import typing
-from typing import Iterable, List, Literal, Optional, Union
+from typing import Iterable, List, Literal, Optional
 
 import bigframes_vendored.sklearn.impute._base
 
@@ -84,10 +84,10 @@ class SimpleImputer(
 
     def fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
         y=None,  # ignored
     ) -> SimpleImputer:
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X)
 
         transform_sqls = self._compile_to_sql(X)
         self._bqml_model = self._bqml_model_factory.create_model(
@@ -99,11 +99,11 @@ class SimpleImputer(
         self._extract_output_names()
         return self
 
-    def transform(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def transform(self, X: utils.ArrayType) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         df = self._bqml_model.transform(X)
         return typing.cast(

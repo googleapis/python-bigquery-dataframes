@@ -18,9 +18,9 @@ from __future__ import annotations
 
 from typing import Literal, Tuple
 
-import ibis
-import ibis.expr.datatypes as ibis_dtypes
-import ibis.expr.types as ibis_types
+import bigframes_vendored.ibis.expr.api as ibis_api
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
+import bigframes_vendored.ibis.expr.types as ibis_types
 
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.guid as guids
@@ -55,6 +55,7 @@ def join_by_column_ordered(
     l_value_mapping = dict(zip(left.column_ids, left.column_ids))
     r_value_mapping = dict(zip(right.column_ids, right.column_ids))
 
+    # hidden columns aren't necessarily unique, so need to remap to guids
     l_hidden_mapping = {
         id: guids.generate_guid("hidden_") for id in left._hidden_column_ids
     }
@@ -68,12 +69,14 @@ def join_by_column_ordered(
     left_table = left._to_ibis_expr(
         ordering_mode="unordered",
         expose_hidden_cols=True,
-        col_id_overrides=l_mapping,
     )
+    left_table = left_table.rename({val: key for key, val in l_hidden_mapping.items()})
     right_table = right._to_ibis_expr(
         ordering_mode="unordered",
         expose_hidden_cols=True,
-        col_id_overrides=r_mapping,
+    )
+    right_table = right_table.rename(
+        {val: key for key, val in r_hidden_mapping.items()}
     )
     join_conditions = [
         value_to_join_key(left_table[l_mapping[left_index]])
@@ -81,7 +84,7 @@ def join_by_column_ordered(
         for left_index, right_index in conditions
     ]
 
-    combined_table = ibis.join(
+    combined_table = ibis_api.join(
         left_table,
         right_table,
         predicates=join_conditions,
@@ -152,7 +155,7 @@ def join_by_column_unordered(
         for left_index, right_index in conditions
     ]
 
-    combined_table = ibis.join(
+    combined_table = ibis_api.join(
         left_table,
         right_table,
         predicates=join_conditions,

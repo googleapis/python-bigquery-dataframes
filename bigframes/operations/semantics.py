@@ -16,11 +16,12 @@
 import re
 import typing
 from typing import List, Optional
+import warnings
 
 import numpy as np
 
-import bigframes.core.guid as guid
-import bigframes.dtypes as dtypes
+from bigframes import dtypes, exceptions
+from bigframes.core import guid
 
 
 class Semantics:
@@ -39,6 +40,7 @@ class Semantics:
         model,
         cluster_column: typing.Optional[str] = None,
         max_agg_rows: int = 10,
+        ground_with_google_search: bool = False,
     ):
         """
         Performs an aggregation over all rows of the table.
@@ -51,6 +53,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -90,6 +93,14 @@ class Semantics:
             max_agg_rows (int, default 10):
                 The maxinum number of rows to be aggregated at a time.
 
+            ground_with_google_search (bool, default False):
+                Enables Grounding with Google Search for the GeminiTextGenerator model.
+                When set to True, the model incorporates relevant information from Google
+                Search results into its responses, enhancing their accuracy and factualness.
+                Note: Using this feature may impact billing costs. Refer to the pricing
+                page for details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models
+                The default is `False`.
+
         Returns:
             bigframes.dataframe.DataFrame: A new DataFrame with the aggregated answers.
 
@@ -98,23 +109,12 @@ class Semantics:
             ValueError: when the instruction refers to a non-existing column, or when
                 more than one columns are referred to.
         """
+        import bigframes.bigquery as bbq
+        import bigframes.dataframe
+        import bigframes.series
+
         self._validate_model(model)
-
         columns = self._parse_columns(instruction)
-        for column in columns:
-            if column not in self._df.columns:
-                raise ValueError(f"Column {column} not found.")
-            if self._df[column].dtype != dtypes.STRING_DTYPE:
-                raise TypeError(
-                    "Semantics aggregated column must be a string type, not "
-                    f"{type(self._df[column])}"
-                )
-
-        if len(columns) > 1:
-            raise NotImplementedError(
-                "Semantic aggregations are limited to a single column."
-            )
-        column = columns[0]
 
         if max_agg_rows <= 1:
             raise ValueError(
@@ -122,11 +122,29 @@ class Semantics:
                 "It must be greater than 1."
             )
 
-        import bigframes.bigquery as bbq
-        import bigframes.dataframe
-        import bigframes.series
+        work_estimate = len(self._df) * int(max_agg_rows / (max_agg_rows - 1))
+        self._confirm_operation(work_estimate)
 
         df: bigframes.dataframe.DataFrame = self._df.copy()
+        for column in columns:
+            if column not in self._df.columns:
+                raise ValueError(f"Column {column} not found.")
+
+            if df[column].dtype != dtypes.STRING_DTYPE:
+                df[column] = df[column].astype(dtypes.STRING_DTYPE)
+
+        if len(columns) > 1:
+            raise NotImplementedError(
+                "Semantic aggregations are limited to a single column."
+            )
+        column = columns[0]
+
+        if ground_with_google_search:
+            warnings.warn(
+                "Enables Grounding with Google Search may impact billing cost. See pricing "
+                "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
+            )
+
         user_instruction = self._format_instruction(instruction, columns)
 
         num_cluster = 1
@@ -193,7 +211,12 @@ class Semantics:
 
             # Run model
             predict_df = typing.cast(
-                bigframes.dataframe.DataFrame, model.predict(prompt_s)
+                bigframes.dataframe.DataFrame,
+                model.predict(
+                    prompt_s,
+                    temperature=0.0,
+                    ground_with_google_search=ground_with_google_search,
+                ),
             )
             agg_df[column] = predict_df["ml_generate_text_llm_result"].combine_first(
                 single_row_df
@@ -224,6 +247,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.TextEmbeddingGenerator()
@@ -277,6 +301,8 @@ class Semantics:
                 "It must be greater than 1."
             )
 
+        self._confirm_operation(len(self._df))
+
         df: bigframes.dataframe.DataFrame = self._df.copy()
         embeddings_df = model.predict(df[column])
 
@@ -286,7 +312,7 @@ class Semantics:
         df[output_column] = clustered_result["CENTROID_ID"]
         return df
 
-    def filter(self, instruction: str, model):
+    def filter(self, instruction: str, model, ground_with_google_search: bool = False):
         """
         Filters the DataFrame with the semantics of the user instruction.
 
@@ -295,6 +321,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -307,44 +334,63 @@ class Semantics:
             [1 rows x 2 columns]
 
         Args:
-            instruction:
+            instruction (str):
                 An instruction on how to filter the data. This value must contain
                 column references by name, which should be wrapped in a pair of braces.
                 For example, if you have a column "food", you can refer to this column
                 in the instructions like:
                 "The {food} is healthy."
 
-            model:
+            model (bigframes.ml.llm.GeminiTextGenerator):
                 A GeminiTextGenerator provided by Bigframes ML package.
 
+            ground_with_google_search (bool, default False):
+                Enables Grounding with Google Search for the GeminiTextGenerator model.
+                When set to True, the model incorporates relevant information from Google
+                Search results into its responses, enhancing their accuracy and factualness.
+                Note: Using this feature may impact billing costs. Refer to the pricing
+                page for details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models
+                The default is `False`.
+
         Returns:
-            DataFrame filtered by the instruction.
+            bigframes.pandas.DataFrame: DataFrame filtered by the instruction.
 
         Raises:
             NotImplementedError: when the semantic operator experiment is off.
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
+        import bigframes.dataframe
+        import bigframes.series
+
         self._validate_model(model)
         columns = self._parse_columns(instruction)
         for column in columns:
             if column not in self._df.columns:
                 raise ValueError(f"Column {column} not found.")
-            if self._df[column].dtype != dtypes.STRING_DTYPE:
-                raise TypeError(
-                    "Semantics aggregated column must be a string type, not "
-                    f"{type(self._df[column])}"
-                )
+
+        if ground_with_google_search:
+            warnings.warn(
+                "Enables Grounding with Google Search may impact billing cost. See pricing "
+                "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
+            )
+
+        self._confirm_operation(len(self._df))
+
+        df: bigframes.dataframe.DataFrame = self._df[columns].copy()
+        for column in columns:
+            if df[column].dtype != dtypes.STRING_DTYPE:
+                df[column] = df[column].astype(dtypes.STRING_DTYPE)
 
         user_instruction = self._format_instruction(instruction, columns)
         output_instruction = "Based on the provided context, reply to the following claim by only True or False:"
 
-        from bigframes.dataframe import DataFrame
-
         results = typing.cast(
-            DataFrame,
+            bigframes.dataframe.DataFrame,
             model.predict(
-                self._make_prompt(columns, user_instruction, output_instruction)
+                self._make_prompt(df, columns, user_instruction, output_instruction),
+                temperature=0.0,
+                ground_with_google_search=ground_with_google_search,
             ),
         )
 
@@ -352,7 +398,13 @@ class Semantics:
             results["ml_generate_text_llm_result"].str.lower().str.contains("true")
         ]
 
-    def map(self, instruction: str, output_column: str, model):
+    def map(
+        self,
+        instruction: str,
+        output_column: str,
+        model,
+        ground_with_google_search: bool = False,
+    ):
         """
         Maps the DataFrame with the semantics of the user instruction.
 
@@ -361,6 +413,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -376,57 +429,82 @@ class Semantics:
             [2 rows x 3 columns]
 
         Args:
-            instruction:
+            instruction (str):
                 An instruction on how to map the data. This value must contain
                 column references by name, which should be wrapped in a pair of braces.
                 For example, if you have a column "food", you can refer to this column
                 in the instructions like:
                 "Get the ingredients of {food}."
 
-            output_column:
+            output_column (str):
                 The column name of the mapping result.
 
-            model:
+            model (bigframes.ml.llm.GeminiTextGenerator):
                 A GeminiTextGenerator provided by Bigframes ML package.
 
+            ground_with_google_search (bool, default False):
+                Enables Grounding with Google Search for the GeminiTextGenerator model.
+                When set to True, the model incorporates relevant information from Google
+                Search results into its responses, enhancing their accuracy and factualness.
+                Note: Using this feature may impact billing costs. Refer to the pricing
+                page for details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models
+                The default is `False`.
+
         Returns:
-            DataFrame with attached mapping results.
+            bigframes.pandas.DataFrame: DataFrame with attached mapping results.
 
         Raises:
             NotImplementedError: when the semantic operator experiment is off.
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
+        import bigframes.dataframe
+        import bigframes.series
+
         self._validate_model(model)
         columns = self._parse_columns(instruction)
         for column in columns:
             if column not in self._df.columns:
                 raise ValueError(f"Column {column} not found.")
-            if self._df[column].dtype != dtypes.STRING_DTYPE:
-                raise TypeError(
-                    "Semantics aggregated column must be a string type, not "
-                    f"{type(self._df[column])}"
-                )
+
+        if ground_with_google_search:
+            warnings.warn(
+                "Enables Grounding with Google Search may impact billing cost. See pricing "
+                "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
+            )
+
+        self._confirm_operation(len(self._df))
+
+        df: bigframes.dataframe.DataFrame = self._df[columns].copy()
+        for column in columns:
+            if df[column].dtype != dtypes.STRING_DTYPE:
+                df[column] = df[column].astype(dtypes.STRING_DTYPE)
 
         user_instruction = self._format_instruction(instruction, columns)
         output_instruction = (
             "Based on the provided contenxt, answer the following instruction:"
         )
 
-        from bigframes.series import Series
-
         results = typing.cast(
-            Series,
+            bigframes.series.Series,
             model.predict(
-                self._make_prompt(columns, user_instruction, output_instruction)
+                self._make_prompt(df, columns, user_instruction, output_instruction),
+                temperature=0.0,
+                ground_with_google_search=ground_with_google_search,
             )["ml_generate_text_llm_result"],
         )
 
-        from bigframes.core.reshape import concat
+        from bigframes.core.reshape.api import concat
 
         return concat([self._df, results.rename(output_column)], axis=1)
 
-    def join(self, other, instruction: str, model, max_rows: int = 1000):
+    def join(
+        self,
+        other,
+        instruction: str,
+        model,
+        ground_with_google_search: bool = False,
+    ):
         """
         Joines two dataframes by applying the instruction over each pair of rows from
         the left and right table.
@@ -436,6 +514,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -453,27 +532,35 @@ class Semantics:
             [4 rows x 2 columns]
 
         Args:
-            other:
+            other (bigframes.pandas.DataFrame):
                 The other dataframe.
 
-            instruction:
+            instruction (str):
                 An instruction on how left and right rows can be joined. This value must contain
                 column references by name. which should be wrapped in a pair of braces.
                 For example: "The {city} belongs to the {country}".
-                For column names that are shared between two dataframes, you need to add "_left"
-                and "_right" suffix for differentiation. This is especially important when you do
-                self joins. For example: "The {employee_name_left} reports to {employee_name_right}"
-                You must not add "_left" or "_right" suffix to non-overlapping columns.
+                For column names that are shared between two dataframes, you need to add "left."
+                and "right." prefix for differentiation. This is especially important when you do
+                self joins. For example: "The {left.employee_name} reports to {right.employee_name}"
+                For unique column names, this prefix is optional.
 
-            model:
+            model (bigframes.ml.llm.GeminiTextGenerator):
                 A GeminiTextGenerator provided by Bigframes ML package.
 
-            max_rows:
+            max_rows (int, default 1000):
                 The maximum number of rows allowed to be sent to the model per call. If the result is too large, the method
                 call will end early with an error.
 
+            ground_with_google_search (bool, default False):
+                Enables Grounding with Google Search for the GeminiTextGenerator model.
+                When set to True, the model incorporates relevant information from Google
+                Search results into its responses, enhancing their accuracy and factualness.
+                Note: Using this feature may impact billing costs. Refer to the pricing
+                page for details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models
+                The default is `False`.
+
         Returns:
-            The joined dataframe.
+            bigframes.pandas.DataFrame: The joined dataframe.
 
         Raises:
             ValueError if the amount of data that will be sent for LLM processing is larger than max_rows.
@@ -481,12 +568,14 @@ class Semantics:
         self._validate_model(model)
         columns = self._parse_columns(instruction)
 
-        joined_table_rows = len(self._df) * len(other)
-
-        if joined_table_rows > max_rows:
-            raise ValueError(
-                f"Number of rows that need processing is {joined_table_rows}, which exceeds row limit {max_rows}."
+        if ground_with_google_search:
+            warnings.warn(
+                "Enables Grounding with Google Search may impact billing cost. See pricing "
+                "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+
+        work_estimate = len(self._df) * len(other)
+        self._confirm_operation(work_estimate)
 
         left_columns = []
         right_columns = []
@@ -501,27 +590,29 @@ class Semantics:
             elif col in other.columns:
                 right_columns.append(col)
 
-            elif col.endswith("_left"):
-                original_col_name = col[: -len("_left")]
+            elif col.startswith("left."):
+                original_col_name = col[len("left.") :]
                 if (
                     original_col_name in self._df.columns
                     and original_col_name in other.columns
                 ):
                     left_columns.append(col)
                 elif original_col_name in self._df.columns:
-                    raise ValueError(f"Unnecessary suffix for {col}")
+                    left_columns.append(col)
+                    instruction = instruction.replace(col, original_col_name)
                 else:
                     raise ValueError(f"Column {col} not found")
 
-            elif col.endswith("_right"):
-                original_col_name = col[: -len("_right")]
+            elif col.startswith("right."):
+                original_col_name = col[len("right.") :]
                 if (
                     original_col_name in self._df.columns
                     and original_col_name in other.columns
                 ):
                     right_columns.append(col)
                 elif original_col_name in other.columns:
-                    raise ValueError(f"Unnecessary suffix for {col}")
+                    right_columns.append(col)
+                    instruction = instruction.replace(col, original_col_name)
                 else:
                     raise ValueError(f"Column {col} not found")
 
@@ -534,9 +625,16 @@ class Semantics:
         if not right_columns:
             raise ValueError("No right column references.")
 
+        # Update column references to be compatible with internal naming scheme.
+        # That is, "left.col" -> "col_left" and "right.col" -> "col_right"
+        instruction = re.sub(r"(?<!{){left\.(\w+)}(?!})", r"{\1_left}", instruction)
+        instruction = re.sub(r"(?<!{){right\.(\w+)}(?!})", r"{\1_right}", instruction)
+
         joined_df = self._df.merge(other, how="cross", suffixes=("_left", "_right"))
 
-        return joined_df.semantics.filter(instruction, model).reset_index(drop=True)
+        return joined_df.semantics.filter(
+            instruction, model, ground_with_google_search=ground_with_google_search
+        ).reset_index(drop=True)
 
     def search(
         self,
@@ -556,14 +654,15 @@ class Semantics:
 
             >>> import bigframes
             >>> bigframes.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-004")
+            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
 
             >>> df = bpd.DataFrame({"creatures": ["salmon", "sea urchin", "frog", "chimpanzee"]})
             >>> df.semantics.search("creatures", "monkey", top_k=1, model=model, score_column='distance')
                 creatures  distance
-            3  chimpanzee  0.781101
+            3  chimpanzee  0.635844
             <BLANKLINE>
             [1 rows x 2 columns]
 
@@ -590,6 +689,8 @@ class Semantics:
 
         if search_column not in self._df.columns:
             raise ValueError(f"Column `{search_column}` not found")
+
+        self._confirm_operation(len(self._df))
 
         import bigframes.ml.llm as llm
 
@@ -635,7 +736,13 @@ class Semantics:
 
         return typing.cast(bigframes.dataframe.DataFrame, search_result)
 
-    def top_k(self, instruction: str, model, k=10):
+    def top_k(
+        self,
+        instruction: str,
+        model,
+        k: int = 10,
+        ground_with_google_search: bool = False,
+    ):
         """
         Ranks each tuple and returns the k best according to the instruction.
 
@@ -648,6 +755,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -673,6 +781,14 @@ class Semantics:
             k (int, default 10):
                 The number of rows to return.
 
+            ground_with_google_search (bool, default False):
+                Enables Grounding with Google Search for the GeminiTextGenerator model.
+                When set to True, the model incorporates relevant information from Google
+                Search results into its responses, enhancing their accuracy and factualness.
+                Note: Using this feature may impact billing costs. Refer to the pricing
+                page for details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models
+                The default is `False`.
+
         Returns:
             bigframes.dataframe.DataFrame: A new DataFrame with the top k rows.
 
@@ -681,6 +797,9 @@ class Semantics:
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
+        import bigframes.dataframe
+        import bigframes.series
+
         self._validate_model(model)
         columns = self._parse_columns(instruction)
         for column in columns:
@@ -690,12 +809,21 @@ class Semantics:
             raise NotImplementedError(
                 "Semantic aggregations are limited to a single column."
             )
-        column = columns[0]
-        if self._df[column].dtype != dtypes.STRING_DTYPE:
-            raise TypeError(
-                "Referred column must be a string type, not "
-                f"{type(self._df[column])}"
+
+        if ground_with_google_search:
+            warnings.warn(
+                "Enables Grounding with Google Search may impact billing cost. See pricing "
+                "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+
+        work_estimate = int(len(self._df) * (len(self._df) - 1) / 2)
+        self._confirm_operation(work_estimate)
+
+        df: bigframes.dataframe.DataFrame = self._df[columns].copy()
+        column = columns[0]
+        if df[column].dtype != dtypes.STRING_DTYPE:
+            df[column] = df[column].astype(dtypes.STRING_DTYPE)
+
         # `index` is reserved for the `reset_index` below.
         if column == "index":
             raise ValueError(
@@ -707,12 +835,7 @@ class Semantics:
 
         user_instruction = self._format_instruction(instruction, columns)
 
-        import bigframes.dataframe
-        import bigframes.series
-
-        df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         n = df.shape[0]
-
         if k >= n:
             return df
 
@@ -736,6 +859,7 @@ class Semantics:
                 user_instruction,
                 model,
                 k - num_selected,
+                ground_with_google_search,
             )
             num_selected += num_new_selected
 
@@ -750,7 +874,13 @@ class Semantics:
 
     @staticmethod
     def _topk_partition(
-        df, column: str, status_column: str, user_instruction: str, model, k
+        df,
+        column: str,
+        status_column: str,
+        user_instruction: str,
+        model,
+        k: int,
+        ground_with_google_search: bool,
     ):
         output_instruction = (
             "Given a question and two documents, choose the document that best answers "
@@ -760,7 +890,7 @@ class Semantics:
 
         # Random pivot selection for improved average quickselect performance.
         pending_df = df[df[status_column].isna()]
-        pivot_iloc = np.random.randint(0, pending_df.shape[0] - 1)
+        pivot_iloc = np.random.randint(0, pending_df.shape[0])
         pivot_index = pending_df.iloc[pivot_iloc]["index"]
         pivot_df = pending_df[pending_df["index"] == pivot_index]
 
@@ -768,15 +898,22 @@ class Semantics:
         prompt_s = pending_df[pending_df["index"] != pivot_index][column]
         prompt_s = (
             f"{output_instruction}\n\nQuestion: {user_instruction}\n"
-            + "\nDocument 1: "
+            + f"\nDocument 1: {column} "
             + pivot_df.iloc[0][column]
-            + "\nDocument 2: "
+            + f"\nDocument 2: {column} "
             + prompt_s  # type:ignore
         )
 
         import bigframes.dataframe
 
-        predict_df = typing.cast(bigframes.dataframe.DataFrame, model.predict(prompt_s))
+        predict_df = typing.cast(
+            bigframes.dataframe.DataFrame,
+            model.predict(
+                prompt_s,
+                temperature=0.0,
+                ground_with_google_search=ground_with_google_search,
+            ),
+        )
 
         marks = predict_df["ml_generate_text_llm_result"].str.contains("2")
         more_relavant: bigframes.dataframe.DataFrame = df[marks]
@@ -819,12 +956,11 @@ class Semantics:
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
-
-            >>> import bigframes
-            >>> bigframes.options.experiments.semantic_operators = True
+            >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-004")
+            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
 
             >>> df1 = bpd.DataFrame({'animal': ['monkey', 'spider']})
             >>> df2 = bpd.DataFrame({'animal': ['scorpion', 'baboon']})
@@ -880,6 +1016,9 @@ class Semantics:
         if top_k < 1:
             raise ValueError("top_k must be an integer greater than or equal to 1.")
 
+        work_estimate = len(self._df) * len(other)
+        self._confirm_operation(work_estimate)
+
         base_table_embedding_column = guid.generate_guid()
         base_table = self._attach_embedding(
             other, right_on, base_table_embedding_column, model
@@ -916,9 +1055,8 @@ class Semantics:
         return result_df
 
     def _make_prompt(
-        self, columns: List[str], user_instruction: str, output_instruction: str
+        self, prompt_df, columns, user_instruction: str, output_instruction: str
     ):
-        prompt_df = self._df[columns].copy()
         prompt_df["prompt"] = f"{output_instruction}\n{user_instruction}\nContext: "
 
         # Combine context from multiple columns.
@@ -952,3 +1090,29 @@ class Semantics:
 
         if not isinstance(model, GeminiTextGenerator):
             raise TypeError("Model is not GeminiText Generator")
+
+    @staticmethod
+    def _confirm_operation(row_count: int):
+        """Raises OperationAbortedError when the confirmation fails"""
+        import bigframes
+
+        threshold = bigframes.options.compute.semantic_ops_confirmation_threshold
+
+        if threshold is None or row_count <= threshold:
+            return
+
+        if bigframes.options.compute.semantic_ops_threshold_autofail:
+            raise exceptions.OperationAbortedError(
+                f"Operation was cancelled because your work estimate is {row_count} rows, which exceeds the threshold {threshold} rows."
+            )
+
+        # Separate the prompt out. In IDE such VS Code, leaving prompt in the
+        # input function makes it less visible to the end user.
+        print(f"This operation will process about {row_count} rows.")
+        print(
+            "You can raise the confirmation threshold by setting `bigframes.options.compute.semantic_ops_confirmation_threshold` to a higher value. To completely turn off the confirmation check, set the threshold to `None`."
+        )
+        print("Proceed? [Y/n]")
+        reply = input().casefold()
+        if reply not in {"y", "yes", ""}:
+            raise exceptions.OperationAbortedError("Operation was cancelled.")

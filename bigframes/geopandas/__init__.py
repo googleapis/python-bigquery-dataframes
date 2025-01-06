@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helpers to join ArrayValue objects."""
+from bigframes.geopandas.geoseries import GeoSeries
 
-from bigframes.core.joins.merge import merge
-
-__all__ = [
-    "merge",
-]
+__all__ = ["GeoSeries"]
