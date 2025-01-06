@@ -26,6 +26,7 @@ import typing_extensions
 import bigframes
 from bigframes import clients, exceptions
 from bigframes.core import blocks, log_adapter
+import bigframes.dataframe
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
 
@@ -78,6 +79,11 @@ _GEMINI_PREVIEW_ENDPOINTS = (
     _GEMINI_1P5_PRO_PREVIEW_ENDPOINT,
     _GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT,
     _GEMINI_2_FLASH_EXP_ENDPOINT,
+)
+_GEMINI_FINE_TUNE_SCORE_ENDPOINTS = (
+    _GEMINI_PRO_ENDPOINT,
+    _GEMINI_1P5_PRO_002_ENDPOINT,
+    _GEMINI_1P5_FLASH_002_ENDPOINT,
 )
 
 _CLAUDE_3_SONNET_ENDPOINT = "claude-3-sonnet"
@@ -890,7 +896,8 @@ class GeminiTextGenerator(base.BaseEstimator):
         X: utils.ArrayType,
         y: utils.ArrayType,
     ) -> GeminiTextGenerator:
-        """Fine tune GeminiTextGenerator model. Only support "gemini-pro" model for now.
+        """Fine tune GeminiTextGenerator model. Only support "gemini-pro", "gemini-1.5-pro-002",
+           "gemini-1.5-flash-002" models for now.
 
         .. note::
 
@@ -908,13 +915,18 @@ class GeminiTextGenerator(base.BaseEstimator):
         Returns:
             GeminiTextGenerator: Fitted estimator.
         """
-        if self._bqml_model.model_name.startswith("gemini-1.5"):
-            raise NotImplementedError("Fit is not supported for gemini-1.5 model.")
+        if self.model_name not in _GEMINI_FINE_TUNE_SCORE_ENDPOINTS:
+            raise NotImplementedError(
+                "fit() only supports gemini-pro, \
+                    gemini-1.5-pro-002, or gemini-1.5-flash-002 model."
+            )
 
         X, y = utils.batch_convert_to_dataframe(X, y)
 
         options = self._bqml_options
-        options["endpoint"] = "gemini-1.0-pro-002"
+        options["endpoint"] = (
+            "gemini-1.0-pro-002" if self.model_name == "gemini-pro" else self.model_name
+        )
         options["prompt_col"] = X.columns.tolist()[0]
 
         self._bqml_model = self._bqml_model_factory.create_llm_remote_model(
@@ -934,6 +946,7 @@ class GeminiTextGenerator(base.BaseEstimator):
         top_k: int = 40,
         top_p: float = 1.0,
         ground_with_google_search: bool = False,
+        max_retries: int = 0,
     ) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
@@ -972,6 +985,9 @@ class GeminiTextGenerator(base.BaseEstimator):
                 page for details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models
                 The default is `False`.
 
+            max_retries (int, default 0):
+                Max number of retries if the prediction for any rows failed. Each try needs to make progress (i.e. has successfully predicted rows) to continue the retry.
+                Each retry will append newly succeeded rows. When the max retries are reached, the remaining rows (the ones without successful predictions) will be appended to the end of the result.
         Returns:
             bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
         """
@@ -991,6 +1007,11 @@ class GeminiTextGenerator(base.BaseEstimator):
         if top_p < 0.0 or top_p > 1.0:
             raise ValueError(f"top_p must be [0.0, 1.0], but is {top_p}.")
 
+        if max_retries < 0:
+            raise ValueError(
+                f"max_retries must be larger than or equal to 0, but is {max_retries}."
+            )
+
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         if len(X.columns) == 1:
@@ -1007,15 +1028,41 @@ class GeminiTextGenerator(base.BaseEstimator):
             "ground_with_google_search": ground_with_google_search,
         }
 
-        df = self._bqml_model.generate_text(X, options)
+        df_result = bpd.DataFrame(session=self._bqml_model.session)  # placeholder
+        df_fail = X
+        for _ in range(max_retries + 1):
+            df = self._bqml_model.generate_text(df_fail, options)
 
-        if (df[_ML_GENERATE_TEXT_STATUS] != "").any():
+            success = df[_ML_GENERATE_TEXT_STATUS].str.len() == 0
+            df_succ = df[success]
+            df_fail = df[~success]
+
+            if df_succ.empty:
+                if max_retries > 0:
+                    warnings.warn(
+                        "Can't make any progress, stop retrying.", RuntimeWarning
+                    )
+                break
+
+            df_result = (
+                bpd.concat([df_result, df_succ]) if not df_result.empty else df_succ
+            )
+
+            if df_fail.empty:
+                break
+
+        if not df_fail.empty:
             warnings.warn(
                 f"Some predictions failed. Check column {_ML_GENERATE_TEXT_STATUS} for detailed status. You may want to filter the failed rows and retry.",
                 RuntimeWarning,
             )
 
-        return df
+        df_result = cast(
+            bpd.DataFrame,
+            bpd.concat([df_result, df_fail]) if not df_result.empty else df_fail,
+        )
+
+        return df_result
 
     def score(
         self,
@@ -1025,7 +1072,7 @@ class GeminiTextGenerator(base.BaseEstimator):
             "text_generation", "classification", "summarization", "question_answering"
         ] = "text_generation",
     ) -> bpd.DataFrame:
-        """Calculate evaluation metrics of the model. Only "gemini-pro" model is supported for now.
+        """Calculate evaluation metrics of the model. Only support "gemini-pro" and "gemini-1.5-pro-002", and "gemini-1.5-flash-002".
 
         .. note::
 
@@ -1057,9 +1104,11 @@ class GeminiTextGenerator(base.BaseEstimator):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        # TODO(ashleyxu): Support gemini-1.5 when the rollout is ready. b/344891364.
-        if self._bqml_model.model_name.startswith("gemini-1.5"):
-            raise NotImplementedError("Score is not supported for gemini-1.5 model.")
+        if self.model_name not in _GEMINI_FINE_TUNE_SCORE_ENDPOINTS:
+            raise NotImplementedError(
+                "score() only supports gemini-pro \
+                , gemini-1.5-pro-002, and gemini-1.5-flash-2 model."
+            )
 
         X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
