@@ -380,9 +380,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         safe_cast = errors == "null"
 
-        if dtype in typing.get_args(bigframes.dtypes.DtypeString) or isinstance(
-            dtype, bigframes.dtypes.Dtype
-        ):
+        # Type strings check
+        if dtype in typing.get_args(bigframes.dtypes.DtypeString):
+            return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
+        
+        # Type instances check
+        if type(dtype) in typing.get_args(bigframes.dtypes.Dtype):
             return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
 
         if isinstance(dtype, dict):
