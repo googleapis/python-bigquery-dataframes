@@ -67,7 +67,9 @@ def test_create_single_timeseries() -> None:
 
     # [START bigquery_dataframes_single_timeseries_forecasting_model_tutorial_evaluate]
 
-    #
+    # Evaluate the time series models by using the summary() function. The summary()
+    # function shows you the evaluation metrics of all the candidate models evaluated
+    # during the process of automatic hyperparameter tuning.
     model.summary(
         show_all_candidate_models=True,
     )
