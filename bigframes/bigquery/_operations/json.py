@@ -223,3 +223,32 @@ def json_extract_string_array(
             ),
         )
     return array_series
+
+
+def parse_json(
+    input: series.Series,
+) -> series.Series:
+    """Converts a series with a JSON-formatted STRING value to a JSON value.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> import bigframes.bigquery as bbq
+        >>> bpd.options.display.progress_bar = None
+
+        >>> s = bpd.Series(['{"class": {"students": [{"id": 5}, {"id": 12}]}}'])
+        >>> s
+        0    {"class": {"students": [{"id": 5}, {"id": 12}]}}
+        dtype: string
+        >>> bbq.parse_json(s)
+        0    {"class":{"students":[{"id":5},{"id":12}]}}
+        dtype: large_string[pyarrow]
+
+    Args:
+        input (bigframes.series.Series):
+            The Series containing JSON-formatted strings).
+
+    Returns:
+        bigframes.series.Series: A new Series with the JSON value.
+    """
+    return input._apply_unary_op(ops.ParseJSON())
