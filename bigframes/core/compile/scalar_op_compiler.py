@@ -1183,7 +1183,7 @@ def json_set_op_impl(x: ibis_types.Value, y: ibis_types.Value, op: ops.JSONSet):
         # Enabling JSON type eliminates the need for less efficient string conversions.
         return ibis_ops.ToJsonString(
             json_set(  # type: ignore
-                json_obj=parse_json(x),
+                json_obj=parse_json(json_str=x),
                 json_path=op.json_path,
                 json_value=y,
             )
@@ -1208,6 +1208,13 @@ def json_extract_string_array_op_impl(
     x: ibis_types.Value, op: ops.JSONExtractStringArray
 ):
     return json_extract_string_array(json_obj=x, json_path=op.json_path)
+
+
+@scalar_op_compiler.register_unary_op(ops.ParseJSON, pass_op=True)
+def parse_json_op_impl(
+    x: ibis_types.Value, op: ops.ParseJSON
+):
+    return parse_json(json_str=x)
 
 
 # Blob Ops

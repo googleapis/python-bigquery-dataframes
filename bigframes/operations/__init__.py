@@ -740,6 +740,20 @@ class JSONExtractStringArray(UnaryOp):
         )
 
 
+@dataclasses.dataclass(frozen=True)
+class ParseJSON(UnaryOp):
+    name: typing.ClassVar[str] = "parse_json"
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if input_type != dtypes.STRING_DTYPE:
+            raise TypeError(
+                "Input type must be an valid JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return dtypes.JSON_DTYPE
+
+
 ## Blob Ops
 @dataclasses.dataclass(frozen=True)
 class ObjGetAccessUrl(UnaryOp):
