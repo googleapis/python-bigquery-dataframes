@@ -150,8 +150,7 @@ class BigFrameNode(abc.ABC):
 
     # BigFrameNode trees can be very deep so its important avoid recalculating the hash from scratch
     # The default dataclass-generated __hash__ method is not cached
-    @property
-    @vendored_functools.cache
+    @vendored_functools.cached_property
     def _cached_hash(self):
         return hash(self._as_tuple())
 
