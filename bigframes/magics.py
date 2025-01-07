@@ -12,14 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import bigquery_magics  # type: ignore
+import bigquery_magics.config  # type: ignore
+
 
 def load_ipython_extension(ipython):
     """Called by IPython when this module is loaded as an IPython extension."""
-    # Import here to avoid circular imports.
-    import bigquery_magics
-
     bigquery_magics.load_ipython_extension(ipython)
 
     if bigquery_magics.context.credentials is not None:
-        # TODO: warning about possible breaking changes.
+        # The %%bigquery magics must have been run before BigQuery DataFrames
+        # was imported. In this case, we don't want to break any existing
+        # notebooks, so don't make any BigQuery DataFrames changes to the
+        # magics.
+        return
+
+    bigquery_magics.context = Context()
+
+
+class Context(bigquery_magics.config.Context):
+    """A provider for bigquery-magics configuration, derived from bigframes
+    global options and global default session.
+    """
+
+    def __init__(self):
         pass
