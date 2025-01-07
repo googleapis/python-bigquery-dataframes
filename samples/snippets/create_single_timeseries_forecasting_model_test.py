@@ -70,9 +70,10 @@ def test_create_single_timeseries() -> None:
     # Evaluate the time series models by using the summary() function. The summary()
     # function shows you the evaluation metrics of all the candidate models evaluated
     # during the process of automatic hyperparameter tuning.
-    model.summary(
+    summary = model.summary(
         show_all_candidate_models=True,
     )
+    print(summary.peek())
 
     # Expected output:
     # row   non_seasonal_p	non_seasonal_d	non_seasonal_q	has_drift	log_likelihood	AIC	variance	seasonal_periods	has_holiday_effect	has_spikes_and_dips	has_step_changes	error_message
@@ -84,6 +85,7 @@ def test_create_single_timeseries() -> None:
 
     # [END bigquery_dataframes_single_timeseries_forecasting_model_tutorial_evaluate]
 
+    assert summary is not None
     assert model is not None
     assert parsed_date is not None
     assert total_visits is not None
