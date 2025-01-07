@@ -27,6 +27,8 @@ _lock = threading.Lock()
 # but leave a few spare for internal labels to be added.
 # See internal issue 386825477.
 MAX_LABELS_COUNT = 64 - 8
+PANDAS_API_TRACKING_TASK = "pandas_api_tracking"
+PANDAS_PARAM_TRACKING_TASK = "pandas_param_tracking"
 
 _api_methods: List = []
 _excluded_methods = ["__setattr__", "__getattr__"]
@@ -48,7 +50,7 @@ class UnimplementedMethodLogger:
             self.method_name,
             args,
             kwargs,
-            task="pandas_api_tracking",
+            task=PANDAS_API_TRACKING_TASK,
         )
         raise AttributeError(
             "BigQuery DataFrames has not yet implemented an equivalent to"
@@ -84,7 +86,7 @@ def submit_pandas_labels(
     if (
         len(labels_dict) == 4
         and labels_dict["args_count"] == 0
-        and task == "pandas_param_tracking"
+        and task == PANDAS_PARAM_TRACKING_TASK
     ):
         return
 
@@ -124,14 +126,15 @@ def method_logger(method, decorated_cls):
         try:
             return method(self, *args, **kwargs)
         except (NotImplementedError, TypeError) as e:
-            submit_pandas_labels(
-                self._block.expr.session.bqclient,
-                class_name,
-                api_method_name,
-                args,
-                kwargs,
-                task="pandas_param_tracking",
-            )
+            if hasattr(self, "_block"):
+                submit_pandas_labels(
+                    self._block.expr.session.bqclient,
+                    class_name,
+                    api_method_name,
+                    args,
+                    kwargs,
+                    task=PANDAS_PARAM_TRACKING_TASK,
+                )
             raise e
         finally:
             _call_stack.pop()
