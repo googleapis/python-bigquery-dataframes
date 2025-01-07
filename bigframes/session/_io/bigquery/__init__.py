@@ -40,7 +40,7 @@ CHECK_DRIVE_PERMISSIONS = "\nCheck https://cloud.google.com/bigquery/docs/query-
 
 
 IO_ORDERING_ID = "bqdf_row_nums"
-MAX_LABELS_COUNT = 64
+MAX_LABELS_COUNT = 64 - 8
 _LIST_TABLES_LIMIT = 10000  # calls to bqclient.list_tables
 # will be limited to this many tables
 

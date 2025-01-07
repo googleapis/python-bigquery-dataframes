@@ -142,7 +142,7 @@ def test_create_job_configs_labels_length_limit_met():
         "bigframes-api": "read_pandas",
         "source": "bigquery-dataframes-temp",
     }
-    for i in range(61):
+    for i in range(53):
         key = f"bigframes-api-test-{i}"
         value = f"test{i}"
         cur_labels[key] = value
@@ -159,7 +159,7 @@ def test_create_job_configs_labels_length_limit_met():
         job_configs_labels=cur_labels, api_methods=api_methods
     )
     assert labels is not None
-    assert len(labels) == 64
+    assert len(labels) == 56
     assert "dataframe-max" in labels.values()
     assert "dataframe-head" not in labels.values()
     assert "bigframes-api" in labels.keys()
@@ -185,12 +185,12 @@ def test_add_and_trim_labels_length_limit_met():
     job_config.labels = cur_labels
 
     df.max()
-    for _ in range(60):
+    for _ in range(52):
         df.head()
 
     io_bq.add_and_trim_labels(job_config=job_config)
     assert job_config.labels is not None
-    assert len(job_config.labels) == 64
+    assert len(job_config.labels) == 56
     assert "dataframe-max" not in job_config.labels.values()
     assert "dataframe-head" in job_config.labels.values()
     assert "bigframes-api" in job_config.labels.keys()
@@ -222,7 +222,7 @@ def test_start_query_with_client_labels_length_limit_met(
     job_config.labels = cur_labels
 
     df.max()
-    for _ in range(60):
+    for _ in range(52):
         df.head()
 
     io_bq.start_query_with_client(
@@ -235,7 +235,7 @@ def test_start_query_with_client_labels_length_limit_met(
     )
 
     assert job_config.labels is not None
-    assert len(job_config.labels) == 64
+    assert len(job_config.labels) == 56
     assert "dataframe-max" not in job_config.labels.values()
     assert "dataframe-head" in job_config.labels.values()
     assert "bigframes-api" in job_config.labels.keys()
