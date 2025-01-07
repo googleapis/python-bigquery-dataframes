@@ -21,7 +21,6 @@ import functools
 import inspect
 import itertools
 import numbers
-import textwrap
 import typing
 from typing import Any, cast, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
@@ -1299,13 +1298,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if key == "_block":
             raise AttributeError(key)
         elif hasattr(pandas.Series, key):
-            raise AttributeError(
-                textwrap.dedent(
-                    f"""
-                    BigQuery DataFrames has not yet implemented an equivalent to
-                    'pandas.Series.{key}'. {constants.FEEDBACK_LINK}
-                    """
-                )
+            return log_adapter.UnimplementedMethodLogger(
+                self._block.expr.session.bqclient, self.__class__.__name__, key
             )
         elif key in self._struct_fields:
             return self.struct.field(key)

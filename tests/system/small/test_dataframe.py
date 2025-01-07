@@ -5199,3 +5199,16 @@ def test__resample_start_time(rule, origin, data):
     pd.testing.assert_frame_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
+
+
+def test_unimplemented_api_logging(scalars_df_index):
+    # Draft test, not finished.
+    try:
+        scalars_df_index.resample(rule="abc")
+    except Exception:
+        pass
+
+    try:
+        scalars_df_index.dropna(inplace=True)
+    except Exception:
+        pass

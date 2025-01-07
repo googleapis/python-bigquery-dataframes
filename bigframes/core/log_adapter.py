@@ -13,8 +13,13 @@
 # limitations under the License.
 
 import functools
+import inspect
 import threading
 from typing import List
+
+import bigframes_vendored.constants as constants
+from google.cloud import bigquery
+import pandas
 
 _lock = threading.Lock()
 
@@ -28,6 +33,65 @@ _excluded_methods = ["__setattr__", "__getattr__"]
 
 # Stack to track method calls
 _call_stack: List = []
+
+
+class UnimplementedMethodLogger:
+    def __init__(self, bq_client: bigquery.Client, class_name: str, method_name: str):
+        self.bq_client = bq_client
+        self.class_name = class_name
+        self.method_name = method_name
+
+    def __call__(self, *args, **kwargs):
+        submit_pandas_labels(
+            self.bq_client,
+            self.class_name,
+            self.method_name,
+            args,
+            kwargs,
+            task="pandas_api_tracking",
+        )
+        raise AttributeError(
+            "BigQuery DataFrames has not yet implemented an equivalent to"
+            f"'pandas.{self.class_name}.{self.method_name}'.\n{constants.FEEDBACK_LINK}"
+        )
+
+
+def submit_pandas_labels(
+    bq_client: bigquery.Client,
+    class_name: str,
+    method_name: str,
+    args,
+    kwargs,
+    task: str,
+):
+    labels_dict = {
+        "task": task,
+        "classname": class_name.lower(),
+        "method_name": method_name.lower(),
+        "args_count": len(args),
+    }
+    cls = getattr(pandas, class_name)
+    method = getattr(cls, method_name)
+    signature = inspect.signature(method)
+    param_names = [param.name for param in signature.parameters.values()]
+
+    for i, key in enumerate(kwargs.keys()):
+        if len(labels_dict) >= MAX_LABELS_COUNT:
+            break
+        if key in param_names:
+            labels_dict[f"kwargs_{i}"] = key.lower()
+
+    if (
+        len(labels_dict) == 4
+        and labels_dict["args_count"] == 0
+        and task == "pandas_param_tracking"
+    ):
+        return
+
+    # Run a query with syntax error to avoid cost.
+    query = "SELECT COUNT(x FROM data_table—"
+    job_config = bigquery.QueryJobConfig(labels=labels_dict)
+    bq_client.query(query, job_config=job_config)
 
 
 def class_logger(decorated_cls):
@@ -46,7 +110,7 @@ def method_logger(method, decorated_cls):
     """Decorator that adds logging functionality to a method."""
 
     @functools.wraps(method)
-    def wrapper(*args, **kwargs):
+    def wrapper(self, *args, **kwargs):
         class_name = decorated_cls.__name__  # Access decorated class name
         api_method_name = str(method.__name__)
         full_method_name = f"{class_name.lower()}-{api_method_name}"
@@ -58,7 +122,17 @@ def method_logger(method, decorated_cls):
         _call_stack.append(full_method_name)
 
         try:
-            return method(*args, **kwargs)
+            return method(self, *args, **kwargs)
+        except (NotImplementedError, TypeError) as e:
+            submit_pandas_labels(
+                self._block.expr.session.bqclient,
+                class_name,
+                api_method_name,
+                args,
+                kwargs,
+                task="pandas_param_tracking",
+            )
+            raise e
         finally:
             _call_stack.pop()
 
