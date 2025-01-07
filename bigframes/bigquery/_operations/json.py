@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from typing import Any, cast, Optional, Sequence, Tuple, Union
 
+import bigframes.core.utils as utils
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.series as series
@@ -30,12 +31,17 @@ import bigframes.series as series
 from . import array
 
 
+@utils.preview(name="The JSON-related API `json_set`")
 def json_set(
     input: series.Series,
     json_path_value_pairs: Sequence[Tuple[str, Any]],
 ) -> series.Series:
     """Produces a new JSON value within a Series by inserting or replacing values at
     specified paths.
+
+    .. warning::
+        The JSON-related API `parse_json` is in preview. Its behavior may change in
+        future versions.
 
     **Examples:**
 
@@ -225,10 +231,15 @@ def json_extract_string_array(
     return array_series
 
 
+@utils.preview(name="The JSON-related API `parse_json`")
 def parse_json(
     input: series.Series,
 ) -> series.Series:
     """Converts a series with a JSON-formatted STRING value to a JSON value.
+
+    .. warning::
+        The JSON-related API `parse_json` is in preview. Its behavior may change in
+        future versions.
 
     **Examples:**
 
