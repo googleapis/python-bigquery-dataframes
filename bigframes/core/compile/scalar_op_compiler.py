@@ -1210,10 +1210,20 @@ def json_extract_string_array_op_impl(
     return json_extract_string_array(json_obj=x, json_path=op.json_path)
 
 
+@scalar_op_compiler.register_unary_op(ops.ToJSONString)
+def to_json_string_op_impl(json_obj: ibis_types.Value):
+    return to_json_string(json_obj=json_obj)
+
+
 # Blob Ops
 @scalar_op_compiler.register_unary_op(ops.obj_fetch_metadata_op)
-def obj_fetch_metadata_op_impl(x: ibis_types.Value):
-    return obj_fetch_metadata(obj_ref=x)
+def obj_fetch_metadata_op_impl(obj_ref: ibis_types.Value):
+    return obj_fetch_metadata(obj_ref=obj_ref)
+
+
+@scalar_op_compiler.register_unary_op(ops.ObjGetAccessUrl, pass_op=True)
+def obj_get_access_url_op_impl(obj_ref: ibis_types.Value, op: ops.ObjGetAccessUrl):
+    return obj_get_access_url(obj_ref=obj_ref, mode=op.mode)
 
 
 ### Binary Ops
@@ -1904,6 +1914,13 @@ def json_extract_string_array(  # type: ignore[empty-body]
     """Extracts a JSON array and converts it to a SQL ARRAY of STRINGs."""
 
 
+@ibis_udf.scalar.builtin(name="to_json_string")
+def to_json_string(  # type: ignore[empty-body]
+    json_obj: ibis_dtypes.JSON,
+) -> ibis_dtypes.String:
+    """Convert JSON to STRING."""
+
+
 @ibis_udf.scalar.builtin(name="ML.DISTANCE")
 def vector_distance(vector1, vector2, type: str) -> ibis_dtypes.Float64:  # type: ignore[empty-body]
     """Computes the distance between two vectors using specified type ("EUCLIDEAN", "MANHATTAN", or "COSINE")"""
@@ -1917,3 +1934,8 @@ def obj_fetch_metadata(obj_ref: _OBJ_REF_IBIS_DTYPE) -> _OBJ_REF_IBIS_DTYPE:  # 
 @ibis_udf.scalar.builtin(name="OBJ.MAKE_REF")
 def obj_make_ref(uri: str, authorizer: str) -> _OBJ_REF_IBIS_DTYPE:  # type: ignore
     """Make ObjectRef Struct from uri and connection."""
+
+
+@ibis_udf.scalar.builtin(name="OBJ.GET_ACCESS_URL")
+def obj_get_access_url(obj_ref: _OBJ_REF_IBIS_DTYPE, mode: ibis_dtypes.String) -> ibis_dtypes.JSON:  # type: ignore
+    """Get access url (as ObjectRefRumtime JSON) from ObjectRef."""

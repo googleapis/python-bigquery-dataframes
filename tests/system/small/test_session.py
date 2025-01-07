@@ -26,7 +26,6 @@ import google
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas as pd
-import pyarrow as pa
 import pytest
 
 import bigframes
@@ -404,6 +403,17 @@ def test_read_gbq_on_linked_dataset_warns(session, source_table):
         assert warned[0].category == bigframes.exceptions.TimeTravelDisabledWarning
 
 
+def test_read_gbq_w_ambigous_name(
+    session: bigframes.Session,
+):
+    # Ensure read_gbq works when table and column share a name
+    df = session.read_gbq(
+        "bigframes-dev.bigframes_tests_sys.ambiguous_name"
+    ).to_pandas()
+    pd_df = pd.DataFrame({"x": [2, 1], "ambiguous_name": [20, 10]})
+    pd.testing.assert_frame_equal(df, pd_df, check_dtype=False, check_index_type=False)
+
+
 def test_read_gbq_table_clustered_with_filter(session: bigframes.Session):
     df = session.read_gbq_table(
         "bigquery-public-data.cloud_storage_geo_index.landsat_index",
@@ -624,7 +634,7 @@ def test_read_pandas_index(session):
 
 
 def test_read_pandas_w_unsupported_mixed_dtype(session):
-    with pytest.raises(pa.ArrowInvalid, match="Could not convert"):
+    with pytest.raises(ValueError, match="Could not convert"):
         session.read_pandas(pd.DataFrame({"a": [1, "hello"]}))
 
 
@@ -685,7 +695,16 @@ def test_read_pandas_tokyo(
 
 
 @utils.skip_legacy_pandas
-def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
+@pytest.mark.parametrize(
+    ("write_engine",),
+    (
+        ("default",),
+        ("bigquery_inline",),
+        ("bigquery_load",),
+        ("bigquery_streaming",),
+    ),
+)
+def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder, write_engine):
     scalars_df, _ = scalars_dfs
     path = gcs_folder + "test_read_csv_gcs_default_engine_w_index*.csv"
     read_path = utils.get_first_file_from_wildcard(path)
@@ -696,6 +715,7 @@ def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder):
         read_path,
         # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
         dtype=dtype,
+        write_engine=write_engine,
     )
 
     # TODO(chelsealin): If we serialize the index, can more easily compare values.

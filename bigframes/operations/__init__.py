@@ -740,6 +740,33 @@ class JSONExtractStringArray(UnaryOp):
         )
 
 
+@dataclasses.dataclass(frozen=True)
+class ToJSONString(UnaryOp):
+    name: typing.ClassVar[str] = "to_json_string"
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return dtypes.STRING_DTYPE
+
+
+to_json_string_op = ToJSONString()
+
+
+## Blob Ops
+@dataclasses.dataclass(frozen=True)
+class ObjGetAccessUrl(UnaryOp):
+    name: typing.ClassVar[str] = "obj_get_access_url"
+    mode: str  # access mode, e.g. R read, W write, RW read & write
+
+    def output_type(self, *input_types):
+        return dtypes.JSON_DTYPE
+
+
 # Binary Ops
 fillna_op = create_binary_op(name="fillna", type_signature=op_typing.COERCE)
 maximum_op = create_binary_op(name="maximum", type_signature=op_typing.COERCE)
