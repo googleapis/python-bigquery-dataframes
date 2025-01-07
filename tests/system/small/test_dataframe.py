@@ -5227,5 +5227,5 @@ def test_astype(scalars_dfs, dtype):
 def test_astype_invalid_type_fail(scalars_dfs):
     bf_df, _ = scalars_dfs
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError, match=r".*Share your usecase with.*"):
         bf_df.astype(123)

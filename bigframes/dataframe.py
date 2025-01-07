@@ -381,11 +381,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         safe_cast = errors == "null"
 
         # Type strings check
-        if dtype in typing.get_args(bigframes.dtypes.DtypeString):
+        if dtype in bigframes.dtypes.DTYPE_STRINGS:
             return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
 
         # Type instances check
-        if type(dtype) in typing.get_args(bigframes.dtypes.Dtype):
+        if type(dtype) in bigframes.dtypes.DTYPES:
             return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
 
         if isinstance(dtype, dict):
@@ -394,7 +394,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 result[col] = result[col].astype(to_type)
             return result
 
-        raise ValueError(f"Invalid type {type(dtype)} for dtype input.")
+        raise TypeError(
+            f"Invalid type {type(dtype)} for dtype input. {constants.FEEDBACK_LINK}"
+        )
 
     def _to_sql_query(
         self, include_index: bool, enable_cache: bool = True
