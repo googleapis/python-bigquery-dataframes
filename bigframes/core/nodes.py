@@ -21,6 +21,8 @@ import itertools
 import typing
 from typing import Callable, cast, Iterable, Mapping, Optional, Sequence, Tuple
 
+# Modified version of functools cache methods to workaround https://github.com/python/cpython/issues/112215
+import bigframes_vendored.cpython.functools as vendored_functools
 import google.cloud.bigquery as bq
 
 import bigframes.core.expression as ex
@@ -33,9 +35,6 @@ import bigframes.core.slices as slices
 import bigframes.core.window_spec as window
 import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
-
-# Modified version of functools cache methods to workaround https://github.com/python/cpython/issues/112215
-import third_party.bigframes_vendored.cpython.functools as vendored_functools
 
 if typing.TYPE_CHECKING:
     import bigframes.core.ordering as orderings

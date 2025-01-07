@@ -18,6 +18,8 @@ import functools
 import io
 import typing
 
+# Modified version of functools cache methods to workaround https://github.com/python/cpython/issues/112215
+import bigframes_vendored.cpython.functools as vendored_functools
 import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery
 import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.types as ibis_types
@@ -38,9 +40,6 @@ import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as bf_ordering
 import bigframes.core.rewrite as rewrites
-
-# Modified version of functools cache methods to workaround https://github.com/python/cpython/issues/112215
-import third_party.bigframes_vendored.cpython.functools as vendored_functools
 
 if typing.TYPE_CHECKING:
     import bigframes.core
