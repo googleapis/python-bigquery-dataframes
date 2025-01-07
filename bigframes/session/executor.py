@@ -352,6 +352,7 @@ class BigQueryCachingExecutor(Executor):
             export_data_statement,
             job_config=bigquery.QueryJobConfig(),
             api_name=f"dataframe-to_{format.lower()}",
+            metrics=self.metrics,
         )
         return query_job
 
@@ -499,6 +500,7 @@ class BigQueryCachingExecutor(Executor):
                 api_name=api_name,
                 max_results=max_results,
                 page_size=page_size,
+                metrics=self.metrics,
             )
 
         except google.api_core.exceptions.BadRequest as e:
