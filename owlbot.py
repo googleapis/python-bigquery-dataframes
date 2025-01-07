@@ -30,6 +30,7 @@ common = gcp.CommonTemplates()
 # Add templated files
 # ----------------------------------------------------------------------------
 templated_files = common.py_library(
+    default_python_version="3.10",
     unit_test_python_versions=["3.9", "3.10", "3.11", "3.12"],
     system_test_python_versions=["3.9", "3.11", "3.12"],
     cov_level=35,
@@ -53,6 +54,8 @@ s.move(
         ".kokoro/build.sh",
         ".kokoro/continuous/common.cfg",
         ".kokoro/presubmit/common.cfg",
+        # Temporary workaround to update docs job to use python 3.10
+        ".github/workflows/docs.yml",
     ],
 )
 
@@ -70,7 +73,6 @@ assert 1 == s.replace(  # bug_report.md
         import sys
         import bigframes
         import google.cloud.bigquery
-        import ibis
         import pandas
         import pyarrow
         import sqlglot
@@ -78,7 +80,6 @@ assert 1 == s.replace(  # bug_report.md
         print(f"Python: {sys.version}")
         print(f"bigframes=={bigframes.__version__}")
         print(f"google-cloud-bigquery=={google.cloud.bigquery.__version__}")
-        print(f"ibis=={ibis.__version__}")
         print(f"pandas=={pandas.__version__}")
         print(f"pyarrow=={pyarrow.__version__}")
         print(f"sqlglot=={sqlglot.__version__}")
@@ -106,7 +107,7 @@ assert 1 == s.replace(  # common.cfg
 
 # Use a custom table of contents since the default one isn't organized well
 # enough for the number of classes we have.
-assert 1 == s.replace(    # publish-docs.sh
+assert 1 == s.replace(  # publish-docs.sh
     [".kokoro/publish-docs.sh"],
     (
         re.escape("# upload docs")
@@ -124,14 +125,14 @@ assert 1 == s.replace(    # publish-docs.sh
 )
 
 # Fixup the documentation.
-assert 1 == s.replace(   # docs/conf.py
+assert 1 == s.replace(  # docs/conf.py
     ["docs/conf.py"],
     re.escape("Google Cloud Client Libraries for bigframes"),
     "BigQuery DataFrames provides DataFrame APIs on the BigQuery engine",
 )
 
 # Don't omit `*/core/*.py` when counting test coverages
-assert 1 == s.replace(   # .coveragerc
+assert 1 == s.replace(  # .coveragerc
     [".coveragerc"],
     re.escape("  */core/*.py\n"),
     "",

@@ -21,7 +21,8 @@ class ExperimentOptions:
     """
 
     def __init__(self):
-        self._semantic_operators = False
+        self._semantic_operators: bool = False
+        self._blob: bool = False
 
     @property
     def semantic_operators(self) -> bool:
@@ -34,3 +35,15 @@ class ExperimentOptions:
                 "Semantic operators are still under experiments, and are subject to change in the future."
             )
         self._semantic_operators = value
+
+    @property
+    def blob(self) -> bool:
+        return self._blob
+
+    @blob.setter
+    def blob(self, value: bool):
+        if value is True:
+            warnings.warn(
+                "BigFrames Blob is still under experiments. It may not work and subject to change in the future."
+            )
+        self._blob = value

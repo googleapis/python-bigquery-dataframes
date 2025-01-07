@@ -199,14 +199,14 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         Returns:
             ARIMAPlus: Fitted estimator.
         """
+        X, y = utils.batch_convert_to_dataframe(X, y)
+
         if X.columns.size != 1:
             raise ValueError(
                 "Time series timestamp input X must only contain 1 column."
             )
         if y.columns.size != 1:
             raise ValueError("Time series data input y must only contain 1 column.")
-
-        X, y = utils.convert_to_dataframe(X, y)
 
         self._bqml_model = self._bqml_model_factory.create_time_series_model(
             X,
@@ -250,6 +250,43 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
             raise RuntimeError("A model must be fitted before predict")
 
         return self._bqml_model.forecast(
+            options={"horizon": horizon, "confidence_level": confidence_level}
+        )
+
+    def predict_explain(
+        self, X=None, *, horizon: int = 3, confidence_level: float = 0.95
+    ) -> bpd.DataFrame:
+        """Explain Forecast time series at future horizon.
+
+        .. note::
+
+            Output matches that of the BigQuery ML.EXPLAIN_FORECAST function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-forecast
+
+        Args:
+            X (default None):
+                ignored, to be compatible with other APIs.
+            horizon (int, default: 3):
+                an int value that specifies the number of time points to forecast.
+                The default value is 3, and the maximum value is 1000.
+            confidence_level (float, default 0.95):
+                A float value that specifies percentage of the future values that fall in the prediction interval.
+                The valid input range is [0.0, 1.0).
+
+        Returns:
+            bigframes.dataframe.DataFrame: The predicted DataFrames.
+        """
+        if horizon < 1:
+            raise ValueError(f"horizon must be at least 1, but is {horizon}.")
+        if confidence_level < 0.0 or confidence_level >= 1.0:
+            raise ValueError(
+                f"confidence_level must be [0.0, 1.0), but is {confidence_level}."
+            )
+
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before predict")
+
+        return self._bqml_model.explain_forecast(
             options={"horizon": horizon, "confidence_level": confidence_level}
         )
 
@@ -298,7 +335,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before detect_anomalies")
 
-        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.detect_anomalies(
             X, options={"anomaly_prob_threshold": anomaly_prob_threshold}
@@ -331,7 +368,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
         """
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
-        X, y = utils.convert_to_dataframe(X, y, session=self._bqml_model.session)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)

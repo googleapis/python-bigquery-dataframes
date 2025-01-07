@@ -18,7 +18,7 @@ from dataclasses import dataclass
 import datetime
 import decimal
 import typing
-from typing import Dict, Literal, Union
+from typing import Dict, List, Literal, Union
 
 import bigframes_vendored.constants as constants
 import db_dtypes  # type: ignore
@@ -56,7 +56,30 @@ NUMERIC_DTYPE = pd.ArrowDtype(pa.decimal128(38, 9))
 BIGNUMERIC_DTYPE = pd.ArrowDtype(pa.decimal256(76, 38))
 # No arrow equivalent
 GEO_DTYPE = gpd.array.GeometryDtype()
+# JSON
 JSON_DTYPE = db_dtypes.JSONDtype()
+OBJ_REF_DTYPE = pd.ArrowDtype(
+    pa.struct(
+        (
+            pa.field(
+                "uri",
+                pa.string(),
+            ),
+            pa.field(
+                "version",
+                pa.string(),
+            ),
+            pa.field(
+                "authorizer",
+                pa.string(),
+            ),
+            pa.field(
+                "details",
+                pa.large_string(),  # JSON
+            ),
+        )
+    )
+)
 
 # Used when storing Null expressions
 DEFAULT_DTYPE = FLOAT_DTYPE
@@ -133,6 +156,13 @@ SIMPLE_TYPES = (
         type_kind=("STRING",),
         orderable=True,
         clusterable=True,
+    ),
+    SimpleDtypeInfo(
+        dtype=JSON_DTYPE,
+        arrow_dtype=pa.large_string(),
+        type_kind=("JSON",),
+        orderable=False,
+        clusterable=False,
     ),
     SimpleDtypeInfo(
         dtype=DATE_DTYPE,
@@ -219,7 +249,7 @@ BOOL_BIGFRAMES_TYPES = [BOOL_DTYPE]
 
 # Corresponds to the pandas concept of numeric type (such as when 'numeric_only' is specified in an operation)
 # Pandas is inconsistent, so two definitions are provided, each used in different contexts
-NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE = [
+NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE: List[Dtype] = [
     FLOAT_DTYPE,
     INT_DTYPE,
 ]
@@ -230,7 +260,16 @@ NUMERIC_BIGFRAMES_TYPES_PERMISSIVE = NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE + [
 ]
 
 
-## dtype predicates - use these to maintain consistency
+# Temporal types that are considered as "numeric" by Pandas
+TEMPORAL_NUMERIC_BIGFRAMES_TYPES: List[Dtype] = [
+    DATE_DTYPE,
+    TIMESTAMP_DTYPE,
+    DATETIME_DTYPE,
+]
+TEMPORAL_BIGFRAMES_TYPES = TEMPORAL_NUMERIC_BIGFRAMES_TYPES + [TIME_DTYPE]
+
+
+# dtype predicates - use these to maintain consistency
 def is_datetime_like(type_: ExpressionType) -> bool:
     return type_ in (DATETIME_DTYPE, TIMESTAMP_DTYPE)
 
@@ -241,6 +280,10 @@ def is_date_like(type_: ExpressionType) -> bool:
 
 def is_time_like(type_: ExpressionType) -> bool:
     return type_ in (DATETIME_DTYPE, TIMESTAMP_DTYPE, TIME_DTYPE)
+
+
+def is_geo_like(type_: ExpressionType) -> bool:
+    return type_ in (GEO_DTYPE,)
 
 
 def is_binary_like(type_: ExpressionType) -> bool:
@@ -279,7 +322,7 @@ def is_struct_like(type_: ExpressionType) -> bool:
 
 
 def is_json_like(type_: ExpressionType) -> bool:
-    return type_ == STRING_DTYPE or type_ == JSON_DTYPE
+    return type_ == JSON_DTYPE or type_ == STRING_DTYPE
 
 
 def is_json_encoding_type(type_: ExpressionType) -> bool:
@@ -369,12 +412,19 @@ def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
         return pd.ArrowDtype(arrow_dtype)
     if pa.types.is_struct(arrow_dtype):
         return pd.ArrowDtype(arrow_dtype)
+
+    # BigFrames doesn't distinguish between string and large_string because the
+    # largest string (2 GB) is already larger than the largest BigQuery row.
+    if pa.types.is_string(arrow_dtype) or pa.types.is_large_string(arrow_dtype):
+        return STRING_DTYPE
+
     if arrow_dtype == pa.null():
         return DEFAULT_DTYPE
-    else:
-        raise ValueError(
-            f"Unexpected Arrow data type {arrow_dtype}. {constants.FEEDBACK_LINK}"
-        )
+
+    # No other types matched.
+    raise ValueError(
+        f"Unexpected Arrow data type {arrow_dtype}. {constants.FEEDBACK_LINK}"
+    )
 
 
 _BIGFRAMES_TO_ARROW = {
@@ -477,11 +527,12 @@ def convert_schema_field(
         pa_type = pa.list_(pa_struct) if is_repeated else pa_struct
         return field.name, pd.ArrowDtype(pa_type)
     elif field.field_type in _TK_TO_BIGFRAMES:
-        singular_type = _TK_TO_BIGFRAMES[field.field_type]
         if is_repeated:
-            pa_type = pa.list_(bigframes_dtype_to_arrow_dtype(singular_type))
+            pa_type = pa.list_(
+                bigframes_dtype_to_arrow_dtype(_TK_TO_BIGFRAMES[field.field_type])
+            )
             return field.name, pd.ArrowDtype(pa_type)
-        return field.name, singular_type
+        return field.name, _TK_TO_BIGFRAMES[field.field_type]
     else:
         raise ValueError(f"Cannot handle type: {field.field_type}")
 
@@ -631,7 +682,7 @@ def can_coerce(source_type: ExpressionType, target_type: ExpressionType) -> bool
         return True  # None can be coerced to any supported type
     else:
         return (source_type == STRING_DTYPE) and (
-            target_type in (DATETIME_DTYPE, TIMESTAMP_DTYPE, TIME_DTYPE, DATE_DTYPE)
+            target_type in TEMPORAL_BIGFRAMES_TYPES + [JSON_DTYPE]
         )
 
 

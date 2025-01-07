@@ -1201,6 +1201,46 @@ def test_isin(scalars_dfs, col_name, test_set):
     )
 
 
+@pytest.mark.parametrize(
+    (
+        "col_name",
+        "test_set",
+    ),
+    [
+        (
+            "int64_col",
+            [314159, 2.0, 3, pd.NA],
+        ),
+        (
+            "int64_col",
+            [2, 55555, 4],
+        ),
+        (
+            "float64_col",
+            [-123.456, 1.25, pd.NA],
+        ),
+        (
+            "int64_too",
+            [1, 2, pd.NA],
+        ),
+        (
+            "string_col",
+            ["Hello, World!", "Hi", "こんにちは"],
+        ),
+    ],
+)
+def test_isin_bigframes_values(scalars_dfs, col_name, test_set, session):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = (
+        scalars_df[col_name].isin(series.Series(test_set, session=session)).to_pandas()
+    )
+    pd_result = scalars_pandas_df[col_name].isin(test_set).astype("boolean")
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
 def test_isnull(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "float64_col"
@@ -2324,6 +2364,34 @@ def test_cumsum_nested(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+@skip_legacy_pandas
+def test_nested_analytic_ops_align(scalars_df_index, scalars_pandas_df_index):
+    col_name = "float64_col"
+    # set non-unique index to check implicit alignment
+    bf_series = scalars_df_index.set_index("bool_col")[col_name].fillna(0.0)
+    pd_series = scalars_pandas_df_index.set_index("bool_col")[col_name].fillna(0.0)
+
+    bf_result = (
+        (bf_series + 5)
+        + (bf_series.cumsum().cumsum().cumsum() + bf_series.rolling(window=3).mean())
+        + bf_series.expanding().max()
+    ).to_pandas()
+    # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA
+    pd_result = (
+        (pd_series + 5)
+        + (
+            pd_series.cumsum().cumsum().cumsum().astype(pd.Float64Dtype())
+            + pd_series.rolling(window=3).mean()
+        )
+        + pd_series.expanding().max()
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 def test_cumsum_int_filtered(scalars_df_index, scalars_pandas_df_index):
     col_name = "int64_col"
 
@@ -3093,6 +3161,7 @@ def test_mask_simple_udf(scalars_dfs):
     assert_series_equal(bf_result, pd_result, check_dtype=False)
 
 
+@pytest.mark.parametrize("errors", ["raise", "null"])
 @pytest.mark.parametrize(
     ("column", "to_type"),
     [
@@ -3108,6 +3177,7 @@ def test_mask_simple_udf(scalars_dfs):
         ("int64_col", "time64[us][pyarrow]"),
         ("bool_col", "Int64"),
         ("bool_col", "string[pyarrow]"),
+        ("bool_col", "Float64"),
         ("string_col", "binary[pyarrow]"),
         ("bytes_col", "string[pyarrow]"),
         # pandas actually doesn't let folks convert to/from naive timestamp and
@@ -3143,10 +3213,27 @@ def test_mask_simple_udf(scalars_dfs):
     ],
 )
 @skip_legacy_pandas
-def test_astype(scalars_df_index, scalars_pandas_df_index, column, to_type):
-    bf_result = scalars_df_index[column].astype(to_type).to_pandas()
+def test_astype(scalars_df_index, scalars_pandas_df_index, column, to_type, errors):
+    bf_result = scalars_df_index[column].astype(to_type, errors=errors).to_pandas()
     pd_result = scalars_pandas_df_index[column].astype(to_type)
     pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_astype_safe(session):
+    input = pd.Series(["hello", "world", "3.11", "4000"])
+    exepcted = pd.Series(
+        [None, None, 3.11, 4000],
+        dtype="Float64",
+        index=pd.Index([0, 1, 2, 3], dtype="Int64"),
+    )
+    result = session.read_pandas(input).astype("Float64", errors="null").to_pandas()
+    pd.testing.assert_series_equal(result, exepcted)
+
+
+def test_series_astype_error_error(session):
+    input = pd.Series(["hello", "world", "3.11", "4000"])
+    with pytest.raises(ValueError):
+        session.read_pandas(input).astype("Float64", errors="bad_value")
 
 
 @skip_legacy_pandas

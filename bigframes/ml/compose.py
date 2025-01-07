@@ -68,7 +68,8 @@ class SQLScalarColumnTransformer:
 
         >>> from bigframes.ml.compose import ColumnTransformer, SQLScalarColumnTransformer
         >>> import bigframes.pandas as bpd
-        <BLANKLINE>
+        >>> bpd.options.display.progress_bar = None
+
         >>> df = bpd.DataFrame({'name': ["James", None, "Mary"], 'city': ["New York", "Boston", None]})
         >>> col_trans = ColumnTransformer([
         ...     ("strlen",
@@ -335,7 +336,7 @@ class ColumnTransformer(
         X: utils.ArrayType,
         y=None,  # ignored
     ) -> ColumnTransformer:
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X)
 
         transform_sqls = self._compile_to_sql(X)
         self._bqml_model = self._bqml_model_factory.create_model(
@@ -351,7 +352,7 @@ class ColumnTransformer(
         if not self._bqml_model:
             raise RuntimeError("Must be fitted before transform")
 
-        (X,) = utils.convert_to_dataframe(X, session=self._bqml_model.session)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         df = self._bqml_model.transform(X)
         return typing.cast(
