@@ -74,7 +74,6 @@ def test_create_single_timeseries() -> None:
     #   0	 [0.40944762]	   [-0.81168198]	      0.0
 
     # [END bigquery_dataframes_single_timeseries_forecasting_model_tutorial_evaluate]
-    assert coef is not None
     # [START bigquery_dataframes_single_timeseries_forecasting_model_tutorial_forecast]
     prediction = model.predict(horizon=30, confidence_level=0.8)
 
@@ -87,6 +86,7 @@ def test_create_single_timeseries() -> None:
     # 25	2017-08-27 00:00:00+00:00	1853.735689	      410.596551	      0.8	                 1327.233216	                      2380.238162	                     1327.233216	                     2380.238162
     # 1	    2017-08-03 00:00:00+00:00	2621.33159	      241.093355	      0.8	                 2312.180802	                      2930.482379	                     2312.180802	                     2930.482379
     # [END bigquery_dataframes_single_timeseries_forecasting_model_tutorial_forecast]
+    assert coef is not None
     assert model is not None
     assert parsed_date is not None
     assert prediction is not None
