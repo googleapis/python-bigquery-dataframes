@@ -77,6 +77,7 @@ def test_create_single_timeseries() -> None:
     # 4	  2016-08-05 00:00:00+00:00	      history	             2702.0	               1394.395741	           206.939556	         <NA>	                    <NA>	                            <NA>	            1248.707386	       <NA>	                        <NA>	                     <NA>	                 145.688355	                  <NA>	                <NA>	            <NA>	       1205.283526	   102.320733
     # 5	  2016-08-06 00:00:00+00:00	      history	             1663.0	               437.09243	           206.939556	         <NA>	                    <NA>	                            <NA>	            1188.59004	       <NA>	                        <NA>	                     <NA>	                 -751.49761	                  <NA>	                <NA>	            <NA>	       1205.283526	    20.624044
     # [END bigquery_dataframes_single_timeseries_forecasting_model_tutorial_explain_forecast]
+    assert ex_pred is not None
     assert model is not None
     assert parsed_date is not None
     assert total_visits is not None
