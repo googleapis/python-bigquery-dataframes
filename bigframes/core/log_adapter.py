@@ -39,6 +39,10 @@ _call_stack: List = []
 
 class UnimplementedMethodLogger:
     def __init__(self, bq_client: bigquery.Client, class_name: str, method_name: str):
+        # Workaround for issue with notebook, this need to raise early so
+        # it can find an alternative _repr_ method.
+        if method_name in ["_repr_latex_"]:
+            raise
         self.bq_client = bq_client
         self.class_name = class_name
         self.method_name = method_name
@@ -126,7 +130,7 @@ def method_logger(method, decorated_cls):
         try:
             return method(self, *args, **kwargs)
         except (NotImplementedError, TypeError) as e:
-            if hasattr(self, "_block"):
+            if hasattr(self, "_block") and len(_call_stack) == 1:
                 submit_pandas_labels(
                     self._block.expr.session.bqclient,
                     class_name,
