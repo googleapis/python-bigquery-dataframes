@@ -35,6 +35,52 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Accessor object for datetime-like properties of the Series values.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import pandas as pd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> seconds_series = bpd.Series(bpd.date_range("2000-01-01", periods=3, freq="s"))
+            >>> seconds_series
+
+            >>> 0    2000-01-01 00:00:00
+                1    2000-01-01 00:00:01
+                2    2000-01-01 00:00:02
+                dtype: timestamp[us][pyarrow]
+
+            >>> seconds_series.dt.second
+            0    0
+            1    1
+            2    2
+            dtype: Int64
+
+            >>> hours_series = bpd.Series(pd.date_range("2000-01-01", periods=3, freq="h"))
+            >>> hours_series
+            0    2000-01-01 00:00:00
+            1    2000-01-01 01:00:00
+            2    2000-01-01 02:00:00
+            dtype: timestamp[us][pyarrow]
+
+            >>> hours_series.dt.hour
+            0    0
+            1    1
+            2    2
+            dtype: Int64
+
+            >>> quarters_series = bpd.Series(pd.date_range("2000-01-01", periods=3, freq="QE"))
+            >>> quarters_series
+            0    2000-03-31 00:00:00
+            1    2000-06-30 00:00:00
+            2    2000-09-30 00:00:00
+            dtype: timestamp[us][pyarrow]
+
+            >>> quarters_series.dt.quarter
+            0    1
+            1    2
+            2    3
+            dtype: Int64
+
         Returns:
             bigframes.operations.datetimes.DatetimeMethods:
                 An accessor containing datetime methods.
@@ -105,7 +151,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 dtype=object)
 
         Returns:
-            Index: The index object of the Series.
+            Index:
+                The index object of the Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -168,6 +215,13 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s.name
             'Numbers'
 
+            >>> s.name = "Integers"
+            >>> s
+            0    1
+            1    2
+            2    3
+            Name: Integers, dtype: Int64
+
         If the Series is part of a DataFrame:
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
@@ -182,7 +236,8 @@ class Series(NDFrame):  # type: ignore[misc]
             'col1'
 
         Returns:
-            hashable object: The name of the Series, also the column name
+            hashable object:
+                The name of the Series, also the column name
                 if part of a DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -260,7 +315,8 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: string
 
         Returns:
-            Series: Series.
+            bigframes.pandas.Series:
+                Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -324,6 +380,24 @@ class Series(NDFrame):  # type: ignore[misc]
             3    4
             Name: foo, dtype: Int64
 
+            >>> arrays = [np.array(['bar', 'bar', 'baz', 'baz']),
+                          np.array(['one', 'two', 'one', 'two'])]
+            >>> s2 = pd.Series(
+            ...     range(4), name='foo',
+            ...     index=pd.MultiIndex.from_arrays(arrays,
+            ...                                     names=['a', 'b']))
+
+        If level is not set, all levels are removed from the Index.
+
+            >>> s2.reset_index()
+                 a    b  foo
+            0  bar  one    0
+            1  bar  two    1
+            2  baz  one    2
+            3  baz  two    3
+
+            [4 rows x 3 columns]
+
         Args:
             drop (bool, default False):
                 Just reset the index, without inserting it as a column in
@@ -334,7 +408,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 when `drop` is True.
 
         Returns:
-            Series or DataFrame or None; When `drop` is False (the default),
+            bigframes.pandas.Series or bigframes.pandas.DataFrame or None:
+                When `drop` is False (the default),
                 a DataFrame is returned. The newly created columns will come first
                 in the DataFrame, followed by the original Series values.
                 When `drop` is True, a `Series` is returned.
@@ -368,6 +443,15 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Render a string representation of the Series.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> ser = bpd.Series([1, 2, 3]).to_string()
+            >>> ser
+            '0    1\n1    2\n2    3'
+
         Args:
             buf (StringIO-like, optional):
                 Buffer to write to.
@@ -394,7 +478,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 of rows is above `max_rows`).
 
         Returns:
-            str or None: String representation of Series if ``buf=None``,
+            str or None:
+                String representation of Series if ``buf=None``,
                 otherwise None.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -407,7 +492,36 @@ class Series(NDFrame):  # type: ignore[misc]
         **kwargs,
     ) -> str | None:
         """
-        Print {klass} in Markdown-friendly format.
+        Print Series in Markdown-friendly format.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(["elk", "pig", "dog", "quetzal"], name="animal")
+            >>> print(s.to_markdown())
+            |    | animal   |
+            |---:|:---------|
+            |  0 | elk      |
+            |  1 | pig      |
+            |  2 | dog      |
+            |  3 | quetzal  |
+
+        Output markdown with a tabulate option.
+
+            >>> print(s.to_markdown(tablefmt="grid"))
+            +----+----------+
+            |    | animal   |
+            +====+==========+
+            |  0 | elk      |
+            +----+----------+
+            |  1 | pig      |
+            +----+----------+
+            |  2 | dog      |
+            +----+----------+
+            |  3 | quetzal  |
+            +----+----------+
 
         Args:
             buf (str, Path or StringIO-like, optional, default None):
@@ -418,13 +532,31 @@ class Series(NDFrame):  # type: ignore[misc]
                 Add index (row) labels.
 
         Returns:
-            str: {klass} in Markdown-friendly format.
+            str:
+                Series in Markdown-friendly format.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def to_dict(self, into: type[dict] = dict) -> Mapping:
         """
         Convert Series to {label -> value} dict or dict-like object.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> from collections import OrderedDict, defaultdict
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3, 4])
+            >>> s.to_dict()
+            {0: 1, 1: 2, 2: 3, 3: 4}
+
+            >>> s.to_dict(into=OrderedDict)
+            OrderedDict([(0, 1), (1, 2), (2, 3), (3, 4)])
+
+            >>> dd = defaultdict(list)
+            >>> s.to_dict(into=dd)
+            defaultdict(list, {0: 1, 1: 2, 2: 3, 3: 4})
 
         Args:
             into (class, default dict):
@@ -434,7 +566,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 collections.defaultdict, you must pass it initialized.
 
         Returns:
-            collections.abc.Mapping: Key-value representation of Series.
+            collections.abc.Mapping:
+                Key-value representation of Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -445,11 +578,27 @@ class Series(NDFrame):  # type: ignore[misc]
         The column in the new dataframe will be named name (the keyword parameter)
         if the name parameter is provided and not None.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(["a", "b", "c"],
+            ...               name="vals")
+            >>> s.to_frame()
+              vals
+            0    a
+            1    b
+            2    c
+
+            [3 rows x 1 columns]
+
         Args:
             name (Hashable, default None)
 
         Returns:
-            bigframes.dataframe.DataFrame: DataFrame representation of Series.
+            bigframes.pandas .DataFrame:
+                DataFrame representation of Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -491,7 +640,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 Write row names (index).
 
         Returns:
-            str or None: If buf is None, returns the result as a string.
+            str or None:
+                If buf is None, returns the result as a string.
                 Otherwise returns None.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -520,7 +670,8 @@ class Series(NDFrame):  # type: ignore[misc]
             [1, 2, 3]
 
         Returns:
-            list: list of the values
+            list:
+                list of the values
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -529,6 +680,32 @@ class Series(NDFrame):  # type: ignore[misc]
     def to_numpy(self, dtype, copy=False, na_value=None):
         """
         A NumPy ndarray representing the values in this Series or Index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import pandas as pd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> ser = bpd.Series(pd.Categorical(['a', 'b', 'a']))
+            >>> ser.to_numpy()
+            array(['a', 'b', 'a'], dtype=object)
+
+        Specify the dtype to control how datetime-aware data is represented. Use
+        dtype=object to return an ndarray of pandas Timestamp objects, each with
+        the correct tz.
+
+            >>> ser = bpd.Series(pd.date_range('2000', periods=2, tz="CET"))
+            >>> ser.to_numpy(dtype=object)
+            array([Timestamp('1999-12-31 23:00:00+0000', tz='UTC'),
+                   Timestamp('2000-01-01 23:00:00+0000', tz='UTC')], dtype=object)
+
+        Or ``dtype=datetime64[ns]`` to return an ndarray of native datetime64 values.
+        The values are converted to UTC and the timezone info is dropped.
+
+            >>> ser.to_numpy(dtype="datetime64[ns]")
+            array(['1999-12-31T23:00:00.000000000', '2000-01-01T23:00:00.000000000'],
+                  dtype='datetime64[ns]')
 
         Args:
             dtype (str or numpy.dtype, optional):
@@ -546,7 +723,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 of the underlying array (for extension arrays).
 
         Returns:
-            numpy.ndarray: A NumPy ndarray representing the values in this
+            numpy.ndarray:
+                A NumPy ndarray representing the values in this
                 Series or Index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -555,11 +733,43 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Pickle (serialize) object to file.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> original_df = bpd.DataFrame({"foo": range(5), "bar": range(5, 10)})
+            >>> original_df
+               foo  bar
+            0    0    5
+            1    1    6
+            2    2    7
+            3    3    8
+            4    4    9
+
+            [5 rows x 2 columns]
+
+            >>> original_df.to_pickle("./dummy.pkl")
+
+            >>> unpickled_df = bpd.read_pickle("./dummy.pkl")
+            >>> unpickled_df
+              foo  bar
+            0    0    5
+            1    1    6
+            2    2    7
+            3    3    8
+            4    4    9
+
+            [5 rows x 2 columns]
+
         Args:
             path (str, path object, or file-like object):
                 String, path object (implementing ``os.PathLike[str]``), or file-like
                 object implementing a binary ``write()`` function. File path where
                 the pickled object will be stored.
+
+        Returns:
+            None
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -568,7 +778,8 @@ class Series(NDFrame):  # type: ignore[misc]
         Return an xarray object from the pandas object.
 
         Returns:
-            xarray.DataArray or xarray.Dataset: Data in the pandas structure
+            xarray.DataArray or xarray.Dataset:
+                Data in the pandas structure
                 converted to Dataset if the object is a DataFrame, or a DataArray if
                 the object is a Series.
         """
@@ -606,7 +817,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 function names, e.g. ``['sum', 'mean']``.
 
         Returns:
-            scalar or Series: Aggregated results
+            scalar or bigframes.pandas.Series:
+                Aggregated results
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -629,8 +841,8 @@ class Series(NDFrame):  # type: ignore[misc]
             np.int64(2)
 
         Returns:
-            int or Series (if level specified): Number of non-null values in the
-                Series.
+            int or bigframes.pandas.Series (if level specified):
+                Number of non-null values in the Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -640,8 +852,26 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Excludes NA values by default.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 3, 5, 7, 7])
+            >>> s
+            0    1
+            1    3
+            2    5
+            3    7
+            4    7
+            dtype: Int64
+
+            >>> s.nunique()
+            np.int64(4)
+
         Returns:
-            int: number of unique elements in the object.
+            int:
+                number of unique elements in the object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -671,6 +901,7 @@ class Series(NDFrame):  # type: ignore[misc]
             Name: A, dtype: Int64
 
         Example with order preservation: Slower, but keeps order
+
             >>> s.unique()
             0    2
             1    1
@@ -678,6 +909,7 @@ class Series(NDFrame):  # type: ignore[misc]
             Name: A, dtype: Int64
 
         Example without order preservation: Faster, but loses original order
+
             >>> s.unique(keep_order=False)
             0    1
             1    2
@@ -685,7 +917,8 @@ class Series(NDFrame):  # type: ignore[misc]
             Name: A, dtype: Int64
 
         Returns:
-            bigframes.pandas.Series: The unique values returned as a Series.
+            bigframes.pandas.Series:
+                The unique values returned as a Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
