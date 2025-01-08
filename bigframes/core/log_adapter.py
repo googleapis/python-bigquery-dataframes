@@ -76,8 +76,17 @@ def submit_pandas_labels(
         "method_name": method_name.lower(),
         "args_count": len(args),
     }
-    cls = getattr(pandas, class_name)
-    method = getattr(cls, method_name)
+
+    if hasattr(pandas, class_name):
+        cls = getattr(pandas, class_name)
+    else:
+        return
+
+    if hasattr(cls, method_name):
+        method = getattr(cls, method_name)
+    else:
+        return
+
     signature = inspect.signature(method)
     param_names = [param.name for param in signature.parameters.values()]
 
