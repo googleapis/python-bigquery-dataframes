@@ -38,6 +38,19 @@ _call_stack: List = []
 
 
 class UnimplementedMethodLogger:
+    """
+    A logger for unimplemented methods.
+
+    This class is designed to log attempts to use unimplemented methods from the pandas API
+    on BigQuery DataFrames, and then raise an informative error message. The main purpose
+    is to help developers identify which methods are being called and not implemented yet.
+
+    Attributes:
+        bq_client (bigquery.Client): The BigQuery client used to submit the log.
+        class_name (str): The name of the class in which the unimplemented method belongs.
+        method_name (str): The name of the unimplemented method being called.
+    """
+
     def __init__(self, bq_client: bigquery.Client, class_name: str, method_name: str):
         # Workaround for issue with notebook, this need to raise early so
         # it can find an alternative _repr_ method.
@@ -48,6 +61,20 @@ class UnimplementedMethodLogger:
         self.method_name = method_name
 
     def __call__(self, *args, **kwargs):
+        """
+        Logs the usage of an unimplemented method and raises an AttributeError.
+
+        This method captures any arguments and keyword arguments passed to the unimplemented method
+        and logs them along with the method details to BigQuery. After logging, it raises an
+        AttributeError to notify the user that the method is not implemented.
+
+        Args:
+            *args: Positional arguments provided to the method call.
+            **kwargs: Keyword arguments provided to the method call.
+
+        Raises:
+            AttributeError: Indicates that the method called is not implemented with a link for feedback.
+        """
         submit_pandas_labels(
             self.bq_client,
             self.class_name,
@@ -70,6 +97,25 @@ def submit_pandas_labels(
     kwargs,
     task: str,
 ):
+    """
+    Submits usage of API to BigQuery using a simulated failed query.
+
+    This function is designed to capture and log details about the usage of pandas methods,
+    including class and method names, the count of positional arguments, and any keyword
+    arguments that match the method's signature. To avoid incurring costs, it simulates a
+    query execution using a query with syntax errors.
+
+    Args:
+        bq_client (bigquery.Client): The client used to interact with BigQuery.
+        class_name (str): The name of the pandas class being used.
+        method_name (str): The name of the method being invoked.
+        args (tuple): The positional arguments passed to the method.
+        kwargs (dict): The keyword arguments passed to the method.
+        task (str): The specific task type for the logging event:
+                    - 'PANDAS_API_TRACKING_TASK': Indicates that the unimplemented feature is a method.
+                    - 'PANDAS_PARAM_TRACKING_TASK': Indicates that the unimplemented feature is a
+                      parameter of a method.
+    """
     labels_dict = {
         "task": task,
         "classname": class_name.lower(),
@@ -139,6 +185,8 @@ def method_logger(method, decorated_cls):
         try:
             return method(self, *args, **kwargs)
         except (NotImplementedError, TypeError) as e:
+            # Log method parameters that are implemented in pandas but either missing (TypeError)
+            # or not fully supported (NotImplementedError) in BigFrames.
             if hasattr(self, "_block") and len(_call_stack) == 1:
                 submit_pandas_labels(
                     self._block.expr.session.bqclient,
