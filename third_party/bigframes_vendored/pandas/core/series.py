@@ -43,11 +43,10 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> seconds_series = bpd.Series(bpd.date_range("2000-01-01", periods=3, freq="s"))
             >>> seconds_series
-
-            >>> 0    2000-01-01 00:00:00
-                1    2000-01-01 00:00:01
-                2    2000-01-01 00:00:02
-                dtype: timestamp[us][pyarrow]
+            0    2000-01-01 00:00:00
+            1    2000-01-01 00:00:01
+            2    2000-01-01 00:00:02
+            dtype: timestamp[us][pyarrow]
 
             >>> seconds_series.dt.second
             0    0
@@ -143,12 +142,12 @@ class Series(NDFrame):  # type: ignore[misc]
             Name: Age, dtype: Int64
             >>> s1.index # doctest: +ELLIPSIS
             MultiIndex([( 'Alice',  'Seattle'),
-                (   'Bob', 'New York'),
-                ('Aritra',     'Kona')],
-               names=['Name', 'Location'])
+                        (   'Bob', 'New York'),
+                        ('Aritra',     'Kona')],
+                      names=['Name', 'Location'])
             >>> s1.index.values
             array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
-                dtype=object)
+                  dtype=object)
 
         Returns:
             Index:
@@ -584,7 +583,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(["a", "b", "c"],
-            ...               name="vals")
+            ...                name="vals")
             >>> s.to_frame()
               vals
             0    a
@@ -597,7 +596,7 @@ class Series(NDFrame):  # type: ignore[misc]
             name (Hashable, default None)
 
         Returns:
-            bigframes.pandas .DataFrame:
+            bigframes.pandas.DataFrame:
                 DataFrame representation of Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -671,7 +670,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns:
             list:
-                list of the values
+                list of the values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -818,7 +817,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns:
             scalar or bigframes.pandas.Series:
-                Aggregated results
+                Aggregated results.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -933,32 +932,13 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
             >>> bpd.options.display.progress_bar = None
 
-            >>> bpd.Series([2, 1, 3, 3], name='A').unique()
-            0    2
-            1    1
-            2    3
-            Name: A, dtype: Int64
-
-
-            >>> bpd.Series([pd.Timestamp('2016-01-01') for _ in range(3)]).unique()
-            0    2016-01-01 00:00:00
-            dtype: timestamp[us][pyarrow]
-
-        An Categorical will return categories in the order of appearance and
-        with the same dtype.
-
-            >>> bpd.Series(pd.Categorical(list('baabc'))).unique()
-            ['b', 'a', 'c']
-
-            >>> bpd.Series(pd.Categorical(list('baabc'), categories=list('abc'),
-            ...                           ordered=True)).unique()
-            0    b
-            1    a
-            4    c
-            dtype: string
+            >>> s = bpd.Series([2, 4, 8, 2, 4, None])
+            >>> s.mode()
+            0    2.0
+            1    4.0
+            dtype: Float64
 
         Returns:
             bigframes.pandas.Series:
@@ -982,7 +962,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Generate a Series with duplicated entries.
 
             >>> s = bpd.Series(['llama', 'cow', 'llama', 'beetle', 'llama', 'hippo'],
-                              name='animal')
+            ...                name='animal')
             >>> s
             0     llama
             1       cow
@@ -1121,7 +1101,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(data=[1, None, 4, 1],
-            ...               index=['A', 'B', 'C', 'D'])
+            ...                index=['A', 'B', 'C', 'D'])
             >>> s
             A     1.0
             B    <NA>
@@ -1376,7 +1356,6 @@ class Series(NDFrame):  # type: ignore[misc]
             5       6
             dtype: Int64
 
-
         Difference with following row
 
             >>> s.diff(periods=-1)
@@ -1604,9 +1583,9 @@ class Series(NDFrame):  # type: ignore[misc]
         Specify index level to sort
 
             >>> arrays = [np.array(['qux', 'qux', 'foo', 'foo',
-                                'baz', 'baz', 'bar', 'bar']),
-                      np.array(['two', 'one', 'two', 'one',
-                                'two', 'one', 'two', 'one'])]
+            ...                     'baz', 'baz', 'bar', 'bar']),
+            ...           np.array(['two', 'one', 'two', 'one',
+            ...                     'two', 'one', 'two', 'one'])]
             >>> s = pd.Series([1, 2, 3, 4, 5, 6, 7, 8], index=arrays)
             >>> s.sort_index(level=1)
             bar  one    8
@@ -4870,7 +4849,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series(['A', 'B', 'C'])
             >>> for index, value in s.items():
-                    print(f"Index : {index}, Value : {value}")
+            ...     print(f"Index : {index}, Value : {value}")
             Index : 0, Value : A
             Index : 1, Value : B
             Index : 2, Value : C
@@ -4945,7 +4924,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 extension dtypes).
 
         Returns:
-            bigframes.pandas.Series: Series after the replacement.
+            bigframes.pandas.Series:
+                Series after the replacement.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5263,8 +5243,8 @@ class Series(NDFrame):  # type: ignore[misc]
         DataFrame
 
             >>> df = bpd.DataFrame({"num_legs": [4, 4, 2],
-            ...                    "num_arms": [0, 0, 2]},
-            ...                   ["dog", "cat", "monkey"])
+            ...                     "num_arms": [0, 0, 2]},
+            ...                    ["dog", "cat", "monkey"])
             >>> df
                     num_legs  num_arms
             dog            4         0
@@ -5723,8 +5703,8 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([[1, 2], [4, 5], [7, 8]],
-                                   index=['cobra', 'viper', 'sidewinder'],
-                                    columns=['max_speed', 'shield'])
+            ...                    index=['cobra', 'viper', 'sidewinder'],
+            ...                    columns=['max_speed', 'shield'])
             >>> df
                         max_speed  shield
             cobra               1       2
@@ -5845,7 +5825,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
-                                   index=[4, 5, 6], columns=['A', 'B', 'C'])
+            ...                    index=[4, 5, 6], columns=['A', 'B', 'C'])
             >>> df
                 A   B   C
             4   0   2   3
