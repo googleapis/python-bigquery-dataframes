@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helpers to join ArrayValue objects."""
+from bigframes.core.reshape.concat import concat
+from bigframes.core.reshape.encoding import get_dummies
+from bigframes.core.reshape.merge import merge
+from bigframes.core.reshape.tile import cut, qcut
 
-from bigframes.core.joins.merge import merge
-
-__all__ = [
-    "merge",
-]
+__all__ = ["concat", "get_dummies", "merge", "cut", "qcut"]

@@ -77,7 +77,6 @@ import bigframes.operations.plotting as plotting
 import bigframes.operations.semantics
 import bigframes.operations.structs
 import bigframes.series
-import bigframes.series as bf_series
 import bigframes.session._io.bigquery
 
 if typing.TYPE_CHECKING:
@@ -141,9 +140,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         elif (
             utils.is_dict_like(data)
             and len(data) >= 1
-            and any(isinstance(data[key], bf_series.Series) for key in data.keys())
+            and any(
+                isinstance(data[key], bigframes.series.Series) for key in data.keys()
+            )
         ):
-            if not all(isinstance(data[key], bf_series.Series) for key in data.keys()):
+            if not all(
+                isinstance(data[key], bigframes.series.Series) for key in data.keys()
+            ):
                 # TODO(tbergeron): Support local list/series data by converting to memtable.
                 raise NotImplementedError(
                     f"Cannot mix Series with other types. {constants.FEEDBACK_LINK}"
@@ -151,13 +154,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             keys = list(data.keys())
             first_label, first_series = keys[0], data[keys[0]]
             block = (
-                typing.cast(bf_series.Series, first_series)
+                typing.cast(bigframes.series.Series, first_series)
                 ._get_block()
                 .with_column_labels([first_label])
             )
 
             for key in keys[1:]:
-                other = typing.cast(bf_series.Series, data[key])
+                other = typing.cast(bigframes.series.Series, data[key])
                 other_block = other._block.with_column_labels([key])
                 # Pandas will keep original sorting if all indices are aligned.
                 # We cannot detect this easily however, and so always sort on index
@@ -364,14 +367,35 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def astype(
         self,
-        dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
+        dtype: Union[
+            bigframes.dtypes.DtypeString,
+            bigframes.dtypes.Dtype,
+            dict[str, Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype]],
+        ],
         *,
         errors: Literal["raise", "null"] = "raise",
     ) -> DataFrame:
         if errors not in ["raise", "null"]:
             raise ValueError("Arg 'error' must be one of 'raise' or 'null'")
-        return self._apply_unary_op(
-            ops.AsTypeOp(to_type=dtype, safe=(errors == "null"))
+
+        safe_cast = errors == "null"
+
+        # Type strings check
+        if dtype in bigframes.dtypes.DTYPE_STRINGS:
+            return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
+
+        # Type instances check
+        if type(dtype) in bigframes.dtypes.DTYPES:
+            return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
+
+        if isinstance(dtype, dict):
+            result = self.copy()
+            for col, to_type in dtype.items():
+                result[col] = result[col].astype(to_type)
+            return result
+
+        raise TypeError(
+            f"Invalid type {type(dtype)} for dtype input. {constants.FEEDBACK_LINK}"
         )
 
     def _to_sql_query(
@@ -513,6 +537,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             as_pandas.select_dtypes(include=include, exclude=exclude).columns
         )
         return DataFrame(self._block.select_columns(selected_columns))
+
+    def _select_exact_dtypes(
+        self, dtypes: Sequence[bigframes.dtypes.Dtype]
+    ) -> DataFrame:
+        """Selects columns without considering inheritance relationships."""
+        columns = [
+            col_id
+            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
+            if dtype in dtypes
+        ]
+        return DataFrame(self._block.select_columns(columns))
 
     def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
@@ -704,10 +739,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
+        df = self.copy()
+        if bigframes.options.experiments.blob:
+            import bigframes.bigquery as bbq
+
+            blob_cols = [
+                col
+                for col in df.columns
+                if df[col].dtype == bigframes.dtypes.OBJ_REF_DTYPE
+            ]
+            for col in blob_cols:
+                df[col] = df[col]._apply_unary_op(ops.ObjGetAccessUrl(mode="R"))
+                df[col] = bbq.json_extract(df[col], "$.access_urls.read_url")
+
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
-        pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
+        pandas_df, row_count, query_job = df._block.retrieve_repr_request_results(
             max_results
         )
 
@@ -716,8 +764,31 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         column_count = len(pandas_df.columns)
 
         with display_options.pandas_repr(opts):
-            # _repr_html_ stub is missing so mypy thinks it's a Series. Ignore mypy.
-            html_string = pandas_df._repr_html_()  # type:ignore
+            # Allows to preview images in the DataFrame. The implementation changes the string repr as well, that it doesn't truncate strings or escape html charaters such as "<" and ">". We may need to implement a full-fledged repr module to better support types not in pandas.
+            if bigframes.options.experiments.blob:
+
+                def url_to_image_html(url: str) -> str:
+                    # url is a json string, which already contains double-quotes ""
+                    return f"<img src={url}>"
+
+                formatters = {blob_col: url_to_image_html for blob_col in blob_cols}
+
+                # set max_colwidth so not to truncate the image url
+                with pandas.option_context("display.max_colwidth", None):
+                    max_rows = pandas.get_option("display.max_rows")
+                    max_cols = pandas.get_option("display.max_columns")
+                    show_dimensions = pandas.get_option("display.show_dimensions")
+                    html_string = pandas_df.to_html(
+                        escape=False,
+                        notebook=True,
+                        max_rows=max_rows,
+                        max_cols=max_cols,
+                        show_dimensions=show_dimensions,
+                        formatters=formatters,  # type: ignore
+                    )
+            else:
+                # _repr_html_ stub is missing so mypy thinks it's a Series. Ignore mypy.
+                html_string = pandas_df._repr_html_()  # type:ignore
 
         html_string += f"[{row_count} rows x {column_count} columns in total]"
         return html_string
@@ -1173,7 +1244,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             results.append(result)
 
         if all([isinstance(val, bigframes.series.Series) for val in results]):
-            import bigframes.core.reshape as rs
+            import bigframes.core.reshape.api as rs
 
             return rs.concat(results, axis=1)
         else:
@@ -1197,7 +1268,107 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             frame = self._drop_non_numeric()
 
-        return DataFrame(frame._block.calculate_pairwise_metric(op=agg_ops.CorrOp()))
+        orig_columns = frame.columns
+        # Replace column names with 0 to n - 1 to keep order
+        # and avoid the influence of duplicated column name
+        frame.columns = pandas.Index(range(len(orig_columns)))
+        frame = frame.astype(bigframes.dtypes.FLOAT_DTYPE)
+        block = frame._block
+
+        # A new column that uniquely identifies each row
+        block, ordering_col = frame._block.promote_offsets(label="_bigframes_idx")
+
+        val_col_ids = [
+            col_id for col_id in block.value_columns if col_id != ordering_col
+        ]
+
+        block = block.melt(
+            [ordering_col], val_col_ids, ["_bigframes_variable"], "_bigframes_value"
+        )
+
+        block = block.merge(
+            block,
+            left_join_ids=[ordering_col],
+            right_join_ids=[ordering_col],
+            how="inner",
+            sort=False,
+        )
+
+        frame = DataFrame(block).dropna(
+            subset=["_bigframes_value_x", "_bigframes_value_y"]
+        )
+
+        paired_mean_frame = (
+            frame.groupby(["_bigframes_variable_x", "_bigframes_variable_y"])
+            .agg(
+                _bigframes_paired_mean_x=bigframes.pandas.NamedAgg(
+                    column="_bigframes_value_x", aggfunc="mean"
+                ),
+                _bigframes_paired_mean_y=bigframes.pandas.NamedAgg(
+                    column="_bigframes_value_y", aggfunc="mean"
+                ),
+            )
+            .reset_index()
+        )
+
+        frame = frame.merge(
+            paired_mean_frame, on=["_bigframes_variable_x", "_bigframes_variable_y"]
+        )
+        frame["_bigframes_value_x"] -= frame["_bigframes_paired_mean_x"]
+        frame["_bigframes_value_y"] -= frame["_bigframes_paired_mean_y"]
+
+        frame["_bigframes_dividend"] = (
+            frame["_bigframes_value_x"] * frame["_bigframes_value_y"]
+        )
+        frame["_bigframes_x_square"] = (
+            frame["_bigframes_value_x"] * frame["_bigframes_value_x"]
+        )
+        frame["_bigframes_y_square"] = (
+            frame["_bigframes_value_y"] * frame["_bigframes_value_y"]
+        )
+
+        result = (
+            frame.groupby(["_bigframes_variable_x", "_bigframes_variable_y"])
+            .agg(
+                _bigframes_dividend_sum=bigframes.pandas.NamedAgg(
+                    column="_bigframes_dividend", aggfunc="sum"
+                ),
+                _bigframes_x_square_sum=bigframes.pandas.NamedAgg(
+                    column="_bigframes_x_square", aggfunc="sum"
+                ),
+                _bigframes_y_square_sum=bigframes.pandas.NamedAgg(
+                    column="_bigframes_y_square", aggfunc="sum"
+                ),
+            )
+            .reset_index()
+        )
+        result["_bigframes_corr"] = result["_bigframes_dividend_sum"] / (
+            (
+                result["_bigframes_x_square_sum"] * result["_bigframes_y_square_sum"]
+            )._apply_unary_op(ops.sqrt_op)
+        )
+        result = result._pivot(
+            index="_bigframes_variable_x",
+            columns="_bigframes_variable_y",
+            values="_bigframes_corr",
+        )
+
+        map_data = {
+            f"_bigframes_level_{i}": orig_columns.get_level_values(i)
+            for i in range(orig_columns.nlevels)
+        }
+        map_data["_bigframes_keys"] = range(len(orig_columns))
+        map_df = bigframes.dataframe.DataFrame(
+            map_data,
+            session=self._get_block().expr.session,
+        ).set_index("_bigframes_keys")
+        result = result.join(map_df).sort_index()
+        index_columns = [f"_bigframes_level_{i}" for i in range(orig_columns.nlevels)]
+        result = result.set_index(index_columns)
+        result.index.names = orig_columns.names
+        result.columns = orig_columns
+
+        return result
 
     def cov(self, *, numeric_only: bool = False) -> DataFrame:
         if not numeric_only:
@@ -1205,7 +1376,95 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             frame = self._drop_non_numeric()
 
-        return DataFrame(frame._block.calculate_pairwise_metric(agg_ops.CovOp()))
+        orig_columns = frame.columns
+        # Replace column names with 0 to n - 1 to keep order
+        # and avoid the influence of duplicated column name
+        frame.columns = pandas.Index(range(len(orig_columns)))
+        frame = frame.astype(bigframes.dtypes.FLOAT_DTYPE)
+        block = frame._block
+
+        # A new column that uniquely identifies each row
+        block, ordering_col = frame._block.promote_offsets(label="_bigframes_idx")
+
+        val_col_ids = [
+            col_id for col_id in block.value_columns if col_id != ordering_col
+        ]
+
+        block = block.melt(
+            [ordering_col], val_col_ids, ["_bigframes_variable"], "_bigframes_value"
+        )
+        block = block.merge(
+            block,
+            left_join_ids=[ordering_col],
+            right_join_ids=[ordering_col],
+            how="inner",
+            sort=False,
+        )
+
+        frame = DataFrame(block).dropna(
+            subset=["_bigframes_value_x", "_bigframes_value_y"]
+        )
+
+        paired_mean_frame = (
+            frame.groupby(["_bigframes_variable_x", "_bigframes_variable_y"])
+            .agg(
+                _bigframes_paired_mean_x=bigframes.pandas.NamedAgg(
+                    column="_bigframes_value_x", aggfunc="mean"
+                ),
+                _bigframes_paired_mean_y=bigframes.pandas.NamedAgg(
+                    column="_bigframes_value_y", aggfunc="mean"
+                ),
+            )
+            .reset_index()
+        )
+
+        frame = frame.merge(
+            paired_mean_frame, on=["_bigframes_variable_x", "_bigframes_variable_y"]
+        )
+        frame["_bigframes_value_x"] -= frame["_bigframes_paired_mean_x"]
+        frame["_bigframes_value_y"] -= frame["_bigframes_paired_mean_y"]
+
+        frame["_bigframes_dividend"] = (
+            frame["_bigframes_value_x"] * frame["_bigframes_value_y"]
+        )
+
+        result = (
+            frame.groupby(["_bigframes_variable_x", "_bigframes_variable_y"])
+            .agg(
+                _bigframes_dividend_sum=bigframes.pandas.NamedAgg(
+                    column="_bigframes_dividend", aggfunc="sum"
+                ),
+                _bigframes_dividend_count=bigframes.pandas.NamedAgg(
+                    column="_bigframes_dividend", aggfunc="count"
+                ),
+            )
+            .reset_index()
+        )
+        result["_bigframes_cov"] = result["_bigframes_dividend_sum"] / (
+            result["_bigframes_dividend_count"] - 1
+        )
+        result = result._pivot(
+            index="_bigframes_variable_x",
+            columns="_bigframes_variable_y",
+            values="_bigframes_cov",
+        )
+
+        map_data = {
+            f"_bigframes_level_{i}": orig_columns.get_level_values(i)
+            for i in range(orig_columns.nlevels)
+        }
+        map_data["_bigframes_keys"] = range(len(orig_columns))
+        map_df = bigframes.dataframe.DataFrame(
+            map_data,
+            session=self._get_block().expr.session,
+        ).set_index("_bigframes_keys")
+        result = result.join(map_df).sort_index()
+        index_columns = [f"_bigframes_level_{i}" for i in range(orig_columns.nlevels)]
+        result = result.set_index(index_columns)
+        result.index.names = orig_columns.names
+        result.columns = orig_columns
+
+        return result
 
     def to_arrow(
         self,
@@ -2039,6 +2298,63 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for item in df.itertuples(index=index, name=name):
                 yield item
 
+    def where(self, cond, other=None):
+        if isinstance(other, bigframes.series.Series):
+            raise ValueError("Seires is not a supported replacement type!")
+
+        if self.columns.nlevels > 1 or self.index.nlevels > 1:
+            raise NotImplementedError(
+                "The dataframe.where() method does not support multi-index and/or multi-column."
+            )
+
+        aligned_block, (_, _) = self._block.join(cond._block, how="left")
+        # No left join is needed when 'other' is None or constant.
+        if isinstance(other, bigframes.dataframe.DataFrame):
+            aligned_block, (_, _) = aligned_block.join(other._block, how="left")
+        self_len = len(self._block.value_columns)
+        cond_len = len(cond._block.value_columns)
+
+        ids = aligned_block.value_columns[:self_len]
+        labels = aligned_block.column_labels[:self_len]
+        self_col = {x: ex.deref(y) for x, y in zip(labels, ids)}
+
+        if isinstance(cond, bigframes.series.Series) and cond.name in self_col:
+            # This is when 'cond' is a valid series.
+            y = aligned_block.value_columns[self_len]
+            cond_col = {x: ex.deref(y) for x in self_col.keys()}
+        else:
+            # This is when 'cond' is a dataframe.
+            ids = aligned_block.value_columns[self_len : self_len + cond_len]
+            labels = aligned_block.column_labels[self_len : self_len + cond_len]
+            cond_col = {x: ex.deref(y) for x, y in zip(labels, ids)}
+
+        if isinstance(other, DataFrame):
+            other_len = len(self._block.value_columns)
+            ids = aligned_block.value_columns[-other_len:]
+            labels = aligned_block.column_labels[-other_len:]
+            other_col = {x: ex.deref(y) for x, y in zip(labels, ids)}
+        else:
+            # This is when 'other' is None or constant.
+            labels = aligned_block.column_labels[:self_len]
+            other_col = {x: ex.const(other) for x in labels}  # type: ignore
+
+        result_series = {}
+        for x, self_id in self_col.items():
+            cond_id = cond_col[x] if x in cond_col else ex.const(False)
+            other_id = other_col[x] if x in other_col else ex.const(None)
+            result_block, result_id = aligned_block.project_expr(
+                ops.where_op.as_expr(self_id, cond_id, other_id)
+            )
+            series = bigframes.series.Series(
+                result_block.select_column(result_id).with_column_labels([x])
+            )
+            result_series[x] = series
+
+        result = DataFrame(result_series)
+        result.columns.name = self.columns.name
+        result.columns.names = self.columns.names
+        return result
+
     def dropna(
         self,
         *,
@@ -2246,13 +2562,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
 
             for dtype, agg in itertools.product(self.dtypes, aggregations):
-                if not bigframes.operations.aggregations.is_agg_op_supported(
-                    dtype, agg
-                ):
-                    raise NotImplementedError(
-                        f"Type {dtype} does not support aggregation {agg}. "
-                        f"Share your usecase with the BigQuery DataFrames team at the {constants.FEEDBACK_LINK}"
-                    )
+                agg.output_type(
+                    dtype
+                )  # Raises exception if the agg does not support the dtype.
 
             return DataFrame(
                 self._block.summarize(
@@ -2321,7 +2633,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def describe(self, include: None | Literal["all"] = None) -> DataFrame:
         if include is None:
-            numeric_df = self._drop_non_numeric(permissive=False)
+            numeric_df = self._select_exact_dtypes(
+                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
+                + bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
+            )
             if len(numeric_df.columns) == 0:
                 # Describe eligible non-numeric columns
                 return self._describe_non_numeric()
@@ -2338,7 +2653,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             elif len(non_numeric_result.columns) == 0:
                 return numeric_result
             else:
-                import bigframes.core.reshape as rs
+                import bigframes.core.reshape.api as rs
 
                 # Use reindex after join to preserve the original column order.
                 return rs.concat(
@@ -2349,9 +2664,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise ValueError(f"Unsupported include type: {include}")
 
     def _describe_numeric(self) -> DataFrame:
-        return typing.cast(
+        number_df_result = typing.cast(
             DataFrame,
-            self._drop_non_numeric(permissive=False).agg(
+            self._select_exact_dtypes(
+                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
+            ).agg(
                 [
                     "count",
                     "mean",
@@ -2364,16 +2681,41 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 ]
             ),
         )
+        temporal_df_result = typing.cast(
+            DataFrame,
+            self._select_exact_dtypes(
+                bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
+            ).agg(["count"]),
+        )
+
+        if len(number_df_result.columns) == 0:
+            return temporal_df_result
+        elif len(temporal_df_result.columns) == 0:
+            return number_df_result
+        else:
+            import bigframes.core.reshape.api as rs
+
+            original_columns = self._select_exact_dtypes(
+                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
+                + bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
+            ).columns
+
+            # Use reindex after join to preserve the original column order.
+            return rs.concat(
+                [number_df_result, temporal_df_result],
+                axis=1,
+            )._reindex_columns(original_columns)
 
     def _describe_non_numeric(self) -> DataFrame:
         return typing.cast(
             DataFrame,
-            self.select_dtypes(
-                include={
+            self._select_exact_dtypes(
+                [
                     bigframes.dtypes.STRING_DTYPE,
                     bigframes.dtypes.BOOL_DTYPE,
                     bigframes.dtypes.BYTES_DTYPE,
-                }
+                    bigframes.dtypes.TIME_DTYPE,
+                ]
             ).agg(["count", "nunique"]),
         )
 
@@ -2696,6 +3038,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self, other: DataFrame, *, on: Optional[str] = None, how: str = "left"
     ) -> DataFrame:
         left, right = self, other
+
         if not left.columns.intersection(right.columns).empty:
             raise NotImplementedError(
                 f"Deduping column names is not implemented. {constants.FEEDBACK_LINK}"
@@ -2721,11 +3064,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             # Switch left index with on column
             left_columns = left.columns
-            left_idx_original_names = left.index.names
+            left_idx_original_names = left.index.names if left._has_index else ()
             left_idx_names_in_cols = [
-                f"bigframes_left_idx_name_{i}" for i in range(len(left.index.names))
+                f"bigframes_left_idx_name_{i}"
+                for i in range(len(left_idx_original_names))
             ]
-            left.index.names = left_idx_names_in_cols
+            if left._has_index:
+                left.index.names = left_idx_names_in_cols
             left = left.reset_index(drop=False)
             left = left.set_index(on)
 
@@ -2736,11 +3081,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             combined_df = combined_df.set_index(left_idx_names_in_cols)
 
             # To be consistent with Pandas
-            combined_df.index.names = (
-                left_idx_original_names
-                if how in ("inner", "left")
-                else ([None] * len(combined_df.index.names))
-            )
+            if combined_df._has_index:
+                combined_df.index.names = (
+                    left_idx_original_names
+                    if how in ("inner", "left")
+                    else ([None] * len(combined_df.index.names))
+                )
 
             # Reorder columns
             combined_df = combined_df[list(left_columns) + list(right.columns)]
@@ -3796,7 +4142,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @validations.requires_ordering()
     def dot(self, other: _DataFrameOrSeries) -> _DataFrameOrSeries:
-        if not isinstance(other, (DataFrame, bf_series.Series)):
+        if not isinstance(other, (DataFrame, bigframes.series.Series)):
             raise NotImplementedError(
                 f"Only DataFrame or Series operand is supported. {constants.FEEDBACK_LINK}"
             )
@@ -3871,7 +4217,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         result = result[other_frame.columns]
 
-        if isinstance(other, bf_series.Series):
+        if isinstance(other, bigframes.series.Series):
             # There should be exactly one column in the result
             result = result[result.columns[0]].rename()
 

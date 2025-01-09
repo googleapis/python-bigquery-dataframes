@@ -54,6 +54,7 @@ import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
+import bigframes.operations.blob as blob
 import bigframes.operations.datetimes as dt
 import bigframes.operations.lists as lists
 import bigframes.operations.plotting as plotting
@@ -186,6 +187,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @property
     def list(self) -> lists.ListAccessor:
         return lists.ListAccessor(self._block)
+
+    @property
+    def blob(self) -> blob.BlobAccessor:
+        return blob.BlobAccessor(self._block)
 
     @property
     @validations.requires_ordering()
@@ -713,12 +718,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def isin(self, values) -> "Series" | None:
+        if isinstance(values, (Series,)):
+            return Series(self._block.isin(values._block))
         if not _is_list_like(values):
             raise TypeError(
                 "only list-like objects are allowed to be passed to "
                 f"isin(), you passed a [{type(values).__name__}]"
             )
-
         return self._apply_unary_op(
             ops.IsInOp(values=tuple(values), match_nulls=True)
         ).fillna(value=False)

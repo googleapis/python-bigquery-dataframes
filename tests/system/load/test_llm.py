@@ -38,9 +38,20 @@ def llm_remote_text_df(session, llm_remote_text_pandas_df):
     return session.read_pandas(llm_remote_text_pandas_df)
 
 
-@pytest.mark.flaky(retries=2)
-def test_llm_gemini_configure_fit(llm_fine_tune_df_default_index, llm_remote_text_df):
-    model = llm.GeminiTextGenerator(model_name="gemini-pro", max_iterations=1)
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "gemini-pro",
+        "gemini-1.5-pro-002",
+        "gemini-1.5-flash-002",
+    ),
+)
+def test_llm_gemini_configure_fit(
+    session, model_name, llm_fine_tune_df_default_index, llm_remote_text_df
+):
+    model = llm.GeminiTextGenerator(
+        session=session, model_name=model_name, max_iterations=1
+    )
 
     X_train = llm_fine_tune_df_default_index[["prompt"]]
     y_train = llm_fine_tune_df_default_index[["label"]]
@@ -65,7 +76,6 @@ def test_llm_gemini_configure_fit(llm_fine_tune_df_default_index, llm_remote_tex
         ],
         index=3,
     )
-    # TODO(ashleyxu b/335492787): After bqml rolled out version control: save, load, check parameters to ensure configuration was kept
 
 
 @pytest.mark.flaky(retries=2)
