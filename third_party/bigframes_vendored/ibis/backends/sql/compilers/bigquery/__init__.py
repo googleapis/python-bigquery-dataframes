@@ -1094,36 +1094,50 @@ class BigQueryCompiler(SQLGlotCompiler):
 
     def visit_WindowFunction(self, op, *, how, func, start, end, group_by, order_by):
         # Patch for https://github.com/ibis-project/ibis/issues/9872
-        if start is None and end is None:
+
+        if start is None:
+            start = {}
+        if end is None:
+            end = {}
+
+        start_value = start.get("value", "UNBOUNDED")
+        start_side = start.get("side", "PRECEDING")
+        end_value = end.get("value", "UNBOUNDED")
+        end_side = end.get("side", "FOLLOWING")
+
+        if getattr(start_value, "this", None) == "0":
+            start_value = "CURRENT ROW"
+            start_side = None
+
+        if getattr(end_value, "this", None) == "0":
+            end_value = "CURRENT ROW"
+            end_side = None
+
+        spec = sge.WindowSpec(
+            kind=how.upper(),
+            start=start_value,
+            start_side=start_side,
+            end=end_value,
+            end_side=end_side,
+            over="OVER",
+        )
+
+        is_ordered = bool(order_by)
+        is_unbound_range = (not start) and (not end) and (how.upper() == "RANGE")
+        is_cumulative_rows = (
+            (not start)
+            and isinstance(getattr(op.end, "value", None), ops.Literal)
+            and op.end.value.value == 0
+            and op.end.following
+            and (how.upper() == "ROWS")
+        )
+
+        # If unordered, unbound range window is implicit
+        if (not is_ordered) and is_unbound_range:
             spec = None
-        else:
-            if start is None:
-                start = {}
-            if end is None:
-                end = {}
-
-            start_value = start.get("value", "UNBOUNDED")
-            start_side = start.get("side", "PRECEDING")
-            end_value = end.get("value", "UNBOUNDED")
-            end_side = end.get("side", "FOLLOWING")
-
-            if getattr(start_value, "this", None) == "0":
-                start_value = "CURRENT ROW"
-                start_side = None
-
-            if getattr(end_value, "this", None) == "0":
-                end_value = "CURRENT ROW"
-                end_side = None
-
-            spec = sge.WindowSpec(
-                kind=how.upper(),
-                start=start_value,
-                start_side=start_side,
-                end=end_value,
-                end_side=end_side,
-                over="OVER",
-            )
-            spec = self._minimize_spec(op.start, op.end, spec)
+        # If ordered, cumulative rows windows is redundant
+        if is_ordered and is_cumulative_rows:
+            spec = None
 
         order = sge.Order(expressions=order_by) if order_by else None
 
