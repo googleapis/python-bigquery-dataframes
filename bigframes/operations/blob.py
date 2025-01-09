@@ -127,6 +127,7 @@ class BlobAccessor(base.SeriesMethods):
         df = src_rt.to_frame().join(dst_rt.to_frame(), how="outer")
         df["ksize_x"], df["ksize_y"] = ksize
 
-        df.apply(image_blur_udf, axis=1)
+        res = df.apply(image_blur_udf, axis=1)
+        res.cache()  # to execute the udf
 
         return dst
