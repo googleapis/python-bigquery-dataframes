@@ -3734,6 +3734,7 @@ class Series(NDFrame):  # type: ignore[misc]
             d    <NA>
             e    <NA>
             dtype: Float64
+
         Args:
             other (Series or scalar value)
 
