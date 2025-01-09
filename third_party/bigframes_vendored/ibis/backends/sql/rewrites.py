@@ -403,8 +403,10 @@ def rewrite_empty_order_by_window(_, **kwargs):
 @replace(p.WindowFunction(p.RowNumber | p.NTile))
 def exclude_unsupported_window_frame_from_row_number(_, **kwargs):
     # These functions support only partition, so remove ordering and set bounds to unbounded
-    # _minimize_spec will clean up unbounded range window
-    return ops.Subtract(_.copy(how="range", start=None, end=None, order_by=()), 1)
+    # visit_WindowFunction will clean up unbounded range window
+    return ops.Subtract(
+        _.copy(how="rows", start=None, end=0, order_by=_.order_by or (ops.NULL,)), 1
+    )
 
 
 @replace(
@@ -412,14 +414,14 @@ def exclude_unsupported_window_frame_from_row_number(_, **kwargs):
 )
 def exclude_unsupported_window_frame_from_rank(_, **kwargs):
     # These functions support only partition, so remove ordering and set bounds to unbounded
-    # _minimize_spec will clean up unbounded range window
+    # visit_WindowFunction will clean up unbounded range window
     return ops.Subtract(_.copy(how="range", start=None, end=None, order_by=()), 1)
 
 
 @replace(p.WindowFunction(p.Lag | p.Lead, start=None))
 def exclude_unsupported_window_frame_from_ops(_, **kwargs):
     # lag/lead dont' support bounds, but do support ordering
-    # _minimize_spec will clean up unbounded range window
+    # visit_WindowFunction will clean up cumulative rows window
     return _.copy(how="rows", start=None, end=0, order_by=_.order_by or (ops.NULL,))
 
 
