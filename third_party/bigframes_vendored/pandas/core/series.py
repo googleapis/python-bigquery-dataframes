@@ -1271,6 +1271,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s = bpd.Series([0.25, 0.5, 0.2, -0.05])
             >>> s.autocorr()  # doctest: +ELLIPSIS
             np.float64(0.10355263309024067)
+
             >>> s.autocorr(lag=2)
             np.float64(-1.0)
 
@@ -1348,7 +1349,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Difference with 3rd previous row
 
-            >>>s.diff(periods=3)
+            >>> s.diff(periods=3)
             0    <NA>
             1    <NA>
             2    <NA>
@@ -4335,8 +4336,8 @@ class Series(NDFrame):  # type: ignore[misc]
             2    5.0
             dtype: Float64
 
-            Null values still persist if the location of that null value
-            does not exist in `other`
+        Null values still persist if the location of that null value
+        does not exist in `other`
 
             >>> s1 = bpd.Series({'falcon': np.nan, 'eagle': 160.0})
             >>> s2 = bpd.Series({'eagle': 200.0, 'duck': 30.0})
@@ -4405,8 +4406,8 @@ class Series(NDFrame):  # type: ignore[misc]
             2    6
             dtype: Int64
 
-            ``other`` can also be a non-Series object type
-            that is coercible into a Series
+        ``other`` can also be a non-Series object type
+        that is coercible into a Series
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s.update([4, np.nan, 6])
@@ -4467,10 +4468,13 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> bpd.Series([False, False]).any()
             False
+
             >>> bpd.Series([True, False]).any()
             True
+
             >>> bpd.Series([], dtype="float64").any()
             False
+
             >>> bpd.Series([np.nan]).any()
             False
 
@@ -4502,6 +4506,7 @@ class Series(NDFrame):  # type: ignore[misc]
             0    1
             1    3
             dtype: Int64
+
             >>> s.max()
             np.int64(3)
 
@@ -4513,6 +4518,7 @@ class Series(NDFrame):  # type: ignore[misc]
             1       3
             2    <NA>
             dtype: Int64
+
             >>> s.max()
             np.int64(3)
 
@@ -4542,6 +4548,7 @@ class Series(NDFrame):  # type: ignore[misc]
             0    1
             1    3
             dtype: Int64
+
             >>> s.min()
             np.int64(1)
 
@@ -4553,6 +4560,7 @@ class Series(NDFrame):  # type: ignore[misc]
             1       3
             2    <NA>
             dtype: Int64
+
             >>> s.min()
             np.int64(1)
 
@@ -4629,6 +4637,7 @@ class Series(NDFrame):  # type: ignore[misc]
             0    1
             1    3
             dtype: Int64
+
             >>> s.sum()
             np.int64(4)
 
@@ -4640,6 +4649,7 @@ class Series(NDFrame):  # type: ignore[misc]
             1       3
             2    <NA>
             dtype: Int64
+
             >>> s.sum()
             np.int64(4)
 
@@ -4663,6 +4673,7 @@ class Series(NDFrame):  # type: ignore[misc]
             0    1
             1    3
             dtype: Int64
+
             >>> s.mean()
             np.float64(2.0)
 
@@ -4674,6 +4685,7 @@ class Series(NDFrame):  # type: ignore[misc]
             1       3
             2    <NA>
             dtype: Int64
+
             >>> s.mean()
             np.float64(2.0)
 
@@ -4734,6 +4746,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s = bpd.Series([1, 2, 3, 4])
             >>> s.quantile(.5)
             np.float64(2.5)
+
             >>> s.quantile([.25, .5, .75])
             0.25    1.75
             0.5      2.5
@@ -4783,6 +4796,7 @@ class Series(NDFrame):  # type: ignore[misc]
             tiger   1   2   1
             zebra   2   3   3
             cow     3   4   5
+
             >>> df.skew()
             a   0.0
             b   0.0
@@ -4812,6 +4826,8 @@ class Series(NDFrame):  # type: ignore[misc]
             dog      2
             mouse    3
             dtype: Int64
+
+            >>> s.kurt()
             np.float64(1.5)
 
         With a DataFrame
@@ -4826,6 +4842,7 @@ class Series(NDFrame):  # type: ignore[misc]
             mouse  3  4
 
             [4 rows x 2 columns]
+
             >>> df.kurt()
             a    1.5
             b    4.0
