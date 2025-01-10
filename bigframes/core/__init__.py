@@ -392,7 +392,7 @@ class ArrayValue:
                     )
                 else:
                     msg = "Window ordering may be ambiguous, this can cause unstable results."
-                    warnings.warning(msg, category=bfe.AmbiguousWindowWarning)
+                    warnings.warn(msg, category=bfe.AmbiguousWindowWarning)
 
         output_name = self._gen_namespaced_uid()
         return (

@@ -34,10 +34,8 @@ class ExperimentOptions:
     def semantic_operators(self, value: bool):
         if value is True:
             msg = (
-                (
-                    "Semantic operators are still under experiments, and are subject "
-                    "to change in the future."
-                ),
+                "Semantic operators are still under experiments, and are subject "
+                "to change in the future."
             )
             warnings.warn(msg, category=bfe.PreviewWarning)
         self._semantic_operators = value

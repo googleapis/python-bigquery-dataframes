@@ -409,7 +409,7 @@ def _struct_accessor_check_and_warn(
     if not bigframes.dtypes.is_string_like(series.index.dtype):
         msg = (
             "Are you trying to access struct fields? If so, please use Series.struct.field(...) "
-            "method instead.",
+            "method instead."
         )
         # Stack depth from series.__getitem__ to here
         warnings.warn(msg, stacklevel=7, category=bfe.BadIndexerKeyWarning)
