@@ -107,7 +107,7 @@ class BigQueryOptions:
 
         if client_endpoints_override is None:
             client_endpoints_override = {}
-        
+
         self._client_endpoints_override = client_endpoints_override
 
     @property
