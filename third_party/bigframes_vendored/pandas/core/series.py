@@ -1644,10 +1644,10 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> bpd.options.display.progress_bar = None
 
             >>> countries_population = {"Italy": 59000000, "France": 65000000,
-           ...                          "Malta": 434000, "Maldives": 434000,
-           ...                          "Brunei": 434000, "Iceland": 337000,
-           ...                          "Nauru": 11300, "Tuvalu": 11300,
-           ...                          "Anguilla": 11300, "Montserrat": 5200}
+            ...                          "Malta": 434000, "Maldives": 434000,
+            ...                          "Brunei": 434000, "Iceland": 337000,
+            ...                          "Nauru": 11300, "Tuvalu": 11300,
+            ...                          "Anguilla": 11300, "Montserrat": 5200}
             >>> s = bpd.Series(countries_population)
             >>> s
             Italy         59000000
