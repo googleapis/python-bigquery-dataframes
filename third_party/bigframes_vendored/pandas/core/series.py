@@ -449,7 +449,9 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> ser = bpd.Series([1, 2, 3]).to_string()
             >>> ser
-            '0    1\n1    2\n2    3'
+            '0    1
+             1    2
+             2    3'
 
         Args:
             buf (StringIO-like, optional):
@@ -478,8 +480,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Returns:
             str or None:
-                String representation of Series if ``buf=None``,
-                otherwise None.
+                String representation of Series if ``buf=None``, otherwise None.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2499,7 +2500,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 string.
 
         Returns:
-            bigframes.pandas.Series/bigframes.pandas.DataFrame:
+            bigframes.pandas.Series or bigframes.pandas.DataFrame:
                 Object after replacement.
 
         Raises:
