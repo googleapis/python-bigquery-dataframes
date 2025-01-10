@@ -367,14 +367,35 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def astype(
         self,
-        dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
+        dtype: Union[
+            bigframes.dtypes.DtypeString,
+            bigframes.dtypes.Dtype,
+            dict[str, Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype]],
+        ],
         *,
         errors: Literal["raise", "null"] = "raise",
     ) -> DataFrame:
         if errors not in ["raise", "null"]:
             raise ValueError("Arg 'error' must be one of 'raise' or 'null'")
-        return self._apply_unary_op(
-            ops.AsTypeOp(to_type=dtype, safe=(errors == "null"))
+
+        safe_cast = errors == "null"
+
+        # Type strings check
+        if dtype in bigframes.dtypes.DTYPE_STRINGS:
+            return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
+
+        # Type instances check
+        if type(dtype) in bigframes.dtypes.DTYPES:
+            return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
+
+        if isinstance(dtype, dict):
+            result = self.copy()
+            for col, to_type in dtype.items():
+                result[col] = result[col].astype(to_type)
+            return result
+
+        raise TypeError(
+            f"Invalid type {type(dtype)} for dtype input. {constants.FEEDBACK_LINK}"
         )
 
     def _to_sql_query(
@@ -718,10 +739,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
+        df = self.copy()
+        if bigframes.options.experiments.blob:
+            import bigframes.bigquery as bbq
+
+            blob_cols = [
+                col
+                for col in df.columns
+                if df[col].dtype == bigframes.dtypes.OBJ_REF_DTYPE
+            ]
+            for col in blob_cols:
+                df[col] = df[col]._apply_unary_op(ops.ObjGetAccessUrl(mode="R"))
+                df[col] = bbq.json_extract(df[col], "$.access_urls.read_url")
+
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
-        pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
+        pandas_df, row_count, query_job = df._block.retrieve_repr_request_results(
             max_results
         )
 
@@ -730,8 +764,31 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         column_count = len(pandas_df.columns)
 
         with display_options.pandas_repr(opts):
-            # _repr_html_ stub is missing so mypy thinks it's a Series. Ignore mypy.
-            html_string = pandas_df._repr_html_()  # type:ignore
+            # Allows to preview images in the DataFrame. The implementation changes the string repr as well, that it doesn't truncate strings or escape html charaters such as "<" and ">". We may need to implement a full-fledged repr module to better support types not in pandas.
+            if bigframes.options.experiments.blob:
+
+                def url_to_image_html(url: str) -> str:
+                    # url is a json string, which already contains double-quotes ""
+                    return f"<img src={url}>"
+
+                formatters = {blob_col: url_to_image_html for blob_col in blob_cols}
+
+                # set max_colwidth so not to truncate the image url
+                with pandas.option_context("display.max_colwidth", None):
+                    max_rows = pandas.get_option("display.max_rows")
+                    max_cols = pandas.get_option("display.max_columns")
+                    show_dimensions = pandas.get_option("display.show_dimensions")
+                    html_string = pandas_df.to_html(
+                        escape=False,
+                        notebook=True,
+                        max_rows=max_rows,
+                        max_cols=max_cols,
+                        show_dimensions=show_dimensions,
+                        formatters=formatters,  # type: ignore
+                    )
+            else:
+                # _repr_html_ stub is missing so mypy thinks it's a Series. Ignore mypy.
+                html_string = pandas_df._repr_html_()  # type:ignore
 
         html_string += f"[{row_count} rows x {column_count} columns in total]"
         return html_string
@@ -2240,6 +2297,63 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         for df in self.to_pandas_batches():
             for item in df.itertuples(index=index, name=name):
                 yield item
+
+    def where(self, cond, other=None):
+        if isinstance(other, bigframes.series.Series):
+            raise ValueError("Seires is not a supported replacement type!")
+
+        if self.columns.nlevels > 1 or self.index.nlevels > 1:
+            raise NotImplementedError(
+                "The dataframe.where() method does not support multi-index and/or multi-column."
+            )
+
+        aligned_block, (_, _) = self._block.join(cond._block, how="left")
+        # No left join is needed when 'other' is None or constant.
+        if isinstance(other, bigframes.dataframe.DataFrame):
+            aligned_block, (_, _) = aligned_block.join(other._block, how="left")
+        self_len = len(self._block.value_columns)
+        cond_len = len(cond._block.value_columns)
+
+        ids = aligned_block.value_columns[:self_len]
+        labels = aligned_block.column_labels[:self_len]
+        self_col = {x: ex.deref(y) for x, y in zip(labels, ids)}
+
+        if isinstance(cond, bigframes.series.Series) and cond.name in self_col:
+            # This is when 'cond' is a valid series.
+            y = aligned_block.value_columns[self_len]
+            cond_col = {x: ex.deref(y) for x in self_col.keys()}
+        else:
+            # This is when 'cond' is a dataframe.
+            ids = aligned_block.value_columns[self_len : self_len + cond_len]
+            labels = aligned_block.column_labels[self_len : self_len + cond_len]
+            cond_col = {x: ex.deref(y) for x, y in zip(labels, ids)}
+
+        if isinstance(other, DataFrame):
+            other_len = len(self._block.value_columns)
+            ids = aligned_block.value_columns[-other_len:]
+            labels = aligned_block.column_labels[-other_len:]
+            other_col = {x: ex.deref(y) for x, y in zip(labels, ids)}
+        else:
+            # This is when 'other' is None or constant.
+            labels = aligned_block.column_labels[:self_len]
+            other_col = {x: ex.const(other) for x in labels}  # type: ignore
+
+        result_series = {}
+        for x, self_id in self_col.items():
+            cond_id = cond_col[x] if x in cond_col else ex.const(False)
+            other_id = other_col[x] if x in other_col else ex.const(None)
+            result_block, result_id = aligned_block.project_expr(
+                ops.where_op.as_expr(self_id, cond_id, other_id)
+            )
+            series = bigframes.series.Series(
+                result_block.select_column(result_id).with_column_labels([x])
+            )
+            result_series[x] = series
+
+        result = DataFrame(result_series)
+        result.columns.name = self.columns.name
+        result.columns.names = self.columns.names
+        return result
 
     def dropna(
         self,

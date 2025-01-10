@@ -84,10 +84,6 @@ class BigFrameNode(abc.ABC):
         return tuple([])
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self
-
-    @property
     @abc.abstractmethod
     def row_count(self) -> typing.Optional[int]:
         return None
@@ -214,6 +210,12 @@ class BigFrameNode(abc.ABC):
         ...
 
     @functools.cached_property
+    def height(self) -> int:
+        if len(self.child_nodes) == 0:
+            return 0
+        return max(child.height for child in self.child_nodes) + 1
+
+    @functools.cached_property
     def total_variables(self) -> int:
         return self.variables_introduced + sum(
             map(lambda x: x.total_variables, self.child_nodes)
@@ -287,6 +289,25 @@ class BigFrameNode(abc.ABC):
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         return self.transform_children(lambda x: x.prune(used_cols))
+
+
+@dataclasses.dataclass(frozen=True, eq=False)
+class AdditiveNode(BigFrameNode):
+    """Definition of additive - if you drop added_fields, you end up with the descendent."""
+
+    @property
+    @abc.abstractmethod
+    def added_fields(self) -> Tuple[Field, ...]:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def additive_base(self) -> BigFrameNode:
+        ...
+
+    @abc.abstractmethod
+    def replace_additive_base(self, BigFrameNode):
+        ...
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
@@ -427,14 +448,14 @@ class InNode(BigFrameNode):
         return True
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.left_child.projection_base
+    def added_fields(self) -> Tuple[Field, ...]:
+        return (Field(self.indicator_col, bigframes.dtypes.BOOL_DTYPE),)
 
     @property
     def fields(self) -> Iterable[Field]:
         return itertools.chain(
             self.left_child.fields,
-            (Field(self.indicator_col, bigframes.dtypes.BOOL_DTYPE),),
+            self.added_fields,
         )
 
     @functools.cached_property
@@ -453,6 +474,13 @@ class InNode(BigFrameNode):
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return (self.indicator_col,)
+
+    @property
+    def additive_base(self) -> BigFrameNode:
+        return self.left_child
+
+    def replace_additive_base(self, node: BigFrameNode):
+        return dataclasses.replace(self, left_child=node)
 
     def transform_children(
         self, t: Callable[[BigFrameNode], BigFrameNode]
@@ -1012,12 +1040,15 @@ class PromoteOffsetsNode(UnaryNode):
         return (self.col_id,)
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
-
-    @property
     def added_fields(self) -> Tuple[Field, ...]:
         return (Field(self.col_id, bigframes.dtypes.INT_DTYPE),)
+
+    @property
+    def additive_base(self) -> BigFrameNode:
+        return self.child
+
+    def replace_additive_base(self, node: BigFrameNode):
+        return dataclasses.replace(self, child=node)
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         if self.col_id not in used_cols:
@@ -1189,10 +1220,6 @@ class SelectionNode(UnaryNode):
         return True
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
-
-    @property
     def row_count(self) -> Optional[int]:
         return self.child.row_count
 
@@ -1267,12 +1294,15 @@ class ProjectionNode(UnaryNode):
         return self.child.row_count
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
-
-    @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return tuple(id for _, id in self.assignments)
+
+    @property
+    def additive_base(self) -> BigFrameNode:
+        return self.child
+
+    def replace_additive_base(self, node: BigFrameNode):
+        return dataclasses.replace(self, child=node)
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         pruned_assignments = tuple(i for i in self.assignments if i[1] in used_cols)
@@ -1455,10 +1485,6 @@ class WindowOpNode(UnaryNode):
         return 1
 
     @property
-    def projection_base(self) -> BigFrameNode:
-        return self.child.projection_base
-
-    @property
     def added_fields(self) -> Tuple[Field, ...]:
         return (self.added_field,)
 
@@ -1480,6 +1506,13 @@ class WindowOpNode(UnaryNode):
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return (self.output_name,)
+
+    @property
+    def additive_base(self) -> BigFrameNode:
+        return self.child
+
+    def replace_additive_base(self, node: BigFrameNode):
+        return dataclasses.replace(self, child=node)
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         if self.output_name not in used_cols:
@@ -1599,3 +1632,56 @@ class ExplodeNode(UnaryNode):
     ) -> BigFrameNode:
         new_ids = tuple(id.remap_column_refs(mappings) for id in self.column_ids)
         return dataclasses.replace(self, column_ids=new_ids)  # type: ignore
+
+
+# Tree operators
+def top_down(
+    root: BigFrameNode,
+    transform: Callable[[BigFrameNode], BigFrameNode],
+    *,
+    memoize=False,
+    validate=False,
+) -> BigFrameNode:
+    """
+    Perform a top-down transformation of the BigFrameNode tree.
+
+    If memoize=True, recursive calls are memoized within the scope of the traversal only.
+    """
+
+    def top_down_internal(root: BigFrameNode) -> BigFrameNode:
+        return transform(root).transform_children(top_down_internal)
+
+    if memoize:
+        # MUST reassign to the same name or caching won't work recursively
+        top_down_internal = functools.cache(top_down_internal)
+
+    result = top_down_internal(root)
+    if validate:
+        result.validate_tree()
+    return result
+
+
+def bottom_up(
+    root: BigFrameNode,
+    transform: Callable[[BigFrameNode], BigFrameNode],
+    *,
+    memoize=False,
+    validate=False,
+) -> BigFrameNode:
+    """
+    Perform a bottom-up transformation of the BigFrameNode tree.
+
+    If memoize=True, recursive calls are memoized within the scope of the traversal only.
+    """
+
+    def bottom_up_internal(root: BigFrameNode) -> BigFrameNode:
+        return transform(root.transform_children(bottom_up_internal))
+
+    if memoize:
+        # MUST reassign to the same name or caching won't work recursively
+        bottom_up_internal = functools.cache(bottom_up_internal)
+
+    result = bottom_up_internal(root)
+    if validate:
+        result.validate_tree()
+    return result

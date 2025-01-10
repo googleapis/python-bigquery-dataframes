@@ -107,7 +107,7 @@ class ArrayValue:
             raise ValueError("must set at most one of 'offests', 'primary_key'")
         if any(i.field_type == "JSON" for i in table.schema if i.name in schema.names):
             warnings.warn(
-                "Interpreting JSON column(s) as StringDtype. This behavior may change in future versions.",
+                "Interpreting JSON column(s) as StringDtype and pyarrow.large_string. This behavior may change in future versions.",
                 bigframes.exceptions.PreviewWarning,
             )
         # define data source only for needed columns, this makes row-hashing cheaper
@@ -458,7 +458,7 @@ class ArrayValue:
         other_node, r_mapping = self.prepare_join_names(other)
         import bigframes.core.rewrite
 
-        result_node = bigframes.core.rewrite.try_join_as_projection(
+        result_node = bigframes.core.rewrite.try_row_join(
             self.node, other_node, conditions
         )
         if result_node is None:

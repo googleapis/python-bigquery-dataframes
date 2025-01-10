@@ -48,7 +48,6 @@ import bigframes.core.ordering as order
 import bigframes.core.schema
 import bigframes.core.tree_properties as tree_properties
 import bigframes.features
-import bigframes.formatting_helpers as formatting_helpers
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
 import bigframes.session.planner
@@ -347,10 +346,14 @@ class BigQueryCachingExecutor(Executor):
             format=format,
             export_options=dict(export_options),
         )
-        job_config = bigquery.QueryJobConfig()
-        bq_io.add_labels(job_config, api_name=f"dataframe-to_{format.lower()}")
-        export_job = self.bqclient.query(export_data_statement, job_config=job_config)
-        self._wait_on_job(export_job)
+
+        bq_io.start_query_with_client(
+            self.bqclient,
+            export_data_statement,
+            job_config=bigquery.QueryJobConfig(),
+            api_name=f"dataframe-to_{format.lower()}",
+            metrics=self.metrics,
+        )
         return query_job
 
     def dry_run(
@@ -358,9 +361,7 @@ class BigQueryCachingExecutor(Executor):
     ) -> bigquery.QueryJob:
         sql = self.to_sql(array_value, ordered=ordered)
         job_config = bigquery.QueryJobConfig(dry_run=True)
-        bq_io.add_labels(job_config)
         query_job = self.bqclient.query(sql, job_config=job_config)
-        _ = query_job.result()
         return query_job
 
     def peek(
@@ -393,6 +394,7 @@ class BigQueryCachingExecutor(Executor):
     def head(
         self, array_value: bigframes.core.ArrayValue, n_rows: int
     ) -> ExecuteResult:
+
         maybe_row_count = self._local_get_row_count(array_value)
         if (maybe_row_count is not None) and (maybe_row_count <= n_rows):
             return self.execute(array_value, ordered=True)
@@ -452,7 +454,7 @@ class BigQueryCachingExecutor(Executor):
         # use a heuristic for whether something needs to be cached
         if (not force) and self._is_trivially_executable(array_value):
             return
-        elif use_session:
+        if use_session:
             self._cache_with_session_awareness(array_value)
         else:
             self._cache_with_cluster_cols(array_value, cluster_cols=cluster_cols)
@@ -486,15 +488,19 @@ class BigQueryCachingExecutor(Executor):
         if not self.strictly_ordered:
             job_config.labels["bigframes-mode"] = "unordered"
 
-        # Note: add_labels is global scope which may have unexpected effects
-        bq_io.add_labels(job_config, api_name=api_name)
+        # Note: add_and_trim_labels is global scope which may have unexpected effects
+        # Ensure no additional labels are added to job_config after this point,
+        # as `add_and_trim_labels` ensures the label count does not exceed 64.
+        bq_io.add_and_trim_labels(job_config, api_name=api_name)
         try:
-            query_job = self.bqclient.query(sql, job_config=job_config)
-            return (
-                self._wait_on_job(
-                    query_job, max_results=max_results, page_size=page_size
-                ),
-                query_job,
+            return bq_io.start_query_with_client(
+                self.bqclient,
+                sql,
+                job_config=job_config,
+                api_name=api_name,
+                max_results=max_results,
+                page_size=page_size,
+                metrics=self.metrics,
             )
 
         except google.api_core.exceptions.BadRequest as e:
@@ -505,31 +511,10 @@ class BigQueryCachingExecutor(Executor):
             else:
                 raise
 
-    def _wait_on_job(
-        self,
-        query_job: bigquery.QueryJob,
-        page_size: Optional[int] = None,
-        max_results: Optional[int] = None,
-    ) -> bq_table.RowIterator:
-        opts = bigframes.options.display
-        if opts.progress_bar is not None and not query_job.configuration.dry_run:
-            results_iterator = formatting_helpers.wait_for_query_job(
-                query_job,
-                progress_bar=opts.progress_bar,
-                max_results=max_results,
-                page_size=page_size,
-            )
-        else:
-            results_iterator = query_job.result(
-                max_results=max_results, page_size=page_size
-            )
-
-        if self.metrics is not None:
-            self.metrics.count_job_stats(query_job)
-        return results_iterator
-
     def replace_cached_subtrees(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
-        return tree_properties.replace_nodes(node, (dict(self._cached_executions)))
+        return nodes.top_down(
+            node, lambda x: self._cached_executions.get(x, x), memoize=True
+        )
 
     def _is_trivially_executable(self, array_value: bigframes.core.ArrayValue):
         """
@@ -656,7 +641,7 @@ class BigQueryCachingExecutor(Executor):
     def _validate_result_schema(
         self,
         array_value: bigframes.core.ArrayValue,
-        bq_schema: list[bigquery.schema.SchemaField],
+        bq_schema: list[bigquery.SchemaField],
     ):
         actual_schema = tuple(bq_schema)
         ibis_schema = bigframes.core.compile.test_only_ibis_inferred_schema(
@@ -665,6 +650,7 @@ class BigQueryCachingExecutor(Executor):
         internal_schema = array_value.schema
         if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
             return
+
         if internal_schema.to_bigquery() != actual_schema:
             raise ValueError(
                 f"This error should only occur while testing. BigFrames internal schema: {internal_schema.to_bigquery()} does not match actual schema: {actual_schema}"

@@ -314,6 +314,19 @@ arccosh_op = create_unary_op(
 arctanh_op = create_unary_op(
     name="arctanh", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+# Geo Ops
+geo_x_op = create_unary_op(
+    name="geo_x",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.FLOAT_DTYPE, description="geo-like"
+    ),
+)
+geo_y_op = create_unary_op(
+    name="geo_y",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.FLOAT_DTYPE, description="geo-like"
+    ),
+)
 ## Numeric Ops
 floor_op = create_unary_op(name="floor", type_signature=op_typing.UNARY_REAL_NUMERIC)
 ceil_op = create_unary_op(name="ceil", type_signature=op_typing.UNARY_REAL_NUMERIC)
@@ -727,6 +740,44 @@ class JSONExtractStringArray(UnaryOp):
         )
 
 
+@dataclasses.dataclass(frozen=True)
+class ParseJSON(UnaryOp):
+    name: typing.ClassVar[str] = "parse_json"
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if input_type != dtypes.STRING_DTYPE:
+            raise TypeError(
+                "Input type must be an valid JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return dtypes.JSON_DTYPE
+
+
+@dataclasses.dataclass(frozen=True)
+class ToJSONString(UnaryOp):
+    name: typing.ClassVar[str] = "to_json_string"
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return dtypes.STRING_DTYPE
+
+
+## Blob Ops
+@dataclasses.dataclass(frozen=True)
+class ObjGetAccessUrl(UnaryOp):
+    name: typing.ClassVar[str] = "obj_get_access_url"
+    mode: str  # access mode, e.g. R read, W write, RW read & write
+
+    def output_type(self, *input_types):
+        return dtypes.JSON_DTYPE
+
+
 # Binary Ops
 fillna_op = create_binary_op(name="fillna", type_signature=op_typing.COERCE)
 maximum_op = create_binary_op(name="maximum", type_signature=op_typing.COERCE)
@@ -878,6 +929,21 @@ class JSONSet(BinaryOp):
 
         # After JSON type implementation, ONLY return JSON data.
         return left_type
+
+
+## Blob Ops
+@dataclasses.dataclass(frozen=True)
+class ObjMakeRef(BinaryOp):
+    name: typing.ClassVar[str] = "obj.make_ref"
+
+    def output_type(self, *input_types):
+        if not all(map(dtypes.is_string_like, input_types)):
+            raise TypeError("obj.make_ref requires string-like arguments")
+
+        return dtypes.OBJ_REF_DTYPE
+
+
+obj_make_ref_op = ObjMakeRef()
 
 
 # Ternary Ops
