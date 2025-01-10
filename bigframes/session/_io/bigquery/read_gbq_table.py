@@ -65,7 +65,7 @@ def get_table_metadata(
             "incompatibilies with previous reads of this table. To read "
             "the latest version, set `use_cache=False` or close the "
             "current session with Session.close() or "
-            "bigframes.pandas.close_session().",
+            "bigframes.pandas.close_session()."
         )
         # There are many layers before we get to (possibly) the user's code:
         # pandas.read_gbq_table

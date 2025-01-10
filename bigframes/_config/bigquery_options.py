@@ -60,7 +60,7 @@ def _get_validated_location(value: Optional[str]) -> Optional[str]:
     # -> location.setter
     # -> _get_validated_location
     msg = UNKNOWN_LOCATION_MESSAGE.format(location=location, possibility=possibility)
-    warnings.warn(msg, stacklevel=3, category=bfe.UnknownDataTypeWarning)
+    warnings.warn(msg, stacklevel=3, category=bfe.UnknownLocationWarning)
 
     return value
 
