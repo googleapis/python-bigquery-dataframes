@@ -41,7 +41,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> import pandas as pd
             >>> bpd.options.display.progress_bar = None
 
-            >>> seconds_series = bpd.Series(bpd.date_range("2000-01-01", periods=3, freq="s"))
+            >>> seconds_series = bpd.Series(pd.date_range("2000-01-01", periods=3, freq="s"))
             >>> seconds_series
             0    2000-01-01 00:00:00
             1    2000-01-01 00:00:01
@@ -380,8 +380,8 @@ class Series(NDFrame):  # type: ignore[misc]
             Name: foo, dtype: Int64
 
             >>> arrays = [np.array(['bar', 'bar', 'baz', 'baz']),
-                          np.array(['one', 'two', 'one', 'two'])]
-            >>> s2 = pd.Series(
+            ...           np.array(['one', 'two', 'one', 'two'])]
+            >>> s2 = bpd.Series(
             ...     range(4), name='foo',
             ...     index=pd.MultiIndex.from_arrays(arrays,
             ...                                     names=['a', 'b']))
@@ -549,7 +549,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 2, 3, 4])
             >>> s.to_dict()
-            {0: 1, 1: 2, 2: 3, 3: 4}
+            {np.int64(0): 1, np.int64(1): 2, np.int64(2): 3, np.int64(3): 4}
 
             >>> s.to_dict(into=OrderedDict)
             OrderedDict([(0, 1), (1, 2), (2, 3), (3, 4)])
@@ -590,7 +590,7 @@ class Series(NDFrame):  # type: ignore[misc]
             0    a
             1    b
             2    c
-
+            <BLANKLINE>
             [3 rows x 1 columns]
 
         Args:
@@ -746,7 +746,7 @@ class Series(NDFrame):  # type: ignore[misc]
             2    2    7
             3    3    8
             4    4    9
-
+            <BLANKLINE>
             [5 rows x 2 columns]
 
             >>> original_df.to_pickle("./dummy.pkl")
@@ -1588,7 +1588,7 @@ class Series(NDFrame):  # type: ignore[misc]
             ...                     'baz', 'baz', 'bar', 'bar']),
             ...           np.array(['two', 'one', 'two', 'one',
             ...                     'two', 'one', 'two', 'one'])]
-            >>> s = pd.Series([1, 2, 3, 4, 5, 6, 7, 8], index=arrays)
+            >>> s = bpd.Series([1, 2, 3, 4, 5, 6, 7, 8], index=arrays)
             >>> s.sort_index(level=1)
             bar  one    8
             baz  one    6
@@ -1644,11 +1644,11 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> bpd.options.display.progress_bar = None
 
             >>> countries_population = {"Italy": 59000000, "France": 65000000,
-                                        "Malta": 434000, "Maldives": 434000,
-                                        "Brunei": 434000, "Iceland": 337000,
-                                        "Nauru": 11300, "Tuvalu": 11300,
-                                        "Anguilla": 11300, "Montserrat": 5200}
-            >>> s = pd.Series(countries_population)
+           ...                          "Malta": 434000, "Maldives": 434000,
+           ...                          "Brunei": 434000, "Iceland": 337000,
+           ...                          "Nauru": 11300, "Tuvalu": 11300,
+           ...                          "Anguilla": 11300, "Montserrat": 5200}
+            >>> s = bpd.Series(countries_population)
             >>> s
             Italy         59000000
             France        65000000
@@ -1730,10 +1730,10 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> bpd.options.display.progress_bar = None
 
             >>> countries_population = {"Italy": 59000000, "France": 65000000,
-                                        "Brunei": 434000, "Malta": 434000,
-                                        "Maldives": 434000, "Iceland": 337000,
-                                        "Nauru": 11300, "Tuvalu": 11300,
-                                        "Anguilla": 11300, "Montserrat": 5200}
+           ...                          "Malta": 434000, "Maldives": 434000,
+           ...                          "Brunei": 434000, "Iceland": 337000,
+           ...                          "Nauru": 11300, "Tuvalu": 11300,
+           ...                          "Anguilla": 11300, "Montserrat": 5200}
             >>> s = bpd.Series(countries_population)
             >>> s
             Italy         59000000
@@ -2185,7 +2185,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Drop 2nd level label in MultiIndex Series:
 
             >>> import pandas as pd
-            >>> midx = pd.MultiIndex(levels=[['llama', 'cow', 'falcon'],
+            >>> midx = bpd.MultiIndex(levels=[['llama', 'cow', 'falcon'],
             ...                              ['speed', 'weight', 'length']],
             ...                      codes=[[0, 0, 0, 1, 1, 1, 2, 2, 2],
             ...                             [0, 1, 2, 0, 1, 2, 0, 1, 2]])
@@ -2825,7 +2825,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
-            >>> s = pd.Series([2, np.nan, 5, -1, 0])
+            >>> s = bpd.Series([2, np.nan, 5, -1, 0])
             >>> s
             0     2.0
             1    <NA>
@@ -4710,10 +4710,10 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> df = bpd.DataFrame({'a': [1, 2], 'b': [2, 3]}, index=['tiger', 'zebra'])
             >>> df
-                  a  b
+                   a  b
             tiger  1  2
             zebra  2  3
-
+            <BLANKLINE>
             [2 rows x 2 columns]
 
             >>> df.median()
@@ -4783,7 +4783,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> s = pd.Series([1, 2, 3])
+            >>> s = bpd.Series([1, 2, 3])
             >>> s.skew()
             0.0
 
@@ -4835,12 +4835,12 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> df = bpd.DataFrame({'a': [1, 2, 2, 3], 'b': [3, 4, 4, 4]},
             ...                    index=['cat', 'dog', 'dog', 'mouse'])
             >>> df
-                  a  b
+                   a  b
             cat    1  3
             dog    2  4
             dog    2  4
             mouse  3  4
-
+            <BLANKLINE>
             [4 rows x 2 columns]
 
             >>> df.kurt()
@@ -5269,7 +5269,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dog            4         0
             cat            4         0
             monkey         2         2
-
+            <BLANKLINE>
             [3 rows x 2 columns]
 
             >>> df = df.rename_axis("animal")
@@ -5457,12 +5457,12 @@ class Series(NDFrame):  # type: ignore[misc]
         To invert the boolean values, use the ~ operator:
 
             >>> ~s.isin(['cow', 'llama'])
-            0     True
-            1     True
-            2     True
-            3    False
-            4     True
-            5    False
+            0    False
+            1    False
+            2    False
+            3     True
+            4    False
+            5     True
             Name: animal, dtype: boolean
 
         Passing a single string as s.isin('llama') will raise an error. Use a
@@ -5515,7 +5515,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([3, 2, 1])
             >>> s.is_monotonic_increasing
-            np.False_
+            False
 
         Returns:
             bool:
@@ -5641,10 +5641,10 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> >>> mydict = [{'a': 1, 'b': 2, 'c': 3, 'd': 4},
+            >>> mydict = [{'a': 1, 'b': 2, 'c': 3, 'd': 4},
             ...               {'a': 100, 'b': 200, 'c': 300, 'd': 400},
             ...               {'a': 1000, 'b': 2000, 'c': 3000, 'd': 4000}]
-            >>> df = pd.DataFrame(mydict)
+            >>> df = bpd.DataFrame(mydict)
             >>> df
                   a     b     c     d
             0     1     2     3     4
@@ -5729,7 +5729,7 @@ class Series(NDFrame):  # type: ignore[misc]
             cobra               1       2
             viper               4       5
             sidewinder          7       8
-
+            <BLANKLINE>
             [3 rows x 2 columns]
 
         Single label. Note this returns the row as a Series.
@@ -5904,6 +5904,7 @@ class Series(NDFrame):  # type: ignore[misc]
         For Series:
 
             >>> s = bpd.Series(['Ant', 'Bear', 'Cow'])
+            >>> s
             0     Ant
             1    Bear
             2     Cow
