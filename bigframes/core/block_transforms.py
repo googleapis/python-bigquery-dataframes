@@ -89,11 +89,11 @@ def indicate_duplicates(
     # use row number as will work even with partial ordering
     block, val_count_col_id = block.apply_window_op(
         dummy,
-        agg_ops.RowNumberOp(),
+        agg_ops.sum_op,
         window_spec=window_spec,
     )
     block, duplicate_indicator = block.project_expr(
-        ops.ge_op.as_expr(val_count_col_id, ex.const(1))
+        ops.gt_op.as_expr(val_count_col_id, ex.const(1))
     )
     return (
         block.drop_columns(

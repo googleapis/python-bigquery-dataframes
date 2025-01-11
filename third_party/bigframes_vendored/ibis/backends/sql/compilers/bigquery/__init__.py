@@ -1113,30 +1113,20 @@ class BigQueryCompiler(SQLGlotCompiler):
             end_value = "CURRENT ROW"
             end_side = None
 
-        spec = sge.WindowSpec(
-            kind=how.upper(),
-            start=start_value,
-            start_side=start_side,
-            end=end_value,
-            end_side=end_side,
-            over="OVER",
-        )
-
-        is_ordered = bool(order_by)
-        is_unbound_range = (not start) and (not end) and (how.upper() == "RANGE")
-        is_cumulative_rows = (
-            (not start)
-            and isinstance(getattr(op.end, "value", None), ops.Literal)
-            and op.end.value.value == 0
-            and op.end.following
-            and (how.upper() == "ROWS")
-        )
+        if how != "none":
+            spec = sge.WindowSpec(
+                kind=how.upper(),
+                start=start_value,
+                start_side=start_side,
+                end=end_value,
+                end_side=end_side,
+                over="OVER",
+            )
+        else:
+            spec = None
 
         # If unordered, unbound range window is implicit
-        if (not is_ordered) and is_unbound_range:
-            spec = None
-        # If ordered, cumulative rows windows is redundant
-        if is_ordered and is_cumulative_rows:
+        if (not order_by) and (not start) and (not end):
             spec = None
 
         order = sge.Order(expressions=order_by) if order_by else None

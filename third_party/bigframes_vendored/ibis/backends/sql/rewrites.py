@@ -402,10 +402,11 @@ def rewrite_empty_order_by_window(_, **kwargs):
 
 @replace(p.WindowFunction(p.RowNumber | p.NTile))
 def exclude_unsupported_window_frame_from_row_number(_, **kwargs):
-    # These functions support only partition, so remove ordering and set bounds to unbounded
-    # visit_WindowFunction will clean up unbounded range window
+    # These functions do not support window bounds, only an ordering.
+    # visit_WindowFunction will clean up unbounded, unordered range window
+    # Also, its kind of messy to insert subtract here, should probably be in visitor
     return ops.Subtract(
-        _.copy(how="rows", start=None, end=0, order_by=_.order_by or (ops.NULL,)), 1
+        _.copy(how="none", start=None, end=None, order_by=_.order_by or (ops.NULL,)), 1
     )
 
 
@@ -413,16 +414,14 @@ def exclude_unsupported_window_frame_from_row_number(_, **kwargs):
     p.WindowFunction(p.MinRank | p.DenseRank | p.PercentRank | p.CumeDist, start=None)
 )
 def exclude_unsupported_window_frame_from_rank(_, **kwargs):
-    # These functions support only partition, so remove ordering and set bounds to unbounded
-    # visit_WindowFunction will clean up unbounded range window
-    return ops.Subtract(_.copy(how="range", start=None, end=None, order_by=()), 1)
+    # These functions support only partition, so remove ordering and bounds
+    return ops.Subtract(_.copy(how="none", start=None, end=None, order_by=()), 1)
 
 
 @replace(p.WindowFunction(p.Lag | p.Lead, start=None))
 def exclude_unsupported_window_frame_from_ops(_, **kwargs):
     # lag/lead dont' support bounds, but do support ordering
-    # visit_WindowFunction will clean up cumulative rows window
-    return _.copy(how="rows", start=None, end=0, order_by=_.order_by or (ops.NULL,))
+    return _.copy(how="none", start=None, end=None, order_by=_.order_by or (ops.NULL,))
 
 
 # Rewrite rules for lowering a high-level operation into one composed of more
