@@ -400,19 +400,16 @@ def rewrite_empty_order_by_window(_, **kwargs):
     return _.copy(order_by=(ops.NULL,))
 
 
-@replace(p.WindowFunction(p.RowNumber | p.NTile))
+@replace(p.WindowFunction(p.RowNumber | p.NTile | p.MinRank | p.DenseRank))
 def exclude_unsupported_window_frame_from_row_number(_, **kwargs):
     # These functions do not support window bounds, only an ordering.
-    # visit_WindowFunction will clean up unbounded, unordered range window
     # Also, its kind of messy to insert subtract here, should probably be in visitor
     return ops.Subtract(
         _.copy(how="none", start=None, end=None, order_by=_.order_by or (ops.NULL,)), 1
     )
 
 
-@replace(
-    p.WindowFunction(p.MinRank | p.DenseRank | p.PercentRank | p.CumeDist, start=None)
-)
+@replace(p.WindowFunction(p.PercentRank | p.CumeDist, start=None))
 def exclude_unsupported_window_frame_from_rank(_, **kwargs):
     # These functions support only partition, so remove ordering and bounds
     return ops.Subtract(_.copy(how="none", start=None, end=None, order_by=()), 1)
