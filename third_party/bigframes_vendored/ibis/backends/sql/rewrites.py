@@ -413,9 +413,7 @@ def exclude_unsupported_window_frame_from_row_number(_, **kwargs):
 def exclude_unsupported_window_frame_from_rank(_, **kwargs):
     # These functions do not support window bounds, only an ordering.
     # Also, its kind of messy to insert subtract here, should probably be in visitor
-    return ops.Subtract(
-        _.copy(how="none", start=None, end=None, order_by=_.order_by or (ops.NULL,)), 1
-    )
+    return _.copy(how="none", start=None, end=None, order_by=_.order_by or (ops.NULL,))
 
 
 @replace(p.WindowFunction(p.Lag | p.Lead, start=None))
