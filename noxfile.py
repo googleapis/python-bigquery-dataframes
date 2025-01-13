@@ -589,7 +589,7 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
     )
     already_installed.add("pandas")
 
-    # Tty to avoid a cap on our SQLGlot so that bigframes
+    # Try to avoid a cap on our SQLGlot so that bigframes
     # can be integrated with SQLMesh. See:
     # https://github.com/googleapis/python-bigquery-dataframes/issues/942
     # If SQLGlot introduces something that breaks us, lets file an issue
