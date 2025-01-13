@@ -5229,16 +5229,3 @@ def test_astype_invalid_type_fail(scalars_dfs):
 
     with pytest.raises(TypeError, match=r".*Share your usecase with.*"):
         bf_df.astype(123)
-
-
-def test_unimplemented_api_logging(scalars_df_index):
-    # Draft test, not finished.
-    try:
-        scalars_df_index.resample(rule="abc")
-    except Exception:
-        pass
-
-    try:
-        scalars_df_index.dropna(inplace=True)
-    except Exception:
-        pass

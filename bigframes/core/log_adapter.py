@@ -118,7 +118,7 @@ def submit_pandas_labels(
     """
     labels_dict = {
         "task": task,
-        "classname": class_name.lower(),
+        "class_name": class_name.lower(),
         "method_name": method_name.lower(),
         "args_count": len(args),
     }
@@ -136,11 +136,13 @@ def submit_pandas_labels(
     signature = inspect.signature(method)
     param_names = [param.name for param in signature.parameters.values()]
 
-    for i, key in enumerate(kwargs.keys()):
+    idx = 0
+    for key in kwargs.keys():
         if len(labels_dict) >= MAX_LABELS_COUNT:
             break
         if key in param_names:
-            labels_dict[f"kwargs_{i}"] = key.lower()
+            labels_dict[f"kwargs_{idx}"] = key.lower()
+            idx += 1
 
     if (
         len(labels_dict) == 4
