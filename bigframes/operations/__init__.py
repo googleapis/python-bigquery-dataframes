@@ -25,6 +25,7 @@ import pandas as pd
 from pandas.tseries.offsets import DateOffset
 import pyarrow as pa
 
+import bigframes.dtypes
 import bigframes.dtypes as dtypes
 import bigframes.operations.type as op_typing
 
@@ -1014,6 +1015,15 @@ class StructOp(NaryOp):
         return pd.ArrowDtype(
             pa.struct(fields)
         )  # [(name1, value1), (name2, value2), ...]
+
+
+# Really doesn't need to be its own op, but allows us to try to get the most compact representation
+@dataclasses.dataclass(frozen=True)
+class RowKey(NaryOp):
+    name: typing.ClassVar[str] = "rowkey"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return bigframes.dtypes.STRING_DTYPE
 
 
 # Just parameterless unary ops for now

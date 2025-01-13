@@ -278,6 +278,24 @@ class UnorderedIR(BaseIbisIR):
         sql = ibis_bigquery.Backend().compile(self._to_ibis_expr())
         return typing.cast(str, sql)
 
+    def with_total_order(self, by: Sequence[OrderingExpression]) -> OrderedIR:
+        return OrderedIR(
+            table=self._table,
+            columns=self._columns,
+            predicates=self._predicates,
+            ordering=TotalOrdering(
+                ordering_value_columns=tuple(by),
+                total_ordering_columns=frozenset(
+                    map(
+                        ex.DerefOp,
+                        itertools.chain.from_iterable(
+                            col.referenced_columns for col in by
+                        ),
+                    )
+                ),
+            ),
+        )
+
     def row_count(self, name: str) -> OrderedIR:
         original_table = self._to_ibis_expr()
         ibis_table = original_table.agg(

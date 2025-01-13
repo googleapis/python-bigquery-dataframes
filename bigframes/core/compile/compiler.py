@@ -26,7 +26,6 @@ import pandas as pd
 
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
-import bigframes.core.compile.default_ordering as default_ordering
 import bigframes.core.compile.ibis_types
 import bigframes.core.compile.scalar_op_compiler
 import bigframes.core.compile.scalar_op_compiler as compile_scalar
@@ -274,17 +273,6 @@ class Compiler:
                 for source_id, out_id in full_mapping.items()
                 if source_id not in visible_column_mapping
             )
-        elif self.strict:  # In strict mode, we fallback to ordering by row hash
-            order_values = [
-                col.name(guids.generate_guid())
-                for col in default_ordering.gen_default_ordering(
-                    ibis_table, use_double_hash=True
-                )
-            ]
-            ordering = bf_ordering.TotalOrdering.from_primary_key(
-                [value.get_name() for value in order_values]
-            )
-            hidden_columns = tuple(order_values)
         else:
             # In unstrict mode, don't generate total ordering from hashing as this is
             # expensive (prevent removing any columns from table scan)
@@ -316,7 +304,11 @@ class Compiler:
     @_compile_node.register
     def compile_orderby(self, node: nodes.OrderByNode, ordered: bool = True):
         if ordered:
-            return self.compile_ordered_ir(node.child).order_by(node.by)
+            if node.is_total_order:
+                # more efficient, can just discard any previous ordering and get same result
+                return self.compile_unordered_ir(node.child).with_total_order(node.by)
+            else:
+                return self.compile_ordered_ir(node.child).order_by(node.by)
         else:
             return self.compile_unordered_ir(node.child)
 
