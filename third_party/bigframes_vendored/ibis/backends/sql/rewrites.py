@@ -411,8 +411,11 @@ def exclude_unsupported_window_frame_from_row_number(_, **kwargs):
 
 @replace(p.WindowFunction(p.PercentRank | p.CumeDist, start=None))
 def exclude_unsupported_window_frame_from_rank(_, **kwargs):
-    # These functions support only partition, so remove ordering and bounds
-    return ops.Subtract(_.copy(how="none", start=None, end=None, order_by=()), 1)
+    # These functions do not support window bounds, only an ordering.
+    # Also, its kind of messy to insert subtract here, should probably be in visitor
+    return ops.Subtract(
+        _.copy(how="none", start=None, end=None, order_by=_.order_by or (ops.NULL,)), 1
+    )
 
 
 @replace(p.WindowFunction(p.Lag | p.Lead, start=None))
