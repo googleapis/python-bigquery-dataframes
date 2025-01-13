@@ -840,7 +840,7 @@ def test_read_gbq_function_enforces_explicit_types(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_df_apply(session, scalars_dfs):
+def test_df_apply_scalar_func(session, scalars_dfs):
     scalars_df, _ = scalars_dfs
     bdf = bigframes.pandas.DataFrame(
         {
@@ -849,8 +849,10 @@ def test_df_apply(session, scalars_dfs):
         }
     )
 
+    # The "cw_lower_case_ascii_only" is a scalar function.
     func_ref = session.read_gbq_function("bqutil.fn.cw_lower_case_ascii_only")
 
+    # DataFrame '.apply()' only supports series level application.
     with pytest.raises(NotImplementedError) as context:
         bdf.apply(func_ref)
     assert str(context.value) == (
