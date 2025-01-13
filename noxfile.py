@@ -596,7 +596,7 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
     # upstream and/or make sure we fix bigframes to work with it.
     session.install(
         "--upgrade",
-        "git+https://github.com/tobymao/sqlglot.git#egg=sqlglot,
+        "git+https://github.com/tobymao/sqlglot.git#egg=sqlglot",
     )
     already_installed.add("sqlglot")
 
