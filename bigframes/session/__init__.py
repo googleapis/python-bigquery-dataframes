@@ -373,10 +373,18 @@ class Session(
         """Delete resources that were created with this session's session_id.
         This includes BigQuery tables, remote functions and cloud functions
         serving the remote functions."""
-        self._temp_storage_manager.clean_up_tables()
-        self._remote_function_session.clean_up(
-            self.bqclient, self.cloudfunctionsclient, self.session_id
-        )
+
+        # Protect against failure when the Session is a fake for testing or
+        # failed to initialize.
+        temp_storage_manager = getattr(self, "_temp_storage_manager", None)
+        if temp_storage_manager:
+            self._temp_storage_manager.clean_up_tables()
+
+        remote_function_session = getattr(self, "_remote_function_session", None)
+        if remote_function_session:
+            self._remote_function_session.clean_up(
+                self.bqclient, self.cloudfunctionsclient, self.session_id
+            )
 
     def read_gbq(
         self,
@@ -1369,13 +1377,14 @@ class Session(
                 `all`, `internal-only`, `internal-and-gclb`. See for more details
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
         Returns:
-            callable: A remote function object pointing to the cloud assets created
-            in the background to support the remote execution. The cloud assets can be
-            located through the following properties set in the object:
+            collections.abc.Callable:
+                A remote function object pointing to the cloud assets created
+                in the background to support the remote execution. The cloud assets can be
+                located through the following properties set in the object:
 
-            `bigframes_cloud_function` - The google cloud function deployed for the user defined code.
+                `bigframes_cloud_function` - The google cloud function deployed for the user defined code.
 
-            `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
+                `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
         """
         return self._remote_function_session.remote_function(
             input_types,
@@ -1544,12 +1553,13 @@ class Session(
                 a pandas Series.
 
         Returns:
-            callable: A function object pointing to the BigQuery function read
-            from BigQuery.
+            collections.abc.Callable:
+                A function object pointing to the BigQuery function read
+                from BigQuery.
 
-            The object is similar to the one created by the `remote_function`
-            decorator, including the `bigframes_remote_function` property, but
-            not including the `bigframes_cloud_function` property.
+                The object is similar to the one created by the `remote_function`
+                decorator, including the `bigframes_remote_function` property, but
+                not including the `bigframes_cloud_function` property.
         """
 
         return bigframes_rf.read_gbq_function(
@@ -1589,7 +1599,7 @@ class Session(
         job_config.destination_encryption_configuration = None
 
         return bf_io_bigquery.start_query_with_client(
-            self.bqclient, sql, job_config, metrics=self._metrics
+            self.bqclient, sql, job_config=job_config, metrics=self._metrics
         )
 
     def _create_object_table(self, path: str, connection: str) -> str:
