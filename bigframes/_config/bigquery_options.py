@@ -272,7 +272,7 @@ class BigQueryOptions:
                 "Use of regional endpoints is a feature in preview and "
                 "available only in selected regions and projects. "
             )
-            warnings.warn(msg)
+            warnings.warn(msg, category=bfe.PreviewWarning, stacklevel=2)
 
         self._use_regional_endpoints = value
 
