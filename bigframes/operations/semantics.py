@@ -141,10 +141,11 @@ class Semantics:
         column = columns[0]
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
 
         user_instruction = self._format_instruction(instruction, columns)
 
@@ -371,10 +372,11 @@ class Semantics:
                 raise ValueError(f"Column {column} not found.")
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
 
         self._confirm_operation(len(self._df))
 
@@ -469,10 +471,11 @@ class Semantics:
                 raise ValueError(f"Column {column} not found.")
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
 
         self._confirm_operation(len(self._df))
 
@@ -570,10 +573,11 @@ class Semantics:
         columns = self._parse_columns(instruction)
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
 
         work_estimate = len(self._df) * len(other)
         self._confirm_operation(work_estimate)
@@ -812,10 +816,11 @@ class Semantics:
             )
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
 
         work_estimate = int(len(self._df) * (len(self._df) - 1) / 2)
         self._confirm_operation(work_estimate)
