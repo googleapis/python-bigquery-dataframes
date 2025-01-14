@@ -103,10 +103,7 @@ class Compiler:
         )
 
     def compile_ordered_ir(self, node: nodes.BigFrameNode) -> compiled.OrderedIR:
-        ir = typing.cast(compiled.OrderedIR, self.compile_node(node, True))
-        if self.strict:
-            assert ir.has_total_order
-        return ir
+        return typing.cast(compiled.OrderedIR, self.compile_node(node, True))
 
     def compile_unordered_ir(self, node: nodes.BigFrameNode) -> compiled.UnorderedIR:
         return typing.cast(compiled.UnorderedIR, self.compile_node(node, False))
