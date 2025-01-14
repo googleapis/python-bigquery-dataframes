@@ -43,8 +43,13 @@ class RowOp(typing.Protocol):
         ...
 
     @property
-    def order_preserving(self) -> bool:
+    def is_monotonic(self) -> bool:
         """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
+        ...
+
+    @property
+    def is_bijective(self) -> bool:
+        """Whether the operation has a 1:1 mapping between inputs and outputs"""
         ...
 
 
@@ -58,8 +63,13 @@ class ScalarOp:
         raise NotImplementedError("Abstract operation has no output type")
 
     @property
-    def order_preserving(self) -> bool:
+    def is_monotonic(self) -> bool:
         """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
+        return False
+
+    @property
+    def is_bijective(self) -> bool:
+        """Whether the operation has a 1:1 mapping between inputs and outputs"""
         return False
 
 
@@ -1024,6 +1034,11 @@ class RowKey(NaryOp):
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return bigframes.dtypes.STRING_DTYPE
+
+    @property
+    def is_bijective(self) -> bool:
+        """Whether the operation has a 1:1 mapping between inputs and outputs"""
+        return True
 
 
 # Just parameterless unary ops for now

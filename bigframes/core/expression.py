@@ -409,4 +409,4 @@ class OpExpression(Expression):
     @property
     def is_bijective(self) -> bool:
         # TODO: Mark individual functions as bijective?
-        return False
+        return all(input.is_bijective for input in self.inputs) and self.op.is_bijective
