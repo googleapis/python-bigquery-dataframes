@@ -54,7 +54,10 @@ class UnimplementedMethodLogger:
     def __init__(self, bq_client: bigquery.Client, class_name: str, method_name: str):
         # Skip internal methods
         if method_name.startswith("_") and not method_name.startswith("__"):
-            raise
+            raise AttributeError(
+                "BigQuery DataFrames has not yet implemented an equivalent to"
+                f"'pandas.{class_name}.{method_name}'.\n{constants.FEEDBACK_LINK}"
+            )
         self.bq_client = bq_client
         self.class_name = class_name
         self.method_name = method_name
