@@ -179,22 +179,3 @@ def test_submit_pandas_labels_without_valid_params_for_param_logging(
         log_adapter.PANDAS_PARAM_TRACKING_TASK,
     )
     mock_bqclient.query.assert_not_called()
-
-
-def test_unimplemented_method_logger(mock_bqclient):
-    api_logger = log_adapter.UnimplementedMethodLogger(
-        mock_bqclient, "DataFrame", "resample"
-    )
-    with pytest.raises(AttributeError):
-        api_logger(rule="1s", aa="bb")
-
-    mock_bqclient.query.assert_called_once()
-
-    query_call_args = mock_bqclient.query.call_args_list[0]
-    labels = query_call_args[1]["job_config"].labels
-    assert len(labels) == 5
-    assert labels["task"] == log_adapter.PANDAS_API_TRACKING_TASK
-    assert labels["class_name"] == "dataframe"
-    assert labels["method_name"] == "resample"
-    assert labels["args_count"] == 0
-    assert labels["kwargs_0"] == "rule"

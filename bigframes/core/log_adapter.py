@@ -17,7 +17,6 @@ import inspect
 import threading
 from typing import List
 
-import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 import pandas
 
@@ -37,67 +36,13 @@ _excluded_methods = ["__setattr__", "__getattr__"]
 _call_stack: List = []
 
 
-class UnimplementedMethodLogger:
-    """
-    A logger for unimplemented methods.
-
-    This class is designed to log attempts to use unimplemented methods from the pandas API
-    on BigQuery DataFrames, and then raise an informative error message. The main purpose
-    is to help developers identify which methods are being called and not implemented yet.
-
-    Attributes:
-        bq_client (bigquery.Client): The BigQuery client used to submit the log.
-        class_name (str): The name of the class in which the unimplemented method belongs.
-        method_name (str): The name of the unimplemented method being called.
-    """
-
-    def __init__(self, bq_client: bigquery.Client, class_name: str, method_name: str):
-        # Skip internal methods
-        if method_name.startswith("_") and not method_name.startswith("__"):
-            raise AttributeError(
-                "BigQuery DataFrames has not yet implemented an equivalent to"
-                f"'pandas.{class_name}.{method_name}'.\n{constants.FEEDBACK_LINK}"
-            )
-        self.bq_client = bq_client
-        self.class_name = class_name
-        self.method_name = method_name
-
-    def __call__(self, *args, **kwargs):
-        """
-        Logs the usage of an unimplemented method and raises an AttributeError.
-
-        This method captures any arguments and keyword arguments passed to the unimplemented method
-        and logs them along with the method details to BigQuery. After logging, it raises an
-        AttributeError to notify the user that the method is not implemented.
-
-        Args:
-            *args: Positional arguments provided to the method call.
-            **kwargs: Keyword arguments provided to the method call.
-
-        Raises:
-            AttributeError: Indicates that the method called is not implemented with a link for feedback.
-        """
-        submit_pandas_labels(
-            self.bq_client,
-            self.class_name,
-            self.method_name,
-            args,
-            kwargs,
-            task=PANDAS_API_TRACKING_TASK,
-        )
-        raise AttributeError(
-            "BigQuery DataFrames has not yet implemented an equivalent to"
-            f"'pandas.{self.class_name}.{self.method_name}'.\n{constants.FEEDBACK_LINK}"
-        )
-
-
 def submit_pandas_labels(
     bq_client: bigquery.Client,
     class_name: str,
     method_name: str,
-    args,
-    kwargs,
-    task: str,
+    args=(),
+    kwargs={},
+    task: str = PANDAS_API_TRACKING_TASK,
 ):
     """
     Submits usage of API to BigQuery using a simulated failed query.
@@ -135,16 +80,17 @@ def submit_pandas_labels(
     else:
         return
 
-    signature = inspect.signature(method)
-    param_names = [param.name for param in signature.parameters.values()]
+    if kwargs:
+        signature = inspect.signature(method)
+        param_names = [param.name for param in signature.parameters.values()]
 
-    idx = 0
-    for key in kwargs.keys():
-        if len(labels_dict) >= MAX_LABELS_COUNT:
-            break
-        if key in param_names:
-            labels_dict[f"kwargs_{idx}"] = key.lower()
-            idx += 1
+        idx = 0
+        for key in kwargs.keys():
+            if len(labels_dict) >= MAX_LABELS_COUNT:
+                break
+            if key in param_names:
+                labels_dict[f"kwargs_{idx}"] = key.lower()
+                idx += 1
 
     if (
         len(labels_dict) == 4

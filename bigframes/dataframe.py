@@ -21,6 +21,7 @@ import inspect
 import itertools
 import re
 import sys
+import textwrap
 import typing
 from typing import (
     Callable,
@@ -644,8 +645,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return self.__getitem__(key)
 
         if hasattr(pandas.DataFrame, key):
-            return log_adapter.UnimplementedMethodLogger(
+            log_adapter.submit_pandas_labels(
                 self._block.expr.session.bqclient, self.__class__.__name__, key
+            )
+            raise AttributeError(
+                textwrap.dedent(
+                    f"""
+                    BigQuery DataFrames has not yet implemented an equivalent to
+                    'pandas.DataFrame.{key}'. {constants.FEEDBACK_LINK}
+                    """
+                )
             )
         raise AttributeError(key)
 
