@@ -54,7 +54,7 @@ class UnimplementedMethodLogger:
     def __init__(self, bq_client: bigquery.Client, class_name: str, method_name: str):
         # Workaround for issue with notebook, this need to raise early so
         # it can find an alternative _repr_ method.
-        if method_name in ["_repr_latex_"]:
+        if method_name.startswith("_"):
             raise
         self.bq_client = bq_client
         self.class_name = class_name
