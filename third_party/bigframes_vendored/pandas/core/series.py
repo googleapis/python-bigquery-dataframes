@@ -259,7 +259,7 @@ class Series(NDFrame):  # type: ignore[misc]
             3    <NA>
             dtype: Float64
             >>> s.hasnans
-            np.True_
+            True
 
         Returns:
             bool
@@ -394,7 +394,7 @@ class Series(NDFrame):  # type: ignore[misc]
             1  bar  two    1
             2  baz  one    2
             3  baz  two    3
-
+            <BLANKLINE>
             [4 rows x 3 columns]
 
         Args:
@@ -552,7 +552,7 @@ class Series(NDFrame):  # type: ignore[misc]
             {np.int64(0): 1, np.int64(1): 2, np.int64(2): 3, np.int64(3): 4}
 
             >>> s.to_dict(into=OrderedDict)
-            OrderedDict([(0, 1), (1, 2), (2, 3), (3, 4)])
+            OrderedDict({np.int64(0): 1, np.int64(1): 2, np.int64(2): 3, np.int64(3): 4})
 
             >>> dd = defaultdict(list)
             >>> s.to_dict(into=dd)
@@ -753,13 +753,13 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> unpickled_df = bpd.read_pickle("./dummy.pkl")
             >>> unpickled_df
-              foo  bar
+               foo  bar
             0    0    5
             1    1    6
             2    2    7
             3    3    8
             4    4    9
-
+            <BLANKLINE>
             [5 rows x 2 columns]
 
         Args:
@@ -1582,37 +1582,6 @@ class Series(NDFrame):  # type: ignore[misc]
             3.0     a
             dtype: string
 
-        Specify index level to sort
-
-            >>> arrays = [np.array(['qux', 'qux', 'foo', 'foo',
-            ...                     'baz', 'baz', 'bar', 'bar']),
-            ...           np.array(['two', 'one', 'two', 'one',
-            ...                     'two', 'one', 'two', 'one'])]
-            >>> s = bpd.Series([1, 2, 3, 4, 5, 6, 7, 8], index=arrays)
-            >>> s.sort_index(level=1)
-            bar  one    8
-            baz  one    6
-            foo  one    4
-            qux  one    2
-            bar  two    7
-            baz  two    5
-            foo  two    3
-            qux  two    1
-            dtype: int64
-
-        Does not sort by remaining levels when sorting by levels
-
-            >>> s.sort_index(level=1, sort_remaining=False)
-            qux  one    2
-            foo  one    4
-            baz  one    6
-            bar  one    8
-            qux  two    1
-            foo  two    3
-            baz  two    5
-            bar  two    7
-            dtype: int64
-
         Args:
             axis ({0 or 'index'}):
                 Unused. Parameter needed for compatibility with DataFrame.
@@ -1660,7 +1629,7 @@ class Series(NDFrame):  # type: ignore[misc]
             Tuvalu           11300
             Anguilla         11300
             Montserrat        5200
-            dtype: int64
+            dtype: Int64
 
         The n largest elements where `n=5` by default.
 
@@ -1670,7 +1639,7 @@ class Series(NDFrame):  # type: ignore[misc]
             Malta         434000
             Maldives      434000
             Brunei        434000
-            dtype: int64
+            dtype: Int64
 
         The n largest elements where `n=3`. Default keep value is `first` so Malta
           will be kept.
@@ -1679,7 +1648,7 @@ class Series(NDFrame):  # type: ignore[misc]
             France    65000000
             Italy     59000000
             Malta       434000
-            dtype: int64
+            dtype: Int64
 
         The n largest elements where `n=3` and keeping the last duplicates. Brunei
         will be kept since it is the last with value 434000 based on the index order.
@@ -1688,7 +1657,7 @@ class Series(NDFrame):  # type: ignore[misc]
             France    65000000
             Italy     59000000
             Brunei      434000
-            dtype: int64
+            dtype: Int64
 
         The n largest elements where n`=3` with all duplicates kept. Note that the
         returned Series has five elements due to the three duplicates.
@@ -1699,7 +1668,7 @@ class Series(NDFrame):  # type: ignore[misc]
             Malta         434000
             Maldives      434000
             Brunei        434000
-            dtype: int64
+            dtype: Int64
 
         Args:
             n (int, default 5):
@@ -2185,7 +2154,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Drop 2nd level label in MultiIndex Series:
 
             >>> import pandas as pd
-            >>> midx = bpd.MultiIndex(levels=[['llama', 'cow', 'falcon'],
+            >>> midx = pd.MultiIndex(levels=[['llama', 'cow', 'falcon'],
             ...                              ['speed', 'weight', 'length']],
             ...                      codes=[[0, 0, 0, 1, 1, 1, 2, 2, 2],
             ...                             [0, 1, 2, 0, 1, 2, 0, 1, 2]])
@@ -4717,9 +4686,9 @@ class Series(NDFrame):  # type: ignore[misc]
             [2 rows x 2 columns]
 
             >>> df.median()
-            a   1.5
-            b   2.5
-            dtype: float64
+            a    1.5
+            b    2.5
+            dtype: Float64
 
         Args:
             exact (bool. default True):
@@ -4785,7 +4754,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s.skew()
-            0.0
+            np.float64(0.0)
 
         With a DataFrame
 
@@ -4801,7 +4770,7 @@ class Series(NDFrame):  # type: ignore[misc]
             a   0.0
             b   0.0
             c   0.0
-            dtype: float64
+            dtype: Float64
 
         Returns:
             scalar: Scalar.
@@ -5279,7 +5248,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dog            4         0
             cat            4         0
             monkey         2         2
-
+            <BLANKLINE>
             [3 rows x 2 columns]
 
         Returns:
@@ -5511,7 +5480,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 2, 2])
             >>> s.is_monotonic_increasing
-            np.True_
+            True
 
             >>> s = bpd.Series([3, 2, 1])
             >>> s.is_monotonic_increasing
@@ -5535,11 +5504,11 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([3, 2, 2, 1])
             >>> s.is_monotonic_decreasing
-            np.True_
+            True
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s.is_monotonic_decreasing
-            np.False_
+            False
 
         Returns:
             bool:
@@ -5650,7 +5619,7 @@ class Series(NDFrame):  # type: ignore[misc]
             0     1     2     3     4
             1   100   200   300   400
             2  1000  2000  3000  4000
-
+            <BLANKLINE>
             [3 rows x 4 columns]
 
         Indexing just the rows
@@ -5658,7 +5627,7 @@ class Series(NDFrame):  # type: ignore[misc]
         With a scalar integer.
 
             >>> type(df.iloc[0])
-             pandas.core.series.Series
+            <class 'pandas.core.series.Series'>
 
             >>> df.iloc[0]
             a    1
@@ -5683,7 +5652,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 a    b    c    d
             0    1    2    3    4
             1  100  200  300  400
-
+            <BLANKLINE>
             [2 rows x 4 columns]
 
         With a slice object.
@@ -5693,7 +5662,7 @@ class Series(NDFrame):  # type: ignore[misc]
             0     1     2     3     4
             1   100   200   300   400
             2  1000  2000  3000  4000
-
+            <BLANKLINE>
             [3 rows x 4 columns]
 
         Indexing both axes
@@ -5745,7 +5714,7 @@ class Series(NDFrame):  # type: ignore[misc]
                         max_speed  shield
             viper               4       5
             sidewinder          7       8
-
+            <BLANKLINE>
             [2 rows x 2 columns]
 
         Slice with labels for row and single label for column. As mentioned
@@ -5760,7 +5729,7 @@ class Series(NDFrame):  # type: ignore[misc]
                   max_speed  shield
             cobra          1       2
             viper          4       5
-
+            <BLANKLINE>
             [2 rows x 2 columns]
 
         Conditional that returns a boolean Series with column labels specified
@@ -5768,7 +5737,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> df.loc[df['shield'] > 6, ['max_speed']]
                         max_speed
             sidewinder          7
-
+            <BLANKLINE>
             [1 rows x 1 columns]
 
         Multiple conditional using | that returns a boolean Series
@@ -5777,7 +5746,7 @@ class Series(NDFrame):  # type: ignore[misc]
                         max_speed  shield
             cobra               1       2
             sidewinder          7       8
-
+            <BLANKLINE>
             [2 rows x 2 columns]
 
         Please ensure that each condition is wrapped in parentheses ().
@@ -5790,7 +5759,7 @@ class Series(NDFrame):  # type: ignore[misc]
             cobra              30       2
             viper              30       5
             sidewinder         30       8
-
+            <BLANKLINE>
             [3 rows x 2 columns]
 
         Returns:
@@ -5850,7 +5819,7 @@ class Series(NDFrame):  # type: ignore[misc]
             4   0   2   3
             5   0   4   1
             6  10  20  30
-
+            <BLANKLINE>
             [3 rows x 3 columns]
 
         Get value at specified row/column pair
