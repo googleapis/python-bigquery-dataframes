@@ -28,7 +28,7 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import bigframes.core.guid as guid
 
 
-def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringValue:
+def _convert_to_nonnull_string(column: ibis_types.Value) -> ibis_types.StringValue:
     col_type = column.type()
     if (
         col_type.is_numeric()
@@ -61,7 +61,7 @@ def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringVa
 
 
 def gen_row_key(
-    columns: Sequence[ibis_types.Column],
+    columns: Sequence[ibis_types.Value],
 ) -> bigframes_vendored.ibis.Value:
     ordering_hash_part = guid.generate_guid("bigframes_ordering_")
     ordering_hash_part2 = guid.generate_guid("bigframes_ordering_")
