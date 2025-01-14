@@ -62,7 +62,7 @@ def _convert_to_nonnull_string(column: ibis_types.Column) -> ibis_types.StringVa
 
 def gen_row_key(
     columns: Sequence[ibis_types.Column],
-) -> list[bigframes_vendored.ibis.Value]:
+) -> bigframes_vendored.ibis.Value:
     ordering_hash_part = guid.generate_guid("bigframes_ordering_")
     ordering_hash_part2 = guid.generate_guid("bigframes_ordering_")
     ordering_rand_part = guid.generate_guid("bigframes_ordering_")
