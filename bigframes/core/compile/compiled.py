@@ -1247,7 +1247,14 @@ class OrderedIR(BaseIbisIR):
                 tuple(new_exprs),
                 self._ordering.integer_encoding,
                 self._ordering.string_encoding,
-                self._ordering.total_ordering_columns,
+                total_ordering_columns=frozenset(
+                    map(
+                        ex.DerefOp,
+                        itertools.chain.from_iterable(
+                            col.referenced_columns for col in new_exprs
+                        ),
+                    )
+                ),
             )
         else:
             new_ordering = RowOrdering(
