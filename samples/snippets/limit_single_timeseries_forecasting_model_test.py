@@ -14,7 +14,7 @@
 
 
 def test_limit_single_timeseries(random_model_id: str) -> None:
-    # your_model_id = random_model_id
+    your_model_id = random_model_id
 
     # [START bigquery_dataframes_bqml_limit_forecast_visualize]
     import bigframes.pandas as bpd
@@ -31,6 +31,32 @@ def test_limit_single_timeseries(random_model_id: str) -> None:
     df.groupby([date])
     num_trips = features.groupby(["date"]).count()
     # [END bigquery_dataframes_bqml_limit_forecast_visualize]
+
+    # [START bigquery_dataframes_bqml_limit_forecast_create]
+    from bigframes.ml import forecasting
+    import bigframes.pandas as bpd
+
+    df = bpd.read_gbq("bigquery-public-data.new_york.citibike_trips")
+
+    features = bpd.DataFrame(
+        {
+            "num_trips": df.starttime,
+            "date": df["starttime"].dt.date,
+        }
+    )
+    num_trips = features.groupby(["date"], as_index=False).count()
+    model = forecasting.ARIMAPlus()
+
+    X = num_trips["date"].to_frame()
+    y = num_trips["num_trips"].to_frame()
+
+    model.fit(X, y)
+
+    model.to_gbq(
+        your_model_id,  # For example: "bqml_tutorial.nyc_citibike_arima_model",
+        replace=True,
+    )
+    # [END bigquery_dataframes_bqml_limit_forecast_create
     assert df is not None
     assert features is not None
     assert num_trips is not None
