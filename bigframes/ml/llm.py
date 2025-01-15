@@ -23,7 +23,6 @@ import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 import typing_extensions
 
-import bigframes
 from bigframes import clients, exceptions
 from bigframes.core import blocks, log_adapter
 import bigframes.dataframe
