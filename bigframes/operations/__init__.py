@@ -72,6 +72,7 @@ from bigframes.operations.generic_ops import (
     RowKey,
     where_op,
 )
+from bigframes.operations.geo_ops import geo_x_op, geo_y_op
 from bigframes.operations.json_ops import (
     JSONExtract,
     JSONExtractArray,
@@ -306,6 +307,9 @@ __all__ = [
     "cosine_distance_op",
     "euclidean_distance_op",
     "manhattan_distance_op",
+    # Geo ops
+    "geo_x_op",
+    "geo_y_op",
     # Numpy ops mapping
     "NUMPY_TO_BINOP",
     "NUMPY_TO_OP",
