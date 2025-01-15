@@ -82,7 +82,7 @@ def submit_pandas_labels(
 
     if kwargs:
         # Iterate through the keyword arguments and add them to the labels dictionary if they
-        # are valid parameters and the maximum label count has not been reached.
+        # are parameters that are implemented in pandas and the maximum label count has not been reached.
         signature = inspect.signature(method)
         param_names = [param.name for param in signature.parameters.values()]
 
