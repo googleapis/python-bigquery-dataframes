@@ -63,7 +63,7 @@ class BlobAccessor(base.SeriesMethods):
 
         return bbq.json_extract(metadata, "$.content_type")
 
-    def display(self, n: int = 3, content_type: str = ""):
+    def display(self, n: int = 3, *, content_type: str = ""):
         """Display the blob content in the IPython Notebook environment. Only works for image type now.
 
         .. note::
@@ -75,6 +75,7 @@ class BlobAccessor(base.SeriesMethods):
         """
         import bigframes.bigquery as bbq
 
+        # col name doesn't matter here. Rename to avoid column name conflicts
         df = bigframes.series.Series(self._block).rename("blob_col").head(n).to_frame()
 
         obj_ref_runtime = df["blob_col"]._apply_unary_op(ops.ObjGetAccessUrl(mode="R"))
