@@ -52,6 +52,11 @@ class RowOp(typing.Protocol):
         """Whether the operation has a 1:1 mapping between inputs and outputs"""
         ...
 
+    @property
+    def deterministic(self) -> bool:
+        """Whether the operation is deterministic" (given deterministic inputs)"""
+        ...
+
 
 @dataclasses.dataclass(frozen=True)
 class ScalarOp:
@@ -71,6 +76,11 @@ class ScalarOp:
     def is_bijective(self) -> bool:
         """Whether the operation has a 1:1 mapping between inputs and outputs"""
         return False
+
+    @property
+    def deterministic(self) -> bool:
+        """Whether the operation is deterministic" (given deterministic inputs)"""
+        return True
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1039,6 +1049,10 @@ class RowKey(NaryOp):
     def is_bijective(self) -> bool:
         """Whether the operation has a 1:1 mapping between inputs and outputs"""
         return True
+
+    @property
+    def deterministic(self) -> bool:
+        return False
 
 
 # Just parameterless unary ops for now

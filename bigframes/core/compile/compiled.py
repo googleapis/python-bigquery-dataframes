@@ -595,6 +595,13 @@ class OrderedIR(BaseIbisIR):
         return True
 
     @property
+    def order_non_deterministic(self) -> bool:
+        # ordering suffix non-determinism is ok, as rand() is used as suffix for auto-generated order keys.
+        # but must be resolved before or explode, otherwise the engine might pull the rand() evaluation above the join,
+        # creating inconsistencies
+        return not all(col.deterministic for col in self._ordering.all_ordering_columns)
+
+    @property
     def has_total_order(self) -> bool:
         return isinstance(self._ordering, TotalOrdering)
 
@@ -740,6 +747,9 @@ class OrderedIR(BaseIbisIR):
         )
 
     def explode(self, columns: typing.Sequence[ex.DerefOp]) -> OrderedIR:
+        if self.order_non_deterministic:
+            id = bigframes.core.guid.generate_guid()
+            return self.promote_offsets(id)
         table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
         column_ids = tuple(ref.id.sql for ref in columns)
 
