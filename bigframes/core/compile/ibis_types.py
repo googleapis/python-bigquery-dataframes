@@ -33,6 +33,7 @@ import pandas as pd
 import pyarrow as pa
 
 import bigframes.dtypes
+import bigframes.exceptions as bfe
 
 # Type hints for Ibis data types supported by BigQuery DataFrame
 IbisDtype = Union[
@@ -306,10 +307,11 @@ def ibis_dtype_to_bigframes_dtype(
 
     # Temporary: Will eventually support an explicit json type instead of casting to string.
     if isinstance(ibis_dtype, ibis_dtypes.JSON):
-        warnings.warn(
-            "Interpreting JSON as string. This behavior may change in future versions.",
-            bigframes.exceptions.PreviewWarning,
+        msg = (
+            "Interpreting JSON column(s) as pyarrow.large_string. This behavior may change "
+            "in future versions."
         )
+        warnings.warn(msg, category=bfe.PreviewWarning)
         return bigframes.dtypes.JSON_DTYPE
 
     if ibis_dtype in IBIS_TO_BIGFRAMES:
