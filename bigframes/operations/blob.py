@@ -56,7 +56,7 @@ class BlobAccessor(base.SeriesMethods):
             BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
         Returns:
-            JSON: json-string of the content type."""
+            BigFrames Series: json-string of the content type."""
         import bigframes.bigquery as bbq
 
         metadata = self.metadata()
