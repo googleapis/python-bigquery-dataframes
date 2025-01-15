@@ -66,6 +66,7 @@ import bigframes.core.pruning
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.exceptions
+import bigframes.exceptions as bfe
 import bigframes.functions._remote_function_session as bigframes_rf_session
 import bigframes.functions.remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bf_io_bigquery
@@ -150,25 +151,22 @@ class Session(
 
         if context.location is None:
             self._location = "US"
-            warnings.warn(
-                f"No explicit location is set, so using location {self._location} for the session.",
-                # User's code
-                # -> get_global_session()
-                # -> connect()
-                # -> Session()
-                #
-                # Note: We could also have:
-                # User's code
-                # -> read_gbq()
-                # -> with_default_session()
-                # -> get_global_session()
-                # -> connect()
-                # -> Session()
-                # but we currently have no way to disambiguate these
-                # situations.
-                stacklevel=4,
-                category=bigframes.exceptions.DefaultLocationWarning,
-            )
+            msg = f"No explicit location is set, so using location {self._location} for the session."
+            # User's code
+            # -> get_global_session()
+            # -> connect()
+            # -> Session()
+            #
+            # Note: We could also have:
+            # User's code
+            # -> read_gbq()
+            # -> with_default_session()
+            # -> get_global_session()
+            # -> connect()
+            # -> Session()
+            # but we currently have no way to disambiguate these
+            # situations.
+            warnings.warn(msg, stacklevel=4, category=bfe.DefaultLocationWarning)
         else:
             self._location = context.location
 
@@ -236,10 +234,8 @@ class Session(
         # Will expose as feature later, only False for internal testing
         self._strictly_ordered: bool = context.ordering_mode != "partial"
         if not self._strictly_ordered:
-            warnings.warn(
-                "Partial ordering mode is a preview feature and is subject to change.",
-                bigframes.exceptions.OrderingModePartialPreviewWarning,
-            )
+            msg = "Partial ordering mode is a preview feature and is subject to change."
+            warnings.warn(msg, bfe.OrderingModePartialPreviewWarning)
 
         self._allow_ambiguity = not self._strictly_ordered
         self._default_index_type = (
@@ -604,11 +600,8 @@ class Session(
             bigframes.streaming.dataframe.StreamingDataFrame:
                A StreamingDataFrame representing results of the table.
         """
-        warnings.warn(
-            "The bigframes.streaming module is a preview feature, and subject to change.",
-            stacklevel=1,
-            category=bigframes.exceptions.PreviewWarning,
-        )
+        msg = "The bigframes.streaming module is a preview feature, and subject to change."
+        warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
 
         import bigframes.streaming.dataframe as streaming_dataframe
 
@@ -1370,13 +1363,14 @@ class Session(
                 `all`, `internal-only`, `internal-and-gclb`. See for more details
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
         Returns:
-            callable: A remote function object pointing to the cloud assets created
-            in the background to support the remote execution. The cloud assets can be
-            located through the following properties set in the object:
+            collections.abc.Callable:
+                A remote function object pointing to the cloud assets created
+                in the background to support the remote execution. The cloud assets can be
+                located through the following properties set in the object:
 
-            `bigframes_cloud_function` - The google cloud function deployed for the user defined code.
+                `bigframes_cloud_function` - The google cloud function deployed for the user defined code.
 
-            `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
+                `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
         """
         return self._remote_function_session.remote_function(
             input_types,
@@ -1545,12 +1539,13 @@ class Session(
                 a pandas Series.
 
         Returns:
-            callable: A function object pointing to the BigQuery function read
-            from BigQuery.
+            collections.abc.Callable:
+                A function object pointing to the BigQuery function read
+                from BigQuery.
 
-            The object is similar to the one created by the `remote_function`
-            decorator, including the `bigframes_remote_function` property, but
-            not including the `bigframes_cloud_function` property.
+                The object is similar to the one created by the `remote_function`
+                decorator, including the `bigframes_remote_function` property, but
+                not including the `bigframes_cloud_function` property.
         """
 
         return bigframes_rf.read_gbq_function(
@@ -1590,7 +1585,7 @@ class Session(
         job_config.destination_encryption_configuration = None
 
         return bf_io_bigquery.start_query_with_client(
-            self.bqclient, sql, job_config, metrics=self._metrics
+            self.bqclient, sql, job_config=job_config, metrics=self._metrics
         )
 
     def _create_object_table(self, path: str, connection: str) -> str:
