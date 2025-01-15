@@ -58,6 +58,7 @@ from bigframes.operations.frequency_ops import (
 from bigframes.operations.generic_ops import (
     AsTypeOp,
     case_when_op,
+    CaseWhenOp,
     clip_op,
     coalesce_op,
     fillna_op,
@@ -169,6 +170,7 @@ __all__ = [
     # Generic ops
     "AsTypeOp",
     "case_when_op",
+    "CaseWhenOp",
     "clip_op",
     "coalesce_op",
     "fillna_op",
