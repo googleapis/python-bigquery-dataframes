@@ -32,54 +32,60 @@ from bigframes.functions import _utils
             id="None",
         ),
         pytest.param(
-            {"python_output_type": bool},
-            '{"value": {"python_output_type": "bool"}}',
-            id="bool",
-        ),
-        pytest.param(
-            {"python_output_type": bytes},
-            '{"value": {"python_output_type": "bytes"}}',
-            id="bytes",
-        ),
-        pytest.param(
-            {"python_output_type": float},
-            '{"value": {"python_output_type": "float"}}',
-            id="float",
-        ),
-        pytest.param(
-            {"python_output_type": int},
-            '{"value": {"python_output_type": "int"}}',
-            id="int",
-        ),
-        pytest.param(
-            {"python_output_type": str},
-            '{"value": {"python_output_type": "str"}}',
-            id="str",
-        ),
-        pytest.param(
             {"python_output_type": list[bool]},
-            '{"value": {"python_output_type": "list[bool]"}}',
+            '{"value": {"python_array_output_type": "bool"}}',
             id="list-bool",
         ),
         pytest.param(
             {"python_output_type": list[float]},
-            '{"value": {"python_output_type": "list[float]"}}',
+            '{"value": {"python_array_output_type": "float"}}',
             id="list-float",
         ),
         pytest.param(
             {"python_output_type": list[int]},
-            '{"value": {"python_output_type": "list[int]"}}',
+            '{"value": {"python_array_output_type": "int"}}',
             id="list-int",
         ),
         pytest.param(
             {"python_output_type": list[str]},
-            '{"value": {"python_output_type": "list[str]"}}',
+            '{"value": {"python_array_output_type": "str"}}',
             id="list-str",
         ),
     ),
 )
 def test_get_bigframes_metadata(metadata_options, metadata_string):
     assert _utils.get_bigframes_metadata(**metadata_options) == metadata_string
+
+
+@pytest.mark.parametrize(
+    ["output_type"],
+    (
+        pytest.param(bool),
+        pytest.param(bytes),
+        pytest.param(float),
+        pytest.param(int),
+        pytest.param(list),
+        pytest.param(str),
+    ),
+)
+def test_get_bigframes_metadata_array_type_not_serializable(output_type):
+    with pytest.raises(ValueError) as context:
+        _utils.get_bigframes_metadata(python_output_type=output_type)
+    assert str(context.value) == (
+        f"python_output_type {output_type} is not serializable."
+    )
+
+
+@pytest.mark.parametrize(
+    ["output_type"],
+    (pytest.param(bytes),),
+)
+def test_get_bigframes_metadata_array_type_not_supported(output_type):
+    with pytest.raises(ValueError) as context:
+        _utils.get_bigframes_metadata(python_output_type=list[output_type])  # type: ignore
+    assert str(context.value) == (
+        f"array of {output_type} is not supported for python_output_type."
+    )
 
 
 @pytest.mark.parametrize(
@@ -106,47 +112,22 @@ def test_get_bigframes_metadata(metadata_options, metadata_string):
             id="empty-value",
         ),
         pytest.param(
-            '{"value": {"python_output_type": "blah"}}',
-            None,
-            id="invalid-type",
-        ),
-        pytest.param(
-            '{"value": {"python_output_type": "bool"}}',
-            bool,
-            id="bool",
-        ),
-        pytest.param(
-            '{"value": {"python_output_type": "float"}}',
-            float,
-            id="float",
-        ),
-        pytest.param(
-            '{"value": {"python_output_type": "int"}}',
-            int,
-            id="int",
-        ),
-        pytest.param(
-            '{"value": {"python_output_type": "str"}}',
-            str,
-            id="str",
-        ),
-        pytest.param(
-            '{"value": {"python_output_type": "list[bool]"}}',
+            '{"value": {"python_array_output_type": "bool"}}',
             list[bool],
             id="list-bool",
         ),
         pytest.param(
-            '{"value": {"python_output_type": "list[float]"}}',
+            '{"value": {"python_array_output_type": "float"}}',
             list[float],
             id="list-float",
         ),
         pytest.param(
-            '{"value": {"python_output_type": "list[int]"}}',
+            '{"value": {"python_array_output_type": "int"}}',
             list[int],
             id="list-int",
         ),
         pytest.param(
-            '{"value": {"python_output_type": "list[str]"}}',
+            '{"value": {"python_array_output_type": "str"}}',
             list[str],
             id="list-str",
         ),

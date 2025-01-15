@@ -28,6 +28,7 @@ import pandas
 import pyarrow
 
 import bigframes.core.compile.ibis_types
+import bigframes.dtypes
 
 # Naming convention for the remote function artifacts
 _BIGFRAMES_REMOTE_FUNCTION_PREFIX = "bigframes"
@@ -237,30 +238,35 @@ def get_python_output_type_from_bigframes_metadata(
         return None
 
     try:
-        output_type = metadata_dict["value"]["python_output_type"]
+        output_type = metadata_dict["value"]["python_array_output_type"]
     except KeyError:
         return None
 
-    try:
-        python_output_type = eval(output_type)
-    except NameError:
-        return None
+    for (
+        python_output_array_type
+    ) in bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES:
+        if python_output_array_type.__name__ == output_type:
+            return list[python_output_array_type]  # type: ignore
 
-    return python_output_type
+    return None
 
 
 def get_bigframes_metadata(*, python_output_type: Optional[type] = None) -> str:
     # Let's keep the actual metadata inside one level of nesting so that in
-    # future we can use a top level key "version" (parallel to "value"), so that
-    # "value" can be interpreted according to the "version". Absence of
-    # "version" should be interpreted as default version.
+    # future we can use a top level key "version" (parallel to "value"), based
+    # on which "value" can be interpreted according to the "version". The
+    # absence of "version" should be interpreted as default version.
     inner_metadata = {}
-    if python_output_type:
-        if typing.get_origin(python_output_type) is list:
-            python_output_type_ser = repr(python_output_type)
-        else:
-            python_output_type_ser = python_output_type.__name__
-        inner_metadata["python_output_type"] = python_output_type_ser
+    if typing.get_origin(python_output_type) is list:
+        python_output_array_type = typing.get_args(python_output_type)[0]
+        if (
+            python_output_array_type
+            not in bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES
+        ):
+            raise ValueError(
+                f"array of {python_output_array_type} is not supported for python_output_type."
+            )
+        inner_metadata["python_array_output_type"] = python_output_array_type.__name__
 
     metadata = {"value": inner_metadata}
     metadata_ser = json.dumps(metadata)
