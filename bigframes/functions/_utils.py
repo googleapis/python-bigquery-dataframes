@@ -261,12 +261,11 @@ def get_bigframes_metadata(*, python_output_type: Optional[type] = None) -> str:
         python_output_array_type = typing.get_args(python_output_type)[0]
         if (
             python_output_array_type
-            not in bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES
+            in bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES
         ):
-            raise ValueError(
-                f"array of {python_output_array_type} is not supported for python_output_type."
-            )
-        inner_metadata["python_array_output_type"] = python_output_array_type.__name__
+            inner_metadata[
+                "python_array_output_type"
+            ] = python_output_array_type.__name__
 
     metadata = {"value": inner_metadata}
     metadata_ser = json.dumps(metadata)

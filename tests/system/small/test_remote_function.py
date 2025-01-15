@@ -900,10 +900,6 @@ def test_read_gbq_function_respects_python_output_type(
 @pytest.mark.parametrize(
     ("array_type",),
     [
-        pytest.param(bool, id="bool"),
-        pytest.param(float, id="float"),
-        pytest.param(int, id="int"),
-        pytest.param(str, id="str"),
         pytest.param(list[bool], id="list-bool"),
         pytest.param(list[float], id="list-float"),
         pytest.param(list[int], id="list-int"),
@@ -970,48 +966,6 @@ def test_read_gbq_function_supported_python_output_type(
     # Create the routine in BigQuery and read it back using read_gbq_function.
     bigquery_client.create_routine(sql_routine, exists_ok=True)
     rf.read_gbq_function(str(sql_routine.reference), session=session)
-
-
-@pytest.mark.parametrize(
-    ("python_output_type",),
-    [
-        pytest.param(bool, id="bool"),
-        pytest.param(float, id="float"),
-        pytest.param(int, id="int"),
-        pytest.param(str, id="str"),
-        pytest.param(list, id="list"),
-    ],
-)
-@pytest.mark.flaky(retries=2, delay=120)
-def test_read_gbq_function_unsupported_python_output_type(
-    session, bigquery_client, dataset_id, python_output_type
-):
-    dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
-    arg = bigquery.RoutineArgument(
-        name="x",
-        data_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
-    )
-    sql_routine = bigquery.Routine(
-        dataset_ref.routine(_prefixer.create_prefix()),
-        body="TO_JSON_STRING([x, x+1, x+2])",
-        arguments=[arg],
-        return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.STRING),
-        description=rf_utils.get_bigframes_metadata(
-            python_output_type=python_output_type
-        ),
-        type_=bigquery.RoutineType.SCALAR_FUNCTION,
-    )
-
-    # Create the routine in BigQuery and read it back using read_gbq_function.
-    bigquery_client.create_routine(sql_routine, exists_ok=True)
-
-    # reading back will fail because we currently allow specifying an explicit
-    # output_type for BQ functions with STRING output
-    with pytest.raises(
-        TypeError,
-        match="Currently only list of a type is supported as python output type.",
-    ):
-        rf.read_gbq_function(str(sql_routine.reference), session=session)
 
 
 @pytest.mark.flaky(retries=2, delay=120)

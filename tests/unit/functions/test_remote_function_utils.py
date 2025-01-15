@@ -64,8 +64,9 @@ def test_get_bigframes_metadata(metadata_options, metadata_string):
         pytest.param(bytes),
         pytest.param(float),
         pytest.param(int),
-        pytest.param(list),
         pytest.param(str),
+        pytest.param(list),
+        pytest.param(list[bytes], id="list-bytes"),
     ),
 )
 def test_get_bigframes_metadata_array_type_not_serializable(output_type):
@@ -73,18 +74,6 @@ def test_get_bigframes_metadata_array_type_not_serializable(output_type):
         _utils.get_bigframes_metadata(python_output_type=output_type)
     assert str(context.value) == (
         f"python_output_type {output_type} is not serializable."
-    )
-
-
-@pytest.mark.parametrize(
-    ["output_type"],
-    (pytest.param(bytes),),
-)
-def test_get_bigframes_metadata_array_type_not_supported(output_type):
-    with pytest.raises(ValueError) as context:
-        _utils.get_bigframes_metadata(python_output_type=list[output_type])  # type: ignore
-    assert str(context.value) == (
-        f"array of {output_type} is not supported for python_output_type."
     )
 
 
