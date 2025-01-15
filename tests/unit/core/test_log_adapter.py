@@ -73,7 +73,7 @@ def test_get_and_reset_api_methods(test_instance):
 
 
 @pytest.mark.parametrize(
-    ("class_name", "method_name", "args", "kwargs", "task"),
+    ("class_name", "method_name", "args", "kwargs", "task", "expected_labels"),
     (
         (
             "DataFrame",
@@ -81,6 +81,13 @@ def test_get_and_reset_api_methods(test_instance):
             ["a", "b", "c"],
             {"aa": "bb", "rule": "1s"},
             log_adapter.PANDAS_API_TRACKING_TASK,
+            {
+                "task": log_adapter.PANDAS_API_TRACKING_TASK,
+                "class_name": "dataframe",
+                "method_name": "resample",
+                "args_count": 3,
+                "kwargs_0": "rule",
+            },
         ),
         (
             "Series",
@@ -88,11 +95,44 @@ def test_get_and_reset_api_methods(test_instance):
             [],
             {"aa": "bb", "rule": "1s"},
             log_adapter.PANDAS_PARAM_TRACKING_TASK,
+            {
+                "task": log_adapter.PANDAS_PARAM_TRACKING_TASK,
+                "class_name": "series",
+                "method_name": "resample",
+                "args_count": 0,
+                "kwargs_0": "rule",
+            },
+        ),
+        (
+            "DataFrame",
+            "resample",
+            [],
+            {"aa": "bb"},
+            log_adapter.PANDAS_API_TRACKING_TASK,
+            {
+                "task": log_adapter.PANDAS_API_TRACKING_TASK,
+                "class_name": "dataframe",
+                "method_name": "resample",
+                "args_count": 0,
+            },
+        ),
+        (
+            "DataFrame",
+            "resample",
+            [],
+            {},
+            log_adapter.PANDAS_API_TRACKING_TASK,
+            {
+                "task": log_adapter.PANDAS_API_TRACKING_TASK,
+                "class_name": "dataframe",
+                "method_name": "resample",
+                "args_count": 0,
+            },
         ),
     ),
 )
 def test_submit_pandas_labels(
-    mock_bqclient, class_name, method_name, args, kwargs, task
+    mock_bqclient, class_name, method_name, args, kwargs, task, expected_labels
 ):
     log_adapter.submit_pandas_labels(
         mock_bqclient, class_name, method_name, args, kwargs, task
@@ -102,80 +142,16 @@ def test_submit_pandas_labels(
 
     query_call_args = mock_bqclient.query.call_args_list[0]
     labels = query_call_args[1]["job_config"].labels
-    assert len(labels) == 5
-    assert labels["task"] == task
-    assert labels["class_name"] == class_name.lower()
-    assert labels["method_name"] == method_name
-    assert labels["args_count"] == len(args)
-    assert labels["kwargs_0"] == "rule"
+    assert labels == expected_labels
 
 
-@pytest.mark.parametrize(
-    ("class_name", "method_name", "args", "kwargs"),
-    (
-        (
-            "DataFrame",
-            "resample",
-            [],
-            {"aa": "bb"},
-        ),
-        (
-            "Series",
-            "resample",
-            [],
-            {},
-        ),
-    ),
-)
-def test_submit_pandas_labels_without_valid_params_for_method_logging(
-    mock_bqclient, class_name, method_name, args, kwargs
-):
+def test_submit_pandas_labels_without_valid_params_for_param_logging(mock_bqclient):
     log_adapter.submit_pandas_labels(
         mock_bqclient,
-        class_name,
-        method_name,
-        args,
-        kwargs,
-        log_adapter.PANDAS_API_TRACKING_TASK,
+        "Series",
+        "resample",
+        task=log_adapter.PANDAS_PARAM_TRACKING_TASK,
     )
 
-    mock_bqclient.query.assert_called_once()
-
-    query_call_args = mock_bqclient.query.call_args_list[0]
-    labels = query_call_args[1]["job_config"].labels
-    assert len(labels) == 4
-    assert labels["task"] == log_adapter.PANDAS_API_TRACKING_TASK
-    assert labels["class_name"] == class_name.lower()
-    assert labels["method_name"] == method_name
-    assert labels["args_count"] == len(args)
-
-
-@pytest.mark.parametrize(
-    ("class_name", "method_name", "args", "kwargs"),
-    (
-        (
-            "DataFrame",
-            "resample",
-            [],
-            {"aa": "bb"},
-        ),
-        (
-            "Series",
-            "resample",
-            [],
-            {},
-        ),
-    ),
-)
-def test_submit_pandas_labels_without_valid_params_for_param_logging(
-    mock_bqclient, class_name, method_name, args, kwargs
-):
-    log_adapter.submit_pandas_labels(
-        mock_bqclient,
-        class_name,
-        method_name,
-        args,
-        kwargs,
-        log_adapter.PANDAS_PARAM_TRACKING_TASK,
-    )
+    # For param tracking task without kwargs, we won't submit labels
     mock_bqclient.query.assert_not_called()

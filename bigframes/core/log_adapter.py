@@ -81,6 +81,8 @@ def submit_pandas_labels(
         return
 
     if kwargs:
+        # Iterate through the keyword arguments and add them to the labels dictionary if they
+        # are valid parameters and the maximum label count has not been reached.
         signature = inspect.signature(method)
         param_names = [param.name for param in signature.parameters.values()]
 
@@ -92,11 +94,9 @@ def submit_pandas_labels(
                 labels_dict[f"kwargs_{idx}"] = key.lower()
                 idx += 1
 
-    if (
-        len(labels_dict) == 4
-        and labels_dict["args_count"] == 0
-        and task == PANDAS_PARAM_TRACKING_TASK
-    ):
+    # If this log is for tracking unimplemented parameters and no keyword arguments were
+    # provided, skip logging.
+    if len(labels_dict) == 4 and task == PANDAS_PARAM_TRACKING_TASK:
         return
 
     # Run a query with syntax error to avoid cost.
