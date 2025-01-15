@@ -170,11 +170,11 @@ def install_unittest_dependencies(session, install_test_extra, *constraints):
     session.install(*standard_deps, *constraints)
 
     if UNIT_TEST_EXTERNAL_DEPENDENCIES:
-        warnings.warn(
+        msg = (
             "'unit_test_external_dependencies' is deprecated. Instead, please "
             "use 'unit_test_dependencies' or 'unit_test_local_dependencies'.",
-            DeprecationWarning,
         )
+        warnings.warn(msg, DeprecationWarning)
         session.install(*UNIT_TEST_EXTERNAL_DEPENDENCIES, *constraints)
 
     if UNIT_TEST_LOCAL_DEPENDENCIES:
@@ -589,20 +589,16 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
     )
     already_installed.add("pandas")
 
-    # Ibis has introduced breaking changes. Let's exclude ibis head
-    # from prerelease install list for now. We should enable the head back
-    # once bigframes supports the version at HEAD.
-    # session.install(
-    #     "--upgrade",
-    #     "-e",  # Use -e so that py.typed file is included.
-    #     "git+https://github.com/ibis-project/ibis.git#egg=ibis-framework",
-    # )
+    # Try to avoid a cap on our SQLGlot so that bigframes
+    # can be integrated with SQLMesh. See:
+    # https://github.com/googleapis/python-bigquery-dataframes/issues/942
+    # If SQLGlot introduces something that breaks us, lets file an issue
+    # upstream and/or make sure we fix bigframes to work with it.
     session.install(
         "--upgrade",
-        "--pre",
-        "ibis-framework>=9.0.0,<=9.2.0",
+        "git+https://github.com/tobymao/sqlglot.git#egg=sqlglot",
     )
-    already_installed.add("ibis-framework")
+    already_installed.add("sqlglot")
 
     # Workaround https://github.com/googleapis/python-db-dtypes-pandas/issues/178
     session.install("--no-deps", "db-dtypes")
