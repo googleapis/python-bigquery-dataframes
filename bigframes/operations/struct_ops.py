@@ -25,7 +25,7 @@ from bigframes.operations import base_ops
 @dataclasses.dataclass(frozen=True)
 class StructFieldOp(base_ops.UnaryOp):
     name: typing.ClassVar[str] = "struct_field"
-    name_or_index: str | int
+    name_or_index: typing.Union[str, int]
 
     def output_type(self, *input_types):
         input_type = input_types[0]
