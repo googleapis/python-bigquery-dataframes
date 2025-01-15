@@ -24,6 +24,7 @@ from bigframes_vendored.ibis.expr.datatypes.core import (
     dtype as python_type_to_bigquery_type,
 )
 import bigframes_vendored.ibis.expr.types as ibis_types
+import db_dtypes
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
 import numpy as np
@@ -73,7 +74,7 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, bigframes.dtypes.Dtype]] = (
         ibis_dtypes.GeoSpatial(geotype="geography", srid=4326, nullable=True),
         gpd.array.GeometryDtype(),
     ),
-    (ibis_dtypes.json, pd.ArrowDtype(pa.large_string())),
+    (ibis_dtypes.json, db_dtypes.JSONDtype()),
 )
 
 BIGFRAMES_TO_IBIS: Dict[bigframes.dtypes.Dtype, ibis_dtypes.DataType] = {

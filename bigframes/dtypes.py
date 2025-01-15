@@ -158,13 +158,6 @@ SIMPLE_TYPES = (
         clusterable=True,
     ),
     SimpleDtypeInfo(
-        dtype=JSON_DTYPE,
-        arrow_dtype=pa.large_string(),
-        type_kind=("JSON",),
-        orderable=False,
-        clusterable=False,
-    ),
-    SimpleDtypeInfo(
         dtype=DATE_DTYPE,
         arrow_dtype=pa.date32(),
         type_kind=("DATE",),
@@ -222,8 +215,10 @@ SIMPLE_TYPES = (
     # JSON has no corresponding arrow dtype
     SimpleDtypeInfo(
         dtype=JSON_DTYPE,
-        arrow_dtype=None,
+        arrow_dtype=db_dtypes.ArrowJSONType(),
         type_kind=("JSON",),
+        orderable=False,
+        clusterable=False,
     ),
 )
 
