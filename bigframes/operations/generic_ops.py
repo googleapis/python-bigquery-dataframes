@@ -56,7 +56,7 @@ hash_op = base_ops.create_unary_op(
 class AsTypeOp(base_ops.UnaryOp):
     name: typing.ClassVar[str] = "astype"
     # TODO: Convert strings to dtype earlier
-    to_type: dtypes.DtypeString | dtypes.Dtype
+    to_type: typing.Union[dtypes.DtypeString, dtypes.Dtype]
     safe: bool = False
 
     def output_type(self, *input_types):
