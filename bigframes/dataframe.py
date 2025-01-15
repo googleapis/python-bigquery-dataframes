@@ -3862,6 +3862,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def apply(self, func, *, axis=0, args: typing.Tuple = (), **kwargs):
+        # In Bigframes remote function, DataFrame '.apply' method is specifically
+        # designed to work with row-wise or column-wise operations, where the input
+        # to the applied function should be a Series, not a scalar.
+
         if utils.get_axis_number(axis) == 1:
             warnings.warn(
                 "axis=1 scenario is in preview.",
@@ -3960,19 +3964,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         # This is when the func as a remote function is applied to each element of
         # the dataframe (not supported).
-        # In Bigframes remote function, DataFrame '.apply' method is specifically
-        # designed to work with row-wise or column-wise operations, where the input
-        # to the applied function should be a Series, not a scalar.
         if hasattr(func, "is_row_processor") and not func.is_row_processor:
             raise NotImplementedError(
                 "In Bigframes remote function, DataFrame '.apply()' does not "
                 "support element-wise application. Please use '.map()' instead."
             )
 
-        if hasattr(func, "bigframes_remote_function") and (args or kwargs):
-            warnings.warn(
-                "The args and kwargs are not supported in the remote function.",
-                category=bigframes.exceptions.ArgsAndKwargsNotSupportedWarning,
+        # At this point column-wise operation will be performed (not supported).
+        if hasattr(func, "bigframes_remote_function"):
+            raise NotImplementedError(
+                "DataFrame '.apply()' does not support remote function for "
+                "column-wise application (i.e. with axis=0). Please use '.map()' "
+                "instead for element-wise application of the remote function, or "
+                "use regular python function for column-wise application."
             )
 
         # Per-column apply
