@@ -645,6 +645,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return self.__getitem__(key)
 
         if hasattr(pandas.DataFrame, key):
+            log_adapter.submit_pandas_labels(
+                self._block.expr.session.bqclient, self.__class__.__name__, key
+            )
             raise AttributeError(
                 textwrap.dedent(
                     f"""
@@ -1976,6 +1979,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         kind: str = "quicksort",
         na_position: typing.Literal["first", "last"] = "last",
     ) -> DataFrame:
+        if isinstance(by, (bigframes.series.Series, indexes.Index, DataFrame)):
+            raise KeyError(
+                f"Invalid key type: {type(by).__name__}. Please provide valid column name(s)."
+            )
+
         if na_position not in {"first", "last"}:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
 
