@@ -78,7 +78,6 @@ SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "google-cloud-testutils",
     "tabulate",
     "xarray",
-    "scikit-learn >=1.2.2",
 ]
 SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
     "google-cloud-bigquery",
@@ -224,6 +223,9 @@ def run_unit(session, install_test_extra):
 
 @nox.session(python=UNIT_TEST_PYTHON_VERSIONS)
 def unit(session):
+    session.install(
+        "scikit-learn >=1.2.2",
+    )
     run_unit(session, install_test_extra=True)
 
 
@@ -480,6 +482,7 @@ def docs(session):
         SPHINX_VERSION,
         "alabaster",
         "recommonmark",
+        "scikit-learn >=1.2.2",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
