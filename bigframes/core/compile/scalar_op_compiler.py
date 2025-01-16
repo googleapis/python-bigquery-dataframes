@@ -1844,7 +1844,7 @@ def nary_remote_function_op_impl(
 def sql_scalar_op_impl(*operands: ibis_types.Value, op: ops.SqlScalarOp):
     return ibis_generic.SqlScalar(
         op.sql_template,
-        values=operands,
+        values=[expr.op() for expr in operands],
         output_type=bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype(
             op.output_type()
         ),
