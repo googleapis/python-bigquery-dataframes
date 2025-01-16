@@ -546,7 +546,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> dd = defaultdict(list)
             >>> s.to_dict(into=dd)
-            defaultdict(<class 'list'>, {0: 1, 1: 2, 2: 3, 3: 4})
+            defaultdict(<class 'list'>, {np.int64(0): 1, np.int64(1): 2, np.int64(2): 3, np.int64(3): 4})
 
         Args:
             into (class, default dict):
@@ -1269,7 +1269,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 0, 0, 0])
             >>> s.autocorr()
-            np.float(nan)
+            np.float64(nan)
 
         Args:
             lag (int, default 1):
