@@ -542,7 +542,7 @@ class Series(NDFrame):  # type: ignore[misc]
             {np.int64(0): 1, np.int64(1): 2, np.int64(2): 3, np.int64(3): 4}
 
             >>> s.to_dict(into=OrderedDict)
-            OrderedDict([(0, 1), (1, 2), (2, 3), (3, 4)])
+            OrderedDict({np.int64(0): 1, np.int64(1): 2, np.int64(2): 3, np.int64(3): 4})
 
             >>> dd = defaultdict(list)
             >>> s.to_dict(into=dd)
@@ -828,7 +828,7 @@ class Series(NDFrame):  # type: ignore[misc]
             2    <NA>
             dtype: Float64
             >>> s.count()
-            2
+            np.int64(2)
 
         Returns:
             int or bigframes.pandas.Series (if level specified):
@@ -974,7 +974,7 @@ class Series(NDFrame):  # type: ignore[misc]
             5     hippo
             Name: animal, dtype: string
 
-        The value ‘last’ for parameter ‘keep’ keeps the last occurrence for
+        The value 'last' for parameter 'keep' keeps the last occurrence for
         each set of duplicated entries.
 
             >>> s.drop_duplicates(keep='last')
@@ -984,7 +984,7 @@ class Series(NDFrame):  # type: ignore[misc]
             5     hippo
             Name: animal, dtype: string
 
-        The value False for parameter ‘keep’ discards all sets of duplicated entries.
+        The value False for parameter 'keep' discards all sets of duplicated entries.
 
             >>> s.drop_duplicates(keep=False)
             1       cow
@@ -1041,7 +1041,7 @@ class Series(NDFrame):  # type: ignore[misc]
             4     True
             dtype: boolean
 
-        By using ‘last’, the last occurrence of each set of duplicated values
+        By using 'last', the last occurrence of each set of duplicated values
         is set on False and all others on True:
 
             >>> animals.duplicated(keep='last')
@@ -1269,7 +1269,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 0, 0, 0])
             >>> s.autocorr()
-            nan
+            np.float(nan)
 
         Args:
             lag (int, default 1):
@@ -5494,11 +5494,11 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 2, 2])
             >>> s.is_monotonic_increasing
-            True
+            np.True_
 
             >>> s = bpd.Series([3, 2, 1])
             >>> s.is_monotonic_increasing
-            False
+            np.False_
 
         Returns:
             bool:
