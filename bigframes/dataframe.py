@@ -4020,21 +4020,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             result_series.name = None
             return result_series
 
-        # This is when the func as a remote function is applied to each element of
-        # the dataframe (not supported).
-        if hasattr(func, "is_row_processor") and not func.is_row_processor:
-            raise NotImplementedError(
-                "In Bigframes remote function, DataFrame '.apply()' does not "
-                "support element-wise application. Please use '.map()' instead."
-            )
-
-        # At this point column-wise operation will be performed (not supported).
+        # At this point column-wise or element-wise remote function operation will
+        # be performed (not supported).
         if hasattr(func, "bigframes_remote_function"):
             raise NotImplementedError(
                 "DataFrame '.apply()' does not support remote function for "
-                "column-wise application (i.e. with axis=0). Please use '.map()' "
-                "instead for element-wise application of the remote function, or "
-                "use regular python function for column-wise application."
+                "element-wise or column-wise (i.e. with axis=0) application. "
+                "Please use '.map()' instead for element-wise application of the "
+                "remote function, or use regular python function for column-wise "
+                "application."
             )
 
         # Per-column apply
