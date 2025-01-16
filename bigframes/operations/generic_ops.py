@@ -143,6 +143,7 @@ class CaseWhenOp(base_ops.NaryOp):
 
 case_when_op = CaseWhenOp()
 
+
 # Really doesn't need to be its own op, but allows us to try to get the most compact representation
 @dataclasses.dataclass(frozen=True)
 class RowKey(base_ops.NaryOp):
