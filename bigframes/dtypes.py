@@ -26,7 +26,7 @@ import google.cloud.bigquery
 import numpy as np
 import pandas as pd
 import pyarrow as pa
-import shapely
+import shapely  # type: ignore
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[

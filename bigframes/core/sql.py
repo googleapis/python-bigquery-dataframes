@@ -23,7 +23,7 @@ import json
 import math
 from typing import cast, Collection, Iterable, Mapping, Optional, TYPE_CHECKING, Union
 
-import shapely
+import shapely  # type: ignore
 
 import bigframes.core.compile.googlesql as googlesql
 
