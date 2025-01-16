@@ -20,7 +20,6 @@ from typing import Sequence
 
 import google.cloud.bigquery
 
-import bigframes.core.expression as expression
 import bigframes.core.sql
 import bigframes.dataframe
 import bigframes.dtypes
@@ -71,30 +70,24 @@ def sql_scalar(
     # template, then this will fail with an error earlier in the process,
     # aiding users in debugging.
     base_series = columns[0]
-    executor = base_series._session._executor
-    value_refs, base_block = base_series._align_n(columns)
-    values_or_column_ids = []
-    for expr in value_refs:
-        if isinstance(expr, expression.DerefOp):
-            values_or_column_ids.append(expr.id.sql)
-        else:
-            # Constant value, so make sure we escape it properly for embedding
-            # in SQL.
-            values_or_column_ids.append(bigframes.core.sql.simple_literal(expr.value))  # type: ignore
+    literals = [
+        bigframes.core.sql.simple_literal(
+            bigframes.dtypes.bigframes_dtype_to_literal(column.dtype)
+        )
+        for column in columns
+    ]
 
     # Use the executor directly, because we want the original column IDs, not
     # the user-friendly column names that block.to_sql_query() would produce.
-    base_sql = executor.to_sql(base_block.expr)
-    select_sql = sql_template.format(*values_or_column_ids)
-    dry_run_sql = f"SELECT {select_sql} FROM ({base_sql})"
+    select_sql = sql_template.format(*literals)
+    dry_run_sql = f"SELECT {select_sql}"
     bqclient = base_series._session.bqclient
     job = bqclient.query(
         dry_run_sql, job_config=google.cloud.bigquery.QueryJobConfig(dry_run=True)
     )
-
     _, output_type = bigframes.dtypes.convert_schema_field(job.schema[0])
+
     op = bigframes.operations.SqlScalarOp(
         _output_type=output_type, sql_template=sql_template
     )
-    result_block, result_id = base_block.project_expr(op.as_expr(*value_refs))
-    return bigframes.series.Series(result_block.select_column(result_id))
+    return base_series._apply_nary_op(op, columns[1:])

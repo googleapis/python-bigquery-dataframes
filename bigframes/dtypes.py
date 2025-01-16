@@ -18,7 +18,7 @@ from dataclasses import dataclass
 import datetime
 import decimal
 import typing
-from typing import Dict, List, Literal, Union
+from typing import Any, Dict, List, Literal, Union
 
 import bigframes_vendored.constants as constants
 import geopandas as gpd  # type: ignore
@@ -448,6 +448,53 @@ def bigframes_dtype_to_arrow_dtype(
         raise ValueError(
             f"No arrow conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
         )
+
+
+def bigframes_dtype_to_literal(
+    bigframes_dtype: Dtype,
+) -> Any:
+    """Create a representative literal value for a bigframes dtype.
+
+    The inverse of infer_literal_type().
+    """
+    if isinstance(bigframes_dtype, pd.ArrowDtype):
+        arrow_type = bigframes_dtype.pyarrow_dtype
+        return arrow_type_to_literal(arrow_type)
+
+    if isinstance(bigframes_dtype, pd.Float64Dtype):
+        return 1.0
+    if isinstance(bigframes_dtype, pd.Int64Dtype):
+        return 1
+    if isinstance(bigframes_dtype, pd.BooleanDtype):
+        return True
+    if isinstance(bigframes_dtype, pd.StringDtype):
+        return "string"
+    else:
+        raise ValueError(
+            f"No literal  conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
+        )
+
+
+def arrow_type_to_literal(
+    arrow_type: pa.DataType,
+) -> Any:
+    """Create a representative literal value for an arrow type."""
+    if pa.types.is_list(arrow_type):
+        return [arrow_type_to_literal(arrow_type.value_type)]
+    if pa.types.is_struct(arrow_type):
+        return {
+            field.name: arrow_type_to_literal(field.type) for field in arrow_type.fields
+        }
+    if pa.types.is_string(arrow_type):
+        return "string"
+    if pa.types.is_binary(arrow_type):
+        return b"bytes"
+    if pa.types.is_floating(arrow_type):
+        return 1.0
+    if pa.types.is_integer(arrow_type):
+        return 1
+    if pa.types.is_boolean(arrow_type):
+        return True
 
 
 def infer_literal_type(literal) -> typing.Optional[Dtype]:
