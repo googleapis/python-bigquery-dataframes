@@ -259,7 +259,7 @@ class Series(NDFrame):  # type: ignore[misc]
             3    <NA>
             dtype: Float64
             >>> s.hasnans
-            True
+            np.True_
 
         Returns:
             bool
@@ -449,10 +449,8 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> bpd.options.display.progress_bar = None
 
             >>> ser = bpd.Series([1, 2, 3]).to_string()
-            >>> ser
-            '0    1
-             1    2
-             2    3'
+            >>> ser #doctest: +SKIP
+            '0    1\n1    2\n2    3'
 
         Args:
             buf (StringIO-like, optional):
@@ -550,7 +548,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 2, 3, 4])
             >>> s.to_dict()
-            {0: 1, 1: 2, 2: 3, 3: 4}
+            {np.int64(0): 1, np.int64(1): 2, np.int64(2): 3, np.int64(3): 4}
 
             >>> s.to_dict(into=OrderedDict)
             OrderedDict([(0, 1), (1, 2), (2, 3), (3, 4)])
@@ -804,7 +802,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.agg('min')
-            1
+            np.int64(1)
 
             >>> s.agg(['min', 'max'])
             min    1
@@ -868,7 +866,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.nunique()
-            4
+            np.int64(4)
 
         Returns:
             int:
@@ -1234,12 +1232,12 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s1 = bpd.Series([.2, .0, .6, .2])
             >>> s2 = bpd.Series([.3, .6, .0, .1])
             >>> s1.corr(s2)
-            -0.8510644963469901
+            np.float64(-0.8510644963469901)
 
             >>> s1 = bpd.Series([1, 2, 3], index=[0, 1, 2])
             >>> s2 = bpd.Series([1, 2, 3], index=[2, 1, 0])
             >>> s1.corr(s2)
-            -1.0
+            np.float64(-1.0)
 
         Args:
             other (Series):
@@ -1271,10 +1269,10 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([0.25, 0.5, 0.2, -0.05])
             >>> s.autocorr()  # doctest: +ELLIPSIS
-            0.10355263309024067
+            np.float64(0.10355263309024067)
 
             >>> s.autocorr(lag=2)
-            -1.0
+            np.float64(-1.0)
 
         If the Pearson correlation is not well defined, then 'NaN' is returned.
 
@@ -1310,7 +1308,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s1 = bpd.Series([0.90010907, 0.13484424, 0.62036035])
             >>> s2 = bpd.Series([0.12528585, 0.26962463, 0.51111198])
             >>> s1.cov(s2)
-            -0.01685762652715874
+            np.float64(-0.01685762652715874)
 
         Args:
             other (Series):
@@ -1405,12 +1403,12 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s = bpd.Series([0, 1, 2, 3])
             >>> other = bpd.Series([-1, 2, -3, 4])
             >>> s.dot(other)
-            8
+            np.int64(8)
 
         You can also use the operator ``@`` for the dot product:
 
             >>> s @ other
-            8
+            np.int64(8)
 
         Args:
             other (Series):
@@ -4459,16 +4457,16 @@ class Series(NDFrame):  # type: ignore[misc]
         For Series input, the output is a scalar indicating whether any element is True.
 
             >>> bpd.Series([False, False]).any()
-            False
+            np.False_
 
             >>> bpd.Series([True, False]).any()
-            True
+            np.True_
 
             >>> bpd.Series([], dtype="float64").any()
-            False
+            np.False_
 
             >>> bpd.Series([np.nan]).any()
-            False
+            np.False_
 
         Returns:
             scalar or bigframes.pandas.Series:
@@ -4500,7 +4498,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.max()
-            3
+            np.int64(3)
 
         Calculating the max of a Series containing ``NA`` values:
 
@@ -4512,7 +4510,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.max()
-            3
+            np.int64(3)
 
         Returns:
             scalar: Scalar.
@@ -4542,7 +4540,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.min()
-            1
+            np.int64(1)
 
         Calculating the min of a Series containing ``NA`` values:
 
@@ -4554,7 +4552,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.min()
-            1
+            np.int64(1)
 
         Returns:
             scalar: Scalar.
@@ -4631,7 +4629,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.sum()
-            4
+            np.int64(4)
 
         Calculating the sum of a Series containing ``NA`` values:
 
@@ -4643,7 +4641,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.sum()
-            4
+            np.int64(4)
 
         Returns:
             scalar: Scalar.
@@ -4667,7 +4665,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.mean()
-            2.0
+            np.float64(2.0)
 
         Calculating the mean of a Series containing ``NA`` values:
 
@@ -4679,7 +4677,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.mean()
-            2.0
+            np.float64(2.0)
 
         Returns:
             scalar: Scalar.
@@ -4696,7 +4694,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s.median()
-            2.0
+            np.float64(2.0)
 
         With a DataFrame
 
@@ -4737,7 +4735,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 2, 3, 4])
             >>> s.quantile(.5)
-            2.5
+            np.float64(2.5)
 
             >>> s.quantile([.25, .5, .75])
             0.25    1.75
@@ -4777,7 +4775,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s.skew()
-            0.0
+            np.float64(0.0)
 
         With a DataFrame
 
@@ -4822,7 +4820,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.kurt()
-            1.5
+            np.float64(1.5)
 
         With a DataFrame
 
@@ -5120,10 +5118,10 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Float64
 
             >>> s.argmax()
-            2
+            np.int64(2)
 
             >>> s.argmin()
-            0
+            np.int64(0)
 
         The maximum cereal calories is the third element and the minimum cereal
         calories is the first element, since series is zero-indexed.
@@ -5158,10 +5156,10 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Float64
 
             >>> s.argmax()
-            2
+            np.int64(2)
 
             >>> s.argmin()
-            0
+            np.int64(0)
 
         The maximum cereal calories is the third element and the minimum cereal
         calories is the first element, since series is zero-indexed.
@@ -5529,11 +5527,11 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([3, 2, 2, 1])
             >>> s.is_monotonic_decreasing
-            True
+            np.True_
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s.is_monotonic_decreasing
-            False
+            np.False_
 
         Returns:
             bool:
@@ -5698,7 +5696,7 @@ class Series(NDFrame):  # type: ignore[misc]
         With scalar integers.
 
             >>> df.iloc[0, 1]
-            2
+            np.int64(2)
 
         Returns:
             bigframes.core.indexers.IlocSeriesIndexer:
@@ -5746,7 +5744,7 @@ class Series(NDFrame):  # type: ignore[misc]
         above, note that both the start and stop of the slice are included.
 
             >>> df.loc['cobra', 'shield']
-            2
+            np.int64(2)
 
         Index (same behavior as df.reindex)
 
@@ -5815,12 +5813,12 @@ class Series(NDFrame):  # type: ignore[misc]
         Get value at specified row/column pair
 
             >>> df.iat[1, 2]
-            1
+            np.int64(1)
 
         Get value within a series
 
             >>> df.loc[0].iat[1]
-            2
+            np.int64(2)
 
         Returns:
             bigframes.core.indexers.IatSeriesIndexer:
@@ -5850,12 +5848,12 @@ class Series(NDFrame):  # type: ignore[misc]
         Get value at specified row/column pair
 
             >>> df.at[4, 'B']
-            2
+            np.int64(2)
 
         Get value at specified row label
 
             >>> df.loc[5].at['B']
-            4
+            np.int64(4)
 
         Returns:
             bigframes.core.indexers.AtSeriesIndexer:
@@ -6114,7 +6112,8 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([15, 30, 45])
             >>> s[1]
-            30
+            np.int64(30)
+
             >>> s[0:2]
             0    15
             1    30
