@@ -34,10 +34,12 @@ if TYPE_CHECKING:
 
 
 ### Writing SQL Values (literals, column references, table references, etc.)
-def simple_literal(value: bytes | str | int | bool | float | datetime.datetime):
+def simple_literal(value: bytes | str | int | bool | float | datetime.datetime | None):
     """Return quoted input string."""
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#literals
-    if isinstance(value, str):
+    if value is None:
+        return "NULL"
+    elif isinstance(value, str):
         # Single quoting seems to work nicer with ibis than double quoting
         return f"'{googlesql._escape_chars(value)}'"
     elif isinstance(value, bytes):
