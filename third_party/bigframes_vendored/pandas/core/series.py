@@ -450,6 +450,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> ser = bpd.Series([1, 2, 3]).to_string()
             >>> ser #doctest: +SKIP
+            <BLANKLINE>
             '0    1\n1    2\n2    3'
 
         Args:
