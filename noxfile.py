@@ -78,6 +78,7 @@ SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "google-cloud-testutils",
     "tabulate",
     "xarray",
+    "scikit-learn >=1.2.2",
 ]
 SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
     "google-cloud-bigquery",
@@ -172,7 +173,7 @@ def install_unittest_dependencies(session, install_test_extra, *constraints):
     if UNIT_TEST_EXTERNAL_DEPENDENCIES:
         msg = (
             "'unit_test_external_dependencies' is deprecated. Instead, please "
-            "use 'unit_test_dependencies' or 'unit_test_local_dependencies'.",
+            "use 'unit_test_dependencies' or 'unit_test_local_dependencies'."
         )
         warnings.warn(msg, DeprecationWarning)
         session.install(*UNIT_TEST_EXTERNAL_DEPENDENCIES, *constraints)
