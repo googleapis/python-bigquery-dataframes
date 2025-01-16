@@ -48,7 +48,6 @@ import pandas.io.formats.format
 import pyarrow
 import tabulate
 
-import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.constants
 import bigframes.core
@@ -68,7 +67,7 @@ import bigframes.core.validations as validations
 import bigframes.core.window
 import bigframes.core.window_spec as windows
 import bigframes.dtypes
-import bigframes.exceptions
+import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations
@@ -645,6 +644,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return self.__getitem__(key)
 
         if hasattr(pandas.DataFrame, key):
+            log_adapter.submit_pandas_labels(
+                self._block.expr.session.bqclient, self.__class__.__name__, key
+            )
             raise AttributeError(
                 textwrap.dedent(
                     f"""
@@ -1481,10 +1483,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Returns:
             pyarrow.Table: A pyarrow Table with all rows and columns of this DataFrame.
         """
-        warnings.warn(
-            "to_arrow is in preview. Types and unnamed / duplicate name columns may change in future.",
-            category=bigframes.exceptions.PreviewWarning,
-        )
+        msg = "to_arrow is in preview. Types and unnamed / duplicate name columns may change in future."
+        warnings.warn(msg, category=bfe.PreviewWarning)
 
         pa_table, query_job = self._block.to_arrow(ordered=ordered)
         self._set_internal_query_job(query_job)
@@ -1978,6 +1978,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         kind: str = "quicksort",
         na_position: typing.Literal["first", "last"] = "last",
     ) -> DataFrame:
+        if isinstance(by, (bigframes.series.Series, indexes.Index, DataFrame)):
+            raise KeyError(
+                f"Invalid key type: {type(by).__name__}. Please provide valid column name(s)."
+            )
+
         if na_position not in {"first", "last"}:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
 
@@ -3920,10 +3925,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def apply(self, func, *, axis=0, args: typing.Tuple = (), **kwargs):
         if utils.get_axis_number(axis) == 1:
-            warnings.warn(
-                "axis=1 scenario is in preview.",
-                category=bigframes.exceptions.PreviewWarning,
-            )
+            msg = "axis=1 scenario is in preview."
+            warnings.warn(msg, category=bfe.PreviewWarning)
 
             # Check if the function is a remote function
             if not hasattr(func, "bigframes_remote_function"):
@@ -4013,6 +4016,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     ops.NaryRemoteFunctionOp(func=func), series_list[1:]
                 )
             result_series.name = None
+
+            # if the output is an array, reconstruct it from the json serialized
+            # string form
+            if bigframes.dtypes.is_array_like(func.output_dtype):
+                import bigframes.bigquery as bbq
+
+                result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
+                    func.output_dtype.pyarrow_dtype.value_type
+                )
+                result_series = bbq.json_extract_string_array(
+                    result_series, value_dtype=result_dtype
+                )
+
             return result_series
 
         # Per-column apply
