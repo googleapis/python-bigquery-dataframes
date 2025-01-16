@@ -37,14 +37,17 @@ def sql_scalar(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
+        >>> import pandas as pd
+        >>> import pyarrow as pa
         >>> bpd.options.display.progress_bar = None
 
-        >>> s = bpd.Series([1.5, 2.5, 3.5])
+        >>> s = bpd.Series(["1.5", "2.5", "3.5"])
+        >>> s = s.astype(pd.ArrowDtype(pa.decimal128(38, 9)))
         >>> bbq.sql_scalar("ROUND({0}, 0, 'ROUND_HALF_EVEN')", [s])
-        0    2.0
-        1    2.0
-        2    4.0
-        dtype: Float64
+        0    2.000000000
+        1    2.000000000
+        2    4.000000000
+        dtype: decimal128(38, 9)[pyarrow]
 
     Args:
         sql_template (str):
