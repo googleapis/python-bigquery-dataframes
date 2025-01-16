@@ -890,6 +890,31 @@ class ReadTableNode(LeafNode):
     def remap_refs(self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]):
         return self
 
+    def with_order_cols(self):
+        # Maybe the ordering should be required to always be in the scan list, and then we won't need this?
+        if self.source.ordering is None:
+            return self, orderings.RowOrdering()
+
+        order_cols = {col.sql for col in self.source.ordering.referenced_columns}
+        scan_cols = {col.source_id for col in self.scan_list.items}
+        new_scan_cols = [
+            ScanItem(
+                bigframes.core.ids.ColumnId.unique(),
+                dtype=bigframes.dtypes.convert_schema_field(field)[1],
+                source_id=field.name,
+            )
+            for field in self.source.table.physical_schema
+            if (field.name in order_cols) and (field.name not in scan_cols)
+        ]
+        new_scan_list = ScanList(items=(*self.scan_list.items, *new_scan_cols))
+        new_order = self.source.ordering.remap_column_refs(
+            {
+                bigframes.core.ids.ColumnId(item.source_id): item.id
+                for item in new_scan_cols
+            }
+        )
+        return dataclasses.replace(self, scan_list=new_scan_list), new_order
+
 
 @dataclasses.dataclass(frozen=True, eq=False)
 class CachedTableNode(ReadTableNode):

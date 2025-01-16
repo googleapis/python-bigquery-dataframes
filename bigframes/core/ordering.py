@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import math
 import typing
-from typing import Mapping, Optional, Sequence, Set
+from typing import Mapping, Optional, Sequence, Set, Union
 
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.types as ibis_types
@@ -207,6 +207,13 @@ class RowOrdering:
             new_ordering,
         )
 
+    def join(
+        self,
+        other: RowOrdering,
+    ) -> RowOrdering:
+        joined_refs = [*self.all_ordering_columns, *other.all_ordering_columns]
+        return RowOrdering(tuple(joined_refs))
+
     def _truncate_ordering(
         self, order_refs: tuple[OrderingExpression, ...]
     ) -> tuple[OrderingExpression, ...]:
@@ -239,19 +246,20 @@ class TotalOrdering(RowOrdering):
     )
 
     @classmethod
-    def from_offset_col(cls, col: str) -> TotalOrdering:
+    def from_offset_col(cls, col: Union[ids.ColumnId, str]) -> TotalOrdering:
+        col_id = ids.ColumnId(col) if isinstance(col, str) else col
         return TotalOrdering(
             (ascending_over(col),),
             integer_encoding=IntegerEncoding(True, is_sequential=True),
-            total_ordering_columns=frozenset({expression.deref(col)}),
+            total_ordering_columns=frozenset({expression.DerefOp(col_id)}),
         )
 
     @classmethod
-    def from_primary_key(cls, primary_key: Sequence[str]) -> TotalOrdering:
+    def from_primary_key(cls, primary_key: Sequence[ids.ColumnId]) -> TotalOrdering:
         return TotalOrdering(
             tuple(ascending_over(col) for col in primary_key),
             total_ordering_columns=frozenset(
-                {expression.deref(col) for col in primary_key}
+                {expression.DerefOp(col) for col in primary_key}
             ),
         )
 
@@ -346,6 +354,35 @@ class TotalOrdering(RowOrdering):
             total_ordering_columns=new_total_order,
         )
 
+    @typing.overload
+    def join(
+        self,
+        other: TotalOrdering,
+    ) -> TotalOrdering:
+        ...
+
+    @typing.overload
+    def join(
+        self,
+        other: RowOrdering,
+    ) -> RowOrdering:
+        ...
+
+    def join(
+        self,
+        other: RowOrdering,
+    ) -> RowOrdering:
+        joined_refs = [*self.all_ordering_columns, *other.all_ordering_columns]
+        if isinstance(other, TotalOrdering):
+            left_total_order_cols = frozenset(self.total_ordering_columns)
+            right_total_order_cols = frozenset(other.total_ordering_columns)
+            return TotalOrdering(
+                ordering_value_columns=tuple(joined_refs),
+                total_ordering_columns=left_total_order_cols | right_total_order_cols,
+            )
+        else:
+            return RowOrdering(tuple(joined_refs))
+
     @property
     def total_order_col(self) -> Optional[OrderingExpression]:
         """Returns column id of columns that defines total ordering, if such as column exists"""
@@ -382,13 +419,19 @@ def reencode_order_string(
 
 
 # Convenience functions
-def ascending_over(id: str, nulls_last: bool = True) -> OrderingExpression:
-    return OrderingExpression(expression.deref(id), na_last=nulls_last)
+def ascending_over(
+    id: Union[ids.ColumnId, str], nulls_last: bool = True
+) -> OrderingExpression:
+    col_id = ids.ColumnId(id) if isinstance(id, str) else id
+    return OrderingExpression(expression.DerefOp(col_id), na_last=nulls_last)
 
 
-def descending_over(id: str, nulls_last: bool = True) -> OrderingExpression:
+def descending_over(
+    id: Union[ids.ColumnId, str], nulls_last: bool = True
+) -> OrderingExpression:
+    col_id = ids.ColumnId(id) if isinstance(id, str) else id
     return OrderingExpression(
-        expression.deref(id), direction=OrderingDirection.DESC, na_last=nulls_last
+        expression.DerefOp(col_id), direction=OrderingDirection.DESC, na_last=nulls_last
     )
 
 
@@ -421,29 +464,6 @@ def join_orderings(
     right_id_mapping: Mapping[ids.ColumnId, ids.ColumnId],
     left_order_dominates: bool = True,
 ) -> RowOrdering:
-    left_ordering_refs = [
-        ref.remap_column_refs(left_id_mapping) for ref in left.all_ordering_columns
-    ]
-    right_ordering_refs = [
-        ref.remap_column_refs(right_id_mapping) for ref in right.all_ordering_columns
-    ]
-    if left_order_dominates:
-        joined_refs = [*left_ordering_refs, *right_ordering_refs]
-    else:
-        joined_refs = [*right_ordering_refs, *left_ordering_refs]
-
-    if isinstance(left, TotalOrdering) and isinstance(right, TotalOrdering):
-        left_total_order_cols = frozenset(
-            [left_id_mapping[ref.id] for ref in left.total_ordering_columns]
-        )
-        right_total_order_cols = frozenset(
-            [right_id_mapping[ref.id] for ref in right.total_ordering_columns]
-        )
-        return TotalOrdering(
-            ordering_value_columns=tuple(joined_refs),
-            total_ordering_columns=frozenset(
-                map(expression.DerefOp, left_total_order_cols | right_total_order_cols)
-            ),
-        )
-    else:
-        return RowOrdering(tuple(joined_refs))
+    left = left.remap_column_refs(left_id_mapping)
+    right = right.remap_column_refs(right_id_mapping)
+    return left.join(right) if left_order_dominates else right.join(left)
