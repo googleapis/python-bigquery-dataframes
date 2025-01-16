@@ -71,15 +71,13 @@ def sql_scalar(
     # aiding users in debugging.
     base_series = columns[0]
     literals = [
-        bigframes.core.sql.simple_literal(
-            bigframes.dtypes.bigframes_dtype_to_literal(column.dtype)
-        )
-        for column in columns
+        bigframes.dtypes.bigframes_dtype_to_literal(column.dtype) for column in columns
     ]
+    literals_sql = [bigframes.core.sql.simple_literal(literal) for literal in literals]
 
     # Use the executor directly, because we want the original column IDs, not
     # the user-friendly column names that block.to_sql_query() would produce.
-    select_sql = sql_template.format(*literals)
+    select_sql = sql_template.format(*literals_sql)
     dry_run_sql = f"SELECT {select_sql}"
     bqclient = base_series._session.bqclient
     job = bqclient.query(

@@ -26,6 +26,7 @@ import google.cloud.bigquery
 import numpy as np
 import pandas as pd
 import pyarrow as pa
+import shapely
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[
@@ -469,10 +470,12 @@ def bigframes_dtype_to_literal(
         return True
     if isinstance(bigframes_dtype, pd.StringDtype):
         return "string"
-    else:
-        raise ValueError(
-            f"No literal  conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
-        )
+    if isinstance(bigframes_dtype, gpd.array.GeometryDtype):
+        return shapely.Point((0, 0))
+
+    raise ValueError(
+        f"No literal  conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
+    )
 
 
 def arrow_type_to_literal(
@@ -495,6 +498,25 @@ def arrow_type_to_literal(
         return 1
     if pa.types.is_boolean(arrow_type):
         return True
+    if pa.types.is_date(arrow_type):
+        return datetime.date(2025, 1, 1)
+    if pa.types.is_timestamp(arrow_type):
+        return datetime.datetime(
+            2025,
+            1,
+            1,
+            1,
+            1,
+            tzinfo=datetime.timezone.utc if arrow_type.tz is not None else None,
+        )
+    if pa.types.is_decimal(arrow_type):
+        return decimal.Decimal("1.0")
+    if pa.types.is_time(arrow_type):
+        return datetime.time(1, 1, 1)
+
+    raise ValueError(
+        f"No literal  conversion for {arrow_type}. {constants.FEEDBACK_LINK}"
+    )
 
 
 def infer_literal_type(literal) -> typing.Optional[Dtype]:

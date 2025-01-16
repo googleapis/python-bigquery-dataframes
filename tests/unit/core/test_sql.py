@@ -12,8 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
 
 from bigframes.core import sql
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        (
+            b"\x01\x02\x03ABC",
+            r"b'\x01\x02\x03ABC'",
+        ),
+    ),
+)
+def test_simple_literal(value, expected):
+    got = sql.simple_literal(value)
+    assert got == expected
 
 
 def test_create_vector_search_sql_simple():

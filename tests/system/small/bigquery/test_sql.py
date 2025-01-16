@@ -13,18 +13,38 @@
 # limitations under the License.
 
 import bigframes.bigquery
-import bigframes.pandas as bpd
 
 
-def test_sql_scalar():
-    df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
-
-    shortest = bigframes.bigquery.sql_scalar(
-        "LEAST({0}, {1}, {2})",
+def test_sql_scalar_on_scalars_null_index(scalars_df_null_index):
+    series = bigframes.bigquery.sql_scalar(
+        """
+        CAST({0} AS INT64)
+        + BYTE_LENGTH({1})
+        + UNIX_DATE({2})
+        + EXTRACT(YEAR FROM {3})
+        + ST_NUMPOINTS({4})
+        + LEAST(
+            {5},
+            CAST({6} AS INT64),
+            CAST({7} AS INT64)
+        ) + CHAR_LENGTH({8})
+        + EXTRACT(SECOND FROM {9})
+        + UNIX_SECONDS({10})
+        """,
         columns=[
-            df["culmen_depth_mm"],
-            df["culmen_length_mm"],
-            df["flipper_length_mm"],
+            # Try to include all scalar types in a single test.
+            scalars_df_null_index["bool_col"],
+            scalars_df_null_index["bytes_col"],
+            scalars_df_null_index["date_col"],
+            scalars_df_null_index["datetime_col"],
+            scalars_df_null_index["geography_col"],
+            scalars_df_null_index["int64_col"],
+            scalars_df_null_index["numeric_col"],
+            scalars_df_null_index["float64_col"],
+            scalars_df_null_index["string_col"],
+            scalars_df_null_index["time_col"],
+            scalars_df_null_index["timestamp_col"],
         ],
     )
-    shortest.peek()
+    result = series.to_pandas()
+    assert len(result) == len(scalars_df_null_index)
