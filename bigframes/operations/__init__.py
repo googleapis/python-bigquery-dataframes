@@ -51,6 +51,9 @@ from bigframes.operations.datetime_ops import (
     time_op,
     ToDatetimeOp,
     ToTimestampOp,
+    UnixMicros,
+    UnixMillis,
+    UnixSeconds,
 )
 from bigframes.operations.distance_ops import (
     cosine_distance_op,
@@ -240,6 +243,9 @@ __all__ = [
     "ToDatetimeOp",
     "ToTimestampOp",
     "StrftimeOp",
+    "UnixMicros",
+    "UnixMillis",
+    "UnixSeconds",
     # Numeric ops
     "abs_op",
     "add_op",
