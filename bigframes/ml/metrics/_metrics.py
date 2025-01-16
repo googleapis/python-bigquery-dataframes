@@ -25,7 +25,6 @@ import bigframes_vendored.sklearn.metrics._ranking as vendored_metrics_ranking
 import bigframes_vendored.sklearn.metrics._regression as vendored_metrics_regression
 import numpy as np
 import pandas as pd
-import sklearn.metrics as sklearn_metrics  # type: ignore
 
 from bigframes.ml import utils
 import bigframes.pandas as bpd
@@ -177,8 +176,17 @@ def auc(
     x_series, y_series = utils.batch_convert_to_series(x, y)
 
     # TODO(b/286410053) Support ML exceptions and error handling.
-    auc = sklearn_metrics.auc(x_series.to_pandas(), y_series.to_pandas())
-    return auc
+    x_pandas = x_series.to_pandas()
+    y_pandas = y_series.to_pandas()
+
+    if x_pandas.is_monotonic_decreasing:
+        d = -1
+    elif x_pandas.is_monotonic_increasing:
+        d = 1
+    else:
+        raise ValueError(f"x is neither increasing nor decreasing : {x_pandas}.")
+
+    return d * np.trapz(y_pandas, x_pandas)
 
 
 auc.__doc__ = inspect.getdoc(vendored_metrics_ranking.auc)
