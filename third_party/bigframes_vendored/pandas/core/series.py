@@ -443,16 +443,6 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Render a string representation of the Series.
 
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> ser = bpd.Series([1, 2, 3]).to_string()
-            >>> ser #doctest: +SKIP
-            <BLANKLINE>
-            '0    1\n1    2\n2    3'
-
         Args:
             buf (StringIO-like, optional):
                 Buffer to write to.
