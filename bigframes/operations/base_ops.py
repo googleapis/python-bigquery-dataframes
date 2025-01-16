@@ -62,7 +62,7 @@ class ScalarOp:
     def is_monotonic(self) -> bool:
         """Whether the row operation preserves total ordering. Can be pruned from ordering expressions."""
         return False
-    
+
     @property
     def is_bijective(self) -> bool:
         """Whether the operation has a 1:1 mapping between inputs and outputs"""

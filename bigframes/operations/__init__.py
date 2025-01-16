@@ -15,7 +15,14 @@
 from __future__ import annotations
 
 from bigframes.operations.array_ops import ArrayIndexOp, ArraySliceOp, ArrayToStringOp
-from bigframes.operations.base_ops import BinaryOp, NaryOp, RowOp, ScalarOp, TernaryOp, UnaryOp
+from bigframes.operations.base_ops import (
+    BinaryOp,
+    NaryOp,
+    RowOp,
+    ScalarOp,
+    TernaryOp,
+    UnaryOp,
+)
 from bigframes.operations.blob_ops import (
     obj_fetch_metadata_op,
     obj_make_ref_op,
