@@ -186,7 +186,11 @@ def auc(
     else:
         raise ValueError(f"x is neither increasing nor decreasing : {x_pandas}.")
 
-    return d * np.trapz(y_pandas, x_pandas)
+    if hasattr(np, "trapezoid"):
+        # new in numpy 2.0
+        return d * np.trapezoid(y_pandas, x_pandas)
+    # np.trapz has been deprecated in 2.0
+    return d * np.trapz(y_pandas, x_pandas)  # type: ignore
 
 
 auc.__doc__ = inspect.getdoc(vendored_metrics_ranking.auc)
