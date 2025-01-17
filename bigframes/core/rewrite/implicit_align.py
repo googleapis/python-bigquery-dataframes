@@ -27,8 +27,11 @@ import bigframes.operations.aggregations
 
 # Combination of selects and additive nodes can be merged as an explicit keyless "row join"
 ALIGNABLE_NODES = (
-    bigframes.core.nodes.AdditiveNode,
     bigframes.core.nodes.SelectionNode,
+    bigframes.core.nodes.ProjectionNode,
+    bigframes.core.nodes.WindowOpNode,
+    bigframes.core.nodes.PromoteOffsetsNode,
+    bigframes.core.nodes.InNode,
 )
 
 

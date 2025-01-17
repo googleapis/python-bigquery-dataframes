@@ -291,8 +291,7 @@ class BigFrameNode(abc.ABC):
         return self.transform_children(lambda x: x.prune(used_cols))
 
 
-@dataclasses.dataclass(frozen=True, eq=False)
-class AdditiveNode(BigFrameNode):
+class AdditiveNode:
     """Definition of additive - if you drop added_fields, you end up with the descendent."""
 
     @property
@@ -408,7 +407,7 @@ class SliceNode(UnaryNode):
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
-class InNode(BigFrameNode):
+class InNode(BigFrameNode, AdditiveNode):
     """
     Special Join Type that only returns rows from the left side, as well as adding a bool column indicating whether a match exists on the right side.
 
@@ -1010,7 +1009,7 @@ class CachedTableNode(ReadTableNode):
 
 # Unary nodes
 @dataclasses.dataclass(frozen=True, eq=False)
-class PromoteOffsetsNode(UnaryNode):
+class PromoteOffsetsNode(UnaryNode, AdditiveNode):
     col_id: bigframes.core.identifiers.ColumnId
 
     @property
@@ -1259,7 +1258,7 @@ class SelectionNode(UnaryNode):
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
-class ProjectionNode(UnaryNode):
+class ProjectionNode(UnaryNode, AdditiveNode):
     """Assigns new variables (without modifying existing ones)"""
 
     assignments: typing.Tuple[
@@ -1463,7 +1462,7 @@ class AggregateNode(UnaryNode):
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
-class WindowOpNode(UnaryNode):
+class WindowOpNode(UnaryNode, AdditiveNode):
     column_name: ex.DerefOp
     op: agg_ops.UnaryWindowOp
     window_spec: window.WindowSpec
