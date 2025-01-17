@@ -179,6 +179,11 @@ def auc(
     x_pandas = x_series.to_pandas()
     y_pandas = y_series.to_pandas()
 
+    if len(x_pandas) < 2:
+        raise ValueError(
+            f"At least 2 points are needed to compute area under curve, but x.shape = {len(x_pandas)}"
+        )
+
     if x_pandas.is_monotonic_decreasing:
         d = -1
     elif x_pandas.is_monotonic_increasing:
