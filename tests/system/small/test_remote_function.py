@@ -985,10 +985,10 @@ def test_df_apply_scalar_func(session, scalars_dfs):
     with pytest.raises(NotImplementedError) as context:
         bdf.apply(func_ref)
     assert str(context.value) == (
-        "DataFrame '.apply()' does not support remote function for element-wise "
-        "or column-wise (i.e. with axis=0) application. Please use '.map()' "
-        "instead for element-wise application of the remote function, or use "
-        "regular python function for column-wise application."
+        "BigFrames DataFrame '.apply()' does not support remote function for "
+        "column-wise (i.e. with axis=0) operations, please use a regular python "
+        "function instead. For element-wise operations of the remote function, "
+        "please use '.map()'."
     )
 
 
