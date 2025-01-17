@@ -35,10 +35,10 @@ def unix_seconds(input: series.Series) -> series.Series:
     Args:
         input (bigframes.pandas.Series):
             A timestamp series.
-    
+
     Returns:
         bigframes.pandas.Series: A new series of unix epoch in seconds.
-        
+
     """
     return input._apply_unary_op(ops.UnixSeconds())
 
@@ -62,10 +62,10 @@ def unix_millis(input: series.Series) -> series.Series:
     Args:
         input (bigframes.pandas.Series):
             A timestamp series.
-    
+
     Returns:
         bigframes.pandas.Series: A new series of unix epoch in milliseconds.
-        
+
     """
     return input._apply_unary_op(ops.UnixMillis())
 
@@ -89,9 +89,9 @@ def unix_micros(input: series.Series) -> series.Series:
     Args:
         input (bigframes.pandas.Series):
             A timestamp series.
-    
+
     Returns:
         bigframes.pandas.Series: A new series of unix epoch in microseconds.
-        
+
     """
     return input._apply_unary_op(ops.UnixMicros())
