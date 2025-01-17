@@ -231,6 +231,9 @@ def unit(session):
 
 @nox.session(python=UNIT_TEST_PYTHON_VERSIONS[-1])
 def unit_noextras(session):
+    session.install(
+        "scikit-learn>=1.2.2",
+    )
     run_unit(session, install_test_extra=False)
 
 
