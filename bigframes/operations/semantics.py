@@ -21,12 +21,13 @@ import warnings
 import numpy as np
 
 from bigframes import dtypes, exceptions
-from bigframes.core import guid
+from bigframes.core import guid, log_adapter
 
 
+@log_adapter.class_logger
 class Semantics:
     def __init__(self, df) -> None:
-        import bigframes
+        import bigframes  # Import in the function body to avoid circular imports.
         import bigframes.dataframe
 
         if not bigframes.options.experiments.semantic_operators:
@@ -140,10 +141,11 @@ class Semantics:
         column = columns[0]
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
 
         user_instruction = self._format_instruction(instruction, columns)
 
@@ -370,10 +372,11 @@ class Semantics:
                 raise ValueError(f"Column {column} not found.")
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
 
         self._confirm_operation(len(self._df))
 
@@ -468,10 +471,11 @@ class Semantics:
                 raise ValueError(f"Column {column} not found.")
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
 
         self._confirm_operation(len(self._df))
 
@@ -569,10 +573,11 @@ class Semantics:
         columns = self._parse_columns(instruction)
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
 
         work_estimate = len(self._df) * len(other)
         self._confirm_operation(work_estimate)
@@ -811,10 +816,11 @@ class Semantics:
             )
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
 
         work_estimate = int(len(self._df) * (len(self._df) - 1) / 2)
         self._confirm_operation(work_estimate)
@@ -1094,7 +1100,7 @@ class Semantics:
     @staticmethod
     def _confirm_operation(row_count: int):
         """Raises OperationAbortedError when the confirmation fails"""
-        import bigframes
+        import bigframes  # Import in the function body to avoid circular imports.
 
         threshold = bigframes.options.compute.semantic_ops_confirmation_threshold
 

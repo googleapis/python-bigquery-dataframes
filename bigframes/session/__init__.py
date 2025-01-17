@@ -66,6 +66,7 @@ import bigframes.core.pruning
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.exceptions
+import bigframes.exceptions as bfe
 import bigframes.functions._remote_function_session as bigframes_rf_session
 import bigframes.functions.remote_function as bigframes_rf
 import bigframes.session._io.bigquery as bf_io_bigquery
@@ -150,25 +151,22 @@ class Session(
 
         if context.location is None:
             self._location = "US"
-            warnings.warn(
-                f"No explicit location is set, so using location {self._location} for the session.",
-                # User's code
-                # -> get_global_session()
-                # -> connect()
-                # -> Session()
-                #
-                # Note: We could also have:
-                # User's code
-                # -> read_gbq()
-                # -> with_default_session()
-                # -> get_global_session()
-                # -> connect()
-                # -> Session()
-                # but we currently have no way to disambiguate these
-                # situations.
-                stacklevel=4,
-                category=bigframes.exceptions.DefaultLocationWarning,
-            )
+            msg = f"No explicit location is set, so using location {self._location} for the session."
+            # User's code
+            # -> get_global_session()
+            # -> connect()
+            # -> Session()
+            #
+            # Note: We could also have:
+            # User's code
+            # -> read_gbq()
+            # -> with_default_session()
+            # -> get_global_session()
+            # -> connect()
+            # -> Session()
+            # but we currently have no way to disambiguate these
+            # situations.
+            warnings.warn(msg, stacklevel=4, category=bfe.DefaultLocationWarning)
         else:
             self._location = context.location
 
@@ -236,10 +234,8 @@ class Session(
         # Will expose as feature later, only False for internal testing
         self._strictly_ordered: bool = context.ordering_mode != "partial"
         if not self._strictly_ordered:
-            warnings.warn(
-                "Partial ordering mode is a preview feature and is subject to change.",
-                bigframes.exceptions.OrderingModePartialPreviewWarning,
-            )
+            msg = "Partial ordering mode is a preview feature and is subject to change."
+            warnings.warn(msg, bfe.OrderingModePartialPreviewWarning)
 
         self._allow_ambiguity = not self._strictly_ordered
         self._default_index_type = (
@@ -273,6 +269,7 @@ class Session(
             storage_manager=self._temp_storage_manager,
             default_index_type=self._default_index_type,
             scan_index_uniqueness=self._strictly_ordered,
+            force_total_order=self._strictly_ordered,
             metrics=self._metrics,
         )
 
@@ -604,11 +601,8 @@ class Session(
             bigframes.streaming.dataframe.StreamingDataFrame:
                A StreamingDataFrame representing results of the table.
         """
-        warnings.warn(
-            "The bigframes.streaming module is a preview feature, and subject to change.",
-            stacklevel=1,
-            category=bigframes.exceptions.PreviewWarning,
-        )
+        msg = "The bigframes.streaming module is a preview feature, and subject to change."
+        warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
 
         import bigframes.streaming.dataframe as streaming_dataframe
 
@@ -1257,12 +1251,19 @@ class Session(
                `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
         Args:
-            input_types (type or sequence(type)):
+            input_types (type or sequence(type), Optional):
                 For scalar user defined function it should be the input type or
-                sequence of input types. For row processing user defined function,
-                type `Series` should be specified.
-            output_type (type):
-                Data type of the output in the user defined function.
+                sequence of input types. The supported scalar input types are
+                `bool`, `bytes`, `float`, `int`, `str`. For row processing user
+                defined function (i.e. functions that receive a single input
+                representing a row in form of a Series), type `Series` should be
+                specified.
+            output_type (type, Optional):
+                Data type of the output in the user defined function. If the
+                user defined function returns an array, then `list[type]` should
+                be specified. The supported output types are `bool`, `bytes`,
+                `float`, `int`, `str`, `list[bool]`, `list[float]`, `list[int]`
+                and `list[str]`.
             dataset (str, Optional):
                 Dataset in which to create a BigQuery remote function. It should be in
                 `<project_id>.<dataset_name>` or `<dataset_name>` format. If this
