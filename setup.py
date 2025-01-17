@@ -81,7 +81,7 @@ extras = {
         "pre-commit",
         "nox",
         "google-cloud-testutils",
-        "scikit-learn >=1.2.2",
+        "scikit-learn>=1.2.2",
     ],
 }
 extras["all"] = list(sorted(frozenset(itertools.chain.from_iterable(extras.values()))))

@@ -224,7 +224,7 @@ def run_unit(session, install_test_extra):
 @nox.session(python=UNIT_TEST_PYTHON_VERSIONS)
 def unit(session):
     session.install(
-        "scikit-learn >=1.2.2",
+        "scikit-learn>=1.2.2",
     )
     run_unit(session, install_test_extra=True)
 
@@ -482,7 +482,7 @@ def docs(session):
         SPHINX_VERSION,
         "alabaster",
         "recommonmark",
-        "scikit-learn >=1.2.2",
+        "scikit-learn>=1.2.2",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
@@ -525,6 +525,7 @@ def docfx(session):
         "alabaster",
         "recommonmark",
         "gcp-sphinx-docfx-yaml==3.0.1",
+        "scikit-learn>=1.2.2",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
