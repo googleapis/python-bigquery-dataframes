@@ -924,7 +924,7 @@ class OrderedIR(BaseIbisIR):
                 # all inputs must be non-null for observation to count
                 is_observation = functools.reduce(
                     lambda x, y: x & y, per_col_does_count
-                ).astype(int)
+                ).cast(int)
                 observation_count = agg_compiler.compile_analytic(
                     ex.UnaryAggregation(agg_ops.sum_op, ex.deref("_observation_count")),
                     window,
