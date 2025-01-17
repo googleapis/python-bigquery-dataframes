@@ -1887,12 +1887,12 @@ def timestamp(a: str) -> ibis_dtypes.timestamp:  # type: ignore
 
 
 @ibis_udf.scalar.builtin
-def unix_millis(a: ibis_dtypes.Timestamp) -> int:  # type: ignore[empty-body]
+def unix_millis(a: ibis_dtypes.timestamp) -> int:  # type: ignore
     """Convert a timestamp to milliseconds"""
 
 
 @ibis_udf.scalar.builtin
-def unix_micros(a: ibis_dtypes.Timestamp) -> int:  # type: ignore[empty-body]
+def unix_micros(a: ibis_dtypes.timestamp) -> int:  # type: ignore
     """Convert a timestamp to microseconds"""
 
 
