@@ -175,7 +175,6 @@ def auc(
 ) -> float:
     x_series, y_series = utils.batch_convert_to_series(x, y)
 
-    # TODO(b/286410053) Support ML exceptions and error handling.
     x_pandas = x_series.to_pandas()
     y_pandas = y_series.to_pandas()
 
