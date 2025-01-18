@@ -26,6 +26,7 @@ from bigframes.core import log_adapter
 import bigframes.core as core
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
+import bigframes.core.expression
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
@@ -335,7 +336,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
 
     def _agg_string(self, func: str) -> df.DataFrame:
         aggregations = [
-            (col_id, agg_ops.lookup_agg_func(func))
+            agg(col_id, agg_ops.lookup_agg_func(func))
             for col_id in self._aggregated_columns()
         ]
         agg_block, _ = self._block.aggregate(
@@ -347,11 +348,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return dataframe if self._as_index else self._convert_index(dataframe)
 
     def _agg_dict(self, func: typing.Mapping) -> df.DataFrame:
-        aggregations: typing.List[
-            typing.Tuple[
-                str, typing.Union[agg_ops.UnaryAggregateOp, agg_ops.NullaryAggregateOp]
-            ]
-        ] = []
+        aggregations: typing.List[bigframes.core.expression.Aggregation] = []
         column_labels = []
 
         want_aggfunc_level = any(utils.is_list_like(aggs) for aggs in func.values())
@@ -362,7 +359,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 funcs_for_id if utils.is_list_like(funcs_for_id) else [funcs_for_id]
             )
             for f in func_list:
-                aggregations.append((col_id, agg_ops.lookup_agg_func(f)))
+                aggregations.append(agg(col_id, agg_ops.lookup_agg_func(f)))
                 column_labels.append(label)
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
@@ -373,7 +370,10 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             agg_block = agg_block.with_column_labels(
                 utils.combine_indices(
                     pd.Index(column_labels),
-                    pd.Index(agg[1].name for agg in aggregations),
+                    pd.Index(
+                        typing.cast(agg_ops.AggregateOp, agg.op).name
+                        for agg in aggregations
+                    ),
                 )
             )
         else:
@@ -383,7 +383,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
 
     def _agg_list(self, func: typing.Sequence) -> df.DataFrame:
         aggregations = [
-            (col_id, agg_ops.lookup_agg_func(f))
+            agg(col_id, agg_ops.lookup_agg_func(f))
             for col_id in self._aggregated_columns()
             for f in func
         ]
@@ -435,7 +435,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             if not isinstance(v, tuple) or (len(v) != 2):
                 raise TypeError("kwargs values must be 2-tuples of column, aggfunc")
             col_id = self._resolve_label(v[0])
-            aggregations.append((col_id, agg_ops.lookup_agg_func(v[1])))
+            aggregations.append(agg(col_id, agg_ops.lookup_agg_func(v[1])))
             column_labels.append(k)
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
@@ -489,10 +489,12 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         self, aggregate_op: agg_ops.UnaryAggregateOp, numeric_only: bool = False
     ) -> df.DataFrame:
         aggregated_col_ids = self._aggregated_columns(numeric_only=numeric_only)
-        aggregations = [(col_id, aggregate_op) for col_id in aggregated_col_ids]
+        labels = pd.Index(self._col_id_labels[id] for id in aggregated_col_ids)
+        aggregations = [agg(col_id, aggregate_op) for col_id in aggregated_col_ids]
         result_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
+            column_labels=labels,
             dropna=self._dropna,
         )
         dataframe = df.DataFrame(result_block)
@@ -639,11 +641,11 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     def agg(self, func=None) -> typing.Union[df.DataFrame, series.Series]:
         column_names: list[str] = []
         if isinstance(func, str):
-            aggregations = [(self._value_column, agg_ops.lookup_agg_func(func))]
+            aggregations = [agg(self._value_column, agg_ops.lookup_agg_func(func))]
             column_names = [func]
         elif utils.is_list_like(func):
             aggregations = [
-                (self._value_column, agg_ops.lookup_agg_func(f)) for f in func
+                agg(self._value_column, agg_ops.lookup_agg_func(f)) for f in func
             ]
             column_names = list(func)
         else:
@@ -756,7 +758,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     def _aggregate(self, aggregate_op: agg_ops.UnaryAggregateOp) -> series.Series:
         result_block, _ = self._block.aggregate(
             self._by_col_ids,
-            ((self._value_column, aggregate_op),),
+            (agg(self._value_column, aggregate_op),),
             dropna=self._dropna,
         )
 
@@ -781,3 +783,13 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
             window_spec=window_spec,
         )
         return series.Series(block.select_column(result_id))
+
+
+def agg(input: str, op: agg_ops.AggregateOp) -> bigframes.core.expression.Aggregation:
+    if isinstance(op, agg_ops.UnaryAggregateOp):
+        return bigframes.core.expression.UnaryAggregation(
+            op, bigframes.core.expression.deref(input)
+        )
+    else:
+        assert isinstance(op, agg_ops.NullaryAggregateOp)
+        return bigframes.core.expression.NullaryAggregation(op)
