@@ -81,6 +81,7 @@ from bigframes.operations.generic_ops import (
     minimum_op,
     notnull_op,
     RowKey,
+    SqlScalarOp,
     where_op,
 )
 from bigframes.operations.geo_ops import geo_x_op, geo_y_op
@@ -89,6 +90,7 @@ from bigframes.operations.json_ops import (
     JSONExtractArray,
     JSONExtractStringArray,
     JSONSet,
+    JSONValue,
     ParseJSON,
     ToJSONString,
 )
@@ -193,6 +195,7 @@ __all__ = [
     "minimum_op",
     "notnull_op",
     "RowKey",
+    "SqlScalarOp",
     "where_op",
     # String ops
     "capitalize_op",
@@ -304,6 +307,7 @@ __all__ = [
     "JSONExtractArray",
     "JSONExtractStringArray",
     "JSONSet",
+    "JSONValue",
     "ParseJSON",
     "ToJSONString",
     # Bool ops
