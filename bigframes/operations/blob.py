@@ -34,6 +34,41 @@ class BlobAccessor(base.SeriesMethods):
 
         super().__init__(*args, **kwargs)
 
+    def uri(self) -> bigframes.series.Series:
+        """URIs of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: URIs as string."""
+        s = bigframes.series.Series(self._block)
+
+        return s.struct.field("uri")
+
+    def authorizer(self) -> bigframes.series.Series:
+        """Authorizers of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: Autorithers(connection) as string."""
+        s = bigframes.series.Series(self._block)
+
+        return s.struct.field("authorizer")
+
+    def version(self) -> bigframes.series.Series:
+        """Versions of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: Version as string."""
+        # version must be retrived after fetching metadata
+        return self._apply_unary_op(ops.obj_fetch_metadata_op).struct.field("version")
+
     def metadata(self) -> bigframes.series.Series:
         """Retrive the metadata of the Blob.
 
@@ -41,15 +76,77 @@ class BlobAccessor(base.SeriesMethods):
             BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
         Returns:
-            JSON: metadata of the Blob. Contains fields: content_type, md5_hash, size and updated(time)."""
+            BigFrames Series: JSON metadata of the Blob. Contains fields: content_type, md5_hash, size and updated(time)."""
         details_json = self._apply_unary_op(ops.obj_fetch_metadata_op).struct.field(
             "details"
         )
         import bigframes.bigquery as bbq
 
-        return bbq.json_extract(details_json, "$.gcs_metadata")
+        return bbq.json_extract(details_json, "$.gcs_metadata").rename("metadata")
 
-    def display(self, n: int = 3):
+    def content_type(self) -> bigframes.series.Series:
+        """Retrive the content type of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: string of the content type."""
+        return (
+            self.metadata()
+            ._apply_unary_op(ops.JSONValue(json_path="$.content_type"))
+            .rename("content_type")
+        )
+
+    def md5_hash(self) -> bigframes.series.Series:
+        """Retrive the md5 hash of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: string of the md5 hash."""
+        return (
+            self.metadata()
+            ._apply_unary_op(ops.JSONValue(json_path="$.md5_hash"))
+            .rename("md5_hash")
+        )
+
+    def size(self) -> bigframes.series.Series:
+        """Retrive the file size of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: file size in bytes."""
+        return (
+            self.metadata()
+            ._apply_unary_op(ops.JSONValue(json_path="$.size"))
+            .rename("size")
+            .astype("Int64")
+        )
+
+    def updated(self) -> bigframes.series.Series:
+        """Retrive the updated time of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: updated time as UTC datetime."""
+        import bigframes.pandas as bpd
+
+        updated = (
+            self.metadata()
+            ._apply_unary_op(ops.JSONValue(json_path="$.updated"))
+            .rename("updated")
+            .astype("Int64")
+        )
+
+        return bpd.to_datetime(updated, unit="us", utc=True)
+
+    def display(self, n: int = 3, *, content_type: str = ""):
         """Display the blob content in the IPython Notebook environment. Only works for image type now.
 
         .. note::
@@ -57,20 +154,38 @@ class BlobAccessor(base.SeriesMethods):
 
         Args:
             n (int, default 3): number of sample blob objects to display.
+            content_type (str, default ""): content type of the blob. If unset, use the blob metadata of the storage. Possible values are "image", "audio" and "video".
         """
-        import bigframes.bigquery as bbq
+        # col name doesn't matter here. Rename to avoid column name conflicts
+        df = bigframes.series.Series(self._block).rename("blob_col").head(n).to_frame()
 
-        s = bigframes.series.Series(self._block).head(n)
-
-        obj_ref_runtime = s._apply_unary_op(ops.ObjGetAccessUrl(mode="R"))
-        read_urls = bbq.json_extract(
-            obj_ref_runtime, json_path="$.access_urls.read_url"
+        obj_ref_runtime = df["blob_col"]._apply_unary_op(ops.ObjGetAccessUrl(mode="R"))
+        df["read_url"] = obj_ref_runtime._apply_unary_op(
+            ops.JSONValue(json_path="$.access_urls.read_url")
         )
 
-        for read_url in read_urls:
-            read_url = str(read_url).strip('"')
-            response = requests.get(read_url)
-            ipy_display.display(ipy_display.Image(response.content))
+        if content_type:
+            df["content_type"] = content_type
+        else:
+            df["content_type"] = df["blob_col"].blob.content_type()
+
+        def display_single_url(read_url: str, content_type: str):
+            content_type = content_type.casefold()
+
+            if content_type.startswith("image"):
+                ipy_display.display(ipy_display.Image(url=read_url))
+            elif content_type.startswith("audio"):
+                # using url somehow doesn't work with audios
+                response = requests.get(read_url)
+                ipy_display.display(ipy_display.Audio(response.content))
+            elif content_type.startswith("video"):
+                ipy_display.display(ipy_display.Video(url=read_url))
+            else:  # display as raw data
+                response = requests.get(read_url)
+                ipy_display.display(response.content, raw=True)
+
+        for _, row in df.iterrows():
+            display_single_url(row["read_url"], row["content_type"])
 
     def image_blur(
         self,
