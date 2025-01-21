@@ -87,7 +87,7 @@ class ARIMAPlus(base.SupervisedTrainablePredictor):
             The forecasting limit ensures that forecasts stay within limits.
 
         forecast_limit_lower_bound (float or None, default None):
-            The lower bound of the forecasting values. When you specify the FORECAST_LIMIT_LOWER_BOUND option, all of the forecast values must be greater than the specified value.
+            The lower bound of the forecasting values where the minimum value allowed is 0. When you specify the FORECAST_LIMIT_LOWER_BOUND option, all of the forecast values must be greater than the specified value.
             For example, if you set FORECAST_LIMIT_LOWER_BOUND to 0, then all of the forecast values are larger than 0. Also, all values less than or equal to the FORECAST_LIMIT_LOWER_BOUND value are excluded from modelling.
             The forecasting limit ensures that forecasts stay within limits.
 
