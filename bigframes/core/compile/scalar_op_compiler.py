@@ -1220,6 +1220,11 @@ def to_json_string_op_impl(json_obj: ibis_types.Value):
     return to_json_string(json_obj=json_obj)
 
 
+@scalar_op_compiler.register_unary_op(ops.JSONValue, pass_op=True)
+def json_value_op_impl(x: ibis_types.Value, op: ops.JSONValue):
+    return json_value(json_obj=x, json_path=op.json_path)
+
+
 # Blob Ops
 @scalar_op_compiler.register_unary_op(ops.obj_fetch_metadata_op)
 def obj_fetch_metadata_op_impl(obj_ref: ibis_types.Value):
@@ -1840,6 +1845,17 @@ def nary_remote_function_op_impl(
     return result
 
 
+@scalar_op_compiler.register_nary_op(ops.SqlScalarOp, pass_op=True)
+def sql_scalar_op_impl(*operands: ibis_types.Value, op: ops.SqlScalarOp):
+    return ibis_generic.SqlScalar(
+        op.sql_template,
+        values=tuple(typing.cast(ibis_generic.Value, expr.op()) for expr in operands),
+        output_type=bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype(
+            op.output_type()
+        ),
+    ).to_expr()
+
+
 @scalar_op_compiler.register_nary_op(ops.StructOp, pass_op=True)
 def struct_op_impl(
     *values: ibis_types.Value, op: ops.StructOp
@@ -1929,6 +1945,13 @@ def to_json_string(  # type: ignore[empty-body]
     json_obj: ibis_dtypes.JSON,
 ) -> ibis_dtypes.String:
     """Convert JSON to STRING."""
+
+
+@ibis_udf.scalar.builtin(name="json_value")
+def json_value(  # type: ignore[empty-body]
+    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
+) -> ibis_dtypes.String:
+    """Retrieve value of a JSON field as plain STRING."""
 
 
 @ibis_udf.scalar.builtin(name="ML.DISTANCE")
