@@ -741,8 +741,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         df = self.copy()
         if bigframes.options.experiments.blob:
-            import bigframes.bigquery as bbq
-
             blob_cols = [
                 col
                 for col in df.columns
@@ -750,7 +748,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ]
             for col in blob_cols:
                 df[col] = df[col]._apply_unary_op(ops.ObjGetAccessUrl(mode="R"))
-                df[col] = bbq.json_extract(df[col], "$.access_urls.read_url")
+                df[col] = df[col]._apply_unary_op(
+                    ops.JSONValue(json_path="$.access_urls.read_url")
+                )
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
@@ -768,8 +768,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if bigframes.options.experiments.blob:
 
                 def url_to_image_html(url: str) -> str:
-                    # url is a json string, which already contains double-quotes ""
-                    return f"<img src={url}>"
+                    return f'<img src="{url}">'
 
                 formatters = {blob_col: url_to_image_html for blob_col in blob_cols}
 
@@ -3918,6 +3917,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def apply(self, func, *, axis=0, args: typing.Tuple = (), **kwargs):
+        # In Bigframes remote function, DataFrame '.apply' method is specifically
+        # designed to work with row-wise or column-wise operations, where the input
+        # to the applied function should be a Series, not a scalar.
+
         if utils.get_axis_number(axis) == 1:
             msg = "axis=1 scenario is in preview."
             warnings.warn(msg, category=bfe.PreviewWarning)
@@ -4025,8 +4028,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
             return result_series
 
+        # At this point column-wise or element-wise remote function operation will
+        # be performed (not supported).
+        if hasattr(func, "bigframes_remote_function"):
+            raise NotImplementedError(
+                "BigFrames DataFrame '.apply()' does not support remote function "
+                "for column-wise (i.e. with axis=0) operations, please use a "
+                "regular python function instead. For element-wise operations of "
+                "the remote function, please use '.map()'."
+            )
+
         # Per-column apply
         results = {name: func(col, *args, **kwargs) for name, col in self.items()}
+
         if all(
             [
                 isinstance(val, bigframes.series.Series) or utils.is_list_like(val)
