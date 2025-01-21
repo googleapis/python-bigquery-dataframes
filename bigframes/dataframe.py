@@ -19,6 +19,7 @@ from __future__ import annotations
 import datetime
 import inspect
 import itertools
+import json
 import re
 import sys
 import textwrap
@@ -179,9 +180,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if columns:
                 block = block.select_columns(list(columns))  # type:ignore
             if dtype:
-                block = block.multi_apply_unary_op(
-                    block.value_columns, ops.AsTypeOp(to_type=dtype)
-                )
+                block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=dtype))
             self._block = block
 
         else:
@@ -749,10 +748,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 if df[col].dtype == bigframes.dtypes.OBJ_REF_DTYPE
             ]
             for col in blob_cols:
+                df[col] = df[col]._apply_unary_op(ops.obj_fetch_metadata_op)
+                # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
                 df[col] = df[col]._apply_unary_op(ops.ObjGetAccessUrl(mode="R"))
-                df[col] = df[col]._apply_unary_op(
-                    ops.JSONValue(json_path="$.access_urls.read_url")
-                )
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
@@ -769,10 +767,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # Allows to preview images in the DataFrame. The implementation changes the string repr as well, that it doesn't truncate strings or escape html charaters such as "<" and ">". We may need to implement a full-fledged repr module to better support types not in pandas.
             if bigframes.options.experiments.blob:
 
-                def url_to_image_html(url: str) -> str:
-                    return f'<img src="{url}">'
+                def obj_ref_rt_to_html(obj_ref_rt) -> str:
+                    obj_ref_rt_json = json.loads(obj_ref_rt)
+                    content_type = typing.cast(
+                        str,
+                        obj_ref_rt_json["objectref"]["details"]["gcs_metadata"][
+                            "content_type"
+                        ],
+                    )
+                    if content_type.startswith("image"):
+                        url = obj_ref_rt_json["access_urls"]["read_url"]
+                        return f'<img src="{url}">'
 
-                formatters = {blob_col: url_to_image_html for blob_col in blob_cols}
+                    return f'uri: {obj_ref_rt_json["objectref"]["uri"]}, authorizer: {obj_ref_rt_json["objectref"]["authorizer"]}'
+
+                formatters = {blob_col: obj_ref_rt_to_html for blob_col in blob_cols}
 
                 # set max_colwidth so not to truncate the image url
                 with pandas.option_context("display.max_colwidth", None):
@@ -845,9 +854,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 left_input=ex.free_var("var1"),
                 right_input=ex.const(other),
             )
-        return DataFrame(
-            self._block.multi_apply_unary_op(self._block.value_columns, expr)
-        )
+        return DataFrame(self._block.multi_apply_unary_op(expr))
 
     def _apply_series_binop_axis_0(
         self,
@@ -2400,9 +2407,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 result = result.reset_index()
             return DataFrame(result)
         else:
-            isnull_block = self._block.multi_apply_unary_op(
-                self._block.value_columns, ops.isnull_op
-            )
+            isnull_block = self._block.multi_apply_unary_op(ops.isnull_op)
             if how == "any":
                 null_locations = DataFrame(isnull_block).any().to_pandas()
             else:  # 'all'
@@ -3039,8 +3044,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def join(
-        self, other: DataFrame, *, on: Optional[str] = None, how: str = "left"
+        self,
+        other: Union[DataFrame, bigframes.series.Series],
+        *,
+        on: Optional[str] = None,
+        how: str = "left",
     ) -> DataFrame:
+        if isinstance(other, bigframes.series.Series):
+            other = other.to_frame()
+
         left, right = self, other
 
         if not left.columns.intersection(right.columns).empty:
@@ -3828,7 +3840,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return as_pandas_default_index.to_orc(path, **kwargs)
 
     def _apply_unary_op(self, operation: ops.UnaryOp) -> DataFrame:
-        block = self._block.multi_apply_unary_op(self._block.value_columns, operation)
+        block = self._block.multi_apply_unary_op(operation)
         return DataFrame(block)
 
     def _map_clustering_columns(
@@ -3923,6 +3935,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def apply(self, func, *, axis=0, args: typing.Tuple = (), **kwargs):
+        # In Bigframes remote function, DataFrame '.apply' method is specifically
+        # designed to work with row-wise or column-wise operations, where the input
+        # to the applied function should be a Series, not a scalar.
+
         if utils.get_axis_number(axis) == 1:
             msg = "axis=1 scenario is in preview."
             warnings.warn(msg, category=bfe.PreviewWarning)
@@ -4030,8 +4046,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
             return result_series
 
+        # At this point column-wise or element-wise remote function operation will
+        # be performed (not supported).
+        if hasattr(func, "bigframes_remote_function"):
+            raise NotImplementedError(
+                "BigFrames DataFrame '.apply()' does not support remote function "
+                "for column-wise (i.e. with axis=0) operations, please use a "
+                "regular python function instead. For element-wise operations of "
+                "the remote function, please use '.map()'."
+            )
+
         # Per-column apply
         results = {name: func(col, *args, **kwargs) for name, col in self.items()}
+
         if all(
             [
                 isinstance(val, bigframes.series.Series) or utils.is_list_like(val)
