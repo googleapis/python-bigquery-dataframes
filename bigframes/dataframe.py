@@ -1261,6 +1261,29 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def combine_first(self, other: DataFrame):
         return self._apply_dataframe_binop(other, ops.fillna_op)
 
+    def _fast_stat_matrix(self, op: agg_ops.BinaryAggregateOp) -> DataFrame:
+        """Faster corr, cov calculations, but creates more sql text, so cannot scale to many columns"""
+        assert len(self.columns) * len(self.columns) < bigframes.constants.MAX_COLUMNS
+        orig_columns = self.columns
+        frame = self.copy()
+        # Replace column names with 0 to n - 1 to keep order
+        # and avoid the influence of duplicated column name
+        frame.columns = pandas.Index(range(len(orig_columns)))
+        frame = frame.astype(bigframes.dtypes.FLOAT_DTYPE)
+        block = frame._block
+
+        aggregations = [
+            ex.BinaryAggregation(op, ex.deref(left_col), ex.deref(right_col))
+            for left_col in block.value_columns
+            for right_col in block.value_columns
+        ]
+        labels = utils.cross_indices(orig_columns, orig_columns)
+
+        block, _ = block.aggregate(aggregations=aggregations, column_labels=labels)
+        block = block.stack(levels=orig_columns.nlevels)
+        # The aggregate operation crated a index level with just 0, need to drop it
+        return DataFrame(block).droplevel(0)
+
     def corr(self, method="pearson", min_periods=None, numeric_only=False) -> DataFrame:
         if method != "pearson":
             raise NotImplementedError(
@@ -1272,9 +1295,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
 
         if not numeric_only:
-            frame = self._raise_on_non_numeric("corr")
+            frame = self._raise_on_non_numeric("corr").copy()
         else:
-            frame = self._drop_non_numeric()
+            frame = self._drop_non_numeric().copy()
+
+        if len(frame.columns) <= 30:
+            return self._fast_stat_matrix(agg_ops.CorrOp())
 
         orig_columns = frame.columns
         # Replace column names with 0 to n - 1 to keep order
@@ -1380,9 +1406,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def cov(self, *, numeric_only: bool = False) -> DataFrame:
         if not numeric_only:
-            frame = self._raise_on_non_numeric("corr")
+            frame = self._raise_on_non_numeric("corr").copy()
         else:
-            frame = self._drop_non_numeric()
+            frame = self._drop_non_numeric().copy()
+
+        if len(frame.columns) <= 30:
+            return self._fast_stat_matrix(agg_ops.CovOp())
 
         orig_columns = frame.columns
         # Replace column names with 0 to n - 1 to keep order
