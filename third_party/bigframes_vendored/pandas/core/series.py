@@ -2656,11 +2656,11 @@ class Series(NDFrame):  # type: ignore[misc]
             ...         (True, 'c'),
             ...     ]
             ... )
-            0    b
-            1    c
+            0    c
+            1    b
             2    a
             3    a
-            Name: c, dtype: string[pyarrow]
+            Name: c, dtype: string
 
         **See also:**
 
