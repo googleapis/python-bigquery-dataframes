@@ -30,6 +30,9 @@ pip-log.txt
 .cache
 .pytest_cache
 
+# Mypy tests
+.mypy_cache
+
 
 # Mac
 .DS_Store

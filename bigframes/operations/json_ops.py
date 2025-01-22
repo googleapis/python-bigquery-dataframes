@@ -118,8 +118,7 @@ class JSONSet(base_ops.BinaryOp):
                 + f"Received type: {right_type}"
             )
 
-        # After JSON type implementation, ONLY return JSON data.
-        return left_type
+        return dtypes.JSON_DTYPE
 
 
 @dataclasses.dataclass(frozen=True)
