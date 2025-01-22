@@ -1206,7 +1206,15 @@ def json_extract_op_impl(x: ibis_types.Value, op: ops.JSONExtract):
 
 @scalar_op_compiler.register_unary_op(ops.JSONExtractArray, pass_op=True)
 def json_extract_array_op_impl(x: ibis_types.Value, op: ops.JSONExtractArray):
-    return json_extract_array(json_obj=x, json_path=op.json_path)
+    # Define a user-defined function whose returned type is dynamically matching the input.
+    def json_extract_array(json_or_json_string, json_path: ibis_dtypes.str):  # type: ignore
+        """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
+        ...
+
+    return_type = x.type()
+    json_extract_array.__annotations__["return"] = ibis_dtypes.Array[return_type]  # type: ignore
+    json_extract_op = ibis_udf.scalar.builtin(json_extract_array)
+    return json_extract_op(json_or_json_string=x, json_path=op.json_path)
 
 
 @scalar_op_compiler.register_unary_op(ops.JSONExtractStringArray, pass_op=True)
@@ -1926,13 +1934,6 @@ def json_set(  # type: ignore[empty-body]
     json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String, json_value
 ) -> ibis_dtypes.JSON:
     """Produces a new SQL JSON value with the specified JSON data inserted or replaced."""
-
-
-@ibis_udf.scalar.builtin(name="json_extract_array")
-def json_extract_array(  # type: ignore[empty-body]
-    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
-) -> ibis_dtypes.Array[ibis_dtypes.String]:
-    """Extracts a JSON array and converts it to a SQL ARRAY of JSON-formatted STRINGs or JSON values."""
 
 
 @ibis_udf.scalar.builtin(name="json_extract_string_array")

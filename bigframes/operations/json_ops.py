@@ -50,7 +50,7 @@ class JSONExtractArray(base_ops.UnaryOp):
                 + f" Received type: {input_type}"
             )
         return pd.ArrowDtype(
-            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(dtypes.STRING_DTYPE))
+            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(input_type))
         )
 
 
