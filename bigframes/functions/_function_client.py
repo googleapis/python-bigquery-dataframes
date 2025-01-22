@@ -29,7 +29,7 @@ from typing import cast, Tuple, TYPE_CHECKING
 from bigframes_vendored import constants
 import requests
 
-import bigframes.functions.function_template
+import bigframes.functions.function_template as bff_template
 
 if TYPE_CHECKING:
     from bigframes.session import Session
@@ -215,14 +215,12 @@ class RemoteFunctionClient:
                 f.write("\n".join(package_requirements))
 
         # main.py
-        entry_point = (
-            bigframes.functions.function_template.generate_cloud_function_main_code(
-                def_,
-                directory,
-                input_types=input_types,
-                output_type=output_type,
-                is_row_processor=is_row_processor,
-            )
+        entry_point = bff_template.generate_cloud_function_main_code(
+            def_,
+            directory,
+            input_types=input_types,
+            output_type=output_type,
+            is_row_processor=is_row_processor,
         )
         return entry_point
 

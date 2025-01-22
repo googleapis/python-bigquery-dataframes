@@ -25,7 +25,7 @@ import test_utils.prefixer
 import bigframes
 import bigframes.dtypes
 import bigframes.exceptions
-from bigframes.functions import _utils as rf_utils
+from bigframes.functions import _utils as bff_utils
 from bigframes.functions import function as bff
 from tests.system.utils import assert_pandas_df_equal
 
@@ -94,12 +94,12 @@ def get_rf_name(func, package_requirements=None, is_row_processor=False):
     """Get a remote function name for testing given a udf."""
     # Augment user package requirements with any internal package
     # requirements
-    package_requirements = rf_utils._get_updated_package_requirements(
+    package_requirements = bff_utils._get_updated_package_requirements(
         package_requirements, is_row_processor
     )
 
     # Compute a unique hash representing the user code
-    function_hash = rf_utils._get_hash(func, package_requirements)
+    function_hash = bff_utils._get_hash(func, package_requirements)
 
     return f"bigframes_{function_hash}"
 
@@ -757,7 +757,7 @@ def test_read_gbq_function_reads_udfs(session, bigquery_client, dataset_id):
 
         src = {"x": [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]}
 
-        routine_ref_str = rf_utils.routine_ref_to_string_for_query(routine.reference)
+        routine_ref_str = bff_utils.routine_ref_to_string_for_query(routine.reference)
         direct_sql = " UNION ALL ".join(
             [f"SELECT {x} AS x, {routine_ref_str}({x}) AS y" for x in src["x"]]
         )
@@ -878,7 +878,7 @@ def test_read_gbq_function_respects_python_output_type(
         body="TO_JSON_STRING([x, x+1, x+2])",
         arguments=[arg],
         return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.STRING),
-        description=rf_utils.get_bigframes_metadata(python_output_type=array_type),
+        description=bff_utils.get_bigframes_metadata(python_output_type=array_type),
         type_=bigquery.RoutineType.SCALAR_FUNCTION,
     )
 
@@ -920,7 +920,7 @@ def test_read_gbq_function_supports_python_output_type_only_for_string_outputs(
         body="x+1",
         arguments=[arg],
         return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
-        description=rf_utils.get_bigframes_metadata(python_output_type=array_type),
+        description=bff_utils.get_bigframes_metadata(python_output_type=array_type),
         type_=bigquery.RoutineType.SCALAR_FUNCTION,
     )
 
@@ -959,7 +959,7 @@ def test_read_gbq_function_supported_python_output_type(
         body="CAST(x AS STRING)",
         arguments=[arg],
         return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.STRING),
-        description=rf_utils.get_bigframes_metadata(python_output_type=array_type),
+        description=bff_utils.get_bigframes_metadata(python_output_type=array_type),
         type_=bigquery.RoutineType.SCALAR_FUNCTION,
     )
 
