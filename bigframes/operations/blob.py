@@ -66,7 +66,7 @@ class BlobAccessor(base.SeriesMethods):
 
         Returns:
             BigFrames Series: Version as string."""
-        # version must be Retrieved after fetching metadata
+        # version must be retrieved after fetching metadata
         return self._apply_unary_op(ops.obj_fetch_metadata_op).struct.field("version")
 
     def metadata(self) -> bigframes.series.Series:
@@ -194,7 +194,7 @@ class BlobAccessor(base.SeriesMethods):
         .. note::
             BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
-        Args:)
+        Args:
             n (int, default 3): number of sample blob objects to display.
             content_type (str, default ""): content type of the blob. If unset, use the blob metadata of the storage. Possible values are "image", "audio" and "video".
         """
