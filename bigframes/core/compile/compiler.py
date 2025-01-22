@@ -326,7 +326,9 @@ class Compiler:
     def compile_projection(self, node: nodes.ProjectionNode, ordered: bool = True):
         result = self.compile_node(node.child, ordered)
         projections = ((expr, id.sql) for expr, id in node.assignments)
-        return result.projection(tuple(projections))
+        return result.projection(
+            tuple(projections)
+        )  # TODO: Pass down input schema to allow dispatching
 
     @_compile_node.register
     def compile_concat(self, node: nodes.ConcatNode, ordered: bool = True):

@@ -134,7 +134,9 @@ class BaseIbisIR(abc.ABC):
         """Apply an expression to the ArrayValue and assign the output to a column."""
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
         new_values = [
-            op_compiler.compile_expression(expression, bindings).name(id)
+            op_compiler.compile_expression(expression, bindings).name(
+                id
+            )  # need to pass in full schema info
             for expression, id in expression_id_pairs
         ]
         result = self._select(tuple([*self._columns, *new_values]))  # type: ignore

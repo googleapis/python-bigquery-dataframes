@@ -78,6 +78,7 @@ class ScalarOpCompiler:
         self,
         expression: ex.Expression,
         bindings: typing.Dict[str, ibis_types.Value],
+        input_schema: InputSchema,
     ) -> ibis_types.Value:
         raise NotImplementedError(f"Unrecognized expression: {expression}")
 
@@ -108,10 +109,12 @@ class ScalarOpCompiler:
         expression: ex.OpExpression,
         bindings: typing.Dict[str, ibis_types.Value],
     ) -> ibis_types.Value:
+        # alternative: eaach of these expressions has dtype fully specified
         inputs = [
             self.compile_expression(sub_expr, bindings)
             for sub_expr in expression.inputs
         ]
+        input_dtypes = [sub_expr.output_type for sub_expr in expression.inputs]
         return self.compile_row_op(expression.op, inputs)
 
     def compile_row_op(
@@ -1372,6 +1375,20 @@ def xor_op(
 
 
 @scalar_op_compiler.register_binary_op(ops.add_op)
+@short_circuit_nulls()
+def add_op(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    if isinstance(x, ibis_types.NullScalar) or isinstance(x, ibis_types.NullScalar):
+        return ibis_types.null()
+    return x + y  # type: ignore
+
+
+@scalar_op_compiler.register_binary_op(
+    ops.add_op,
+    overload_types=(bigframes.dtypes.is_date_like, bigframes.dtypes.is_duration_like),
+)
 @short_circuit_nulls()
 def add_op(
     x: ibis_types.Value,

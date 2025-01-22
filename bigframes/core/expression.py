@@ -173,9 +173,10 @@ class Expression(abc.ABC):
     def is_const(self) -> bool:
         ...
 
+    @property
     @abc.abstractmethod
     def output_type(
-        self, input_types: dict[ids.ColumnId, dtypes.ExpressionType]
+        self,
     ) -> dtypes.ExpressionType:
         ...
 
@@ -232,7 +233,7 @@ class ScalarConstantExpression(Expression):
         return ()
 
     def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
+        self,
     ) -> dtypes.ExpressionType:
         return self.dtype
 
@@ -273,7 +274,7 @@ class UnboundVariableExpression(Expression):
         return ()
 
     def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
+        self,
     ) -> dtypes.ExpressionType:
         raise ValueError(f"Type of variable {self.id} has not been fixed.")
 
@@ -307,6 +308,7 @@ class DerefOp(Expression):
     """A variable expression representing an unbound variable."""
 
     id: ids.ColumnId
+    dtype: bigframes.dtypes.Dtype
 
     @property
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
@@ -316,13 +318,11 @@ class DerefOp(Expression):
     def is_const(self) -> bool:
         return False
 
+    @property
     def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
+        self,
     ) -> dtypes.ExpressionType:
-        if self.id in input_types:
-            return input_types[self.id]
-        else:
-            raise ValueError(f"Type of variable {self.id} has not been fixed.")
+        return self.dtype
 
     def bind_variables(
         self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
@@ -376,12 +376,11 @@ class OpExpression(Expression):
     def is_const(self) -> bool:
         return all(child.is_const for child in self.inputs)
 
+    @property
     def output_type(
-        self, input_types: dict[ids.ColumnId, dtypes.ExpressionType]
+        self,
     ) -> dtypes.ExpressionType:
-        operand_types = tuple(
-            map(lambda x: x.output_type(input_types=input_types), self.inputs)
-        )
+        operand_types = tuple(map(lambda x: x.output_type, self.inputs))
         return self.op.output_type(*operand_types)
 
     def bind_variables(
