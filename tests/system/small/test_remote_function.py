@@ -26,7 +26,7 @@ import bigframes
 import bigframes.dtypes
 import bigframes.exceptions
 from bigframes.functions import _utils as rf_utils
-from bigframes.functions import remote_function as rf
+from bigframes.functions import function as bff
 from tests.system.utils import assert_pandas_df_equal
 
 _prefixer = test_utils.prefixer.Prefixer("bigframes", "")
@@ -117,7 +117,7 @@ def test_remote_function_direct_no_session_param(
     def square(x):
         return x * x
 
-    square = rf.remote_function(
+    square = bff.remote_function(
         int,
         int,
         bigquery_client=bigquery_client,
@@ -176,7 +176,7 @@ def test_remote_function_direct_no_session_param_location_specified(
     def square(x):
         return x * x
 
-    square = rf.remote_function(
+    square = bff.remote_function(
         int,
         int,
         bigquery_client=bigquery_client,
@@ -235,7 +235,7 @@ def test_remote_function_direct_no_session_param_location_mismatched(
         ValueError,
         match=re.escape("The location does not match BigQuery connection location:"),
     ):
-        rf.remote_function(
+        bff.remote_function(
             int,
             int,
             bigquery_client=bigquery_client,
@@ -263,7 +263,7 @@ def test_remote_function_direct_no_session_param_location_project_specified(
     def square(x):
         return x * x
 
-    square = rf.remote_function(
+    square = bff.remote_function(
         int,
         int,
         bigquery_client=bigquery_client,
@@ -324,7 +324,7 @@ def test_remote_function_direct_no_session_param_project_mismatched(
             "The project_id does not match BigQuery connection gcp_project_id:"
         ),
     ):
-        rf.remote_function(
+        bff.remote_function(
             int,
             int,
             bigquery_client=bigquery_client,
@@ -346,7 +346,7 @@ def test_remote_function_direct_session_param(
     def square(x):
         return x * x
 
-    square = rf.remote_function(
+    square = bff.remote_function(
         int,
         int,
         session=session_with_bq_connection,
@@ -636,7 +636,7 @@ def test_skip_bq_connection_check(dataset_id_permanent):
 def test_read_gbq_function_detects_invalid_function(session, dataset_id):
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
     with pytest.raises(ValueError) as e:
-        rf.read_gbq_function(
+        bff.read_gbq_function(
             str(dataset_ref.routine("not_a_function")),
             session=session,
         )
@@ -658,7 +658,7 @@ def test_read_gbq_function_like_original(
     def square1(x):
         return x * x
 
-    square1 = rf.remote_function(
+    square1 = bff.remote_function(
         [int],
         int,
         bigquery_client=bigquery_client,
@@ -674,7 +674,7 @@ def test_read_gbq_function_like_original(
     # Function should still work normally.
     assert square1(2) == 4
 
-    square2 = rf.read_gbq_function(
+    square2 = bff.read_gbq_function(
         function_name=square1.bigframes_remote_function,  # type: ignore
         session=session,
     )
@@ -745,7 +745,7 @@ def test_read_gbq_function_reads_udfs(session, bigquery_client, dataset_id):
     for routine in (sql_routine, js_routine):
         # Create the routine in BigQuery and read it back using read_gbq_function.
         bigquery_client.create_routine(routine, exists_ok=True)
-        square = rf.read_gbq_function(
+        square = bff.read_gbq_function(
             str(routine.reference),
             session=session,
         )
@@ -818,7 +818,7 @@ def test_read_gbq_function_requires_explicit_types(
     bigquery_client.create_routine(only_arg_type_specified, exists_ok=True)
     bigquery_client.create_routine(neither_type_specified, exists_ok=True)
 
-    rf.read_gbq_function(
+    bff.read_gbq_function(
         str(both_types_specified.reference),
         session=session,
     )
@@ -826,17 +826,17 @@ def test_read_gbq_function_requires_explicit_types(
         bigframes.exceptions.UnknownDataTypeWarning,
         match="missing input data types.*assume default data type",
     ):
-        rf.read_gbq_function(
+        bff.read_gbq_function(
             str(only_return_type_specified.reference),
             session=session,
         )
     with pytest.raises(ValueError):
-        rf.read_gbq_function(
+        bff.read_gbq_function(
             str(only_arg_type_specified.reference),
             session=session,
         )
     with pytest.raises(ValueError):
-        rf.read_gbq_function(
+        bff.read_gbq_function(
             str(neither_type_specified.reference),
             session=session,
         )
@@ -884,7 +884,7 @@ def test_read_gbq_function_respects_python_output_type(
 
     # Create the routine in BigQuery and read it back using read_gbq_function.
     bigquery_client.create_routine(sql_routine, exists_ok=True)
-    func = rf.read_gbq_function(str(sql_routine.reference), session=session)
+    func = bff.read_gbq_function(str(sql_routine.reference), session=session)
 
     # test that the function works as expected
     s = bigframes.series.Series([1, 10, 100])
@@ -933,7 +933,7 @@ def test_read_gbq_function_supports_python_output_type_only_for_string_outputs(
         TypeError,
         match="An explicit output_type should be provided only for a BigQuery function with STRING output.",
     ):
-        rf.read_gbq_function(str(sql_routine.reference), session=session)
+        bff.read_gbq_function(str(sql_routine.reference), session=session)
 
 
 @pytest.mark.parametrize(
@@ -965,7 +965,7 @@ def test_read_gbq_function_supported_python_output_type(
 
     # Create the routine in BigQuery and read it back using read_gbq_function.
     bigquery_client.create_routine(sql_routine, exists_ok=True)
-    rf.read_gbq_function(str(sql_routine.reference), session=session)
+    bff.read_gbq_function(str(sql_routine.reference), session=session)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
