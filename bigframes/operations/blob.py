@@ -158,9 +158,7 @@ class BlobAccessor(base.SeriesMethods):
         Returns:
             bigframes Series: ObjectRefRuntime JSON.
         """
-        s = self
-        if with_metadata:
-            s = s._apply_unary_op(ops.obj_fetch_metadata_op)
+        s = self._apply_unary_op(ops.obj_fetch_metadata_op) if with_metadata else self
 
         return s._apply_unary_op(ops.ObjGetAccessUrl(mode=mode))
 
