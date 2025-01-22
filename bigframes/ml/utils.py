@@ -134,6 +134,8 @@ def retrieve_params_from_bq_model(
     # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
     last_fitting = bq_model.training_runs[-1]["trainingOptions"]
 
+    breakpoint()
+
     for bf_param, bf_param_type in typing.get_type_hints(cls.__init__).items():
         bqml_param = params_mapping.get(bf_param)
         if bqml_param in last_fitting:

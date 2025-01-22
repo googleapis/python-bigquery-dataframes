@@ -483,7 +483,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def case_when(self, caselist) -> Series:
-        cases = list(itertools.chain(*caselist, (True, self)))
+        cases = []
+
+        for condition, output in itertools.chain(caselist, [(True, self)]):
+            cases.append(condition)
+            cases.append(output)
+            if condition is True:
+                break
+
         return self._apply_nary_op(
             ops.case_when_op,
             cases,

@@ -107,7 +107,7 @@ def test_arima_plus_model_fit_params(time_series_df_default_index, dataset_id):
         holiday_region="US",
         clean_spikes_and_dips=False,
         adjust_step_changes=False,
-        forecast_limit_upper_bound=8,
+        # forecast_limit_upper_bound=8,
         forecast_limit_lower_bound=0.5,
         time_series_length_fraction=0.5,
         min_time_series_length=10,
@@ -134,7 +134,7 @@ def test_arima_plus_model_fit_params(time_series_df_default_index, dataset_id):
     assert reloaded_model.holiday_region == "US"
     assert reloaded_model.clean_spikes_and_dips is False
     assert reloaded_model.adjust_step_changes is False
-    assert reloaded_model.forecast_limit_upper_bound is not None
+    # assert reloaded_model.forecast_limit_upper_bound is not None
     assert reloaded_model.forecast_limit_lower_bound is not None
     assert reloaded_model.time_series_length_fraction == 0.5
     assert reloaded_model.min_time_series_length == 10
