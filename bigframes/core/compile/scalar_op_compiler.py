@@ -1143,7 +1143,7 @@ def to_timestamp_op_impl(x: ibis_types.Value, op: ops.ToTimestampOp):
 @scalar_op_compiler.register_unary_op(ops.ToTimedeltaOp, pass_op=True)
 def to_timedelta_op_impl(x: ibis_types.Value, op: ops.ToTimedeltaOp):
     return (
-        typing.cast(ibis_types.NumericValue, x) * UNIT_TO_US_CONVERSION_FACTORS[op.unit] # type: ignore
+        typing.cast(ibis_types.NumericValue, x) * UNIT_TO_US_CONVERSION_FACTORS[op.unit]  # type: ignore
     ).floor()
 
 
