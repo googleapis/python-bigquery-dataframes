@@ -521,12 +521,15 @@ def arrow_type_to_literal(
 
 
 def bigframes_type(dtype) -> Dtype:
+    """Convert type object to canoncial bigframes dtype."""
     if _is_bigframes_dtype(dtype):
         return dtype
     elif isinstance(dtype, str):
         return _dtype_from_string(dtype)
     elif isinstance(dtype, type):
         return _infer_dtype_from_python_type(dtype)
+    elif isinstance(dtype, pa.DataType):
+        return arrow_dtype_to_bigframes_dtype(dtype)
     else:
         raise TypeError(
             f"Cannot infer supported datatype for: {dtype}. {constants.FEEDBACK_LINK}"
