@@ -78,7 +78,8 @@ class Index(vendored_pandas_index.Index):
             if name is not None:
                 index.name = name
             if dtype is not None:
-                index = index.astype(dtype)
+                bf_dtype = bigframes.dtypes.bigframes_type(dtype)
+                index = index.astype(bf_dtype)
             block = index._block
         elif isinstance(data, pandas.Index):
             pd_df = pandas.DataFrame(index=data)

@@ -180,7 +180,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if columns:
                 block = block.select_columns(list(columns))  # type:ignore
             if dtype:
-                block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=dtype))
+                bf_dtype = bigframes.dtypes.bigframes_type(dtype)
+                block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=bf_dtype))
             self._block = block
 
         else:
