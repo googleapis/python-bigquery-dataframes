@@ -196,13 +196,6 @@ SIMPLE_TYPES = (
         clusterable=True,
     ),
     SimpleDtypeInfo(
-        dtype=TIMEDETLA_DTYPE,
-        arrow_dtype=pa.duration("us"),
-        type_kind=("INTEGER",),
-        orderable=True,
-        clusterable=True,
-    ),
-    SimpleDtypeInfo(
         dtype=BYTES_DTYPE, arrow_dtype=pa.binary(), type_kind=("BYTES",), orderable=True
     ),
     SimpleDtypeInfo(
@@ -640,6 +633,9 @@ def convert_to_schema_field(
             return google.cloud.bigquery.SchemaField(
                 name, "RECORD", fields=inner_fields
             )
+        if bigframes_dtype.pyarrow_dtype == pa.duration('us'):
+            # Timedeltas are represented as integers in microseconds.
+            return google.cloud.bigquery.SchemaField(name, "INTEGER")
     raise ValueError(
         f"No arrow conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
     )
