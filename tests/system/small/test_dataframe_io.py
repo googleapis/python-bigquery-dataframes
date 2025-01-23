@@ -306,6 +306,7 @@ def test_load_json_to_pandas_has_correct_result(session):
 
 
 def test_load_json_in_struct(session):
+    """Avoid regressions for internal issue 381148539."""
     sql = """
         SELECT 0 AS id, STRUCT(JSON_OBJECT('boolean', True) AS data, 1 AS number) AS struct_col
         UNION ALL
