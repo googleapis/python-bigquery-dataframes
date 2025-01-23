@@ -633,7 +633,7 @@ def convert_to_schema_field(
             return google.cloud.bigquery.SchemaField(
                 name, "RECORD", fields=inner_fields
             )
-        if bigframes_dtype.pyarrow_dtype == pa.duration('us'):
+        if bigframes_dtype.pyarrow_dtype == pa.duration("us"):
             # Timedeltas are represented as integers in microseconds.
             return google.cloud.bigquery.SchemaField(name, "INTEGER")
     raise ValueError(
