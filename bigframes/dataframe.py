@@ -748,9 +748,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 if df[col].dtype == bigframes.dtypes.OBJ_REF_DTYPE
             ]
             for col in blob_cols:
-                df[col] = df[col]._apply_unary_op(ops.obj_fetch_metadata_op)
                 # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
-                df[col] = df[col]._apply_unary_op(ops.ObjGetAccessUrl(mode="R"))
+                df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
@@ -2407,6 +2406,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         result.columns.name = self.columns.name
         result.columns.names = self.columns.names
         return result
+
+    def mask(self, cond, other=None):
+        return self.where(~cond, other=other)
 
     def dropna(
         self,
