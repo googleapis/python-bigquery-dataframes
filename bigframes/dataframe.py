@@ -1277,12 +1277,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for left_col in block.value_columns
             for right_col in block.value_columns
         ]
-        labels = utils.cross_indices(orig_columns, orig_columns)
+        # unique columns stops
+        uniq_orig_columns = utils.combine_indices(
+            orig_columns, pandas.Index(range(len(orig_columns)))
+        )
+        labels = utils.cross_indices(uniq_orig_columns, uniq_orig_columns)
 
         block, _ = block.aggregate(aggregations=aggregations, column_labels=labels)
-        block = block.stack(levels=orig_columns.nlevels)
+
+        block = block.stack(levels=orig_columns.nlevels + 1)
         # The aggregate operation crated a index level with just 0, need to drop it
-        return DataFrame(block).droplevel(0)
+        # Also, drop the last level of each index, which was created to guarantee uniqueness
+        return DataFrame(block).droplevel(0).droplevel(-1, axis=0).droplevel(-1, axis=1)
 
     def corr(self, method="pearson", min_periods=None, numeric_only=False) -> DataFrame:
         if method != "pearson":
@@ -1295,13 +1301,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
 
         if not numeric_only:
-            frame = self._raise_on_non_numeric("corr").copy()
+            frame = self._raise_on_non_numeric("corr")
         else:
-            frame = self._drop_non_numeric().copy()
+            frame = self._drop_non_numeric()
 
         if len(frame.columns) <= 30:
-            return self._fast_stat_matrix(agg_ops.CorrOp())
+            return frame._fast_stat_matrix(agg_ops.CorrOp())
 
+        frame = frame.copy()
         orig_columns = frame.columns
         # Replace column names with 0 to n - 1 to keep order
         # and avoid the influence of duplicated column name
