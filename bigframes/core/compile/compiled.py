@@ -921,7 +921,7 @@ class OrderedIR(BaseIbisIR):
             if expression.op.skips_nulls:
                 # Most operations do not count NULL values towards min_periods
                 per_col_does_count = (column.notnull() for column in inputs)
-                # all inputs must be non-null for observation to count
+                # All inputs must be non-null for observation to count
                 is_observation = functools.reduce(
                     lambda x, y: x & y, per_col_does_count
                 ).cast(int)
