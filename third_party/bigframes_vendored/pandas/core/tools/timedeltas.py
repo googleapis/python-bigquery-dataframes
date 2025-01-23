@@ -7,7 +7,7 @@ import pandas as pd
 
 from bigframes import series
 
-UnitChoices: typing.TypeAlias = typing.Literal[
+UnitChoices = typing.Literal[
     "W",
     "w",
     "D",
