@@ -13,10 +13,10 @@
 # limitations under the License.
 from __future__ import annotations
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.geopandas.geoseries as vendored_geoseries
 import geopandas.array  # type: ignore
 
-import bigframes_vendored.constants as constants
 import bigframes.operations as ops
 import bigframes.series
 
@@ -44,5 +44,5 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
     @property
     def area(self, crs=None) -> bigframes.dataFrame.DataFrame:
         raise NotImplementedError(
-                f"GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series), instead. {constants.FEEDBACK_LINK}"
-            )
+            f"GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series), instead. {constants.FEEDBACK_LINK}"
+        )
