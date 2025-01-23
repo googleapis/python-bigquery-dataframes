@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from datetime import datetime
+import typing
 
 import pandas as pd
 import pytest
@@ -766,7 +767,9 @@ def test_to_timedelta_with_bf_series(session, unit):
     bf_series = bpd.Series([1, 2, 3], session=session)
     pd_series = pd.Series([1, 2, 3])
 
-    actual_result = bpd.to_timedelta(bf_series, unit).to_pandas()
+    actual_result = typing.cast(
+        bpd.Series, bpd.to_timedelta(bf_series, unit)
+    ).to_pandas()
 
     expected_result = pd.to_timedelta(pd_series, unit).astype("duration[us][pyarrow]")
     pd.testing.assert_series_equal(
