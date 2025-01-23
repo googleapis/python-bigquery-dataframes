@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import typing
 from typing import cast, Dict, Iterable, Optional, Tuple, Union
-import warnings
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis
@@ -25,13 +24,13 @@ from bigframes_vendored.ibis.expr.datatypes.core import (
     dtype as python_type_to_ibis_type,
 )
 import bigframes_vendored.ibis.expr.types as ibis_types
+import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
 import pandas as pd
 import pyarrow as pa
 
 import bigframes.dtypes
-import bigframes.exceptions as bfe
 
 # Type hints for Ibis data types supported by BigQuery DataFrame
 IbisDtype = Union[
@@ -74,7 +73,7 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, bigframes.dtypes.Dtype]] = (
         ibis_dtypes.GeoSpatial(geotype="geography", srid=4326, nullable=True),
         gpd.array.GeometryDtype(),
     ),
-    (ibis_dtypes.json, pd.ArrowDtype(pa.large_string())),
+    (ibis_dtypes.json, db_dtypes.JSONDtype()),
 )
 
 BIGFRAMES_TO_IBIS: Dict[bigframes.dtypes.Dtype, ibis_dtypes.DataType] = {
@@ -279,13 +278,7 @@ def ibis_dtype_to_bigframes_dtype(
     if isinstance(ibis_dtype, ibis_dtypes.Integer):
         return pd.Int64Dtype()
 
-    # Temporary: Will eventually support an explicit json type instead of casting to string.
     if isinstance(ibis_dtype, ibis_dtypes.JSON):
-        msg = (
-            "Interpreting JSON column(s) as pyarrow.large_string. This behavior may change "
-            "in future versions."
-        )
-        warnings.warn(msg, category=bfe.PreviewWarning)
         return bigframes.dtypes.JSON_DTYPE
 
     if ibis_dtype in IBIS_TO_BIGFRAMES:
