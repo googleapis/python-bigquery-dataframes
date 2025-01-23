@@ -722,6 +722,21 @@ def strftime_op_impl(x: ibis_types.Value, op: ops.StrftimeOp):
     )
 
 
+@scalar_op_compiler.register_unary_op(ops.UnixSeconds)
+def unix_seconds_op_impl(x: ibis_types.TimestampValue):
+    return x.epoch_seconds()
+
+
+@scalar_op_compiler.register_unary_op(ops.UnixMicros)
+def unix_micros_op_impl(x: ibis_types.TimestampValue):
+    return unix_micros(x)
+
+
+@scalar_op_compiler.register_unary_op(ops.UnixMillis)
+def unix_millis_op_impl(x: ibis_types.TimestampValue):
+    return unix_millis(x)
+
+
 @scalar_op_compiler.register_unary_op(ops.FloorDtOp, pass_op=True)
 def floor_dt_op_impl(x: ibis_types.Value, op: ops.FloorDtOp):
     supported_freqs = ["Y", "Q", "M", "W", "D", "h", "min", "s", "ms", "us", "ns"]
@@ -1222,6 +1237,11 @@ def parse_json_op_impl(x: ibis_types.Value, op: ops.ParseJSON):
 @scalar_op_compiler.register_unary_op(ops.ToJSONString)
 def to_json_string_op_impl(json_obj: ibis_types.Value):
     return to_json_string(json_obj=json_obj)
+
+
+@scalar_op_compiler.register_unary_op(ops.JSONValue, pass_op=True)
+def json_value_op_impl(x: ibis_types.Value, op: ops.JSONValue):
+    return json_value(json_obj=x, json_path=op.json_path)
 
 
 # Blob Ops
@@ -1844,6 +1864,17 @@ def nary_remote_function_op_impl(
     return result
 
 
+@scalar_op_compiler.register_nary_op(ops.SqlScalarOp, pass_op=True)
+def sql_scalar_op_impl(*operands: ibis_types.Value, op: ops.SqlScalarOp):
+    return ibis_generic.SqlScalar(
+        op.sql_template,
+        values=tuple(typing.cast(ibis_generic.Value, expr.op()) for expr in operands),
+        output_type=bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype(
+            op.output_type()
+        ),
+    ).to_expr()
+
+
 @scalar_op_compiler.register_nary_op(ops.StructOp, pass_op=True)
 def struct_op_impl(
     *values: ibis_types.Value, op: ops.StructOp
@@ -1873,6 +1904,16 @@ def _ibis_num(number: float):
 @ibis_udf.scalar.builtin
 def timestamp(a: str) -> ibis_dtypes.timestamp:  # type: ignore
     """Convert string to timestamp."""
+
+
+@ibis_udf.scalar.builtin
+def unix_millis(a: ibis_dtypes.timestamp) -> int:  # type: ignore
+    """Convert a timestamp to milliseconds"""
+
+
+@ibis_udf.scalar.builtin
+def unix_micros(a: ibis_dtypes.timestamp) -> int:  # type: ignore
+    """Convert a timestamp to microseconds"""
 
 
 # Need these because ibis otherwise tries to do casts to int that can fail
@@ -1933,6 +1974,13 @@ def to_json_string(  # type: ignore[empty-body]
     json_obj: ibis_dtypes.JSON,
 ) -> ibis_dtypes.String:
     """Convert JSON to STRING."""
+
+
+@ibis_udf.scalar.builtin(name="json_value")
+def json_value(  # type: ignore[empty-body]
+    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
+) -> ibis_dtypes.String:
+    """Retrieve value of a JSON field as plain STRING."""
 
 
 @ibis_udf.scalar.builtin(name="ML.DISTANCE")

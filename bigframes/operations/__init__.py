@@ -51,6 +51,9 @@ from bigframes.operations.datetime_ops import (
     time_op,
     ToDatetimeOp,
     ToTimestampOp,
+    UnixMicros,
+    UnixMillis,
+    UnixSeconds,
 )
 from bigframes.operations.distance_ops import (
     cosine_distance_op,
@@ -78,6 +81,7 @@ from bigframes.operations.generic_ops import (
     minimum_op,
     notnull_op,
     RowKey,
+    SqlScalarOp,
     where_op,
 )
 from bigframes.operations.geo_ops import geo_x_op, geo_y_op, geo_area_op
@@ -86,6 +90,7 @@ from bigframes.operations.json_ops import (
     JSONExtractArray,
     JSONExtractStringArray,
     JSONSet,
+    JSONValue,
     ParseJSON,
     ToJSONString,
 )
@@ -190,6 +195,7 @@ __all__ = [
     "minimum_op",
     "notnull_op",
     "RowKey",
+    "SqlScalarOp",
     "where_op",
     # String ops
     "capitalize_op",
@@ -240,6 +246,9 @@ __all__ = [
     "ToDatetimeOp",
     "ToTimestampOp",
     "StrftimeOp",
+    "UnixMicros",
+    "UnixMillis",
+    "UnixSeconds",
     # Numeric ops
     "abs_op",
     "add_op",
@@ -298,6 +307,7 @@ __all__ = [
     "JSONExtractArray",
     "JSONExtractStringArray",
     "JSONSet",
+    "JSONValue",
     "ParseJSON",
     "ToJSONString",
     # Bool ops

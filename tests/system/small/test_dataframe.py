@@ -331,6 +331,17 @@ def test_where_series_cond(scalars_df_index, scalars_pandas_df_index):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_mask_series_cond(scalars_df_index, scalars_pandas_df_index):
+    cond_bf = scalars_df_index["int64_col"] > 0
+    cond_pd = scalars_pandas_df_index["int64_col"] > 0
+
+    bf_df = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
+    pd_df = scalars_pandas_df_index[["int64_too", "int64_col", "float64_col"]]
+    bf_result = bf_df.mask(cond_bf, bf_df + 1).to_pandas()
+    pd_result = pd_df.mask(cond_pd, pd_df + 1)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_where_series_multi_index(scalars_df_index, scalars_pandas_df_index):
     # Test when a dataframe has multi-index or multi-columns.
     columns = ["int64_col", "float64_col"]
@@ -2551,6 +2562,27 @@ def test_join_param_on(scalars_dfs, how):
         pd_df_a = pd_df_a.assign(rowindex_2=pd_df_a["rowindex_2"] + 2)
         pd_df_b = pd_df[["float64_col"]]
         pd_result = pd_df_a.join(pd_df_b, on="rowindex_2", how=how)
+        assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
+
+
+@all_joins
+def test_df_join_series(scalars_dfs, how):
+    bf_df, pd_df = scalars_dfs
+
+    bf_df_a = bf_df[["string_col", "int64_col", "rowindex_2"]]
+    bf_df_a = bf_df_a.assign(rowindex_2=bf_df_a["rowindex_2"] + 2)
+    bf_series_b = bf_df["float64_col"]
+
+    if how == "cross":
+        with pytest.raises(ValueError):
+            bf_df_a.join(bf_series_b, on="rowindex_2", how=how)
+    else:
+        bf_result = bf_df_a.join(bf_series_b, on="rowindex_2", how=how).to_pandas()
+
+        pd_df_a = pd_df[["string_col", "int64_col", "rowindex_2"]]
+        pd_df_a = pd_df_a.assign(rowindex_2=pd_df_a["rowindex_2"] + 2)
+        pd_series_b = pd_df["float64_col"]
+        pd_result = pd_df_a.join(pd_series_b, on="rowindex_2", how=how)
         assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 

@@ -34,34 +34,157 @@ class BlobAccessor(base.SeriesMethods):
 
         super().__init__(*args, **kwargs)
 
-    def metadata(self) -> bigframes.series.Series:
-        """Retrive the metadata of the Blob.
+    def uri(self) -> bigframes.series.Series:
+        """URIs of the Blob.
 
         .. note::
             BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
         Returns:
-            JSON: metadata of the Blob. Contains fields: content_type, md5_hash, size and updated(time)."""
+            BigFrames Series: URIs as string."""
+        s = bigframes.series.Series(self._block)
+
+        return s.struct.field("uri")
+
+    def authorizer(self) -> bigframes.series.Series:
+        """Authorizers of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: Autorithers(connection) as string."""
+        s = bigframes.series.Series(self._block)
+
+        return s.struct.field("authorizer")
+
+    def version(self) -> bigframes.series.Series:
+        """Versions of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: Version as string."""
+        # version must be retrieved after fetching metadata
+        return self._apply_unary_op(ops.obj_fetch_metadata_op).struct.field("version")
+
+    def metadata(self) -> bigframes.series.Series:
+        """Retrieve the metadata of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: JSON metadata of the Blob. Contains fields: content_type, md5_hash, size and updated(time)."""
         details_json = self._apply_unary_op(ops.obj_fetch_metadata_op).struct.field(
             "details"
         )
         import bigframes.bigquery as bbq
 
-        return bbq.json_extract(details_json, "$.gcs_metadata")
+        return bbq.json_extract(details_json, "$.gcs_metadata").rename("metadata")
 
     def content_type(self) -> bigframes.series.Series:
-        """Retrive the content type of the Blob.
+        """Retrieve the content type of the Blob.
 
         .. note::
             BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
         Returns:
-            BigFrames Series: json-string of the content type."""
-        import bigframes.bigquery as bbq
+            BigFrames Series: string of the content type."""
+        return (
+            self.metadata()
+            ._apply_unary_op(ops.JSONValue(json_path="$.content_type"))
+            .rename("content_type")
+        )
 
-        metadata = self.metadata()
+    def md5_hash(self) -> bigframes.series.Series:
+        """Retrieve the md5 hash of the Blob.
 
-        return bbq.json_extract(metadata, "$.content_type")
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: string of the md5 hash."""
+        return (
+            self.metadata()
+            ._apply_unary_op(ops.JSONValue(json_path="$.md5_hash"))
+            .rename("md5_hash")
+        )
+
+    def size(self) -> bigframes.series.Series:
+        """Retrieve the file size of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: file size in bytes."""
+        return (
+            self.metadata()
+            ._apply_unary_op(ops.JSONValue(json_path="$.size"))
+            .rename("size")
+            .astype("Int64")
+        )
+
+    def updated(self) -> bigframes.series.Series:
+        """Retrieve the updated time of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: updated time as UTC datetime."""
+        import bigframes.pandas as bpd
+
+        updated = (
+            self.metadata()
+            ._apply_unary_op(ops.JSONValue(json_path="$.updated"))
+            .rename("updated")
+            .astype("Int64")
+        )
+
+        return bpd.to_datetime(updated, unit="us", utc=True)
+
+    def _get_runtime(
+        self, mode: str, with_metadata: bool = False
+    ) -> bigframes.series.Series:
+        """Retrieve the ObjectRefRuntime as JSON.
+
+        Args:
+            mode (str): mode for the URLs, "R" for read, "RW" for read & write.
+            metadata (bool, default False): whether to fetch the metadata in the ObjectRefRuntime.
+
+        Returns:
+            bigframes Series: ObjectRefRuntime JSON.
+        """
+        s = self._apply_unary_op(ops.obj_fetch_metadata_op) if with_metadata else self
+
+        return s._apply_unary_op(ops.ObjGetAccessUrl(mode=mode))
+
+    def read_url(self) -> bigframes.series.Series:
+        """Retrieve the read URL of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: Read only URLs."""
+        return self._get_runtime(mode="R")._apply_unary_op(
+            ops.JSONValue(json_path="$.access_urls.read_url")
+        )
+
+    def write_url(self) -> bigframes.series.Series:
+        """Retrieve the write URL of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: Writable URLs."""
+        return self._get_runtime(mode="RW")._apply_unary_op(
+            ops.JSONValue(json_path="$.access_urls.write_url")
+        )
 
     def display(self, n: int = 3, *, content_type: str = ""):
         """Display the blob content in the IPython Notebook environment. Only works for image type now.
@@ -73,15 +196,10 @@ class BlobAccessor(base.SeriesMethods):
             n (int, default 3): number of sample blob objects to display.
             content_type (str, default ""): content type of the blob. If unset, use the blob metadata of the storage. Possible values are "image", "audio" and "video".
         """
-        import bigframes.bigquery as bbq
-
         # col name doesn't matter here. Rename to avoid column name conflicts
         df = bigframes.series.Series(self._block).rename("blob_col").head(n).to_frame()
 
-        obj_ref_runtime = df["blob_col"]._apply_unary_op(ops.ObjGetAccessUrl(mode="R"))
-        df["read_url"] = bbq.json_extract(
-            obj_ref_runtime, json_path="$.access_urls.read_url"
-        )
+        df["read_url"] = df["blob_col"].blob.read_url()
 
         if content_type:
             df["content_type"] = content_type
@@ -101,14 +219,10 @@ class BlobAccessor(base.SeriesMethods):
                 ipy_display.display(ipy_display.Video(url=read_url))
             else:  # display as raw data
                 response = requests.get(read_url)
-                ipy_display.display(response.content, raw=True)
+                ipy_display.display(response.content)
 
         for _, row in df.iterrows():
-            # both are JSON-formated strings
-            read_url = str(row["read_url"]).strip('"')
-            content_type = str(row["content_type"]).strip('"')
-
-            display_single_url(read_url, content_type)
+            display_single_url(row["read_url"], row["content_type"])
 
     def image_blur(
         self,
@@ -154,10 +268,8 @@ class BlobAccessor(base.SeriesMethods):
             connection=connection,
         ).udf()
 
-        src_rt = bigframes.series.Series(self._block)._apply_unary_op(
-            ops.ObjGetAccessUrl(mode="R")
-        )
-        dst_rt = dst._apply_unary_op(ops.ObjGetAccessUrl(mode="RW"))
+        src_rt = self._get_runtime(mode="R")
+        dst_rt = dst.blob._get_runtime(mode="RW")
 
         src_rt = src_rt._apply_unary_op(ops.ToJSONString())
         dst_rt = dst_rt._apply_unary_op(ops.ToJSONString())
