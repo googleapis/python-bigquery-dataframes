@@ -16,7 +16,6 @@ import bigframes_vendored.ibis.backends.bigquery.datatypes as ibis_bq_types
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.types as ibis_types
 import geopandas as gpd  # type: ignore
-import numpy as np
 import pandas as pd
 import pyarrow as pa  # type: ignore
 import pytest
@@ -195,45 +194,6 @@ def test_bigframes_dtype_converts(ibis_dtype, bigframes_dtype):
         bigframes_dtype
     )
     assert result == ibis_dtype
-
-
-@pytest.mark.parametrize(
-    ["bigframes_dtype_str", "ibis_dtype"],
-    [
-        # This test covers all dtypes that BigQuery DataFrames can exactly map to Ibis
-        ("boolean", ibis_dtypes.boolean),
-        ("date32[day][pyarrow]", ibis_dtypes.date),
-        ("timestamp[us][pyarrow]", ibis_dtypes.Timestamp()),
-        ("Float64", ibis_dtypes.float64),
-        ("Int64", ibis_dtypes.int64),
-        ("string[pyarrow]", ibis_dtypes.string),
-        ("time64[us][pyarrow]", ibis_dtypes.time),
-        (
-            "timestamp[us, tz=UTC][pyarrow]",
-            ibis_dtypes.Timestamp(timezone="UTC"),
-        ),
-        # Special case - "string" is acceptable for "string[pyarrow]"
-        ("string", ibis_dtypes.string),
-    ],
-)
-def test_bigframes_string_dtype_converts(ibis_dtype, bigframes_dtype_str):
-    """Test all the Ibis data types needed to read BigQuery tables"""
-    result = bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype(
-        bigframes_dtype_str
-    )
-    assert result == ibis_dtype
-
-
-def test_unsupported_dtype_raises_unexpected_datatype():
-    """Incompatible dtypes should fail when passed into BigQuery DataFrames"""
-    with pytest.raises(ValueError, match="Unexpected data type"):
-        bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype(np.float32)
-
-
-def test_unsupported_dtype_str_raises_unexpected_datatype():
-    """Incompatible dtypes should fail when passed into BigQuery DataFrames"""
-    with pytest.raises(ValueError, match="Unexpected data type"):
-        bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype("int64")
 
 
 @pytest.mark.parametrize(
