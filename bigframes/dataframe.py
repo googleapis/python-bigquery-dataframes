@@ -1413,13 +1413,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def cov(self, *, numeric_only: bool = False) -> DataFrame:
         if not numeric_only:
-            frame = self._raise_on_non_numeric("corr").copy()
+            frame = self._raise_on_non_numeric("corr")
         else:
-            frame = self._drop_non_numeric().copy()
+            frame = self._drop_non_numeric()
 
         if len(frame.columns) <= 30:
-            return self._fast_stat_matrix(agg_ops.CovOp())
+            return frame._fast_stat_matrix(agg_ops.CovOp())
 
+        frame = frame.copy()
         orig_columns = frame.columns
         # Replace column names with 0 to n - 1 to keep order
         # and avoid the influence of duplicated column name
