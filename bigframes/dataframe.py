@@ -387,17 +387,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         dtype = bigframes.dtypes.bigframes_type(dtype)
 
-        # Type strings check
-        if dtype in bigframes.dtypes.DTYPE_STRINGS:
-            return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
-
-        # Type instances check
-        if type(dtype) in bigframes.dtypes.DTYPES:
-            return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
-
-        raise TypeError(
-            f"Invalid type {type(dtype)} for dtype input. {constants.FEEDBACK_LINK}"
-        )
+        return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
 
     def _to_sql_query(
         self, include_index: bool, enable_cache: bool = True
