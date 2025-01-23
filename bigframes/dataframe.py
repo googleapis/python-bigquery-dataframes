@@ -368,6 +368,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         dtype: Union[
             bigframes.dtypes.DtypeString,
             bigframes.dtypes.Dtype,
+            type,
             dict[str, Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype]],
         ],
         *,
@@ -378,6 +379,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         safe_cast = errors == "null"
 
+        if isinstance(dtype, dict):
+            result = self.copy()
+            for col, to_type in dtype.items():
+                result[col] = result[col].astype(to_type)
+            return result
+
+        dtype = bigframes.dtypes.bigframes_type(dtype)
+
         # Type strings check
         if dtype in bigframes.dtypes.DTYPE_STRINGS:
             return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
@@ -385,12 +394,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # Type instances check
         if type(dtype) in bigframes.dtypes.DTYPES:
             return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
-
-        if isinstance(dtype, dict):
-            result = self.copy()
-            for col, to_type in dtype.items():
-                result[col] = result[col].astype(to_type)
-            return result
 
         raise TypeError(
             f"Invalid type {type(dtype)} for dtype input. {constants.FEEDBACK_LINK}"

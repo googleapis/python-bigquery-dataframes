@@ -310,7 +310,7 @@ class Index(vendored_pandas_index.Index):
 
     def astype(
         self,
-        dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
+        dtype,
         *,
         errors: Literal["raise", "null"] = "raise",
     ) -> Index:
@@ -318,6 +318,7 @@ class Index(vendored_pandas_index.Index):
             raise ValueError("Argument 'errors' must be one of 'raise' or 'null'")
         if self.nlevels > 1:
             raise TypeError("Multiindex does not support 'astype'")
+        dtype = bigframes.dtypes.bigframes_type(dtype)
         return self._apply_unary_expr(
             ops.AsTypeOp(to_type=dtype, safe=(errors == "null")).as_expr(
                 ex.free_var("arg")

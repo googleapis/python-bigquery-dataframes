@@ -17,6 +17,7 @@
 from dataclasses import dataclass
 import datetime
 import decimal
+import textwrap
 import typing
 from typing import Any, Dict, List, Literal, Union
 
@@ -519,6 +520,76 @@ def arrow_type_to_literal(
     )
 
 
+def bigframes_type(dtype) -> Dtype:
+    if _is_bigframes_dtype(dtype):
+        return dtype
+    elif isinstance(dtype, str):
+        return _dtype_from_string(dtype)
+    elif isinstance(dtype, type):
+        return _infer_dtype_from_python_type(dtype)
+    else:
+        raise ValueError(f"Cannot infer supported datatype for: {dtype}")
+
+
+def _is_bigframes_dtype(dtype) -> bool:
+    """True iff dtyps is a canonical bigframes dtype"""
+    if dtype in set(item.dtype for item in SIMPLE_TYPES):
+        return True
+    if isinstance(dtype, pd.ArrowDtype):
+        try:
+            _ = arrow_dtype_to_bigframes_dtype(dtype.pyarrow_dtype)
+            return True
+        except ValueError:
+            return False
+    return False
+
+
+def _infer_dtype_from_python_type(type: type) -> Dtype:
+    if issubclass(type, (bool, np.bool_)):
+        return BOOL_DTYPE
+    if issubclass(type, (int, np.integer)):
+        return INT_DTYPE
+    if issubclass(type, (float, np.floating)):
+        return FLOAT_DTYPE
+    if issubclass(type, decimal.Decimal):
+        return NUMERIC_DTYPE
+    if issubclass(type, (str, np.str_)):
+        return STRING_DTYPE
+    if issubclass(type, (bytes, np.bytes_)):
+        return BYTES_DTYPE
+    if issubclass(type, datetime.date):
+        return DATE_DTYPE
+    if issubclass(type, datetime.time):
+        return TIME_DTYPE
+    else:
+        raise ValueError(f"No matching datatype for python type: {type}")
+
+
+def _dtype_from_string(dtype_string: str) -> typing.Optional[Dtype]:
+    if str(dtype_string) in BIGFRAMES_STRING_TO_BIGFRAMES:
+        return BIGFRAMES_STRING_TO_BIGFRAMES[
+            typing.cast(DtypeString, str(dtype_string))
+        ]
+    raise ValueError(
+        textwrap.dedent(
+            f"""
+                Unexpected data type string {dtype_string}. The following
+                        dtypes are supppted: 'boolean','Float64','Int64',
+                        'int64[pyarrow]','string','string[pyarrow]',
+                        'timestamp[us, tz=UTC][pyarrow]','timestamp[us][pyarrow]',
+                        'date32[day][pyarrow]','time64[us][pyarrow]'.
+                        The following pandas.ExtensionDtype are supported:
+                        pandas.BooleanDtype(), pandas.Float64Dtype(),
+                        pandas.Int64Dtype(), pandas.StringDtype(storage="pyarrow"),
+                        pd.ArrowDtype(pa.date32()), pd.ArrowDtype(pa.time64("us")),
+                        pd.ArrowDtype(pa.timestamp("us")),
+                        pd.ArrowDtype(pa.timestamp("us", tz="UTC")).
+                {constants.FEEDBACK_LINK}
+                """
+        )
+    )
+
+
 def infer_literal_type(literal) -> typing.Optional[Dtype]:
     # Maybe also normalize literal to canonical python representation to remove this burden from compilers?
     if pd.api.types.is_list_like(literal):
@@ -538,28 +609,15 @@ def infer_literal_type(literal) -> typing.Optional[Dtype]:
         return pd.ArrowDtype(pa.struct(fields))
     if pd.isna(literal):
         return None  # Null value without a definite type
-    if isinstance(literal, (bool, np.bool_)):
-        return BOOL_DTYPE
-    if isinstance(literal, (int, np.integer)):
-        return INT_DTYPE
-    if isinstance(literal, (float, np.floating)):
-        return FLOAT_DTYPE
-    if isinstance(literal, decimal.Decimal):
-        return NUMERIC_DTYPE
-    if isinstance(literal, (str, np.str_)):
-        return STRING_DTYPE
-    if isinstance(literal, (bytes, np.bytes_)):
-        return BYTES_DTYPE
     # Make sure to check datetime before date as datetimes are also dates
     if isinstance(literal, (datetime.datetime, pd.Timestamp)):
         if literal.tzinfo is not None:
             return TIMESTAMP_DTYPE
         else:
             return DATETIME_DTYPE
-    if isinstance(literal, datetime.date):
-        return DATE_DTYPE
-    if isinstance(literal, datetime.time):
-        return TIME_DTYPE
+    from_python_type = _infer_dtype_from_python_type(type(literal))
+    if from_python_type is not None:
+        return from_python_type
     else:
         raise ValueError(f"Unable to infer type for value: {literal}")
 
