@@ -80,7 +80,7 @@ from bigframes.operations.generic_ops import (
     RowKey,
     where_op,
 )
-from bigframes.operations.geo_ops import geo_x_op, geo_y_op
+from bigframes.operations.geo_ops import geo_x_op, geo_y_op, geo_area_op
 from bigframes.operations.json_ops import (
     JSONExtract,
     JSONExtractArray,
@@ -319,6 +319,7 @@ __all__ = [
     # Geo ops
     "geo_x_op",
     "geo_y_op",
+    "geo_area_op",
     # Numpy ops mapping
     "NUMPY_TO_BINOP",
     "NUMPY_TO_OP",

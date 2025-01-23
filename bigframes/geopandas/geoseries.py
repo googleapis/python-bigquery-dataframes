@@ -16,6 +16,7 @@ from __future__ import annotations
 import bigframes_vendored.geopandas.geoseries as vendored_geoseries
 import geopandas.array  # type: ignore
 
+import bigframes_vendored.constants as constants
 import bigframes.operations as ops
 import bigframes.series
 
@@ -39,3 +40,9 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         series = self._apply_unary_op(ops.geo_y_op)
         series.name = None
         return series
+
+    @property
+    def area(self, crs=None) -> bigframes.dataFrame.DataFrame:
+        raise NotImplementedError(
+                f"GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series), instead. {constants.FEEDBACK_LINK}"
+            )

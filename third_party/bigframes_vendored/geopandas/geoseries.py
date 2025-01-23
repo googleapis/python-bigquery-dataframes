@@ -58,7 +58,7 @@ class GeoSeries:
             dtype: Float64
 
         Returns:
-            bigframes.series.Series:
+            bigframes.pandas.Series:
                 Return the x location (longitude) of point geometries.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -85,7 +85,24 @@ class GeoSeries:
             dtype: Float64
 
         Returns:
-            bigframes.series.Series:
+            bigframes.pandas.Series:
                 Return the y location (latitude) of point geometries.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def area(self, crs=None) -> bigframes.series.Series:
+        """Returns a Series containing the area of each geometry in the GeoSeries
+        expressed in the units of the CRS.
+
+        Args:
+            crs (optional):
+                Coordinate Reference System of the geometry objects. Can be
+                anything accepted by pyproj.CRS.from_user_input(), such as an
+                authority string (eg “EPSG:4326”) or a WKT string.
+
+        Returns:
+            float:
+                Series of float representing the areas.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
