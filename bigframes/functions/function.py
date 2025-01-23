@@ -120,11 +120,11 @@ def get_routine_reference(
 
 
 def remote_function(*args, **kwargs):
-    remote_function_session = bff_session.RemoteFunctionSession()
+    remote_function_session = bff_session.FunctionSession()
     return remote_function_session.remote_function(*args, **kwargs)
 
 
-remote_function.__doc__ = bff_session.RemoteFunctionSession.remote_function.__doc__
+remote_function.__doc__ = bff_session.FunctionSession.remote_function.__doc__
 
 
 def read_gbq_function(

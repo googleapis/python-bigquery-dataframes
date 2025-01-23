@@ -55,8 +55,8 @@ import pandas
 from . import _function_client, _utils
 
 
-class RemoteFunctionSession:
-    """Session to manage remote functions."""
+class FunctionSession:
+    """Session to manage bigframes (remote and managed) functions."""
 
     def __init__(self):
         # Session level mapping of remote function artifacts
@@ -467,7 +467,7 @@ class RemoteFunctionSession:
                 signature, input_types, output_type  # type: ignore
             )
 
-            remote_function_client = _function_client.RemoteFunctionClient(
+            remote_function_client = _function_client.FunctionClient(
                 dataset_ref.project,
                 cloud_function_region,
                 cloud_functions_client,
