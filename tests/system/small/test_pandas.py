@@ -726,3 +726,65 @@ def test_to_datetime_timestamp_inputs(arg, utc, output_in_utc):
     pd.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
+
+
+@pytest.mark.parametrize(
+    "unit",
+    [
+        "W",
+        "w",
+        "D",
+        "d",
+        "days",
+        "day",
+        "hours",
+        "hour",
+        "hr",
+        "h",
+        "m",
+        "minute",
+        "min",
+        "minutes",
+        "s",
+        "seconds",
+        "sec",
+        "second",
+        "ms",
+        "milliseconds",
+        "millisecond",
+        "milli",
+        "millis",
+        "us",
+        "microseconds",
+        "microsecond",
+        "µs",
+        "micro",
+        "micros",
+    ],
+)
+def test_to_timedelta_with_bf_series(session, unit):
+    bf_series = bpd.Series([1, 2, 3], session=session)
+    pd_series = pd.Series([1, 2, 3])
+
+    actual_result = bpd.to_timedelta(bf_series, unit).to_pandas()
+
+    expected_result = pd.to_timedelta(pd_series, unit).astype("duration[us][pyarrow]")
+    pd.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
+    "unit",
+    ["Y", "M", "whatever"],
+)
+def test_to_timedelta_with_bf_series_invalid_unit(session, unit):
+    bf_series = bpd.Series([1, 2, 3], session=session)
+
+    with pytest.raises(TypeError):
+        bpd.to_timedelta(bf_series, unit)
+
+
+@pytest.mark.parametrize("input", [1, 1.2, "1s"])
+def test_to_timedelta_non_bf_series(input):
+    assert bpd.to_timedelta(input) == pd.to_timedelta(input)

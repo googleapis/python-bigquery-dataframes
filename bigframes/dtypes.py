@@ -54,6 +54,7 @@ DATE_DTYPE = pd.ArrowDtype(pa.date32())
 TIME_DTYPE = pd.ArrowDtype(pa.time64("us"))
 DATETIME_DTYPE = pd.ArrowDtype(pa.timestamp("us"))
 TIMESTAMP_DTYPE = pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
+TIMEDETLA_DTYPE = pd.ArrowDtype(pa.duration("us"))
 NUMERIC_DTYPE = pd.ArrowDtype(pa.decimal128(38, 9))
 BIGNUMERIC_DTYPE = pd.ArrowDtype(pa.decimal256(76, 38))
 # No arrow equivalent
@@ -191,6 +192,13 @@ SIMPLE_TYPES = (
         dtype=TIMESTAMP_DTYPE,
         arrow_dtype=pa.timestamp("us", tz="UTC"),
         type_kind=("TIMESTAMP",),
+        orderable=True,
+        clusterable=True,
+    ),
+    SimpleDtypeInfo(
+        dtype=TIMEDETLA_DTYPE,
+        arrow_dtype=pa.duration("us"),
+        type_kind=("INTEGER",),
         orderable=True,
         clusterable=True,
     ),
