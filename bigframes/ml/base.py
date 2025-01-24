@@ -221,7 +221,6 @@ class SupervisedTrainableWithIdColPredictor(TrainableWithIdColPredictor):
         return self._fit(X, y, id_col=id_col)
 
 
-
 class TrainableWithEvaluationPredictor(TrainablePredictor):
     """A BigQuery DataFrames ML Model base class that can be used to fit and predict outputs.
 

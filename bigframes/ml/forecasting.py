@@ -209,9 +209,7 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
         X, y = utils.batch_convert_to_dataframe(X, y)
 
         if X.columns.size < 1:
-            raise ValueError(
-                "Time series timestamp input X contain at least 1 column."
-            )
+            raise ValueError("Time series timestamp input X contain at least 1 column.")
         if y.columns.size != 1:
             raise ValueError("Time series data input y must only contain 1 column.")
 
@@ -362,6 +360,7 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
         self,
         X: utils.ArrayType,
         y: utils.ArrayType,
+        id_col: Optional[utils.ArrayType] = None,
     ) -> bpd.DataFrame:
         """Calculate evaluation metrics of the model.
 
@@ -398,7 +397,7 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
             (id_col,) = utils.batch_convert_to_dataframe(id_col)
             input_data = input_data.join(id_col, how="outer")
 
-       return self._bqml_model.evaluate(input_data)
+        return self._bqml_model.evaluate(input_data)
 
     def summary(
         self,

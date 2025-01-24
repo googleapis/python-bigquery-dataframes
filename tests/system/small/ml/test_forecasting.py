@@ -476,4 +476,4 @@ def test_arima_plus_summary_series(
         if id_col_name
         else ARIMA_EVALUATE_OUTPUT_COL
     )
-    a
+    assert all(column in result.columns for column in expected_columns)
