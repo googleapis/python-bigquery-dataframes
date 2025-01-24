@@ -18,6 +18,7 @@ import inspect
 import math  # must keep this at top level to test udf referring global import
 import os.path
 import shutil
+import sys
 import tempfile
 import textwrap
 
@@ -881,6 +882,10 @@ def test_remote_udf_lambda(session, scalars_dfs, dataset_id, bq_cf_connection):
         )
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 13),
+    reason="Issues with installing sklearn for this test in python 3.13",
+)
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_with_explicit_name(
     session, scalars_dfs, dataset_id, bq_cf_connection
@@ -938,6 +943,10 @@ def test_remote_function_with_explicit_name(
         )
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 13),
+    reason="Issues with installing sklearn for this test in python 3.13",
+)
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_with_external_package_dependencies(
     session, scalars_dfs, dataset_id, bq_cf_connection
@@ -983,6 +992,10 @@ def test_remote_function_with_external_package_dependencies(
         )
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 13),
+    reason="Issues with installing sklearn for this test in python 3.13",
+)
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_with_explicit_name_reuse(
     session, scalars_dfs, dataset_id, bq_cf_connection
@@ -1354,6 +1367,10 @@ def test_remote_function_via_session_custom_sa(scalars_dfs):
         )
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 13),
+    reason="Issues with installing sklearn for this test in python 3.13",
+)
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_with_gcf_cmek():
     # TODO(shobs): Automate the following set-up during testing in the test project.
@@ -2409,6 +2426,10 @@ def test_remote_function_ingress_settings_unsupported(session):
             return x * x
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 13),
+    reason="Issues with installing sklearn for this test in python 3.13",
+)
 @pytest.mark.parametrize(
     ("session_creator"),
     [
@@ -2484,6 +2505,10 @@ def test_remote_function_w_context_manager_unnamed(
         )
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 13),
+    reason="Issues with installing sklearn for this test in python 3.13",
+)
 @pytest.mark.parametrize(
     ("session_creator"),
     [
