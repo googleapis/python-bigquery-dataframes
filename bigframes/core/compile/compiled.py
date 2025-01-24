@@ -40,7 +40,6 @@ import bigframes.core.identifiers as ids
 from bigframes.core.ordering import (
     ascending_over,
     encode_order_string,
-    join_orderings,
     OrderingExpression,
     RowOrdering,
     TotalOrdering,
@@ -420,50 +419,6 @@ class UnorderedIR(BaseIbisIR):
             columns=columns,
         )
 
-    def explode(self, columns: typing.Sequence[ex.DerefOp]) -> UnorderedIR:
-        table = self._to_ibis_expr()
-        column_ids = tuple(ref.id.sql for ref in columns)
-
-        # The offset array ensures null represents empty arrays after unnesting.
-        offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
-        offset_array = bigframes_vendored.ibis.range(
-            0,
-            bigframes_vendored.ibis.greatest(
-                1,  # We always want at least 1 element to fill in NULLs for empty arrays.
-                bigframes_vendored.ibis.least(
-                    *[table[column_id].length() for column_id in column_ids]
-                ),
-            ),
-            1,
-        ).name(offset_array_id)
-        table_w_offset_array = table.select(
-            offset_array,
-            *self._column_names,
-        )
-
-        unnest_offset_id = bigframes.core.guid.generate_guid("unnest_offset_")
-        unnest_offset = (
-            table_w_offset_array[offset_array_id].unnest().name(unnest_offset_id)
-        )
-        table_w_offset = table_w_offset_array.select(
-            unnest_offset,
-            *self._column_names,
-        )
-
-        unnested_columns = [
-            table_w_offset[column_id][table_w_offset[unnest_offset_id]].name(column_id)
-            if column_id in column_ids
-            else table_w_offset[column_id]
-            for column_id in self._column_names
-        ]
-        table_w_unnest = table_w_offset.select(*unnested_columns)
-
-        columns = [table_w_unnest[column_name] for column_name in self._column_names]
-        return UnorderedIR(
-            table_w_unnest,
-            columns=columns,  # type: ignore
-        )
-
     def as_ordered_ir(self) -> OrderedIR:
         """Convert to OrderedIr, but without any definite ordering."""
         return OrderedIR(self._table, self._columns, predicates=self._predicates)
@@ -746,77 +701,6 @@ class OrderedIR(BaseIbisIR):
             ordering=self._ordering,
         )
 
-    def explode(self, columns: typing.Sequence[ex.DerefOp]) -> OrderedIR:
-        if self.order_non_deterministic:
-            id = bigframes.core.guid.generate_guid()
-            return self.promote_offsets(id)
-        table = self._to_ibis_expr(ordering_mode="unordered", expose_hidden_cols=True)
-        column_ids = tuple(ref.id.sql for ref in columns)
-
-        offset_array_id = bigframes.core.guid.generate_guid("offset_array_")
-        offset_array = bigframes_vendored.ibis.range(
-            0,
-            bigframes_vendored.ibis.greatest(
-                1,  # We always want at least 1 element to fill in NULLs for empty arrays.
-                bigframes_vendored.ibis.least(
-                    *[table[column_id].length() for column_id in column_ids]
-                ),
-            ),
-            1,
-        ).name(offset_array_id)
-        table_w_offset_array = table.select(
-            offset_array,
-            *self._column_names,
-            *self._hidden_ordering_column_names,
-        )
-
-        unnest_offset_id = bigframes.core.guid.generate_guid("unnest_offset_")
-        unnest_offset = (
-            table_w_offset_array[offset_array_id].unnest().name(unnest_offset_id)
-        )
-        table_w_offset = table_w_offset_array.select(
-            unnest_offset,
-            *self._column_names,
-            *self._hidden_ordering_column_names,
-        )
-
-        unnested_columns = [
-            table_w_offset[column_id][table_w_offset[unnest_offset_id]].name(column_id)
-            if column_id in column_ids
-            else table_w_offset[column_id]
-            for column_id in self._column_names
-        ]
-
-        table_w_unnest = table_w_offset.select(
-            table_w_offset[unnest_offset_id],
-            *unnested_columns,
-            *self._hidden_ordering_column_names,
-        )
-
-        columns = [table_w_unnest[column_name] for column_name in self._column_names]
-        hidden_ordering_columns = [
-            *[
-                table_w_unnest[column_name]
-                for column_name in self._hidden_ordering_column_names
-            ],
-            table_w_unnest[unnest_offset_id],
-        ]
-        l_mappings = {id: id for id in self._ordering.referenced_columns}
-        r_mappings = {ids.ColumnId(unnest_offset_id): ids.ColumnId(unnest_offset_id)}
-        ordering = join_orderings(
-            self._ordering,
-            TotalOrdering.from_offset_col(unnest_offset_id),
-            l_mappings,
-            r_mappings,
-        )
-
-        return OrderedIR(
-            table_w_unnest,
-            columns=columns,  # type: ignore
-            hidden_ordering_columns=hidden_ordering_columns,
-            ordering=ordering,
-        )
-
     def promote_offsets(self, col_id: str) -> OrderedIR:
         """
         Convenience function to promote copy of column offsets to a value column. Can be used to reset index.
@@ -861,8 +745,7 @@ class OrderedIR(BaseIbisIR):
     ## Methods that only work with ordering
     def project_window_op(
         self,
-        column_name: ex.DerefOp,
-        op: agg_ops.UnaryWindowOp,
+        expression: ex.Aggregation,
         window_spec: WindowSpec,
         output_name: str,
         *,
@@ -881,8 +764,11 @@ class OrderedIR(BaseIbisIR):
         # See: https://github.com/ibis-project/ibis/issues/9773
         used_exprs = map(
             self._compile_expression,
-            itertools.chain(
-                (column_name,), map(ex.DerefOp, window_spec.all_referenced_columns)
+            map(
+                ex.DerefOp,
+                itertools.chain(
+                    expression.column_references, window_spec.all_referenced_columns
+                ),
             ),
         )
         can_directly_window = not any(
@@ -890,44 +776,54 @@ class OrderedIR(BaseIbisIR):
         )
         if not can_directly_window:
             return self._reproject_to_table().project_window_op(
-                column_name,
-                op,
+                expression,
                 window_spec,
                 output_name,
                 never_skip_nulls=never_skip_nulls,
             )
 
-        column = typing.cast(ibis_types.Column, self._compile_expression(column_name))
         window = self._ibis_window_from_spec(
-            window_spec, require_total_order=op.uses_total_row_ordering
+            window_spec, require_total_order=expression.op.uses_total_row_ordering
         )
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
 
         window_op = agg_compiler.compile_analytic(
-            ex.UnaryAggregation(op, column_name),
+            expression,
             window,
             bindings=bindings,
         )
 
+        inputs = tuple(
+            typing.cast(ibis_types.Column, self._compile_expression(ex.DerefOp(column)))
+            for column in expression.column_references
+        )
         clauses = []
-        if op.skips_nulls and not never_skip_nulls:
-            clauses.append((column.isnull(), ibis_types.null()))
-        if window_spec.min_periods:
-            if op.skips_nulls:
+        if expression.op.skips_nulls and not never_skip_nulls:
+            for column in inputs:
+                clauses.append((column.isnull(), ibis_types.null()))
+        if window_spec.min_periods and len(inputs) > 0:
+            if expression.op.skips_nulls:
                 # Most operations do not count NULL values towards min_periods
+                per_col_does_count = (column.notnull() for column in inputs)
+                # All inputs must be non-null for observation to count
+                is_observation = functools.reduce(
+                    lambda x, y: x & y, per_col_does_count
+                ).cast(int)
                 observation_count = agg_compiler.compile_analytic(
-                    ex.UnaryAggregation(agg_ops.count_op, column_name),
+                    ex.UnaryAggregation(agg_ops.sum_op, ex.deref("_observation_count")),
                     window,
-                    bindings=bindings,
+                    bindings={"_observation_count": is_observation},
                 )
             else:
                 # Operations like count treat even NULLs as valid observations for the sake of min_periods
                 # notnull is just used to convert null values to non-null (FALSE) values to be counted
-                denulled_value = typing.cast(ibis_types.BooleanColumn, column.notnull())
+                is_observation = inputs[0].notnull()
                 observation_count = agg_compiler.compile_analytic(
-                    ex.UnaryAggregation(agg_ops.count_op, ex.deref("_denulled")),
+                    ex.UnaryAggregation(
+                        agg_ops.count_op, ex.deref("_observation_count")
+                    ),
                     window,
-                    bindings={**bindings, "_denulled": denulled_value},
+                    bindings={"_observation_count": is_observation},
                 )
             clauses.append(
                 (

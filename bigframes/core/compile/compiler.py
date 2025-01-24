@@ -26,6 +26,7 @@ import pandas as pd
 
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
+import bigframes.core.compile.explode
 import bigframes.core.compile.ibis_types
 import bigframes.core.compile.scalar_op_compiler
 import bigframes.core.compile.scalar_op_compiler as compile_scalar
@@ -364,8 +365,7 @@ class Compiler:
     @_compile_node.register
     def compile_window(self, node: nodes.WindowOpNode, ordered: bool = True):
         result = self.compile_ordered_ir(node.child).project_window_op(
-            node.column_name,
-            node.op,
+            node.expression,
             node.window_spec,
             node.output_name.sql,
             never_skip_nulls=node.never_skip_nulls,
@@ -374,7 +374,15 @@ class Compiler:
 
     @_compile_node.register
     def compile_explode(self, node: nodes.ExplodeNode, ordered: bool = True):
-        return self.compile_node(node.child, ordered).explode(node.column_ids)
+        offsets_col = node.offsets_col.sql if (node.offsets_col is not None) else None
+        if ordered:
+            return bigframes.core.compile.explode.explode_ordered(
+                self.compile_ordered_ir(node.child), node.column_ids, offsets_col
+            )
+        else:
+            return bigframes.core.compile.explode.explode_unordered(
+                self.compile_unordered_ir(node.child), node.column_ids, offsets_col
+            )
 
     @_compile_node.register
     def compile_random_sample(self, node: nodes.RandomSampleNode, ordered: bool = True):

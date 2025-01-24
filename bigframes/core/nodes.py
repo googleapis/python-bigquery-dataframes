@@ -33,7 +33,6 @@ import bigframes.core.schema as schemata
 import bigframes.core.slices as slices
 import bigframes.core.window_spec as window
 import bigframes.dtypes
-import bigframes.operations.aggregations as agg_ops
 
 if typing.TYPE_CHECKING:
     import bigframes.core.ordering as orderings
@@ -660,16 +659,24 @@ class ScanList:
 
 @dataclasses.dataclass(frozen=True, eq=False)
 class ReadLocalNode(LeafNode):
+    # TODO: Combine feather_bytes, data_schema, n_rows into a LocalDataDef struct
     feather_bytes: bytes
     data_schema: schemata.ArraySchema
     n_rows: int
     # Mapping of local ids to bfet id.
     scan_list: ScanList
+    # Offsets are generated only if this is non-null
+    offsets_col: Optional[bigframes.core.identifiers.ColumnId] = None
     session: typing.Optional[bigframes.session.Session] = None
 
     @property
     def fields(self) -> Iterable[Field]:
-        return (Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
+        fields = (Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
+        if self.offsets_col is not None:
+            return itertools.chain(
+                fields, (Field(self.offsets_col, bigframes.dtypes.INT_DTYPE),)
+            )
+        return fields
 
     @property
     def variables_introduced(self) -> int:
@@ -698,7 +705,7 @@ class ReadLocalNode(LeafNode):
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
-        return tuple(item.id for item in self.scan_list.items)
+        return tuple(item.id for item in self.fields)
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         # Don't preoduce empty scan list no matter what, will result in broken sql syntax
@@ -712,6 +719,7 @@ class ReadLocalNode(LeafNode):
             self.data_schema,
             self.n_rows,
             new_scan_list,
+            self.offsets_col,
             self.session,
         )
 
@@ -724,7 +732,14 @@ class ReadLocalNode(LeafNode):
                 for item in self.scan_list.items
             )
         )
-        return dataclasses.replace(self, scan_list=new_scan_list)
+        new_offsets_col = (
+            mappings.get(self.offsets_col, self.offsets_col)
+            if (self.offsets_col is not None)
+            else None
+        )
+        return dataclasses.replace(
+            self, scan_list=new_scan_list, offsets_col=new_offsets_col
+        )
 
     def remap_refs(self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]):
         return self
@@ -1325,8 +1340,7 @@ class AggregateNode(UnaryNode):
 
 @dataclasses.dataclass(frozen=True, eq=False)
 class WindowOpNode(UnaryNode):
-    column_name: ex.DerefOp
-    op: agg_ops.UnaryWindowOp
+    expression: ex.Aggregation
     window_spec: window.WindowSpec
     output_name: bigframes.core.identifiers.ColumnId
     never_skip_nulls: bool = False
@@ -1334,7 +1348,7 @@ class WindowOpNode(UnaryNode):
 
     def _validate(self):
         """Validate the local data in the node."""
-        assert self.column_name.id in self.child.ids
+        assert all(ref in self.child.ids for ref in self.expression.column_references)
 
     @property
     def non_local(self) -> bool:
@@ -1363,9 +1377,11 @@ class WindowOpNode(UnaryNode):
 
     @functools.cached_property
     def added_field(self) -> Field:
-        input_type = self.child.get_type(self.column_name.id)
-        new_item_dtype = self.op.output_type(input_type)
-        return Field(self.output_name, new_item_dtype)
+        input_types = self.child._dtype_lookup
+        return Field(
+            self.output_name,
+            bigframes.dtypes.dtype_for_etype(self.expression.output_type(input_types)),
+        )
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
@@ -1376,7 +1392,7 @@ class WindowOpNode(UnaryNode):
             return self.child.prune(used_cols)
         consumed_ids = (
             used_cols.difference([self.output_name])
-            .union([self.column_name.id])
+            .union(self.expression.column_references)
             .union(self.window_spec.all_referenced_columns)
         )
         return self.transform_children(lambda x: x.prune(consumed_ids))
@@ -1391,7 +1407,7 @@ class WindowOpNode(UnaryNode):
     def remap_refs(self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]):
         return dataclasses.replace(
             self,
-            column_name=self.column_name.remap_column_refs(
+            expression=self.expression.remap_column_refs(
                 mappings, allow_partial_bindings=True
             ),
             window_spec=self.window_spec.remap_column_refs(
@@ -1439,6 +1455,8 @@ class RandomSampleNode(UnaryNode):
 @dataclasses.dataclass(frozen=True, eq=False)
 class ExplodeNode(UnaryNode):
     column_ids: typing.Tuple[ex.DerefOp, ...]
+    # Offsets are generated only if this is non-null
+    offsets_col: Optional[bigframes.core.identifiers.ColumnId] = None
 
     @property
     def row_preserving(self) -> bool:
@@ -1446,7 +1464,7 @@ class ExplodeNode(UnaryNode):
 
     @property
     def fields(self) -> Iterable[Field]:
-        return (
+        fields = (
             Field(
                 field.id,
                 bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
@@ -1457,6 +1475,11 @@ class ExplodeNode(UnaryNode):
             else field
             for field in self.child.fields
         )
+        if self.offsets_col is not None:
+            return itertools.chain(
+                fields, (Field(self.offsets_col, bigframes.dtypes.INT_DTYPE),)
+            )
+        return fields
 
     @property
     def relation_ops_created(self) -> int:
@@ -1472,7 +1495,7 @@ class ExplodeNode(UnaryNode):
 
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
-        return ()
+        return (self.offsets_col,) if (self.offsets_col is not None) else ()
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         # Cannot prune explode op
@@ -1482,6 +1505,8 @@ class ExplodeNode(UnaryNode):
     def remap_vars(
         self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
     ) -> BigFrameNode:
+        if (self.offsets_col is not None) and self.offsets_col in mappings:
+            return dataclasses.replace(self, offsets_col=mappings[self.offsets_col])
         return self
 
     def remap_refs(
