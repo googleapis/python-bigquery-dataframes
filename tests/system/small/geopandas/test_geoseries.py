@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
+import bigframes_vendored.constants as constants
 import geopandas  # type: ignore
+from geopandas.array import GeometryDtype
 import google.api_core.exceptions
 import pandas as pd
 import pytest
@@ -64,8 +68,8 @@ def test_geo_y(urban_areas_dfs):
     )
 
 
-def test_geo_area_not_supported(urban_areas_dfs):
-    series = bigframes.pandas.Series(
+def test_geo_area_not_supported():
+    s = bigframes.pandas.Series(
         [
             Polygon([(0, 0), (1, 1), (0, 1)]),
             Polygon([(10, 0), (10, 5), (0, 0)]),
@@ -73,8 +77,13 @@ def test_geo_area_not_supported(urban_areas_dfs):
             LineString([(0, 0), (1, 1), (0, 1)]),
             Point(0, 1),
         ],
-        dtype=geopandas.array.GeometryDtype(),
+        dtype=GeometryDtype(),
     )
-    bf_series: bigframes.geopandas.GeoSeries = series.geo
-    with pytest.raises(NotImplementedError):
+    bf_series: bigframes.geopandas.GeoSeries = s.geo
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            f"GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series), instead. {constants.FEEDBACK_LINK}"
+        ),
+    ):
         bf_series.area()
