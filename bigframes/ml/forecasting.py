@@ -379,9 +379,9 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
                 A dataframe or series only contains 1 column as
                 evaluation numeric values.
             id_col (Optional[bigframes.dataframe.DataFrame],
-                    or Optional[bigframes.series.Series],
-                    or Optional[pandas.core.frame.DataFrame],
-                    or Optional[pandas.core.series.Series], default None):
+                     or Optional[bigframes.series.Series],
+                     or Optional[pandas.core.frame.DataFrame],
+                     or Optional[pandas.core.series.Series], default None):
                 An optional dataframe or series contains at least 1 column as
                 evualtion id column.
 
