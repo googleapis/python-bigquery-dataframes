@@ -165,6 +165,63 @@ class SupervisedTrainablePredictor(TrainablePredictor):
         return self._fit(X, y)
 
 
+'''
+class SupervisedTrainableWithIdColPredictor(SupervisedTrainablePredictor):
+    """Inherits from SupervisedTrainablePredictor,
+    but adds an optional id_col parameter to fit()."""
+    def __init__(self, id_col: Optional[utils.ArrayType]=None):
+        super().__init__()
+        self.id_col = id_col
+        self._bqml_model = None
+
+    def _fit(
+        self,
+        X: utils.ArrayType,
+        y: utils.ArrayType,
+        transforms=None
+    ):
+        return self._fit(X, y, transforms=transforms, id_col=self.id_col)
+
+    def score(
+        self,
+        X: utils.ArrayType,
+        y: utils.ArrayType
+    ):
+        return self.score(X, y)
+'''
+
+
+class TrainableWithIdColPredictor(TrainablePredictor):
+    """A BigQuery DataFrames ML Model base class that can be used to fit and predict outputs.
+    Additional id_col can be provided in the fit phase."""
+
+    @abc.abstractmethod
+    def _fit(self, X, y, transforms=None, id_col=None):
+        pass
+
+    @abc.abstractmethod
+    def score(self, X, y):
+        pass
+
+
+class SupervisedTrainableWithIdColPredictor(TrainableWithIdColPredictor):
+    """A BigQuery DataFrames ML Supervised Model base class that can be used to fit and predict outputs.
+    Need to provide both X and y in supervised tasks.
+    Additional id_col can be provided in the fit phase.
+    """
+
+    _T = TypeVar("_T", bound="SupervisedTrainableWithIdColPredictor")
+
+    def fit(
+        self: _T,
+        X: utils.ArrayType,
+        y: utils.ArrayType,
+        id_col: Optional[utils.ArrayType] = None,
+    ) -> _T:
+        return self._fit(X, y, id_col=id_col)
+
+
+
 class TrainableWithEvaluationPredictor(TrainablePredictor):
     """A BigQuery DataFrames ML Model base class that can be used to fit and predict outputs.
 
