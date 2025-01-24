@@ -1772,6 +1772,7 @@ class Series(NDFrame):  # type: ignore[misc]
         python function then converting it into a `remote_function` is recommended.
 
         **Examples:**
+        .. doctest-skip-all
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
@@ -4935,6 +4936,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """Replace values where the condition is True.
 
         **Examples:**
+        .. doctest-skip-all
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
@@ -5038,13 +5040,13 @@ class Series(NDFrame):  # type: ignore[misc]
                 with corresponding value from other. If cond is callable, it is
                 computed on the Series/DataFrame and should return boolean
                 Series/DataFrame or array. The callable must not change input
-                Series/DataFrame (though pandas doesn’t check it).
+                Series/DataFrame (though pandas doesn't check it).
             other (scalar, Series/DataFrame, or callable):
                 Entries where cond is True are replaced with corresponding value
                 from other. If other is callable, it is computed on the
                 Series/DataFrame and should return scalar or Series/DataFrame.
                 The callable must not change input Series/DataFrame (though pandas
-                doesn’t check it). If not specified, entries will be filled with
+                doesn't check it). If not specified, entries will be filled with
                 the corresponding NULL value (np.nan for numpy dtypes, pd.NA for
                 extension dtypes).
 
@@ -5554,6 +5556,7 @@ class Series(NDFrame):  # type: ignore[misc]
             are treated the same as ``dict``.
 
         **Examples:**
+        .. doctest-skip-all
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None

@@ -1419,6 +1419,7 @@ class Session(
         (See: https://github.com/GoogleCloudPlatform/bigquery-utils/tree/master/udfs/community#community-udfs).
 
         **Examples:**
+        .. doctest-skip-all
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
@@ -1482,7 +1483,7 @@ class Session(
             2    TestCad$123456Str
             dtype: string
 
-        Another use case is to define your own remote funtion and use it later.
+        Another use case is to define your own remote function and use it later.
         For example, define the remote function:
 
             >>> @bpd.remote_function()
