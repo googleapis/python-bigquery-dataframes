@@ -1480,12 +1480,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         numeric_only: bool = False,
     ):
         other_frame = other if isinstance(other, DataFrame) else other.to_frame()
-        if not numeric_only:
-            l_frame = self._raise_on_non_numeric("corrwith")
-            r_frame = other_frame._raise_on_non_numeric("corrwith")
-        else:
+        if numeric_only:
             l_frame = self._drop_non_numeric()
             r_frame = other_frame._drop_non_numeric()
+        else:
+            l_frame = self._raise_on_non_numeric("corrwith")
+            r_frame = other_frame._raise_on_non_numeric("corrwith")
 
         l_block = l_frame.astype(bigframes.dtypes.FLOAT_DTYPE)._block
         r_block = r_frame.astype(bigframes.dtypes.FLOAT_DTYPE)._block
