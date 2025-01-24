@@ -25,8 +25,11 @@ def api_coverage_df():
     return publish_api_coverage.build_api_coverage_table("my_bf_ver", "my_release_ver")
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 13),
+    reason="Issues with installing sklearn for these test in python 3.13",
+)
 def test_api_coverage_produces_expected_schema(api_coverage_df):
-    pytest.importorskip("sklearn")
     if sys.version.split(".")[:2] == ["3", "9"]:
         pytest.skip(
             "Python 3.9 uses older pandas without good microsecond timestamp support."
@@ -55,7 +58,10 @@ def test_api_coverage_produces_expected_schema(api_coverage_df):
     )
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 13),
+    reason="Issues with installing sklearn for these test in python 3.13",
+)
 def test_api_coverage_produces_missing_parameters(api_coverage_df):
-    pytest.importorskip("sklearn")
     """Make sure at least some functions have reported missing parameters."""
     assert (api_coverage_df["missing_parameters"].str.len() > 0).any()
