@@ -42,7 +42,7 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         return series
 
     @property
-    def area(self, crs=None) -> bigframes.dataFrame.DataFrame:
+    def area(self, crs=None) -> bigframes.series.Series:
         raise NotImplementedError(
             f"GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series), instead. {constants.FEEDBACK_LINK}"
         )

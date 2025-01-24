@@ -16,7 +16,7 @@ import geopandas  # type: ignore
 import google.api_core.exceptions
 import pandas as pd
 import pytest
-from shapely.geometry import LineString, Point, Polygon # type: ignore
+from shapely.geometry import LineString, Point, Polygon  # type: ignore
 
 import bigframes.geopandas
 import bigframes.series
