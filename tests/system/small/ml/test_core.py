@@ -410,11 +410,26 @@ def test_model_generate_text(
     )
 
 
-def test_model_forecast(time_series_bqml_arima_plus_model: core.BqmlModel):
+@pytest.mark.parametrize("id_col_name", [None, "id"])
+def test_model_forecast(
+    time_series_bqml_arima_plus_model: core.BqmlModel,
+    time_series_bqml_arima_plus_model_w_id: core.BqmlModel,
+    id_col_name,
+):
     utc = pytz.utc
-    forecast = time_series_bqml_arima_plus_model.forecast(
-        {"horizon": 4, "confidence_level": 0.8}
-    ).to_pandas()[["forecast_timestamp", "forecast_value"]]
+    forecast_cols = ["forecast_timestamp", "forecast_value"]
+    if id_col_name:
+        forecast_cols.insert(0, id_col_name)
+
+    forecast = (
+        time_series_bqml_arima_plus_model_w_id.forecast(
+            {"horizon": 4, "confidence_level": 0.8}
+        )
+        if id_col_name
+        else time_series_bqml_arima_plus_model.forecast(
+            {"horizon": 4, "confidence_level": 0.8}
+        )
+    ).to_pandas()[forecast_cols]
     expected = pd.DataFrame(
         {
             "forecast_timestamp": [
@@ -423,13 +438,20 @@ def test_model_forecast(time_series_bqml_arima_plus_model: core.BqmlModel):
                 datetime(2017, 8, 4, tzinfo=utc),
                 datetime(2017, 8, 5, tzinfo=utc),
             ],
-            "forecast_value": [2724.472284, 2593.368389, 2353.613034, 1781.623071],
+            "forecast_value": [2634.796023, 2621.332462, 2396.095463, 1742.878278],
         }
     )
     expected["forecast_value"] = expected["forecast_value"].astype(pd.Float64Dtype())
     expected["forecast_timestamp"] = expected["forecast_timestamp"].astype(
         pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
     )
+    if id_col_name:
+        expected_expanded = expected.loc[expected.index.repeat(2)].reset_index(
+            drop=True
+        )
+        expected_expanded.insert(0, "id", ["1", "2", "1", "2", "1", "2", "1", "2"])
+        expected_expanded["id"] = expected_expanded["id"].astype("string[pyarrow]")
+        expected = expected_expanded
     pd.testing.assert_frame_equal(
         forecast,
         expected,
