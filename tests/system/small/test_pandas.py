@@ -767,11 +767,13 @@ def test_to_timedelta_with_bf_series(session, unit):
     bf_series = bpd.Series([1, 2, 3], session=session)
     pd_series = pd.Series([1, 2, 3])
 
-    actual_result = typing.cast(
-        bpd.Series, bpd.to_timedelta(bf_series, unit)
-    ).to_pandas()
+    actual_result = (
+        typing.cast(bpd.Series, bpd.to_timedelta(bf_series, unit))
+        .to_pandas()
+        .astype("timedelta64[ns]")
+    )
 
-    expected_result = pd.to_timedelta(pd_series, unit).astype("duration[us][pyarrow]")
+    expected_result = pd.to_timedelta(pd_series, unit)
     pd.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
