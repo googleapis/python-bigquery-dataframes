@@ -380,10 +380,10 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
                 evaluation numeric values.
             id_col (Optional[bigframes.dataframe.DataFrame],
                     Optional[bigframes.series.Series],
-                    Optional[pandas.core.frame.DataFrame],
-                    or Optional[pandas.core.series.Series], default None):
+                    Optional[pandas.core.frame.DataFrame], or
+                    Optional[pandas.core.series.Series], default None):
                     An optional dataframe or series contains at least 1 column as
-                    evualtion id column.
+                    evaluation id column.
 
         Returns:
             bigframes.dataframe.DataFrame: A DataFrame as evaluation result.
