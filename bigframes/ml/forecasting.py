@@ -188,20 +188,20 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
         """Fit the model to training data.
 
         Args:
-            X (bigframes.dataframe.DataFrame, or bigframes.series.Series,
-               or pandas.core.frame.DataFrame or pandas.core.series.Series):
-                A dataframe or series of trainging timestamp.
-            y (bigframes.dataframe.DataFrame, or bigframes.series.Series,
-              or pandas.core.frame.DataFrame or pandas.core.series.Series):
-                Target values for training.
+            X (bigframes.dataframe.DataFrame, bigframes.series.Series,
+               pandas.core.frame.DataFrame, or pandas.core.series.Series):
+               A dataframe or series of trainging timestamp.
+            y (bigframes.dataframe.DataFrame, bigframes.series.Series,
+              pandas.core.frame.DataFrame, or pandas.core.series.Series):
+              Target values for training.
             transforms (Optional[List[str]], default None):
                 Do not use. Internal param to be deprecated.
                 Use bigframes.ml.pipeline instead.
             id_col (Optional[bigframes.dataframe.DataFrame]
-                    or Optional[bigframes.series.Series],
-                    or Optional[pandas.core.frame.DataFrame],
-                    or Optional[pandas.core.frame.Series], default None):
-                An optional dataframe or series of training id col.
+                    Optional[bigframes.series.Series],
+                    Optional[pandas.core.frame.DataFrame], or
+                    Optional[pandas.core.frame.Series], default None):
+                    An optional dataframe or series of training id col.
 
         Returns:
             ARIMAPlus: Fitted estimator.
@@ -379,11 +379,11 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
                 A dataframe or series only contains 1 column as
                 evaluation numeric values.
             id_col (Optional[bigframes.dataframe.DataFrame],
-                     or Optional[bigframes.series.Series],
-                     or Optional[pandas.core.frame.DataFrame],
-                     or Optional[pandas.core.series.Series], default None):
-                An optional dataframe or series contains at least 1 column as
-                evualtion id column.
+                    Optional[bigframes.series.Series],
+                    Optional[pandas.core.frame.DataFrame],
+                    or Optional[pandas.core.series.Series], default None):
+                    An optional dataframe or series contains at least 1 column as
+                    evualtion id column.
 
         Returns:
             bigframes.dataframe.DataFrame: A DataFrame as evaluation result.
