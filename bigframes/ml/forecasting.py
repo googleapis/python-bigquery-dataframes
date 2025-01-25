@@ -190,16 +190,16 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
         Args:
             X (bigframes.dataframe.DataFrame, or bigframes.series.Series,
             or pandas.core.frame.DataFrame, or pandas.core.series.Series):
-               A dataframe or series of trainging timestamp.
+                A dataframe or series of trainging timestamp.
             y (bigframes.dataframe.DataFrame, or bigframes.series.Series,
             or pandas.core.frame.DataFrame, or pandas.core.series.Series):
-              Target values for training.
+                Target values for training.
             transforms (Optional[List[str]], default None):
                 Do not use. Internal param to be deprecated.
                 Use bigframes.ml.pipeline instead.
             id_col (Optional[bigframes.dataframe.DataFrame]
-            or Optional[bigframes.series.Series],
-            or Optional[pandas.core.frame.DataFrame],
+            or Optional[bigframes.series.Series]
+            or Optional[pandas.core.frame.DataFrame]
             or Optional[pandas.core.frame.Series], default None):
                 An optional dataframe or series of training id col.
 
@@ -380,9 +380,9 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
             or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 A dataframe or series only contains 1 column as
                 evaluation numeric values.
-            id_col (Optional[bigframes.dataframe.DataFrame],
-            or Optional[bigframes.series.Series],
-            or Optional[pandas.core.frame.DataFrame],
+            id_col (Optional[bigframes.dataframe.DataFrame]
+            or Optional[bigframes.series.Series]
+            or Optional[pandas.core.frame.DataFrame]
             or Optional[pandas.core.series.Series], default None):
                 An optional dataframe or series contains at least 1 column as
                 evaluation id column.
