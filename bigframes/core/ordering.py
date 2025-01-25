@@ -117,7 +117,6 @@ class RowOrdering:
 
     ordering_value_columns: typing.Tuple[OrderingExpression, ...] = ()
     integer_encoding: IntegerEncoding = IntegerEncoding(False)
-    string_encoding: StringEncoding = StringEncoding(False)
 
     @property
     def all_ordering_columns(self) -> Sequence[OrderingExpression]:
@@ -130,11 +129,6 @@ class RowOrdering:
             for part in self.ordering_value_columns
             for col in part.referenced_columns
         )
-
-    @property
-    def is_string_encoded(self) -> bool:
-        """True if ordering is fully defined by a fixed length string column."""
-        return self.string_encoding.is_encoded
 
     @property
     def is_sequential(self) -> bool:
@@ -350,7 +344,6 @@ class TotalOrdering(RowOrdering):
         return TotalOrdering(
             tuple(new_value_columns),
             integer_encoding=self.integer_encoding,
-            string_encoding=self.string_encoding,
             total_ordering_columns=new_total_order,
         )
 

@@ -45,8 +45,45 @@ def pull_up_order(
             child_result, child_order = pull_up_order_inner(node.child)
             return node.replace_child(child_result), child_order.with_reverse()
         elif isinstance(node, bigframes.core.nodes.OrderByNode):
-            child_result, child_order = pull_up_order_inner(node.child)
-            return child_result, child_order.with_ordering_columns(node.by)
+            if node.is_total_order:
+                new_node = remove_order(node.child)
+            else:
+                new_node, child_order = pull_up_order_inner(node.child)
+
+            new_by = []
+            ids: list[bigframes.core.ids.ColumnId] = []
+            for part in node.by:
+                if not isinstance(
+                    part.scalar_expression, bigframes.core.expression.DerefOp
+                ):
+                    id = bigframes.core.ids.ColumnId.unique()
+                    new_node = bigframes.core.nodes.ProjectionNode(
+                        new_node, ((part.scalar_expression, id),)
+                    )
+                    new_part = bigframes.core.ordering.OrderingExpression(
+                        bigframes.core.expression.DerefOp(id),
+                        part.direction,
+                        part.na_last,
+                    )
+                    new_by.append(new_part)
+                    ids.append(id)
+                else:
+                    new_by.append(part)
+                    ids.append(part.scalar_expression.id)
+
+            if node.is_total_order:
+                new_order: bigframes.core.ordering.RowOrdering = (
+                    bigframes.core.ordering.TotalOrdering(
+                        ordering_value_columns=tuple(new_by),
+                        total_ordering_columns=frozenset(
+                            map(lambda x: bigframes.core.expression.DerefOp(x), ids)
+                        ),
+                    )
+                )
+            else:
+                assert child_order
+                new_order = child_order.with_ordering_columns(new_by)
+            return new_node, new_order
         elif isinstance(node, bigframes.core.nodes.ProjectionNode):
             child_result, child_order = pull_up_order_inner(node.child)
             return node.replace_child(child_result), child_order
@@ -117,7 +154,7 @@ def pull_up_order(
                     ordering=tuple(child_order.all_ordering_columns)
                 )
                 new_offsets_node = bigframes.core.nodes.WindowOpNode(
-                    node.child, agg, window_spec, node.col_id
+                    child_result, agg, window_spec, node.col_id
                 )
                 return (
                     new_offsets_node,
@@ -157,12 +194,27 @@ def pull_up_order(
                 child_result
             ), bigframes.core.ordering.TotalOrdering.from_primary_key([node.col_id])
         elif isinstance(node, bigframes.core.nodes.AggregateNode):
-            child_result = remove_order(node.child)
-            return node.replace_child(
-                child_result
-            ), bigframes.core.ordering.TotalOrdering.from_primary_key(
-                [ref.id for ref in node.by_column_ids]
-            )
+            if node.has_ordered_ops:
+                child_result, child_order = pull_up_order_inner(node.child)
+                new_order_by = child_order.with_ordering_columns(node.order_by)
+                new_order = bigframes.core.ordering.TotalOrdering.from_primary_key(
+                    [ref.id for ref in node.by_column_ids]
+                )
+                return (
+                    dataclasses.replace(
+                        node,
+                        child=child_result,
+                        order_by=tuple(new_order_by.all_ordering_columns),
+                    ),
+                    new_order,
+                )
+            else:
+                child_result = remove_order(node.child)
+                return node.replace_child(
+                    child_result
+                ), bigframes.core.ordering.TotalOrdering.from_primary_key(
+                    [ref.id for ref in node.by_column_ids]
+                )
         elif isinstance(node, bigframes.core.nodes.WindowOpNode):
             child_result, child_order = pull_up_order_inner(node.child)
             new_window_order = (
@@ -186,11 +238,11 @@ def pull_up_order(
             if node.offsets_col is None:
                 offsets_id = bigframes.core.ids.ColumnId.unique()
                 new_explode: bigframes.core.nodes.BigFrameNode = dataclasses.replace(
-                    node, offsets_col=offsets_id
+                    node, child=child_result, offsets_col=offsets_id
                 )
             else:
                 offsets_id = node.offsets_col
-                new_explode = node
+                new_explode = node.replace_child(child_result)
             inner_order = bigframes.core.orderings.TotalOrdering.from_offset_col(
                 offsets_id
             )
@@ -253,7 +305,7 @@ def pull_up_order(
         if isinstance(
             node, (bigframes.core.nodes.OrderByNode, bigframes.core.nodes.ReversedNode)
         ):
-            return node.child
+            return remove_order(node.child)
         if isinstance(
             node,
             (
@@ -261,9 +313,9 @@ def pull_up_order(
                 bigframes.core.nodes.PromoteOffsetsNode,
             ),
         ):
-            child_result, child_order = pull_up_order_inner(node.child)
             if isinstance(node, bigframes.core.nodes.PromoteOffsetsNode):
                 node = rewrite_promote_offsets(node)
+            child_result, child_order = pull_up_order_inner(node.child)
             new_window_order = (
                 *node.window_spec.ordering,
                 *child_order.all_ordering_columns,
@@ -274,7 +326,8 @@ def pull_up_order(
             return dataclasses.replace(
                 node, child=child_result, window_spec=new_window_spec
             )
-        return node.transform_children(remove_order)
+        else:
+            return node.transform_children(remove_order)
 
     return (
         pull_up_order_inner(root)

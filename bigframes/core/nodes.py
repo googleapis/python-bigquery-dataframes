@@ -911,7 +911,8 @@ class ReadTableNode(LeafNode):
             {
                 bigframes.core.ids.ColumnId(item.source_id): item.id
                 for item in new_scan_cols
-            }
+            },
+            allow_partial_bindings=True,
         )
         return dataclasses.replace(self, scan_list=new_scan_list), new_order
 
@@ -1285,6 +1286,7 @@ class AggregateNode(UnaryNode):
         typing.Tuple[ex.Aggregation, bigframes.core.identifiers.ColumnId], ...
     ]
     by_column_ids: typing.Tuple[ex.DerefOp, ...] = tuple([])
+    order_by: Tuple[OrderingExpression, ...] = ()
     dropna: bool = True
 
     @property
@@ -1333,6 +1335,10 @@ class AggregateNode(UnaryNode):
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return tuple(id for _, id in self.aggregations)
 
+    @property
+    def has_ordered_ops(self) -> bool:
+        return any(aggregate.op.can_order_by for aggregate, _ in self.aggregations)
+
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         by_ids = (ref.id for ref in self.by_column_ids)
         pruned_aggs = (
@@ -1344,7 +1350,9 @@ class AggregateNode(UnaryNode):
         )
         consumed_ids = frozenset(itertools.chain(by_ids, agg_inputs))
         pruned_child = self.child.prune(consumed_ids)
-        return AggregateNode(pruned_child, pruned_aggs, self.by_column_ids, self.dropna)
+        return AggregateNode(
+            pruned_child, pruned_aggs, self.by_column_ids, dropna=self.dropna
+        )
 
     def remap_vars(
         self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
@@ -1358,8 +1366,9 @@ class AggregateNode(UnaryNode):
             for agg, id in self.aggregations
         )
         new_by_ids = tuple(id.remap_column_refs(mappings) for id in self.by_column_ids)
+        new_order_by = tuple(part.remap_column_refs(mappings) for part in self.order_by)
         return dataclasses.replace(
-            self, by_column_ids=new_by_ids, aggregations=new_aggs
+            self, by_column_ids=new_by_ids, aggregations=new_aggs, order_by=new_order_by
         )
 
 
