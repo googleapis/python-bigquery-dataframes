@@ -63,8 +63,6 @@ def join_by_column_unordered(
         predicates=join_conditions,
         how=type,  # type: ignore
     )
-    # We could filter out the original join columns, but predicates/ordering
-    # might still reference them in implicit joins.
     columns = [combined_table[col.get_name()] for col in left.columns] + [
         combined_table[col.get_name()] for col in right.columns
     ]

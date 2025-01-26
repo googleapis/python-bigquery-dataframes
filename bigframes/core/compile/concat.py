@@ -19,8 +19,6 @@ import bigframes_vendored.ibis.expr.api as ibis_api
 
 import bigframes.core.compile.compiled as compiled
 
-ORDER_ID_COLUMN = "bigframes_ordering_id"
-
 
 def concat_unordered(
     items: typing.Sequence[compiled.UnorderedIR],

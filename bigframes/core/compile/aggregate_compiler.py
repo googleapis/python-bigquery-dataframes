@@ -171,13 +171,6 @@ def _(
     column: ibis_types.NumericColumn,
     window=None,
 ) -> ibis_types.NumericValue:
-    # PERCENTILE_CONT has very few allowed windows. For example, "window
-    # framing clause is not allowed for analytic function percentile_cont".
-    if window is not None:
-        raise NotImplementedError(
-            f"Median with windowing is not supported. {constants.FEEDBACK_LINK}"
-        )
-
     # TODO(swast): Allow switching between exact and approximate median.
     # For now, the best we can do is an approximate median when we're doing
     # an aggregation, as PERCENTILE_CONT is only an analytic function.

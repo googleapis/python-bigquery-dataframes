@@ -13,7 +13,7 @@
 # limitations under the License.
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import itertools
 from typing import Mapping, Optional, Set, Tuple, Union
 
@@ -180,6 +180,12 @@ class WindowSpec:
             item.scalar_expression.column_references for item in self.ordering
         )
         return set(itertools.chain((i.id for i in self.grouping_keys), ordering_vars))
+
+    def without_order(self) -> WindowSpec:
+        if isinstance(self.bounds, RowsWindowBounds):
+            raise ValueError("cannot remove ordering from row bounded window")
+        else:
+            return replace(self, ordering=())
 
     def remap_column_refs(
         self,

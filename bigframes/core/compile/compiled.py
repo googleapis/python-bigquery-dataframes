@@ -38,7 +38,6 @@ from bigframes.core.window_spec import RangeWindowBounds, RowsWindowBounds, Wind
 import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
 
-ORDER_ID_COLUMN = "bigframes_ordering_id"
 PREDICATE_COLUMN = "bigframes_predicate"
 
 
@@ -54,6 +53,7 @@ class UnorderedIR:
         predicates: Optional[Collection[ibis_types.BooleanValue]] = None,
     ):
         self._table = table
+        # Deferred predicates probably no longer needed?
         self._predicates = tuple(predicates) if predicates is not None else ()
         # Allow creating a DataFrame directly from an Ibis table expression.
         # TODO(swast): Validate that each column references the same table (or
@@ -443,6 +443,9 @@ class UnorderedIR:
                 never_skip_nulls=never_skip_nulls,
             )
 
+        if not expression.op.can_order_by:
+            # notably percentile_cont does not support ordering clause
+            window_spec = window_spec.without_order()
         window = self._ibis_window_from_spec(
             window_spec, require_total_order=expression.op.uses_total_row_ordering
         )

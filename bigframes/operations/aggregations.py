@@ -143,6 +143,10 @@ class SumOp(UnaryAggregateOp):
 class MedianOp(UnaryAggregateOp):
     name: ClassVar[str] = "median"
 
+    @property
+    def can_order_by(self) -> bool:
+        return False
+
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         # These will change if median is changed to exact implementation.
         if not dtypes.is_orderable(input_types[0]):
@@ -160,6 +164,10 @@ class QuantileOp(UnaryAggregateOp):
     @property
     def name(self):
         return f"{int(self.q * 100)}%"
+
+    @property
+    def can_order_by(self) -> bool:
+        return False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
