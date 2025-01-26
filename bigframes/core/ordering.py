@@ -16,20 +16,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-import math
 import typing
 from typing import Mapping, Optional, Sequence, Set, Union
 
-import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
-import bigframes_vendored.ibis.expr.types as ibis_types
-
 import bigframes.core.expression as expression
 import bigframes.core.identifiers as ids
-
-# TODO(tbergeron): Encode more efficiently
-ORDERING_ID_STRING_BASE: int = 10
-# Sufficient to store any value up to 2^63
-DEFAULT_ORDERING_ID_LENGTH: int = math.ceil(63 * math.log(2, ORDERING_ID_STRING_BASE))
 
 
 class OrderingDirection(Enum):
@@ -93,16 +84,6 @@ class OrderingExpression:
 
 
 # Encoding classes specify additional properties for some ordering representations
-@dataclass(frozen=True)
-class StringEncoding:
-    """String encoded order ids are fixed length and can be concat together in joins."""
-
-    is_encoded: bool = False
-    # Encoding size must be tracked in order to know what how to combine ordering ids across tables (eg how much to pad when combining different length).
-    # Also will be needed to determine when length is too large and need to compact ordering id with a ROW_NUMBER operation.
-    length: int = DEFAULT_ORDERING_ID_LENGTH
-
-
 @dataclass(frozen=True)
 class IntegerEncoding:
     """Integer encoded order ids are guaranteed non-negative."""
@@ -387,30 +368,6 @@ class TotalOrdering(RowOrdering):
         return order_ref
 
 
-def encode_order_string(
-    order_id: ibis_types.IntegerColumn, length: int = DEFAULT_ORDERING_ID_LENGTH
-) -> ibis_types.StringColumn:
-    """Converts an order id value to string if it is not already a string. MUST produced fixed-length strings."""
-    # This is very inefficient encoding base-10 string uses only 10 characters per byte(out of 256 bit combinations)
-    # Furthermore, if know tighter bounds on order id are known, can produce smaller strings.
-    # 19 characters chosen as it can represent any positive Int64 in base-10
-    # For missing values, ":" * 19 is used as it is larger than any other value this function produces, so null values will be last.
-    string_order_id = typing.cast(
-        ibis_types.StringValue,
-        order_id.cast(ibis_dtypes.string),
-    ).lpad(length, "0")
-    return typing.cast(ibis_types.StringColumn, string_order_id)
-
-
-def reencode_order_string(
-    order_id: ibis_types.StringColumn, length: int
-) -> ibis_types.StringColumn:
-    return typing.cast(
-        ibis_types.StringColumn,
-        (typing.cast(ibis_types.StringValue, order_id).lpad(length, "0")),
-    )
-
-
 # Convenience functions
 def ascending_over(
     id: Union[ids.ColumnId, str], nulls_last: bool = True
@@ -426,37 +383,3 @@ def descending_over(
     return OrderingExpression(
         expression.DerefOp(col_id), direction=OrderingDirection.DESC, na_last=nulls_last
     )
-
-
-@typing.overload
-def join_orderings(
-    left: TotalOrdering,
-    right: TotalOrdering,
-    left_id_mapping: Mapping[ids.ColumnId, ids.ColumnId],
-    right_id_mapping: Mapping[ids.ColumnId, ids.ColumnId],
-    left_order_dominates: bool = True,
-) -> TotalOrdering:
-    ...
-
-
-@typing.overload
-def join_orderings(
-    left: RowOrdering,
-    right: RowOrdering,
-    left_id_mapping: Mapping[ids.ColumnId, ids.ColumnId],
-    right_id_mapping: Mapping[ids.ColumnId, ids.ColumnId],
-    left_order_dominates: bool = True,
-) -> RowOrdering:
-    ...
-
-
-def join_orderings(
-    left: RowOrdering,
-    right: RowOrdering,
-    left_id_mapping: Mapping[ids.ColumnId, ids.ColumnId],
-    right_id_mapping: Mapping[ids.ColumnId, ids.ColumnId],
-    left_order_dominates: bool = True,
-) -> RowOrdering:
-    left = left.remap_column_refs(left_id_mapping)
-    right = right.remap_column_refs(right_id_mapping)
-    return left.join(right) if left_order_dominates else right.join(left)
