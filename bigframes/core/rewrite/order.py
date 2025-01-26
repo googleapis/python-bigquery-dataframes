@@ -13,7 +13,7 @@
 # limitations under the License.
 import dataclasses
 import functools
-from typing import Tuple
+from typing import Mapping, Tuple
 
 import bigframes.core.expression
 import bigframes.core.identifiers
@@ -31,6 +31,8 @@ def pull_up_order(
 ) -> Tuple[bigframes.core.nodes.BigFrameNode, bigframes.core.ordering.RowOrdering]:
     """
     Pull the ordering up, putting full order definition into window ops.
+
+    May create extra colums, which must be removed by callers if they want to preserve original schema.
 
     Requires the following nodes to be removed/rewritten: SliceNode
 
@@ -90,7 +92,15 @@ def pull_up_order(
         elif isinstance(node, bigframes.core.nodes.JoinNode):
             if ordered_joins:
                 left_child, left_order = pull_up_order_inner(node.left_child)
+                # as tree is a dag, and pull_up_order_inner is memoized, self-joins can create conflicts in new columns
                 right_child, right_order = pull_up_order_inner(node.right_child)
+                conflicts = set(left_child.ids) & set(right_child.ids)
+                if conflicts:
+                    right_child, mapping = rename_cols(right_child, conflicts)
+                    right_order = right_order.remap_column_refs(
+                        mapping, allow_partial_bindings=True
+                    )
+
                 new_join = dataclasses.replace(
                     node, left_child=left_child, right_child=right_child
                 )
@@ -104,14 +114,18 @@ def pull_up_order(
                 return (
                     dataclasses.replace(
                         node,
-                        left_child=remove_order(node.left_child),
-                        right_child=remove_order(node.right_child),
+                        left_child=remove_order_strict(node.left_child),
+                        right_child=remove_order_strict(node.right_child),
                     ),
                     bigframes.core.ordering.RowOrdering(),
                 )
         elif isinstance(node, bigframes.core.nodes.ConcatNode):
             return pull_order_concat(node)
         elif isinstance(node, bigframes.core.nodes.FromRangeNode):
+            new_start = remove_order_strict(node.start)
+            new_end = remove_order_strict(node.end)
+
+            new_node = dataclasses.replace(node, start=new_start, end=new_end)
             return node, bigframes.core.ordering.TotalOrdering.from_primary_key(
                 [node.output_id]
             )
@@ -162,7 +176,7 @@ def pull_up_order(
                 )
         elif isinstance(node, bigframes.core.nodes.FilterNode):
             child_result, child_order = pull_up_order_inner(node.child)
-            return node.replace_child(child_result), child_order
+            return node.replace_child(child_result), child_order.with_non_sequential()
         elif isinstance(node, bigframes.core.nodes.SelectionNode):
             child_result, child_order = pull_up_order_inner(node.child)
             selected_ids = set(ref.id for ref, _ in node.input_output_pairs)
@@ -181,12 +195,11 @@ def pull_up_order(
                     for k, v in new_selections.items()
                 ),
             )
+
             new_select_node = dataclasses.replace(
                 node, child=child_result, input_output_pairs=all_selections
             )
-            new_order = child_order.remap_column_refs(
-                new_selections, allow_partial_bindings=True
-            )
+            new_order = child_order.remap_column_refs(new_select_node.get_id_mapping())
             return new_select_node, new_order
         elif isinstance(node, bigframes.core.nodes.RowCountNode):
             child_result = remove_order(node.child)
@@ -232,7 +245,7 @@ def pull_up_order(
             )
         elif isinstance(node, bigframes.core.nodes.RandomSampleNode):
             child_result, child_order = pull_up_order_inner(node.child)
-            return node.replace_child(child_result), child_order
+            return node.replace_child(child_result), child_order.with_non_sequential()
         elif isinstance(node, bigframes.core.nodes.ExplodeNode):
             child_result, child_order = pull_up_order_inner(node.child)
             if node.offsets_col is None:
@@ -338,6 +351,17 @@ def pull_up_order(
 
         return node.transform_children(remove_order)
 
+    def remove_order_strict(
+        node: bigframes.core.nodes.BigFrameNode,
+    ) -> bigframes.core.nodes.BigFrameNode:
+        result = remove_order(node)
+        if result.ids != node.ids:
+            return bigframes.core.nodes.SelectionNode(
+                result,
+                tuple((bigframes.core.expression.DerefOp(id), id) for id in node.ids),
+            )
+        return result
+
     return (
         pull_up_order_inner(root)
         if order_root
@@ -353,3 +377,22 @@ def rewrite_promote_offsets(
     )
     window_spec = bigframes.core.window_spec.unbound()
     return bigframes.core.nodes.WindowOpNode(node.child, agg, window_spec, node.col_id)
+
+
+def rename_cols(
+    node: bigframes.core.nodes.BigFrameNode, cols: set[bigframes.core.ids.ColumnId]
+) -> Tuple[
+    bigframes.core.nodes.BigFrameNode,
+    Mapping[bigframes.core.ids.ColumnId, bigframes.core.ids.ColumnId],
+]:
+    mappings = dict((id, bigframes.core.ids.ColumnId.unique()) for id in cols)
+
+    result_node = bigframes.core.nodes.SelectionNode(
+        node,
+        tuple(
+            (bigframes.core.expression.DerefOp(id), mappings.get(id, id))
+            for id in node.ids
+        ),
+    )
+
+    return result_node, dict(mappings)

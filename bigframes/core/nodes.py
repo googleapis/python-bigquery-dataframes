@@ -1139,6 +1139,9 @@ class SelectionNode(UnaryNode):
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return tuple(id for _, id in self.input_output_pairs)
 
+    def get_id_mapping(self) -> dict[bfet_ids.ColumnId, bfet_ids.ColumnId]:
+        return {ref.id: out_id for ref, out_id in self.input_output_pairs}
+
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         pruned_selections = (
             tuple(
