@@ -34,14 +34,21 @@ class WindowOp:
         return True
 
     @property
-    def uses_total_row_ordering(self):
-        """Whether the operator needs total row ordering. (eg. lead, lag, array_agg)"""
-        return False
+    def implicitly_inherits_order(self):
+        """
+        Whether the operator implicitly inherits the underlying array order, should it exist.
+
+        Notably, rank operations do not want to inherit ordering. Even order-independent operations
+        may inherit order when needed for row bounds.
+        """
+        return True
 
     @property
     def order_independent(self):
         """
         True if the output of the operator does not depend on the ordering of input rows.
+
+        Aggregation functions are usually order independent, except array_agg, string_agg.
 
         Navigation functions are a notable case that are not order independent.
         """
@@ -85,12 +92,11 @@ class AggregateOp(WindowOp):
 
     @property
     def order_independent(self):
-        """
-        True if results don't depend on the order of the input.
-
-        Almost all aggregation functions are order independent, excepting ``array_agg`` and ``string_agg``.
-        """
         return True
+
+    @property
+    def uses_total_row_ordering(self):
+        return False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -339,7 +345,7 @@ class CutOp(UnaryWindowOp):
 
 
 @dataclasses.dataclass(frozen=True)
-class QcutOp(UnaryWindowOp):
+class QcutOp(UnaryWindowOp):  # bucket op
     quantiles: typing.Union[int, typing.Tuple[float, ...]]
 
     @property
@@ -396,6 +402,7 @@ class RowNumberOp(NullaryWindowOp):
         return dtypes.INT_DTYPE
 
 
+# TODO: Convert to NullaryWindowOp
 @dataclasses.dataclass(frozen=True)
 class RankOp(UnaryWindowOp):
     name: ClassVar[str] = "rank"
@@ -405,15 +412,14 @@ class RankOp(UnaryWindowOp):
         return False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return signatures.FixedOutputType(
-            dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
-        ).output_type(input_types[0])
+        return dtypes.INT_DTYPE
 
     @property
-    def order_independent(self):
-        return True
+    def implicitly_inherits_order(self):
+        return False
 
 
+# TODO: Convert to NullaryWindowOp
 @dataclasses.dataclass(frozen=True)
 class DenseRankOp(UnaryWindowOp):
     @property
@@ -421,30 +427,20 @@ class DenseRankOp(UnaryWindowOp):
         return False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return signatures.FixedOutputType(
-            dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
-        ).output_type(input_types[0])
+        return dtypes.INT_DTYPE
 
     @property
-    def order_independent(self):
-        return True
+    def implicitly_inherits_order(self):
+        return False
 
 
 @dataclasses.dataclass(frozen=True)
 class FirstOp(UnaryWindowOp):
     name: ClassVar[str] = "first"
 
-    @property
-    def uses_total_row_ordering(self):
-        return True
-
 
 @dataclasses.dataclass(frozen=True)
 class FirstNonNullOp(UnaryWindowOp):
-    @property
-    def uses_total_row_ordering(self):
-        return True
-
     @property
     def skips_nulls(self):
         return False
@@ -454,17 +450,9 @@ class FirstNonNullOp(UnaryWindowOp):
 class LastOp(UnaryWindowOp):
     name: ClassVar[str] = "last"
 
-    @property
-    def uses_total_row_ordering(self):
-        return True
-
 
 @dataclasses.dataclass(frozen=True)
 class LastNonNullOp(UnaryWindowOp):
-    @property
-    def uses_total_row_ordering(self):
-        return True
-
     @property
     def skips_nulls(self):
         return False
@@ -475,10 +463,6 @@ class ShiftOp(UnaryWindowOp):
     periods: int
 
     @property
-    def uses_total_row_ordering(self):
-        return True
-
-    @property
     def skips_nulls(self):
         return False
 
@@ -486,10 +470,6 @@ class ShiftOp(UnaryWindowOp):
 @dataclasses.dataclass(frozen=True)
 class DiffOp(UnaryWindowOp):
     periods: int
-
-    @property
-    def uses_total_row_ordering(self):
-        return True
 
     @property
     def skips_nulls(self):

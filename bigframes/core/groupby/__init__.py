@@ -685,7 +685,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     def cumcount(self, *args, **kwargs) -> series.Series:
         return (
             self._apply_window_op(
-                agg_ops.rank_op,
+                agg_ops.count_op,
                 discard_name=True,
             )
             - 1

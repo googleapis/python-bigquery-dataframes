@@ -443,12 +443,10 @@ class UnorderedIR:
                 never_skip_nulls=never_skip_nulls,
             )
 
-        if expression.op.order_independent:
+        if expression.op.order_independent and not window_spec.row_bounded:
             # notably percentile_cont does not support ordering clause
-            window_spec = window_spec.maybe_without_order()
-        window = self._ibis_window_from_spec(
-            window_spec, require_total_order=expression.op.uses_total_row_ordering
-        )
+            window_spec = window_spec.without_order()
+        window = self._ibis_window_from_spec(window_spec)
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
 
         window_op = agg_compiler.compile_analytic(
@@ -508,9 +506,7 @@ class UnorderedIR:
     def _compile_expression(self, expr: ex.Expression):
         return op_compiler.compile_expression(expr, self._ibis_bindings)
 
-    def _ibis_window_from_spec(
-        self, window_spec: WindowSpec, require_total_order: bool
-    ):
+    def _ibis_window_from_spec(self, window_spec: WindowSpec):
         group_by: typing.List[ibis_types.Value] = (
             [
                 typing.cast(
@@ -533,10 +529,7 @@ class UnorderedIR:
                 self._column_names,
                 window_spec.ordering,
             )
-            if require_total_order or isinstance(window_spec.bounds, RowsWindowBounds):
-                # Some operators need an unambiguous ordering, so the table's total ordering is appended
-                order_by = tuple([*order_by])
-        elif require_total_order or isinstance(window_spec.bounds, RowsWindowBounds):
+        elif window_spec.row_bounded:
             # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
             raise ValueError("No ordering provided for ordered analytic function")
         else:

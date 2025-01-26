@@ -1387,6 +1387,10 @@ class WindowOpNode(UnaryNode):
 
     def _validate(self):
         """Validate the local data in the node."""
+        # Since inner order and row bounds are coupled, rank ops can't be row bounded
+        assert (
+            not self.window_spec.row_bounded
+        ) or self.expression.op.implicitly_inherits_order
         assert all(ref in self.child.ids for ref in self.expression.column_references)
 
     @property
@@ -1425,6 +1429,14 @@ class WindowOpNode(UnaryNode):
     @property
     def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
         return (self.output_name,)
+
+    @property
+    def inherits_order(self) -> bool:
+        # does the op both use ordering at all? and if so, can it inherit order?
+        op_inherits_order = (
+            not self.expression.op.order_independent
+        ) and self.expression.op.implicitly_inherits_order
+        return op_inherits_order or self.window_spec.row_bounded
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         if self.output_name not in used_cols:

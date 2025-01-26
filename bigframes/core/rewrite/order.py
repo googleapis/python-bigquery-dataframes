@@ -230,13 +230,16 @@ def pull_up_order(
                 )
         elif isinstance(node, bigframes.core.nodes.WindowOpNode):
             child_result, child_order = pull_up_order_inner(node.child)
-            new_window_order = (
-                *node.window_spec.ordering,
-                *child_order.all_ordering_columns,
-            )
-            new_window_spec = dataclasses.replace(
-                node.window_spec, ordering=new_window_order
-            )
+            if node.inherits_order:
+                new_window_order = (
+                    *node.window_spec.ordering,
+                    *child_order.all_ordering_columns,
+                )
+                new_window_spec = dataclasses.replace(
+                    node.window_spec, ordering=new_window_order
+                )
+            else:
+                new_window_spec = node.window_spec
             return (
                 dataclasses.replace(
                     node, child=child_result, window_spec=new_window_spec
@@ -319,7 +322,7 @@ def pull_up_order(
             node, (bigframes.core.nodes.OrderByNode, bigframes.core.nodes.ReversedNode)
         ):
             return remove_order(node.child)
-        if isinstance(
+        elif isinstance(
             node,
             (
                 bigframes.core.nodes.WindowOpNode,
@@ -328,18 +331,19 @@ def pull_up_order(
         ):
             if isinstance(node, bigframes.core.nodes.PromoteOffsetsNode):
                 node = rewrite_promote_offsets(node)
-            child_result, child_order = pull_up_order_inner(node.child)
-            new_window_order = (
-                *node.window_spec.ordering,
-                *child_order.all_ordering_columns,
-            )
-            new_window_spec = dataclasses.replace(
-                node.window_spec, ordering=new_window_order
-            )
-            return dataclasses.replace(
-                node, child=child_result, window_spec=new_window_spec
-            )
-        if isinstance(node, bigframes.core.nodes.AggregateNode):
+            if node.inherits_order:
+                child_result, child_order = pull_up_order_inner(node.child)
+                new_window_order = (
+                    *node.window_spec.ordering,
+                    *child_order.all_ordering_columns,
+                )
+                new_window_spec = dataclasses.replace(
+                    node.window_spec, ordering=new_window_order
+                )
+                return dataclasses.replace(
+                    node, child=child_result, window_spec=new_window_spec
+                )
+        elif isinstance(node, bigframes.core.nodes.AggregateNode):
             if node.has_ordered_ops:
                 child_result, child_order = pull_up_order_inner(node.child)
                 new_order_by = child_order.with_ordering_columns(node.order_by)

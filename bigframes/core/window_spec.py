@@ -181,12 +181,11 @@ class WindowSpec:
         )
         return set(itertools.chain((i.id for i in self.grouping_keys), ordering_vars))
 
-    def maybe_without_order(self) -> WindowSpec:
+    def without_order(self) -> WindowSpec:
         """Removes ordering clause if ordering isn't required to define bounds."""
-        if isinstance(self.bounds, RowsWindowBounds):
-            return self
-        else:
-            return replace(self, ordering=())
+        if self.row_bounded:
+            raise ValueError("Cannot remove order from row-bounded window")
+        return replace(self, ordering=())
 
     def remap_column_refs(
         self,
