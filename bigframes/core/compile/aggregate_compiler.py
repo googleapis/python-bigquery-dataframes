@@ -55,7 +55,7 @@ def compile_aggregate(
         return compile_nullary_agg(aggregate.op)
     if isinstance(aggregate, ex.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
-        if aggregate.op.can_order_by:
+        if not aggregate.op.order_independent:
             return compile_ordered_unary_agg(aggregate.op, input, order_by=order_by)  # type: ignore
         else:
             return compile_unary_agg(aggregate.op, input)  # type: ignore

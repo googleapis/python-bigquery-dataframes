@@ -443,9 +443,9 @@ class UnorderedIR:
                 never_skip_nulls=never_skip_nulls,
             )
 
-        if not expression.op.can_order_by:
+        if expression.op.order_independent:
             # notably percentile_cont does not support ordering clause
-            window_spec = window_spec.without_order()
+            window_spec = window_spec.maybe_without_order()
         window = self._ibis_window_from_spec(
             window_spec, require_total_order=expression.op.uses_total_row_ordering
         )

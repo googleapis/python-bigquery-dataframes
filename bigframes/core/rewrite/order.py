@@ -43,7 +43,7 @@ def pull_up_order(
         """Pull filter nodes out of a tree section."""
         if isinstance(node, bigframes.core.nodes.ReversedNode):
             child_result, child_order = pull_up_order_inner(node.child)
-            return node.replace_child(child_result), child_order.with_reverse()
+            return child_result, child_order.with_reverse()
         elif isinstance(node, bigframes.core.nodes.OrderByNode):
             if node.is_total_order:
                 new_node = remove_order(node.child)
@@ -326,8 +326,17 @@ def pull_up_order(
             return dataclasses.replace(
                 node, child=child_result, window_spec=new_window_spec
             )
-        else:
-            return node.transform_children(remove_order)
+        if isinstance(node, bigframes.core.nodes.AggregateNode):
+            if node.has_ordered_ops:
+                child_result, child_order = pull_up_order_inner(node.child)
+                new_order_by = child_order.with_ordering_columns(node.order_by)
+                return dataclasses.replace(
+                    node,
+                    child=child_result,
+                    order_by=tuple(new_order_by.all_ordering_columns),
+                )
+
+        return node.transform_children(remove_order)
 
     return (
         pull_up_order_inner(root)

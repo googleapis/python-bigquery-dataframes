@@ -1337,7 +1337,9 @@ class AggregateNode(UnaryNode):
 
     @property
     def has_ordered_ops(self) -> bool:
-        return any(aggregate.op.can_order_by for aggregate, _ in self.aggregations)
+        return not all(
+            aggregate.op.order_independent for aggregate, _ in self.aggregations
+        )
 
     def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
         by_ids = (ref.id for ref in self.by_column_ids)

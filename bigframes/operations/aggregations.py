@@ -39,10 +39,6 @@ class WindowOp:
         return False
 
     @property
-    def can_order_by(self):
-        return False
-
-    @property
     def order_independent(self):
         """
         True if the output of the operator does not depend on the ordering of input rows.
@@ -94,7 +90,7 @@ class AggregateOp(WindowOp):
 
         Almost all aggregation functions are order independent, excepting ``array_agg`` and ``string_agg``.
         """
-        return not self.can_order_by
+        return True
 
 
 @dataclasses.dataclass(frozen=True)
@@ -144,8 +140,8 @@ class MedianOp(UnaryAggregateOp):
     name: ClassVar[str] = "median"
 
     @property
-    def can_order_by(self) -> bool:
-        return False
+    def order_independent(self) -> bool:
+        return True
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         # These will change if median is changed to exact implementation.
@@ -166,8 +162,8 @@ class QuantileOp(UnaryAggregateOp):
         return f"{int(self.q * 100)}%"
 
     @property
-    def can_order_by(self) -> bool:
-        return False
+    def order_independent(self) -> bool:
+        return True
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
@@ -296,8 +292,8 @@ class ArrayAggOp(UnaryAggregateOp):
     name: ClassVar[str] = "arrayagg"
 
     @property
-    def can_order_by(self):
-        return True
+    def order_independent(self):
+        return False
 
     @property
     def skips_nulls(self):
