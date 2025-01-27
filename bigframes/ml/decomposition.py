@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional, Union
 
+import bigframes_vendored.sklearn.decomposition._ml
 import bigframes_vendored.sklearn.decomposition._pca
 from google.cloud import bigquery
 
@@ -197,3 +198,26 @@ class PCA(
 
         # TODO(b/291973741): X param is ignored. Update BQML supports input in ML.EVALUATE.
         return self._bqml_model.evaluate()
+
+
+@log_adapter.class_logger
+class MF(
+    base.UnsupervisedTrainablePredictor,
+    bigframes_vendored.sklearn.decomposition._mf.MF,
+):
+    __doc__ = bigframes_vendored.sklearn.decomposition._mf.MF.__doc__
+
+    def __init__(
+        self,
+        n_components: Optional[Union[int, float]] = None,
+        *,
+        user_col: str,
+        item_col: str,
+        l2_reg: float,
+    ):
+        self.n_components = n_components
+        self.user_col = user_col
+        self.item_col = item_col
+        self.l2_reg = l2_reg
+        self._bqml_model: Optional[core.BqmlModel] = None
+        self._bqml_model_factory = globals.bqml_model_factory()
