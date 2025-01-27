@@ -54,7 +54,7 @@ _INGRESS_SETTINGS_MAP = types.MappingProxyType(
 )
 
 
-class FunctionClient:
+class FunctionClient
     # Wait time (in seconds) for an IAM binding to take effect after creation
     _iam_wait_seconds = 120
 

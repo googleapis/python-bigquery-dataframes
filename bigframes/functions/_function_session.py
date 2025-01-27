@@ -55,8 +55,7 @@ import pandas
 from . import _function_client, _utils
 
 
-class FunctionSession:
-    """Session to manage bigframes (remote and managed) functions."""
+class FunctionSession
 
     def __init__(self):
         # Session level mapping of remote function artifacts
