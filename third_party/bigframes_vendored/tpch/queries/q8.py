@@ -75,4 +75,4 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
     jn8["MKT_SHARE"] = (jn8["NUMERATOR"] / jn8["DENOMINATOR"]).round(2)
 
     result_df = jn8["MKT_SHARE"].sort_index().rename("MKT_SHARE").reset_index()
-    result_df.to_gbq()
+    next(result_df.to_pandas_batches())
