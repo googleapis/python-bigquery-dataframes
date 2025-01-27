@@ -34,7 +34,7 @@ from bigframes.core.reshape.api import concat, cut, get_dummies, merge, qcut
 import bigframes.core.tools
 import bigframes.dataframe
 import bigframes.enums
-import bigframes.functions._utils as functions_utils
+import bigframes.functions._utils as bff_utils
 from bigframes.pandas.core.api import to_timedelta
 from bigframes.pandas.io.api import (
     from_glob_path,
@@ -223,7 +223,7 @@ def clean_up_by_session_id(
         session.bqclient, dataset, session_id
     )
 
-    functions_utils._clean_up_by_session_id(
+    bff_utils._clean_up_by_session_id(
         session.bqclient, session.cloudfunctionsclient, dataset, session_id
     )
 
