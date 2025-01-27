@@ -351,7 +351,7 @@ def get_cloud_functions(
         not name or not name_prefix
     ), "Either 'name' or 'name_prefix' can be passed but not both."
 
-    _, location = bff_utils.get_remote_function_locations(location)
+    _, location = bff_utils.get_function_locations(location)
     parent = f"projects/{project}/locations/{location}"
     request = functions_v2.ListFunctionsRequest(parent=parent)
     page_result = functions_client.list_functions(request=request)
