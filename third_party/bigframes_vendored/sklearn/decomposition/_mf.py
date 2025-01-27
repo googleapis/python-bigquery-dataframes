@@ -14,7 +14,7 @@ from abc import ABCMeta
 
 from bigframes_vendored.sklearn.base import BaseEstimator
 
-# from bigframes import constants
+from bigframes import constants
 
 
 class PCA(BaseEstimator, metaclass=ABCMeta):
@@ -38,3 +38,98 @@ class PCA(BaseEstimator, metaclass=ABCMeta):
             The solver to use to calculate the principal components. Details: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create-pca#pca_solver.
 
     """
+
+    def fit(self, X, y=None):
+        """Fit the model according to the given training data.
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
+                Series or DataFrame of shape (n_samples, n_features). Training vector,
+                where `n_samples` is the number of samples and `n_features` is
+                the number of features.
+
+            y (default None):
+                Ignored.
+
+        Returns:
+            PCA: Fitted estimator.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def score(self, X=None, y=None):
+        """Calculate evaluation metrics of the model.
+
+        .. note::
+
+            Output matches that of the BigQuery ML.EVALUATE function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate#pca_models
+            for the outputs relevant to this model type.
+
+        Args:
+            X (default None):
+                Ignored.
+
+            y (default None):
+                Ignored.
+        Returns:
+            bigframes.dataframe.DataFrame: DataFrame that represents model metrics.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def predict(self, X):
+        """Predict the closest cluster for each sample in X.
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
+                Series or a DataFrame to predict.
+
+        Returns:
+            bigframes.dataframe.DataFrame: Predicted DataFrames."""
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def components_(self):
+        """Principal axes in feature space, representing the directions of maximum variance in the data.
+
+        Returns:
+            bigframes.dataframe.DataFrame: DataFrame of principal components, containing following columns:
+                principal_component_id: An integer that identifies the principal component.
+
+                feature: The column name that contains the feature.
+
+                numerical_value: If feature is numeric, the value of feature for the principal component that principal_component_id identifies. If feature isn't numeric, the value is NULL.
+
+                categorical_value: A list of mappings containing information about categorical features. Each mapping contains the following fields:
+                    categorical_value.category: The name of each category.
+
+                    categorical_value.value: The value of categorical_value.category for the centroid that centroid_id identifies.
+
+            The output contains one row per feature per component.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def explained_variance_(self):
+        """The amount of variance explained by each of the selected components.
+
+        Returns:
+            bigframes.dataframe.DataFrame: DataFrame containing following columns:
+                principal_component_id: An integer that identifies the principal component.
+
+                explained_variance: The factor by which the eigenvector is scaled. Eigenvalue and explained variance are the same concepts in PCA.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def explained_variance_ratio_(self):
+        """Percentage of variance explained by each of the selected components.
+
+        Returns:
+            bigframes.dataframe.DataFrame: DataFrame containing following columns:
+                principal_component_id: An integer that identifies the principal component.
+
+                explained_variance_ratio: the total variance is the sum of variances, also known as eigenvalues, of all
+                of the individual principal components. The explained variance ratio by a principal component is
+                the ratio between the variance, also known as eigenvalue, of that principal component and the total variance.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
