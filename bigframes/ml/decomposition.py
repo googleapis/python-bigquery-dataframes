@@ -211,11 +211,13 @@ class MF(
         self,
         n_components: Optional[Union[int, float]] = None,
         *,
+        num_factors: int,
         user_col: str,
         item_col: str,
         l2_reg: float,
     ):
         self.n_components = n_components
+        self.num_factors = num_factors
         self.user_col = user_col
         self.item_col = item_col
         self.l2_reg = l2_reg

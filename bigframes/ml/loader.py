@@ -83,6 +83,7 @@ _BQML_ENDPOINT_TYPE_MAPPING = MappingProxyType(
 def from_bq(
     session: bigframes.session.Session, bq_model: bigquery.Model
 ) -> Union[
+    decomposition.MF,
     decomposition.PCA,
     cluster.KMeans,
     linear_model.LinearRegression,
