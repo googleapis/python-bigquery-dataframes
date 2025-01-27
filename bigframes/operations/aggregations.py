@@ -128,6 +128,15 @@ class SizeOp(NullaryAggregateOp):
         return dtypes.INT_DTYPE
 
 
+# TODO: Remove this temporary hack once nullary ops are better supported in APIs
+@dataclasses.dataclass(frozen=True)
+class SizeUnaryOp(UnaryAggregateOp):
+    name: ClassVar[str] = "size"
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.INT_DTYPE
+
+
 @dataclasses.dataclass(frozen=True)
 class SumOp(UnaryAggregateOp):
     name: ClassVar[str] = "sum"

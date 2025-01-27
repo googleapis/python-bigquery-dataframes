@@ -151,6 +151,11 @@ def _(op: agg_ops.SizeOp, window=None) -> ibis_types.NumericValue:
 
 
 @compile_unary_agg.register
+def _(op: agg_ops.SizeUnaryOp, _, window=None) -> ibis_types.NumericValue:
+    return _apply_window_if_present(ibis_ops.count(1), window)
+
+
+@compile_unary_agg.register
 @numeric_op
 def _(
     op: agg_ops.SumOp,
