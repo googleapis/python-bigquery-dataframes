@@ -1467,6 +1467,48 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return result
 
+    def corrwith(
+        self,
+        other: typing.Union[DataFrame, bigframes.series.Series],
+        *,
+        numeric_only: bool = False,
+    ):
+        other_frame = other if isinstance(other, DataFrame) else other.to_frame()
+        if numeric_only:
+            l_frame = self._drop_non_numeric()
+            r_frame = other_frame._drop_non_numeric()
+        else:
+            l_frame = self._raise_on_non_numeric("corrwith")
+            r_frame = other_frame._raise_on_non_numeric("corrwith")
+
+        l_block = l_frame.astype(bigframes.dtypes.FLOAT_DTYPE)._block
+        r_block = r_frame.astype(bigframes.dtypes.FLOAT_DTYPE)._block
+
+        if isinstance(other, DataFrame):
+            block, labels, expr_pairs = l_block._align_both_axes(r_block, how="inner")
+        else:
+            assert isinstance(other, bigframes.series.Series)
+            block, labels, expr_pairs = l_block._align_axis_0(r_block, how="inner")
+
+        na_cols = l_block.column_labels.join(
+            r_block.column_labels, how="outer"
+        ).difference(labels)
+
+        block, _ = block.aggregate(
+            aggregations=tuple(
+                ex.BinaryAggregation(agg_ops.CorrOp(), left_ex, right_ex)
+                for left_ex, right_ex in expr_pairs
+            ),
+            column_labels=labels,
+        )
+        block = block.project_exprs(
+            (ex.const(float("nan")),) * len(na_cols), labels=na_cols
+        )
+        block = block.transpose(
+            original_row_index=pandas.Index([None]), single_row_mode=True
+        )
+        return bigframes.pandas.Series(block)
+
     def to_arrow(
         self,
         *,
@@ -3948,7 +3990,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 # Early check whether the dataframe dtypes are currently supported
                 # in the remote function
                 # NOTE: Keep in sync with the value converters used in the gcf code
-                # generated in remote_function_template.py
+                # generated in function_template.py
                 remote_function_supported_dtypes = (
                     bigframes.dtypes.INT_DTYPE,
                     bigframes.dtypes.FLOAT_DTYPE,
@@ -4264,6 +4306,56 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @property
     def plot(self):
         return plotting.PlotAccessor(self)
+
+    def hist(
+        self, by: typing.Optional[typing.Sequence[str]] = None, bins: int = 10, **kwargs
+    ):
+        return self.plot.hist(by=by, bins=bins, **kwargs)
+
+    hist.__doc__ = inspect.getdoc(plotting.PlotAccessor.hist)
+
+    def line(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        **kwargs,
+    ):
+        return self.plot.line(x=x, y=y, **kwargs)
+
+    line.__doc__ = inspect.getdoc(plotting.PlotAccessor.line)
+
+    def area(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        stacked: bool = True,
+        **kwargs,
+    ):
+        return self.plot.area(x=x, y=y, stacked=stacked, **kwargs)
+
+    area.__doc__ = inspect.getdoc(plotting.PlotAccessor.area)
+
+    def bar(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        **kwargs,
+    ):
+        return self.plot.bar(x=x, y=y, **kwargs)
+
+    bar.__doc__ = inspect.getdoc(plotting.PlotAccessor.bar)
+
+    def scatter(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        s: typing.Union[typing.Hashable, typing.Sequence[typing.Hashable]] = None,
+        c: typing.Union[typing.Hashable, typing.Sequence[typing.Hashable]] = None,
+        **kwargs,
+    ):
+        return self.plot.scatter(x=x, y=y, s=s, c=c, **kwargs)
+
+    scatter.__doc__ = inspect.getdoc(plotting.PlotAccessor.scatter)
 
     def __matmul__(self, other) -> DataFrame:
         return self.dot(other)

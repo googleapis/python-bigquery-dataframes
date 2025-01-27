@@ -2156,7 +2156,7 @@ class Block:
 
     def _align_both_axes(
         self, other: Block, how: str
-    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.Expression, ex.Expression]]]:
+    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.RefOrConstant, ex.RefOrConstant]]]:
         # Join rows
         aligned_block, (get_column_left, get_column_right) = self.join(other, how=how)
         # join columns schema
@@ -2165,7 +2165,7 @@ class Block:
             columns, lcol_indexer, rcol_indexer = self.column_labels, None, None
         else:
             columns, lcol_indexer, rcol_indexer = self.column_labels.join(
-                other.column_labels, how="outer", return_indexers=True
+                other.column_labels, how=how, return_indexers=True
             )
         lcol_indexer = (
             lcol_indexer if (lcol_indexer is not None) else range(len(columns))
@@ -2187,11 +2187,11 @@ class Block:
 
         left_inputs = [left_input_lookup(i) for i in lcol_indexer]
         right_inputs = [righ_input_lookup(i) for i in rcol_indexer]
-        return aligned_block, columns, tuple(zip(left_inputs, right_inputs))
+        return aligned_block, columns, tuple(zip(left_inputs, right_inputs))  # type: ignore
 
     def _align_axis_0(
         self, other: Block, how: str
-    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.Expression, ex.Expression]]]:
+    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.DerefOp, ex.DerefOp]]]:
         assert len(other.value_columns) == 1
         aligned_block, (get_column_left, get_column_right) = self.join(other, how=how)
 
@@ -2207,7 +2207,7 @@ class Block:
 
     def _align_series_block_axis_1(
         self, other: Block, how: str
-    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.Expression, ex.Expression]]]:
+    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.RefOrConstant, ex.RefOrConstant]]]:
         assert len(other.value_columns) == 1
         if other._transpose_cache is None:
             raise ValueError(
@@ -2248,11 +2248,11 @@ class Block:
 
         left_inputs = [left_input_lookup(i) for i in lcol_indexer]
         right_inputs = [righ_input_lookup(i) for i in rcol_indexer]
-        return aligned_block, columns, tuple(zip(left_inputs, right_inputs))
+        return aligned_block, columns, tuple(zip(left_inputs, right_inputs))  # type: ignore
 
     def _align_pd_series_axis_1(
         self, other: pd.Series, how: str
-    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.Expression, ex.Expression]]]:
+    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.RefOrConstant, ex.RefOrConstant]]]:
         if self.column_labels.equals(other.index):
             columns, lcol_indexer, rcol_indexer = self.column_labels, None, None
         else:
@@ -2279,7 +2279,7 @@ class Block:
 
         left_inputs = [left_input_lookup(i) for i in lcol_indexer]
         right_inputs = [righ_input_lookup(i) for i in rcol_indexer]
-        return self, columns, tuple(zip(left_inputs, right_inputs))
+        return self, columns, tuple(zip(left_inputs, right_inputs))  # type: ignore
 
     def _apply_binop(
         self,
