@@ -539,7 +539,7 @@ def bigframes_type(dtype) -> Dtype:
 def _is_bigframes_dtype(dtype) -> bool:
     """True iff dtyps is a canonical bigframes dtype"""
     # have to be quite strict, as pyarrow dtypes equal their string form, and we don't consider that a canonical form.
-    if (type(type), dtype) in set(
+    if (type(dtype), dtype) in set(
         (type(item.dtype), item.dtype) for item in SIMPLE_TYPES
     ):
         return True
