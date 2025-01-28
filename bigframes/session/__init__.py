@@ -1630,9 +1630,6 @@ class Session(
         .. note::
             BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
-
         Args:
             path (str):
                 The wildcard global path, such as "gs://<bucket>/<folder>/\*".
