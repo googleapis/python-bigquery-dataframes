@@ -24,13 +24,15 @@ import re
 import shutil
 import time
 from typing import Dict, List
-import warnings
 
 import nox
 import nox.sessions
 
 BLACK_VERSION = "black==22.3.0"
 ISORT_VERSION = "isort==5.12.0"
+
+# TODO: switch to 3.13 once remote functions / cloud run adds a runtime for it (internal issue 333742751)
+LATEST_FULLY_SUPPORTED_PYTHON = "3.12"
 
 # pytest-retry is not yet compatible with pytest 8.x.
 # https://github.com/str0zzapreti/pytest-retry/issues/32
@@ -57,7 +59,6 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
     "pytest-asyncio",
     "pytest-mock",
 ]
-UNIT_TEST_EXTERNAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
@@ -168,14 +169,6 @@ def lint_setup_py(session):
 def install_unittest_dependencies(session, install_test_extra, *constraints):
     standard_deps = UNIT_TEST_STANDARD_DEPENDENCIES + UNIT_TEST_DEPENDENCIES
     session.install(*standard_deps, *constraints)
-
-    if UNIT_TEST_EXTERNAL_DEPENDENCIES:
-        msg = (
-            "'unit_test_external_dependencies' is deprecated. Instead, please "
-            "use 'unit_test_dependencies' or 'unit_test_local_dependencies'.",
-        )
-        warnings.warn(msg, DeprecationWarning)
-        session.install(*UNIT_TEST_EXTERNAL_DEPENDENCIES, *constraints)
 
     if UNIT_TEST_LOCAL_DEPENDENCIES:
         session.install(*UNIT_TEST_LOCAL_DEPENDENCIES, *constraints)
@@ -386,7 +379,7 @@ def system_noextras(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+@nox.session(python=LATEST_FULLY_SUPPORTED_PYTHON)
 def doctest(session: nox.sessions.Session):
     """Run the system test suite."""
     run_system(

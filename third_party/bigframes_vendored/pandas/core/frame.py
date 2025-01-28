@@ -4358,7 +4358,6 @@ class DataFrame(generic.NDFrame):
            DataFrame.map.
 
         **Examples:**
-        .. doctest-skip-all
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
@@ -4719,7 +4718,6 @@ class DataFrame(generic.NDFrame):
             ``axis=1`` scenario is in preview.
 
         **Examples:**
-        .. doctest-skip-all
 
             >>> import bigframes.pandas as bpd
             >>> import pandas as pd

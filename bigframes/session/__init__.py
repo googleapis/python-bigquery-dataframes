@@ -1419,7 +1419,6 @@ class Session(
         (See: https://github.com/GoogleCloudPlatform/bigquery-utils/tree/master/udfs/community#community-udfs).
 
         **Examples:**
-        .. doctest-skip-all
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
