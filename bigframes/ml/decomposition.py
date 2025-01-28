@@ -209,7 +209,6 @@ class MatrixFactorization(
 
     def __init__(
         self,
-        n_components: Optional[Union[int, float]] = None,
         *,
         num_factors: int,
         user_col: str,
