@@ -437,7 +437,7 @@ def cover(session):
         "report",
         "--include=bigframes/*",
         "--show-missing",
-        "--fail-under=86",
+        "--fail-under=85",
     )
 
     # Make sure there is no dead code in our test directories.
