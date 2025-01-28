@@ -25,49 +25,6 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import bigframes.core.compile.compiled as compiled
 
 
-def isin_ordered(
-    left: compiled.OrderedIR,
-    right: compiled.UnorderedIR,
-    indicator_col: str,
-    conditions: Tuple[str, str],
-) -> compiled.OrderedIR:
-    """Join two expressions by column equality.
-
-    Arguments:
-        left: Expression for left table to join.
-        right: Expression for right table to join.
-        indicator_col: the output column, indicating if left elements are in right elements
-        conditions: Id pairs to compare
-    Returns:
-        The joined expression.
-    """
-    left_table = left._to_ibis_expr(
-        ordering_mode="unordered",
-        expose_hidden_cols=True,
-    )
-    right_table = right._to_ibis_expr()
-    new_column = (
-        value_to_join_key(left_table[conditions[0]])
-        .isin(value_to_join_key(right_table[conditions[1]]))
-        .name(indicator_col)
-    )
-
-    columns = tuple(
-        itertools.chain(
-            (left_table[col.get_name()] for col in left.columns), (new_column,)
-        )
-    )
-
-    return compiled.OrderedIR(
-        left_table,
-        columns=columns,
-        hidden_ordering_columns=tuple(
-            left_table[col] for col in left._hidden_column_ids
-        ),
-        ordering=left._ordering,
-    )
-
-
 def isin_unordered(
     left: compiled.UnorderedIR,
     right: compiled.UnorderedIR,
