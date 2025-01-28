@@ -359,7 +359,7 @@ class FunctionSession:
         else:
             dataset_ref = session._anonymous_dataset
 
-        bq_location, cloud_function_region = _utils.get_function_locations(
+        bq_location, cloud_function_region = _utils.get_remote_function_locations(
             bigquery_client.location
         )
 

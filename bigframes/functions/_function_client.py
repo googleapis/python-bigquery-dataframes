@@ -58,6 +58,8 @@ class FunctionClient:
     # Wait time (in seconds) for an IAM binding to take effect after creation
     _iam_wait_seconds = 120
 
+    # TODO(b/392707725): Convert all necessary parameters for cloud function
+    # deployment into method parameters.
     def __init__(
         self,
         gcp_project_id,
@@ -441,7 +443,7 @@ class FunctionClient:
         # Derive the name of the remote function
         remote_function_name = name
         if not remote_function_name:
-            remote_function_name = _utils.get_function_name(
+            remote_function_name = _utils.get_remote_function_name(
                 function_hash, self._session.session_id, uniq_suffix
             )
         rf_endpoint, rf_conn = self.get_remote_function_specs(remote_function_name)

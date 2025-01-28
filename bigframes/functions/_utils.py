@@ -30,8 +30,8 @@ import pyarrow
 import bigframes.core.compile.ibis_types
 import bigframes.dtypes
 
-# Naming convention for the function artifacts
-_BIGFRAMES_FUNCTION_PREFIX = "bigframes"
+# Naming convention for the remote function artifacts
+_BIGFRAMES_REMOTE_FUNCTION_PREFIX = "bigframes"
 _BQ_FUNCTION_NAME_SEPERATOR = "_"
 _GCF_FUNCTION_NAME_SEPERATOR = "-"
 
@@ -40,14 +40,14 @@ _GCF_FUNCTION_NAME_SEPERATOR = "-"
 _pickle_protocol_version = 4
 
 
-def get_function_locations(bq_location):
+def get_remote_function_locations(bq_location):
     """Get BQ location and cloud functions region given a BQ client."""
     # TODO(shobs, b/274647164): Find the best way to determine default location.
     # For now let's assume that if no BQ location is set in the client then it
     # defaults to US multi region
     bq_location = bq_location.lower() if bq_location else "us"
 
-    # Cloud function should be in the same region as the bigquery function
+    # Cloud function should be in the same region as the bigquery remote function
     cloud_function_region = bq_location
 
     # BigQuery has multi region but cloud functions does not.
@@ -101,7 +101,7 @@ def _clean_up_by_session_id(
     endpoints_to_be_deleted: Set[str] = set()
     match_prefix = "".join(
         [
-            _BIGFRAMES_FUNCTION_PREFIX,
+            _BIGFRAMES_REMOTE_FUNCTION_PREFIX,
             _BQ_FUNCTION_NAME_SEPERATOR,
             session_id,
             _BQ_FUNCTION_NAME_SEPERATOR,
@@ -127,7 +127,7 @@ def _clean_up_by_session_id(
 
     # Now clean up the cloud functions
     bq_location = bqclient.get_dataset(dataset).location
-    bq_location, gcf_location = get_function_locations(bq_location)
+    bq_location, gcf_location = get_remote_function_locations(bq_location)
     parent_path = gcfclient.common_location_path(
         project=dataset.project, location=gcf_location
     )
@@ -176,7 +176,7 @@ def routine_ref_to_string_for_query(routine_ref: bigquery.RoutineReference) -> s
 
 def get_cloud_function_name(function_hash, session_id=None, uniq_suffix=None):
     "Get a name for the cloud function for the given user defined function."
-    parts = [_BIGFRAMES_FUNCTION_PREFIX]
+    parts = [_BIGFRAMES_REMOTE_FUNCTION_PREFIX]
     if session_id:
         parts.append(session_id)
     parts.append(function_hash)
@@ -185,9 +185,9 @@ def get_cloud_function_name(function_hash, session_id=None, uniq_suffix=None):
     return _GCF_FUNCTION_NAME_SEPERATOR.join(parts)
 
 
-def get_function_name(function_hash, session_id, uniq_suffix=None):
+def get_remote_function_name(function_hash, session_id, uniq_suffix=None):
     "Get a name for the bigframes function for the given user defined function."
-    parts = [_BIGFRAMES_FUNCTION_PREFIX, session_id, function_hash]
+    parts = [_BIGFRAMES_REMOTE_FUNCTION_PREFIX, session_id, function_hash]
     if uniq_suffix:
         parts.append(uniq_suffix)
     return _BQ_FUNCTION_NAME_SEPERATOR.join(parts)
