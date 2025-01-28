@@ -201,7 +201,7 @@ class PCA(
 
 
 @log_adapter.class_logger
-class MF(
+class MatrixFactorization(
     base.UnsupervisedTrainablePredictor,
     bigframes_vendored.sklearn.decomposition._mf.MF,
 ):
