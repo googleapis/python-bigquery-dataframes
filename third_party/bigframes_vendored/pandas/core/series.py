@@ -2649,6 +2649,7 @@ class Series(NDFrame):  # type: ignore[misc]
             Name: c, dtype: Int64
 
         If you'd like to change the type, add a case with the condition True at the end of the case list
+
             >>> c.case_when(
             ...     caselist=[
             ...         (a.gt(0), 'a'),  # condition, replacement
