@@ -17,23 +17,19 @@ from bigframes_vendored.sklearn.base import BaseEstimator
 from bigframes import constants
 
 
-class MF(BaseEstimator, metaclass=ABCMeta):
+class MatrixFactorization(BaseEstimator, metaclass=ABCMeta):
     """Matrix Factorization (MF).
 
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> from bigframes.ml.decomposition import MF
+        >>> from bigframes.ml.decomposition import MatrixFactorization
         >>> X = bpd.DataFrame([[1, 1], [2, 1], [3, 1.2], [4, 1], [5, 0.8], [6, 1]])
-        >>> model = MF(n_components=2, init='random', random_state=0)
+        >>> model = MatrixFactorization(n_components=2, init='random', random_state=0)
         >>> W = model.fit_transform(X)
         >>> H = model.components_
 
     Args:
-        n_components (int, float or None, default None):
-            Number of components to keep. If n_components is not set, all
-            components are kept, n_components = min(n_samples, n_features).
-            If 0 < n_components < 1, select the number of components such that the amount of variance that needs to be explained is greater than the percentage specified by n_components.
         num_factors (int or auto, default auto):
             Specifies the number of latent factors to use.
             If you aren't running hyperparameter tuning, then you can specify an INT64 value between 2 and 200. The default value is log2(n), where n is the number of training examples.

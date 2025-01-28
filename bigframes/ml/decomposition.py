@@ -203,9 +203,9 @@ class PCA(
 @log_adapter.class_logger
 class MatrixFactorization(
     base.UnsupervisedTrainablePredictor,
-    bigframes_vendored.sklearn.decomposition._mf.MF,
+    bigframes_vendored.sklearn.decomposition._mf.MatrixFactorization,
 ):
-    __doc__ = bigframes_vendored.sklearn.decomposition._mf.MF.__doc__
+    __doc__ = bigframes_vendored.sklearn.decomposition._mf.MatrixFactorization.__doc__
 
     def __init__(
         self,
@@ -213,13 +213,14 @@ class MatrixFactorization(
         num_factors: int,
         user_col: str,
         item_col: str,
+        rating_col: Optional[str] = "rating",
         # TODO: Add support for hyperparameter tuning.
         l2_reg: float = 1.0,
     ):
-        self.n_components = n_components
         self.num_factors = num_factors
         self.user_col = user_col
         self.item_col = item_col
+        self.rating_col = rating_col
         self.l2_reg = l2_reg
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
@@ -227,8 +228,8 @@ class MatrixFactorization(
     @classmethod
     def _from_bq(
         cls, session: bigframes.session.Session, bq_model: bigquery.Model
-    ) -> MF:
-        assert bq_model.model_type == "MF"
+    ) -> MatrixFactorization:
+        assert bq_model.model_type == "MatrixFactorization"
 
         kwargs = utils.retrieve_params_from_bq_model(
             cls, bq_model, _BQML_PARAMS_MAPPING
@@ -248,14 +249,8 @@ class MatrixFactorization(
     def _bqml_options(self) -> dict:
         """The model options as they will be set for BQML"""
         options: dict = {
-            "model_type": "ML",
+            "model_type": "MatrixFactorization",
         }
-
-        assert self.n_components is not None
-        if 0 < self.n_components < 1:
-            options["pca_explained_variance_ratio"] = float(self.n_components)
-        elif self.n_components >= 1:
-            options["num_principal_components"] = int(self.n_components)
 
         return options
 
@@ -264,17 +259,11 @@ class MatrixFactorization(
         X: utils.ArrayType,
         y=None,
         transforms: Optional[List[str]] = None,
-    ) -> PCA:
+    ) -> MatrixFactorization:
         (X,) = utils.batch_convert_to_dataframe(X)
 
         # To mimic sklearn's behavior
-        if self.n_components is None:
-            self.n_components = min(X.shape)
-        self._bqml_model = self._bqml_model_factory.create_model(
-            X_train=X,
-            transforms=transforms,
-            options=self._bqml_options,
-        )
+
         return self
 
     @property
