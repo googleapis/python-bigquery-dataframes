@@ -2885,6 +2885,7 @@ def test_series_case_when_change_type(scalars_dfs_maybe_ordered):
     pd_conditions = [
         ((pd_series > 645).fillna(True), scalars_pandas_df["string_col"]),
         ((pd_series <= -100).fillna(True), pd.NA),
+        # pandas currently fails if both the condition and the value are literals.
         ([True] * len(pd_series), ["not_found"] * len(pd_series)),
     ]
 
