@@ -63,6 +63,8 @@ def arrow_type_replacements(type: pa.DataType) -> pa.DataType:
         return pa.decimal128(38, 9)
     if pa.types.is_decimal256(type):
         return pa.decimal256(76, 38)
+    if pa.types.is_dictionary(type):
+        return arrow_type_replacements(type.value_type)
     if pa.types.is_large_string(type):
         # simple string type can handle the largest strings needed
         return pa.string()
