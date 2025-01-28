@@ -181,18 +181,22 @@ class BqmlModel(BaseBqml):
 
     def forecast(self, options: Mapping[str, int | float]) -> bpd.DataFrame:
         sql = self._model_manipulation_sql_generator.ml_forecast(struct_options=options)
-        index_cols = ["forecast_timestamp"]
-        if "id" in self._session.read_gbq(sql).columns:
-            index_cols.append("id")
+        timestamp_col_name = "forecast_timestamp"
+        index_cols = [timestamp_col_name]
+        first_col_name = self._session.read_gbq(sql).columns.values[0]
+        if timestamp_col_name != first_col_name:
+            index_cols.append(first_col_name)
         return self._session.read_gbq(sql, index_col=index_cols).reset_index()
 
     def explain_forecast(self, options: Mapping[str, int | float]) -> bpd.DataFrame:
         sql = self._model_manipulation_sql_generator.ml_explain_forecast(
             struct_options=options
         )
-        index_cols = ["time_series_timestamp"]
-        if "id" in self._session.read_gbq(sql).columns:
-            index_cols.append("id")
+        timestamp_col_name = "time_series_timestamp"
+        index_cols = [timestamp_col_name]
+        first_col_name = self._session.read_gbq(sql).columns.values[0]
+        if timestamp_col_name != first_col_name:
+            index_cols.append(first_col_name)
         return self._session.read_gbq(sql, index_col=index_cols).reset_index()
 
     def evaluate(self, input_data: Optional[bpd.DataFrame] = None):
