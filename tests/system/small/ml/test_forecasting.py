@@ -58,31 +58,48 @@ def test_arima_plus_predict_default(
         result["id"] = predictions[["id"]]
         result = result[["id", "forecast_timestamp", "forecast_value"]]
 
-    expected = pd.DataFrame(
-        {
-            "forecast_timestamp": [
-                datetime(2017, 8, 2, tzinfo=utc),
-                datetime(2017, 8, 3, tzinfo=utc),
-                datetime(2017, 8, 4, tzinfo=utc),
-            ],
-            "forecast_value": [
-                2634.796023420504,
-                2621.332461736945,
-                2396.0954626721273,
-            ],
-        }
-    )
+    if id_col_name:
+        expected = pd.DataFrame(
+            {
+                "id": ["1", "2", "1", "2", "1", "2"],
+                "forecast_timestamp": [
+                    datetime(2017, 8, 2, tzinfo=utc),
+                    datetime(2017, 8, 2, tzinfo=utc),
+                    datetime(2017, 8, 3, tzinfo=utc),
+                    datetime(2017, 8, 3, tzinfo=utc),
+                    datetime(2017, 8, 4, tzinfo=utc),
+                    datetime(2017, 8, 4, tzinfo=utc),
+                ],
+                "forecast_value": [
+                    2634.796023,
+                    2634.796023,
+                    2621.332461,
+                    2621.332461,
+                    2396.095462,
+                    2396.095462,
+                ],
+            }
+        )
+        expected["id"] = expected["id"].astype("string[pyarrow]")
+    else:
+        expected = pd.DataFrame(
+            {
+                "forecast_timestamp": [
+                    datetime(2017, 8, 2, tzinfo=utc),
+                    datetime(2017, 8, 3, tzinfo=utc),
+                    datetime(2017, 8, 4, tzinfo=utc),
+                ],
+                "forecast_value": [
+                    2634.796023,
+                    2621.332461,
+                    2396.095462,
+                ],
+            }
+        )
     expected["forecast_value"] = expected["forecast_value"].astype(pd.Float64Dtype())
     expected["forecast_timestamp"] = expected["forecast_timestamp"].astype(
         pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
     )
-    if id_col_name:
-        expected_expanded = expected.loc[expected.index.repeat(2)].reset_index(
-            drop=True
-        )
-        expected_expanded.insert(0, "id", ["1", "2", "1", "2", "1", "2"])
-        expected_expanded["id"] = expected_expanded["id"].astype("string[pyarrow]")
-        expected = expected_expanded
 
     pd.testing.assert_frame_equal(
         result,
@@ -117,33 +134,50 @@ def test_arima_plus_predict_explain_default(
     if id_col_name:
         result["id"] = predictions[["id"]]
         result = result[["id", "time_series_timestamp", "time_series_data"]]
-    expected = pd.DataFrame(
-        {
-            "time_series_timestamp": [
-                datetime(2017, 8, 2, tzinfo=utc),
-                datetime(2017, 8, 3, tzinfo=utc),
-                datetime(2017, 8, 4, tzinfo=utc),
-            ],
-            "time_series_data": [
-                2634.796023420504,
-                2621.332461736945,
-                2396.0954626721273,
-            ],
-        }
-    )
+    if id_col_name:
+        expected = pd.DataFrame(
+            {
+                "id": ["1", "2", "1", "2", "1", "2"],
+                "time_series_timestamp": [
+                    datetime(2017, 8, 2, tzinfo=utc),
+                    datetime(2017, 8, 2, tzinfo=utc),
+                    datetime(2017, 8, 3, tzinfo=utc),
+                    datetime(2017, 8, 3, tzinfo=utc),
+                    datetime(2017, 8, 4, tzinfo=utc),
+                    datetime(2017, 8, 4, tzinfo=utc),
+                ],
+                "time_series_data": [
+                    2634.796023,
+                    2634.796023,
+                    2621.332461,
+                    2621.332461,
+                    2396.095462,
+                    2396.095462,
+                ],
+            }
+        )
+        expected["id"] = expected["id"].astype("string[pyarrow]")
+    else:
+        expected = pd.DataFrame(
+            {
+                "time_series_timestamp": [
+                    datetime(2017, 8, 2, tzinfo=utc),
+                    datetime(2017, 8, 3, tzinfo=utc),
+                    datetime(2017, 8, 4, tzinfo=utc),
+                ],
+                "time_series_data": [
+                    2634.796023,
+                    2621.332461,
+                    2396.095462,
+                ],
+            }
+        )
     expected["time_series_data"] = expected["time_series_data"].astype(
         pd.Float64Dtype()
     )
     expected["time_series_timestamp"] = expected["time_series_timestamp"].astype(
         pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
     )
-    if id_col_name:
-        expected_expanded = expected.loc[expected.index.repeat(2)].reset_index(
-            drop=True
-        )
-        expected_expanded.insert(0, "id", ["1", "2", "1", "2", "1", "2"])
-        expected_expanded["id"] = expected_expanded["id"].astype("string[pyarrow]")
-        expected = expected_expanded
 
     pd.testing.assert_frame_equal(
         result,
@@ -174,33 +208,55 @@ def test_arima_plus_predict_params(
     if id_col_name:
         result["id"] = predictions[["id"]]
         result = result[["id", "forecast_timestamp", "forecast_value"]]
-    expected = pd.DataFrame(
-        {
-            "forecast_timestamp": [
-                datetime(2017, 8, 2, tzinfo=utc),
-                datetime(2017, 8, 3, tzinfo=utc),
-                datetime(2017, 8, 4, tzinfo=utc),
-                datetime(2017, 8, 5, tzinfo=utc),
-            ],
-            "forecast_value": [
-                2634.796023420504,
-                2621.332461736945,
-                2396.0954626721273,
-                1781.623071,
-            ],
-        }
-    )
+
+    if id_col_name:
+        expected = pd.DataFrame(
+            {
+                "id": ["1", "2", "1", "2", "1", "2", "1", "2"],
+                "forecast_timestamp": [
+                    datetime(2017, 8, 2, tzinfo=utc),
+                    datetime(2017, 8, 2, tzinfo=utc),
+                    datetime(2017, 8, 3, tzinfo=utc),
+                    datetime(2017, 8, 3, tzinfo=utc),
+                    datetime(2017, 8, 4, tzinfo=utc),
+                    datetime(2017, 8, 4, tzinfo=utc),
+                    datetime(2017, 8, 5, tzinfo=utc),
+                    datetime(2017, 8, 5, tzinfo=utc),
+                ],
+                "forecast_value": [
+                    2634.796023,
+                    2634.796023,
+                    2621.332461,
+                    2621.332461,
+                    2396.095462,
+                    2396.095462,
+                    1781.623071,
+                    1781.623071,
+                ],
+            }
+        )
+        expected["id"] = expected["id"].astype("string[pyarrow]")
+    else:
+        expected = pd.DataFrame(
+            {
+                "forecast_timestamp": [
+                    datetime(2017, 8, 2, tzinfo=utc),
+                    datetime(2017, 8, 3, tzinfo=utc),
+                    datetime(2017, 8, 4, tzinfo=utc),
+                    datetime(2017, 8, 5, tzinfo=utc),
+                ],
+                "forecast_value": [
+                    2634.796023,
+                    2621.332461,
+                    2396.095462,
+                    1781.623071,
+                ],
+            }
+        )
     expected["forecast_value"] = expected["forecast_value"].astype(pd.Float64Dtype())
     expected["forecast_timestamp"] = expected["forecast_timestamp"].astype(
         pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
     )
-    if id_col_name:
-        expected_expanded = expected.loc[expected.index.repeat(2)].reset_index(
-            drop=True
-        )
-        expected_expanded.insert(0, "id", ["1", "2", "1", "2", "1", "2", "1", "2"])
-        expected_expanded["id"] = expected_expanded["id"].astype("string[pyarrow]")
-        expected = expected_expanded
 
     pd.testing.assert_frame_equal(
         result,
@@ -268,19 +324,45 @@ def test_arima_plus_detect_anomalies(
         .to_pandas()
     )
 
-    expected = pd.DataFrame(
-        {
-            "is_anomaly": [False, False, False],
-            "lower_bound": [2229.930578, 2149.645455, 1892.873256],
-            "upper_bound": [3039.6614686, 3093.019467, 2899.317669],
-            "anomaly_probability": [0.48545926, 0.3856835, 0.314156],
-        },
-    )
     if id_col_name:
-        expected_expanded = expected.loc[expected.index.repeat(2)].reset_index(
-            drop=True
+        expected = pd.DataFrame(
+            {
+                "is_anomaly": [False, False, False, False, False, False],
+                "lower_bound": [
+                    2229.930578,
+                    2229.930578,
+                    2149.645455,
+                    2149.645455,
+                    1892.873256,
+                    1892.873256,
+                ],
+                "upper_bound": [
+                    3039.6614686,
+                    3039.6614686,
+                    3093.019467,
+                    3093.019467,
+                    2899.317669,
+                    2899.317669,
+                ],
+                "anomaly_probability": [
+                    0.48545926,
+                    0.48545926,
+                    0.3856835,
+                    0.3856835,
+                    0.314156,
+                    0.314156,
+                ],
+            },
         )
-        expected = expected_expanded
+    else:
+        expected = pd.DataFrame(
+            {
+                "is_anomaly": [False, False, False],
+                "lower_bound": [2229.930578, 2149.645455, 1892.873256],
+                "upper_bound": [3039.6614686, 3093.019467, 2899.317669],
+                "anomaly_probability": [0.48545926, 0.3856835, 0.314156],
+            },
+        )
     pd.testing.assert_frame_equal(
         anomalies[["is_anomaly", "lower_bound", "upper_bound", "anomaly_probability"]],
         expected,
@@ -310,20 +392,45 @@ def test_arima_plus_detect_anomalies_params(
         )
         .to_pandas()
     )
-
-    expected = pd.DataFrame(
-        {
-            "is_anomaly": [False, False, False],
-            "lower_bound": [2420.11419, 2360.1870, 2086.0609],
-            "upper_bound": [2849.47785, 2826.54981, 2621.165188],
-            "anomaly_probability": [0.485459, 0.385683, 0.314156],
-        },
-    )
     if id_col_name:
-        expected_expanded = expected.loc[expected.index.repeat(2)].reset_index(
-            drop=True
+        expected = pd.DataFrame(
+            {
+                "is_anomaly": [False, False, False, False, False, False],
+                "lower_bound": [
+                    2420.11419,
+                    2420.11419,
+                    2360.1870,
+                    2360.1870,
+                    2086.0609,
+                    2086.0609,
+                ],
+                "upper_bound": [
+                    2849.47785,
+                    2849.47785,
+                    2826.54981,
+                    2826.54981,
+                    2621.165188,
+                    2621.165188,
+                ],
+                "anomaly_probability": [
+                    0.485459,
+                    0.485459,
+                    0.385683,
+                    0.385683,
+                    0.314156,
+                    0.314156,
+                ],
+            },
         )
-        expected = expected_expanded
+    else:
+        expected = pd.DataFrame(
+            {
+                "is_anomaly": [False, False, False],
+                "lower_bound": [2420.11419, 2360.1870, 2086.0609],
+                "upper_bound": [2849.47785, 2826.54981, 2621.165188],
+                "anomaly_probability": [0.485459, 0.385683, 0.314156],
+            },
+        )
     pd.testing.assert_frame_equal(
         anomalies[["is_anomaly", "lower_bound", "upper_bound", "anomaly_probability"]],
         expected,
@@ -351,22 +458,31 @@ def test_arima_plus_score(
         result = time_series_arima_plus_model.score(
             new_time_series_df[["parsed_date"]], new_time_series_df[["total_visits"]]
         ).to_pandas()
-    expected = pd.DataFrame(
-        {
-            "mean_absolute_error": [120.0110074],
-            "mean_squared_error": [14562.5623594],
-            "root_mean_squared_error": [120.675442],
-            "mean_absolute_percentage_error": [4.80044],
-            "symmetric_mean_absolute_percentage_error": [4.744332],
-        },
-        dtype="Float64",
-    )
     if id_col_name:
-        expected_expanded = pd.concat([expected, expected], ignore_index=True)
-        expected_expanded["id"] = ["2", "1"]
-        expected_expanded["id"] = expected_expanded["id"].astype("string[pyarrow]")
-        expected_expanded = expected_expanded[["id"] + list(expected.columns)]
-        expected = expected_expanded
+        expected = pd.DataFrame(
+            {
+                "id": ["2", "1"],
+                "mean_absolute_error": [120.011007, 120.011007],
+                "mean_squared_error": [14562.562359, 14562.562359],
+                "root_mean_squared_error": [120.675442, 120.675442],
+                "mean_absolute_percentage_error": [4.80044, 4.80044],
+                "symmetric_mean_absolute_percentage_error": [4.744332, 4.744332],
+            },
+            dtype="Float64",
+        )
+        expected["id"] = expected["id"].astype(str).str.replace(r"\.0$", "", regex=True)
+        expected["id"] = expected["id"].astype("string[pyarrow]")
+    else:
+        expected = pd.DataFrame(
+            {
+                "mean_absolute_error": [120.0110074],
+                "mean_squared_error": [14562.5623594],
+                "root_mean_squared_error": [120.675442],
+                "mean_absolute_percentage_error": [4.80044],
+                "symmetric_mean_absolute_percentage_error": [4.744332],
+            },
+            dtype="Float64",
+        )
     pd.testing.assert_frame_equal(
         result,
         expected,
@@ -435,22 +551,31 @@ def test_arima_plus_score_series(
         result = time_series_arima_plus_model.score(
             new_time_series_df["parsed_date"], new_time_series_df["total_visits"]
         ).to_pandas()
-    expected = pd.DataFrame(
-        {
-            "mean_absolute_error": [120.0110074],
-            "mean_squared_error": [14562.5623594],
-            "root_mean_squared_error": [120.675442],
-            "mean_absolute_percentage_error": [4.80044],
-            "symmetric_mean_absolute_percentage_error": [4.744332],
-        },
-        dtype="Float64",
-    )
     if id_col_name:
-        expected_expanded = pd.concat([expected, expected], ignore_index=True)
-        expected_expanded["id"] = ["2", "1"]
-        expected_expanded["id"] = expected_expanded["id"].astype("string[pyarrow]")
-        expected_expanded = expected_expanded[["id"] + list(expected.columns)]
-        expected = expected_expanded
+        expected = pd.DataFrame(
+            {
+                "id": ["2", "1"],
+                "mean_absolute_error": [120.011007, 120.011007],
+                "mean_squared_error": [14562.562359, 14562.562359],
+                "root_mean_squared_error": [120.675442, 120.675442],
+                "mean_absolute_percentage_error": [4.80044, 4.80044],
+                "symmetric_mean_absolute_percentage_error": [4.744332, 4.744332],
+            },
+            dtype="Float64",
+        )
+        expected["id"] = expected["id"].astype(str).str.replace(r"\.0$", "", regex=True)
+        expected["id"] = expected["id"].astype("string[pyarrow]")
+    else:
+        expected = pd.DataFrame(
+            {
+                "mean_absolute_error": [120.0110074],
+                "mean_squared_error": [14562.5623594],
+                "root_mean_squared_error": [120.675442],
+                "mean_absolute_percentage_error": [4.80044],
+                "symmetric_mean_absolute_percentage_error": [4.744332],
+            },
+            dtype="Float64",
+        )
     pd.testing.assert_frame_equal(
         result,
         expected,

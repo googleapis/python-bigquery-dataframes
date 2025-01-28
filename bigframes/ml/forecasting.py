@@ -188,8 +188,8 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
         """Fit the model to training data.
 
         Args:
-            X (bigframes.dataframe.DataFrame, or bigframes.series.Series,
-            or pandas.core.frame.DataFrame, or pandas.core.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series,
+            or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 A dataframe or series of trainging timestamp.
             y (bigframes.dataframe.DataFrame, or bigframes.series.Series,
             or pandas.core.frame.DataFrame, or pandas.core.series.Series):
@@ -200,7 +200,8 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
             id_col (Optional[bigframes.dataframe.DataFrame]
             or Optional[bigframes.series.Series]
             or Optional[pandas.core.frame.DataFrame]
-            or Optional[pandas.core.frame.Series], default None):
+            or Optional[pandas.core.frame.Series]
+            or None, default None):
                 An optional dataframe or series of training id col.
 
         Returns:
@@ -208,7 +209,7 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
         """
         X, y = utils.batch_convert_to_dataframe(X, y)
 
-        if X.columns.size < 1:
+        if X.columns.size != 1:
             raise ValueError("Time series timestamp input X contain at least 1 column.")
         if y.columns.size != 1:
             raise ValueError("Time series data input y must only contain 1 column.")
@@ -383,7 +384,8 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
             id_col (Optional[bigframes.dataframe.DataFrame]
             or Optional[bigframes.series.Series]
             or Optional[pandas.core.frame.DataFrame]
-            or Optional[pandas.core.series.Series], default None):
+            or Optional[pandas.core.series.Series]
+            or None, default None):
                 An optional dataframe or series contains at least 1 column as
                 evaluation id column.
 
