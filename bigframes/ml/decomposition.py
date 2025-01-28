@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional, Union
 
-import bigframes_vendored.sklearn.decomposition._ml
+import bigframes_vendored.sklearn.decomposition._mf
 import bigframes_vendored.sklearn.decomposition._pca
 from google.cloud import bigquery
 
@@ -210,13 +210,15 @@ class MatrixFactorization(
     def __init__(
         self,
         *,
+        feedback_type: Literal["explicit", "implicit"] = "explicit",
         num_factors: int,
         user_col: str,
         item_col: str,
-        rating_col: Optional[str] = "rating",
+        rating_col: str = "rating",
         # TODO: Add support for hyperparameter tuning.
         l2_reg: float = 1.0,
     ):
+        self.feedback_type = feedback_type
         self.num_factors = num_factors
         self.user_col = user_col
         self.item_col = item_col
@@ -229,17 +231,11 @@ class MatrixFactorization(
     def _from_bq(
         cls, session: bigframes.session.Session, bq_model: bigquery.Model
     ) -> MatrixFactorization:
-        assert bq_model.model_type == "MatrixFactorization"
+        assert bq_model.model_type == "MATRIX_FACTORIZATION"
 
         kwargs = utils.retrieve_params_from_bq_model(
             cls, bq_model, _BQML_PARAMS_MAPPING
         )
-
-        last_fitting = bq_model.training_runs[-1]["trainingOptions"]
-        if "numPrincipalComponents" in last_fitting:
-            kwargs["n_components"] = int(last_fitting["numPrincipalComponents"])
-        # elif "pcaExplainedVarianceRatio" in last_fitting:
-        #     kwargs["n_components"] = float(last_fitting["pcaExplainedVarianceRatio"])
 
         model = cls(**kwargs)
         model._bqml_model = core.BqmlModel(session, bq_model)
@@ -249,9 +245,18 @@ class MatrixFactorization(
     def _bqml_options(self) -> dict:
         """The model options as they will be set for BQML"""
         options: dict = {
-            "model_type": "MatrixFactorization",
+            "model_type": "matrix_factorization",
+            "feedback_type": self.feedback_type,
+            "user_col": self.user_col,
+            "item_col": self.item_col,
+            "rating_col": self.rating_col,
+            "l2_reg": self.l2_reg,
         }
 
+        if self.num_factors is not None:
+            options["num_factors"] = self.num_factors
+
+        print(repr(options))
         return options
 
     def _fit(
@@ -262,38 +267,12 @@ class MatrixFactorization(
     ) -> MatrixFactorization:
         (X,) = utils.batch_convert_to_dataframe(X)
 
-        # To mimic sklearn's behavior
-
+        self._bqml_model = self._bqml_model_factory.create_model(
+            X_train=X,
+            transforms=transforms,
+            options=self._bqml_options,
+        )
         return self
-
-    @property
-    def components_(self) -> bpd.DataFrame:
-        if not self._bqml_model:
-            raise RuntimeError("A model must be fitted before calling components_.")
-
-        return self._bqml_model.principal_components()
-
-    @property
-    def explained_variance_(self) -> bpd.DataFrame:
-        if not self._bqml_model:
-            raise RuntimeError(
-                "A model must be fitted before calling explained_variance_."
-            )
-
-        return self._bqml_model.principal_component_info()[
-            ["principal_component_id", "eigenvalue"]
-        ].rename(columns={"eigenvalue": "explained_variance"})
-
-    @property
-    def explained_variance_ratio_(self) -> bpd.DataFrame:
-        if not self._bqml_model:
-            raise RuntimeError(
-                "A model must be fitted before calling explained_variance_ratio_."
-            )
-
-        return self._bqml_model.principal_component_info()[
-            ["principal_component_id", "explained_variance_ratio"]
-        ]
 
     def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         if not self._bqml_model:
@@ -301,40 +280,10 @@ class MatrixFactorization(
 
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
+        # TODO: Create recommend()
         return self._bqml_model.predict(X)
 
-    def detect_anomalies(
-        self,
-        X: utils.ArrayType,
-        *,
-        contamination: float = 0.1,
-    ) -> bpd.DataFrame:
-        """Detect the anomaly data points of the input.
-
-        Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
-                Series or a DataFrame to detect anomalies.
-            contamination (float, default 0.1):
-                Identifies the proportion of anomalies in the training dataset that are used to create the model.
-                The value must be in the range [0, 0.5].
-
-        Returns:
-            bigframes.dataframe.DataFrame: detected DataFrame."""
-        if contamination < 0.0 or contamination > 0.5:
-            raise ValueError(
-                f"contamination must be [0.0, 0.5], but is {contamination}."
-            )
-
-        if not self._bqml_model:
-            raise RuntimeError("A model must be fitted before detect_anomalies")
-
-        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
-
-        return self._bqml_model.detect_anomalies(
-            X, options={"contamination": contamination}
-        )
-
-    def to_gbq(self, model_name: str, replace: bool = False) -> PCA:
+    def to_gbq(self, model_name: str, replace: bool = False) -> MatrixFactorization:
         """Save the model to BigQuery.
 
         Args:
@@ -344,7 +293,7 @@ class MatrixFactorization(
                 Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            PCA: Saved model."""
+            MatrixFactorization: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 

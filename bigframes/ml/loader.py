@@ -42,7 +42,7 @@ _BQML_MODEL_TYPE_MAPPING = MappingProxyType(
         "LINEAR_REGRESSION": linear_model.LinearRegression,
         "LOGISTIC_REGRESSION": linear_model.LogisticRegression,
         "KMEANS": cluster.KMeans,
-        "MatrixFactorization": decomposition.MatrixFactorization,
+        "MATRIX_FACTORIZATION": decomposition.MatrixFactorization,
         "PCA": decomposition.PCA,
         "BOOSTED_TREE_REGRESSOR": ensemble.XGBRegressor,
         "BOOSTED_TREE_CLASSIFIER": ensemble.XGBClassifier,

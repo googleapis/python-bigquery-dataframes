@@ -57,7 +57,7 @@ class MatrixFactorization(BaseEstimator, metaclass=ABCMeta):
                 Ignored.
 
         Returns:
-            PCA: Fitted estimator.
+            bigframes.ml.decomposition.MatrixFactorization: Fitted estimator.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
