@@ -256,7 +256,6 @@ class MatrixFactorization(
         if self.num_factors is not None:
             options["num_factors"] = self.num_factors
 
-        print(repr(options))
         return options
 
     def _fit(
