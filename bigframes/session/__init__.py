@@ -1625,6 +1625,9 @@ class Session(
     ) -> dataframe.DataFrame:
         r"""Create a BigFrames DataFrame that contains a BigFrames Blob column from a global wildcard path.
 
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
         Args:
             path (str):
                 The wildcard global path, such as "gs://<bucket>/<folder>/\*".
@@ -1641,6 +1644,7 @@ class Session(
         if not bigframes.options.experiments.blob:
             raise NotImplementedError()
 
+        # TODO(garrettwu): switch to pseudocolumn when b/374988109 is done.
         connection = self._create_bq_connection(
             connection=connection, iam_role="storage.objectUser"
         )
@@ -1672,6 +1676,33 @@ class Session(
         )
 
         return connection
+
+    def read_gbq_object_table(
+        self, object_table: str, *, name: Optional[str] = None
+    ) -> dataframe.DataFrame:
+        """Read an existing object table to create a BigFrames Blob DataFrame. Use the connection of the object table for the connection of the blob.
+        This function dosen't retrieve the object table data. If you want to read the data, use read_gbq() instead.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Args:
+            object_table (str): name of the object table of form <PROJECT_ID>.<DATASET_ID>.<TABLE_ID>.
+            name (str or None): the returned blob column name.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                Result BigFrames DataFrame.
+        """
+        if not bigframes.options.experiments.blob:
+            raise NotImplementedError()
+
+        # TODO(garrettwu): switch to pseudocolumn when b/374988109 is done.
+        table = self.bqclient.get_table(object_table)
+        connection = table._properties["externalDataConfiguration"]["connectionId"]
+
+        s = self.read_gbq(object_table)["uri"].str.to_blob(connection)
+        return s.rename(name).to_frame()
 
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
