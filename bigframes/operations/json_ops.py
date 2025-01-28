@@ -50,7 +50,7 @@ class JSONExtractArray(base_ops.UnaryOp):
                 + f" Received type: {input_type}"
             )
         return pd.ArrowDtype(
-            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(dtypes.STRING_DTYPE))
+            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(input_type))
         )
 
 
@@ -118,5 +118,19 @@ class JSONSet(base_ops.BinaryOp):
                 + f"Received type: {right_type}"
             )
 
-        # After JSON type implementation, ONLY return JSON data.
-        return left_type
+        return dtypes.JSON_DTYPE
+
+
+@dataclasses.dataclass(frozen=True)
+class JSONValue(base_ops.UnaryOp):
+    name: typing.ClassVar[str] = "json_value"
+    json_path: str
+
+    def output_type(self, *input_types):
+        input_type = input_types[0]
+        if not dtypes.is_json_like(input_type):
+            raise TypeError(
+                "Input type must be an valid JSON object or JSON-formatted string type."
+                + f" Received type: {input_type}"
+            )
+        return dtypes.STRING_DTYPE

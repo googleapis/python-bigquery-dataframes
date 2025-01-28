@@ -2048,6 +2048,98 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def mask(self, cond, other):
+        """Replace values where the condition is False.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'a': [20, 10, 0], 'b': [0, 10, 20]})
+            >>> df
+                a   b
+            0  20   0
+            1  10  10
+            2   0  20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can filter the values in the dataframe based on a condition. The
+        values matching the condition would be kept, and not matching would be
+        replaced. The default replacement value is ``NA``. For example, when the
+        condition is a dataframe:
+
+            >>> df.mask(df > 0)
+                  a     b
+            0  <NA>     0
+            1  <NA>  <NA>
+            2     0  <NA>
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can specify a custom replacement value for non-matching values.
+
+            >>> df.mask(df > 0, -1)
+                a   b
+            0  -1   0
+            1  -1  -1
+            2   0  -1
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Besides dataframe, the condition can be a series too. For example:
+
+            >>> df.mask(df['a'] > 10, -1)
+                a   b
+            0  -1  -1
+            1  10  10
+            2   0  20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        As for the replacement, it can be a dataframe too. For example:
+
+            >>> df.mask(df > 10, -df)
+                  a     b
+            0   -20     0
+            1    10    10
+            2     0   -20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.mask(df['a'] > 10, -df)
+                  a     b
+            0   -20     0
+            1    10    10
+            2     0    20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Please note, replacement doesn't support Series for now. In pandas, when
+        specifying a Series as replacement, the axis value should be specified
+        at the same time, which is not supported in bigframes DataFrame.
+
+        Args:
+            cond (bool Series/DataFrame, array-like, or callable):
+                Where cond is False, keep the original value. Where True, replace
+                with corresponding value from other. If cond is callable, it is
+                computed on the Series/DataFrame and returns boolean
+                Series/DataFrame or array. The callable must not change input
+                Series/DataFrame (though pandas doesn’t check it).
+            other (scalar, DataFrame, or callable):
+                Entries where cond is True are replaced with corresponding value
+                from other. If other is callable, it is computed on the
+                DataFrame and returns scalar or DataFrame. The callable must not
+                change input DataFrame (though pandas doesn’t check it). If not
+                specified, entries will be filled with the corresponding NULL
+                value (np.nan for numpy dtypes, pd.NA for extension dtypes).
+
+        Returns:
+            DataFrame: DataFrame after the replacement.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     # ----------------------------------------------------------------------
     # Sorting
 
@@ -4054,6 +4146,47 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def corrwith(
+        self,
+        other,
+        *,
+        numeric_only: bool = False,
+    ):
+        """
+        Compute pairwise correlation.
+
+        Pairwise correlation is computed between rows or columns of
+        DataFrame with rows or columns of Series or DataFrame. DataFrames
+        are first aligned along both axes before computing the
+        correlations.
+
+        **Examples:**
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> index = ["a", "b", "c", "d", "e"]
+            >>> columns = ["one", "two", "three", "four"]
+            >>> df1 = bpd.DataFrame(np.arange(20).reshape(5, 4), index=index, columns=columns)
+            >>> df2 = bpd.DataFrame(np.arange(16).reshape(4, 4), index=index[:4], columns=columns)
+            >>> df1.corrwith(df2)
+            one      1.0
+            two      1.0
+            three    1.0
+            four     1.0
+            dtype: Float64
+
+        Args:
+            other (DataFrame, Series):
+                Object with which to compute correlations.
+
+            numeric_only (bool, default False):
+                Include only `float`, `int` or `boolean` data.
+
+        Returns:
+            bigframes.pandas.Series: Pairwise correlations.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def update(
         self, other, join: str = "left", overwrite: bool = True, filter_func=None
     ) -> DataFrame:
@@ -4384,7 +4517,7 @@ class DataFrame(generic.NDFrame):
 
         Args:
             other:
-                DataFrame with an Index similar to the Index of this one.
+                DataFrame or Series with an Index similar to the Index of this one.
             on:
                 Column in the caller to join on the index in other, otherwise
                 joins index-on-index. Like an Excel VLOOKUP operation.

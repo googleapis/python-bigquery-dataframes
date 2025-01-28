@@ -22,6 +22,11 @@ from bigframes.bigquery._operations.array import (
     array_length,
     array_to_string,
 )
+from bigframes.bigquery._operations.datetime import (
+    unix_micros,
+    unix_millis,
+    unix_seconds,
+)
 from bigframes.bigquery._operations.json import (
     json_extract,
     json_extract_array,
@@ -30,6 +35,7 @@ from bigframes.bigquery._operations.json import (
     parse_json,
 )
 from bigframes.bigquery._operations.search import create_vector_index, vector_search
+from bigframes.bigquery._operations.sql import sql_scalar
 from bigframes.bigquery._operations.struct import struct
 
 __all__ = [
@@ -48,6 +54,12 @@ __all__ = [
     # search ops
     "create_vector_index",
     "vector_search",
+    # sql ops
+    "sql_scalar",
     # struct ops
     "struct",
+    # datetime ops
+    "unix_micros",
+    "unix_millis",
+    "unix_seconds",
 ]
