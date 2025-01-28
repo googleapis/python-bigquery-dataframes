@@ -20,6 +20,7 @@ import bigframes.core.identifiers
 import bigframes.core.nodes
 import bigframes.core.ordering
 import bigframes.core.window_spec
+import bigframes.operations
 
 
 # Makes ordering explicit in window definitions
@@ -91,25 +92,7 @@ def pull_up_order(
             return node.replace_child(child_result), child_order
         elif isinstance(node, bigframes.core.nodes.JoinNode):
             if ordered_joins:
-                left_child, left_order = pull_up_order_inner(node.left_child)
-                # as tree is a dag, and pull_up_order_inner is memoized, self-joins can create conflicts in new columns
-                right_child, right_order = pull_up_order_inner(node.right_child)
-                conflicts = set(left_child.ids) & set(right_child.ids)
-                if conflicts:
-                    right_child, mapping = rename_cols(right_child, conflicts)
-                    right_order = right_order.remap_column_refs(
-                        mapping, allow_partial_bindings=True
-                    )
-
-                new_join = dataclasses.replace(
-                    node, left_child=left_child, right_child=right_child
-                )
-                new_order = (
-                    left_order.join(right_order)
-                    if (node.type != "right")
-                    else right_order.join(left_order)
-                )
-                return new_join, new_order
+                return pull_order_join(node)
             else:
                 return (
                     dataclasses.replace(
@@ -313,6 +296,48 @@ def pull_up_order(
             (union_table_id, union_offsets_id)
         )
         return new_node, new_ordering
+
+    def pull_order_join(
+        node: bigframes.core.nodes.JoinNode,
+    ) -> Tuple[bigframes.core.nodes.BigFrameNode, bigframes.core.ordering.RowOrdering]:
+        left_child, left_order = pull_up_order_inner(node.left_child)
+        # as tree is a dag, and pull_up_order_inner is memoized, self-joins can create conflicts in new columns
+        right_child, right_order = pull_up_order_inner(node.right_child)
+        conflicts = set(left_child.ids) & set(right_child.ids)
+        if conflicts:
+            right_child, mapping = rename_cols(right_child, conflicts)
+            right_order = right_order.remap_column_refs(
+                mapping, allow_partial_bindings=True
+            )
+
+        if node.type in ("right", "outer"):
+            # right side is nullable
+            left_indicator = bigframes.core.ids.ColumnId.unique()
+            left_child = bigframes.core.nodes.ProjectionNode(
+                left_child, ((bigframes.core.expression.const(True), left_indicator),)
+            )
+            left_order = left_order.with_ordering_columns(
+                [bigframes.core.ordering.descending_over(left_indicator)]
+            )
+        if node.type in ("left", "outer"):
+            # right side is nullable
+            right_indicator = bigframes.core.ids.ColumnId.unique()
+            right_child = bigframes.core.nodes.ProjectionNode(
+                right_child, ((bigframes.core.expression.const(True), right_indicator),)
+            )
+            right_order = right_order.with_ordering_columns(
+                [bigframes.core.ordering.descending_over(right_indicator)]
+            )
+
+        new_join = dataclasses.replace(
+            node, left_child=left_child, right_child=right_child
+        )
+        new_order = (
+            left_order.join(right_order)
+            if (node.type != "right")
+            else right_order.join(left_order)
+        )
+        return new_join, new_order
 
     @functools.cache
     def remove_order(
