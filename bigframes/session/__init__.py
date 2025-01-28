@@ -67,8 +67,8 @@ import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.exceptions
 import bigframes.exceptions as bfe
-import bigframes.functions._remote_function_session as bigframes_rf_session
-import bigframes.functions.remote_function as bigframes_rf
+import bigframes.functions._function_session as bff_session
+import bigframes.functions.function as bff
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session.clients
 import bigframes.session.executor
@@ -245,7 +245,7 @@ class Session(
         )
 
         self._metrics = bigframes.session.metrics.ExecutionMetrics()
-        self._remote_function_session = bigframes_rf_session.RemoteFunctionSession()
+        self._function_session = bff_session.RemoteFunctionSession()
         self._temp_storage_manager = (
             bigframes.session.temp_storage.TemporaryGbqStorageManager(
                 self._clients_provider.bqclient,
@@ -377,9 +377,9 @@ class Session(
         if temp_storage_manager:
             self._temp_storage_manager.clean_up_tables()
 
-        remote_function_session = getattr(self, "_remote_function_session", None)
+        remote_function_session = getattr(self, "_function_session", None)
         if remote_function_session:
-            self._remote_function_session.clean_up(
+            self._function_session.clean_up(
                 self.bqclient, self.cloudfunctionsclient, self.session_id
             )
 
@@ -1380,7 +1380,7 @@ class Session(
 
                 `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
         """
-        return self._remote_function_session.remote_function(
+        return self._function_session.remote_function(
             input_types,
             output_type,
             session=self,
@@ -1556,7 +1556,7 @@ class Session(
                 not including the `bigframes_cloud_function` property.
         """
 
-        return bigframes_rf.read_gbq_function(
+        return bff.read_gbq_function(
             function_name=function_name,
             session=self,
             is_row_processor=is_row_processor,
@@ -1625,6 +1625,9 @@ class Session(
     ) -> dataframe.DataFrame:
         r"""Create a BigFrames DataFrame that contains a BigFrames Blob column from a global wildcard path.
 
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
         Args:
             path (str):
                 The wildcard global path, such as "gs://<bucket>/<folder>/\*".
@@ -1641,6 +1644,7 @@ class Session(
         if not bigframes.options.experiments.blob:
             raise NotImplementedError()
 
+        # TODO(garrettwu): switch to pseudocolumn when b/374988109 is done.
         connection = connection or self._bq_connection
         connection = bigframes.clients.resolve_full_bq_connection_name(
             connection,
@@ -1651,6 +1655,33 @@ class Session(
         table = self._create_object_table(path, connection)
 
         s = self.read_gbq(table)["uri"].str.to_blob(connection)
+        return s.rename(name).to_frame()
+
+    def read_gbq_object_table(
+        self, object_table: str, *, name: Optional[str] = None
+    ) -> dataframe.DataFrame:
+        """Read an existing object table to create a BigFrames Blob DataFrame. Use the connection of the object table for the connection of the blob.
+        This function dosen't retrieve the object table data. If you want to read the data, use read_gbq() instead.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Args:
+            object_table (str): name of the object table of form <PROJECT_ID>.<DATASET_ID>.<TABLE_ID>.
+            name (str or None): the returned blob column name.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                Result BigFrames DataFrame.
+        """
+        if not bigframes.options.experiments.blob:
+            raise NotImplementedError()
+
+        # TODO(garrettwu): switch to pseudocolumn when b/374988109 is done.
+        table = self.bqclient.get_table(object_table)
+        connection = table._properties["externalDataConfiguration"]["connectionId"]
+
+        s = self.read_gbq(object_table)["uri"].str.to_blob(connection)
         return s.rename(name).to_frame()
 
 

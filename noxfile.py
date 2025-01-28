@@ -368,7 +368,7 @@ def system(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+@nox.session(python=LATEST_FULLY_SUPPORTED_PYTHON)
 def system_noextras(session: nox.sessions.Session):
     """Run the system test suite."""
     run_system(
