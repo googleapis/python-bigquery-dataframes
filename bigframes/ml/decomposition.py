@@ -213,7 +213,8 @@ class MatrixFactorization(
         num_factors: int,
         user_col: str,
         item_col: str,
-        l2_reg: float,
+        # TODO: Add support for hyperparameter tuning.
+        l2_reg: float = 1.0,
     ):
         self.n_components = n_components
         self.num_factors = num_factors
