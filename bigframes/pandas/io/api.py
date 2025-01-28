@@ -193,7 +193,9 @@ def read_gbq_model(model_name: str):
 read_gbq_model.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_model)
 
 
-def read_gbq_object_table(object_table: str, *, name: Optional[str] = None):
+def read_gbq_object_table(
+    object_table: str, *, name: Optional[str] = None
+) -> bigframes.dataframe.DataFrame:
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq_object_table,
         object_table,
