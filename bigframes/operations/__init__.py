@@ -51,6 +51,9 @@ from bigframes.operations.datetime_ops import (
     time_op,
     ToDatetimeOp,
     ToTimestampOp,
+    UnixMicros,
+    UnixMillis,
+    UnixSeconds,
 )
 from bigframes.operations.distance_ops import (
     cosine_distance_op,
@@ -167,6 +170,7 @@ from bigframes.operations.string_ops import (
 )
 from bigframes.operations.struct_ops import StructFieldOp, StructOp
 from bigframes.operations.time_ops import hour_op, minute_op, normalize_op, second_op
+from bigframes.operations.timedelta_ops import ToTimedeltaOp
 
 __all__ = [
     # Base ops
@@ -237,12 +241,17 @@ __all__ = [
     "minute_op",
     "second_op",
     "normalize_op",
+    # Timedelta ops
+    "ToTimedeltaOp",
     # Datetime ops
     "date_op",
     "time_op",
     "ToDatetimeOp",
     "ToTimestampOp",
     "StrftimeOp",
+    "UnixMicros",
+    "UnixMillis",
+    "UnixSeconds",
     # Numeric ops
     "abs_op",
     "add_op",

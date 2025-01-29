@@ -1174,37 +1174,30 @@ class Block:
     def aggregate(
         self,
         by_column_ids: typing.Sequence[str] = (),
-        aggregations: typing.Sequence[
-            typing.Tuple[
-                str, typing.Union[agg_ops.UnaryAggregateOp, agg_ops.NullaryAggregateOp]
-            ]
-        ] = (),
+        aggregations: typing.Sequence[ex.Aggregation] = (),
+        column_labels: Optional[pd.Index] = None,
         *,
         dropna: bool = True,
     ) -> typing.Tuple[Block, typing.Sequence[str]]:
         """
-        Apply aggregations to the block. Callers responsible for setting index column(s) after.
+        Apply aggregations to the block.
         Arguments:
             by_column_id: column id of the aggregation key, this is preserved through the transform and used as index.
             aggregations: input_column_id, operation tuples
-            as_index: if True, grouping keys will be index columns in result, otherwise they will be non-index columns.
             dropna: whether null keys should be dropped
         """
+        if column_labels is None:
+            column_labels = pd.Index(range(len(aggregations)))
+
         agg_specs = [
             (
-                ex.UnaryAggregation(operation, ex.deref(input_id))
-                if isinstance(operation, agg_ops.UnaryAggregateOp)
-                else ex.NullaryAggregation(operation),
+                aggregation,
                 guid.generate_guid(),
             )
-            for input_id, operation in aggregations
+            for aggregation in aggregations
         ]
         output_col_ids = [agg_spec[1] for agg_spec in agg_specs]
         result_expr = self.expr.aggregate(agg_specs, by_column_ids, dropna=dropna)
-
-        aggregate_labels = self._get_labels_for_columns(
-            [agg[0] for agg in aggregations]
-        )
 
         names: typing.List[Label] = []
         if len(by_column_ids) == 0:
@@ -1223,7 +1216,7 @@ class Block:
             Block(
                 result_expr,
                 index_columns=index_columns,
-                column_labels=aggregate_labels,
+                column_labels=column_labels,
                 index_labels=names,
             ),
             output_col_ids,
@@ -1417,7 +1410,7 @@ class Block:
 
         block, result_id = self.apply_window_op(
             value_columns[0],
-            agg_ops.rank_op,
+            agg_ops.count_op,
             window_spec=window_spec,
         )
 
@@ -1561,7 +1554,10 @@ class Block:
                 column_ids.append(masked_id)
 
         block = block.select_columns(column_ids)
-        aggregations = [(col_id, agg_ops.AnyValueOp()) for col_id in column_ids]
+        aggregations = [
+            ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.deref(col_id))
+            for col_id in column_ids
+        ]
         result_block, _ = block.aggregate(
             by_column_ids=self.index_columns,
             aggregations=aggregations,
@@ -2156,7 +2152,7 @@ class Block:
 
     def _align_both_axes(
         self, other: Block, how: str
-    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.Expression, ex.Expression]]]:
+    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.RefOrConstant, ex.RefOrConstant]]]:
         # Join rows
         aligned_block, (get_column_left, get_column_right) = self.join(other, how=how)
         # join columns schema
@@ -2165,7 +2161,7 @@ class Block:
             columns, lcol_indexer, rcol_indexer = self.column_labels, None, None
         else:
             columns, lcol_indexer, rcol_indexer = self.column_labels.join(
-                other.column_labels, how="outer", return_indexers=True
+                other.column_labels, how=how, return_indexers=True
             )
         lcol_indexer = (
             lcol_indexer if (lcol_indexer is not None) else range(len(columns))
@@ -2187,11 +2183,11 @@ class Block:
 
         left_inputs = [left_input_lookup(i) for i in lcol_indexer]
         right_inputs = [righ_input_lookup(i) for i in rcol_indexer]
-        return aligned_block, columns, tuple(zip(left_inputs, right_inputs))
+        return aligned_block, columns, tuple(zip(left_inputs, right_inputs))  # type: ignore
 
     def _align_axis_0(
         self, other: Block, how: str
-    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.Expression, ex.Expression]]]:
+    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.DerefOp, ex.DerefOp]]]:
         assert len(other.value_columns) == 1
         aligned_block, (get_column_left, get_column_right) = self.join(other, how=how)
 
@@ -2207,7 +2203,7 @@ class Block:
 
     def _align_series_block_axis_1(
         self, other: Block, how: str
-    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.Expression, ex.Expression]]]:
+    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.RefOrConstant, ex.RefOrConstant]]]:
         assert len(other.value_columns) == 1
         if other._transpose_cache is None:
             raise ValueError(
@@ -2248,11 +2244,11 @@ class Block:
 
         left_inputs = [left_input_lookup(i) for i in lcol_indexer]
         right_inputs = [righ_input_lookup(i) for i in rcol_indexer]
-        return aligned_block, columns, tuple(zip(left_inputs, right_inputs))
+        return aligned_block, columns, tuple(zip(left_inputs, right_inputs))  # type: ignore
 
     def _align_pd_series_axis_1(
         self, other: pd.Series, how: str
-    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.Expression, ex.Expression]]]:
+    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.RefOrConstant, ex.RefOrConstant]]]:
         if self.column_labels.equals(other.index):
             columns, lcol_indexer, rcol_indexer = self.column_labels, None, None
         else:
@@ -2279,7 +2275,7 @@ class Block:
 
         left_inputs = [left_input_lookup(i) for i in lcol_indexer]
         right_inputs = [righ_input_lookup(i) for i in rcol_indexer]
-        return self, columns, tuple(zip(left_inputs, right_inputs))
+        return self, columns, tuple(zip(left_inputs, right_inputs))  # type: ignore
 
     def _apply_binop(
         self,

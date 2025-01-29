@@ -108,8 +108,8 @@ class ArrayValue:
             raise ValueError("must set at most one of 'offests', 'primary_key'")
         if any(i.field_type == "JSON" for i in table.schema if i.name in schema.names):
             msg = (
-                "Interpreting JSON column(s) as pyarrow.large_string. "
-                "This behavior may change in future versions."
+                "Interpreting JSON column(s) as the `db_dtypes.dbjson` extension type is"
+                "in preview; this behavior may change in future versions."
             )
             warnings.warn(msg, bfe.PreviewWarning)
         # define data source only for needed columns, this makes row-hashing cheaper
@@ -120,7 +120,9 @@ class ArrayValue:
         if offsets_col:
             ordering = orderings.TotalOrdering.from_offset_col(offsets_col)
         elif primary_key:
-            ordering = orderings.TotalOrdering.from_primary_key(primary_key)
+            ordering = orderings.TotalOrdering.from_primary_key(
+                [ids.ColumnId(key_part) for key_part in primary_key]
+            )
 
         # Scan all columns by default, we define this list as it can be pruned while preserving source_def
         scan_list = nodes.ScanList(
@@ -405,8 +407,7 @@ class ArrayValue:
             ArrayValue(
                 nodes.WindowOpNode(
                     child=self.node,
-                    column_name=ex.deref(column_name),
-                    op=op,
+                    expression=ex.UnaryAggregation(op, ex.deref(column_name)),
                     window_spec=window_spec,
                     output_name=ids.ColumnId(output_name),
                     never_skip_nulls=never_skip_nulls,

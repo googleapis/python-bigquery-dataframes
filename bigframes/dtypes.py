@@ -21,6 +21,7 @@ import typing
 from typing import Any, Dict, List, Literal, Union
 
 import bigframes_vendored.constants as constants
+import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery
 import numpy as np
@@ -54,12 +55,13 @@ DATE_DTYPE = pd.ArrowDtype(pa.date32())
 TIME_DTYPE = pd.ArrowDtype(pa.time64("us"))
 DATETIME_DTYPE = pd.ArrowDtype(pa.timestamp("us"))
 TIMESTAMP_DTYPE = pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
+TIMEDETLA_DTYPE = pd.ArrowDtype(pa.duration("us"))
 NUMERIC_DTYPE = pd.ArrowDtype(pa.decimal128(38, 9))
 BIGNUMERIC_DTYPE = pd.ArrowDtype(pa.decimal256(76, 38))
 # No arrow equivalent
 GEO_DTYPE = gpd.array.GeometryDtype()
 # JSON
-JSON_DTYPE = pd.ArrowDtype(pa.large_string())
+JSON_DTYPE = db_dtypes.JSONDtype()
 OBJ_REF_DTYPE = pd.ArrowDtype(
     pa.struct(
         (
@@ -77,7 +79,7 @@ OBJ_REF_DTYPE = pd.ArrowDtype(
             ),
             pa.field(
                 "details",
-                pa.large_string(),  # JSON
+                db_dtypes.JSONArrowType(),
             ),
         )
     )
@@ -161,7 +163,7 @@ SIMPLE_TYPES = (
     ),
     SimpleDtypeInfo(
         dtype=JSON_DTYPE,
-        arrow_dtype=pa.large_string(),
+        arrow_dtype=db_dtypes.JSONArrowType(),
         type_kind=("JSON",),
         orderable=False,
         clusterable=False,
@@ -320,7 +322,6 @@ def is_struct_like(type_: ExpressionType) -> bool:
 
 
 def is_json_like(type_: ExpressionType) -> bool:
-    # TODO: Add JSON type support
     return type_ == JSON_DTYPE or type_ == STRING_DTYPE  # Including JSON string
 
 
@@ -632,6 +633,9 @@ def convert_to_schema_field(
             return google.cloud.bigquery.SchemaField(
                 name, "RECORD", fields=inner_fields
             )
+        if bigframes_dtype.pyarrow_dtype == pa.duration("us"):
+            # Timedeltas are represented as integers in microseconds.
+            return google.cloud.bigquery.SchemaField(name, "INTEGER")
     raise ValueError(
         f"No arrow conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
     )

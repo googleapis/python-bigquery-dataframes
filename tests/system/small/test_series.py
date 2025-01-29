@@ -17,6 +17,7 @@ import math
 import re
 import tempfile
 
+import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import numpy
 from packaging.version import Version
@@ -281,7 +282,7 @@ def test_get_column(scalars_dfs, col_name, expected_dtype):
 def test_get_column_w_json(json_df, json_pandas_df):
     series = json_df["json_col"]
     series_pandas = series.to_pandas()
-    assert series.dtype == pd.ArrowDtype(pa.large_string())
+    assert series.dtype == db_dtypes.JSONDtype()
     assert series_pandas.shape[0] == json_pandas_df.shape[0]
 
 
@@ -1853,6 +1854,7 @@ def test_groupby_window_ops(scalars_df_index, scalars_pandas_df_index, operator)
     pd_series = operator(
         scalars_pandas_df_index[col_name].groupby(scalars_pandas_df_index[group_key])
     ).astype(bf_series.dtype)
+
     pd.testing.assert_series_equal(
         pd_series,
         bf_series,
@@ -2858,6 +2860,42 @@ def test_series_case_when(scalars_dfs_maybe_ordered):
     pd.testing.assert_series_equal(
         bf_result,
         pd_result.astype(pd.Int64Dtype()),
+    )
+
+
+def test_series_case_when_change_type(scalars_dfs_maybe_ordered):
+    pytest.importorskip(
+        "pandas",
+        minversion="2.2.0",
+        reason="case_when added in pandas 2.2.0",
+    )
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+
+    bf_series = scalars_df["int64_col"]
+    pd_series = scalars_pandas_df["int64_col"]
+
+    # TODO(tswast): pandas case_when appears to assume True when a value is
+    # null. I suspect this should be considered a bug in pandas.
+
+    bf_conditions = [
+        ((bf_series > 645).fillna(True), scalars_df["string_col"]),
+        ((bf_series <= -100).fillna(True), pd.NA),
+        (True, "not_found"),
+    ]
+
+    pd_conditions = [
+        ((pd_series > 645).fillna(True), scalars_pandas_df["string_col"]),
+        ((pd_series <= -100).fillna(True), pd.NA),
+        # pandas currently fails if both the condition and the value are literals.
+        ([True] * len(pd_series), ["not_found"] * len(pd_series)),
+    ]
+
+    bf_result = bf_series.case_when(bf_conditions).to_pandas()
+    pd_result = pd_series.case_when(pd_conditions)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result.astype("string[pyarrow]"),
     )
 
 
