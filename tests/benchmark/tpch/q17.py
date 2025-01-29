@@ -14,11 +14,11 @@
 import pathlib
 
 import benchmark.utils as utils
-import bigframes_vendored.tpch.queries.q17 as vendored_tpch_q17
 
 if __name__ == "__main__":
     project_id, dataset_id, session, suffix = utils.get_configuration()
     current_path = pathlib.Path(__file__).absolute()
+    vendored_tpch_q17 = utils.import_local_module("bigframes_vendored.tpch.queries.q17")
 
     utils.get_execution_time(
         vendored_tpch_q17.q, current_path, suffix, project_id, dataset_id, session
