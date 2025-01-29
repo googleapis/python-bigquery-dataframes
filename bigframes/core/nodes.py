@@ -291,7 +291,17 @@ class BigFrameNode(abc.ABC):
 
 
 class AdditiveNode:
-    """Definition of additive - if you drop added_fields, you end up with the descendent."""
+    """Definition of additive - if you drop added_fields, you end up with the descendent.
+
+    .. code-block:: text
+
+        AdditiveNode (fields: a, b, c; added_fields: c)
+            |
+            |  additive_base
+            V
+        BigFrameNode (fields: a, b)
+
+    """
 
     @property
     @abc.abstractmethod
