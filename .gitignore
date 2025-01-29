@@ -62,3 +62,10 @@ system_tests/local_test_setup
 # Make sure a generated file isn't accidentally committed.
 pylintrc
 pylintrc.test
+
+# Notebook tests
+*.backup
+*.bq_exec_time_seconds
+*.bytesprocessed
+*.error
+*.slotmillis

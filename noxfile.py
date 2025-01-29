@@ -755,6 +755,20 @@ def notebook(session: nox.Session):
         "notebooks/apps/synthetic_data_generation.ipynb",
     ]
 
+    # TODO: remove exception for Python 3.13 cloud run adds a runtime for it (internal issue 333742751)
+    # TODO: remove exception for Python 3.13 if nbmake adds support for
+    # sys.exit(0) or pytest.skip(...).
+    # See: https://github.com/treebeardtech/nbmake/issues/134
+    if session.python == "3.13":
+        denylist.extend(
+            [
+                "notebooks/getting_started/getting_started_bq_dataframes.ipynb",
+                "notebooks/remote_functions/remote_function_usecases.ipynb",
+                "notebooks/remote_functions/remote_function_vertex_claude_model.ipynb",
+                "notebooks/remote_functions/remote_function.ipynb",
+            ]
+        )
+
     # Convert each Path notebook object to a string using a list comprehension.
     notebooks = [str(nb) for nb in notebooks_list]
 
@@ -762,20 +776,27 @@ def notebook(session: nox.Session):
     notebooks = list(filter(lambda nb: nb not in denylist, notebooks))
 
     # Regionalized notebooks
-    notebooks_reg = {
-        "regionalized.ipynb": [
-            "asia-southeast1",
-            "eu",
-            "europe-west4",
-            "southamerica-west1",
-            "us",
-            "us-central1",
-        ]
-    }
-    notebooks_reg = {
-        os.path.join("notebooks/location", nb): regions
-        for nb, regions in notebooks_reg.items()
-    }
+    # TODO: remove exception for Python 3.13 cloud run adds a runtime for it (internal issue 333742751)
+    # TODO: remove exception for Python 3.13 if nbmake adds support for
+    # sys.exit(0) or pytest.skip(...).
+    # See: https://github.com/treebeardtech/nbmake/issues/134
+    if session.python == "3.13":
+        notebooks_reg = {}
+    else:
+        notebooks_reg = {
+            "regionalized.ipynb": [
+                "asia-southeast1",
+                "eu",
+                "europe-west4",
+                "southamerica-west1",
+                "us",
+                "us-central1",
+            ]
+        }
+        notebooks_reg = {
+            os.path.join("notebooks/location", nb): regions
+            for nb, regions in notebooks_reg.items()
+        }
 
     # The pytest --nbmake exits silently with "no tests ran" message if
     # one of the notebook paths supplied does not exist. Let's make sure that
