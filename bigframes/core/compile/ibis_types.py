@@ -247,7 +247,7 @@ def bigframes_dtype_to_ibis_dtype(
         return _arrow_dtype_to_ibis_dtype(bigframes_dtype.pyarrow_dtype)
 
     else:
-        raise ValueError(f"Datatype has not ibis type mapping: {bigframes_dtype}")
+        raise ValueError(f"Datatype has no ibis type mapping: {bigframes_dtype}")
 
 
 def ibis_dtype_to_bigframes_dtype(
