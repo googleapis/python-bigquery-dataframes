@@ -273,14 +273,13 @@ class MatrixFactorization(
         )
         return self
 
-    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
+    def recommend(self, X: utils.ArrayType) -> bpd.DataFrame:
         if not self._bqml_model:
-            raise RuntimeError("A model must be fitted before predict")
+            raise RuntimeError("A model must be fitted before recommend")
 
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
-        # TODO: Create recommend()
-        return self._bqml_model.predict(X)
+        return self._bqml_model.recommend(X)
 
     def to_gbq(self, model_name: str, replace: bool = False) -> MatrixFactorization:
         """Save the model to BigQuery.
