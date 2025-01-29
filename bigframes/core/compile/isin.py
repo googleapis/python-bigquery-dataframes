@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,58 +16,46 @@
 
 from __future__ import annotations
 
-from typing import Literal, Tuple
+import itertools
+from typing import Tuple
 
-import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.types as ibis_types
 
 import bigframes.core.compile.compiled as compiled
 
 
-def join_by_column_unordered(
+def isin_unordered(
     left: compiled.UnorderedIR,
     right: compiled.UnorderedIR,
-    conditions: Tuple[Tuple[str, str], ...],
-    type: Literal["inner", "outer", "left", "right", "cross"],
+    indicator_col: str,
+    conditions: Tuple[str, str],
 ) -> compiled.UnorderedIR:
     """Join two expressions by column equality.
 
     Arguments:
         left: Expression for left table to join.
-        left_column_ids: Column IDs (not label) to join by.
         right: Expression for right table to join.
-        right_column_ids: Column IDs (not label) to join by.
-        how: The type of join to perform.
-        allow_row_identity_join (bool):
-            If True, allow matching by row identity. Set to False to always
-            perform a true JOIN in generated SQL.
+        conditions: Id pairs to compare
     Returns:
-        The joined expression. The resulting columns will be, in order,
-        first the coalesced join keys, then, all the left columns, and
-        finally, all the right columns.
+        The joined expression.
     """
-    # Shouldn't need to select the column ids explicitly, but it seems that ibis has some
-    # bug resolving column ids otherwise, potentially because of the "JoinChain" op
-    left_table = left._to_ibis_expr().select(left.column_ids)
-    right_table = right._to_ibis_expr().select(right.column_ids)
-    join_conditions = [
-        value_to_join_key(left_table[left_index])
-        == value_to_join_key(right_table[right_index])
-        for left_index, right_index in conditions
-    ]
-
-    combined_table = ibis_api.join(
-        left_table,
-        right_table,
-        predicates=join_conditions,
-        how=type,  # type: ignore
+    left_table = left._to_ibis_expr()
+    right_table = right._to_ibis_expr()
+    new_column = (
+        value_to_join_key(left_table[conditions[0]])
+        .isin(value_to_join_key(right_table[conditions[1]]))
+        .name(indicator_col)
     )
-    columns = [combined_table[col.get_name()] for col in left.columns] + [
-        combined_table[col.get_name()] for col in right.columns
-    ]
+
+    columns = tuple(
+        itertools.chain(
+            (left_table[col.get_name()] for col in left.columns), (new_column,)
+        )
+    )
+
     return compiled.UnorderedIR(
-        combined_table,
+        left_table,
         columns=columns,
     )
 

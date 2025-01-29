@@ -1241,6 +1241,51 @@ def test_isin_bigframes_values(scalars_dfs, col_name, test_set, session):
     )
 
 
+@pytest.mark.parametrize(
+    (
+        "col_name",
+        "test_set",
+    ),
+    [
+        (
+            "int64_col",
+            [314159, 2.0, 3, pd.NA],
+        ),
+        (
+            "int64_col",
+            [2, 55555, 4],
+        ),
+        (
+            "float64_col",
+            [-123.456, 1.25, pd.NA],
+        ),
+        (
+            "int64_too",
+            [1, 2, pd.NA],
+        ),
+        (
+            "string_col",
+            ["Hello, World!", "Hi", "こんにちは"],
+        ),
+    ],
+)
+def test_isin_bigframes_values_as_predicate(
+    scalars_dfs_maybe_ordered, col_name, test_set
+):
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+    bf_predicate = scalars_df[col_name].isin(
+        series.Series(test_set, session=scalars_df._session)
+    )
+    bf_result = scalars_df[bf_predicate].to_pandas()
+    pd_predicate = scalars_pandas_df[col_name].isin(test_set)
+    pd_result = scalars_pandas_df[pd_predicate]
+
+    pd.testing.assert_frame_equal(
+        pd_result.reset_index(),
+        bf_result.reset_index(),
+    )
+
+
 def test_isnull(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "float64_col"
@@ -1854,6 +1899,7 @@ def test_groupby_window_ops(scalars_df_index, scalars_pandas_df_index, operator)
     pd_series = operator(
         scalars_pandas_df_index[col_name].groupby(scalars_pandas_df_index[group_key])
     ).astype(bf_series.dtype)
+
     pd.testing.assert_series_equal(
         pd_series,
         bf_series,
@@ -2859,6 +2905,42 @@ def test_series_case_when(scalars_dfs_maybe_ordered):
     pd.testing.assert_series_equal(
         bf_result,
         pd_result.astype(pd.Int64Dtype()),
+    )
+
+
+def test_series_case_when_change_type(scalars_dfs_maybe_ordered):
+    pytest.importorskip(
+        "pandas",
+        minversion="2.2.0",
+        reason="case_when added in pandas 2.2.0",
+    )
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+
+    bf_series = scalars_df["int64_col"]
+    pd_series = scalars_pandas_df["int64_col"]
+
+    # TODO(tswast): pandas case_when appears to assume True when a value is
+    # null. I suspect this should be considered a bug in pandas.
+
+    bf_conditions = [
+        ((bf_series > 645).fillna(True), scalars_df["string_col"]),
+        ((bf_series <= -100).fillna(True), pd.NA),
+        (True, "not_found"),
+    ]
+
+    pd_conditions = [
+        ((pd_series > 645).fillna(True), scalars_pandas_df["string_col"]),
+        ((pd_series <= -100).fillna(True), pd.NA),
+        # pandas currently fails if both the condition and the value are literals.
+        ([True] * len(pd_series), ["not_found"] * len(pd_series)),
+    ]
+
+    bf_result = bf_series.case_when(bf_conditions).to_pandas()
+    pd_result = pd_series.case_when(pd_conditions)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result.astype("string[pyarrow]"),
     )
 
 
