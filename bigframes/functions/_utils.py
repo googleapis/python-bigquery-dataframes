@@ -30,8 +30,8 @@ import pyarrow
 import bigframes.core.compile.ibis_types
 import bigframes.dtypes
 
-# Naming convention for the remote function artifacts
-_BIGFRAMES_REMOTE_FUNCTION_PREFIX = "bigframes"
+# Naming convention for the function artifacts
+_BIGFRAMES_FUNCTION_PREFIX = "bigframes"
 _BQ_FUNCTION_NAME_SEPERATOR = "_"
 _GCF_FUNCTION_NAME_SEPERATOR = "-"
 
@@ -101,7 +101,7 @@ def _clean_up_by_session_id(
     endpoints_to_be_deleted: Set[str] = set()
     match_prefix = "".join(
         [
-            _BIGFRAMES_REMOTE_FUNCTION_PREFIX,
+            _BIGFRAMES_FUNCTION_PREFIX,
             _BQ_FUNCTION_NAME_SEPERATOR,
             session_id,
             _BQ_FUNCTION_NAME_SEPERATOR,
@@ -176,7 +176,7 @@ def routine_ref_to_string_for_query(routine_ref: bigquery.RoutineReference) -> s
 
 def get_cloud_function_name(function_hash, session_id=None, uniq_suffix=None):
     "Get a name for the cloud function for the given user defined function."
-    parts = [_BIGFRAMES_REMOTE_FUNCTION_PREFIX]
+    parts = [_BIGFRAMES_FUNCTION_PREFIX]
     if session_id:
         parts.append(session_id)
     parts.append(function_hash)
@@ -187,7 +187,7 @@ def get_cloud_function_name(function_hash, session_id=None, uniq_suffix=None):
 
 def get_remote_function_name(function_hash, session_id, uniq_suffix=None):
     "Get a name for the remote function for the given user defined function."
-    parts = [_BIGFRAMES_REMOTE_FUNCTION_PREFIX, session_id, function_hash]
+    parts = [_BIGFRAMES_FUNCTION_PREFIX, session_id, function_hash]
     if uniq_suffix:
         parts.append(uniq_suffix)
     return _BQ_FUNCTION_NAME_SEPERATOR.join(parts)
