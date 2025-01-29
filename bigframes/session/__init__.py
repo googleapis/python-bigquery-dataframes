@@ -1482,7 +1482,7 @@ class Session(
             2    TestCad$123456Str
             dtype: string
 
-        Another use case is to define your own remote funtion and use it later.
+        Another use case is to define your own remote function and use it later.
         For example, define the remote function:
 
             >>> @bpd.remote_function()
@@ -1624,6 +1624,8 @@ class Session(
         self, path: str, *, connection: Optional[str] = None, name: Optional[str] = None
     ) -> dataframe.DataFrame:
         r"""Create a BigFrames DataFrame that contains a BigFrames Blob column from a global wildcard path.
+        This operation creates a temporary BQ Object Table under the hood and requires bigquery.connections.delegate permission or BigQuery Connection Admin role.
+        If you have an existing BQ Object Table, use read_gbq_object_table().
 
         .. note::
             BigFrames Blob is still under experiments. It may not work and subject to change in the future.
@@ -1645,17 +1647,37 @@ class Session(
             raise NotImplementedError()
 
         # TODO(garrettwu): switch to pseudocolumn when b/374988109 is done.
-        connection = connection or self._bq_connection
-        connection = bigframes.clients.resolve_full_bq_connection_name(
-            connection,
-            default_project=self._project,
-            default_location=self._location,
+        connection = self._create_bq_connection(
+            connection=connection, iam_role="storage.objectUser"
         )
 
         table = self._create_object_table(path, connection)
 
         s = self.read_gbq(table)["uri"].str.to_blob(connection)
         return s.rename(name).to_frame()
+
+    def _create_bq_connection(
+        self, iam_role: str, *, connection: Optional[str] = None
+    ) -> str:
+        """Create the connection with the session settings and try to attach iam role to the connection SA.
+        If any of project, location or connection isn't specified, use the session defaults. Returns fully-qualified connection name."""
+        connection = self._bq_connection if not connection else connection
+        connection = bigframes.clients.resolve_full_bq_connection_name(
+            connection_name=connection,
+            default_project=self._project,
+            default_location=self._location,
+        )
+        connection_parts = connection.split(".")
+        assert len(connection_parts) == 3
+
+        self.bqconnectionmanager.create_bq_connection(
+            project_id=connection_parts[0],
+            location=connection_parts[1],
+            connection_id=connection_parts[2],
+            iam_role=iam_role,
+        )
+
+        return connection
 
     def read_gbq_object_table(
         self, object_table: str, *, name: Optional[str] = None
