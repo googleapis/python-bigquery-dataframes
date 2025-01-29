@@ -224,19 +224,18 @@ class UnorderedIR:
             for aggregate, col_out in aggregations
         }
         if by_column_ids:
+            if dropna:
+                table = table.filter(
+                    table[ref.id.sql].notnull() for ref in by_column_ids
+                )
             result = table.group_by((ref.id.sql for ref in by_column_ids)).aggregate(
                 **stats
             )
-            if dropna:
-                result = result.filter(
-                    result[ref.id.sql].notnull() for ref in by_column_ids
-                )
             return UnorderedIR(
                 result, columns=tuple(result[key] for key in result.columns)
             )
         else:
-            aggregates = {**stats}
-            result = table.aggregate(**aggregates)
+            result = table.aggregate(**stats)
             return UnorderedIR(
                 result,
                 columns=[result[col_id] for col_id in [*stats.keys()]],
