@@ -56,7 +56,7 @@ def test_limit_single_timeseries(random_model_id: str) -> None:
         your_model_id,  # For example: "bqml_tutorial.nyc_citibike_arima_model",
         replace=True,
     )
-    # [END bigquery_dataframes_bqml_limit_forecast_create
+    # [END bigquery_dataframes_bqml_limit_forecast_create]
     assert df is not None
     assert features is not None
     assert num_trips is not None
