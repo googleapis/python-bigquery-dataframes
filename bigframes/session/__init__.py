@@ -245,7 +245,7 @@ class Session(
         )
 
         self._metrics = bigframes.session.metrics.ExecutionMetrics()
-        self._function_session = bff_session.RemoteFunctionSession()
+        self._function_session = bff_session.FunctionSession()
         self._temp_storage_manager = (
             bigframes.session.temp_storage.TemporaryGbqStorageManager(
                 self._clients_provider.bqclient,
@@ -1482,7 +1482,7 @@ class Session(
             2    TestCad$123456Str
             dtype: string
 
-        Another use case is to define your own remote funtion and use it later.
+        Another use case is to define your own remote function and use it later.
         For example, define the remote function:
 
             >>> @bpd.remote_function()
