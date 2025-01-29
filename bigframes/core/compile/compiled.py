@@ -226,9 +226,7 @@ class UnorderedIR:
         if by_column_ids:
             if dropna:
                 table = table.filter(
-                    bigframes_vendored.ibis.or_(
-                        *(table[ref.id.sql].notnull() for ref in by_column_ids)
-                    )
+                    [table[ref.id.sql].notnull() for ref in by_column_ids]
                 )
             result = table.group_by((ref.id.sql for ref in by_column_ids)).aggregate(
                 **stats
