@@ -32,16 +32,12 @@ class MatrixFactorization(BaseEstimator, metaclass=ABCMeta):
     Args:
         num_factors (int or auto, default auto):
             Specifies the number of latent factors to use.
-            If you aren't running hyperparameter tuning, then you can specify an INT64 value between 2 and 200. The default value is log2(n), where n is the number of training examples.
         user_col (str):
             The user column name.
         item_col (str):
             The item column name.
         l2_reg (float, default 1.0):
-            If you aren't running hyperparameter tuning, then you can specify a FLOAT64 value. The default value is 1.0.
-            If you are running hyperparameter tuning, then you can use one of the following options:
-                The HPARAM_RANGE keyword and two FLOAT64 values that define the range to use for the hyperparameter. For example, L2_REG = HPARAM_RANGE(1.5, 5.0).
-                The HPARAM_CANDIDATES keyword and an array of FLOAT64 values that provide discrete values to use for the hyperparameter. For example, L2_REG = HPARAM_CANDIDATES([0, 1.0, 3.0, 5.0]).
+            A floating point value for L2 regularization. The default value is 1.0.
     """
 
     def fit(self, X, y=None):
