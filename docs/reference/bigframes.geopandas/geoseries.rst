@@ -8,7 +8,7 @@ GeoSeries
    :local:
    :backlinks: none
 
-Series
+GeoSeries
 ------
 
 .. autoclass:: bigframes.geopandas.GeoSeries

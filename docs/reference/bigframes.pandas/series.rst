@@ -50,6 +50,7 @@ Struct handling
     :members:
     :inherited-members:
     :undoc-members:
+    :noindex:
 
 Plotting handling
 ^^^^^^^^^^^^^^^^^
