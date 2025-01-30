@@ -194,7 +194,7 @@ def collect_benchmark_result(
         )
         print(
             f"{index} - query count: {row['Query_Count']},"
-            f" query number of lines: {row['Query_Char_Count']},",
+            f" query char count: {row['Query_Char_Count']},",
             f" bytes processed sum: {row['Bytes_Processed']},"
             f" slot millis sum: {row['Slot_Millis']},"
             f" local execution time: {formatted_local_exec_time} seconds,"
@@ -222,7 +222,7 @@ def collect_benchmark_result(
 
     print(
         f"---Geometric mean of queries: {geometric_mean_queries}, "
-        f"Geometric mean of queries number of lines: {geometric_mean_query_char_count}, "
+        f"Geometric mean of queries char counts: {geometric_mean_query_char_count}, "
         f"Geometric mean of bytes processed: {geometric_mean_bytes}, "
         f"Geometric mean of slot millis: {geometric_mean_slot_millis}, "
         f"Geometric mean of local execution time: {geometric_mean_local_seconds} seconds, "
