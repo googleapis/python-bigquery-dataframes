@@ -46,8 +46,8 @@ def test_limit_single_timeseries(random_model_id: str) -> None:
     num_trips = features.groupby(["date"], as_index=False).count()
     model = forecasting.ARIMAPlus()
 
-    X = num_trips["date"].to_frame()
-    y = num_trips["num_trips"].to_frame()
+    X = num_trips[["date"]]
+    y = num_trips[["num_trips"]]
 
     model.fit(X, y)
 
