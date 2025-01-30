@@ -168,6 +168,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def index(self) -> indexes.Index:
         return indexes.Index.from_frame(self)
 
+    @validations.requires_index
+    def keys(self) -> indexes.Index:
+        return self.index
+
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
         """BigQuery job metadata for the most recent query.
@@ -362,6 +366,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> Series:
         if errors not in ["raise", "null"]:
             raise ValueError("Argument 'errors' must be one of 'raise' or 'null'")
+        dtype = bigframes.dtypes.bigframes_type(dtype)
         return self._apply_unary_op(
             bigframes.operations.AsTypeOp(to_type=dtype, safe=(errors == "null"))
         )

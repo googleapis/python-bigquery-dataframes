@@ -228,6 +228,13 @@ def test_series_construct_geodata():
     )
 
 
+def test_series_keys(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df["int64_col"].keys().to_pandas()
+    pd_result = scalars_pandas_df["int64_col"].keys()
+    pd.testing.assert_index_equal(bf_result, pd_result)
+
+
 @pytest.mark.parametrize(
     ["data", "index"],
     [
@@ -3299,6 +3306,17 @@ def test_astype(scalars_df_index, scalars_pandas_df_index, column, to_type, erro
     bf_result = scalars_df_index[column].astype(to_type, errors=errors).to_pandas()
     pd_result = scalars_pandas_df_index[column].astype(to_type)
     pd.testing.assert_series_equal(bf_result, pd_result)
+
+
+def test_series_astype_python(session):
+    input = pd.Series(["hello", "world", "3.11", "4000"])
+    exepcted = pd.Series(
+        [None, None, 3.11, 4000],
+        dtype="Float64",
+        index=pd.Index([0, 1, 2, 3], dtype="Int64"),
+    )
+    result = session.read_pandas(input).astype(float, errors="null").to_pandas()
+    pd.testing.assert_series_equal(result, exepcted)
 
 
 def test_astype_safe(session):
