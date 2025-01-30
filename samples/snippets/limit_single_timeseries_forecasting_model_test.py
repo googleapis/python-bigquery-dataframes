@@ -48,8 +48,9 @@ def test_limit_single_timeseries(random_model_id: str) -> None:
 
     X = num_trips[["date"]]
     y = num_trips[["num_trips"]]
+    id_col = num_trips[["start_station_id"]]
 
-    model.fit(X, y)
+    model.fit(X, y, id_col=id_col)
 
     model.to_gbq(
         your_model_id,  # For example: "bqml_tutorial.nyc_citibike_arima_model",
