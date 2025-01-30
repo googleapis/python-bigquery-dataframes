@@ -27,7 +27,6 @@ def test_limit_single_timeseries(random_model_id: str) -> None:
             "date": df["starttime"].dt.date,
         }
     )
-    df.groupby([date])
     num_trips = features.groupby(["date"]).count()
     # [END bigquery_dataframes_bqml_limit_forecast_visualize]
 
