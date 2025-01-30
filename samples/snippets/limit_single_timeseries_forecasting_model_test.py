@@ -38,11 +38,12 @@ def test_limit_single_timeseries(random_model_id: str) -> None:
 
     features = bpd.DataFrame(
         {
+            "start_station_id": df["start_station_id"],
             "num_trips": df.starttime,
             "date": df["starttime"].dt.date,
         }
     )
-    num_trips = features.groupby(["date"], as_index=False).count()
+    num_trips = features.groupby(["date", "start_station_id"], as_index=False).count()
     model = forecasting.ARIMAPlus()
 
     X = num_trips[["date"]]
