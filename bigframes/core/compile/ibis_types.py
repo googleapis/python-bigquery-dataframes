@@ -13,21 +13,20 @@
 # limitations under the License.
 from __future__ import annotations
 
-import textwrap
-from typing import Any, cast, Dict, Iterable, Optional, Tuple, Union
-import warnings
+import typing
+from typing import cast, Dict, Iterable, Optional, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis
 import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 from bigframes_vendored.ibis.expr.datatypes.core import (
-    dtype as python_type_to_bigquery_type,
+    dtype as python_type_to_ibis_type,
 )
 import bigframes_vendored.ibis.expr.types as ibis_types
+import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
-import numpy as np
 import pandas as pd
 import pyarrow as pa
 
@@ -74,12 +73,13 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, bigframes.dtypes.Dtype]] = (
         ibis_dtypes.GeoSpatial(geotype="geography", srid=4326, nullable=True),
         gpd.array.GeometryDtype(),
     ),
-    (ibis_dtypes.json, pd.ArrowDtype(pa.large_string())),
+    (ibis_dtypes.json, db_dtypes.JSONDtype()),
 )
 
 BIGFRAMES_TO_IBIS: Dict[bigframes.dtypes.Dtype, ibis_dtypes.DataType] = {
     pandas: ibis for ibis, pandas in BIDIRECTIONAL_MAPPINGS
 }
+BIGFRAMES_TO_IBIS.update({bigframes.dtypes.TIMEDETLA_DTYPE: ibis_dtypes.int64})
 IBIS_TO_BIGFRAMES: Dict[ibis_dtypes.DataType, bigframes.dtypes.Dtype] = {
     ibis: pandas for ibis, pandas in BIDIRECTIONAL_MAPPINGS
 }
@@ -226,9 +226,7 @@ def ibis_value_to_canonical_type(value: ibis_types.Value) -> ibis_types.Value:
 
 
 def bigframes_dtype_to_ibis_dtype(
-    bigframes_dtype: Union[
-        bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype, np.dtype[Any]
-    ]
+    bigframes_dtype: bigframes.dtypes.Dtype,
 ) -> ibis_dtypes.DataType:
     """Converts a BigQuery DataFrames supported dtype to an Ibis dtype.
 
@@ -242,11 +240,6 @@ def bigframes_dtype_to_ibis_dtype(
     Raises:
         ValueError: If passed a dtype not supported by BigQuery DataFrames.
     """
-    if str(bigframes_dtype) in bigframes.dtypes.BIGFRAMES_STRING_TO_BIGFRAMES:
-        bigframes_dtype = bigframes.dtypes.BIGFRAMES_STRING_TO_BIGFRAMES[
-            cast(bigframes.dtypes.DtypeString, str(bigframes_dtype))
-        ]
-
     if bigframes_dtype in BIGFRAMES_TO_IBIS.keys():
         return BIGFRAMES_TO_IBIS[bigframes_dtype]
 
@@ -254,24 +247,7 @@ def bigframes_dtype_to_ibis_dtype(
         return _arrow_dtype_to_ibis_dtype(bigframes_dtype.pyarrow_dtype)
 
     else:
-        raise ValueError(
-            textwrap.dedent(
-                f"""
-                Unexpected data type {bigframes_dtype}. The following
-                        str dtypes are supppted: 'boolean','Float64','Int64',
-                        'int64[pyarrow]','string','string[pyarrow]',
-                        'timestamp[us, tz=UTC][pyarrow]','timestamp[us][pyarrow]',
-                        'date32[day][pyarrow]','time64[us][pyarrow]'.
-                        The following pandas.ExtensionDtype are supported:
-                        pandas.BooleanDtype(), pandas.Float64Dtype(),
-                        pandas.Int64Dtype(), pandas.StringDtype(storage="pyarrow"),
-                        pd.ArrowDtype(pa.date32()), pd.ArrowDtype(pa.time64("us")),
-                        pd.ArrowDtype(pa.timestamp("us")),
-                        pd.ArrowDtype(pa.timestamp("us", tz="UTC")).
-                {constants.FEEDBACK_LINK}
-                """
-            )
-        )
+        raise ValueError(f"Datatype has no ibis type mapping: {bigframes_dtype}")
 
 
 def ibis_dtype_to_bigframes_dtype(
@@ -303,12 +279,7 @@ def ibis_dtype_to_bigframes_dtype(
     if isinstance(ibis_dtype, ibis_dtypes.Integer):
         return pd.Int64Dtype()
 
-    # Temporary: Will eventually support an explicit json type instead of casting to string.
     if isinstance(ibis_dtype, ibis_dtypes.JSON):
-        warnings.warn(
-            "Interpreting JSON as string. This behavior may change in future versions.",
-            bigframes.exceptions.PreviewWarning,
-        )
         return bigframes.dtypes.JSON_DTYPE
 
     if ibis_dtype in IBIS_TO_BIGFRAMES:
@@ -470,12 +441,24 @@ class UnsupportedTypeError(ValueError):
     def __init__(self, type_, supported_types):
         self.type = type_
         self.supported_types = supported_types
+        super().__init__(
+            f"'{type_}' is not one of the supported types {supported_types}"
+        )
 
 
 def ibis_type_from_python_type(t: type) -> ibis_dtypes.DataType:
     if t not in bigframes.dtypes.RF_SUPPORTED_IO_PYTHON_TYPES:
         raise UnsupportedTypeError(t, bigframes.dtypes.RF_SUPPORTED_IO_PYTHON_TYPES)
-    return python_type_to_bigquery_type(t)
+    return python_type_to_ibis_type(t)
+
+
+def ibis_array_output_type_from_python_type(t: type) -> ibis_dtypes.DataType:
+    array_of = typing.get_args(t)[0]
+    if array_of not in bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES:
+        raise UnsupportedTypeError(
+            array_of, bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES
+        )
+    return python_type_to_ibis_type(t)
 
 
 def ibis_type_from_type_kind(tk: bigquery.StandardSqlTypeNames) -> ibis_dtypes.DataType:

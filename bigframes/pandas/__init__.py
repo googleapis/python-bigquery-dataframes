@@ -34,12 +34,15 @@ from bigframes.core.reshape.api import concat, cut, get_dummies, merge, qcut
 import bigframes.core.tools
 import bigframes.dataframe
 import bigframes.enums
-import bigframes.functions._utils as functions_utils
+import bigframes.functions._utils as bff_utils
+from bigframes.pandas.core.api import to_timedelta
 from bigframes.pandas.io.api import (
+    from_glob_path,
     read_csv,
     read_gbq,
     read_gbq_function,
     read_gbq_model,
+    read_gbq_object_table,
     read_gbq_query,
     read_gbq_table,
     read_json,
@@ -162,7 +165,8 @@ def get_default_session_id() -> str:
     the table id of all temporary tables created in the global session.
 
     Returns:
-        str, the default global session id, ex. 'sessiona1b2c'
+        str:
+            The default global session id, ex. 'sessiona1b2c'
     """
     return get_global_session().session_id
 
@@ -220,7 +224,7 @@ def clean_up_by_session_id(
         session.bqclient, dataset, session_id
     )
 
-    functions_utils._clean_up_by_session_id(
+    bff_utils._clean_up_by_session_id(
         session.bqclient, session.cloudfunctionsclient, dataset, session_id
     )
 
@@ -303,6 +307,7 @@ __all__ = [
     "read_gbq",
     "read_gbq_function",
     "read_gbq_model",
+    "read_gbq_object_table",
     "read_gbq_query",
     "read_gbq_table",
     "read_json",
@@ -311,6 +316,8 @@ __all__ = [
     "read_pickle",
     "remote_function",
     "to_datetime",
+    "to_timedelta",
+    "from_glob_path",
     # pandas dtype attributes
     "NA",
     "BooleanDtype",

@@ -20,13 +20,13 @@ import typing
 import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
-import bigframes_vendored.ibis.expr.operations as ibis_ops
 import bigframes_vendored.ibis.expr.operations.generic as ibis_generic
 import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import bigframes_vendored.ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 
+import bigframes.core.compile.default_ordering
 import bigframes.core.compile.ibis_types
 import bigframes.core.expression as ex
 import bigframes.dtypes
@@ -722,6 +722,21 @@ def strftime_op_impl(x: ibis_types.Value, op: ops.StrftimeOp):
     )
 
 
+@scalar_op_compiler.register_unary_op(ops.UnixSeconds)
+def unix_seconds_op_impl(x: ibis_types.TimestampValue):
+    return x.epoch_seconds()
+
+
+@scalar_op_compiler.register_unary_op(ops.UnixMicros)
+def unix_micros_op_impl(x: ibis_types.TimestampValue):
+    return unix_micros(x)
+
+
+@scalar_op_compiler.register_unary_op(ops.UnixMillis)
+def unix_millis_op_impl(x: ibis_types.TimestampValue):
+    return unix_millis(x)
+
+
 @scalar_op_compiler.register_unary_op(ops.FloorDtOp, pass_op=True)
 def floor_dt_op_impl(x: ibis_types.Value, op: ops.FloorDtOp):
     supported_freqs = ["Y", "Q", "M", "W", "D", "h", "min", "s", "ms", "us", "ns"]
@@ -1125,6 +1140,13 @@ def to_timestamp_op_impl(x: ibis_types.Value, op: ops.ToTimestampOp):
     return x.cast(ibis_dtypes.Timestamp(timezone="UTC"))
 
 
+@scalar_op_compiler.register_unary_op(ops.ToTimedeltaOp, pass_op=True)
+def to_timedelta_op_impl(x: ibis_types.Value, op: ops.ToTimedeltaOp):
+    return (
+        typing.cast(ibis_types.NumericValue, x) * UNIT_TO_US_CONVERSION_FACTORS[op.unit]  # type: ignore
+    ).floor()
+
+
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
 def remote_function_op_impl(x: ibis_types.Value, op: ops.RemoteFunctionOp):
     ibis_node = getattr(op.func, "ibis_node", None)
@@ -1173,34 +1195,33 @@ def array_slice_op_impl(x: ibis_types.Value, op: ops.ArraySliceOp):
 # JSON Ops
 @scalar_op_compiler.register_binary_op(ops.JSONSet, pass_op=True)
 def json_set_op_impl(x: ibis_types.Value, y: ibis_types.Value, op: ops.JSONSet):
-    if x.type().is_json():
-        return json_set(
-            json_obj=x,
-            json_path=op.json_path,
-            json_value=y,
-        )
-    else:
-        # Enabling JSON type eliminates the need for less efficient string conversions.
-        return ibis_ops.ToJsonString(
-            json_set(  # type: ignore
-                json_obj=parse_json(x),
-                json_path=op.json_path,
-                json_value=y,
-            )
-        ).to_expr()
+    return json_set(json_obj=x, json_path=op.json_path, json_value=y)
 
 
 @scalar_op_compiler.register_unary_op(ops.JSONExtract, pass_op=True)
 def json_extract_op_impl(x: ibis_types.Value, op: ops.JSONExtract):
-    if x.type().is_json():
-        return json_extract(json_obj=x, json_path=op.json_path)
-    # json string
-    return json_extract_string(json_obj=x, json_path=op.json_path)
+    # Define a user-defined function whose returned type is dynamically matching the input.
+    def json_extract(json_or_json_string, json_path: ibis_dtypes.str):  # type: ignore
+        """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
+        ...
+
+    return_type = x.type()
+    json_extract.__annotations__["return"] = return_type
+    json_extract_op = ibis_udf.scalar.builtin(json_extract)
+    return json_extract_op(json_or_json_string=x, json_path=op.json_path)
 
 
 @scalar_op_compiler.register_unary_op(ops.JSONExtractArray, pass_op=True)
 def json_extract_array_op_impl(x: ibis_types.Value, op: ops.JSONExtractArray):
-    return json_extract_array(json_obj=x, json_path=op.json_path)
+    # Define a user-defined function whose returned type is dynamically matching the input.
+    def json_extract_array(json_or_json_string, json_path: ibis_dtypes.str):  # type: ignore
+        """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
+        ...
+
+    return_type = x.type()
+    json_extract_array.__annotations__["return"] = ibis_dtypes.Array[return_type]  # type: ignore
+    json_extract_op = ibis_udf.scalar.builtin(json_extract_array)
+    return json_extract_op(json_or_json_string=x, json_path=op.json_path)
 
 
 @scalar_op_compiler.register_unary_op(ops.JSONExtractStringArray, pass_op=True)
@@ -1210,10 +1231,30 @@ def json_extract_string_array_op_impl(
     return json_extract_string_array(json_obj=x, json_path=op.json_path)
 
 
+@scalar_op_compiler.register_unary_op(ops.ParseJSON, pass_op=True)
+def parse_json_op_impl(x: ibis_types.Value, op: ops.ParseJSON):
+    return parse_json(json_str=x)
+
+
+@scalar_op_compiler.register_unary_op(ops.ToJSONString)
+def to_json_string_op_impl(json_obj: ibis_types.Value):
+    return to_json_string(json_obj=json_obj)
+
+
+@scalar_op_compiler.register_unary_op(ops.JSONValue, pass_op=True)
+def json_value_op_impl(x: ibis_types.Value, op: ops.JSONValue):
+    return json_value(json_obj=x, json_path=op.json_path)
+
+
 # Blob Ops
 @scalar_op_compiler.register_unary_op(ops.obj_fetch_metadata_op)
-def obj_fetch_metadata_op_impl(x: ibis_types.Value):
-    return obj_fetch_metadata(obj_ref=x)
+def obj_fetch_metadata_op_impl(obj_ref: ibis_types.Value):
+    return obj_fetch_metadata(obj_ref=obj_ref)
+
+
+@scalar_op_compiler.register_unary_op(ops.ObjGetAccessUrl, pass_op=True)
+def obj_get_access_url_op_impl(obj_ref: ibis_types.Value, op: ops.ObjGetAccessUrl):
+    return obj_get_access_url(obj_ref=obj_ref, mode=op.mode)
 
 
 ### Binary Ops
@@ -1825,6 +1866,17 @@ def nary_remote_function_op_impl(
     return result
 
 
+@scalar_op_compiler.register_nary_op(ops.SqlScalarOp, pass_op=True)
+def sql_scalar_op_impl(*operands: ibis_types.Value, op: ops.SqlScalarOp):
+    return ibis_generic.SqlScalar(
+        op.sql_template,
+        values=tuple(typing.cast(ibis_generic.Value, expr.op()) for expr in operands),
+        output_type=bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype(
+            op.output_type()
+        ),
+    ).to_expr()
+
+
 @scalar_op_compiler.register_nary_op(ops.StructOp, pass_op=True)
 def struct_op_impl(
     *values: ibis_types.Value, op: ops.StructOp
@@ -1834,6 +1886,11 @@ def struct_op_impl(
         data[op.column_names[i]] = value
 
     return ibis_types.struct(data)
+
+
+@scalar_op_compiler.register_nary_op(ops.RowKey, pass_op=True)
+def rowkey_op_impl(*values: ibis_types.Value, op: ops.RowKey) -> ibis_types.Value:
+    return bigframes.core.compile.default_ordering.gen_row_key(values)
 
 
 # Helpers
@@ -1849,6 +1906,16 @@ def _ibis_num(number: float):
 @ibis_udf.scalar.builtin
 def timestamp(a: str) -> ibis_dtypes.timestamp:  # type: ignore
     """Convert string to timestamp."""
+
+
+@ibis_udf.scalar.builtin
+def unix_millis(a: ibis_dtypes.timestamp) -> int:  # type: ignore
+    """Convert a timestamp to milliseconds"""
+
+
+@ibis_udf.scalar.builtin
+def unix_micros(a: ibis_dtypes.timestamp) -> int:  # type: ignore
+    """Convert a timestamp to microseconds"""
 
 
 # Need these because ibis otherwise tries to do casts to int that can fail
@@ -1876,32 +1943,25 @@ def json_set(  # type: ignore[empty-body]
     """Produces a new SQL JSON value with the specified JSON data inserted or replaced."""
 
 
-@ibis_udf.scalar.builtin(name="json_extract")
-def json_extract(  # type: ignore[empty-body]
-    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
-) -> ibis_dtypes.JSON:
-    """Extracts a JSON value and converts it to a JSON value."""
-
-
-@ibis_udf.scalar.builtin(name="json_extract")
-def json_extract_string(  # type: ignore[empty-body]
-    json_obj: ibis_dtypes.String, json_path: ibis_dtypes.String
-) -> ibis_dtypes.String:
-    """Extracts a JSON SRING value and converts it to a SQL JSON-formatted STRING."""
-
-
-@ibis_udf.scalar.builtin(name="json_extract_array")
-def json_extract_array(  # type: ignore[empty-body]
-    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
-) -> ibis_dtypes.Array[ibis_dtypes.String]:
-    """Extracts a JSON array and converts it to a SQL ARRAY of JSON-formatted STRINGs or JSON values."""
-
-
 @ibis_udf.scalar.builtin(name="json_extract_string_array")
 def json_extract_string_array(  # type: ignore[empty-body]
     json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
 ) -> ibis_dtypes.Array[ibis_dtypes.String]:
     """Extracts a JSON array and converts it to a SQL ARRAY of STRINGs."""
+
+
+@ibis_udf.scalar.builtin(name="to_json_string")
+def to_json_string(  # type: ignore[empty-body]
+    json_obj: ibis_dtypes.JSON,
+) -> ibis_dtypes.String:
+    """Convert JSON to STRING."""
+
+
+@ibis_udf.scalar.builtin(name="json_value")
+def json_value(  # type: ignore[empty-body]
+    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
+) -> ibis_dtypes.String:
+    """Retrieve value of a JSON field as plain STRING."""
 
 
 @ibis_udf.scalar.builtin(name="ML.DISTANCE")
@@ -1917,3 +1977,8 @@ def obj_fetch_metadata(obj_ref: _OBJ_REF_IBIS_DTYPE) -> _OBJ_REF_IBIS_DTYPE:  # 
 @ibis_udf.scalar.builtin(name="OBJ.MAKE_REF")
 def obj_make_ref(uri: str, authorizer: str) -> _OBJ_REF_IBIS_DTYPE:  # type: ignore
     """Make ObjectRef Struct from uri and connection."""
+
+
+@ibis_udf.scalar.builtin(name="OBJ.GET_ACCESS_URL")
+def obj_get_access_url(obj_ref: _OBJ_REF_IBIS_DTYPE, mode: ibis_dtypes.String) -> ibis_dtypes.JSON:  # type: ignore
+    """Get access url (as ObjectRefRumtime JSON) from ObjectRef."""

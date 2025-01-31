@@ -15,6 +15,7 @@
 from bigframes.core.rewrite.identifiers import remap_variables
 from bigframes.core.rewrite.implicit_align import rewrite_row_join
 from bigframes.core.rewrite.legacy_align import legacy_join_as_projection
+from bigframes.core.rewrite.order import pull_up_order
 from bigframes.core.rewrite.slices import pullup_limit_from_slice, rewrite_slice
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "remap_variables",
     "combine_nodes",
     "rewrite_row_join",
+    "pull_up_order",
 ]
