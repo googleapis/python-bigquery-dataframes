@@ -30,7 +30,7 @@ Plotting handling
 Struct handling
 ^^^^^^^^^^^^^^^
 
-.. automodule:: bigframes.operations.structs
+.. autoclass:: bigframes.operations.structs.StructFrameAccessor
     :members:
     :inherited-members:
     :undoc-members:
