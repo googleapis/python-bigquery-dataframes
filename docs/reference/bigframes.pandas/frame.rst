@@ -9,7 +9,7 @@ DataFrame
    :backlinks: none
 
 DataFrame
-------
+---------
 
 .. autoclass:: bigframes.dataframe.DataFrame
     :members:

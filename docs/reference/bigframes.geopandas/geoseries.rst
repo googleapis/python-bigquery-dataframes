@@ -9,7 +9,7 @@ GeoSeries
    :backlinks: none
 
 GeoSeries
-------
+---------
 
 .. autoclass:: bigframes.geopandas.GeoSeries
     :members:
