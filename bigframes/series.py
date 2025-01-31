@@ -33,6 +33,7 @@ import pandas
 import pandas.core.dtypes.common
 import pyarrow as pa
 import typing_extensions
+import datetime
 
 import bigframes.core
 from bigframes.core import log_adapter
@@ -805,10 +806,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     __rsub__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__rsub__)
 
-    def sub(self, other: float | int | Series) -> Series:
+    def sub(self, other: float | int | pandas.Timestamp | datetime.datetime | Series) -> Series:
+        if bigframes.dtypes.is_datetime_like(self.dtype) and _has_timestamp_type(other):
+            return self._apply_binary_op(other, ops.timestamp_diff_op)
         return self._apply_binary_op(other, ops.sub_op)
 
-    def rsub(self, other: float | int | Series) -> Series:
+    def rsub(self, other: float | int | pandas.Timestamp | datetime.datetime | Series) -> Series:
+        if bigframes.dtypes.is_datetime_like(self.dtype) and _has_timestamp_type(other):
+            return self._apply_binary_op(other, ops.timestamp_diff_op, reverse=True)
         return self._apply_binary_op(other, ops.sub_op, reverse=True)
 
     subtract = sub
@@ -2080,3 +2085,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
     return pandas.api.types.is_list_like(obj)
+
+
+def _has_timestamp_type(input: typing.Any) -> bool:
+    if isinstance(input, Series):
+        return bigframes.dtypes.is_datetime_like(input.dtype)
+
+    return isinstance(input, (pandas.Timestamp, datetime.datetime))

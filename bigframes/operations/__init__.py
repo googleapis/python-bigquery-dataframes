@@ -49,6 +49,7 @@ from bigframes.operations.datetime_ops import (
     date_op,
     StrftimeOp,
     time_op,
+    timestamp_diff_op,
     ToDatetimeOp,
     ToTimestampOp,
     UnixMicros,
@@ -246,6 +247,7 @@ __all__ = [
     # Datetime ops
     "date_op",
     "time_op",
+    "timestamp_diff_op",
     "ToDatetimeOp",
     "ToTimestampOp",
     "StrftimeOp",
