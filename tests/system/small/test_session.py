@@ -704,8 +704,8 @@ def test_read_pandas_timedelta_dataframes(session, write_engine):
         .astype("timedelta64[ns]")
     )
 
-    if write_engine == 'bigquery_streaming':
-        expected_df.index = pd.Index([pd.NA] * 3, dtype='Int64')
+    if write_engine == "bigquery_streaming":
+        expected_df.index = pd.Index([pd.NA] * 3, dtype="Int64")
     pd.testing.assert_frame_equal(actual_result, expected_df, check_index_type=False)
 
 
@@ -722,9 +722,11 @@ def test_read_pandas_timedelta_series(session, write_engine):
         .astype("timedelta64[ns]")
     )
 
-    if write_engine == 'bigquery_streaming':
-        expected_series.index = pd.Index([pd.NA] * 3, dtype='Int64')
-    pd.testing.assert_series_equal(actual_result, expected_series, check_index_type=False)
+    if write_engine == "bigquery_streaming":
+        expected_series.index = pd.Index([pd.NA] * 3, dtype="Int64")
+    pd.testing.assert_series_equal(
+        actual_result, expected_series, check_index_type=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -732,7 +734,9 @@ def test_read_pandas_timedelta_series(session, write_engine):
     ["default", "bigquery_inline", "bigquery_load"],
 )
 def test_read_pandas_timedelta_index(session, write_engine):
-    expected_index = pd.to_timedelta([1, 2, 3], unit="d") # to_timedelta returns an index
+    expected_index = pd.to_timedelta(
+        [1, 2, 3], unit="d"
+    )  # to_timedelta returns an index
 
     actual_result = (
         session.read_pandas(expected_index, write_engine=write_engine)
