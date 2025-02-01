@@ -39,7 +39,7 @@ class DataFrameAndLabels:
     column_labels: Collection
     index_labels: Collection
     ordering_col: str
-    timedelta_cols: Collection
+    timedelta_cols: List[str]
 
 
 def _arrow_to_pandas_arrowdtype(

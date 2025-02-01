@@ -176,7 +176,7 @@ class GbqDataLoader:
         self._start_generic_job(load_job)
 
         destination_table = self._bqclient.get_table(load_table_destination)
-        col_type_overrides = {
+        col_type_overrides: typing.Dict[str, bigframes.dtypes.Dtype] = {
             col: bigframes.dtypes.TIMEDETLA_DTYPE
             for col in df_and_labels.timedelta_cols
         }
@@ -235,7 +235,7 @@ class GbqDataLoader:
                     f"Problem loading at least one row from DataFrame: {errors}. {constants.FEEDBACK_LINK}"
                 )
 
-        col_type_overrides = {
+        col_type_overrides: typing.Dict[str, bigframes.dtypes.Dtype] = {
             col: bigframes.dtypes.TIMEDETLA_DTYPE
             for col in df_and_labels.timedelta_cols
         }
