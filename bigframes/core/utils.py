@@ -184,3 +184,7 @@ def preview(*, name: str):
         return wrapper
 
     return decorator
+
+
+def timedelta_to_micros(td: pd.Timedelta) -> int:
+    return round(td.total_seconds() * 1_000_000)
