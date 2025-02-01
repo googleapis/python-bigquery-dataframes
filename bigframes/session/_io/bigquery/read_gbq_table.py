@@ -152,24 +152,23 @@ def validate_table(
     return False
 
 
-def are_index_cols_unique(
+def infer_primary_key(
     bqclient: bigquery.Client,
     table: bigquery.table.Table,
     index_cols: List[str],
     api_name: str,
     metadata_only: bool = False,
-) -> bool:
-    if len(index_cols) == 0:
-        return False
+) -> Tuple[str, ...]:
     # If index_cols contain the primary_keys, the query engine assumes they are
     # provide a unique index.
-    primary_keys = frozenset(_get_primary_keys(table))
-    if (len(primary_keys) > 0) and primary_keys <= frozenset(index_cols):
-        return True
+    primary_keys = tuple(_get_primary_keys(table))
+    if (len(primary_keys) > 0) and frozenset(primary_keys) <= frozenset(index_cols):
+        # Essentially, just reordering the primary key to match the index col order
+        return tuple(index_col for index_col in index_cols if index_col in primary_keys)
 
     if metadata_only:
         # Sometimes not worth scanning data to check uniqueness
-        return False
+        return primary_keys
     # TODO(b/337925142): Avoid a "SELECT *" subquery here by ensuring
     # table_expression only selects just index_cols.
     is_unique_sql = bigframes.core.sql.is_distinct_sql(index_cols, table.reference)
@@ -178,7 +177,9 @@ def are_index_cols_unique(
     results = bqclient.query_and_wait(is_unique_sql, job_config=job_config)
     row = next(iter(results))
 
-    return row["total_count"] == row["distinct_count"]
+    if row["total_count"] == row["distinct_count"]:
+        return tuple(index_cols)
+    return primary_keys
 
 
 def _get_primary_keys(
