@@ -86,4 +86,4 @@ def test_geo_area_not_supported():
             f"GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series), instead. {constants.FEEDBACK_LINK}"
         ),
     ):
-        bf_series.area()
+        bf_series.area

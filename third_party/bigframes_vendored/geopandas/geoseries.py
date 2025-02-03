@@ -17,8 +17,9 @@ class GeoSeries:
 
         >>> import bigframes.geopandas
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.progress_bar = None
         >>> from shapely.geometry import Point
+        >>> bpd.options.display.progress_bar = None
+
         >>> s = bigframes.geopandas.GeoSeries([Point(1, 1), Point(2, 2), Point(3, 3)])
         >>> s
         0    POINT (1 1)
@@ -43,9 +44,9 @@ class GeoSeries:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> import geopandas.array
             >>> import shapely
+            >>> bpd.options.display.progress_bar = None
 
             >>> series = bpd.Series(
             ...     [shapely.Point(1, 2), shapely.Point(2, 3), shapely.Point(3, 4)],
@@ -70,9 +71,9 @@ class GeoSeries:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> import geopandas.array
             >>> import shapely
+            >>> bpd.options.display.progress_bar = None
 
             >>> series = bpd.Series(
             ...     [shapely.Point(1, 2), shapely.Point(2, 3), shapely.Point(3, 4)],
@@ -104,5 +105,9 @@ class GeoSeries:
         Returns:
             float:
                 Series of float representing the areas.
+
+        Raises:
+            NotImplementedError:
+                GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series) insetead.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
