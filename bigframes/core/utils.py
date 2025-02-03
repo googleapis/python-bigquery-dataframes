@@ -194,7 +194,7 @@ def timedelta_to_micros(td: pd.Timedelta) -> int:
 
 def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:
     """
-    Replaces in-place timedeltas to their nearest integer values in microseconds.
+    Replaces in-place timedeltas to integer values in microseconds. Nanosecond part is ignored.
 
     Returns:
         The names of updated columns
