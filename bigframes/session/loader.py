@@ -182,7 +182,7 @@ class GbqDataLoader:
         }
         array_value = core.ArrayValue.from_table(
             table=destination_table,
-            # TODO: Generate this directly from original pandas df.
+            # TODO (b/394156190): Generate this directly from original pandas df.
             schema=schemata.ArraySchema.from_bq_table(
                 destination_table, col_type_overrides
             ),
