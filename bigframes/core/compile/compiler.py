@@ -177,11 +177,7 @@ class Compiler:
         )
 
         # Convert timedeltas to microseconds for compatibility with BigQuery
-        for col in array_as_pd.columns:
-            if pdtypes.is_timedelta64_dtype(array_as_pd[col].dtype):
-                array_as_pd[col] = array_as_pd[col].map(utils.timedelta_to_micros)
-        if pdtypes.is_timedelta64_dtype(array_as_pd.index.dtype):
-            array_as_pd.index = array_as_pd.index.map(utils.timedelta_to_micros)
+        _ = utils.replace_timedeltas_with_micros(array_as_pd)
 
         offsets = node.offsets_col.sql if node.offsets_col else None
         return compiled.UnorderedIR.from_pandas(

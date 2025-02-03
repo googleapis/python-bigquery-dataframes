@@ -165,7 +165,7 @@ def pandas_to_bq_compatible(pandas_dataframe: pandas.DataFrame) -> DataFrameAndL
     pandas_dataframe_copy.columns = pandas.Index(new_col_ids)
     pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
 
-    timedelta_cols = _replace_timedeltas_with_micros(pandas_dataframe_copy)
+    timedelta_cols = utils.replace_timedeltas_with_micros(pandas_dataframe_copy)
 
     return DataFrameAndLabels(
         df=pandas_dataframe_copy,
@@ -174,24 +174,3 @@ def pandas_to_bq_compatible(pandas_dataframe: pandas.DataFrame) -> DataFrameAndL
         ordering_col=ordering_col,
         timedelta_cols=timedelta_cols,
     )
-
-
-def _replace_timedeltas_with_micros(dataframe: pandas.DataFrame) -> List[str]:
-    """
-    Replaces in-place timedeltas to their nearest integer values in microseconds.
-
-    Returns:
-        The names of updated columns
-    """
-    updated_columns = []
-
-    for col in dataframe.columns:
-        if pdtypes.is_timedelta64_dtype(dataframe[col].dtype):
-            dataframe[col] = dataframe[col].apply(utils.timedelta_to_micros)
-            updated_columns.append(col)
-
-    if pdtypes.is_timedelta64_dtype(dataframe.index.dtype):
-        dataframe.index = dataframe.index.map(utils.timedelta_to_micros)
-        updated_columns.append(dataframe.index.name)
-
-    return updated_columns
