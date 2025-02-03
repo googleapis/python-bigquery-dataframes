@@ -224,6 +224,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
 
+    def __call__(self, *args, **kwargs):
+        """Placeholder implementation to raise a more helpful error."""
+        raise TypeError(
+            "Series is not callable. "
+            + "Did you mean to use square brackets (e.g. series[row_label]), instead? "
+            + constants.FEEDBACK_LINK
+        )
+
     def __len__(self):
         return self.shape[0]
 

@@ -12,7 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 import bigframes.series
+
+from . import resources
+
+
+def test_series_call_typeerror(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    series = resources.create_dataframe(monkeypatch)["col"]
+
+    with pytest.raises(TypeError, match="not callable"):
+        series("arg", test="kwarg")
 
 
 def test_series_repr_with_uninitialized_object():

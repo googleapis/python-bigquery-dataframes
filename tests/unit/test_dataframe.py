@@ -20,6 +20,15 @@ import bigframes.dataframe
 from . import resources
 
 
+def test_dataframe_call_typeerror(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    dataframe = resources.create_dataframe(monkeypatch)
+
+    with pytest.raises(TypeError, match="not callable"):
+        dataframe("arg", test="kwarg")
+
+
 def test_dataframe_dropna_axis_1_subset_not_implememented(
     monkeypatch: pytest.MonkeyPatch,
 ):
