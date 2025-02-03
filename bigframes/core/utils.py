@@ -188,7 +188,8 @@ def preview(*, name: str):
 
 
 def timedelta_to_micros(td: pd.Timedelta) -> int:
-    return round(td.total_seconds() * 1_000_000)
+    # td.value returns total nanoseconds.
+    return td.value // 1000
 
 
 def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:
