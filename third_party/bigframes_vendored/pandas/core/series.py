@@ -424,6 +424,25 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def keys(self):
+        """
+        Return alias for index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3], index=[0, 1, 2])
+            >>> s.keys()
+            Index([0, 1, 2], dtype='Int64')
+
+        Returns:
+            Index:
+                Index of the Series.
+        """
+        return self.index
+
     # ----------------------------------------------------------------------
     # IO methods (to / from other formats)
 
@@ -2647,6 +2666,21 @@ class Series(NDFrame):  # type: ignore[misc]
             2    1
             3    2
             Name: c, dtype: Int64
+
+        If you'd like to change the type, add a case with the condition True at the end of the case list
+
+            >>> c.case_when(
+            ...     caselist=[
+            ...         (a.gt(0), 'a'),  # condition, replacement
+            ...         (b.gt(0), 'b'),
+            ...         (True, 'c'),
+            ...     ]
+            ... )
+            0    c
+            1    b
+            2    a
+            3    a
+            Name: c, dtype: string
 
         **See also:**
 
@@ -5038,13 +5072,13 @@ class Series(NDFrame):  # type: ignore[misc]
                 with corresponding value from other. If cond is callable, it is
                 computed on the Series/DataFrame and should return boolean
                 Series/DataFrame or array. The callable must not change input
-                Series/DataFrame (though pandas doesn’t check it).
+                Series/DataFrame (though pandas doesn't check it).
             other (scalar, Series/DataFrame, or callable):
                 Entries where cond is True are replaced with corresponding value
                 from other. If other is callable, it is computed on the
                 Series/DataFrame and should return scalar or Series/DataFrame.
                 The callable must not change input Series/DataFrame (though pandas
-                doesn’t check it). If not specified, entries will be filled with
+                doesn't check it). If not specified, entries will be filled with
                 the corresponding NULL value (np.nan for numpy dtypes, pd.NA for
                 extension dtypes).
 
