@@ -707,7 +707,7 @@ class Block:
         # Create an ordering col and convert to string
         block, ordering_col = block.promote_offsets()
         block, string_ordering_col = block.apply_unary_op(
-            ordering_col, ops.AsTypeOp(to_type="string[pyarrow]")
+            ordering_col, ops.AsTypeOp(to_type=bigframes.dtypes.STRING_DTYPE)
         )
 
         # Apply hash method to sum col and order by it.
@@ -1410,7 +1410,7 @@ class Block:
 
         block, result_id = self.apply_window_op(
             value_columns[0],
-            agg_ops.rank_op,
+            agg_ops.count_op,
             window_spec=window_spec,
         )
 
@@ -1479,7 +1479,9 @@ class Block:
                 expr, new_col = expr.project_to_id(
                     expression=ops.add_op.as_expr(
                         ex.const(prefix),
-                        ops.AsTypeOp(to_type="string").as_expr(index_col),
+                        ops.AsTypeOp(to_type=bigframes.dtypes.STRING_DTYPE).as_expr(
+                            index_col
+                        ),
                     ),
                 )
                 new_index_cols.append(new_col)
@@ -1502,7 +1504,9 @@ class Block:
             for index_col in self._index_columns:
                 expr, new_col = expr.project_to_id(
                     expression=ops.add_op.as_expr(
-                        ops.AsTypeOp(to_type="string").as_expr(index_col),
+                        ops.AsTypeOp(to_type=bigframes.dtypes.STRING_DTYPE).as_expr(
+                            index_col
+                        ),
                         ex.const(suffix),
                     ),
                 )
@@ -2036,23 +2040,15 @@ class Block:
         return block
 
     def _isin_inner(self: Block, col: str, unique_values: core.ArrayValue) -> Block:
-        unique_values, const = unique_values.create_constant(
-            True, dtype=bigframes.dtypes.BOOL_DTYPE
-        )
-        expr, (l_map, r_map) = self._expr.relational_join(
-            unique_values, ((col, unique_values.column_ids[0]),), type="left"
-        )
-        expr, matches = expr.project_to_id(ops.notnull_op.as_expr(r_map[const]))
+        expr, matches = self._expr.isin(unique_values, col, unique_values.column_ids[0])
 
-        new_index_cols = tuple(l_map[idx_col] for idx_col in self.index_columns)
         new_value_cols = tuple(
-            l_map[val_col] if val_col != col else matches
-            for val_col in self.value_columns
+            val_col if val_col != col else matches for val_col in self.value_columns
         )
-        expr = expr.select_columns((*new_index_cols, *new_value_cols))
+        expr = expr.select_columns((*self.index_columns, *new_value_cols))
         return Block(
             expr,
-            index_columns=new_index_cols,
+            index_columns=self.index_columns,
             column_labels=self.column_labels,
             index_labels=self._index_labels,
         )

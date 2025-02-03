@@ -13,9 +13,8 @@
 # limitations under the License.
 from __future__ import annotations
 
-import textwrap
 import typing
-from typing import Any, cast, Dict, Iterable, Optional, Tuple, Union
+from typing import cast, Dict, Iterable, Optional, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis
@@ -28,7 +27,6 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
-import numpy as np
 import pandas as pd
 import pyarrow as pa
 
@@ -81,6 +79,7 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, bigframes.dtypes.Dtype]] = (
 BIGFRAMES_TO_IBIS: Dict[bigframes.dtypes.Dtype, ibis_dtypes.DataType] = {
     pandas: ibis for ibis, pandas in BIDIRECTIONAL_MAPPINGS
 }
+BIGFRAMES_TO_IBIS.update({bigframes.dtypes.TIMEDETLA_DTYPE: ibis_dtypes.int64})
 IBIS_TO_BIGFRAMES: Dict[ibis_dtypes.DataType, bigframes.dtypes.Dtype] = {
     ibis: pandas for ibis, pandas in BIDIRECTIONAL_MAPPINGS
 }
@@ -227,9 +226,7 @@ def ibis_value_to_canonical_type(value: ibis_types.Value) -> ibis_types.Value:
 
 
 def bigframes_dtype_to_ibis_dtype(
-    bigframes_dtype: Union[
-        bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype, np.dtype[Any]
-    ]
+    bigframes_dtype: bigframes.dtypes.Dtype,
 ) -> ibis_dtypes.DataType:
     """Converts a BigQuery DataFrames supported dtype to an Ibis dtype.
 
@@ -243,11 +240,6 @@ def bigframes_dtype_to_ibis_dtype(
     Raises:
         ValueError: If passed a dtype not supported by BigQuery DataFrames.
     """
-    if str(bigframes_dtype) in bigframes.dtypes.BIGFRAMES_STRING_TO_BIGFRAMES:
-        bigframes_dtype = bigframes.dtypes.BIGFRAMES_STRING_TO_BIGFRAMES[
-            cast(bigframes.dtypes.DtypeString, str(bigframes_dtype))
-        ]
-
     if bigframes_dtype in BIGFRAMES_TO_IBIS.keys():
         return BIGFRAMES_TO_IBIS[bigframes_dtype]
 
@@ -255,24 +247,7 @@ def bigframes_dtype_to_ibis_dtype(
         return _arrow_dtype_to_ibis_dtype(bigframes_dtype.pyarrow_dtype)
 
     else:
-        raise ValueError(
-            textwrap.dedent(
-                f"""
-                Unexpected data type {bigframes_dtype}. The following
-                        str dtypes are supppted: 'boolean','Float64','Int64',
-                        'int64[pyarrow]','string','string[pyarrow]',
-                        'timestamp[us, tz=UTC][pyarrow]','timestamp[us][pyarrow]',
-                        'date32[day][pyarrow]','time64[us][pyarrow]'.
-                        The following pandas.ExtensionDtype are supported:
-                        pandas.BooleanDtype(), pandas.Float64Dtype(),
-                        pandas.Int64Dtype(), pandas.StringDtype(storage="pyarrow"),
-                        pd.ArrowDtype(pa.date32()), pd.ArrowDtype(pa.time64("us")),
-                        pd.ArrowDtype(pa.timestamp("us")),
-                        pd.ArrowDtype(pa.timestamp("us", tz="UTC")).
-                {constants.FEEDBACK_LINK}
-                """
-            )
-        )
+        raise ValueError(f"Datatype has no ibis type mapping: {bigframes_dtype}")
 
 
 def ibis_dtype_to_bigframes_dtype(
