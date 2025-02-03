@@ -625,13 +625,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def __getattr__(self, key: str):
-        # Protect against recursion errors with uninitialized DataFrame
-        # objects. See:
+        # To allow subclasses to set private attributes before the class is
+        # fully initialized, protect against recursion errors with
+        # uninitialized DataFrame objects. See:
         # https://github.com/googleapis/python-bigquery-dataframes/issues/728
         # and
         # https://nedbatchelder.com/blog/201010/surprising_getattr_recursion.html
-        if key == "_block":
-            raise AttributeError("_block")
+        if key.startswith("_") and not key.startswith("__"):
+            raise AttributeError(key)
 
         if key in self._block.column_labels:
             return self.__getitem__(key)
@@ -651,26 +652,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         raise AttributeError(key)
 
     def __setattr__(self, key: str, value):
-        if key in ["_block", "_query_job"]:
+        # To allow subclasses to set private attributes before the class is
+        # fully initialized, protect against recursion errors with
+        # uninitialized DataFrame objects. See:
+        # https://github.com/googleapis/python-bigquery-dataframes/issues/728
+        # and
+        # https://nedbatchelder.com/blog/201010/surprising_getattr_recursion.html
+        if key.startswith("_") and not key.startswith("__"):
             object.__setattr__(self, key, value)
             return
-        # Can this be removed???
-        try:
-            # boring attributes go through boring old path
-            object.__getattribute__(self, key)
-            return object.__setattr__(self, key, value)
-        except AttributeError:
-            pass
 
-        # if this fails, go on to more involved attribute setting
-        # (note that this matches __getattr__, above).
-        try:
-            if key in self.columns:
-                self[key] = value
-            else:
-                object.__setattr__(self, key, value)
-        # Can this be removed?
-        except (AttributeError, TypeError):
+        if key in self.columns:
+            self[key] = value
+        else:
             object.__setattr__(self, key, value)
 
     def __repr__(self) -> str:
