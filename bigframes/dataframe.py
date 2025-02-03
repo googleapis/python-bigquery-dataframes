@@ -118,6 +118,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ):
         global bigframes
 
+        self._query_job: Optional[bigquery.QueryJob] = None
+
         if copy is not None and not copy:
             raise ValueError(
                 f"DataFrame constructor only supports copy=True. {constants.FEEDBACK_LINK}"
@@ -182,7 +184,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if dtype:
                 bf_dtype = bigframes.dtypes.bigframes_type(dtype)
                 block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=bf_dtype))
-            self._block = block
 
         else:
             import bigframes.pandas
@@ -194,10 +195,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 dtype=dtype,  # type:ignore
             )
             if session:
-                self._block = session.read_pandas(pd_dataframe)._get_block()
+                block = session.read_pandas(pd_dataframe)._get_block()
             else:
-                self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
-        self._query_job: Optional[bigquery.QueryJob] = None
+                block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
+
+        # We use _block as an indicator in __getattr__ and __setattr__ to see
+        # if the object is fully initialized, so make sure we set the _block
+        # attribute last.
+        self._block = block
         self._block.session._register_object(self)
 
     def __dir__(self):
@@ -627,11 +632,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __getattr__(self, key: str):
         # To allow subclasses to set private attributes before the class is
         # fully initialized, protect against recursion errors with
-        # uninitialized DataFrame objects. See:
+        # uninitialized DataFrame objects. Note: this comes at the downside
+        # that columns with a leading `_` won't be treated as columns.
+        #
+        # See:
         # https://github.com/googleapis/python-bigquery-dataframes/issues/728
         # and
         # https://nedbatchelder.com/blog/201010/surprising_getattr_recursion.html
-        if key.startswith("_") and not key.startswith("__"):
+        if key == "_block":
             raise AttributeError(key)
 
         if key in self._block.column_labels:
@@ -652,17 +660,34 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         raise AttributeError(key)
 
     def __setattr__(self, key: str, value):
-        # To allow subclasses to set private attributes before the class is
-        # fully initialized, protect against recursion errors with
-        # uninitialized DataFrame objects. See:
-        # https://github.com/googleapis/python-bigquery-dataframes/issues/728
-        # and
-        # https://nedbatchelder.com/blog/201010/surprising_getattr_recursion.html
-        if key.startswith("_") and not key.startswith("__"):
+        if key == "_block":
             object.__setattr__(self, key, value)
             return
 
-        if key in self.columns:
+        # To allow subclasses to set private attributes before the class is
+        # fully initialized, assume anything set before `_block` is initialized
+        # is a regular attribute.
+        if not hasattr(self, "_block"):
+            object.__setattr__(self, key, value)
+            return
+
+        # If someone has a column named the same as a normal attribute
+        # (e.g. index), we want to set the normal attribute, not the column.
+        # To do that, check if there is a normal attribute by using
+        # __getattribute__ (not __getattr__, because that includes columns).
+        # If that returns a value without raising, then we know this is a
+        # normal attribute and we should prefer that.
+        try:
+            object.__getattribute__(self, key)
+            return object.__setattr__(self, key, value)
+        except AttributeError:
+            pass
+
+        # If we made it here, then we know that it's not a regular attribute
+        # already, so it might be a column to update. Note: we don't allow
+        # adding new columns using __setattr__, only __setitem__, that way we
+        # can still add regular new attributes.
+        if key in self._block.column_labels:
             self[key] = value
         else:
             object.__setattr__(self, key, value)
