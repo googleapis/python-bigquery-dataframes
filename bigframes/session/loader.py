@@ -424,7 +424,7 @@ class GbqDataLoader:
         # in the query that checks for index uniqueness.
         # TODO(b/338065601): Provide a way to assume uniqueness and avoid this
         # check.
-        primary_key = bf_read_gbq_table.infer_primary_key(
+        primary_key = bf_read_gbq_table.infer_unique_columns(
             bqclient=self._bqclient,
             table=table,
             index_cols=index_cols,

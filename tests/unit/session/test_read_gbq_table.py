@@ -48,7 +48,7 @@ from .. import resources
         ([], [], False, ()),
     ),
 )
-def test_infer_primary_key(index_cols, primary_keys, values_distinct, expected):
+def test_infer_unique_columns(index_cols, primary_keys, values_distinct, expected):
     """If a primary key is set on the table, we use that as the index column
     by default, no error should be raised in this case.
 
@@ -92,6 +92,6 @@ def test_infer_primary_key(index_cols, primary_keys, values_distinct, expected):
     )
     table._properties["location"] = session._location
 
-    result = bf_read_gbq_table.infer_primary_key(bqclient, table, index_cols, "")
+    result = bf_read_gbq_table.infer_unique_columns(bqclient, table, index_cols, "")
 
     assert result == expected
