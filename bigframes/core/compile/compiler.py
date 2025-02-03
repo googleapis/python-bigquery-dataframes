@@ -23,7 +23,6 @@ import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.types as ibis_types
 import google.cloud.bigquery
 import pandas as pd
-import pandas.api.types as pdtypes
 
 from bigframes.core import utils
 import bigframes.core.compile.compiled as compiled

@@ -21,7 +21,6 @@ import db_dtypes  # type: ignore
 import geopandas  # type: ignore
 import numpy as np
 import pandas
-import pandas.api.types as pdtypes
 import pandas.arrays
 import pyarrow  # type: ignore
 import pyarrow.compute  # type: ignore
