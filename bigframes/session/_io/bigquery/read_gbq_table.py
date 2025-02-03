@@ -159,11 +159,11 @@ def infer_unique_columns(
     api_name: str,
     metadata_only: bool = False,
 ) -> Tuple[str, ...]:
-"""Return a set of columns that can provide a unique row key or empty if none can be inferred.
+    """Return a set of columns that can provide a unique row key or empty if none can be inferred.
 
-Note: primary keys are not enforced, but these are assumed to be unique
-by the query engine, so we make the same assumption here.
-"""
+    Note: primary keys are not enforced, but these are assumed to be unique
+    by the query engine, so we make the same assumption here.
+    """
     # If index_cols contain the primary_keys, the query engine assumes they are
     # provide a unique index.
     primary_keys = tuple(_get_primary_keys(table))
