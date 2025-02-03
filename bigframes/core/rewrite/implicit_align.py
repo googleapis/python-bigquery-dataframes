@@ -14,7 +14,8 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Optional, Tuple
+import itertools
+from typing import cast, Optional, Sequence, Set, Tuple
 
 import bigframes.core.expression
 import bigframes.core.guid
@@ -24,11 +25,13 @@ import bigframes.core.nodes
 import bigframes.core.window_spec
 import bigframes.operations.aggregations
 
-# Additive nodes leave existing columns completely intact, and only add new columns to the end
-ADDITIVE_NODES = (
+# Combination of selects and additive nodes can be merged as an explicit keyless "row join"
+ALIGNABLE_NODES = (
+    bigframes.core.nodes.SelectionNode,
     bigframes.core.nodes.ProjectionNode,
     bigframes.core.nodes.WindowOpNode,
     bigframes.core.nodes.PromoteOffsetsNode,
+    bigframes.core.nodes.InNode,
 )
 
 
@@ -68,51 +71,32 @@ def get_expression_spec(
             (
                 bigframes.core.nodes.WindowOpNode,
                 bigframes.core.nodes.PromoteOffsetsNode,
+                bigframes.core.nodes.InNode,
             ),
         ):
-            # we don't yet have a way of normalizing window ops into a ExpressionSpec, which only
-            # handles normalizing scalar expressions at the moment.
-            pass
+            if set(expression.column_references).isdisjoint(
+                field.id for field in curr_node.added_fields
+            ):
+                # we don't yet have a way of normalizing window ops into a ExpressionSpec, which only
+                # handles normalizing scalar expressions at the moment.
+                pass
+            else:
+                return ExpressionSpec(expression, curr_node)
         else:
             return ExpressionSpec(expression, curr_node)
-        curr_node = curr_node.child
+        curr_node = curr_node.child_nodes[0]
 
 
-def _linearize_trees(
-    base_tree: bigframes.core.nodes.BigFrameNode,
-    append_tree: bigframes.core.nodes.BigFrameNode,
-) -> bigframes.core.nodes.BigFrameNode:
-    """Linearize two divergent tree who only diverge through different additive nodes."""
-    assert append_tree.projection_base == base_tree.projection_base
-    # base case: append tree does not have any additive nodes to linearize
-    if append_tree == append_tree.projection_base:
-        return base_tree
-    else:
-        assert isinstance(append_tree, ADDITIVE_NODES)
-        return append_tree.replace_child(_linearize_trees(base_tree, append_tree.child))
-
-
-def combine_nodes(
-    l_node: bigframes.core.nodes.BigFrameNode,
-    r_node: bigframes.core.nodes.BigFrameNode,
-) -> bigframes.core.nodes.BigFrameNode:
-    assert l_node.projection_base == r_node.projection_base
-    l_node, l_selection = pull_up_selection(l_node)
-    r_node, r_selection = pull_up_selection(
-        r_node, rename_vars=True
-    )  # Rename only right vars to avoid collisions with left vars
-    combined_selection = (*l_selection, *r_selection)
-    merged_node = _linearize_trees(l_node, r_node)
-    return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
-
-
-def try_join_as_projection(
+def try_row_join(
     l_node: bigframes.core.nodes.BigFrameNode,
     r_node: bigframes.core.nodes.BigFrameNode,
     join_keys: Tuple[Tuple[str, str], ...],
 ) -> Optional[bigframes.core.nodes.BigFrameNode]:
     """Joins the two nodes"""
-    if l_node.projection_base != r_node.projection_base:
+    divergent_node = first_shared_descendent(
+        {l_node, r_node}, descendable_types=ALIGNABLE_NODES
+    )
+    if divergent_node is None:
         return None
     # check join keys are equivalent by normalizing the expressions as much as posisble
     # instead of just comparing ids
@@ -124,11 +108,35 @@ def try_join_as_projection(
             r_node, right_id
         ):
             return None
-    return combine_nodes(l_node, r_node)
+
+    l_node, l_selection = pull_up_selection(l_node, stop=divergent_node)
+    r_node, r_selection = pull_up_selection(
+        r_node, stop=divergent_node, rename_vars=True
+    )  # Rename only right vars to avoid collisions with left vars
+    combined_selection = (*l_selection, *r_selection)
+
+    def _linearize_trees(
+        base_tree: bigframes.core.nodes.BigFrameNode,
+        append_tree: bigframes.core.nodes.BigFrameNode,
+    ) -> bigframes.core.nodes.BigFrameNode:
+        """Linearize two divergent tree who only diverge through different additive nodes."""
+        # base case: append tree does not have any divergent nodes to linearize
+        if append_tree == divergent_node:
+            return base_tree
+
+        assert isinstance(append_tree, bigframes.core.nodes.AdditiveNode)
+        return append_tree.replace_additive_base(
+            _linearize_trees(base_tree, append_tree.additive_base)
+        )
+
+    merged_node = _linearize_trees(l_node, r_node)
+    return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
 
 
 def pull_up_selection(
-    node: bigframes.core.nodes.BigFrameNode, rename_vars: bool = False
+    node: bigframes.core.nodes.BigFrameNode,
+    stop: bigframes.core.nodes.BigFrameNode,
+    rename_vars: bool = False,
 ) -> Tuple[
     bigframes.core.nodes.BigFrameNode,
     Tuple[
@@ -147,18 +155,45 @@ def pull_up_selection(
     Returns:
         BigFrameNode, Selections
     """
-    if node == node.projection_base:  # base case
+    if node == stop:  # base case
         return node, tuple(
             (bigframes.core.expression.DerefOp(field.id), field.id)
             for field in node.fields
         )
-    assert isinstance(node, (bigframes.core.nodes.SelectionNode, *ADDITIVE_NODES))
-    child_node, child_selections = pull_up_selection(
-        node.child, rename_vars=rename_vars
-    )
-    mapping = {out: ref.id for ref, out in child_selections}
-    if isinstance(node, ADDITIVE_NODES):
-        new_node: bigframes.core.nodes.BigFrameNode = node.replace_child(child_node)
+    # InNode needs special handling, as its a binary node, but row identity is from left side only.
+    # TODO: Merge code with unary op paths
+    if isinstance(node, bigframes.core.nodes.InNode):
+        child_node, child_selections = pull_up_selection(
+            node.left_child, stop=stop, rename_vars=rename_vars
+        )
+        mapping = {out: ref.id for ref, out in child_selections}
+
+        new_in_node: bigframes.core.nodes.InNode = dataclasses.replace(
+            node, left_child=child_node
+        )
+        new_in_node = new_in_node.remap_refs(mapping)
+        if rename_vars:
+            new_in_node = cast(
+                bigframes.core.nodes.InNode,
+                new_in_node.remap_vars(
+                    {node.indicator_col: bigframes.core.identifiers.ColumnId.unique()}
+                ),
+            )
+        added_selection = (
+            bigframes.core.expression.DerefOp(new_in_node.indicator_col),
+            node.indicator_col,
+        )
+        new_selection = (*child_selections, added_selection)
+        return new_in_node, new_selection
+
+    if isinstance(node, bigframes.core.nodes.AdditiveNode):
+        child_node, child_selections = pull_up_selection(
+            node.additive_base, stop, rename_vars=rename_vars
+        )
+        mapping = {out: ref.id for ref, out in child_selections}
+        new_node: bigframes.core.nodes.BigFrameNode = node.replace_additive_base(
+            child_node
+        )
         new_node = new_node.remap_refs(mapping)
         if rename_vars:
             var_renames = {
@@ -168,7 +203,7 @@ def pull_up_selection(
             new_node = new_node.remap_vars(var_renames)
         else:
             var_renames = {}
-        assert isinstance(new_node, ADDITIVE_NODES)
+        assert isinstance(new_node, bigframes.core.nodes.AdditiveNode)
         added_selections = (
             (
                 bigframes.core.expression.DerefOp(var_renames.get(field.id, field.id)),
@@ -179,6 +214,10 @@ def pull_up_selection(
         new_selection = (*child_selections, *added_selections)
         return new_node, new_selection
     elif isinstance(node, bigframes.core.nodes.SelectionNode):
+        child_node, child_selections = pull_up_selection(
+            node.child, stop, rename_vars=rename_vars
+        )
+        mapping = {out: ref.id for ref, out in child_selections}
         new_selection = tuple(
             (
                 bigframes.core.expression.DerefOp(mapping[ref.id]),
@@ -188,3 +227,35 @@ def pull_up_selection(
         )
         return child_node, new_selection
     raise ValueError(f"Couldn't pull up select from node: {node}")
+
+
+## Traversal helpers
+def first_shared_descendent(
+    roots: Set[bigframes.core.nodes.BigFrameNode],
+    descendable_types: Tuple[type[bigframes.core.nodes.BigFrameNode], ...],
+) -> Optional[bigframes.core.nodes.BigFrameNode]:
+    if not roots:
+        return None
+    if len(roots) == 1:
+        return next(iter(roots))
+
+    min_height = min(root.height for root in roots)
+
+    def descend(
+        root: bigframes.core.nodes.BigFrameNode,
+    ) -> Sequence[bigframes.core.nodes.BigFrameNode]:
+        # Special case to not descend into right side of IsInNode
+        if isinstance(root, bigframes.core.nodes.AdditiveNode):
+            return (root.additive_base,)
+        return root.child_nodes
+
+    roots_to_descend = set(root for root in roots if root.height > min_height)
+    if not roots_to_descend:
+        roots_to_descend = roots
+    if any(not isinstance(root, descendable_types) for root in roots_to_descend):
+        return None
+    as_is = roots - roots_to_descend
+    descended = set(
+        itertools.chain.from_iterable(descend(root) for root in roots_to_descend)
+    )
+    return first_shared_descendent(as_is.union(descended), descendable_types)

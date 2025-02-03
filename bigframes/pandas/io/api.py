@@ -30,6 +30,7 @@ from typing import (
     Union,
 )
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as vendored_pandas_gbq
 from google.cloud import bigquery
 import numpy
@@ -45,7 +46,6 @@ import bigframes._config as config
 import bigframes.core.blocks
 import bigframes.core.global_session as global_session
 import bigframes.core.indexes
-import bigframes.core.joins
 import bigframes.core.reshape
 import bigframes.core.tools
 import bigframes.dataframe
@@ -54,7 +54,6 @@ import bigframes.series
 import bigframes.session
 import bigframes.session._io.bigquery
 import bigframes.session.clients
-import bigframes.version
 
 # Note: the following methods are duplicated from Session. This duplication
 # enables the following:
@@ -105,6 +104,7 @@ def read_csv(
         Literal["c", "python", "pyarrow", "python-fwf", "bigquery"]
     ] = None,
     encoding: Optional[str] = None,
+    write_engine: constants.WriteEngineType = "default",
     **kwargs,
 ) -> bigframes.dataframe.DataFrame:
     return global_session.with_default_session(
@@ -118,6 +118,7 @@ def read_csv(
         dtype=dtype,
         engine=engine,
         encoding=encoding,
+        write_engine=write_engine,
         **kwargs,
     )
 
@@ -135,6 +136,7 @@ def read_json(
     encoding: Optional[str] = None,
     lines: bool = False,
     engine: Literal["ujson", "pyarrow", "bigquery"] = "ujson",
+    write_engine: constants.WriteEngineType = "default",
     **kwargs,
 ) -> bigframes.dataframe.DataFrame:
     return global_session.with_default_session(
@@ -145,6 +147,7 @@ def read_json(
         encoding=encoding,
         lines=lines,
         engine=engine,
+        write_engine=write_engine,
         **kwargs,
     )
 
@@ -188,6 +191,21 @@ def read_gbq_model(model_name: str):
 
 
 read_gbq_model.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_model)
+
+
+def read_gbq_object_table(
+    object_table: str, *, name: Optional[str] = None
+) -> bigframes.dataframe.DataFrame:
+    return global_session.with_default_session(
+        bigframes.session.Session.read_gbq_object_table,
+        object_table,
+        name=name,
+    )
+
+
+read_gbq_object_table.__doc__ = inspect.getdoc(
+    bigframes.session.Session.read_gbq_object_table
+)
 
 
 def read_gbq_query(
@@ -245,24 +263,41 @@ read_gbq_table.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_table
 
 
 @typing.overload
-def read_pandas(pandas_dataframe: pandas.DataFrame) -> bigframes.dataframe.DataFrame:
+def read_pandas(
+    pandas_dataframe: pandas.DataFrame,
+    *,
+    write_engine: constants.WriteEngineType = "default",
+) -> bigframes.dataframe.DataFrame:
     ...
 
 
 @typing.overload
-def read_pandas(pandas_dataframe: pandas.Series) -> bigframes.series.Series:
+def read_pandas(
+    pandas_dataframe: pandas.Series,
+    *,
+    write_engine: constants.WriteEngineType = "default",
+) -> bigframes.series.Series:
     ...
 
 
 @typing.overload
-def read_pandas(pandas_dataframe: pandas.Index) -> bigframes.core.indexes.Index:
+def read_pandas(
+    pandas_dataframe: pandas.Index,
+    *,
+    write_engine: constants.WriteEngineType = "default",
+) -> bigframes.core.indexes.Index:
     ...
 
 
-def read_pandas(pandas_dataframe: Union[pandas.DataFrame, pandas.Series, pandas.Index]):
+def read_pandas(
+    pandas_dataframe: Union[pandas.DataFrame, pandas.Series, pandas.Index],
+    *,
+    write_engine: constants.WriteEngineType = "default",
+):
     return global_session.with_default_session(
         bigframes.session.Session.read_pandas,
         pandas_dataframe,
+        write_engine=write_engine,
     )
 
 
@@ -273,12 +308,15 @@ def read_pickle(
     filepath_or_buffer: FilePath | ReadPickleBuffer,
     compression: CompressionOptions = "infer",
     storage_options: StorageOptions = None,
+    *,
+    write_engine: constants.WriteEngineType = "default",
 ):
     return global_session.with_default_session(
         bigframes.session.Session.read_pickle,
         filepath_or_buffer=filepath_or_buffer,
         compression=compression,
         storage_options=storage_options,
+        write_engine=write_engine,
     )
 
 
@@ -286,19 +324,26 @@ read_pickle.__doc__ = inspect.getdoc(bigframes.session.Session.read_pickle)
 
 
 def read_parquet(
-    path: str | IO["bytes"], *, engine: str = "auto"
+    path: str | IO["bytes"],
+    *,
+    engine: str = "auto",
+    write_engine: constants.WriteEngineType = "default",
 ) -> bigframes.dataframe.DataFrame:
     return global_session.with_default_session(
         bigframes.session.Session.read_parquet,
         path,
         engine=engine,
+        write_engine=write_engine,
     )
 
 
 read_parquet.__doc__ = inspect.getdoc(bigframes.session.Session.read_parquet)
 
 
-def read_gbq_function(function_name: str, is_row_processor: bool = False):
+def read_gbq_function(
+    function_name: str,
+    is_row_processor: bool = False,
+):
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq_function,
         function_name=function_name,
@@ -307,6 +352,20 @@ def read_gbq_function(function_name: str, is_row_processor: bool = False):
 
 
 read_gbq_function.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_function)
+
+
+def from_glob_path(
+    path: str, *, connection: Optional[str] = None, name: Optional[str] = None
+) -> bigframes.dataframe.DataFrame:
+    return global_session.with_default_session(
+        bigframes.session.Session.from_glob_path,
+        path=path,
+        connection=connection,
+        name=name,
+    )
+
+
+from_glob_path.__doc__ = inspect.getdoc(bigframes.session.Session.from_glob_path)
 
 
 def _set_default_session_location_if_possible(query):

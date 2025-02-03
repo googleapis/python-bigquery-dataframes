@@ -34,6 +34,7 @@ import warnings
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import cloudpickle
 import google.api_core.exceptions
@@ -51,22 +52,21 @@ if TYPE_CHECKING:
 
 import pandas
 
-from . import _remote_function_client as rf_client
-from . import _utils
+from . import _function_client, _utils
 
 
-class RemoteFunctionSession:
-    """Session to manage remote functions."""
+class FunctionSession:
+    """Session to manage bigframes functions."""
 
     def __init__(self):
-        # Session level mapping of remote function artifacts
+        # Session level mapping of function artifacts
         self._temp_artifacts: Dict[str, str] = dict()
 
         # Lock to synchronize the update of the session artifacts
         self._artifacts_lock = threading.Lock()
 
     def _update_temp_artifacts(self, bqrf_routine: str, gcf_path: str):
-        """Update remote function artifacts in the current session."""
+        """Update function artifacts in the current session."""
         with self._artifacts_lock:
             self._temp_artifacts[bqrf_routine] = gcf_path
 
@@ -76,11 +76,11 @@ class RemoteFunctionSession:
         gcfclient: functions_v2.FunctionServiceClient,
         session_id: str,
     ):
-        """Delete remote function artifacts in the current session."""
+        """Delete function artifacts in the current session."""
         with self._artifacts_lock:
             for bqrf_routine, gcf_path in self._temp_artifacts.items():
-                # Let's accept the possibility that the remote function may have
-                # been deleted directly by the user
+                # Let's accept the possibility that the function may have been
+                # deleted directly by the user
                 bqclient.delete_routine(bqrf_routine, not_found_ok=True)
 
                 # Let's accept the possibility that the cloud function may have
@@ -167,12 +167,19 @@ class RemoteFunctionSession:
                 `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
         Args:
-            input_types (None, type, or sequence(type)):
+            input_types (type or sequence(type), Optional):
                 For scalar user defined function it should be the input type or
-                sequence of input types. For row processing user defined function,
-                type `Series` should be specified.
-            output_type (Optional[type]):
-                Data type of the output in the user defined function.
+                sequence of input types. The supported scalar input types are
+                `bool`, `bytes`, `float`, `int`, `str`. For row processing user
+                defined function (i.e. functions that receive a single input
+                representing a row in form of a Series), type `Series` should be
+                specified.
+            output_type (type, Optional):
+                Data type of the output in the user defined function. If the
+                user defined function returns an array, then `list[type]` should
+                be specified. The supported output types are `bool`, `bytes`,
+                `float`, `int`, `str`, `list[bool]`, `list[float]`, `list[int]`
+                and `list[str]`.
             session (bigframes.Session, Optional):
                 BigQuery DataFrames session to use for getting default project,
                 dataset and BigQuery connection.
@@ -300,7 +307,7 @@ class RemoteFunctionSession:
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
         """
         # Some defaults may be used from the session if not provided otherwise
-        import bigframes.exceptions as bf_exceptions
+        import bigframes.exceptions as bfe
         import bigframes.pandas as bpd
         import bigframes.series as bf_series
         import bigframes.session
@@ -445,11 +452,8 @@ class RemoteFunctionSession:
                 (input_type := input_types[0]) == bf_series.Series
                 or input_type == pandas.Series
             ):
-                warnings.warn(
-                    "input_types=Series is in preview.",
-                    stacklevel=1,
-                    category=bf_exceptions.PreviewWarning,
-                )
+                msg = "input_types=Series is in preview."
+                warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
 
                 # we will model the row as a json serialized string containing the data
                 # and the metadata representing the row
@@ -463,7 +467,7 @@ class RemoteFunctionSession:
                 signature, input_types, output_type  # type: ignore
             )
 
-            remote_function_client = rf_client.RemoteFunctionClient(
+            remote_function_client = _function_client.FunctionClient(
                 dataset_ref.project,
                 cloud_function_region,
                 cloud_functions_client,
@@ -500,6 +504,24 @@ class RemoteFunctionSession:
             try_delattr("is_row_processor")
             try_delattr("ibis_node")
 
+            # resolve the output type that can be supported in the bigframes,
+            # ibis, BQ remote functions and cloud functions integration
+            ibis_output_type_for_bqrf = ibis_signature.output_type
+            bqrf_metadata = None
+            if isinstance(ibis_signature.output_type, ibis_dtypes.Array):
+                # TODO(b/284515241): remove this special handling to support
+                # array output types once BQ remote functions support ARRAY.
+                # Until then, use json serialized strings at the cloud function
+                # and BQ level, and parse that to the intended output type at
+                # the bigframes level.
+                ibis_output_type_for_bqrf = ibis_dtypes.String()
+                bqrf_metadata = _utils.get_bigframes_metadata(
+                    python_output_type=output_type
+                )
+            bqrf_output_type = third_party_ibis_bqtypes.BigQueryType.from_ibis(
+                ibis_output_type_for_bqrf
+            )
+
             (
                 rf_name,
                 cf_name,
@@ -511,9 +533,7 @@ class RemoteFunctionSession:
                     for type_ in ibis_signature.input_types
                     if type_ is not None
                 ),
-                output_type=third_party_ibis_bqtypes.BigQueryType.from_ibis(
-                    ibis_signature.output_type
-                ),
+                output_type=bqrf_output_type,
                 reuse=reuse,
                 name=name,
                 package_requirements=packages,
@@ -524,6 +544,7 @@ class RemoteFunctionSession:
                 cloud_function_vpc_connector=cloud_function_vpc_connector,
                 cloud_function_memory_mib=cloud_function_memory_mib,
                 cloud_function_ingress_settings=cloud_function_ingress_settings,
+                bq_metadata=bqrf_metadata,
             )
 
             # TODO(shobs): Find a better way to support udfs with param named "name".
@@ -544,7 +565,7 @@ class RemoteFunctionSession:
                 name=rf_name,
                 catalog=dataset_ref.project,
                 database=dataset_ref.dataset_id,
-                signature=(ibis_signature.input_types, ibis_signature.output_type),
+                signature=(ibis_signature.input_types, ibis_output_type_for_bqrf),
             )  # type: ignore
             func.bigframes_cloud_function = (
                 remote_function_client.get_cloud_function_fully_qualified_name(cf_name)

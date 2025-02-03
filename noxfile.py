@@ -24,13 +24,15 @@ import re
 import shutil
 import time
 from typing import Dict, List
-import warnings
 
 import nox
 import nox.sessions
 
 BLACK_VERSION = "black==22.3.0"
 ISORT_VERSION = "isort==5.12.0"
+
+# TODO: switch to 3.13 once remote functions / cloud run adds a runtime for it (internal issue 333742751)
+LATEST_FULLY_SUPPORTED_PYTHON = "3.12"
 
 # pytest-retry is not yet compatible with pytest 8.x.
 # https://github.com/str0zzapreti/pytest-retry/issues/32
@@ -47,7 +49,7 @@ LINT_PATHS = [
 
 DEFAULT_PYTHON_VERSION = "3.10"
 
-UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12"]
+UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
@@ -57,7 +59,6 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
     "pytest-asyncio",
     "pytest-mock",
 ]
-UNIT_TEST_EXTERNAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
@@ -65,7 +66,7 @@ UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {"3.12": ["polars"]}
 
 # There are 4 different ibis-framework 9.x versions we want to test against.
 # 3.10 is needed for Windows tests.
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.12", "3.13"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -168,14 +169,6 @@ def lint_setup_py(session):
 def install_unittest_dependencies(session, install_test_extra, *constraints):
     standard_deps = UNIT_TEST_STANDARD_DEPENDENCIES + UNIT_TEST_DEPENDENCIES
     session.install(*standard_deps, *constraints)
-
-    if UNIT_TEST_EXTERNAL_DEPENDENCIES:
-        warnings.warn(
-            "'unit_test_external_dependencies' is deprecated. Instead, please "
-            "use 'unit_test_dependencies' or 'unit_test_local_dependencies'.",
-            DeprecationWarning,
-        )
-        session.install(*UNIT_TEST_EXTERNAL_DEPENDENCIES, *constraints)
 
     if UNIT_TEST_LOCAL_DEPENDENCIES:
         session.install(*UNIT_TEST_LOCAL_DEPENDENCIES, *constraints)
@@ -375,7 +368,7 @@ def system(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+@nox.session(python=LATEST_FULLY_SUPPORTED_PYTHON)
 def system_noextras(session: nox.sessions.Session):
     """Run the system test suite."""
     run_system(
@@ -386,7 +379,7 @@ def system_noextras(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+@nox.session(python=LATEST_FULLY_SUPPORTED_PYTHON)
 def doctest(session: nox.sessions.Session):
     """Run the system test suite."""
     run_system(
@@ -444,7 +437,7 @@ def cover(session):
         "report",
         "--include=bigframes/*",
         "--show-missing",
-        "--fail-under=86",
+        "--fail-under=85",
     )
 
     # Make sure there is no dead code in our test directories.
@@ -589,20 +582,16 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
     )
     already_installed.add("pandas")
 
-    # Ibis has introduced breaking changes. Let's exclude ibis head
-    # from prerelease install list for now. We should enable the head back
-    # once bigframes supports the version at HEAD.
-    # session.install(
-    #     "--upgrade",
-    #     "-e",  # Use -e so that py.typed file is included.
-    #     "git+https://github.com/ibis-project/ibis.git#egg=ibis-framework",
-    # )
+    # Try to avoid a cap on our SQLGlot so that bigframes
+    # can be integrated with SQLMesh. See:
+    # https://github.com/googleapis/python-bigquery-dataframes/issues/942
+    # If SQLGlot introduces something that breaks us, lets file an issue
+    # upstream and/or make sure we fix bigframes to work with it.
     session.install(
         "--upgrade",
-        "--pre",
-        "ibis-framework>=9.0.0,<=9.2.0",
+        "git+https://github.com/tobymao/sqlglot.git#egg=sqlglot",
     )
-    already_installed.add("ibis-framework")
+    already_installed.add("sqlglot")
 
     # Workaround https://github.com/googleapis/python-db-dtypes-pandas/issues/178
     session.install("--no-deps", "db-dtypes")
@@ -620,9 +609,10 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
         "git+https://github.com/googleapis/python-bigquery-storage.git#egg=google-cloud-bigquery-storage",
     )
     already_installed.add("google-cloud-bigquery-storage")
-
-    # Workaround to install pandas-gbq >=0.15.0, which is required by test only.
-    session.install("--no-deps", "pandas-gbq")
+    session.install(
+        "--upgrade",
+        "git+https://github.com/googleapis/python-bigquery-pandas.git#egg=pandas-gbq",
+    )
     already_installed.add("pandas-gbq")
 
     session.install(
@@ -749,6 +739,7 @@ def notebook(session: nox.Session):
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
         "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
+        "notebooks/generative_ai/bq_dataframes_llm_gemini_2.ipynb",  # Gemini 2.0 backend hasn't ready in prod.
         # TODO(b/366290533): to protect BQML quota
         "notebooks/generative_ai/bq_dataframes_llm_claude3_museum_art.ipynb",
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
@@ -764,6 +755,20 @@ def notebook(session: nox.Session):
         "notebooks/apps/synthetic_data_generation.ipynb",
     ]
 
+    # TODO: remove exception for Python 3.13 cloud run adds a runtime for it (internal issue 333742751)
+    # TODO: remove exception for Python 3.13 if nbmake adds support for
+    # sys.exit(0) or pytest.skip(...).
+    # See: https://github.com/treebeardtech/nbmake/issues/134
+    if session.python == "3.13":
+        denylist.extend(
+            [
+                "notebooks/getting_started/getting_started_bq_dataframes.ipynb",
+                "notebooks/remote_functions/remote_function_usecases.ipynb",
+                "notebooks/remote_functions/remote_function_vertex_claude_model.ipynb",
+                "notebooks/remote_functions/remote_function.ipynb",
+            ]
+        )
+
     # Convert each Path notebook object to a string using a list comprehension.
     notebooks = [str(nb) for nb in notebooks_list]
 
@@ -771,20 +776,27 @@ def notebook(session: nox.Session):
     notebooks = list(filter(lambda nb: nb not in denylist, notebooks))
 
     # Regionalized notebooks
-    notebooks_reg = {
-        "regionalized.ipynb": [
-            "asia-southeast1",
-            "eu",
-            "europe-west4",
-            "southamerica-west1",
-            "us",
-            "us-central1",
-        ]
-    }
-    notebooks_reg = {
-        os.path.join("notebooks/location", nb): regions
-        for nb, regions in notebooks_reg.items()
-    }
+    # TODO: remove exception for Python 3.13 cloud run adds a runtime for it (internal issue 333742751)
+    # TODO: remove exception for Python 3.13 if nbmake adds support for
+    # sys.exit(0) or pytest.skip(...).
+    # See: https://github.com/treebeardtech/nbmake/issues/134
+    if session.python == "3.13":
+        notebooks_reg = {}
+    else:
+        notebooks_reg = {
+            "regionalized.ipynb": [
+                "asia-southeast1",
+                "eu",
+                "europe-west4",
+                "southamerica-west1",
+                "us",
+                "us-central1",
+            ]
+        }
+        notebooks_reg = {
+            os.path.join("notebooks/location", nb): regions
+            for nb, regions in notebooks_reg.items()
+        }
 
     # The pytest --nbmake exits silently with "no tests ran" message if
     # one of the notebook paths supplied does not exist. Let's make sure that

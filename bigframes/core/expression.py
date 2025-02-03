@@ -20,6 +20,8 @@ import itertools
 import typing
 from typing import Mapping, TypeVar, Union
 
+import pandas as pd
+
 import bigframes.core.identifiers as ids
 import bigframes.dtypes as dtypes
 import bigframes.operations
@@ -206,6 +208,10 @@ class Expression(abc.ABC):
         return False
 
     @property
+    def deterministic(self) -> bool:
+        return True
+
+    @property
     def is_identity(self) -> bool:
         """True for identity operation that does not transform input."""
         return False
@@ -248,6 +254,17 @@ class ScalarConstantExpression(Expression):
     def is_bijective(self) -> bool:
         # () <-> value
         return True
+
+    def __eq__(self, other):
+        if not isinstance(other, ScalarConstantExpression):
+            return False
+
+        # With python 3.13 and the pre-release version of pandas,
+        # NA == NA is NA instead of True
+        if pd.isna(self.value) and pd.isna(other.value):  # type: ignore
+            return self.dtype == other.dtype
+
+        return self.value == other.value and self.dtype == other.dtype
 
 
 @dataclasses.dataclass(frozen=True)
@@ -409,4 +426,13 @@ class OpExpression(Expression):
     @property
     def is_bijective(self) -> bool:
         # TODO: Mark individual functions as bijective?
-        return False
+        return all(input.is_bijective for input in self.inputs) and self.op.is_bijective
+
+    @property
+    def deterministic(self) -> bool:
+        return (
+            all(input.deterministic for input in self.inputs) and self.op.deterministic
+        )
+
+
+RefOrConstant = Union[DerefOp, ScalarConstantExpression]

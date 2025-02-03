@@ -19,11 +19,10 @@ from __future__ import annotations
 from typing import Mapping, Optional
 import warnings
 
-import bigframes
-from bigframes import clients
-from bigframes.core import log_adapter
+from bigframes.core import global_session, log_adapter
+import bigframes.dataframe
 from bigframes.ml import base, core, globals, utils
-import bigframes.pandas as bpd
+import bigframes.session
 
 _REMOTE_MODEL_STATUS = "remote_model_status"
 
@@ -54,44 +53,25 @@ class VertexAIModel(base.BaseEstimator):
         input: Mapping[str, str],
         output: Mapping[str, str],
         *,
-        session: Optional[bigframes.Session] = None,
+        session: Optional[bigframes.session.Session] = None,
         connection_name: Optional[str] = None,
     ):
         self.endpoint = endpoint
         self.input = input
         self.output = output
-        self.session = session or bpd.get_global_session()
+        self.session = session or global_session.get_global_session()
 
         self._bq_connection_manager = self.session.bqconnectionmanager
-        connection_name = connection_name or self.session._bq_connection
-        self.connection_name = clients.resolve_full_bq_connection_name(
-            connection_name,
-            default_project=self.session._project,
-            default_location=self.session._location,
-        )
+        self.connection_name = connection_name
 
         self._bqml_model_factory = globals.bqml_model_factory()
         self._bqml_model: core.BqmlModel = self._create_bqml_model()
 
     def _create_bqml_model(self):
         # Parse and create connection if needed.
-        if not self.connection_name:
-            raise ValueError(
-                "Must provide connection_name, either in constructor or through session options."
-            )
-
-        if self._bq_connection_manager:
-            connection_name_parts = self.connection_name.split(".")
-            if len(connection_name_parts) != 3:
-                raise ValueError(
-                    f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
-                )
-            self._bq_connection_manager.create_bq_connection(
-                project_id=connection_name_parts[0],
-                location=connection_name_parts[1],
-                connection_id=connection_name_parts[2],
-                iam_role="aiplatform.user",
-            )
+        self.connection_name = self.session._create_bq_connection(
+            connection=self.connection_name, iam_role="aiplatform.user"
+        )
 
         options = {
             "endpoint": self.endpoint,
@@ -122,15 +102,15 @@ class VertexAIModel(base.BaseEstimator):
     def predict(
         self,
         X: utils.ArrayType,
-    ) -> bpd.DataFrame:
+    ) -> bigframes.dataframe.DataFrame:
         """Predict the result from the input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
+            X (bigframes.pandas.DataFrame or bigframes.pandas.Series or pandas.DataFrame or pandas.Series):
                 Input DataFrame or Series, which needs to comply with the input parameter of the model.
 
         Returns:
-            bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
+            bigframes.pandas.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
         """
 
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
@@ -139,9 +119,10 @@ class VertexAIModel(base.BaseEstimator):
 
         # unlike LLM models, the general remote model status is null for successful runs.
         if (df[_REMOTE_MODEL_STATUS].notna()).any():
-            warnings.warn(
-                f"Some predictions failed. Check column {_REMOTE_MODEL_STATUS} for detailed status. You may want to filter the failed rows and retry.",
-                RuntimeWarning,
+            msg = (
+                f"Some predictions failed. Check column {_REMOTE_MODEL_STATUS} for "
+                "detailed status. You may want to filter the failed rows and retry."
             )
+            warnings.warn(msg, category=RuntimeWarning)
 
         return df

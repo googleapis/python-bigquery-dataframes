@@ -322,6 +322,125 @@ def test_insert(scalars_dfs, loc, column, value, allow_duplicates):
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df, check_dtype=False)
 
 
+def test_where_series_cond(scalars_df_index, scalars_pandas_df_index):
+    # Condition is dataframe, other is None (as default).
+    cond_bf = scalars_df_index["int64_col"] > 0
+    cond_pd = scalars_pandas_df_index["int64_col"] > 0
+    bf_result = scalars_df_index.where(cond_bf).to_pandas()
+    pd_result = scalars_pandas_df_index.where(cond_pd)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_mask_series_cond(scalars_df_index, scalars_pandas_df_index):
+    cond_bf = scalars_df_index["int64_col"] > 0
+    cond_pd = scalars_pandas_df_index["int64_col"] > 0
+
+    bf_df = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
+    pd_df = scalars_pandas_df_index[["int64_too", "int64_col", "float64_col"]]
+    bf_result = bf_df.mask(cond_bf, bf_df + 1).to_pandas()
+    pd_result = pd_df.mask(cond_pd, pd_df + 1)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_where_series_multi_index(scalars_df_index, scalars_pandas_df_index):
+    # Test when a dataframe has multi-index or multi-columns.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+
+    dataframe_bf.columns = pd.MultiIndex.from_tuples(
+        [("str1", 1), ("str2", 2)], names=["STR", "INT"]
+    )
+    cond_bf = dataframe_bf["str1"] > 0
+
+    with pytest.raises(NotImplementedError) as context:
+        dataframe_bf.where(cond_bf).to_pandas()
+    assert (
+        str(context.value)
+        == "The dataframe.where() method does not support multi-index and/or multi-column."
+    )
+
+
+def test_where_series_cond_const_other(scalars_df_index, scalars_pandas_df_index):
+    # Condition is a series, other is a constant.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+    dataframe_pd = scalars_pandas_df_index[columns]
+    dataframe_bf.columns.name = "test_name"
+    dataframe_pd.columns.name = "test_name"
+
+    cond_bf = dataframe_bf["int64_col"] > 0
+    cond_pd = dataframe_pd["int64_col"] > 0
+    other = 0
+
+    bf_result = dataframe_bf.where(cond_bf, other).to_pandas()
+    pd_result = dataframe_pd.where(cond_pd, other)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_where_series_cond_dataframe_other(scalars_df_index, scalars_pandas_df_index):
+    # Condition is a series, other is a dataframe.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+    dataframe_pd = scalars_pandas_df_index[columns]
+
+    cond_bf = dataframe_bf["int64_col"] > 0
+    cond_pd = dataframe_pd["int64_col"] > 0
+    other_bf = -dataframe_bf
+    other_pd = -dataframe_pd
+
+    bf_result = dataframe_bf.where(cond_bf, other_bf).to_pandas()
+    pd_result = dataframe_pd.where(cond_pd, other_pd)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_where_dataframe_cond(scalars_df_index, scalars_pandas_df_index):
+    # Condition is a dataframe, other is None.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+    dataframe_pd = scalars_pandas_df_index[columns]
+
+    cond_bf = dataframe_bf > 0
+    cond_pd = dataframe_pd > 0
+
+    bf_result = dataframe_bf.where(cond_bf, None).to_pandas()
+    pd_result = dataframe_pd.where(cond_pd, None)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_where_dataframe_cond_const_other(scalars_df_index, scalars_pandas_df_index):
+    # Condition is a dataframe, other is a constant.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+    dataframe_pd = scalars_pandas_df_index[columns]
+
+    cond_bf = dataframe_bf > 0
+    cond_pd = dataframe_pd > 0
+    other_bf = 10
+    other_pd = 10
+
+    bf_result = dataframe_bf.where(cond_bf, other_bf).to_pandas()
+    pd_result = dataframe_pd.where(cond_pd, other_pd)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_where_dataframe_cond_dataframe_other(
+    scalars_df_index, scalars_pandas_df_index
+):
+    # Condition is a dataframe, other is a dataframe.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+    dataframe_pd = scalars_pandas_df_index[columns]
+
+    cond_bf = dataframe_bf > 0
+    cond_pd = dataframe_pd > 0
+    other_bf = dataframe_bf * 2
+    other_pd = dataframe_pd * 2
+
+    bf_result = dataframe_bf.where(cond_bf, other_bf).to_pandas()
+    pd_result = dataframe_pd.where(cond_pd, other_pd)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_drop_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
@@ -2075,8 +2194,8 @@ def test_combine_first(
         ),
     ],
 )
-def test_corr_w_numeric_only(scalars_dfs, columns, numeric_only):
-    scalars_df, scalars_pandas_df = scalars_dfs
+def test_corr_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
 
     bf_result = scalars_df[columns].corr(numeric_only=numeric_only).to_pandas()
     pd_result = scalars_pandas_df[columns].corr(numeric_only=numeric_only)
@@ -2115,15 +2234,80 @@ def test_corr_w_invalid_parameters(scalars_dfs):
         ),
     ],
 )
-def test_cov_w_numeric_only(scalars_dfs, columns, numeric_only):
-    scalars_df, scalars_pandas_df = scalars_dfs
+def test_cov_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
     bf_result = scalars_df[columns].cov(numeric_only=numeric_only).to_pandas()
     pd_result = scalars_pandas_df[columns].cov(numeric_only=numeric_only)
-
     # BigFrames and Pandas differ in their data type handling:
     # - Column types: BigFrames uses Float64, Pandas uses float64.
     # - Index types: BigFrames uses strign, Pandas uses object.
     pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_corrwith_df(scalars_dfs_maybe_ordered):
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+
+    l_cols = ["int64_col", "float64_col", "int64_too"]
+    r_cols = ["int64_too", "float64_col"]
+
+    bf_result = scalars_df[l_cols].corrwith(scalars_df[r_cols]).to_pandas()
+    pd_result = scalars_pandas_df[l_cols].corrwith(scalars_pandas_df[r_cols])
+
+    # BigFrames and Pandas differ in their data type handling:
+    # - Column types: BigFrames uses Float64, Pandas uses float64.
+    # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_corrwith_df_numeric_only(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    l_cols = ["int64_col", "float64_col", "int64_too", "string_col"]
+    r_cols = ["int64_too", "float64_col", "bool_col"]
+
+    bf_result = (
+        scalars_df[l_cols].corrwith(scalars_df[r_cols], numeric_only=True).to_pandas()
+    )
+    pd_result = scalars_pandas_df[l_cols].corrwith(
+        scalars_pandas_df[r_cols], numeric_only=True
+    )
+
+    # BigFrames and Pandas differ in their data type handling:
+    # - Column types: BigFrames uses Float64, Pandas uses float64.
+    # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_corrwith_df_non_numeric_error(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+
+    l_cols = ["int64_col", "float64_col", "int64_too", "string_col"]
+    r_cols = ["int64_too", "float64_col", "bool_col"]
+
+    with pytest.raises(NotImplementedError):
+        scalars_df[l_cols].corrwith(scalars_df[r_cols], numeric_only=False)
+
+
+@skip_legacy_pandas
+def test_df_corrwith_series(scalars_dfs_maybe_ordered):
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+
+    l_cols = ["int64_col", "float64_col", "int64_too"]
+    r_col = "float64_col"
+
+    bf_result = scalars_df[l_cols].corrwith(scalars_df[r_col]).to_pandas()
+    pd_result = scalars_pandas_df[l_cols].corrwith(scalars_pandas_df[r_col])
+
+    # BigFrames and Pandas differ in their data type handling:
+    # - Column types: BigFrames uses Float64, Pandas uses float64.
+    # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_series_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
 
@@ -2447,6 +2631,27 @@ def test_join_param_on(scalars_dfs, how):
         assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
+@all_joins
+def test_df_join_series(scalars_dfs, how):
+    bf_df, pd_df = scalars_dfs
+
+    bf_df_a = bf_df[["string_col", "int64_col", "rowindex_2"]]
+    bf_df_a = bf_df_a.assign(rowindex_2=bf_df_a["rowindex_2"] + 2)
+    bf_series_b = bf_df["float64_col"]
+
+    if how == "cross":
+        with pytest.raises(ValueError):
+            bf_df_a.join(bf_series_b, on="rowindex_2", how=how)
+    else:
+        bf_result = bf_df_a.join(bf_series_b, on="rowindex_2", how=how).to_pandas()
+
+        pd_df_a = pd_df[["string_col", "int64_col", "rowindex_2"]]
+        pd_df_a = pd_df_a.assign(rowindex_2=pd_df_a["rowindex_2"] + 2)
+        pd_series_b = pd_df["float64_col"]
+        pd_result = pd_df_a.join(pd_series_b, on="rowindex_2", how=how)
+        assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
+
+
 @pytest.mark.parametrize(
     ("by", "ascending", "na_position"),
     [
@@ -2472,6 +2677,11 @@ def test_dataframe_sort_values(
         bf_result,
         pd_result,
     )
+
+
+def test_dataframe_sort_values_invalid_input(scalars_df_index):
+    with pytest.raises(KeyError):
+        scalars_df_index.sort_values(by=scalars_df_index["int64_col"])
 
 
 def test_dataframe_sort_values_stable(scalars_df_index, scalars_pandas_df_index):
@@ -2672,11 +2882,11 @@ def test_dataframe_agg_int_multi_string(scalars_dfs):
 
 
 @skip_legacy_pandas
-def test_df_describe(scalars_dfs):
+def test_df_describe_non_temporal(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
-    # pyarrows time columns fail in pandas
+    # excluding temporal columns here because BigFrames cannot perform percentiles operations on them
     unsupported_columns = ["datetime_col", "timestamp_col", "time_col", "date_col"]
-    bf_result = scalars_df.describe().to_pandas()
+    bf_result = scalars_df.drop(columns=unsupported_columns).describe().to_pandas()
 
     modified_pd_df = scalars_pandas_df.drop(columns=unsupported_columns)
     pd_result = modified_pd_df.describe()
@@ -2710,12 +2920,14 @@ def test_df_describe(scalars_dfs):
 def test_df_describe_non_numeric(scalars_dfs, include):
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    non_numeric_columns = ["string_col", "bytes_col", "bool_col"]
+    # Excluding "date_col" here because in BigFrames it is used as PyArrow[date32()], which is
+    # considered numerical in Pandas
+    target_columns = ["string_col", "bytes_col", "bool_col", "time_col"]
 
-    modified_bf = scalars_df[non_numeric_columns]
+    modified_bf = scalars_df[target_columns]
     bf_result = modified_bf.describe(include=include).to_pandas()
 
-    modified_pd_df = scalars_pandas_df[non_numeric_columns]
+    modified_pd_df = scalars_pandas_df[target_columns]
     pd_result = modified_pd_df.describe(include=include)
 
     # Reindex results with the specified keys and their order, because
@@ -2727,8 +2939,35 @@ def test_df_describe_non_numeric(scalars_dfs, include):
     ).rename(index={"unique": "nunique"})
 
     pd.testing.assert_frame_equal(
-        pd_result[non_numeric_columns].astype("Int64"),
-        bf_result[non_numeric_columns],
+        pd_result.astype("Int64"),
+        bf_result,
+        check_index_type=False,
+    )
+
+
+@skip_legacy_pandas
+def test_df_describe_temporal(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    temporal_columns = ["datetime_col", "timestamp_col", "time_col", "date_col"]
+
+    modified_bf = scalars_df[temporal_columns]
+    bf_result = modified_bf.describe(include="all").to_pandas()
+
+    modified_pd_df = scalars_pandas_df[temporal_columns]
+    pd_result = modified_pd_df.describe(include="all")
+
+    # Reindex results with the specified keys and their order, because
+    # the relative order is not important.
+    bf_result = bf_result.reindex(["count", "nunique"])
+    pd_result = pd_result.reindex(
+        ["count", "unique"]
+        # BF counter part of "unique" is called "nunique"
+    ).rename(index={"unique": "nunique"})
+
+    pd.testing.assert_frame_equal(
+        pd_result.astype("Float64"),
+        bf_result.astype("Float64"),
         check_index_type=False,
     )
 
@@ -5063,3 +5302,47 @@ def test__resample_start_time(rule, origin, data):
     pd.testing.assert_frame_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        pytest.param("string[pyarrow]", id="type-string"),
+        pytest.param(pd.StringDtype(storage="pyarrow"), id="type-literal"),
+        pytest.param(
+            {"bool_col": "string[pyarrow]", "int64_col": pd.Float64Dtype()},
+            id="multiple-types",
+        ),
+    ],
+)
+def test_df_astype(scalars_dfs, dtype):
+    bf_df, pd_df = scalars_dfs
+    target_cols = ["bool_col", "int64_col"]
+    bf_df = bf_df[target_cols]
+    pd_df = pd_df[target_cols]
+
+    bf_result = bf_df.astype(dtype).to_pandas()
+    pd_result = pd_df.astype(dtype)
+
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
+
+
+def test_df_astype_python_types(scalars_dfs):
+    bf_df, pd_df = scalars_dfs
+    target_cols = ["bool_col", "int64_col"]
+    bf_df = bf_df[target_cols]
+    pd_df = pd_df[target_cols]
+
+    bf_result = bf_df.astype({"bool_col": str, "int64_col": float}).to_pandas()
+    pd_result = pd_df.astype(
+        {"bool_col": "string[pyarrow]", "int64_col": pd.Float64Dtype()}
+    )
+
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
+
+
+def test_astype_invalid_type_fail(scalars_dfs):
+    bf_df, _ = scalars_dfs
+
+    with pytest.raises(TypeError, match=r".*Share your usecase with.*"):
+        bf_df.astype(123)

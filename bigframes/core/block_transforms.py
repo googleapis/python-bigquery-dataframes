@@ -43,19 +43,16 @@ def equals(block1: blocks.Block, block2: blocks.Block) -> bool:
 
     joined_block, (lmap, rmap) = block1.join(block2, how="outer")
 
-    equality_ids = []
+    exprs = []
     for lcol, rcol in zip(block1.value_columns, block2.value_columns):
-        lcolmapped = lmap[lcol]
-        rcolmapped = rmap[rcol]
-        joined_block, result_id = joined_block.project_expr(
+        exprs.append(
             ops.fillna_op.as_expr(
-                ops.eq_null_match_op.as_expr(lcolmapped, rcolmapped), ex.const(False)
+                ops.eq_null_match_op.as_expr(lmap[lcol], rmap[rcol]), ex.const(False)
             )
         )
-        equality_ids.append(result_id)
 
-    joined_block = joined_block.select_columns(equality_ids).with_column_labels(
-        list(range(len(equality_ids)))
+    joined_block = joined_block.project_exprs(
+        exprs, labels=list(range(len(exprs))), drop=True
     )
     stacked_block = joined_block.stack()
     result = stacked_block.get_stat(stacked_block.value_columns[0], agg_ops.all_op)
@@ -86,9 +83,10 @@ def indicate_duplicates(
         # Discard this value if there are copies ANYWHERE
         window_spec = windows.unbound(grouping_keys=tuple(columns))
     block, dummy = block.create_constant(1)
+    # use row number as will work even with partial ordering
     block, val_count_col_id = block.apply_window_op(
         dummy,
-        agg_ops.count_op,
+        agg_ops.sum_op,
         window_spec=window_spec,
     )
     block, duplicate_indicator = block.project_expr(
@@ -131,12 +129,16 @@ def quantile(
                 window_spec=window,
             )
             quantile_cols.append(quantile_col)
-    block, results = block.aggregate(
+    block, _ = block.aggregate(
         grouping_column_ids,
-        tuple((col, agg_ops.AnyValueOp()) for col in quantile_cols),
+        tuple(
+            ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.deref(col))
+            for col in quantile_cols
+        ),
+        column_labels=pd.Index(labels),
         dropna=dropna,
     )
-    return block.select_columns(results).with_column_labels(labels)
+    return block
 
 
 def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
@@ -357,7 +359,7 @@ def value_counts(
     block, dummy = block.create_constant(1)
     block, agg_ids = block.aggregate(
         by_column_ids=columns,
-        aggregations=[(dummy, agg_ops.count_op)],
+        aggregations=[ex.UnaryAggregation(agg_ops.count_op, ex.deref(dummy))],
         dropna=dropna,
     )
     count_id = agg_ids[0]
@@ -394,12 +396,12 @@ def pct_change(block: blocks.Block, periods: int = 1) -> blocks.Block:
     block, shift_columns = block.multi_apply_window_op(
         original_columns, agg_ops.ShiftOp(periods), window_spec=window_spec
     )
-    result_ids = []
+    exprs = []
     for original_col, shifted_col in zip(original_columns, shift_columns):
-        block, change_id = block.apply_binary_op(original_col, shifted_col, ops.sub_op)
-        block, pct_change_id = block.apply_binary_op(change_id, shifted_col, ops.div_op)
-        result_ids.append(pct_change_id)
-    return block.select_columns(result_ids).with_column_labels(column_labels)
+        change_expr = ops.sub_op.as_expr(original_col, shifted_col)
+        pct_change_expr = ops.div_op.as_expr(change_expr, shifted_col)
+        exprs.append(pct_change_expr)
+    return block.project_exprs(exprs, labels=column_labels, drop=True)
 
 
 def rank(
@@ -469,16 +471,23 @@ def rank(
     # Step 3: post processing: mask null values and cast to float
     if method in ["min", "max", "first", "dense"]:
         # Pandas rank always produces Float64, so must cast for aggregation types that produce ints
-        block = block.multi_apply_unary_op(
-            rownum_col_ids, ops.AsTypeOp(pd.Float64Dtype())
+        return (
+            block.select_columns(rownum_col_ids)
+            .multi_apply_unary_op(ops.AsTypeOp(pd.Float64Dtype()))
+            .with_column_labels(labels)
         )
     if na_option == "keep":
         # For na_option "keep", null inputs must produce null outputs
+        exprs = []
         for i in range(len(columns)):
-            block, null_const = block.create_constant(pd.NA, dtype=pd.Float64Dtype())
-            block, rownum_col_ids[i] = block.apply_ternary_op(
-                null_const, nullity_col_ids[i], rownum_col_ids[i], ops.where_op
+            exprs.append(
+                ops.where_op.as_expr(
+                    ex.const(pd.NA, dtype=pd.Float64Dtype()),
+                    nullity_col_ids[i],
+                    rownum_col_ids[i],
+                )
             )
+        return block.project_exprs(exprs, labels=labels, drop=True)
 
     return block.select_columns(rownum_col_ids).with_column_labels(labels)
 
@@ -584,9 +593,18 @@ def skew(
     # counts, moment3 for each column
     aggregations = []
     for i, col in enumerate(original_columns):
-        count_agg = (col, agg_ops.count_op)
-        moment3_agg = (delta3_ids[i], agg_ops.mean_op)
-        variance_agg = (col, agg_ops.PopVarOp())
+        count_agg = ex.UnaryAggregation(
+            agg_ops.count_op,
+            ex.deref(col),
+        )
+        moment3_agg = ex.UnaryAggregation(
+            agg_ops.mean_op,
+            ex.deref(delta3_ids[i]),
+        )
+        variance_agg = ex.UnaryAggregation(
+            agg_ops.PopVarOp(),
+            ex.deref(col),
+        )
         aggregations.extend([count_agg, moment3_agg, variance_agg])
 
     block, agg_ids = block.aggregate(
@@ -626,9 +644,9 @@ def kurt(
     # counts, moment4 for each column
     aggregations = []
     for i, col in enumerate(original_columns):
-        count_agg = (col, agg_ops.count_op)
-        moment4_agg = (delta4_ids[i], agg_ops.mean_op)
-        variance_agg = (col, agg_ops.PopVarOp())
+        count_agg = ex.UnaryAggregation(agg_ops.count_op, ex.deref(col))
+        moment4_agg = ex.UnaryAggregation(agg_ops.mean_op, ex.deref(delta4_ids[i]))
+        variance_agg = ex.UnaryAggregation(agg_ops.PopVarOp(), ex.deref(col))
         aggregations.extend([count_agg, moment4_agg, variance_agg])
 
     block, agg_ids = block.aggregate(

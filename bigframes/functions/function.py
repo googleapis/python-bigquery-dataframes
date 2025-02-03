@@ -16,9 +16,11 @@ from __future__ import annotations
 
 import inspect
 import logging
+import typing
 from typing import cast, Optional, TYPE_CHECKING
 import warnings
 
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 
 if TYPE_CHECKING:
@@ -32,9 +34,10 @@ import google.iam.v1
 
 import bigframes.core.compile.ibis_types
 import bigframes.dtypes
-import bigframes.functions.remote_function_template
+import bigframes.exceptions as bfe
+import bigframes.functions.function_template
 
-from . import _remote_function_session as rf_session
+from . import _function_session as bff_session
 from . import _utils
 
 logger = logging.getLogger(__name__)
@@ -52,8 +55,29 @@ class ReturnTypeMissingError(ValueError):
 
 # TODO: Move this to compile folder
 def ibis_signature_from_routine(routine: bigquery.Routine) -> _utils.IbisSignature:
-    if not routine.return_type:
+    if routine.return_type:
+        ibis_output_type = bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
+            routine.return_type.type_kind
+        )
+    else:
         raise ReturnTypeMissingError
+
+    ibis_output_type_override: Optional[ibis_dtypes.DataType] = None
+    if python_output_type := _utils.get_python_output_type_from_bigframes_metadata(
+        routine.description
+    ):
+        if not isinstance(ibis_output_type, ibis_dtypes.String):
+            raise TypeError(
+                "An explicit output_type should be provided only for a BigQuery function with STRING output."
+            )
+        if typing.get_origin(python_output_type) is list:
+            ibis_output_type_override = bigframes.core.compile.ibis_types.ibis_array_output_type_from_python_type(
+                cast(type, python_output_type)
+            )
+        else:
+            raise TypeError(
+                "Currently only list of a type is supported as python output type."
+            )
 
     return _utils.IbisSignature(
         parameter_names=[arg.name for arg in routine.arguments],
@@ -65,9 +89,8 @@ def ibis_signature_from_routine(routine: bigquery.Routine) -> _utils.IbisSignatu
             else None
             for arg in routine.arguments
         ],
-        output_type=bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
-            routine.return_type.type_kind
-        ),
+        output_type=ibis_output_type,
+        output_type_override=ibis_output_type_override,
     )
 
 
@@ -97,11 +120,11 @@ def get_routine_reference(
 
 
 def remote_function(*args, **kwargs):
-    remote_function_session = rf_session.RemoteFunctionSession()
+    remote_function_session = bff_session.FunctionSession()
     return remote_function_session.remote_function(*args, **kwargs)
 
 
-remote_function.__doc__ = rf_session.RemoteFunctionSession.remote_function.__doc__
+remote_function.__doc__ = bff_session.FunctionSession.remote_function.__doc__
 
 
 def read_gbq_function(
@@ -130,6 +153,12 @@ def read_gbq_function(
     except google.api_core.exceptions.NotFound:
         raise ValueError(f"Unknown function '{routine_ref}'. {constants.FEEDBACK_LINK}")
 
+    if is_row_processor and len(routine.arguments) > 1:
+        raise ValueError(
+            "A multi-input function cannot be a row processor. A row processor function "
+            "takes in a single input representing the row."
+        )
+
     try:
         ibis_signature = ibis_signature_from_routine(routine)
     except ReturnTypeMissingError:
@@ -145,7 +174,7 @@ def read_gbq_function(
     # The name "args" conflicts with the Ibis operator, so we use
     # non-standard names for the arguments here.
     def func(*bigframes_args, **bigframes_kwargs):
-        f"""Remote function {str(routine_ref)}."""
+        f"""Bigframes function {str(routine_ref)}."""
         nonlocal node  # type: ignore
 
         expr = node(*bigframes_args, **bigframes_kwargs)  # type: ignore
@@ -191,16 +220,19 @@ def read_gbq_function(
             )
         function_input_dtypes.append(input_dtype)
     if has_unknown_dtypes:
-        warnings.warn(
-            "The function has one or more missing input data types."
-            f" BigQuery DataFrames will assume default data type {bigframes.dtypes.DEFAULT_DTYPE} for them.",
-            category=bigframes.exceptions.UnknownDataTypeWarning,
+        msg = (
+            "The function has one or more missing input data types. BigQuery DataFrames "
+            f"will assume default data type {bigframes.dtypes.DEFAULT_DTYPE} for them."
         )
+        warnings.warn(msg, category=bfe.UnknownDataTypeWarning)
     func.input_dtypes = tuple(function_input_dtypes)  # type: ignore
 
     func.output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(  # type: ignore
-        ibis_signature.output_type
+        ibis_signature.output_type_override
+        if ibis_signature.output_type_override
+        else ibis_signature.output_type
     )
+
     func.is_row_processor = is_row_processor  # type: ignore
     func.ibis_node = node  # type: ignore
     return func

@@ -22,25 +22,44 @@ from bigframes.bigquery._operations.array import (
     array_length,
     array_to_string,
 )
+from bigframes.bigquery._operations.datetime import (
+    unix_micros,
+    unix_millis,
+    unix_seconds,
+)
 from bigframes.bigquery._operations.json import (
     json_extract,
     json_extract_array,
     json_extract_string_array,
     json_set,
+    parse_json,
 )
 from bigframes.bigquery._operations.search import create_vector_index, vector_search
+from bigframes.bigquery._operations.sql import sql_scalar
 from bigframes.bigquery._operations.struct import struct
 
 __all__ = [
+    # approximate aggregate ops
+    "approx_top_count",
+    # array ops
     "array_length",
     "array_agg",
     "array_to_string",
+    # json ops
     "json_set",
     "json_extract",
     "json_extract_array",
     "json_extract_string_array",
-    "approx_top_count",
-    "struct",
+    "parse_json",
+    # search ops
     "create_vector_index",
     "vector_search",
+    # sql ops
+    "sql_scalar",
+    # struct ops
+    "struct",
+    # datetime ops
+    "unix_micros",
+    "unix_millis",
+    "unix_seconds",
 ]

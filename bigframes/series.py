@@ -168,6 +168,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def index(self) -> indexes.Index:
         return indexes.Index.from_frame(self)
 
+    @validations.requires_index
+    def keys(self) -> indexes.Index:
+        return self.index
+
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
         """BigQuery job metadata for the most recent query.
@@ -362,6 +366,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> Series:
         if errors not in ["raise", "null"]:
             raise ValueError("Argument 'errors' must be one of 'raise' or 'null'")
+        dtype = bigframes.dtypes.bigframes_type(dtype)
         return self._apply_unary_op(
             bigframes.operations.AsTypeOp(to_type=dtype, safe=(errors == "null"))
         )
@@ -483,7 +488,19 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def case_when(self, caselist) -> Series:
-        cases = list(itertools.chain(*caselist, (True, self)))
+        cases = []
+
+        for condition, output in itertools.chain(caselist, [(True, self)]):
+            cases.append(condition)
+            cases.append(output)
+            # In pandas, the default value if no case matches is the original value.
+            # This makes it impossible to change the type of the column, but if
+            # the condition is always True, we know it will match and no subsequent
+            # conditions matter (including the fallback to `self`). This break allows
+            # the type to change (see: internal issue 349926559).
+            if condition is True:
+                break
+
         return self._apply_nary_op(
             ops.case_when_op,
             cases,
@@ -718,12 +735,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def isin(self, values) -> "Series" | None:
+        if isinstance(values, (Series,)):
+            return Series(self._block.isin(values._block))
         if not _is_list_like(values):
             raise TypeError(
                 "only list-like objects are allowed to be passed to "
                 f"isin(), you passed a [{type(values).__name__}]"
             )
-
         return self._apply_unary_op(
             ops.IsInOp(values=tuple(values), match_nulls=True)
         ).fillna(value=False)
@@ -1061,7 +1079,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         # Approach: Count each value, return each value for which count(x) == max(counts))
         block, agg_ids = block.aggregate(
             by_column_ids=[self._value_column],
-            aggregations=((self._value_column, agg_ops.count_op),),
+            aggregations=(
+                ex.UnaryAggregation(agg_ops.count_op, ex.deref(self._value_column)),
+            ),
         )
         value_count_col_id = agg_ids[0]
         block, max_value_count_col_id = block.apply_window_op(
@@ -1298,6 +1318,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if key == "_block":
             raise AttributeError(key)
         elif hasattr(pandas.Series, key):
+            log_adapter.submit_pandas_labels(
+                self._block.expr.session.bqclient, self.__class__.__name__, key
+            )
             raise AttributeError(
                 textwrap.dedent(
                     f"""
@@ -1343,6 +1366,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def sort_values(
         self, *, axis=0, ascending=True, kind: str = "quicksort", na_position="last"
     ) -> Series:
+        if axis != 0 and axis != "index":
+            raise ValueError(f"No axis named {axis} for object type Series")
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
         block = self._block.order_by(
@@ -1357,6 +1382,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @validations.requires_index
     def sort_index(self, *, axis=0, ascending=True, na_position="last") -> Series:
         # TODO(tbergeron): Support level parameter once multi-index introduced.
+        if axis != 0 and axis != "index":
+            raise ValueError(f"No axis named {axis} for object type Series")
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
         block = self._block
@@ -1512,6 +1539,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ops.RemoteFunctionOp(func=func, apply_on_null=True)
         )
 
+        # if the output is an array, reconstruct it from the json serialized
+        # string form
+        if bigframes.dtypes.is_array_like(func.output_dtype):
+            import bigframes.bigquery as bbq
+
+            result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
+                func.output_dtype.pyarrow_dtype.value_type
+            )
+            result_series = bbq.json_extract_string_array(
+                result_series, value_dtype=result_dtype
+            )
+
         return result_series
 
     def combine(
@@ -1539,6 +1578,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         result_series = self._apply_binary_op(
             other, ops.BinaryRemoteFunctionOp(func=func)
         )
+
+        # if the output is an array, reconstruct it from the json serialized
+        # string form
+        if bigframes.dtypes.is_array_like(func.output_dtype):
+            import bigframes.bigquery as bbq
+
+            result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
+                func.output_dtype.pyarrow_dtype.value_type
+            )
+            result_series = bbq.json_extract_string_array(
+                result_series, value_dtype=result_dtype
+            )
 
         return result_series
 
@@ -1643,7 +1694,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return self.drop_duplicates()
         block, result = self._block.aggregate(
             [self._value_column],
-            [(self._value_column, agg_ops.AnyValueOp())],
+            [ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.deref(self._value_column))],
+            column_labels=self._block.column_labels,
             dropna=False,
         )
         return Series(block.select_columns(result).reset_index())
@@ -1949,15 +2001,47 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
         return NotImplemented
 
-    # Keep this at the bottom of the Series class to avoid
-    # confusing type checker by overriding str
-    @property
-    def str(self) -> strings.StringMethods:
-        return strings.StringMethods(self._block)
-
     @property
     def plot(self):
         return plotting.PlotAccessor(self)
+
+    def hist(
+        self, by: typing.Optional[typing.Sequence[str]] = None, bins: int = 10, **kwargs
+    ):
+        return self.plot.hist(by=by, bins=bins, **kwargs)
+
+    hist.__doc__ = inspect.getdoc(plotting.PlotAccessor.hist)
+
+    def line(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        **kwargs,
+    ):
+        return self.plot.line(x=x, y=y, **kwargs)
+
+    line.__doc__ = inspect.getdoc(plotting.PlotAccessor.line)
+
+    def area(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        stacked: bool = True,
+        **kwargs,
+    ):
+        return self.plot.area(x=x, y=y, stacked=stacked, **kwargs)
+
+    area.__doc__ = inspect.getdoc(plotting.PlotAccessor.area)
+
+    def bar(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        **kwargs,
+    ):
+        return self.plot.bar(x=x, y=y, **kwargs)
+
+    bar.__doc__ = inspect.getdoc(plotting.PlotAccessor.bar)
 
     def _slice(
         self,
@@ -1986,6 +2070,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def _cached(self, *, force: bool = True, session_aware: bool = True) -> Series:
         self._block.cached(force=force, session_aware=session_aware)
         return self
+
+    # Keep this at the bottom of the Series class to avoid
+    # confusing type checker by overriding str
+    @property
+    def str(self) -> strings.StringMethods:
+        return strings.StringMethods(self._block)
 
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
