@@ -4,17 +4,17 @@ import bigframes
 import bigframes.pandas as bpd
 
 
-def q(dataset_id: str, session: bigframes.Session):
+def q(project_id: str, dataset_id: str, session: bigframes.Session):
     supplier = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.SUPPLIER",
+        f"{project_id}.{dataset_id}.SUPPLIER",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     partsupp = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.PARTSUPP",
+        f"{project_id}.{dataset_id}.PARTSUPP",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     nation = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.NATION",
+        f"{project_id}.{dataset_id}.NATION",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
 
@@ -30,11 +30,17 @@ def q(dataset_id: str, session: bigframes.Session):
 
     grouped["VALUE"] = grouped["VALUE"].round(2)
 
-    total_value = (filtered_df["PS_SUPPLYCOST"] * filtered_df["PS_AVAILQTY"]).sum()
-    threshold = total_value * 0.0001
+    total_value = (
+        (filtered_df["PS_SUPPLYCOST"] * filtered_df["PS_AVAILQTY"]).to_frame().sum()
+    )
+    threshold = (total_value * 0.0001).rename("THRESHOLD")
 
-    result_df = grouped[grouped["VALUE"] > threshold]
+    grouped = grouped.merge(threshold, how="cross")
+
+    result_df = grouped[grouped["VALUE"] > grouped["THRESHOLD"]].drop(
+        columns="THRESHOLD"
+    )
 
     result_df = result_df.sort_values(by="VALUE", ascending=False)
 
-    result_df.to_gbq()
+    next(result_df.to_pandas_batches())

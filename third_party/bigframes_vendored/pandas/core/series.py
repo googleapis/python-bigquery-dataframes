@@ -35,6 +35,51 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Accessor object for datetime-like properties of the Series values.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import pandas as pd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> seconds_series = bpd.Series(pd.date_range("2000-01-01", periods=3, freq="s"))
+            >>> seconds_series
+            0    2000-01-01 00:00:00
+            1    2000-01-01 00:00:01
+            2    2000-01-01 00:00:02
+            dtype: timestamp[us][pyarrow]
+
+            >>> seconds_series.dt.second
+            0    0
+            1    1
+            2    2
+            dtype: Int64
+
+            >>> hours_series = bpd.Series(pd.date_range("2000-01-01", periods=3, freq="h"))
+            >>> hours_series
+            0    2000-01-01 00:00:00
+            1    2000-01-01 01:00:00
+            2    2000-01-01 02:00:00
+            dtype: timestamp[us][pyarrow]
+
+            >>> hours_series.dt.hour
+            0    0
+            1    1
+            2    2
+            dtype: Int64
+
+            >>> quarters_series = bpd.Series(pd.date_range("2000-01-01", periods=3, freq="QE"))
+            >>> quarters_series
+            0    2000-03-31 00:00:00
+            1    2000-06-30 00:00:00
+            2    2000-09-30 00:00:00
+            dtype: timestamp[us][pyarrow]
+
+            >>> quarters_series.dt.quarter
+            0    1
+            1    2
+            2    3
+            dtype: Int64
+
         Returns:
             bigframes.operations.datetimes.DatetimeMethods:
                 An accessor containing datetime methods.
@@ -97,15 +142,16 @@ class Series(NDFrame):  # type: ignore[misc]
             Name: Age, dtype: Int64
             >>> s1.index # doctest: +ELLIPSIS
             MultiIndex([( 'Alice',  'Seattle'),
-                (   'Bob', 'New York'),
-                ('Aritra',     'Kona')],
-               names=['Name', 'Location'])
+                        (   'Bob', 'New York'),
+                        ('Aritra',     'Kona')],
+                      names=['Name', 'Location'])
             >>> s1.index.values
             array([('Alice', 'Seattle'), ('Bob', 'New York'), ('Aritra', 'Kona')],
-                dtype=object)
+                  dtype=object)
 
         Returns:
-            Index: The index object of the Series.
+            Index:
+                The index object of the Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -168,6 +214,13 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s.name
             'Numbers'
 
+            >>> s.name = "Integers"
+            >>> s
+            0    1
+            1    2
+            2    3
+            Name: Integers, dtype: Int64
+
         If the Series is part of a DataFrame:
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
@@ -182,7 +235,8 @@ class Series(NDFrame):  # type: ignore[misc]
             'col1'
 
         Returns:
-            hashable object: The name of the Series, also the column name
+            hashable object:
+                The name of the Series, also the column name
                 if part of a DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -205,7 +259,7 @@ class Series(NDFrame):  # type: ignore[misc]
             3    <NA>
             dtype: Float64
             >>> s.hasnans
-            True
+            np.True_
 
         Returns:
             bool
@@ -260,7 +314,8 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: string
 
         Returns:
-            Series: Series.
+            bigframes.pandas.Series:
+                Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -280,6 +335,7 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import pandas as pd
             >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3, 4], name='foo',
@@ -324,6 +380,24 @@ class Series(NDFrame):  # type: ignore[misc]
             3    4
             Name: foo, dtype: Int64
 
+            >>> arrays = [np.array(['bar', 'bar', 'baz', 'baz']),
+            ...           np.array(['one', 'two', 'one', 'two'])]
+            >>> s2 = bpd.Series(
+            ...     range(4), name='foo',
+            ...     index=pd.MultiIndex.from_arrays(arrays,
+            ...                                     names=['a', 'b']))
+
+        If level is not set, all levels are removed from the Index.
+
+            >>> s2.reset_index()
+                 a    b  foo
+            0  bar  one    0
+            1  bar  two    1
+            2  baz  one    2
+            3  baz  two    3
+            <BLANKLINE>
+            [4 rows x 3 columns]
+
         Args:
             drop (bool, default False):
                 Just reset the index, without inserting it as a column in
@@ -334,7 +408,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 when `drop` is True.
 
         Returns:
-            Series or DataFrame or None; When `drop` is False (the default),
+            bigframes.pandas.Series or bigframes.pandas.DataFrame or None:
+                When `drop` is False (the default),
                 a DataFrame is returned. The newly created columns will come first
                 in the DataFrame, followed by the original Series values.
                 When `drop` is True, a `Series` is returned.
@@ -348,6 +423,25 @@ class Series(NDFrame):  # type: ignore[misc]
         Return a string representation for a particular Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def keys(self):
+        """
+        Return alias for index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3], index=[0, 1, 2])
+            >>> s.keys()
+            Index([0, 1, 2], dtype='Int64')
+
+        Returns:
+            Index:
+                Index of the Series.
+        """
+        return self.index
 
     # ----------------------------------------------------------------------
     # IO methods (to / from other formats)
@@ -394,8 +488,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 of rows is above `max_rows`).
 
         Returns:
-            str or None: String representation of Series if ``buf=None``,
-                otherwise None.
+            str or None:
+                String representation of Series if ``buf=None``, otherwise None.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -407,7 +501,36 @@ class Series(NDFrame):  # type: ignore[misc]
         **kwargs,
     ) -> str | None:
         """
-        Print {klass} in Markdown-friendly format.
+        Print Series in Markdown-friendly format.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(["elk", "pig", "dog", "quetzal"], name="animal")
+            >>> print(s.to_markdown())
+            |    | animal   |
+            |---:|:---------|
+            |  0 | elk      |
+            |  1 | pig      |
+            |  2 | dog      |
+            |  3 | quetzal  |
+
+        Output markdown with a tabulate option.
+
+            >>> print(s.to_markdown(tablefmt="grid"))
+            +----+----------+
+            |    | animal   |
+            +====+==========+
+            |  0 | elk      |
+            +----+----------+
+            |  1 | pig      |
+            +----+----------+
+            |  2 | dog      |
+            +----+----------+
+            |  3 | quetzal  |
+            +----+----------+
 
         Args:
             buf (str, Path or StringIO-like, optional, default None):
@@ -418,13 +541,31 @@ class Series(NDFrame):  # type: ignore[misc]
                 Add index (row) labels.
 
         Returns:
-            str: {klass} in Markdown-friendly format.
+            str:
+                Series in Markdown-friendly format.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def to_dict(self, into: type[dict] = dict) -> Mapping:
         """
         Convert Series to {label -> value} dict or dict-like object.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> from collections import OrderedDict, defaultdict
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3, 4])
+            >>> s.to_dict()
+            {np.int64(0): 1, np.int64(1): 2, np.int64(2): 3, np.int64(3): 4}
+
+            >>> s.to_dict(into=OrderedDict)
+            OrderedDict({np.int64(0): 1, np.int64(1): 2, np.int64(2): 3, np.int64(3): 4})
+
+            >>> dd = defaultdict(list)
+            >>> s.to_dict(into=dd)
+            defaultdict(<class 'list'>, {np.int64(0): 1, np.int64(1): 2, np.int64(2): 3, np.int64(3): 4})
 
         Args:
             into (class, default dict):
@@ -434,7 +575,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 collections.defaultdict, you must pass it initialized.
 
         Returns:
-            collections.abc.Mapping: Key-value representation of Series.
+            collections.abc.Mapping:
+                Key-value representation of Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -445,11 +587,27 @@ class Series(NDFrame):  # type: ignore[misc]
         The column in the new dataframe will be named name (the keyword parameter)
         if the name parameter is provided and not None.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(["a", "b", "c"],
+            ...                name="vals")
+            >>> s.to_frame()
+              vals
+            0    a
+            1    b
+            2    c
+            <BLANKLINE>
+            [3 rows x 1 columns]
+
         Args:
             name (Hashable, default None)
 
         Returns:
-            bigframes.dataframe.DataFrame: DataFrame representation of Series.
+            bigframes.pandas.DataFrame:
+                DataFrame representation of Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -491,7 +649,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 Write row names (index).
 
         Returns:
-            str or None: If buf is None, returns the result as a string.
+            str or None:
+                If buf is None, returns the result as a string.
                 Otherwise returns None.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -520,7 +679,8 @@ class Series(NDFrame):  # type: ignore[misc]
             [1, 2, 3]
 
         Returns:
-            list: list of the values
+            list:
+                list of the values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -529,6 +689,32 @@ class Series(NDFrame):  # type: ignore[misc]
     def to_numpy(self, dtype, copy=False, na_value=None):
         """
         A NumPy ndarray representing the values in this Series or Index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import pandas as pd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> ser = bpd.Series(pd.Categorical(['a', 'b', 'a']))
+            >>> ser.to_numpy()
+            array(['a', 'b', 'a'], dtype=object)
+
+        Specify the dtype to control how datetime-aware data is represented. Use
+        dtype=object to return an ndarray of pandas Timestamp objects, each with
+        the correct tz.
+
+            >>> ser = bpd.Series(pd.date_range('2000', periods=2, tz="CET"))
+            >>> ser.to_numpy(dtype=object)
+            array([Timestamp('1999-12-31 23:00:00+0000', tz='UTC'),
+                   Timestamp('2000-01-01 23:00:00+0000', tz='UTC')], dtype=object)
+
+        Or ``dtype=datetime64[ns]`` to return an ndarray of native datetime64 values.
+        The values are converted to UTC and the timezone info is dropped.
+
+            >>> ser.to_numpy(dtype="datetime64[ns]")
+            array(['1999-12-31T23:00:00.000000000', '2000-01-01T23:00:00.000000000'],
+                  dtype='datetime64[ns]')
 
         Args:
             dtype (str or numpy.dtype, optional):
@@ -546,7 +732,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 of the underlying array (for extension arrays).
 
         Returns:
-            numpy.ndarray: A NumPy ndarray representing the values in this
+            numpy.ndarray:
+                A NumPy ndarray representing the values in this
                 Series or Index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -555,11 +742,43 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Pickle (serialize) object to file.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> original_df = bpd.DataFrame({"foo": range(5), "bar": range(5, 10)})
+            >>> original_df
+               foo  bar
+            0    0    5
+            1    1    6
+            2    2    7
+            3    3    8
+            4    4    9
+            <BLANKLINE>
+            [5 rows x 2 columns]
+
+            >>> original_df.to_pickle("./dummy.pkl")
+
+            >>> unpickled_df = bpd.read_pickle("./dummy.pkl")
+            >>> unpickled_df
+               foo  bar
+            0    0    5
+            1    1    6
+            2    2    7
+            3    3    8
+            4    4    9
+            <BLANKLINE>
+            [5 rows x 2 columns]
+
         Args:
             path (str, path object, or file-like object):
                 String, path object (implementing ``os.PathLike[str]``), or file-like
                 object implementing a binary ``write()`` function. File path where
                 the pickled object will be stored.
+
+        Returns:
+            None
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -568,7 +787,8 @@ class Series(NDFrame):  # type: ignore[misc]
         Return an xarray object from the pandas object.
 
         Returns:
-            xarray.DataArray or xarray.Dataset: Data in the pandas structure
+            xarray.DataArray or xarray.Dataset:
+                Data in the pandas structure
                 converted to Dataset if the object is a DataFrame, or a DataArray if
                 the object is a Series.
         """
@@ -592,7 +812,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> s.agg('min')
-            1
+            np.int64(1)
 
             >>> s.agg(['min', 'max'])
             min    1
@@ -606,7 +826,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 function names, e.g. ``['sum', 'mean']``.
 
         Returns:
-            scalar or Series: Aggregated results
+            scalar or bigframes.pandas.Series:
+                Aggregated results.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -626,11 +847,11 @@ class Series(NDFrame):  # type: ignore[misc]
             2    <NA>
             dtype: Float64
             >>> s.count()
-            2
+            np.int64(2)
 
         Returns:
-            int or Series (if level specified): Number of non-null values in the
-                Series.
+            int or bigframes.pandas.Series (if level specified):
+                Number of non-null values in the Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -640,17 +861,40 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Excludes NA values by default.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 3, 5, 7, 7])
+            >>> s
+            0    1
+            1    3
+            2    5
+            3    7
+            4    7
+            dtype: Int64
+
+            >>> s.nunique()
+            np.int64(4)
+
         Returns:
-            int: number of unique elements in the object.
+            int:
+                number of unique elements in the object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def unique(self) -> Series:
+    def unique(self, keep_order=True) -> Series:
         """
         Return unique values of Series object.
 
-        Uniques are returned in order of appearance. Hash table-based unique,
+        By default, uniques are returned in order of appearance. Hash table-based unique,
         therefore does NOT sort.
+
+        Args:
+            keep_order (bool, default True):
+                If True, preserves the order of the first appearance of each unique value.
+                If False, returns the elements in ascending order, which can be faster.
 
         **Examples:**
 
@@ -664,14 +908,26 @@ class Series(NDFrame):  # type: ignore[misc]
             2    3
             3    3
             Name: A, dtype: Int64
+
+        Example with order preservation: Slower, but keeps order
+
             >>> s.unique()
             0    2
             1    1
             2    3
             Name: A, dtype: Int64
 
+        Example without order preservation: Faster, but loses original order
+
+            >>> s.unique(keep_order=False)
+            0    1
+            1    2
+            2    3
+            Name: A, dtype: Int64
+
         Returns:
-            Series: The unique values returned as a Series.
+            bigframes.pandas.Series:
+                The unique values returned as a Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -683,8 +939,20 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Always returns Series even if only one value is returned.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([2, 4, 8, 2, 4, None])
+            >>> s.mode()
+            0    2.0
+            1    4.0
+            dtype: Float64
+
         Returns:
-            bigframes.series.Series: Modes of the Series in sorted order.
+            bigframes.pandas.Series:
+                Modes of the Series in sorted order.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -696,6 +964,53 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Return Series with duplicate values removed.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Generate a Series with duplicated entries.
+
+            >>> s = bpd.Series(['llama', 'cow', 'llama', 'beetle', 'llama', 'hippo'],
+            ...                name='animal')
+            >>> s
+            0     llama
+            1       cow
+            2     llama
+            3    beetle
+            4     llama
+            5     hippo
+            Name: animal, dtype: string
+
+        With the 'keep' parameter, the selection behaviour of duplicated values
+        can be changed. The value 'first' keeps the first occurrence for each set
+        of duplicated entries. The default value of keep is 'first'.
+
+            >>> s.drop_duplicates()
+            0     llama
+            1       cow
+            3    beetle
+            5     hippo
+            Name: animal, dtype: string
+
+        The value 'last' for parameter 'keep' keeps the last occurrence for
+        each set of duplicated entries.
+
+            >>> s.drop_duplicates(keep='last')
+            1       cow
+            3    beetle
+            4     llama
+            5     hippo
+            Name: animal, dtype: string
+
+        The value False for parameter 'keep' discards all sets of duplicated entries.
+
+            >>> s.drop_duplicates(keep=False)
+            1       cow
+            3    beetle
+            5     hippo
+            Name: animal, dtype: string
+
         Args:
             keep ({'first', 'last', ``False``}, default 'first'):
                 Method to handle dropping duplicates:
@@ -705,7 +1020,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 ``False`` : Drop all duplicates.
 
         Returns:
-            bigframes.series.Series: Series with duplicates dropped or None if ``inplace=True``.
+            bigframes.pandas.Series:
+                Series with duplicates dropped or None if ``inplace=True``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -716,6 +1032,54 @@ class Series(NDFrame):  # type: ignore[misc]
         Duplicated values are indicated as ``True`` values in the resulting
         Series. Either all duplicates, all except the first or all except the
         last occurrence of duplicates can be indicated.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        By default, for each set of duplicated values, the first occurrence is
+        set on False and all others on True:
+
+            >>> animals = bpd.Series(['llama', 'cow', 'llama', 'beetle', 'llama'])
+            >>> animals.duplicated()
+            0    False
+            1    False
+            2     True
+            3    False
+            4     True
+            dtype: boolean
+
+        which is equivalent to
+
+            >>> animals.duplicated(keep='first')
+            0    False
+            1    False
+            2     True
+            3    False
+            4     True
+            dtype: boolean
+
+        By using 'last', the last occurrence of each set of duplicated values
+        is set on False and all others on True:
+
+            >>> animals.duplicated(keep='last')
+            0     True
+            1    False
+            2     True
+            3    False
+            4    False
+            dtype: boolean
+
+        By setting keep on False, all duplicates are True:
+
+            >>> animals.duplicated(keep=False)
+            0     True
+            1    False
+            2     True
+            3    False
+            4     True
+            dtype: boolean
 
         Args:
             keep ({'first', 'last', False}, default 'first'):
@@ -728,7 +1092,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 ``False`` : Mark all duplicates as ``True``.
 
         Returns:
-            bigframes.series.Series: Series indicating whether each value has occurred in the
+            bigframes.pandas.Series:
+                Series indicating whether each value has occurred in the
                 preceding values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -739,6 +1104,23 @@ class Series(NDFrame):  # type: ignore[misc]
 
         If multiple values equal the minimum, the first row label with that
         value is returned.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(data=[1, None, 4, 1],
+            ...                index=['A', 'B', 'C', 'D'])
+            >>> s
+            A     1.0
+            B    <NA>
+            C     4.0
+            D     1.0
+            dtype: Float64
+
+            >>> s.idxmin()
+            'A'
 
         Returns:
             Index: Label of the minimum value.
@@ -751,6 +1133,24 @@ class Series(NDFrame):  # type: ignore[misc]
 
         If multiple values equal the maximum, the first row label with that
         value is returned.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(data=[1, None, 4, 3, 4],
+            ...                index=['A', 'B', 'C', 'D', 'E'])
+            >>> s
+            A     1.0
+            B    <NA>
+            C     4.0
+            D     3.0
+            E     4.0
+            dtype: Float64
+
+            >>> s.idxmax()
+            'C'
 
         Returns:
             Index: Label of the maximum value.
@@ -786,7 +1186,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 it specifies the number of positions to the left of the decimal point.
 
         Returns:
-            bigframes.series.Series: Rounded values of the Series.
+            bigframes.pandas.Series:
+                Rounded values of the Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -800,6 +1201,12 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([[1, 2, 3], [], [3, 4]])
+            >>> s
+            0    [1 2 3]
+            1         []
+            2      [3 4]
+            dtype: list<item: int64>[pyarrow]
+
             >>> s.explode()
             0       1
             0       2
@@ -814,7 +1221,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 If True, the resulting index will be labeled 0, 1, …, n - 1.
 
         Returns:
-            bigframes.series.Series: Exploded lists to rows; index will be duplicated for these rows.
+            bigframes.pandas.Series:
+                Exploded lists to rows; index will be duplicated for these rows.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -834,12 +1242,12 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s1 = bpd.Series([.2, .0, .6, .2])
             >>> s2 = bpd.Series([.3, .6, .0, .1])
             >>> s1.corr(s2)
-            -0.8510644963469901
+            np.float64(-0.8510644963469901)
 
             >>> s1 = bpd.Series([1, 2, 3], index=[0, 1, 2])
             >>> s2 = bpd.Series([1, 2, 3], index=[2, 1, 0])
             >>> s1.corr(s2)
-            -1.0
+            np.float64(-1.0)
 
         Args:
             other (Series):
@@ -851,7 +1259,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 are not yet supported, so a result will be returned for at least two observations.
 
         Returns:
-            float:  Will return NaN if there are fewer than two numeric pairs, either series has a
+            float:
+                Will return NaN if there are fewer than two numeric pairs, either series has a
                 variance or covariance of zero, or any input value is infinite.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -870,22 +1279,24 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([0.25, 0.5, 0.2, -0.05])
             >>> s.autocorr()  # doctest: +ELLIPSIS
-            0.10355...
-            >>> s.autocorr(lag=2)
-            -1.0
+            np.float64(0.10355263309024067)
 
-            If the Pearson correlation is not well defined, then 'NaN' is returned.
+            >>> s.autocorr(lag=2)
+            np.float64(-1.0)
+
+        If the Pearson correlation is not well defined, then 'NaN' is returned.
 
             >>> s = bpd.Series([1, 0, 0, 0])
             >>> s.autocorr()
-            nan
+            np.float64(nan)
 
         Args:
             lag (int, default 1):
                 Number of lags to apply before performing autocorrelation.
 
         Returns:
-            float: The Pearson correlation between self and self.shift(lag).
+            float:
+                The Pearson correlation between self and self.shift(lag).
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -898,6 +1309,16 @@ class Series(NDFrame):  # type: ignore[misc]
 
         The two `Series` objects are not required to be the same length and
         will be aligned internally before the covariance is calculated.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s1 = bpd.Series([0.90010907, 0.13484424, 0.62036035])
+            >>> s2 = bpd.Series([0.12528585, 0.26962463, 0.51111198])
+            >>> s1.cov(s2)
+            np.float64(-0.01685762652715874)
 
         Args:
             other (Series):
@@ -914,8 +1335,48 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         First discrete difference of element.
 
-        Calculates the difference of a {klass} element compared with another
-        element in the {klass} (default is element in previous row).
+        Calculates the difference of a Series element compared with another
+        element in the Series (default is element in previous row).
+
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Difference with previous row
+
+            >>> s = bpd.Series([1, 1, 2, 3, 5, 8])
+            >>> s.diff()
+            0    <NA>
+            1       0
+            2       1
+            3       1
+            4       2
+            5       3
+            dtype: Int64
+
+        Difference with 3rd previous row
+
+            >>> s.diff(periods=3)
+            0    <NA>
+            1    <NA>
+            2    <NA>
+            3       2
+            4       4
+            5       6
+            dtype: Int64
+
+        Difference with following row
+
+            >>> s.diff(periods=-1)
+            0       0
+            1      -1
+            2      -1
+            3      -2
+            4      -3
+            5    <NA>
+            dtype: Int64
 
         Args:
             periods (int, default 1):
@@ -923,7 +1384,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 values.
 
         Returns:
-            Series: First differences of the Series.
+            bigframes.pandas.Series:
+                First differences of the Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -951,19 +1413,20 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s = bpd.Series([0, 1, 2, 3])
             >>> other = bpd.Series([-1, 2, -3, 4])
             >>> s.dot(other)
-            8
+            np.int64(8)
 
         You can also use the operator ``@`` for the dot product:
 
             >>> s @ other
-            8
+            np.int64(8)
 
         Args:
             other (Series):
                 The other object to compute the dot product with its columns.
 
         Returns:
-            scalar, Series or numpy.ndarray: Return the dot product of the Series
+            scalar, bigframes.pandas.Series or numpy.ndarray:
+                Return the dot product of the Series
                 and other if other is a Series, the Series of the dot product of
                 Series and each rows of other if other is a DataFrame or a
                 numpy.ndarray between the Series and each columns of the numpy array.
@@ -1001,6 +1464,7 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([np.nan, 1, 3, 10, 5])
@@ -1067,15 +1531,16 @@ class Series(NDFrame):  # type: ignore[misc]
             ascending (bool or list of bools, default True):
                 If True, sort values in ascending order, otherwise descending.
             kind (str, default to 'quicksort'):
-                Choice of sorting algorithm. Accepts 'quicksort’, ‘mergesort’,
-                ‘heapsort’, ‘stable’. Ignored except when determining whether to
+                Choice of sorting algorithm. Accepts quicksort', 'mergesort',
+                'heapsort', 'stable'. Ignored except when determining whether to
                 sort stably. 'mergesort' or 'stable' will result in stable reorder
             na_position ({'first' or 'last'}, default 'last'):
                 Argument 'first' puts NaNs at the beginning, 'last' puts NaNs at
                 the end.
 
         Returns:
-            bigframes.series.Series: Series ordered by values or None if ``inplace=True``.
+            bigframes.pandas.Series or None:
+                Series ordered by values or None if ``inplace=True``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1092,6 +1557,40 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns a new Series sorted by label if `inplace` argument is
         ``False``, otherwise updates the original series and returns None.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['a', 'b', 'c', 'd'], index=[3, 2, 1, 4])
+            >>> s.sort_index()
+            1    c
+            2    b
+            3    a
+            4    d
+            dtype: string
+
+        Sort Descending
+
+            >>> s.sort_index(ascending=False)
+            4    d
+            3    a
+            2    b
+            1    c
+            dtype: string
+
+        By default NaNs are put at the end, but use na_position to place them at
+        the beginning
+
+            >>> s = bpd.Series(['a', 'b', 'c', 'd'], index=[3, 2, 1, np.nan])
+            >>> s.sort_index(na_position='first')
+            <NA>    d
+            1.0     c
+            2.0     b
+            3.0     a
+            dtype: string
+
         Args:
             axis ({0 or 'index'}):
                 Unused. Parameter needed for compatibility with DataFrame.
@@ -1103,7 +1602,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 Not implemented for MultiIndex.
 
         Returns:
-            bigframes.series.Series: The original Series sorted by the labels or None if
+            bigframes.pandas.Series or None:
+                The original Series sorted by the labels or None if
                 ``inplace=True``.
 
         """
@@ -1115,6 +1615,69 @@ class Series(NDFrame):  # type: ignore[misc]
     ) -> Series:
         """
         Return the largest `n` elements.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> countries_population = {"Italy": 59000000, "France": 65000000,
+            ...                          "Malta": 434000, "Maldives": 434000,
+            ...                          "Brunei": 434000, "Iceland": 337000,
+            ...                          "Nauru": 11300, "Tuvalu": 11300,
+            ...                          "Anguilla": 11300, "Montserrat": 5200}
+            >>> s = bpd.Series(countries_population)
+            >>> s
+            Italy         59000000
+            France        65000000
+            Malta           434000
+            Maldives        434000
+            Brunei          434000
+            Iceland         337000
+            Nauru            11300
+            Tuvalu           11300
+            Anguilla         11300
+            Montserrat        5200
+            dtype: Int64
+
+        The n largest elements where `n=5` by default.
+
+            >>> s.nlargest()
+            France      65000000
+            Italy       59000000
+            Malta         434000
+            Maldives      434000
+            Brunei        434000
+            dtype: Int64
+
+        The n largest elements where `n=3`. Default keep value is `first` so Malta
+          will be kept.
+
+            >>> s.nlargest(3)
+            France    65000000
+            Italy     59000000
+            Malta       434000
+            dtype: Int64
+
+        The n largest elements where `n=3` and keeping the last duplicates. Brunei
+        will be kept since it is the last with value 434000 based on the index order.
+
+            >>> s.nlargest(3, keep='last')
+            France    65000000
+            Italy     59000000
+            Brunei      434000
+            dtype: Int64
+
+        The n largest elements where n`=3` with all duplicates kept. Note that the
+        returned Series has five elements due to the three duplicates.
+
+            >>> s.nlargest(3, keep='all')
+            France      65000000
+            Italy       59000000
+            Malta         434000
+            Maldives      434000
+            Brunei        434000
+            dtype: Int64
 
         Args:
             n (int, default 5):
@@ -1130,13 +1693,67 @@ class Series(NDFrame):  # type: ignore[misc]
                 size larger than `n`.
 
         Returns:
-            bigframes.series.Series: The `n` largest values in the Series, sorted in decreasing order.
+            bigframes.pandas.Series:
+                The `n` largest values in the Series, sorted in decreasing order.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def nsmallest(self, n: int = 5, keep: str = "first") -> Series:
         """
         Return the smallest `n` elements.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> countries_population = {"Italy": 59000000, "France": 65000000,
+            ...                          "Malta": 434000, "Maldives": 434000,
+            ...                          "Brunei": 434000, "Iceland": 337000,
+            ...                          "Nauru": 11300, "Tuvalu": 11300,
+            ...                          "Anguilla": 11300, "Montserrat": 5200}
+            >>> s = bpd.Series(countries_population)
+            >>> s
+            Italy         59000000
+            France        65000000
+            Malta           434000
+            Maldives        434000
+            Brunei          434000
+            Iceland         337000
+            Nauru            11300
+            Tuvalu           11300
+            Anguilla         11300
+            Montserrat        5200
+            dtype: Int64
+
+        The n smallest elements where `n=5` by default.
+
+            >>> s.nsmallest()
+            Montserrat      5200
+            Nauru          11300
+            Tuvalu         11300
+            Anguilla       11300
+            Iceland       337000
+            dtype: Int64
+
+        The n smallest elements where `n=3`. Default keep value is `first` so
+        Nauru and Tuvalu will be kept.
+
+            >>> s.nsmallest(3)
+            Montserrat     5200
+            Nauru         11300
+            Tuvalu        11300
+            dtype: Int64
+
+        The n smallest elements where `n=3` with all duplicates kept. Note that
+        the returned Series has four elements due to the three duplicates.
+
+            >>> s.nsmallest(3, keep='all')
+            Montserrat     5200
+            Nauru         11300
+            Tuvalu        11300
+            Anguilla      11300
+            dtype: Int64
 
         Args:
             n (int, default 5):
@@ -1153,7 +1770,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 size larger than `n`.
 
         Returns:
-            bigframes.series.Series: The `n` smallest values in the Series, sorted in increasing order.
+            bigframes.pandas.Series:
+                The `n` smallest values in the Series, sorted in increasing order.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1177,7 +1795,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-        For applying arbitrary python function a `remote_funciton` is recommended.
+        For applying arbitrary python function a `remote_function` is recommended.
         Let's use ``reuse=False`` flag to make sure a new `remote_function`
         is created every time we run the following code, but you can skip it
         to potentially reuse a previously deployed `remote_function` from
@@ -1227,6 +1845,28 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> names = bpd.Series(["Alice", "Bob"])
             >>> hashes = names.apply(get_hash)
 
+        You could return an array output from the remote function.
+
+            >>> @bpd.remote_function(reuse=False)
+            ... def text_analyzer(text: str) -> list[int]:
+            ...     words = text.count(" ") + 1
+            ...     periods = text.count(".")
+            ...     exclamations = text.count("!")
+            ...     questions = text.count("?")
+            ...     return [words, periods, exclamations, questions]
+
+            >>> texts = bpd.Series([
+            ...     "The quick brown fox jumps over the lazy dog.",
+            ...     "I love this product! It's amazing.",
+            ...     "Hungry? Wanna eat? Lets go!"
+            ... ])
+            >>> features = texts.apply(text_analyzer)
+            >>> features
+            0    [9 1 0 0]
+            1    [6 1 1 0]
+            2    [5 0 1 2]
+            dtype: list<item: int64>[pyarrow]
+
         Simple vectorized functions, lambdas or ufuncs can be applied directly
         with `by_row=False`.
 
@@ -1271,9 +1911,10 @@ class Series(NDFrame):  # type: ignore[misc]
                 the func will be passed the whole Series at once.
 
         Returns:
-            bigframes.series.Series: A new Series with values representing the
-            return value of the ``func`` applied to each element of the original
-            Series.
+            bigframes.pandas.Series:
+                A new Series with values representing the
+                return value of the ``func`` applied to each element of the
+                original Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1296,8 +1937,8 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
-            Consider 2 Datasets ``s1`` and ``s2`` containing
-            highest clocked speeds of different birds.
+        Consider 2 Datasets ``s1`` and ``s2`` containing
+        highest clocked speeds of different birds.
 
             >>> s1 = bpd.Series({'falcon': 330.0, 'eagle': 160.0})
             >>> s1
@@ -1311,8 +1952,8 @@ class Series(NDFrame):  # type: ignore[misc]
             duck       30.0
             dtype: Float64
 
-            Now, to combine the two datasets and view the highest speeds
-            of the birds across the two datasets
+        Now, to combine the two datasets and view the highest speeds
+        of the birds across the two datasets
 
             >>> s1.combine(s2, np.maximum)
             falcon    345.0
@@ -1329,7 +1970,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 Also accepts some numpy binary functions.
 
         Returns:
-            Series: The result of combining the Series with the other object.
+            bigframes.pandas.Series:
+                The result of combining the Series with the other object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1471,7 +2113,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 If False, NA values will also be treated as the key in groups.
 
         Returns:
-            bigframes.core.groupby.SeriesGroupBy: Returns a groupby object that contains
+            bigframes.core.groupby.SeriesGroupBy:
+                Returns a groupby object that contains
                 information about the groups.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -1584,11 +2227,13 @@ class Series(NDFrame):  # type: ignore[misc]
                 For MultiIndex, level for which the labels will be removed.
 
         Returns:
-            bigframes.series.Series: Series with specified index labels removed
+            bigframes.pandas.Series or None:
+                Series with specified index labels removed
                 or None if ``inplace=True``.
 
         Raises:
-            KeyError: If none of the labels are found in the index.
+            KeyError:
+                If none of the labels are found in the index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1622,7 +2267,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 Levels of the indices to be swapped. Can pass level name as string.
 
         Returns:
-            Series: Series with levels swapped in MultiIndex
+            bigframes.pandas.Series:
+                Series with levels swapped in MultiIndex
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1640,7 +2286,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 For `Series` this parameter is unused and defaults to 0.
 
         Returns:
-            Series with requested index / column level(s) removed.
+            bigframes.pandas.Series:
+                Series with requested index / column level(s) removed.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1651,33 +2298,25 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
-            >>> df = bpd.DataFrame({
-            ...     'A': [1, 2, 3, None, None, 6],
-            ...     'B': [None, 6, None, 2, None, 3],
-            ...     }, index=[0, 0.1, 0.3, 0.7, 0.9, 1.0])
-            >>> df.interpolate()
-                   A     B
-            0.0  1.0  <NA>
-            0.1  2.0   6.0
-            0.3  3.0   4.0
-            0.7  4.0   2.0
-            0.9  5.0   2.5
-            1.0  6.0   3.0
-            <BLANKLINE>
-            [6 rows x 2 columns]
-            >>> df.interpolate(method="values")
-                        A         B
-            0.0       1.0      <NA>
-            0.1       2.0       6.0
-            0.3       3.0  4.666667
-            0.7  4.714286       2.0
-            0.9  5.571429  2.666667
-            1.0       6.0       3.0
-            <BLANKLINE>
-            [6 rows x 2 columns]
+        Filling in NaN in a Series via linear interpolation.
 
+            >>> s = bpd.Series([0, 1, np.nan, 3])
+            >>> s
+            0     0.0
+            1     1.0
+            2    <NA>
+            3     3.0
+            dtype: Float64
+
+            >>> s.interpolate()
+            0    0.0
+            1    1.0
+            2    2.0
+            3    3.0
+            dtype: Float64
 
         Args:
             method (str, default 'linear'):
@@ -1688,7 +2327,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 'pad': Fill in NaNs using existing values.
                 'nearest', 'zero', 'slinear': Emulates `scipy.interpolate.interp1d`
         Returns:
-            Series:
+            bigframes.pandas.Series:
                 Returns the same object type as the caller, interpolated at
                 some or all ``NaN`` values
         """
@@ -1704,6 +2343,7 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([np.nan, 2, np.nan, -1])
@@ -1738,7 +2378,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 Value to use to fill holes (e.g. 0).
 
         Returns:
-            Series or None: Object with missing values filled or None.
+            bigframes.pandas.Series or None:
+                Object with missing values filled or None.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1860,7 +2501,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 string.
 
         Returns:
-            Series/DataFrame: Object after replacement.
+            bigframes.pandas.Series or bigframes.pandas.DataFrame:
+                Object after replacement.
 
         Raises:
             TypeError:
@@ -1883,6 +2525,7 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
         Drop NA values from a Series:
@@ -1925,7 +2568,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 Not in use. Kept for compatibility.
 
         Returns:
-            Series: Series with NA entries dropped from it.
+            bigframes.pandas.Series:
+                Series with NA entries dropped from it.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1945,6 +2589,7 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
         Boundary values are included by default:
@@ -1987,8 +2632,9 @@ class Series(NDFrame):  # type: ignore[misc]
                 Include boundaries. Whether to set each bound as closed or open.
 
         Returns:
-            Series: Series representing whether each element is between left and
-            right (inclusive).
+            bigframes.pandas.Series:
+                Series representing whether each element is between left and
+                right (inclusive).
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2002,6 +2648,7 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
             >>> c = bpd.Series([6, 7, 8, 9], name="c")
@@ -2020,13 +2667,27 @@ class Series(NDFrame):  # type: ignore[misc]
             3    2
             Name: c, dtype: Int64
 
+        If you'd like to change the type, add a case with the condition True at the end of the case list
+
+            >>> c.case_when(
+            ...     caselist=[
+            ...         (a.gt(0), 'a'),  # condition, replacement
+            ...         (b.gt(0), 'b'),
+            ...         (True, 'c'),
+            ...     ]
+            ... )
+            0    c
+            1    b
+            2    a
+            3    a
+            Name: c, dtype: string
+
         **See also:**
 
-        - :func:`bigframes.series.Series.mask` : Replace values where the condition is True.
+        - :func:`bigframes.pandas.Series.mask` : Replace values where the condition is True.
 
         Args:
-            caselist:
-                A list of tuples of conditions and expected replacements
+            caselist (A list of tuples of conditions and expected replacements):
                 Takes the form:  ``(condition0, replacement0)``,
                 ``(condition1, replacement1)``, ... .
                 ``condition`` should be a 1-D boolean array-like object
@@ -2042,7 +2703,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 (though pandas doesn`t check it).
 
         Returns:
-            bigframes.series.Series
+            bigframes.pandas.Series
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2056,6 +2717,7 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([2, np.nan, 5, -1, 0])
@@ -2078,7 +2740,8 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Float64
 
         Returns:
-            bigframes.series.Series: Return cumulative sum of scalar or Series.
+            bigframes.pandas.Series:
+                Return cumulative sum of scalar or Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2089,13 +2752,39 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns a DataFrame or Series of the same size containing the cumulative
         sum.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([2, np.nan, 5, -1, 0])
+            >>> s
+            0     2.0
+            1    <NA>
+            2     5.0
+            3    -1.0
+            4     0.0
+            dtype: Float64
+
+        By default, NA values are ignored.
+
+            >>> s.cumsum()
+            0     2.0
+            1    <NA>
+            2     7.0
+            3     6.0
+            4     6.0
+            dtype: Float64
+
         Args:
             axis ({0 or 'index', 1 or 'columns'}, default 0):
                     The index or the name of the axis. 0 is equivalent to None or 'index'.
                     For `Series` this parameter is unused and defaults to 0.
 
         Returns:
-            scalar or Series: Return cumulative sum of scalar or Series.
+            bigframes.pandas.Series:
+                Return cumulative sum of scalar or Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2106,13 +2795,35 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns a DataFrame or Series of the same size containing the cumulative
         maximum.
 
-        Args:
-            axis ({{0 or 'index', 1 or 'columns'}}, default 0):
-                The index or the name of the axis. 0 is equivalent to None or 'index'.
-                For `Series` this parameter is unused and defaults to 0.
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([2, np.nan, 5, -1, 0])
+            >>> s
+            0     2.0
+            1    <NA>
+            2     5.0
+            3    -1.0
+            4     0.0
+            dtype: Float64
+
+        By default, NA values are ignored.
+
+            >>> s.cummax()
+            0     2.0
+            1    <NA>
+            2     5.0
+            3     5.0
+            4     5.0
+            dtype: Float64
+
 
         Returns:
-            bigframes.series.Series: Return cumulative maximum of scalar or Series.
+            bigframes.pandas.Series:
+                Return cumulative maximum of scalar or Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2123,30 +2834,75 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns a DataFrame or Series of the same size containing the cumulative
         minimum.
 
-        Args:
-            axis ({0 or 'index', 1 or 'columns'}, default 0):
-                The index or the name of the axis. 0 is equivalent to None or 'index'.
-                For `Series` this parameter is unused and defaults to 0.
-            skipna (bool, default True):
-                Exclude NA/null values. If an entire row/column is NA, the result
-                will be NA.
-            `*args`, `**kwargs`:
-                Additional keywords have no effect but might be accepted for
-                compatibility with NumPy.
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([2, np.nan, 5, -1, 0])
+            >>> s
+            0     2.0
+            1    <NA>
+            2     5.0
+            3    -1.0
+            4     0.0
+            dtype: Float64
+
+        By default, NA values are ignored.
+
+            >>> s.cummin()
+            0     2.0
+            1    <NA>
+            2     2.0
+            3    -1.0
+            4    -1.0
+            dtype: Float64
 
         Returns:
-            bigframes.series.Series: Return cumulative minimum of scalar or Series.
+            bigframes.pandas.Series:
+                Return cumulative minimum of scalar or Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def eq(self, other) -> Series:
         """Return equal of Series and other, element-wise (binary operator eq).
 
-        Equivalent to ``other == series``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``other == series``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.eq(b)
+            a    True
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: boolean
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
             Series: The result of the operation.
@@ -2157,83 +2913,241 @@ class Series(NDFrame):  # type: ignore[misc]
     def ne(self, other) -> Series:
         """Return not equal of Series and other, element-wise (binary operator ne).
 
-        Equivalent to ``other != series``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``other != series``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.ne(b)
+            a    False
+            b     <NA>
+            c     <NA>
+            d     <NA>
+            e     <NA>
+            dtype: boolean
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def le(self, other) -> Series:
-        """Get 'less than or equal to' of Series and other, element-wise (binary operator `<=`).
+        """Get 'less than or equal to' of Series and other, element-wise (binary
+        operator le).
 
-        Equivalent to ``series <= other``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``series <= other``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.le(b)
+            a    True
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: boolean
 
         Args:
             other: Series, or scalar value
 
         Returns:
-            bigframes.series.Series: The result of the comparison.
+            bigframes.pandas.Series:
+                The result of the comparison.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def lt(self, other) -> Series:
-        """Get 'less than' of Series and other, element-wise (binary operator `<`).
+        """Get 'less than' of Series and other, element-wise (binary operator lt).
 
-         Equivalent to ``series < other``, but with support to substitute a fill_value for
-         missing data in either one of the inputs.
+         Equivalent to ``series < other``, but with support to substitute a
+         fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.lt(b)
+            a    False
+            b     <NA>
+            c     <NA>
+            d     <NA>
+            e     <NA>
+            dtype: boolean
 
         Args:
-             other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def ge(self, other) -> Series:
-        """Get 'greater than or equal to' of Series and other, element-wise (binary operator `>=`).
+        """Get 'greater than or equal to' of Series and other, element-wise
+        (binary operator ge).
 
-        Equivalent to ``series >= other``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``series >= other``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.ge(b)
+            a    True
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: boolean
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def gt(self, other) -> Series:
-        """Get 'less than or equal to' of Series and other, element-wise (binary operator `<=`).
+        """Return Greater than of series and other, element-wise
+        (binary operator gt).
 
-        Equivalent to ``series <= other``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``series <= other``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.gt(b)
+            a    False
+            b     <NA>
+            c     <NA>
+            d     <NA>
+            e     <NA>
+            dtype: boolean
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series: The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def add(self, other) -> Series:
-        """Return addition of Series and other, element-wise (binary operator add).
+        """Return addition of Series and other, element-wise (binary operator
+        add).
 
-        Equivalent to ``series + other``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``series + other``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
 
         **Examples:**
 
@@ -2285,10 +3199,11 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2338,21 +3253,54 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to be added to the Series.
 
         Returns:
-            Series: The result of adding `other` to Series.
+            bigframes.pandas.Series:
+                The result of adding `other` to Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def radd(self, other) -> Series:
-        """Return addition of Series and other, element-wise (binary operator radd).
+        """Return addition of Series and other, element-wise (binary operator
+        radd).
 
-        Equivalent to ``other + series``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``other + series``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.add(b)
+            a     2.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series, or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2367,7 +3315,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to which Series should be added.
 
         Returns:
-            Series: The result of adding Series to `other`.
+            bigframes.pandas.Series:
+                The result of adding Series to `other`.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2375,16 +3324,48 @@ class Series(NDFrame):  # type: ignore[misc]
         self,
         other,
     ) -> Series:
-        """Return subtraction of Series and other, element-wise (binary operator sub).
+        """Return subtraction of Series and other, element-wise (binary operator
+        sub).
 
-        Equivalent to ``series - other``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``series - other``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.subtract(b)
+            a     0.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series, or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2434,21 +3415,54 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to subtract from the Series.
 
         Returns:
-            Series: The result of subtraction.
+            bigframes.pandas.Series:
+                The result of subtraction.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def rsub(self, other) -> Series:
-        """Return subtraction of Series and other, element-wise (binary operator rsub).
+        """Return subtraction of Series and other, element-wise (binary operator
+        rsub).
 
-        Equivalent to ``other - series``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``other - series``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.subtract(b)
+            a     0.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series, or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2463,21 +3477,54 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to subtract the Series from.
 
         Returns:
-            Series: The result of subtraction.
+            bigframes.pandas.Series:
+                The result of subtraction.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def mul(self, other) -> Series:
-        """Return multiplication of Series and other, element-wise (binary operator mul).
+        """Return multiplication of Series and other, element-wise (binary
+        operator mul).
 
-        Equivalent to ``other * series``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``other * series``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.multiply(b)
+            a     1.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2516,21 +3563,54 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to multiply with the Series.
 
         Returns:
-            Series: The result of the multiplication.
+            bigframes.pandas.Series:
+                The result of the multiplication.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def rmul(self, other) -> Series:
-        """Return multiplication of Series and other, element-wise (binary operator mul).
+        """Return multiplication of Series and other, element-wise (binary
+        operator mul).
 
-        Equivalent to ``series * others``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``series * others``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.multiply(b)
+            a     1.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2545,21 +3625,53 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to multiply the Series with.
 
         Returns:
-            Series: The result of the multiplication.
+            bigframes.pandas.Series: The result of the multiplication.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def truediv(self, other) -> Series:
-        """Return floating division of Series and other, element-wise (binary operator truediv).
+        """Return floating division of Series and other, element-wise (binary
+        operator truediv).
 
-        Equivalent to ``series / other``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``series / other``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.divide(b)
+            a     1.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2598,21 +3710,54 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to divide the Series by.
 
         Returns:
-            Series: The result of the division.
+            bigframes.pandas.Series:
+                The result of the division.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def rtruediv(self, other) -> Series:
-        """Return floating division of Series and other, element-wise (binary operator rtruediv).
+        """Return floating division of Series and other, element-wise (binary
+        operator rtruediv).
 
-        Equivalent to ``other / series``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``other / series``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.divide(b)
+            a     1.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2628,28 +3773,60 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to divide by the Series.
 
         Returns:
-            Series: The result of the division.
+            bigframes.pandas.Series: The result of the division.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def floordiv(self, other) -> Series:
-        """Return integer division of Series and other, element-wise (binary operator floordiv).
+        """Return integer division of Series and other, element-wise
+        (binary operator floordiv).
 
-        Equivalent to ``series // other``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``series // other``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.floordiv(b)
+            a     1.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def __floordiv__(self, other):
         """
-        Get integer divison of Series by other, using arithmatic operator `//`.
+        Get integer division of Series by other, using arithmetic operator `//`.
 
         Equivalent to `Series.floordiv(other)`.
 
@@ -2681,28 +3858,61 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to divide the Series by.
 
         Returns:
-            Series: The result of the integer divison.
+            bigframes.pandas.Series:
+                The result of the integer division.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def rfloordiv(self, other) -> Series:
-        """Return integer division of Series and other, element-wise (binary operator rfloordiv).
+        """Return integer division of Series and other, element-wise (binary
+        operator rfloordiv).
 
-        Equivalent to ``other // series``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``other // series``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.floordiv(b)
+            a     1.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def __rfloordiv__(self, other):
         """
-        Get integer divison of other by Series, using arithmatic operator `//`.
+        Get integer division of other by Series, using arithmetic operator `//`.
 
         Equivalent to `Series.rfloordiv(other)`.
 
@@ -2711,21 +3921,53 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to divide by the Series.
 
         Returns:
-            Series: The result of the integer divison.
+            bigframes.pandas.Series:
+                The result of the integer division.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def mod(self, other) -> Series:
         """Return modulo of Series and other, element-wise (binary operator mod).
 
-        Equivalent to ``series % other``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``series % other``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.mod(b)
+            a     0.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2764,21 +4006,53 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to modulo the Series by.
 
         Returns:
-            Series: The result of the modulo.
+            bigframes.pandas.Series:
+                The result of the modulo.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def rmod(self, other) -> Series:
         """Return modulo of Series and other, element-wise (binary operator mod).
 
-        Equivalent to ``series % other``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``series % other``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.mod(b)
+            a     0.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2794,21 +4068,54 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to modulo by the Series.
 
         Returns:
-            Series: The result of the modulo.
+            bigframes.pandas.Series:
+                The result of the modulo.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def pow(self, other) -> Series:
-        """Return Exponential power of series and other, element-wise (binary operator `pow`).
+        """Return Exponential power of series and other, element-wise (binary
+        operator `pow`).
 
-        Equivalent to ``series ** other``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``series ** other``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.pow(b)
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2848,21 +4155,54 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to exponentiate the Series with.
 
         Returns:
-            Series: The result of the exponentiation.
+            bigframes.pandas.Series:
+                The result of the exponentiation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def rpow(self, other) -> Series:
-        """Return Exponential power of series and other, element-wise (binary operator `rpow`).
+        """Return Exponential power of series and other, element-wise (binary
+        operator `rpow`).
 
-        Equivalent to ``other ** series``, but with support to substitute a fill_value for
-        missing data in either one of the inputs.
+        Equivalent to ``other ** series``, but with support to substitute a
+        fill_value for missing data in either one of the inputs.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.pow(b)
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            e    <NA>
+            dtype: Float64
 
         Args:
-            other (Series, or scalar value):
+            other (Series or scalar value)
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2879,21 +4219,60 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to exponentiate with the Series.
 
         Returns:
-            Series: The result of the exponentiation.
+            bigframes.pandas.Series:
+                The result of the exponentiation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def divmod(self, other) -> Series:
-        """Return integer division and modulo of Series and other, element-wise (binary operator divmod).
+        """Return integer division and modulo of Series and other, element-wise
+        (binary operator divmod).
 
         Equivalent to divmod(series, other).
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.divmod(b)
+            (a     1.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64,
+            a     0.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64)
 
         Args:
             other: Series, or scalar value
 
         Returns:
-            2-Tuple of Series: The result of the operation. The result is always
-            consistent with (floordiv, mod) (though pandas may not).
+            Tuple[bigframes.pandas.Series, bigframes.pandas.Series]:
+                The result of the operation. The result is always
+                consistent with (floordiv, mod) (though pandas may not).
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2903,12 +4282,49 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Equivalent to other divmod series.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
+            >>> a
+            a     1.0
+            b     1.0
+            c     1.0
+            d    <NA>
+            dtype: Float64
+
+            >>> b = bpd.Series([1, np.nan, 1, np.nan], index=['a', 'b', 'd', 'e'])
+            >>> b
+            a     1.0
+            b    <NA>
+            d     1.0
+            e    <NA>
+            dtype: Float64
+
+            >>> a.divmod(b)
+            (a     1.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64,
+            a     0.0
+            b    <NA>
+            c    <NA>
+            d    <NA>
+            e    <NA>
+            dtype: Float64)
+
         Args:
             other: Series, or scalar value
 
         Returns:
-            2-Tuple of Series: The result of the operation. The result is always
-            consistent with (rfloordiv, rmod) (though pandas may not).
+            Tuple[bigframes.pandas.Series, bigframes.pandas.Series]:
+                The result of the operation. The result is always
+                consistent with (rfloordiv, rmod) (though pandas may not).
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -2935,8 +4351,8 @@ class Series(NDFrame):  # type: ignore[misc]
             2    5.0
             dtype: Float64
 
-            Null values still persist if the location of that null value
-            does not exist in `other`
+        Null values still persist if the location of that null value
+        does not exist in `other`
 
             >>> s1 = bpd.Series({'falcon': np.nan, 'eagle': 160.0})
             >>> s2 = bpd.Series({'eagle': 200.0, 'duck': 30.0})
@@ -2951,7 +4367,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 The value(s) to be used for filling null values.
 
         Returns:
-            Series: The result of combining the provided Series with the other object.
+            bigframes.pandas.Series:
+                The result of combining the provided Series with the other object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3004,8 +4421,8 @@ class Series(NDFrame):  # type: ignore[misc]
             2    6
             dtype: Int64
 
-            ``other`` can also be a non-Series object type
-            that is coercible into a Series
+        ``other`` can also be a non-Series object type
+        that is coercible into a Series
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s.update([4, np.nan, 6])
@@ -3025,6 +4442,9 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Args:
             other (Series, or object coercible into Series)
+
+        Returns:
+            None
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3038,7 +4458,8 @@ class Series(NDFrame):  # type: ignore[misc]
         DataFrame axis that is False or equivalent (e.g. zero or empty).
 
         Returns:
-            scalar or Series: If level is specified, then, Series is returned;
+            scalar or bigframes.pandas.Series:
+                If level is specified, then, Series is returned;
                 otherwise, scalar is returned.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -3052,8 +4473,29 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns False unless there is at least one element within a series or along
         a Dataframe axis that is True or equivalent (e.g. non-zero or non-empty).
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+        For Series input, the output is a scalar indicating whether any element is True.
+
+            >>> bpd.Series([False, False]).any()
+            np.False_
+
+            >>> bpd.Series([True, False]).any()
+            np.True_
+
+            >>> bpd.Series([], dtype="float64").any()
+            np.False_
+
+            >>> bpd.Series([np.nan]).any()
+            np.False_
+
         Returns:
-            scalar or Series: If level is specified, then, Series is returned;
+            scalar or bigframes.pandas.Series:
+                If level is specified, then, Series is returned;
                 otherwise, scalar is returned.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -3079,8 +4521,9 @@ class Series(NDFrame):  # type: ignore[misc]
             0    1
             1    3
             dtype: Int64
+
             >>> s.max()
-            3
+            np.int64(3)
 
         Calculating the max of a Series containing ``NA`` values:
 
@@ -3090,8 +4533,9 @@ class Series(NDFrame):  # type: ignore[misc]
             1       3
             2    <NA>
             dtype: Int64
+
             >>> s.max()
-            3
+            np.int64(3)
 
         Returns:
             scalar: Scalar.
@@ -3119,8 +4563,9 @@ class Series(NDFrame):  # type: ignore[misc]
             0    1
             1    3
             dtype: Int64
+
             >>> s.min()
-            1
+            np.int64(1)
 
         Calculating the min of a Series containing ``NA`` values:
 
@@ -3130,8 +4575,9 @@ class Series(NDFrame):  # type: ignore[misc]
             1       3
             2    <NA>
             dtype: Int64
+
             >>> s.min()
-            1
+            np.int64(1)
 
         Returns:
             scalar: Scalar.
@@ -3170,9 +4616,8 @@ class Series(NDFrame):  # type: ignore[misc]
             height     0.237417
             dtype: Float64
 
-        Returns
-        -------
-        scalar or Series (if level specified)
+        Returns:
+            scalar or bigframes.pandas.Series (if level specified)
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3185,7 +4630,8 @@ class Series(NDFrame):  # type: ignore[misc]
         Normalized by N-1 by default.
 
         Returns:
-            scalar or Series (if level specified): Variance.
+            scalar or bigframes.pandas.Series (if level specified):
+                Variance.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3206,8 +4652,9 @@ class Series(NDFrame):  # type: ignore[misc]
             0    1
             1    3
             dtype: Int64
+
             >>> s.sum()
-            4
+            np.int64(4)
 
         Calculating the sum of a Series containing ``NA`` values:
 
@@ -3217,8 +4664,9 @@ class Series(NDFrame):  # type: ignore[misc]
             1       3
             2    <NA>
             dtype: Int64
+
             >>> s.sum()
-            4
+            np.int64(4)
 
         Returns:
             scalar: Scalar.
@@ -3240,8 +4688,9 @@ class Series(NDFrame):  # type: ignore[misc]
             0    1
             1    3
             dtype: Int64
+
             >>> s.mean()
-            2.0
+            np.float64(2.0)
 
         Calculating the mean of a Series containing ``NA`` values:
 
@@ -3251,8 +4700,9 @@ class Series(NDFrame):  # type: ignore[misc]
             1       3
             2    <NA>
             dtype: Int64
+
             >>> s.mean()
-            2.0
+            np.float64(2.0)
 
         Returns:
             scalar: Scalar.
@@ -3261,6 +4711,30 @@ class Series(NDFrame):  # type: ignore[misc]
 
     def median(self, *, exact: bool = True):
         """Return the median of the values over the requested axis.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s.median()
+            np.float64(2.0)
+
+        With a DataFrame
+
+            >>> df = bpd.DataFrame({'a': [1, 2], 'b': [2, 3]}, index=['tiger', 'zebra'])
+            >>> df
+                   a  b
+            tiger  1  2
+            zebra  2  3
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> df.median()
+            a    1.5
+            b    2.5
+            dtype: Float64
 
         Args:
             exact (bool. default True):
@@ -3283,9 +4757,11 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
+
             >>> s = bpd.Series([1, 2, 3, 4])
             >>> s.quantile(.5)
-            2.5
+            np.float64(2.5)
+
             >>> s.quantile([.25, .5, .75])
             0.25    1.75
             0.5      2.5
@@ -3293,11 +4769,11 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Float64
 
         Args:
-            q (float or array-like, default 0.5 (50% quantile)):
+            q (Union[float, Sequence[float], default 0.5 (50% quantile)):
                 The quantile(s) to compute, which can lie in range: 0 <= q <= 1.
 
         Returns:
-            float or Series:
+            Union[float, bigframes.pandas.Series]:
                 If ``q`` is an array, a Series will be returned where the
                 index is ``q`` and the values are the quantiles, otherwise
                 a float will be returned.
@@ -3317,6 +4793,33 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Normalized by N-1.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 3])
+            >>> s.skew()
+            np.float64(0.0)
+
+        With a DataFrame
+
+            >>> df = bpd.DataFrame({'a': [1, 2, 3], 'b': [2, 3, 4], 'c': [1, 3, 5]},
+            ...                    index=['tiger', 'zebra', 'cow'])
+            >>> df
+                    a   b   c
+            tiger   1   2   1
+            zebra   2   3   3
+            cow     3   4   5
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+            >>> df.skew()
+            a   0.0
+            b   0.0
+            c   0.0
+            dtype: Float64
+
         Returns:
             scalar: Scalar.
         """
@@ -3325,10 +4828,72 @@ class Series(NDFrame):  # type: ignore[misc]
     def kurt(self):
         """Return unbiased kurtosis over requested axis.
 
-        Kurtosis obtained using Fisher’s definition of kurtosis (kurtosis of normal == 0.0). Normalized by N-1.
+        Kurtosis obtained using Fisher’s definition of kurtosis (kurtosis of
+        normal == 0.0). Normalized by N-1.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([1, 2, 2, 3], index=['cat', 'dog', 'dog', 'mouse'])
+            >>> s
+            cat      1
+            dog      2
+            dog      2
+            mouse    3
+            dtype: Int64
+
+            >>> s.kurt()
+            np.float64(1.5)
+
+        With a DataFrame
+
+            >>> df = bpd.DataFrame({'a': [1, 2, 2, 3], 'b': [3, 4, 4, 4]},
+            ...                    index=['cat', 'dog', 'dog', 'mouse'])
+            >>> df
+                   a  b
+            cat    1  3
+            dog    2  4
+            dog    2  4
+            mouse  3  4
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+            >>> df.kurt()
+            a    1.5
+            b    4.0
+            dtype: Float64
 
         Returns:
-            scalar or scalar: Unbiased kurtosis over requested axis.
+            scalar or scalar:
+                Unbiased kurtosis over requested axis.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def items(self):
+        """
+        Lazily iterate over (index, value) tuples.
+
+        This method returns an iterable tuple (index, value).
+        This is convenient if you want to create a lazy iterator.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['A', 'B', 'C'])
+            >>> for index, value in s.items():
+            ...     print(f"Index : {index}, Value : {value}")
+            Index : 0, Value : A
+            Index : 1, Value : B
+            Index : 2, Value : C
+
+        Returns:
+            iterable:
+              Iterable of tuples containing the (index, value) pairs from a
+              Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3395,7 +4960,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 extension dtypes).
 
         Returns:
-            bigframes.series.Series: Series after the replacement.
+            bigframes.pandas.Series:
+                Series after the replacement.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3506,18 +5072,19 @@ class Series(NDFrame):  # type: ignore[misc]
                 with corresponding value from other. If cond is callable, it is
                 computed on the Series/DataFrame and should return boolean
                 Series/DataFrame or array. The callable must not change input
-                Series/DataFrame (though pandas doesn’t check it).
+                Series/DataFrame (though pandas doesn't check it).
             other (scalar, Series/DataFrame, or callable):
                 Entries where cond is True are replaced with corresponding value
                 from other. If other is callable, it is computed on the
                 Series/DataFrame and should return scalar or Series/DataFrame.
                 The callable must not change input Series/DataFrame (though pandas
-                doesn’t check it). If not specified, entries will be filled with
+                doesn't check it). If not specified, entries will be filled with
                 the corresponding NULL value (np.nan for numpy dtypes, pd.NA for
                 extension dtypes).
 
         Returns:
-            bigframes.series.Series: Series after the replacement.
+            bigframes.pandas.Series:
+                Series after the replacement.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3530,13 +5097,16 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Args:
             lower (float or array-like, default None):
-                Minimum threshold value. All values below this threshold will be set to it. A missing threshold (e.g NA) will not clip the value.
+                Minimum threshold value. All values below this threshold will
+                be set to it. A missing threshold (e.g NA) will not clip the value.
 
             upper (float or array-like, default None):
-                Maximum threshold value. All values above this threshold will be set to it. A missing threshold (e.g NA) will not clip the value.
+                Maximum threshold value. All values above this threshold will
+                be set to it. A missing threshold (e.g NA) will not clip the value.
 
         Returns:
-            Series: Series.
+            bigframes.pandas.Series:
+                Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3544,20 +5114,17 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Unstack, also known as pivot, Series with MultiIndex to produce DataFrame.
 
-        Args:
-            level (int, str, or list of these, default last level):
-                Level(s) to unstack, can pass level name.
-
         Returns:
-            DataFrame: Unstacked Series.
+            bigframes.pandas.DataFrame: Unstacked Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def argmax(self):
         """
-        Return int position of the smallest value in the series.
+        Return int position of the largest value in the series.
 
-        If the minimum is achieved in multiple locations, the first row position is returned.
+        If the maximum is achieved in multiple locations, the first row position
+        is returned.
 
         **Examples:**
 
@@ -3576,24 +5143,26 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Float64
 
             >>> s.argmax()
-            2
+            np.int64(2)
 
             >>> s.argmin()
-            0
+            np.int64(0)
 
         The maximum cereal calories is the third element and the minimum cereal
         calories is the first element, since series is zero-indexed.
 
         Returns:
-            Series: Row position of the maximum value.
+            int:
+                Row position of the maximum value.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def argmin(self):
         """
-        Return int position of the largest value in the Series.
+        Return int position of the smallest value in the Series.
 
-        If the maximum is achieved in multiple locations, the first row position is returned.
+        If the minimum is achieved in multiple locations, the first row position
+        is returned.
 
         **Examples:**
 
@@ -3612,16 +5181,17 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Float64
 
             >>> s.argmax()
-            2
+            np.int64(2)
 
             >>> s.argmin()
-            0
+            np.int64(0)
 
         The maximum cereal calories is the third element and the minimum cereal
         calories is the first element, since series is zero-indexed.
 
         Returns:
-            Series: Row position of the minimum value.
+            int:
+                Row position of the minimum value.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3671,7 +5241,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 attribute.
 
         Returns:
-            bigframes.series.Series: Series with index labels.
+            bigframes.pandas.Series:
+                Series with index labels.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -3684,8 +5255,53 @@ class Series(NDFrame):  # type: ignore[misc]
             mapper (scalar, list-like, optional):
                 Value to set the axis name attribute.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        Series
+
+            >>> s = bpd.Series(["dog", "cat", "monkey"])
+            >>> s
+            0       dog
+            1       cat
+            2    monkey
+            dtype: string
+
+            >>> s.rename_axis("animal")
+            animal
+            0       dog
+            1       cat
+            2    monkey
+            dtype: string
+
+        DataFrame
+
+            >>> df = bpd.DataFrame({"num_legs": [4, 4, 2],
+            ...                     "num_arms": [0, 0, 2]},
+            ...                    ["dog", "cat", "monkey"])
+            >>> df
+                    num_legs  num_arms
+            dog            4         0
+            cat            4         0
+            monkey         2         2
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df = df.rename_axis("animal")
+            >>> df
+                    num_legs  num_arms
+            animal
+            dog            4         0
+            cat            4         0
+            monkey         2         2
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
         Returns:
-            bigframes.series.Series: Series with the name of the axis set.
+            bigframes.pandas.Series or  bigframes.pandas.DataFrame:
+                The same type as the caller.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3769,7 +5385,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 Don't include counts of NaN.
 
         Returns:
-            Series: Series containing counts of unique values.
+            bigframes.pandas.Series:
+                Series containing counts of unique values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3810,6 +5427,16 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         Make plots of Series.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> ser = bpd.Series([1, 2, 3, 3])
+            >>> plot = ser.plot(kind='hist', title="My plot")
+            >>> plot
+            <Axes: title={'center': 'My plot'}, ylabel='Frequency'>
+
         Returns:
             bigframes.operations.plotting.PlotAccessor:
                 An accessor making plots.
@@ -3844,9 +5471,23 @@ class Series(NDFrame):  # type: ignore[misc]
             5     hippo
             Name: animal, dtype: string
 
-            >>> s.isin(['cow', 'llama'])
+        To invert the boolean values, use the ~ operator:
+
+            >>> ~s.isin(['cow', 'llama'])
+            0    False
+            1    False
+            2    False
+            3     True
+            4    False
+            5     True
+            Name: animal, dtype: boolean
+
+        Passing a single string as s.isin('llama') will raise an error. Use a
+        list of one element instead:
+
+            >>> s.isin(['llama'])
             0     True
-            1     True
+            1    False
             2     True
             3    False
             4     True
@@ -3868,7 +5509,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 TypeError. Instead, turn a single string into a list of one element.
 
         Returns:
-            bigframes.series.Series: Series of booleans indicating if each element is in values.
+            bigframes.pandas.Series: Series of booleans indicating if each element is in values.
 
         Raises:
             TypeError: If input is not list-like.
@@ -3887,14 +5528,15 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([1, 2, 2])
             >>> s.is_monotonic_increasing
-            True
+            np.True_
 
             >>> s = bpd.Series([3, 2, 1])
             >>> s.is_monotonic_increasing
-            False
+            np.False_
 
         Returns:
-            bool: Boolean.
+            bool:
+                Boolean.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3910,14 +5552,15 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([3, 2, 2, 1])
             >>> s.is_monotonic_decreasing
-            True
+            np.True_
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s.is_monotonic_decreasing
-            False
+            np.False_
 
         Returns:
-            bool: Boolean.
+            bool:
+                Boolean.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4001,7 +5644,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 index entry.
 
         Returns:
-            Series: Same index as caller.
+            bigframes.pandas.Series:
+                Same index as caller.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4009,8 +5653,79 @@ class Series(NDFrame):  # type: ignore[misc]
     def iloc(self):
         """Purely integer-location based indexing for selection by position.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> mydict = [{'a': 1, 'b': 2, 'c': 3, 'd': 4},
+            ...               {'a': 100, 'b': 200, 'c': 300, 'd': 400},
+            ...               {'a': 1000, 'b': 2000, 'c': 3000, 'd': 4000}]
+            >>> df = bpd.DataFrame(mydict)
+            >>> df
+                  a     b     c     d
+            0     1     2     3     4
+            1   100   200   300   400
+            2  1000  2000  3000  4000
+            <BLANKLINE>
+            [3 rows x 4 columns]
+
+        Indexing just the rows
+
+        With a scalar integer.
+
+            >>> type(df.iloc[0])
+            <class 'pandas.core.series.Series'>
+
+            >>> df.iloc[0]
+            a    1
+            b    2
+            c    3
+            d    4
+            Name: 0, dtype: Int64
+
+        With a list of integers.
+
+            >>> df.iloc[0]
+            a    1
+            b    2
+            c    3
+            d    4
+            Name: 0, dtype: Int64
+
+            >>> type(df.iloc[[0]])
+            <class 'bigframes.dataframe.DataFrame'>
+
+            >>> df.iloc[[0, 1]]
+                a    b    c    d
+            0    1    2    3    4
+            1  100  200  300  400
+            <BLANKLINE>
+            [2 rows x 4 columns]
+
+        With a slice object.
+
+            >>> df.iloc[:3]
+                  a     b     c     d
+            0     1     2     3     4
+            1   100   200   300   400
+            2  1000  2000  3000  4000
+            <BLANKLINE>
+            [3 rows x 4 columns]
+
+        Indexing both axes
+
+        You can mix the indexer types for the index and columns. Use : to select
+        the entire axis.
+
+        With scalar integers.
+
+            >>> df.iloc[0, 1]
+            np.int64(2)
+
         Returns:
-            bigframes.core.indexers.IlocSeriesIndexer: Purely integer-location Indexers.
+            bigframes.core.indexers.IlocSeriesIndexer:
+                Purely integer-location Indexers.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4018,8 +5733,86 @@ class Series(NDFrame):  # type: ignore[misc]
     def loc(self):
         """Access a group of rows and columns by label(s) or a boolean array.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame([[1, 2], [4, 5], [7, 8]],
+            ...                    index=['cobra', 'viper', 'sidewinder'],
+            ...                    columns=['max_speed', 'shield'])
+            >>> df
+                        max_speed  shield
+            cobra               1       2
+            viper               4       5
+            sidewinder          7       8
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Single label. Note this returns the row as a Series.
+
+            >>> df.loc['viper']
+            max_speed    4
+            shield       5
+            Name: viper, dtype: Int64
+
+        List of labels. Note using [[]] returns a DataFrame.
+
+            >>> df.loc[['viper', 'sidewinder']]
+                        max_speed  shield
+            viper               4       5
+            sidewinder          7       8
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Slice with labels for row and single label for column. As mentioned
+        above, note that both the start and stop of the slice are included.
+
+            >>> df.loc['cobra', 'shield']
+            np.int64(2)
+
+        Index (same behavior as df.reindex)
+
+            >>> df.loc[bpd.Index(["cobra", "viper"], name="foo")]
+                  max_speed  shield
+            cobra          1       2
+            viper          4       5
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Conditional that returns a boolean Series with column labels specified
+
+            >>> df.loc[df['shield'] > 6, ['max_speed']]
+                        max_speed
+            sidewinder          7
+            <BLANKLINE>
+            [1 rows x 1 columns]
+
+        Multiple conditional using | that returns a boolean Series
+
+            >>> df.loc[(df['max_speed'] > 4) | (df['shield'] < 5)]
+                        max_speed  shield
+            cobra               1       2
+            sidewinder          7       8
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Please ensure that each condition is wrapped in parentheses ().
+
+        Set value for an entire column
+
+            >>> df.loc[:, 'max_speed'] = 30
+            >>> df
+                        max_speed  shield
+            cobra              30       2
+            viper              30       5
+            sidewinder         30       8
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
         Returns:
-            bigframes.core.indexers.LocSeriesIndexer: Indexers object.
+            bigframes.core.indexers.LocSeriesIndexer:
+                Indexers object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4030,21 +5823,31 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> s = bpd.Series(bpd.Series([1, 2, 3]))
             >>> bpd.options.display.progress_bar = None
-            >>> s
-            0    1
-            1    2
-            2    3
-            dtype: Int64
 
-        Get value at specified row number
+            >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
+            ...                    columns=['A', 'B', 'C'])
+            >>> df
+                A       B       C
+            0   0       2       3
+            1   0       4       1
+            2   10      20      30
+            <BLANKLINE>
+            [3 rows x 3 columns]
 
-            >>> s.iat[1]
-            2
+        Get value at specified row/column pair
+
+            >>> df.iat[1, 2]
+            np.int64(1)
+
+        Get value within a series
+
+            >>> df.loc[0].iat[1]
+            np.int64(2)
 
         Returns:
-            bigframes.core.indexers.IatSeriesIndexer: Indexers object.
+            bigframes.core.indexers.IatSeriesIndexer:
+                Indexers object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4055,22 +5858,31 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> s = bpd.Series([1, 2, 3], index=['A', 'B', 'C'])
             >>> bpd.options.display.progress_bar = None
-            >>> s
-            A    1
-            B    2
-            C    3
-            dtype: Int64
+
+            >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
+            ...                    index=[4, 5, 6], columns=['A', 'B', 'C'])
+            >>> df
+                A   B   C
+            4   0   2   3
+            5   0   4   1
+            6  10  20  30
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        Get value at specified row/column pair
+
+            >>> df.at[4, 'B']
+            np.int64(2)
 
         Get value at specified row label
 
-            >>> s.at['B']
-            2
-
+            >>> df.loc[5].at['B']
+            np.int64(4)
 
         Returns:
-            bigframes.core.indexers.AtSeriesIndexer: Indexers object.
+            bigframes.core.indexers.AtSeriesIndexer:
+                Indexers object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4091,7 +5903,8 @@ class Series(NDFrame):  # type: ignore[misc]
             array(['a', 'a', 'b', 'c'], dtype=object)
 
         Returns:
-            numpy.ndarray or ndarray-like: Values in the Series.
+            numpy.ndarray or ndarray-like:
+                Values in the Series.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -4107,7 +5920,12 @@ class Series(NDFrame):  # type: ignore[misc]
 
         For Series:
 
-            >>> s = bpd.Series({'a': 1, 'b': 2, 'c': 3})
+            >>> s = bpd.Series(['Ant', 'Bear', 'Cow'])
+            >>> s
+            0     Ant
+            1    Bear
+            2     Cow
+            dtype: string
             >>> s.size
             3
 
@@ -4118,7 +5936,8 @@ class Series(NDFrame):  # type: ignore[misc]
             3
 
         Returns:
-            int: Return the number of elements in the underlying data.
+            int:
+                Return the number of elements in the underlying data.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4186,7 +6005,8 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: boolean
 
         Returns:
-            Series: The inverted values in the series.
+            bigframes.pandas.Series:
+                The inverted values in the series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4224,7 +6044,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to bitwise AND with the Series.
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4262,7 +6083,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to bitwise OR with the Series.
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4300,7 +6122,8 @@ class Series(NDFrame):  # type: ignore[misc]
                 Object to bitwise XOR with the Series.
 
         Returns:
-            bigframes.series.Series: The result of the operation.
+            bigframes.pandas.Series:
+                The result of the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4314,7 +6137,8 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s = bpd.Series([15, 30, 45])
             >>> s[1]
-            30
+            np.int64(30)
+
             >>> s[0:2]
             0    15
             1    30
@@ -4325,6 +6149,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 Index or slice of indices.
 
         Returns:
-            Series or Value: Value(s) at the requested index(es).
+            bigframes.pandas.Series or Value:
+                Value(s) at the requested index(es).
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

@@ -17,10 +17,9 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Union
 
+import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 
-import bigframes
-import bigframes.constants as constants
 from bigframes.ml import (
     cluster,
     compose,
@@ -36,6 +35,7 @@ from bigframes.ml import (
     preprocessing,
     utils,
 )
+import bigframes.session
 
 _BQML_MODEL_TYPE_MAPPING = MappingProxyType(
     {
@@ -63,10 +63,16 @@ _BQML_ENDPOINT_TYPE_MAPPING = MappingProxyType(
         llm._GEMINI_PRO_ENDPOINT: llm.GeminiTextGenerator,
         llm._GEMINI_1P5_PRO_PREVIEW_ENDPOINT: llm.GeminiTextGenerator,
         llm._GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT: llm.GeminiTextGenerator,
+        llm._GEMINI_1P5_PRO_001_ENDPOINT: llm.GeminiTextGenerator,
+        llm._GEMINI_1P5_PRO_002_ENDPOINT: llm.GeminiTextGenerator,
+        llm._GEMINI_1P5_FLASH_001_ENDPOINT: llm.GeminiTextGenerator,
+        llm._GEMINI_1P5_FLASH_002_ENDPOINT: llm.GeminiTextGenerator,
+        llm._GEMINI_2_FLASH_EXP_ENDPOINT: llm.GeminiTextGenerator,
         llm._CLAUDE_3_HAIKU_ENDPOINT: llm.Claude3TextGenerator,
         llm._CLAUDE_3_SONNET_ENDPOINT: llm.Claude3TextGenerator,
         llm._CLAUDE_3_5_SONNET_ENDPOINT: llm.Claude3TextGenerator,
         llm._CLAUDE_3_OPUS_ENDPOINT: llm.Claude3TextGenerator,
+        llm._TEXT_EMBEDDING_005_ENDPOINT: llm.TextEmbeddingGenerator,
         llm._TEXT_EMBEDDING_004_ENDPOINT: llm.TextEmbeddingGenerator,
         llm._TEXT_MULTILINGUAL_EMBEDDING_002_ENDPOINT: llm.TextEmbeddingGenerator,
     }
@@ -74,7 +80,7 @@ _BQML_ENDPOINT_TYPE_MAPPING = MappingProxyType(
 
 
 def from_bq(
-    session: bigframes.Session, bq_model: bigquery.Model
+    session: bigframes.session.Session, bq_model: bigquery.Model
 ) -> Union[
     decomposition.PCA,
     cluster.KMeans,
@@ -115,7 +121,7 @@ def from_bq(
     return _model_from_bq(session, bq_model)
 
 
-def _transformer_from_bq(session: bigframes.Session, bq_model: bigquery.Model):
+def _transformer_from_bq(session: bigframes.session.Session, bq_model: bigquery.Model):
     transformer = compose.ColumnTransformer._extract_from_bq_model(bq_model)._merge(
         bq_model
     )
@@ -124,7 +130,7 @@ def _transformer_from_bq(session: bigframes.Session, bq_model: bigquery.Model):
     return transformer
 
 
-def _model_from_bq(session: bigframes.Session, bq_model: bigquery.Model):
+def _model_from_bq(session: bigframes.session.Session, bq_model: bigquery.Model):
     if bq_model.model_type in _BQML_MODEL_TYPE_MAPPING:
         return _BQML_MODEL_TYPE_MAPPING[bq_model.model_type]._from_bq(  # type: ignore
             session=session, bq_model=bq_model

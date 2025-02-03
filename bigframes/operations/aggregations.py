@@ -34,18 +34,21 @@ class WindowOp:
         return True
 
     @property
-    def uses_total_row_ordering(self):
-        """Whether the operator needs total row ordering. (eg. lead, lag, array_agg)"""
-        return False
+    def implicitly_inherits_order(self):
+        """
+        Whether the operator implicitly inherits the underlying array order, should it exist.
 
-    @property
-    def can_order_by(self):
-        return False
+        Notably, rank operations do not want to inherit ordering. Even order-independent operations
+        may inherit order when needed for row bounds.
+        """
+        return True
 
     @property
     def order_independent(self):
         """
         True if the output of the operator does not depend on the ordering of input rows.
+
+        Aggregation functions are usually order independent, except array_agg, string_agg.
 
         Navigation functions are a notable case that are not order independent.
         """
@@ -89,12 +92,11 @@ class AggregateOp(WindowOp):
 
     @property
     def order_independent(self):
-        """
-        True if results don't depend on the order of the input.
+        return True
 
-        Almost all aggregation functions are order independent, excepting ``array_agg`` and ``string_agg``.
-        """
-        return not self.can_order_by
+    @property
+    def uses_total_row_ordering(self):
+        return False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -126,6 +128,15 @@ class SizeOp(NullaryAggregateOp):
         return dtypes.INT_DTYPE
 
 
+# TODO: Remove this temporary hack once nullary ops are better supported in APIs
+@dataclasses.dataclass(frozen=True)
+class SizeUnaryOp(UnaryAggregateOp):
+    name: ClassVar[str] = "size"
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.INT_DTYPE
+
+
 @dataclasses.dataclass(frozen=True)
 class SumOp(UnaryAggregateOp):
     name: ClassVar[str] = "sum"
@@ -142,6 +153,10 @@ class SumOp(UnaryAggregateOp):
 @dataclasses.dataclass(frozen=True)
 class MedianOp(UnaryAggregateOp):
     name: ClassVar[str] = "median"
+
+    @property
+    def order_independent(self) -> bool:
+        return True
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         # These will change if median is changed to exact implementation.
@@ -160,6 +175,10 @@ class QuantileOp(UnaryAggregateOp):
     @property
     def name(self):
         return f"{int(self.q * 100)}%"
+
+    @property
+    def order_independent(self) -> bool:
+        return True
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
@@ -182,6 +201,23 @@ class ApproxQuartilesOp(UnaryAggregateOp):
             return dtypes.FLOAT_DTYPE
         else:
             return input_types[0]
+
+
+@dataclasses.dataclass(frozen=True)
+class ApproxTopCountOp(UnaryAggregateOp):
+    name: typing.ClassVar[str] = "approx_top_count"
+    number: int
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if not dtypes.is_orderable(input_types[0]):
+            raise TypeError(f"Type {input_types[0]} is not orderable")
+
+        input_type = input_types[0]
+        fields = [
+            pa.field("value", dtypes.bigframes_dtype_to_arrow_dtype(input_type)),
+            pa.field("count", pa.int64()),
+        ]
+        return pd.ArrowDtype(pa.list_(pa.struct(fields)))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -271,8 +307,8 @@ class ArrayAggOp(UnaryAggregateOp):
     name: ClassVar[str] = "arrayagg"
 
     @property
-    def can_order_by(self):
-        return True
+    def order_independent(self):
+        return False
 
     @property
     def skips_nulls(self):
@@ -306,8 +342,8 @@ class CutOp(UnaryWindowOp):
             )
             pa_type = pa.struct(
                 [
-                    ("left_exclusive", interval_dtype),
-                    ("right_inclusive", interval_dtype),
+                    pa.field("left_exclusive", interval_dtype, nullable=True),
+                    pa.field("right_inclusive", interval_dtype, nullable=True),
                 ]
             )
             return pd.ArrowDtype(pa_type)
@@ -318,7 +354,7 @@ class CutOp(UnaryWindowOp):
 
 
 @dataclasses.dataclass(frozen=True)
-class QcutOp(UnaryWindowOp):
+class QcutOp(UnaryWindowOp):  # bucket op
     quantiles: typing.Union[int, typing.Tuple[float, ...]]
 
     @property
@@ -362,6 +398,20 @@ class AnyValueOp(UnaryAggregateOp):
         return True
 
 
+# This should really by a NullaryWindowOp, but APIs don't support that yet.
+@dataclasses.dataclass(frozen=True)
+class RowNumberOp(NullaryWindowOp):
+    name: ClassVar[str] = "rownumber"
+
+    @property
+    def skips_nulls(self):
+        return False
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return dtypes.INT_DTYPE
+
+
+# TODO: Convert to NullaryWindowOp
 @dataclasses.dataclass(frozen=True)
 class RankOp(UnaryWindowOp):
     name: ClassVar[str] = "rank"
@@ -371,15 +421,14 @@ class RankOp(UnaryWindowOp):
         return False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return signatures.FixedOutputType(
-            dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
-        ).output_type(input_types[0])
+        return dtypes.INT_DTYPE
 
     @property
-    def order_independent(self):
-        return True
+    def implicitly_inherits_order(self):
+        return False
 
 
+# TODO: Convert to NullaryWindowOp
 @dataclasses.dataclass(frozen=True)
 class DenseRankOp(UnaryWindowOp):
     @property
@@ -387,30 +436,20 @@ class DenseRankOp(UnaryWindowOp):
         return False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return signatures.FixedOutputType(
-            dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
-        ).output_type(input_types[0])
+        return dtypes.INT_DTYPE
 
     @property
-    def order_independent(self):
-        return True
+    def implicitly_inherits_order(self):
+        return False
 
 
 @dataclasses.dataclass(frozen=True)
 class FirstOp(UnaryWindowOp):
     name: ClassVar[str] = "first"
 
-    @property
-    def uses_total_row_ordering(self):
-        return True
-
 
 @dataclasses.dataclass(frozen=True)
 class FirstNonNullOp(UnaryWindowOp):
-    @property
-    def uses_total_row_ordering(self):
-        return True
-
     @property
     def skips_nulls(self):
         return False
@@ -420,17 +459,9 @@ class FirstNonNullOp(UnaryWindowOp):
 class LastOp(UnaryWindowOp):
     name: ClassVar[str] = "last"
 
-    @property
-    def uses_total_row_ordering(self):
-        return True
-
 
 @dataclasses.dataclass(frozen=True)
 class LastNonNullOp(UnaryWindowOp):
-    @property
-    def uses_total_row_ordering(self):
-        return True
-
     @property
     def skips_nulls(self):
         return False
@@ -441,10 +472,6 @@ class ShiftOp(UnaryWindowOp):
     periods: int
 
     @property
-    def uses_total_row_ordering(self):
-        return True
-
-    @property
     def skips_nulls(self):
         return False
 
@@ -452,10 +479,6 @@ class ShiftOp(UnaryWindowOp):
 @dataclasses.dataclass(frozen=True)
 class DiffOp(UnaryWindowOp):
     periods: int
-
-    @property
-    def uses_total_row_ordering(self):
-        return True
 
     @property
     def skips_nulls(self):

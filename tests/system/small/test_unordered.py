@@ -152,6 +152,27 @@ def test_unordered_merge(unordered_session):
     assert_pandas_df_equal(bf_result.to_pandas(), pd_result, ignore_order=True)
 
 
+def test_unordered_drop_duplicates_ambiguous(unordered_session):
+    pd_df = pd.DataFrame(
+        {"a": [1, 1, 1], "b": [4, 4, 6], "c": [1, 1, 3]}, dtype=pd.Int64Dtype()
+    )
+    bf_df = bpd.DataFrame(pd_df, session=unordered_session)
+
+    # merge first to discard original ordering
+    bf_result = (
+        bf_df.merge(bf_df, left_on="a", right_on="c")
+        .sort_values("c_y")
+        .drop_duplicates()
+    )
+    pd_result = (
+        pd_df.merge(pd_df, left_on="a", right_on="c")
+        .sort_values("c_y")
+        .drop_duplicates()
+    )
+
+    assert_pandas_df_equal(bf_result.to_pandas(), pd_result, ignore_order=True)
+
+
 def test_unordered_mode_cache_preserves_order(unordered_session):
     pd_df = pd.DataFrame(
         {"a": [1, 2, 3, 4, 5, 6], "b": [4, 5, 9, 3, 1, 6]}, dtype=pd.Int64Dtype()
@@ -198,3 +219,51 @@ def test_unordered_mode_no_ambiguity_warning(unordered_session):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         df.groupby("a").head(3)
+
+
+@skip_legacy_pandas
+@pytest.mark.parametrize(
+    ("rule", "origin", "data"),
+    [
+        (
+            "5h",
+            "epoch",
+            {
+                "timestamp_col": pd.date_range(
+                    start="2021-01-01 13:00:00", periods=30, freq="1h"
+                ),
+                "int64_col": range(30),
+                "int64_too": range(10, 40),
+            },
+        ),
+        (
+            "5h",
+            "epoch",
+            {
+                "timestamp_col": pd.DatetimeIndex(
+                    pd.date_range(
+                        start="2021-01-01 13:00:00", periods=15, freq="1h"
+                    ).tolist()
+                    + pd.date_range(
+                        start="2021-01-01 13:00:00", periods=15, freq="1h"
+                    ).tolist()
+                ),
+                "int64_col": range(30),
+                "int64_too": range(10, 40),
+            },
+        ),
+    ],
+)
+def test__resample_with_index(unordered_session, rule, origin, data):
+    col = "timestamp_col"
+    scalars_df_index = bpd.DataFrame(data, session=unordered_session).set_index(col)
+    scalars_pandas_df_index = pd.DataFrame(data).set_index(col)
+    scalars_pandas_df_index.index.name = None
+
+    bf_result = scalars_df_index._resample(rule=rule, origin=origin).min().to_pandas()
+
+    pd_result = scalars_pandas_df_index.resample(rule=rule, origin=origin).min()
+
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )

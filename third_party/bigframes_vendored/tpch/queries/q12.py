@@ -7,13 +7,13 @@ import bigframes
 import bigframes.pandas as bpd
 
 
-def q(dataset_id: str, session: bigframes.Session):
+def q(project_id: str, dataset_id: str, session: bigframes.Session):
     lineitem = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.LINEITEM",
+        f"{project_id}.{dataset_id}.LINEITEM",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     orders = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.ORDERS",
+        f"{project_id}.{dataset_id}.ORDERS",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
 
@@ -46,4 +46,4 @@ def q(dataset_id: str, session: bigframes.Session):
 
     agg_results = typing.cast(bpd.DataFrame, agg_results).sort_values("L_SHIPMODE")
 
-    agg_results.to_gbq()
+    next(agg_results.to_pandas_batches())

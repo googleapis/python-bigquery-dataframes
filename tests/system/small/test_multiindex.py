@@ -910,7 +910,9 @@ def test_column_multi_index_unstack(scalars_df_index, scalars_pandas_df_index):
 
 def test_corr_w_multi_index(scalars_df_index, scalars_pandas_df_index):
     columns = ["int64_too", "float64_col", "int64_col"]
-    multi_columns = pandas.MultiIndex.from_tuples(zip(["a", "b", "b"], [1, 2, 2]))
+    multi_columns = pandas.MultiIndex.from_tuples(
+        zip(["a", "b", "b"], [1, 2, 2]), names=[None, "level_2"]
+    )
 
     bf = scalars_df_index[columns].copy()
     bf.columns = multi_columns
@@ -931,7 +933,9 @@ def test_corr_w_multi_index(scalars_df_index, scalars_pandas_df_index):
 
 def test_cov_w_multi_index(scalars_df_index, scalars_pandas_df_index):
     columns = ["int64_too", "float64_col", "int64_col"]
-    multi_columns = pandas.MultiIndex.from_tuples(zip(["a", "b", "b"], [1, 2, 2]))
+    multi_columns = pandas.MultiIndex.from_tuples(
+        zip(["a", "b", "b"], [1, 2, 2]), names=["level_1", None]
+    )
 
     bf = scalars_df_index[columns].copy()
     bf.columns = multi_columns
@@ -1178,7 +1182,7 @@ def test_column_multi_index_dot_not_supported():
         bf1 @ bf2
 
 
-def test_explode_w_multi_index():
+def test_explode_w_column_multi_index():
     data = [[[1, 1], np.nan, [3, 3]], [[2], [5], []]]
     multi_level_columns = pandas.MultiIndex.from_arrays(
         [["col0", "col0", "col1"], ["col00", "col01", "col11"]]
@@ -1192,6 +1196,24 @@ def test_explode_w_multi_index():
     pandas.testing.assert_frame_equal(
         df["col0"].explode("col00").to_pandas(),
         pd_df["col0"].explode("col00"),
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
+def test_explode_w_multi_index():
+    data = [[[1, 1], np.nan, [3, 3]], [[2], [5], []]]
+    columns = ["col00", "col01", "col11"]
+    multi_index = pandas.MultiIndex.from_frame(
+        pandas.DataFrame({"idx0": [5, 1], "idx1": ["z", "x"]})
+    )
+
+    df = bpd.DataFrame(data, index=multi_index, columns=columns)
+    pd_df = df.to_pandas()
+
+    pandas.testing.assert_frame_equal(
+        df.explode("col00").to_pandas(),
+        pd_df.explode("col00"),
         check_dtype=False,
         check_index_type=False,
     )

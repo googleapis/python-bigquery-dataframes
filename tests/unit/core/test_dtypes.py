@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import bigframes_vendored.ibis.backends.bigquery.datatypes as ibis_bq_types
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
+import bigframes_vendored.ibis.expr.types as ibis_types
 import geopandas as gpd  # type: ignore
-import ibis
-import ibis.expr.datatypes as ibis_dtypes
 import numpy as np
 import pandas as pd
 import pyarrow as pa  # type: ignore
@@ -74,7 +75,7 @@ def test_ibis_dtype_converts(ibis_dtype, bigframes_dtype):
 
 def test_ibis_timestamp_pst_raises_unexpected_datatype():
     """BigQuery timestamp only supports UTC time"""
-    with pytest.raises(ValueError, match="Unexpected Ibis data type"):
+    with pytest.raises(ValueError, match="'PST'"):
         bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
             ibis_dtypes.Timestamp(timezone="PST")
         )
@@ -153,6 +154,15 @@ def test_ibis_dtype_to_arrow_dtype(ibis_dtype, arrow_dtype):
 
 
 @pytest.mark.parametrize(
+    ("ibis_dtype", "bigquery_type"),
+    [(ibis_dtypes.String(), "STRING"), (ibis_dtypes.String(nullable=False), "STRING")],
+)
+def test_ibis_dtype_to_bigquery_type(ibis_dtype, bigquery_type):
+    result = ibis_bq_types.BigQueryType.from_ibis(ibis_dtype)
+    assert result == bigquery_type
+
+
+@pytest.mark.parametrize(
     ["bigframes_dtype", "ibis_dtype"],
     [
         # This test covers all dtypes that BigQuery DataFrames can exactly map to Ibis
@@ -209,29 +219,29 @@ def test_bigframes_dtype_converts(ibis_dtype, bigframes_dtype):
 def test_bigframes_string_dtype_converts(ibis_dtype, bigframes_dtype_str):
     """Test all the Ibis data types needed to read BigQuery tables"""
     result = bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype(
-        bigframes_dtype_str
+        bigframes.dtypes.bigframes_type(bigframes_dtype_str)
     )
     assert result == ibis_dtype
 
 
 def test_unsupported_dtype_raises_unexpected_datatype():
     """Incompatible dtypes should fail when passed into BigQuery DataFrames"""
-    with pytest.raises(ValueError, match="Unexpected data type"):
+    with pytest.raises(ValueError, match="Datatype has no ibis type mapping"):
         bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype(np.float32)
 
 
 def test_unsupported_dtype_str_raises_unexpected_datatype():
     """Incompatible dtypes should fail when passed into BigQuery DataFrames"""
-    with pytest.raises(ValueError, match="Unexpected data type"):
+    with pytest.raises(ValueError, match="Datatype has no ibis type mapping"):
         bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype("int64")
 
 
 @pytest.mark.parametrize(
     ["literal", "ibis_scalar"],
     [
-        (True, ibis.literal(True, ibis_dtypes.boolean)),
-        (5, ibis.literal(5, ibis_dtypes.int64)),
-        (-33.2, ibis.literal(-33.2, ibis_dtypes.float64)),
+        (True, ibis_types.literal(True, ibis_dtypes.boolean)),
+        (5, ibis_types.literal(5, ibis_dtypes.int64)),
+        (-33.2, ibis_types.literal(-33.2, ibis_dtypes.float64)),
     ],
 )
 def test_literal_to_ibis_scalar_converts(literal, ibis_scalar):
@@ -248,10 +258,12 @@ def test_literal_to_ibis_scalar_throws_on_incompatible_literal():
 
 
 def test_remote_function_io_types_are_supported_bigframes_types():
-    from ibis.expr.datatypes.core import dtype as python_type_to_bigquery_type
+    from bigframes_vendored.ibis.expr.datatypes.core import (
+        dtype as python_type_to_ibis_type,
+    )
 
     from bigframes.dtypes import RF_SUPPORTED_IO_PYTHON_TYPES as rf_supported_io_types
 
     for python_type in rf_supported_io_types:
-        ibis_type = python_type_to_bigquery_type(python_type)
+        ibis_type = python_type_to_ibis_type(python_type)
         assert ibis_type in bigframes.core.compile.ibis_types.IBIS_TO_BIGFRAMES

@@ -18,20 +18,26 @@ import functools
 import io
 import typing
 
-import ibis
-import ibis.backends
-import ibis.backends.bigquery
-import ibis.expr.types
+import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery
+import bigframes_vendored.ibis.expr.api as ibis_api
+import bigframes_vendored.ibis.expr.types as ibis_types
+import google.cloud.bigquery
 import pandas as pd
 
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
-import bigframes.core.compile.default_ordering as default_ordering
+import bigframes.core.compile.explode
 import bigframes.core.compile.ibis_types
+import bigframes.core.compile.isin
+import bigframes.core.compile.scalar_op_compiler
+import bigframes.core.compile.scalar_op_compiler as compile_scalar
 import bigframes.core.compile.schema_translator
 import bigframes.core.compile.single_column
+import bigframes.core.expression as ex
+import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as bf_ordering
+import bigframes.core.rewrite as rewrites
 
 if typing.TYPE_CHECKING:
     import bigframes.core
@@ -43,282 +49,240 @@ class Compiler:
     # In strict mode, ordering will always be deterministic
     # In unstrict mode, ordering from ReadTable or after joins may be ambiguous to improve query performance.
     strict: bool = True
+    scalar_op_compiler = compile_scalar.ScalarOpCompiler()
 
-    def compile_ordered_ir(self, node: nodes.BigFrameNode) -> compiled.OrderedIR:
-        ir = typing.cast(compiled.OrderedIR, self.compile_node(node, True))
-        if self.strict:
-            assert ir.has_total_order
-        return ir
+    def compile_sql(
+        self, node: nodes.BigFrameNode, ordered: bool, output_ids: typing.Sequence[str]
+    ) -> str:
+        # TODO: get rid of output_ids arg
+        assert len(output_ids) == len(list(node.fields))
+        node = set_output_names(node, output_ids)
+        if ordered:
+            node, limit = rewrites.pullup_limit_from_slice(node)
+            node = nodes.bottom_up(node, rewrites.rewrite_slice)
+            node, ordering = rewrites.pull_up_order(
+                node, order_root=True, ordered_joins=self.strict
+            )
+            ir = self.compile_node(node)
+            return ir.to_sql(
+                order_by=ordering.all_ordering_columns,
+                limit=limit,
+                selections=output_ids,
+            )
+        else:
+            node = nodes.bottom_up(node, rewrites.rewrite_slice)
+            node, _ = rewrites.pull_up_order(
+                node, order_root=False, ordered_joins=self.strict
+            )
+            ir = self.compile_node(node)
+            return ir.to_sql(selections=output_ids)
 
-    def compile_unordered_ir(self, node: nodes.BigFrameNode) -> compiled.UnorderedIR:
-        return typing.cast(compiled.UnorderedIR, self.compile_node(node, False))
+    def compile_peek_sql(self, node: nodes.BigFrameNode, n_rows: int) -> str:
+        ids = [id.sql for id in node.ids]
+        node = nodes.bottom_up(node, rewrites.rewrite_slice)
+        node, _ = rewrites.pull_up_order(
+            node, order_root=False, ordered_joins=self.strict
+        )
+        return self.compile_node(node).to_sql(limit=n_rows, selections=ids)
 
-    def compile_peak_sql(
-        self, node: nodes.BigFrameNode, n_rows: int
-    ) -> typing.Optional[str]:
-        return self.compile_unordered_ir(node).peek_sql(n_rows)
+    def compile_raw(
+        self,
+        node: bigframes.core.nodes.BigFrameNode,
+    ) -> typing.Tuple[
+        str, typing.Sequence[google.cloud.bigquery.SchemaField], bf_ordering.RowOrdering
+    ]:
+        node = nodes.bottom_up(node, rewrites.rewrite_slice)
+        node, ordering = rewrites.pull_up_order(node, ordered_joins=self.strict)
+        ir = self.compile_node(node)
+        sql = ir.to_sql()
+        return sql, node.schema.to_bigquery(), ordering
+
+    def _preprocess(self, node: nodes.BigFrameNode):
+        node = nodes.bottom_up(node, rewrites.rewrite_slice)
+        node, _ = rewrites.pull_up_order(
+            node, order_root=False, ordered_joins=self.strict
+        )
+        return node
 
     # TODO: Remove cache when schema no longer requires compilation to derive schema (and therefor only compiles for execution)
     @functools.lru_cache(maxsize=5000)
-    def compile_node(
-        self, node: nodes.BigFrameNode, ordered: bool = True
-    ) -> compiled.UnorderedIR | compiled.OrderedIR:
+    def compile_node(self, node: nodes.BigFrameNode) -> compiled.UnorderedIR:
         """Compile node into CompileArrayValue. Caches result."""
-        return self._compile_node(node, ordered)
+        return self._compile_node(node)
 
     @functools.singledispatchmethod
-    def _compile_node(
-        self, node: nodes.BigFrameNode, ordered: bool = True
-    ) -> compiled.UnorderedIR:
+    def _compile_node(self, node: nodes.BigFrameNode) -> compiled.UnorderedIR:
         """Defines transformation but isn't cached, always use compile_node instead"""
         raise ValueError(f"Can't compile unrecognized node: {node}")
 
     @_compile_node.register
-    def compile_join(self, node: nodes.JoinNode, ordered: bool = True):
-        if ordered:
-            left_ordered = self.compile_ordered_ir(node.left_child)
-            right_ordered = self.compile_ordered_ir(node.right_child)
-            return bigframes.core.compile.single_column.join_by_column_ordered(
-                left=left_ordered,
-                right=right_ordered,
-                join=node.join,
-            )
-        else:
-            left_unordered = self.compile_unordered_ir(node.left_child)
-            right_unordered = self.compile_unordered_ir(node.right_child)
-            return bigframes.core.compile.single_column.join_by_column_unordered(
-                left=left_unordered,
-                right=right_unordered,
-                join=node.join,
-            )
+    def compile_join(self, node: nodes.JoinNode):
+        condition_pairs = tuple(
+            (left.id.sql, right.id.sql) for left, right in node.conditions
+        )
+        left_unordered = self.compile_node(node.left_child)
+        right_unordered = self.compile_node(node.right_child)
+        return bigframes.core.compile.single_column.join_by_column_unordered(
+            left=left_unordered,
+            right=right_unordered,
+            type=node.type,
+            conditions=condition_pairs,
+        )
 
     @_compile_node.register
-    def compile_readlocal(self, node: nodes.ReadLocalNode, ordered: bool = True):
-        array_as_pd = pd.read_feather(io.BytesIO(node.feather_bytes))
-        ordered_ir = compiled.OrderedIR.from_pandas(array_as_pd, node.schema)
-        if ordered:
-            return ordered_ir
-        else:
-            return ordered_ir.to_unordered()
+    def compile_isin(self, node: nodes.InNode):
+        left_unordered = self.compile_node(node.left_child)
+        right_unordered = self.compile_node(node.right_child)
+        return bigframes.core.compile.isin.isin_unordered(
+            left=left_unordered,
+            right=right_unordered,
+            indicator_col=node.indicator_col.sql,
+            conditions=(node.left_col.id.sql, node.right_col.id.sql),
+        )
 
     @_compile_node.register
-    def compile_cached_table(self, node: nodes.CachedTableNode, ordered: bool = True):
-        full_table_name = (
-            f"{node.table.project_id}.{node.table.dataset_id}.{node.table.table_id}"
-        )
-        used_columns = (
-            *node.schema.names,
-            *node.hidden_columns,
-        )
-        # Physical schema might include unused columns, unsupported datatypes like JSON
-        physical_schema = ibis.backends.bigquery.BigQuerySchema.to_ibis(
-            list(i for i in node.table.physical_schema if i.name in used_columns)
-        )
-        ibis_table = ibis.table(physical_schema, full_table_name)
-        if ordered:
-            if node.ordering is None:
-                # If this happens, session malfunctioned while applying cached results.
-                raise ValueError(
-                    "Cannot use unordered cached value. Result requires ordering information."
-                )
-            if self.strict and not isinstance(node.ordering, bf_ordering.TotalOrdering):
-                raise ValueError(
-                    "Cannot use partially ordered cached value. Result requires total ordering information."
-                )
-            return compiled.OrderedIR(
-                ibis_table,
-                columns=tuple(
-                    bigframes.core.compile.ibis_types.ibis_value_to_canonical_type(
-                        ibis_table[col]
-                    )
-                    for col in node.schema.names
-                ),
-                ordering=node.ordering,
-                hidden_ordering_columns=[ibis_table[c] for c in node.hidden_columns],
-            )
+    def compile_fromrange(self, node: nodes.FromRangeNode):
+        # Both start and end are single elements and do not inherently have an order
+        start = self.compile_node(node.start)
+        end = self.compile_node(node.end)
+        start_table = start._to_ibis_expr()
+        end_table = end._to_ibis_expr()
 
-        else:
-            return compiled.UnorderedIR(
-                ibis_table,
-                columns=tuple(
-                    bigframes.core.compile.ibis_types.ibis_value_to_canonical_type(
-                        ibis_table[col]
-                    )
-                    for col in node.schema.names
-                ),
-            )
+        start_column = start_table.schema().names[0]
+        end_column = end_table.schema().names[0]
+
+        # Perform a cross join to avoid errors
+        joined_table = start_table.cross_join(end_table)
+
+        labels_array_table = ibis_api.range(
+            joined_table[start_column], joined_table[end_column] + node.step, node.step
+        ).name(node.output_id.sql)
+        labels = (
+            typing.cast(ibis_types.ArrayValue, labels_array_table)
+            .as_table()
+            .unnest([node.output_id.sql])
+        )
+        return compiled.UnorderedIR(
+            labels,
+            columns=[labels[labels.columns[0]]],
+        )
 
     @_compile_node.register
-    def compile_readtable(self, node: nodes.ReadTableNode, ordered: bool = True):
-        if ordered:
-            return self.compile_read_table_ordered(node)
-        else:
-            return self.compile_read_table_unordered(node)
+    def compile_readlocal(self, node: nodes.ReadLocalNode):
+        array_as_pd = pd.read_feather(
+            io.BytesIO(node.feather_bytes),
+            columns=[item.source_id for item in node.scan_list.items],
+        )
+        offsets = node.offsets_col.sql if node.offsets_col else None
+        return compiled.UnorderedIR.from_pandas(
+            array_as_pd, node.scan_list, offsets=offsets
+        )
+
+    @_compile_node.register
+    def compile_readtable(self, node: nodes.ReadTableNode):
+        return self.compile_read_table_unordered(node.source, node.scan_list)
 
     def read_table_as_unordered_ibis(
-        self, node: nodes.ReadTableNode
-    ) -> ibis.expr.types.Table:
-        full_table_name = (
-            f"{node.table.project_id}.{node.table.dataset_id}.{node.table.table_id}"
-        )
-        used_columns = (
-            *node.schema.names,
-            *[i for i in node.total_order_cols if i not in node.schema.names],
-        )
+        self, source: nodes.BigqueryDataSource
+    ) -> ibis_types.Table:
+        full_table_name = f"{source.table.project_id}.{source.table.dataset_id}.{source.table.table_id}"
+        used_columns = tuple(col.name for col in source.table.physical_schema)
         # Physical schema might include unused columns, unsupported datatypes like JSON
-        physical_schema = ibis.backends.bigquery.BigQuerySchema.to_ibis(
-            list(i for i in node.table.physical_schema if i.name in used_columns)
+        physical_schema = ibis_bigquery.BigQuerySchema.to_ibis(
+            list(i for i in source.table.physical_schema if i.name in used_columns)
         )
-        if node.at_time is not None or node.sql_predicate is not None:
+        if source.at_time is not None or source.sql_predicate is not None:
             import bigframes.session._io.bigquery
 
             sql = bigframes.session._io.bigquery.to_query(
                 full_table_name,
                 columns=used_columns,
-                sql_predicate=node.sql_predicate,
-                time_travel_timestamp=node.at_time,
+                sql_predicate=source.sql_predicate,
+                time_travel_timestamp=source.at_time,
             )
-            return ibis.backends.bigquery.Backend().sql(
-                schema=physical_schema, query=sql
-            )
+            return ibis_bigquery.Backend().sql(schema=physical_schema, query=sql)
         else:
-            return ibis.table(physical_schema, full_table_name)
+            return ibis_api.table(physical_schema, full_table_name)
 
-    def compile_read_table_unordered(self, node: nodes.ReadTableNode):
-        ibis_table = self.read_table_as_unordered_ibis(node)
+    def compile_read_table_unordered(
+        self, source: nodes.BigqueryDataSource, scan: nodes.ScanList
+    ):
+        ibis_table = self.read_table_as_unordered_ibis(source)
         return compiled.UnorderedIR(
             ibis_table,
             tuple(
                 bigframes.core.compile.ibis_types.ibis_value_to_canonical_type(
-                    ibis_table[col]
+                    ibis_table[scan_item.source_id].name(scan_item.id.sql)
                 )
-                for col in node.schema.names
+                for scan_item in scan.items
             ),
         )
 
-    def compile_read_table_ordered(self, node: nodes.ReadTableNode):
-        ibis_table = self.read_table_as_unordered_ibis(node)
-        if node.total_order_cols:
-            ordering_value_columns = tuple(
-                bf_ordering.ascending_over(col) for col in node.total_order_cols
-            )
-            if node.order_col_is_sequential:
-                integer_encoding = bf_ordering.IntegerEncoding(
-                    is_encoded=True, is_sequential=True
-                )
-            else:
-                integer_encoding = bf_ordering.IntegerEncoding()
-            ordering: bf_ordering.RowOrdering = bf_ordering.TotalOrdering(
-                ordering_value_columns,
-                integer_encoding=integer_encoding,
-                total_ordering_columns=frozenset(node.total_order_cols),
-            )
-            hidden_columns = ()
-        elif self.strict:
-            ibis_table, ordering = default_ordering.gen_default_ordering(
-                ibis_table, use_double_hash=True
-            )
-            hidden_columns = tuple(
-                ibis_table[col]
-                for col in ibis_table.columns
-                if col not in node.schema.names
-            )
-        else:
-            # In unstrict mode, don't generate total ordering from hashing as this is
-            # expensive (prevent removing any columns from table scan)
-            ordering, hidden_columns = bf_ordering.RowOrdering(), ()
-        return compiled.OrderedIR(
-            ibis_table,
-            columns=tuple(
-                bigframes.core.compile.ibis_types.ibis_value_to_canonical_type(
-                    ibis_table[col]
-                )
-                for col in node.schema.names
-            ),
-            ordering=ordering,
-            hidden_ordering_columns=hidden_columns,
+    @_compile_node.register
+    def compile_filter(self, node: nodes.FilterNode):
+        return self.compile_node(node.child).filter(node.predicate)
+
+    @_compile_node.register
+    def compile_selection(self, node: nodes.SelectionNode):
+        result = self.compile_node(node.child)
+        selection = tuple((ref, id.sql) for ref, id in node.input_output_pairs)
+        return result.selection(selection)
+
+    @_compile_node.register
+    def compile_projection(self, node: nodes.ProjectionNode):
+        result = self.compile_node(node.child)
+        projections = ((expr, id.sql) for expr, id in node.assignments)
+        return result.projection(tuple(projections))
+
+    @_compile_node.register
+    def compile_concat(self, node: nodes.ConcatNode):
+        output_ids = [id.sql for id in node.output_ids]
+        compiled_unordered = [self.compile_node(node) for node in node.children]
+        return concat_impl.concat_unordered(compiled_unordered, output_ids)
+
+    @_compile_node.register
+    def compile_rowcount(self, node: nodes.RowCountNode):
+        result = self.compile_node(node.child).row_count(name=node.col_id.sql)
+        return result
+
+    @_compile_node.register
+    def compile_aggregate(self, node: nodes.AggregateNode):
+        aggs = tuple((agg, id.sql) for agg, id in node.aggregations)
+        result = self.compile_node(node.child).aggregate(
+            aggs, node.by_column_ids, node.dropna, order_by=node.order_by
         )
+        return result
 
     @_compile_node.register
-    def compile_promote_offsets(
-        self, node: nodes.PromoteOffsetsNode, ordered: bool = True
-    ):
-        result = self.compile_ordered_ir(node.child).promote_offsets(node.col_id)
-        return result if ordered else result.to_unordered()
-
-    @_compile_node.register
-    def compile_filter(self, node: nodes.FilterNode, ordered: bool = True):
-        return self.compile_node(node.child, ordered).filter(node.predicate)
-
-    @_compile_node.register
-    def compile_orderby(self, node: nodes.OrderByNode, ordered: bool = True):
-        if ordered:
-            return self.compile_ordered_ir(node.child).order_by(node.by)
-        else:
-            return self.compile_unordered_ir(node.child)
-
-    @_compile_node.register
-    def compile_reversed(self, node: nodes.ReversedNode, ordered: bool = True):
-        if ordered:
-            return self.compile_ordered_ir(node.child).reversed()
-        else:
-            return self.compile_unordered_ir(node.child)
-
-    @_compile_node.register
-    def compile_projection(self, node: nodes.ProjectionNode, ordered: bool = True):
-        result = self.compile_node(node.child, ordered)
-        return result.projection(node.assignments)
-
-    @_compile_node.register
-    def compile_concat(self, node: nodes.ConcatNode, ordered: bool = True):
-        if ordered:
-            compiled_ordered = [self.compile_ordered_ir(node) for node in node.children]
-            return concat_impl.concat_ordered(compiled_ordered)
-        else:
-            compiled_unordered = [
-                self.compile_unordered_ir(node) for node in node.children
-            ]
-            return concat_impl.concat_unordered(compiled_unordered)
-
-    @_compile_node.register
-    def compile_rowcount(self, node: nodes.RowCountNode, ordered: bool = True):
-        result = self.compile_unordered_ir(node.child).row_count()
-        return result if ordered else result.to_unordered()
-
-    @_compile_node.register
-    def compile_aggregate(self, node: nodes.AggregateNode, ordered: bool = True):
-        has_ordered_aggregation_ops = any(
-            aggregate.op.can_order_by for aggregate, _ in node.aggregations
-        )
-        if ordered and has_ordered_aggregation_ops:
-            return self.compile_ordered_ir(node.child).aggregate(
-                node.aggregations, node.by_column_ids, node.dropna
-            )
-        else:
-            result = self.compile_unordered_ir(node.child).aggregate(
-                node.aggregations, node.by_column_ids, node.dropna
-            )
-            return result if ordered else result.to_unordered()
-
-    @_compile_node.register
-    def compile_window(self, node: nodes.WindowOpNode, ordered: bool = True):
-        result = self.compile_ordered_ir(node.child).project_window_op(
-            node.column_name,
-            node.op,
+    def compile_window(self, node: nodes.WindowOpNode):
+        result = self.compile_node(node.child).project_window_op(
+            node.expression,
             node.window_spec,
-            node.output_name,
+            node.output_name.sql,
             never_skip_nulls=node.never_skip_nulls,
         )
-        return result if ordered else result.to_unordered()
+        return result
 
     @_compile_node.register
-    def compile_reproject(self, node: nodes.ReprojectOpNode, ordered: bool = True):
-        return self.compile_node(node.child, ordered)._reproject_to_table()
+    def compile_explode(self, node: nodes.ExplodeNode):
+        offsets_col = node.offsets_col.sql if (node.offsets_col is not None) else None
+        return bigframes.core.compile.explode.explode_unordered(
+            self.compile_node(node.child), node.column_ids, offsets_col
+        )
 
     @_compile_node.register
-    def compile_explode(self, node: nodes.ExplodeNode, ordered: bool = True):
-        return self.compile_node(node.child, ordered).explode(node.column_ids)
+    def compile_random_sample(self, node: nodes.RandomSampleNode):
+        return self.compile_node(node.child)._uniform_sampling(node.fraction)
 
-    @_compile_node.register
-    def compile_random_sample(self, node: nodes.RandomSampleNode, ordered: bool = True):
-        return self.compile_node(node.child, ordered)._uniform_sampling(node.fraction)
+
+def set_output_names(
+    node: bigframes.core.nodes.BigFrameNode, output_ids: typing.Sequence[str]
+):
+    # TODO: Create specialized output operators that will handle final names
+    return nodes.SelectionNode(
+        node,
+        tuple(
+            (ex.DerefOp(old_id), ids.ColumnId(out_id))
+            for old_id, out_id in zip(node.ids, output_ids)
+        ),
+    )

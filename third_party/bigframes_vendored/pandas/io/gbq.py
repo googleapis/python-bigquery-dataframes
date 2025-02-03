@@ -160,8 +160,14 @@ class GBQIOMixin:
             bigframes.exceptions.DefaultIndexWarning:
                 Using the default index is discouraged, such as with clustered
                 or partitioned tables without primary keys.
+            ValueError:
+                When both ``columns`` and ``col_order`` are specified.
+            ValueError:
+                If ``configuration`` is specified when directly reading
+                from a table.
 
         Returns:
-            bigframes.dataframe.DataFrame: A DataFrame representing results of the query or table.
+            bigframes.pandas.DataFrame:
+                A DataFrame representing results of the query or table.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

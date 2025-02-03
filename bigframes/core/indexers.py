@@ -16,17 +16,20 @@ from __future__ import annotations
 
 import typing
 from typing import Tuple, Union
+import warnings
 
-import ibis
+import bigframes_vendored.constants as constants
+import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
 import pandas as pd
 
-import bigframes.constants as constants
 import bigframes.core.blocks
 import bigframes.core.expression as ex
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
 import bigframes.core.scalar
 import bigframes.dataframe
+import bigframes.dtypes
+import bigframes.exceptions as bfe
 import bigframes.operations as ops
 import bigframes.series
 
@@ -213,7 +216,7 @@ class LocDataFrameIndexer:
                 return
             try:
                 self._dataframe[key[1]] = new_column.fillna(original_column)
-            except ibis.common.exceptions.IbisTypeError:
+            except ibis_exceptions.IbisTypeError:
                 raise TypeError(
                     f"Cannot assign scalar of type {type(value)} to column of type {original_column.dtype}, or index type of series argument does not match dataframe."
                 )
@@ -370,8 +373,9 @@ def _perform_loc_list_join(
     # right join based on the old index so that the matching rows from the user's
     # original dataframe will be duplicated and reordered appropriately
     if isinstance(series_or_dataframe, bigframes.series.Series):
+        _struct_accessor_check_and_warn(series_or_dataframe, keys_index)
         original_name = series_or_dataframe.name
-        name = series_or_dataframe.name if series_or_dataframe.name is not None else "0"
+        name = series_or_dataframe.name if series_or_dataframe.name is not None else 0
         result = typing.cast(
             bigframes.series.Series,
             series_or_dataframe.to_frame()._perform_join_by_index(
@@ -389,6 +393,26 @@ def _perform_loc_list_join(
         ]
         result = result.droplevel(levels_to_drop)
     return result
+
+
+def _struct_accessor_check_and_warn(
+    series: bigframes.series.Series, index: indexes.Index
+):
+    if not bigframes.dtypes.is_struct_like(series.dtype):
+        # No need to check series that do not have struct values
+        return
+
+    if not bigframes.dtypes.is_string_like(index.dtype):
+        # No need to check indexing with non-string values.
+        return
+
+    if not bigframes.dtypes.is_string_like(series.index.dtype):
+        msg = (
+            "Are you trying to access struct fields? If so, please use Series.struct.field(...) "
+            "method instead."
+        )
+        # Stack depth from series.__getitem__ to here
+        warnings.warn(msg, stacklevel=7, category=bfe.BadIndexerKeyWarning)
 
 
 @typing.overload
@@ -445,7 +469,7 @@ def _iloc_getitem_series_or_dataframe(
         if isinstance(series_or_dataframe, bigframes.series.Series):
             original_series_name = series_or_dataframe.name
             series_name = (
-                original_series_name if original_series_name is not None else "0"
+                original_series_name if original_series_name is not None else 0
             )
             df = series_or_dataframe.to_frame()
         original_index_names = df.index.names

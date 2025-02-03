@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import argparse
-from datetime import datetime
+import datetime as dt
 import sys
 import time
 
@@ -63,7 +63,7 @@ GCF_CLIENT = functions_v2.FunctionServiceClient()
 
 
 def get_bigframes_functions(project, region):
-    parent = f"projects/{args.project_id}/locations/{region}"
+    parent = f"projects/{project}/locations/{region}"
     functions = GCF_CLIENT.list_functions(
         functions_v2.ListFunctionsRequest(parent=parent)
     )
@@ -72,7 +72,7 @@ def get_bigframes_functions(project, region):
         function
         for function in functions
         if function.name.startswith(
-            f"projects/{args.project_id}/locations/{region}/functions/bigframes-"
+            f"projects/{project}/locations/{region}/functions/bigframes-"
         )
     ]
 
@@ -94,8 +94,10 @@ def summarize_gcfs(args):
         # Count how many GCFs are newer than a day
         recent = 0
         for f in functions:
-            age = datetime.now() - datetime.fromtimestamp(f.update_time.timestamp())
-            if age.days <= 0:
+            age = dt.datetime.now() - dt.datetime.fromtimestamp(
+                f.update_time.timestamp()
+            )
+            if age.total_seconds() < args.recency_cutoff:
                 recent += 1
 
         region_counts[region] = (functions_count, recent)
@@ -106,7 +108,7 @@ def summarize_gcfs(args):
         region = item[0]
         count, recent = item[1]
         print(
-            "{}: Total={}, Recent={}, OlderThanADay={}".format(
+            "{}: Total={}, Recent={}, Older={}".format(
                 region, count, recent, count - recent
             )
         )
@@ -120,8 +122,10 @@ def cleanup_gcfs(args):
         functions = get_bigframes_functions(args.project_id, region)
         count = 0
         for f in functions:
-            age = datetime.now() - datetime.fromtimestamp(f.update_time.timestamp())
-            if age.days > 0:
+            age = dt.datetime.now() - dt.datetime.fromtimestamp(
+                f.update_time.timestamp()
+            )
+            if age.total_seconds() >= args.recency_cutoff:
                 try:
                     count += 1
                     GCF_CLIENT.delete_function(name=f.name)
@@ -134,16 +138,25 @@ def cleanup_gcfs(args):
                     # that for this clean-up, i.e. 6 mutations per minute. So wait for
                     # 60/6 = 10 seconds
                     time.sleep(10)
+                except google.api_core.exceptions.NotFound:
+                    # Most likely the function was deleted otherwise
+                    pass
                 except google.api_core.exceptions.ResourceExhausted:
                     # Stop deleting in this region for now
                     print(
-                        f"Cannot delete any more functions in region {region} due to quota exhaustion. Please try again later."
+                        f"Failed to delete function in region {region} due to quota exhaustion. Pausing for 2 minutes."
                     )
-                    break
+                    time.sleep(120)
 
 
 def list_str(values):
     return [val for val in values.split(",") if val]
+
+
+def get_project_from_environment():
+    from google.cloud import bigquery
+
+    return bigquery.Client().project
 
 
 if __name__ == "__main__":
@@ -154,9 +167,10 @@ if __name__ == "__main__":
         "-p",
         "--project-id",
         type=str,
-        required=True,
+        required=False,
         action="store",
-        help="GCP project-id.",
+        help="GCP project-id. If not provided, the project-id resolved by the"
+        " BigQuery client from the user environment would be used.",
     )
     parser.add_argument(
         "-r",
@@ -166,6 +180,19 @@ if __name__ == "__main__":
         default=GCF_REGIONS_ALL,
         action="store",
         help="Cloud functions region(s). If multiple regions, Specify comma separated (e.g. region1,region2)",
+    )
+
+    def hours_to_timedelta(hrs):
+        return dt.timedelta(hours=int(hrs)).total_seconds()
+
+    parser.add_argument(
+        "-c",
+        "--recency-cutoff",
+        type=hours_to_timedelta,
+        required=False,
+        default=hours_to_timedelta("24"),
+        action="store",
+        help="Number of hours, cloud functions older than which should be considered stale (worthy of cleanup).",
     )
 
     subparsers = parser.add_subparsers(title="subcommands", required=True)
@@ -192,4 +219,10 @@ if __name__ == "__main__":
     parser_cleanup.set_defaults(func=cleanup_gcfs)
 
     args = parser.parse_args(sys.argv[1:])
+    if args.project_id is None:
+        args.project_id = get_project_from_environment()
+        if args.project_id is None:
+            raise ValueError(
+                "Could not resolve a project. Plese set it via --project-id option."
+            )
     args.func(args)

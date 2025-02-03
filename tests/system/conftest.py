@@ -22,6 +22,7 @@ import traceback
 import typing
 from typing import Dict, Generator, Optional
 
+import bigframes_vendored.ibis.backends as ibis_backends
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import google.cloud.bigquery_connection_v1 as bigquery_connection_v1
@@ -29,9 +30,9 @@ import google.cloud.exceptions
 import google.cloud.functions_v2 as functions_v2
 import google.cloud.resourcemanager_v3 as resourcemanager_v3
 import google.cloud.storage as storage  # type: ignore
-import ibis.backends.base
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pytest
 import pytz
 import test_utils.prefixer
@@ -39,6 +40,7 @@ import test_utils.prefixer
 import bigframes
 import bigframes.dataframe
 import bigframes.pandas as bpd
+import bigframes.series
 import tests.system.utils
 
 # Use this to control the number of cloud functions being deleted in a single
@@ -105,7 +107,7 @@ def bigquery_client_tokyo(session_tokyo: bigframes.Session) -> bigquery.Client:
 
 
 @pytest.fixture(scope="session")
-def ibis_client(session: bigframes.Session) -> ibis.backends.base.BaseBackend:
+def ibis_client(session: bigframes.Session) -> ibis_backends.BaseBackend:
     return session.ibis_client
 
 
@@ -146,16 +148,6 @@ def session() -> Generator[bigframes.Session, None, None]:
 
 
 @pytest.fixture(scope="session")
-def session_us_east5() -> Generator[bigframes.Session, None, None]:
-    context = bigframes.BigQueryOptions(
-        location="us-east5",
-    )
-    session = bigframes.Session(context=context)
-    yield session
-    session.close()  # close generated session at cleanup time
-
-
-@pytest.fixture(scope="session")
 def session_load() -> Generator[bigframes.Session, None, None]:
     context = bigframes.BigQueryOptions(location="US", project="bigframes-load-testing")
     session = bigframes.Session(context=context)
@@ -163,9 +155,9 @@ def session_load() -> Generator[bigframes.Session, None, None]:
     session.close()  # close generated session at cleanup time
 
 
-@pytest.fixture(scope="session", params=["ordered", "unordered"])
+@pytest.fixture(scope="session", params=["strict", "partial"])
 def maybe_ordered_session(request) -> Generator[bigframes.Session, None, None]:
-    context = bigframes.BigQueryOptions(location="US", ordering_mode="partial")
+    context = bigframes.BigQueryOptions(location="US", ordering_mode=request.param)
     session = bigframes.Session(context=context)
     yield session
     session.close()  # close generated session at cleanup type
@@ -185,6 +177,11 @@ def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, Non
     session = bigframes.Session(context=context)
     yield session
     session.close()  # close generated session at cleanup type
+
+
+@pytest.fixture(scope="session")
+def bq_connection(bigquery_client: bigquery.Client) -> str:
+    return f"{bigquery_client.project}.{bigquery_client.location}.bigframes-rf-conn"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -245,6 +242,16 @@ def dataset_id_permanent_tokyo(
 
 
 @pytest.fixture(scope="session")
+def table_id_not_created(dataset_id: str):
+    return f"{dataset_id}.{prefixer.create_prefix()}"
+
+
+@pytest.fixture(scope="function")
+def table_id_unique(dataset_id: str):
+    return f"{dataset_id}.{prefixer.create_prefix()}"
+
+
+@pytest.fixture(scope="session")
 def scalars_schema(bigquery_client: bigquery.Client):
     # TODO(swast): Add missing scalar data types such as BIGNUMERIC.
     # See also: https://github.com/ibis-project/ibis-bigquery/pull/67
@@ -294,11 +301,15 @@ def load_test_data_tables(
         ("scalars", "scalars_schema.json", "scalars.jsonl"),
         ("scalars_too", "scalars_schema.json", "scalars.jsonl"),
         ("nested", "nested_schema.json", "nested.jsonl"),
+        ("nested_structs", "nested_structs_schema.json", "nested_structs.jsonl"),
+        ("repeated", "repeated_schema.json", "repeated.jsonl"),
+        ("json", "json_schema.json", "json.jsonl"),
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
         ("time_series", "time_series_schema.json", "time_series.jsonl"),
         ("hockey_players", "hockey_players.json", "hockey_players.jsonl"),
         ("matrix_2by3", "matrix_2by3.json", "matrix_2by3.jsonl"),
         ("matrix_3by4", "matrix_3by4.json", "matrix_3by4.jsonl"),
+        ("urban_areas", "urban_areas_schema.json", "urban_areas.jsonl"),
     ]:
         test_data_hash = hashlib.md5()
         _hash_digest_file(test_data_hash, DATA_DIR / schema_filename)
@@ -371,8 +382,28 @@ def nested_table_id(test_data_tables) -> str:
 
 
 @pytest.fixture(scope="session")
+def nested_structs_table_id(test_data_tables) -> str:
+    return test_data_tables["nested_structs"]
+
+
+@pytest.fixture(scope="session")
+def repeated_table_id(test_data_tables) -> str:
+    return test_data_tables["repeated"]
+
+
+@pytest.fixture(scope="session")
+def json_table_id(test_data_tables) -> str:
+    return test_data_tables["json"]
+
+
+@pytest.fixture(scope="session")
 def penguins_table_id(test_data_tables) -> str:
     return test_data_tables["penguins"]
+
+
+@pytest.fixture(scope="session")
+def urban_areas_table_id(test_data_tables) -> str:
+    return test_data_tables["urban_areas"]
 
 
 @pytest.fixture(scope="session")
@@ -404,6 +435,82 @@ def nested_pandas_df() -> pd.DataFrame:
 
     df = pd.read_json(
         DATA_DIR / "nested.jsonl",
+        lines=True,
+    )
+    df = df.set_index("rowindex")
+    return df
+
+
+@pytest.fixture(scope="session")
+def nested_structs_df(
+    nested_structs_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(nested_structs_table_id, index_col="id")
+
+
+@pytest.fixture(scope="session")
+def nested_structs_pandas_df() -> pd.DataFrame:
+    """pd.DataFrame pointing at test data."""
+
+    df = pd.read_json(
+        DATA_DIR / "nested_structs.jsonl",
+        lines=True,
+    )
+    df = df.set_index("id")
+    return df
+
+
+@pytest.fixture(scope="session")
+def nested_structs_pandas_type() -> pd.ArrowDtype:
+    address_struct_schema = pa.struct(
+        [pa.field("city", pa.string()), pa.field("country", pa.string())]
+    )
+
+    person_struct_schema = pa.struct(
+        [
+            pa.field("name", pa.string()),
+            pa.field("age", pa.int64()),
+            pa.field("address", address_struct_schema),
+        ]
+    )
+
+    return pd.ArrowDtype(person_struct_schema)
+
+
+@pytest.fixture(scope="session")
+def repeated_df(
+    repeated_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """Returns a DataFrame containing columns of list type."""
+    return session.read_gbq(repeated_table_id, index_col="rowindex")
+
+
+@pytest.fixture(scope="session")
+def repeated_pandas_df() -> pd.DataFrame:
+    """Returns a DataFrame containing columns of list type."""
+
+    df = pd.read_json(
+        DATA_DIR / "repeated.jsonl",
+        lines=True,
+    )
+    df = df.set_index("rowindex")
+    return df
+
+
+@pytest.fixture(scope="session")
+def json_df(
+    json_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """Returns a DataFrame containing columns of JSON type."""
+    return session.read_gbq(json_table_id, index_col="rowindex")
+
+
+@pytest.fixture(scope="session")
+def json_pandas_df() -> pd.DataFrame:
+    """Returns a DataFrame containing columns of JSON type."""
+    df = pd.read_json(
+        DATA_DIR / "json.jsonl",
         lines=True,
     )
     df = df.set_index("rowindex")
@@ -508,6 +615,28 @@ def scalars_dfs_maybe_ordered(
         maybe_ordered_session.read_pandas(scalars_pandas_df_index),
         scalars_pandas_df_index,
     )
+
+
+@pytest.fixture(scope="session")
+def scalars_df_numeric_150_columns_maybe_ordered(
+    maybe_ordered_session,
+    scalars_pandas_df_index,
+):
+    """DataFrame pointing at test data."""
+    # TODO(b/379911038): After the error fixed, add numeric type.
+    pandas_df = scalars_pandas_df_index.reset_index(drop=False)[
+        [
+            "rowindex",
+            "rowindex_2",
+            "float64_col",
+            "int64_col",
+            "int64_too",
+        ]
+        * 30
+    ]
+
+    df = maybe_ordered_session.read_pandas(pandas_df)
+    return (df, pandas_df)
 
 
 @pytest.fixture(scope="session")
@@ -644,6 +773,31 @@ def new_time_series_df(session, new_time_series_pandas_df):
 
 
 @pytest.fixture(scope="session")
+def new_time_series_pandas_df_w_id():
+    """Additional data matching the time series dataset. The values are dummy ones used to basically check the prediction scores."""
+    utc = pytz.utc
+    return pd.DataFrame(
+        {
+            "parsed_date": [
+                datetime(2017, 8, 2, tzinfo=utc),
+                datetime(2017, 8, 2, tzinfo=utc),
+                datetime(2017, 8, 3, tzinfo=utc),
+                datetime(2017, 8, 3, tzinfo=utc),
+                datetime(2017, 8, 4, tzinfo=utc),
+                datetime(2017, 8, 4, tzinfo=utc),
+            ],
+            "id": ["1", "2", "1", "2", "1", "2"],
+            "total_visits": [2500, 2500, 2500, 2500, 2500, 2500],
+        }
+    )
+
+
+@pytest.fixture(scope="session")
+def new_time_series_df_w_id(session, new_time_series_pandas_df_w_id):
+    return session.read_pandas(new_time_series_pandas_df_w_id)
+
+
+@pytest.fixture(scope="session")
 def penguins_pandas_df_default_index() -> pd.DataFrame:
     """Consistently ordered pandas dataframe for penguins test data"""
     df = pd.read_json(
@@ -699,6 +853,25 @@ def missing_values_penguins_df():
 @pytest.fixture(scope="session")
 def new_penguins_df(session, new_penguins_pandas_df):
     return session.read_pandas(new_penguins_pandas_df)
+
+
+@pytest.fixture(scope="session")
+def llm_text_pandas_df():
+    """Additional data matching the penguins dataset, with a new index"""
+    return pd.DataFrame(
+        {
+            "prompt": [
+                "What is BigQuery?",
+                "What is BQML?",
+                "What is BigQuery DataFrame?",
+            ],
+        }
+    )
+
+
+@pytest.fixture(scope="session")
+def llm_text_df(session, llm_text_pandas_df):
+    return session.read_pandas(llm_text_pandas_df)
 
 
 @pytest.fixture(scope="session")
@@ -867,25 +1040,16 @@ WHERE
         return model_name
 
 
-@pytest.fixture(scope="session")
-def time_series_arima_plus_model_name(
-    session: bigframes.Session, dataset_id_permanent, time_series_table_id
+def _get_or_create_arima_plus_model(
+    session: bigframes.Session, dataset_id_permanent, sql
 ) -> str:
-    """Provides a pretrained model as a test fixture that is cached across test runs.
-    This lets us run system tests without having to wait for a model.fit(...)"""
-    sql = f"""
-CREATE OR REPLACE MODEL `$model_name`
-OPTIONS (
-    model_type='ARIMA_PLUS',
-    time_series_timestamp_col = 'parsed_date',
-    time_series_data_col = 'total_visits'
-) AS SELECT
-    *
-FROM `{time_series_table_id}`"""
+    """Internal helper to compute a model name by hasing the given SQL.
+    attempst to retreive the model, create it if not exist.
+    retursn the fully qualitifed model"""
+
     # We use the SQL hash as the name to ensure the model is regenerated if this fixture is edited
     model_name = f"{dataset_id_permanent}.time_series_arima_plus_{hashlib.md5(sql.encode()).hexdigest()}"
     sql = sql.replace("$model_name", model_name)
-
     try:
         session.bqclient.get_model(model_name)
     except google.cloud.exceptions.NotFound:
@@ -895,6 +1059,46 @@ FROM `{time_series_table_id}`"""
         session.bqclient.query(sql).result()
     finally:
         return model_name
+
+
+@pytest.fixture(scope="session")
+def time_series_arima_plus_model_name(
+    session: bigframes.Session, dataset_id_permanent, time_series_table_id
+) -> str:
+    """Provides a pretrained model as a test fixture that is cached across test runs.
+    This lets us run system tests without having to wait for a model.fit(...).
+    This version does not include time_series_id_col."""
+    sql = f"""
+CREATE OR REPLACE MODEL `$model_name`
+OPTIONS (
+    model_type='ARIMA_PLUS',
+    time_series_timestamp_col = 'parsed_date',
+    time_series_data_col = 'total_visits'
+) AS SELECT
+    parsed_date,
+    total_visits
+FROM `{time_series_table_id}`"""
+    return _get_or_create_arima_plus_model(session, dataset_id_permanent, sql)
+
+
+@pytest.fixture(scope="session")
+def time_series_arima_plus_model_name_w_id(
+    session: bigframes.Session, dataset_id_permanent, time_series_table_id
+) -> str:
+    """Provides a pretrained model as a test fixture that is cached across test runs.
+    This lets us run system tests without having to wait for a model.fit(...).
+    This version includes time_series_id_col."""
+    sql = f"""
+CREATE OR REPLACE MODEL `$model_name`
+OPTIONS (
+    model_type='ARIMA_PLUS',
+    time_series_timestamp_col = 'parsed_date',
+    time_series_data_col = 'total_visits',
+    time_series_id_col = 'id'
+) AS SELECT
+    *
+FROM `{time_series_table_id}`"""
+    return _get_or_create_arima_plus_model(session, dataset_id_permanent, sql)
 
 
 @pytest.fixture(scope="session")
@@ -1216,4 +1420,4 @@ def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent
         # backend flakiness.
         #
         # Let's stop further clean up and leave it to later.
-        traceback.print_exception(exc)
+        traceback.print_exception(type(exc), exc, None)

@@ -41,35 +41,42 @@ dependencies = [
     "google-auth >=2.15.0,<3.0dev",
     "google-cloud-bigtable >=2.24.0",
     "google-cloud-pubsub >=2.21.4",
-    "google-cloud-bigquery[bqstorage,pandas] >=3.16.0",
+    "google-cloud-bigquery[bqstorage,pandas] >=3.18.0",
     "google-cloud-functions >=1.12.0",
     "google-cloud-bigquery-connection >=1.12.0",
     "google-cloud-iam >=2.12.1",
     "google-cloud-resource-manager >=1.10.3",
     "google-cloud-storage >=2.0.0",
-    "ibis-framework[bigquery] >=8.0.0,<9.0.0dev",
-    "jellyfish >=0.8.9",
+    # Upper bound due to no windows build for 1.1.2
+    "jellyfish >=0.8.9,<1.1.2",
     "numpy >=1.24.0",
     "pandas >=1.5.3",
+    "pandas-gbq >=0.26.0",
     "pyarrow >=10.0.1",
     "pydata-google-auth >=1.8.2",
     "requests >=2.27.1",
     "scikit-learn >=1.2.2",
     "sqlalchemy >=1.4,<3.0dev",
-    # Keep sqlglot versions in sync with ibis-framework. This avoids problems
-    # where the incorrect version of sqlglot is installed, such as
-    # https://github.com/googleapis/python-bigquery-dataframes/issues/315
-    "sqlglot >=20.8.0,<=20.11",
-    "tabulate >= 0.9",
+    "sqlglot >=23.6.3",
+    "tabulate >=0.9",
     "ipywidgets >=7.7.1",
-    "humanize >= 4.6.0",
-    "matplotlib >= 3.7.1",
+    "humanize >=4.6.0",
+    "matplotlib >=3.7.1",
+    "db-dtypes >=1.4.0",
+    # For vendored ibis-framework.
+    "atpublic>=2.3,<6",
+    "parsy>=2,<3",
+    "python-dateutil>=2.8.2,<3",
+    "pytz>=2022.7",
+    "toolz>=0.11,<2",
+    "typing-extensions>=4.5.0,<5",
+    "rich>=12.4.4,<14",
 ]
 extras = {
     # Optional test dependencies packages. If they're missed, may skip some tests.
-    "tests": [
-        "pandas-gbq >=0.19.0",
-    ],
+    "tests": [],
+    # used for local engine, which is only needed for unit tests at present.
+    "polars": ["polars >= 1.7.0"],
     # Packages required for basic development flow.
     "dev": ["pytest", "pytest-mock", "pre-commit", "nox", "google-cloud-testutils"],
 }
@@ -119,6 +126,7 @@ setuptools.setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Operating System :: OS Independent",
         "Topic :: Internet",
     ],

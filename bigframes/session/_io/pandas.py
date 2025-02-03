@@ -11,18 +11,33 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
-from typing import Dict, Union
+import dataclasses
+from typing import Collection, Union
 
+import bigframes_vendored.constants as constants
+import db_dtypes  # type: ignore
 import geopandas  # type: ignore
+import numpy as np
 import pandas
 import pandas.arrays
 import pyarrow  # type: ignore
 import pyarrow.compute  # type: ignore
 import pyarrow.types  # type: ignore
 
-import bigframes.constants
+import bigframes.core.schema
+import bigframes.core.utils as utils
+import bigframes.dtypes
 import bigframes.features
+
+
+@dataclasses.dataclass(frozen=True)
+class DataFrameAndLabels:
+    df: pandas.DataFrame
+    column_labels: Collection
+    index_labels: Collection
+    ordering_col: str
 
 
 def _arrow_to_pandas_arrowdtype(
@@ -49,17 +64,18 @@ def _arrow_to_pandas_arrowdtype(
 
 
 def arrow_to_pandas(
-    arrow_table: Union[pyarrow.Table, pyarrow.RecordBatch], dtypes: Dict
+    arrow_table: Union[pyarrow.Table, pyarrow.RecordBatch],
+    schema: bigframes.core.schema.ArraySchema,
 ):
-    if len(dtypes) != arrow_table.num_columns:
+    if len(schema) != arrow_table.num_columns:
         raise ValueError(
-            f"Number of types {len(dtypes)} doesn't match number of columns "
-            f"{arrow_table.num_columns}. {bigframes.constants.FEEDBACK_LINK}"
+            f"Number of types {len(schema)} doesn't match number of columns "
+            f"{arrow_table.num_columns}. {constants.FEEDBACK_LINK}"
         )
 
     serieses = {}
     for field, column in zip(arrow_table.schema, arrow_table):
-        dtype = dtypes[field.name]
+        dtype = schema.get_type(field.name)
 
         if dtype == geopandas.array.GeometryDtype():
             series = geopandas.GeoSeries.from_wkt(
@@ -99,11 +115,57 @@ def arrow_to_pandas(
                 else mask.to_numpy(zero_copy_only=False),
             )
             series = pandas.Series(pd_array, dtype=dtype)
+        elif dtype == bigframes.dtypes.STRING_DTYPE:
+            # Pyarrow may be large_string
+            # Need to manually cast, as some pandas versions break otherwise
+            series = column.cast(pyarrow.string()).to_pandas(
+                types_mapper=lambda _: dtype
+            )
         elif isinstance(dtype, pandas.ArrowDtype):
             series = _arrow_to_pandas_arrowdtype(column, dtype)
+        elif isinstance(dtype, db_dtypes.JSONDtype):
+            series = db_dtypes.JSONArray(column)
         else:
             series = column.to_pandas(types_mapper=lambda _: dtype)
 
         serieses[field.name] = series
 
     return pandas.DataFrame(serieses)
+
+
+def pandas_to_bq_compatible(pandas_dataframe: pandas.DataFrame) -> DataFrameAndLabels:
+    """Convert a pandas DataFrame into something compatible with uploading to a
+    BigQuery table (without flexible column names enabled).
+    """
+    col_index = pandas_dataframe.columns.copy()
+    col_labels, idx_labels = (
+        col_index.to_list(),
+        pandas_dataframe.index.names,
+    )
+    new_col_ids, new_idx_ids = utils.get_standardized_ids(
+        col_labels,
+        idx_labels,
+        # Loading parquet files into BigQuery with special column names
+        # is only supported under an allowlist.
+        strict=True,
+    )
+
+    # Add order column to pandas DataFrame to preserve order in BigQuery
+    ordering_col = "rowid"
+    columns = frozenset(col_labels + idx_labels)
+    suffix = 2
+    while ordering_col in columns:
+        ordering_col = f"rowid_{suffix}"
+        suffix += 1
+
+    pandas_dataframe_copy = pandas_dataframe.copy()
+    pandas_dataframe_copy.index.names = new_idx_ids
+    pandas_dataframe_copy.columns = pandas.Index(new_col_ids)
+    pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
+
+    return DataFrameAndLabels(
+        df=pandas_dataframe_copy,
+        column_labels=col_labels,
+        index_labels=idx_labels,
+        ordering_col=ordering_col,
+    )

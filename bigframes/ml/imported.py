@@ -16,14 +16,14 @@
 
 from __future__ import annotations
 
-from typing import cast, Mapping, Optional, Union
+from typing import cast, Mapping, Optional
 
 from google.cloud import bigquery
 
-import bigframes
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
+import bigframes.session
 
 
 @log_adapter.class_logger
@@ -41,7 +41,7 @@ class TensorFlowModel(base.Predictor):
         self,
         model_path: str,
         *,
-        session: Optional[bigframes.Session] = None,
+        session: Optional[bigframes.session.Session] = None,
     ):
         self.session = session or bpd.get_global_session()
         self.model_path = model_path
@@ -56,7 +56,7 @@ class TensorFlowModel(base.Predictor):
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, bq_model: bigquery.Model
+        cls, session: bigframes.session.Session, bq_model: bigquery.Model
     ) -> TensorFlowModel:
         assert bq_model.model_type == "TENSORFLOW"
 
@@ -64,11 +64,11 @@ class TensorFlowModel(base.Predictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Input DataFrame. Schema is defined by the model.
 
         Returns:
@@ -80,7 +80,7 @@ class TensorFlowModel(base.Predictor):
             self._bqml_model = self._create_bqml_model()
         self._bqml_model = cast(core.BqmlModel, self._bqml_model)
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X)
 
         return self._bqml_model.predict(X)
 
@@ -120,7 +120,7 @@ class ONNXModel(base.Predictor):
         self,
         model_path: str,
         *,
-        session: Optional[bigframes.Session] = None,
+        session: Optional[bigframes.session.Session] = None,
     ):
         self.session = session or bpd.get_global_session()
         self.model_path = model_path
@@ -135,7 +135,7 @@ class ONNXModel(base.Predictor):
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, bq_model: bigquery.Model
+        cls, session: bigframes.session.Session, bq_model: bigquery.Model
     ) -> ONNXModel:
         assert bq_model.model_type == "ONNX"
 
@@ -143,11 +143,11 @@ class ONNXModel(base.Predictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Input DataFrame or Series. Schema is defined by the model.
 
         Returns:
@@ -159,7 +159,7 @@ class ONNXModel(base.Predictor):
             self._bqml_model = self._create_bqml_model()
         self._bqml_model = cast(core.BqmlModel, self._bqml_model)
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
@@ -218,7 +218,7 @@ class XGBoostModel(base.Predictor):
         *,
         input: Mapping[str, str] = {},
         output: Mapping[str, str] = {},
-        session: Optional[bigframes.Session] = None,
+        session: Optional[bigframes.session.Session] = None,
     ):
         self.session = session or bpd.get_global_session()
         self.model_path = model_path
@@ -251,7 +251,7 @@ class XGBoostModel(base.Predictor):
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, bq_model: bigquery.Model
+        cls, session: bigframes.session.Session, bq_model: bigquery.Model
     ) -> XGBoostModel:
         assert bq_model.model_type == "XGBOOST"
 
@@ -259,11 +259,11 @@ class XGBoostModel(base.Predictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Input DataFrame or Series. Schema is defined by the model.
 
         Returns:
@@ -275,7 +275,7 @@ class XGBoostModel(base.Predictor):
             self._bqml_model = self._create_bqml_model()
         self._bqml_model = cast(core.BqmlModel, self._bqml_model)
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 

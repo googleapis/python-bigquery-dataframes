@@ -17,26 +17,30 @@ from typing import Optional
 
 import pandas as pd
 
-import bigframes.core.indexes as index
-import bigframes.series as series
+from bigframes import dataframe, series, session
+from bigframes.core import global_session, indexes
 
 
-def is_series_convertible(obj) -> bool:
+def can_convert_to_series(obj) -> bool:
     if isinstance(obj, series.Series):
         return True
     if isinstance(obj, pd.Series):
         return True
-    if isinstance(obj, index.Index):
+    if isinstance(obj, indexes.Index):
         return True
     if isinstance(obj, pd.Index):
         return True
     if pd.api.types.is_list_like(obj):
         return True
-    else:
-        return False
+
+    return False
 
 
-def to_bf_series(obj, default_index: Optional[index.Index], session) -> series.Series:
+def to_bf_series(
+    obj,
+    default_index: Optional[indexes.Index],
+    session: Optional[session.Session] = None,
+) -> series.Series:
     """
     Convert a an object to a bigframes series
 
@@ -51,9 +55,13 @@ def to_bf_series(obj, default_index: Optional[index.Index], session) -> series.S
     """
     if isinstance(obj, series.Series):
         return obj
+
+    if session is None:
+        session = global_session.get_global_session()
+
     if isinstance(obj, pd.Series):
         return series.Series(obj, session=session)
-    if isinstance(obj, index.Index):
+    if isinstance(obj, indexes.Index):
         return series.Series(obj, default_index, session=session)
     if isinstance(obj, pd.Index):
         return series.Series(obj, default_index, session=session)
@@ -61,8 +69,8 @@ def to_bf_series(obj, default_index: Optional[index.Index], session) -> series.S
         return series.Series(obj, session=session)
     if pd.api.types.is_list_like(obj):
         return series.Series(obj, default_index, session=session)
-    else:
-        raise TypeError(f"Cannot interpret {obj} as series.")
+
+    raise TypeError(f"Cannot interpret {obj} as series.")
 
 
 def to_pd_series(obj, default_index: pd.Index) -> pd.Series:
@@ -82,7 +90,7 @@ def to_pd_series(obj, default_index: pd.Index) -> pd.Series:
         return obj.to_pandas()
     if isinstance(obj, pd.Series):
         return obj
-    if isinstance(obj, index.Index):
+    if isinstance(obj, indexes.Index):
         return pd.Series(obj.to_pandas(), default_index)
     if isinstance(obj, pd.Index):
         return pd.Series(obj, default_index)
@@ -90,5 +98,34 @@ def to_pd_series(obj, default_index: pd.Index) -> pd.Series:
         return pd.Series(obj)
     if pd.api.types.is_list_like(obj):
         return pd.Series(obj, default_index)
-    else:
-        raise TypeError(f"Cannot interpret {obj} as series.")
+
+    raise TypeError(f"Cannot interpret {obj} as series.")
+
+
+def can_convert_to_dataframe(obj) -> bool:
+    if can_convert_to_series(obj):
+        return True
+
+    if isinstance(obj, dataframe.DataFrame) or isinstance(obj, pd.DataFrame):
+        return True
+
+    return False
+
+
+def to_bf_dataframe(
+    obj,
+    default_index: Optional[indexes.Index],
+    session: Optional[session.Session] = None,
+) -> dataframe.DataFrame:
+    if isinstance(obj, dataframe.DataFrame):
+        return obj
+
+    if isinstance(obj, pd.DataFrame):
+        if session is None:
+            session = global_session.get_global_session()
+        return dataframe.DataFrame(obj, session=session)
+
+    if can_convert_to_series(obj):
+        return to_bf_series(obj, default_index, session).to_frame()
+
+    raise TypeError(f"Cannot interpret {obj} as a dataframe.")

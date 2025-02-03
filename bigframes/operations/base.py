@@ -15,15 +15,16 @@
 from __future__ import annotations
 
 import typing
-from typing import List, Sequence
+from typing import List, Sequence, Union
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 import pandas as pd
 
-import bigframes.constants as constants
 import bigframes.core.blocks as blocks
 import bigframes.core.convert
 import bigframes.core.expression as ex
+import bigframes.core.identifiers as ids
 import bigframes.core.indexes as indexes
 import bigframes.core.scalar as scalars
 import bigframes.dtypes
@@ -86,7 +87,8 @@ class SeriesMethods:
                 if name is not None:
                     data.name = name
                 if dtype is not None:
-                    data = data.astype(dtype)
+                    bf_dtype = bigframes.dtypes.bigframes_type(dtype)
+                    data = data.astype(bf_dtype)
             else:  # local dict-like data
                 data = read_pandas_func(pd.Series(data, name=name, dtype=dtype))  # type: ignore
             data_block = data._block
@@ -172,7 +174,7 @@ class SeriesMethods:
         reverse: bool = False,
     ) -> series.Series:
         """Applies a binary operator to the series and other."""
-        if bigframes.core.convert.is_series_convertible(other):
+        if bigframes.core.convert.can_convert_to_series(other):
             self_index = indexes.Index(self._block)
             other_series = bigframes.core.convert.to_bf_series(
                 other, self_index, self._block.session
@@ -180,9 +182,10 @@ class SeriesMethods:
             (self_col, other_col, block) = self._align(other_series, how=alignment)
 
             name = self._name
+            # Drop name if both objects have name attr, but they don't match
             if (
                 hasattr(other, "name")
-                and other.name != self._name
+                and other_series.name != self._name
                 and alignment == "outer"
             ):
                 name = None
@@ -208,22 +211,37 @@ class SeriesMethods:
         ignore_self=False,
     ):
         """Applies an n-ary operator to the series and others."""
-        values, block = self._align_n(others, ignore_self=ignore_self)
-        block, result_id = block.apply_nary_op(
-            values,
-            op,
-            self._name,
+        values, block = self._align_n(
+            others, ignore_self=ignore_self, cast_scalars=False
         )
+        block, result_id = block.project_expr(op.as_expr(*values))
         return series.Series(block.select_column(result_id))
 
     def _apply_binary_aggregation(
         self, other: series.Series, stat: agg_ops.BinaryAggregateOp
     ) -> float:
         (left, right, block) = self._align(other, how="outer")
+        assert isinstance(left, ex.DerefOp)
+        assert isinstance(right, ex.DerefOp)
+        return block.get_binary_stat(left.id.name, right.id.name, stat)
 
-        return block.get_binary_stat(left, right, stat)
+    AlignedExprT = Union[ex.ScalarConstantExpression, ex.DerefOp]
 
-    def _align(self, other: series.Series, how="outer") -> tuple[str, str, blocks.Block]:  # type: ignore
+    @typing.overload
+    def _align(
+        self, other: series.Series, how="outer"
+    ) -> tuple[ex.DerefOp, ex.DerefOp, blocks.Block,]:
+        ...
+
+    @typing.overload
+    def _align(
+        self, other: typing.Union[series.Series, scalars.Scalar], how="outer"
+    ) -> tuple[ex.DerefOp, AlignedExprT, blocks.Block,]:
+        ...
+
+    def _align(
+        self, other: typing.Union[series.Series, scalars.Scalar], how="outer"
+    ) -> tuple[ex.DerefOp, AlignedExprT, blocks.Block,]:
         """Aligns the series value with another scalar or series object. Returns new left column id, right column id and joined tabled expression."""
         values, block = self._align_n(
             [
@@ -231,18 +249,32 @@ class SeriesMethods:
             ],
             how,
         )
-        return (values[0], values[1], block)
+        return (typing.cast(ex.DerefOp, values[0]), values[1], block)
+
+    def _align3(self, other1: series.Series | scalars.Scalar, other2: series.Series | scalars.Scalar, how="left") -> tuple[ex.DerefOp, AlignedExprT, AlignedExprT, blocks.Block]:  # type: ignore
+        """Aligns the series value with 2 other scalars or series objects. Returns new values and joined tabled expression."""
+        values, index = self._align_n([other1, other2], how)
+        return (
+            typing.cast(ex.DerefOp, values[0]),
+            values[1],
+            values[2],
+            index,
+        )
 
     def _align_n(
         self,
         others: typing.Sequence[typing.Union[series.Series, scalars.Scalar]],
         how="outer",
         ignore_self=False,
-    ) -> tuple[typing.Sequence[str], blocks.Block]:
+        cast_scalars: bool = True,
+    ) -> tuple[
+        typing.Sequence[Union[ex.ScalarConstantExpression, ex.DerefOp]],
+        blocks.Block,
+    ]:
         if ignore_self:
-            value_ids: List[str] = []
+            value_ids: List[Union[ex.ScalarConstantExpression, ex.DerefOp]] = []
         else:
-            value_ids = [self._value_column]
+            value_ids = [ex.deref(self._value_column)]
 
         block = self._block
         for other in others:
@@ -251,15 +283,24 @@ class SeriesMethods:
                     get_column_left,
                     get_column_right,
                 ) = block.join(other._block, how=how)
+                rebindings = {
+                    ids.ColumnId(old): ids.ColumnId(new)
+                    for old, new in get_column_left.items()
+                }
+                remapped_value_ids = (
+                    value.remap_column_refs(rebindings) for value in value_ids
+                )
                 value_ids = [
-                    *[get_column_left[value] for value in value_ids],
-                    get_column_right[other._value_column],
+                    *remapped_value_ids,  # type: ignore
+                    ex.deref(get_column_right[other._value_column]),
                 ]
             else:
                 # Will throw if can't interpret as scalar.
                 dtype = typing.cast(bigframes.dtypes.Dtype, self._dtype)
-                block, constant_col_id = block.create_constant(other, dtype=dtype)
-                value_ids = [*value_ids, constant_col_id]
+                value_ids = [
+                    *value_ids,
+                    ex.const(other, dtype=dtype if cast_scalars else None),
+                ]
         return (value_ids, block)
 
     def _throw_if_null_index(self, opname: str):

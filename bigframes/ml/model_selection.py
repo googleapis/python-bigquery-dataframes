@@ -17,43 +17,26 @@ scikit-learn's model_selection module:
 https://scikit-learn.org/stable/modules/classes.html#module-sklearn.model_selection."""
 
 
-from typing import cast, List, Union
+import inspect
+import time
+from typing import cast, Generator, List, Optional, Union
 
+import bigframes_vendored.sklearn.model_selection._split as vendored_model_selection_split
+import bigframes_vendored.sklearn.model_selection._validation as vendored_model_selection_validation
+import pandas as pd
+
+from bigframes.core import log_adapter
 from bigframes.ml import utils
 import bigframes.pandas as bpd
 
 
 def train_test_split(
-    *arrays: Union[bpd.DataFrame, bpd.Series],
+    *arrays: utils.ArrayType,
     test_size: Union[float, None] = None,
     train_size: Union[float, None] = None,
     random_state: Union[int, None] = None,
     stratify: Union[bpd.Series, None] = None,
 ) -> List[Union[bpd.DataFrame, bpd.Series]]:
-    """Splits dataframes or series into random train and test subsets.
-
-    Args:
-        *arrays (bigframes.dataframe.DataFrame or bigframes.series.Series):
-            A sequence of BigQuery DataFrames or Series that can be joined on
-            their indexes.
-        test_size (default None):
-            The proportion of the dataset to include in the test split. If
-            None, this will default to the complement of train_size. If both
-            are none, it will be set to 0.25.
-        train_size (default None):
-            The proportion of the dataset to include in the train split. If
-            None, this will default to the complement of test_size.
-        random_state (default None):
-            A seed to use for randomly choosing the rows of the split. If not
-            set, a random split will be generated each time.
-        stratify: (bigframes.series.Series or None, default None):
-            If not None, data is split in a stratified fashion, using this as the class labels. Each split has the same distribution of the class labels with the original dataset.
-            Default to None.
-            Note: By setting the stratify parameter, the memory consumption and generated SQL will be linear to the unique values in the Series. May return errors if the unique values size is too large.
-
-    Returns:
-        List[Union[bigframes.dataframe.DataFrame, bigframes.series.Series]]: A list of BigQuery DataFrames or Series.
-    """
 
     # TODO(garrettwu): scikit-learn throws an error when the dataframes don't have the same
     # number of rows. We probably want to do something similar. Now the implementation is based
@@ -78,7 +61,7 @@ def train_test_split(
             f"The sum of train_size and test_size exceeds 1.0. train_size: {train_size}. test_size: {test_size}"
         )
 
-    dfs = list(utils.convert_to_dataframe(*arrays))
+    dfs = list(utils.batch_convert_to_dataframe(*arrays))
 
     def _stratify_split(df: bpd.DataFrame, stratify: bpd.Series) -> List[bpd.DataFrame]:
         """Split a single DF accoding to the stratify Series."""
@@ -123,3 +106,103 @@ def train_test_split(
         results.append(joined_df_test[columns])
 
     return results
+
+
+train_test_split.__doc__ = inspect.getdoc(
+    vendored_model_selection_split.train_test_split
+)
+
+
+@log_adapter.class_logger
+class KFold(vendored_model_selection_split.KFold):
+    __doc__ = inspect.getdoc(vendored_model_selection_split.KFold)
+
+    def __init__(self, n_splits: int = 5, *, random_state: Union[int, None] = None):
+        if n_splits < 2:
+            raise ValueError(f"n_splits must be at least 2. Got {n_splits}")
+        self._n_splits = n_splits
+        self._random_state = random_state
+
+    def get_n_splits(self) -> int:
+        return self._n_splits
+
+    def split(
+        self,
+        X: utils.ArrayType,
+        y: Union[utils.ArrayType, None] = None,
+    ) -> Generator[tuple[Union[bpd.DataFrame, bpd.Series, None], ...], None, None]:
+        X_df = next(utils.batch_convert_to_dataframe(X))
+        y_df_or = next(utils.batch_convert_to_dataframe(y)) if y is not None else None
+        joined_df = X_df.join(y_df_or, how="outer") if y_df_or is not None else X_df
+
+        fracs = (1 / self._n_splits,) * self._n_splits
+
+        dfs = joined_df._split(fracs=fracs, random_state=self._random_state)
+
+        for i in range(len(dfs)):
+            train_df = bpd.concat(dfs[:i] + dfs[i + 1 :])
+            test_df = dfs[i]
+
+            X_train = train_df[X_df.columns]
+            y_train = train_df[y_df_or.columns] if y_df_or is not None else None
+
+            X_test = test_df[X_df.columns]
+            y_test = test_df[y_df_or.columns] if y_df_or is not None else None
+
+            yield (
+                KFold._convert_to_bf_type(X_train, X),
+                KFold._convert_to_bf_type(X_test, X),
+                KFold._convert_to_bf_type(y_train, y),
+                KFold._convert_to_bf_type(y_test, y),
+            )
+
+    @staticmethod
+    def _convert_to_bf_type(
+        input,
+        type_instance: Union[bpd.DataFrame, bpd.Series, pd.DataFrame, pd.Series, None],
+    ) -> Union[bpd.DataFrame, bpd.Series, None]:
+        if isinstance(type_instance, pd.Series) or isinstance(
+            type_instance, bpd.Series
+        ):
+            return next(utils.batch_convert_to_series(input))
+
+        if isinstance(type_instance, pd.DataFrame) or isinstance(
+            type_instance, bpd.DataFrame
+        ):
+            return next(utils.batch_convert_to_dataframe(input))
+
+        return None
+
+
+def cross_validate(
+    estimator,
+    X: utils.ArrayType,
+    y: Union[utils.ArrayType, None] = None,
+    *,
+    cv: Optional[Union[int, KFold]] = None,
+) -> dict[str, list]:
+    if cv is None:
+        cv = KFold(n_splits=5)
+    elif isinstance(cv, int):
+        cv = KFold(n_splits=cv)
+
+    result: dict[str, list] = {"test_score": [], "fit_time": [], "score_time": []}
+    for X_train, X_test, y_train, y_test in cv.split(X, y):  # type: ignore
+        fit_start_time = time.perf_counter()
+        estimator.fit(X_train, y_train)
+        fit_time = time.perf_counter() - fit_start_time
+
+        score_start_time = time.perf_counter()
+        score = estimator.score(X_test, y_test)
+        score_time = time.perf_counter() - score_start_time
+
+        result["test_score"].append(score)
+        result["fit_time"].append(fit_time)
+        result["score_time"].append(score_time)
+
+    return result
+
+
+cross_validate.__doc__ = inspect.getdoc(
+    vendored_model_selection_validation.cross_validate
+)

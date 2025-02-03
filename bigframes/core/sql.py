@@ -18,8 +18,12 @@ Utility functions for SQL construction.
 """
 
 import datetime
+import decimal
+import json
 import math
-from typing import Iterable, Mapping, TYPE_CHECKING, Union
+from typing import cast, Collection, Iterable, Mapping, Optional, TYPE_CHECKING, Union
+
+import shapely  # type: ignore
 
 import bigframes.core.compile.googlesql as googlesql
 
@@ -30,12 +34,16 @@ if TYPE_CHECKING:
 
 
 ### Writing SQL Values (literals, column references, table references, etc.)
-def simple_literal(value: str | int | bool | float | datetime.datetime):
+def simple_literal(value: bytes | str | int | bool | float | datetime.datetime | None):
     """Return quoted input string."""
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#literals
-    if isinstance(value, str):
+    if value is None:
+        return "NULL"
+    elif isinstance(value, str):
         # Single quoting seems to work nicer with ibis than double quoting
         return f"'{googlesql._escape_chars(value)}'"
+    elif isinstance(value, bytes):
+        return repr(value)
     elif isinstance(value, (bool, int)):
         return str(value)
     elif isinstance(value, float):
@@ -47,8 +55,21 @@ def simple_literal(value: str | int | bool | float | datetime.datetime):
         if value == -math.inf:
             return 'CAST("-inf" as FLOAT)'
         return str(value)
-    if isinstance(value, datetime.datetime):
-        return f"TIMESTAMP('{value.isoformat()}')"
+    # Check datetime first as it is a subclass of date
+    elif isinstance(value, datetime.datetime):
+        if value.tzinfo is None:
+            return f"DATETIME('{value.isoformat()}')"
+        else:
+            return f"TIMESTAMP('{value.isoformat()}')"
+    elif isinstance(value, datetime.date):
+        return f"DATE('{value.isoformat()}')"
+    elif isinstance(value, datetime.time):
+        return f"TIME(DATETIME('1970-01-01 {value.isoformat()}'))"
+    elif isinstance(value, shapely.Geometry):
+        return f"ST_GEOGFROMTEXT({simple_literal(shapely.to_wkt(value))})"
+    elif isinstance(value, decimal.Decimal):
+        # TODO: disambiguate BIGNUMERIC based on scale and/or precision
+        return f"CAST('{str(value)}' AS NUMERIC)"
     else:
         raise ValueError(f"Cannot produce literal for {value}")
 
@@ -110,53 +131,90 @@ def ordering_clause(
         if ordering_expr.is_const:
             # Probably shouldn't have constants in ordering definition, but best to ignore if somehow they end up here.
             continue
-        assert isinstance(
-            ordering_expr, bigframes.core.expression.UnboundVariableExpression
-        )
-        part = f"`{ordering_expr.id}` {asc_desc} {null_clause}"
+        assert isinstance(ordering_expr, bigframes.core.expression.DerefOp)
+        part = f"`{ordering_expr.id.sql}` {asc_desc} {null_clause}"
         parts.append(part)
     return f"ORDER BY {' ,'.join(parts)}"
 
 
+def create_vector_index_ddl(
+    *,
+    replace: bool,
+    index_name: str,
+    table_name: str,
+    column_name: str,
+    stored_column_names: Collection[str],
+    options: Mapping[str, Union[str | int | bool | float]] = {},
+) -> str:
+    """Encode the VECTOR INDEX statement for BigQuery Vector Search."""
+
+    if replace:
+        create = "CREATE OR REPLACE VECTOR INDEX "
+    else:
+        create = "CREATE VECTOR INDEX IF NOT EXISTS "
+
+    if len(stored_column_names) > 0:
+        escaped_stored = [
+            f"{googlesql.identifier(name)}" for name in stored_column_names
+        ]
+        storing = f"STORING({', '.join(escaped_stored)}) "
+    else:
+        storing = ""
+
+    rendered_options = ", ".join(
+        [
+            f"{option_name} = {simple_literal(option_value)}"
+            for option_name, option_value in options.items()
+        ]
+    )
+
+    return f"""
+    {create} {googlesql.identifier(index_name)}
+    ON {googlesql.identifier(table_name)}({googlesql.identifier(column_name)})
+    {storing}
+    OPTIONS({rendered_options});
+    """
+
+
 def create_vector_search_sql(
     sql_string: str,
-    options: Mapping[str, Union[str | int | bool | float]] = {},
+    *,
+    base_table: str,
+    column_to_search: str,
+    query_column_to_search: Optional[str] = None,
+    top_k: Optional[int] = None,
+    distance_type: Optional[str] = None,
+    options: Optional[Mapping[str, Union[str | int | bool | float]]] = None,
 ) -> str:
     """Encode the VECTOR SEARCH statement for BigQuery Vector Search."""
 
-    base_table = options["base_table"]
-    column_to_search = options["column_to_search"]
-    distance_type = options["distance_type"]
-    top_k = options["top_k"]
-    query_column_to_search = options.get("query_column_to_search", None)
+    vector_search_args = [
+        f"TABLE {googlesql.identifier(cast(str, base_table))}",
+        f"{simple_literal(column_to_search)}",
+        f"({sql_string})",
+    ]
 
     if query_column_to_search is not None:
-        query_str = f"""
+        vector_search_args.append(
+            f"query_column_to_search => {simple_literal(query_column_to_search)}"
+        )
+
+    if top_k is not None:
+        vector_search_args.append(f"top_k=> {simple_literal(top_k)}")
+
+    if distance_type is not None:
+        vector_search_args.append(f"distance_type => {simple_literal(distance_type)}")
+
+    if options is not None:
+        vector_search_args.append(
+            f"options => {simple_literal(json.dumps(options, indent=None))}"
+        )
+
+    args_str = ",\n".join(vector_search_args)
+    return f"""
     SELECT
         query.*,
         base.*,
         distance,
-    FROM VECTOR_SEARCH(
-        TABLE `{base_table}`,
-        {simple_literal(column_to_search)},
-        ({sql_string}),
-        {simple_literal(query_column_to_search)},
-        distance_type => {simple_literal(distance_type)},
-        top_k => {simple_literal(top_k)}
-    )
+    FROM VECTOR_SEARCH({args_str})
     """
-    else:
-        query_str = f"""
-    SELECT
-        query.*,
-        base.*,
-        distance,
-    FROM VECTOR_SEARCH(
-        TABLE `{base_table}`,
-        {simple_literal(column_to_search)},
-        ({sql_string}),
-        distance_type => {simple_literal(distance_type)},
-        top_k => {simple_literal(top_k)}
-    )
-    """
-    return query_str

@@ -17,9 +17,15 @@
 This module should not depend on any others in the package.
 """
 
+import typing
+from typing import Literal
+
+import bigframes_vendored.version
+
 FEEDBACK_LINK = (
     "Share your usecase with the BigQuery DataFrames team at the "
     "https://bit.ly/bigframes-feedback survey."
+    f"You are currently running BigFrames version {bigframes_vendored.version.__version__}"
 )
 
 ABSTRACT_METHOD_ERROR_MESSAGE = (
@@ -27,3 +33,20 @@ ABSTRACT_METHOD_ERROR_MESSAGE = (
     "Please share this stacktrace and how you reached it with the BigQuery DataFrames team. "
     f"{FEEDBACK_LINK}"
 )
+
+WRITE_ENGINE_TEMPLATE = (
+    "Can't use parsing engine={engine} with write_engine={write_engine}, which "
+)
+WRITE_ENGINE_REQUIRES_LOCAL_ENGINE_TEMPLATE = (
+    WRITE_ENGINE_TEMPLATE + "requires a local parsing engine. " + FEEDBACK_LINK
+)
+WRITE_ENGINE_REQUIRES_BIGQUERY_ENGINE_TEMPLATE = (
+    WRITE_ENGINE_TEMPLATE
+    + "requires the engine='bigquery' parsing engine. "
+    + FEEDBACK_LINK
+)
+
+WriteEngineType = Literal[
+    "default", "bigquery_inline", "bigquery_load", "bigquery_streaming"
+]
+VALID_WRITE_ENGINES = typing.get_args(WriteEngineType)

@@ -161,6 +161,36 @@ def test_read_csv_pandas_engines_index_col_sequential_int64_not_supported(engine
         )
 
 
+@pytest.mark.parametrize(
+    ("engine", "write_engine"),
+    (
+        # Can't use bigquery parsing if parsing the data locally to upload.
+        ("bigquery", "bigquery_streaming"),
+        ("bigquery", "bigquery_inline"),
+        # No local parsing engines are compatible with bigquery_external_table.
+        (None, "bigquery_external_table"),
+        ("c", "bigquery_external_table"),
+        ("pyarrow", "bigquery_external_table"),
+        ("python", "bigquery_external_table"),
+        ("python-fwf", "bigquery_external_table"),
+    ),
+)
+def test_read_csv_with_incompatible_write_engine(engine, write_engine):
+    session = resources.create_bigquery_session()
+
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            f"Can't use parsing engine={repr(engine)} with write_engine={repr(write_engine)}, which"
+        ),
+    ):
+        session.read_csv(
+            "gs://cloud-samples-data/bigquery/us-states/us-states.csv",
+            engine=engine,
+            write_engine=write_engine,
+        )
+
+
 @pytest.mark.parametrize("missing_parts_table_id", [(""), ("table")])
 def test_read_gbq_missing_parts(missing_parts_table_id):
     session = resources.create_bigquery_session()
@@ -181,6 +211,7 @@ def test_read_gbq_cached_table():
     table._properties["location"] = session._location
     table._properties["numRows"] = "1000000000"
     table._properties["location"] = session._location
+    table._properties["type"] = "TABLE"
     session._loader._df_snapshot[table_ref] = (
         datetime.datetime(1999, 1, 2, 3, 4, 5, 678901, tzinfo=datetime.timezone.utc),
         table,

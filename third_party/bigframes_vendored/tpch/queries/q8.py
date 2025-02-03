@@ -5,33 +5,33 @@ from datetime import date
 import bigframes
 
 
-def q(dataset_id: str, session: bigframes.Session):
+def q(project_id: str, dataset_id: str, session: bigframes.Session):
     customer = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.CUSTOMER",
+        f"{project_id}.{dataset_id}.CUSTOMER",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     lineitem = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.LINEITEM",
+        f"{project_id}.{dataset_id}.LINEITEM",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     nation = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.NATION",
+        f"{project_id}.{dataset_id}.NATION",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     orders = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.ORDERS",
+        f"{project_id}.{dataset_id}.ORDERS",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     part = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.PART",
+        f"{project_id}.{dataset_id}.PART",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     region = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.REGION",
+        f"{project_id}.{dataset_id}.REGION",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     supplier = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.SUPPLIER",
+        f"{project_id}.{dataset_id}.SUPPLIER",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
 
@@ -62,17 +62,11 @@ def q(dataset_id: str, session: bigframes.Session):
     jn7["VOLUME"] = jn7["L_EXTENDEDPRICE"] * (1.0 - jn7["L_DISCOUNT"])
     jn7 = jn7.rename(columns={"N_NAME": "NATION"})
 
-    denominator = jn7.groupby("O_YEAR")["VOLUME"].sum().rename("DENOMINATOR")
-    numerator = (
-        jn7[jn7["NATION"] == var1]
-        .groupby(jn7["O_YEAR"])["VOLUME"]
-        .sum()
-        .rename("NUMERATOR")
-    )
-    jn8 = denominator.to_frame().join(numerator.to_frame(), how="left")
+    jn7["numerator"] = jn7["VOLUME"].where(jn7["NATION"] == var1, 0)
+    jn7["denominator"] = jn7["VOLUME"]
 
-    # ValueError: Caching with offsets only supported in strictly ordered mode.
-    jn8["MKT_SHARE"] = (jn8["NUMERATOR"] / jn8["DENOMINATOR"]).round(2)
+    sums = jn7.groupby("O_YEAR")[["numerator", "denominator"]].sum()
+    sums["MKT_SHARE"] = (sums["numerator"] / sums["denominator"]).round(2)
 
-    result_df = jn8["MKT_SHARE"].sort_index().rename("MKT_SHARE").reset_index()
-    result_df.to_gbq()
+    result_df = sums["MKT_SHARE"].sort_index().rename("MKT_SHARE").reset_index()
+    next(result_df.to_pandas_batches())

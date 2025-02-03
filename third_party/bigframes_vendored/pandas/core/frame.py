@@ -45,6 +45,10 @@ class DataFrame(generic.NDFrame):
             ...                     'col2': [4, 5, 6]})
             >>> df.shape
             (3, 2)
+
+        Returns:
+            Tuple[int, int]:
+                 Tuple of array dimensions.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -89,6 +93,10 @@ class DataFrame(generic.NDFrame):
                 on another array.
             na_value (default None):
                 The value to use for missing values.
+
+        Returns:
+            numpy.ndarray:
+                The values of the DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -119,7 +127,7 @@ class DataFrame(generic.NDFrame):
             [2 rows x 2 columns]
 
         Returns:
-            DataFrame: The transposed DataFrame.
+            bigframes.pandas.DataFrame: The transposed DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -170,7 +178,7 @@ class DataFrame(generic.NDFrame):
             dtype: object
 
         Returns:
-            DataFrame: The transposed DataFrame.
+            bigframes.pandas.DataFrame: The transposed DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -216,7 +224,8 @@ class DataFrame(generic.NDFrame):
                 shows the counts, and False never shows the counts.
 
         Returns:
-            None: This method prints a summary of a DataFrame and returns None."""
+            None: This method prints a summary of a DataFrame and returns None.
+        """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def memory_usage(self, index: bool = True):
@@ -236,7 +245,7 @@ class DataFrame(generic.NDFrame):
                 the index is the first item in the output.
 
         Returns:
-            Series: A Series whose index is the original column names and whose values is the memory usage of each column in bytes.
+            bigframes.pandas.Series: A Series whose index is the original column names and whose values is the memory usage of each column in bytes.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -272,7 +281,7 @@ class DataFrame(generic.NDFrame):
                 A selection of dtypes or strings to be excluded.
 
         Returns:
-            DataFrame: The subset of the frame including the dtypes in ``include`` and excluding the dtypes in ``exclude``.
+            bigframes.pandas.DataFrame: The subset of the frame including the dtypes in ``include`` and excluding the dtypes in ``exclude``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -304,11 +313,14 @@ class DataFrame(generic.NDFrame):
             dtype (dtype, default None):
                 Data type to force after DataFrame construction, otherwise infer.
             columns (list, default None):
-                Column labels to use when ``orient='index'``. Raises a ValueError
-                if used with ``orient='columns'`` or ``orient='tight'``.
+                Column labels to use when ``orient='index'``.
+
+        Raises:
+            ValueError:
+                If used with ``orient='columns'`` or ``orient='tight'``.
 
         Returns:
-            DataFrame: DataFrame.
+            bigframes.pandas.DataFrame: DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -349,7 +361,7 @@ class DataFrame(generic.NDFrame):
                 Number of rows to read if data is an iterator.
 
         Returns:
-            DataFrame: DataFrame.
+            bigframes.pandas.DataFrame: DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -475,6 +487,19 @@ class DataFrame(generic.NDFrame):
             str:
                 The fully-qualified ID for the written table, in the form
                 ``project.dataset.tablename``.
+
+        Raises:
+            ValueError:
+                If an invalid value is provided for ``if_exists`` when ``destination_table``
+                is ``None``. ``None`` or ``replace`` are the only valid values for ``if_exists``.
+            ValueError:
+                If an invalid value is provided for ``destination_table`` that is
+                not one of ``datasetID.tableId`` or ``projectId.datasetId.tableId``.
+            ValueError:
+                If an invalid value is provided for ``if_exists`` that is not one of
+                ``fail``, ``replace``, or ``append``.
+
+
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -519,7 +544,13 @@ class DataFrame(generic.NDFrame):
                 If ``False``, they will not be written to the file.
 
         Returns:
-            bytes if no path argument is provided else None
+            None or bytes:
+                bytes if no path argument is provided else None
+
+        Raises:
+            ValueError:
+                If an invalid value provided for `compression` that is not one of
+                ``None``, ``snappy``, or ``gzip``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -544,7 +575,7 @@ class DataFrame(generic.NDFrame):
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df.to_dict()
-            {'col1': {0: 1, 1: 2}, 'col2': {0: 3, 1: 4}}
+            {'col1': {np.int64(0): 1, np.int64(1): 2}, 'col2': {np.int64(0): 3, np.int64(1): 4}}
 
         You can specify the return orientation.
 
@@ -662,6 +693,10 @@ class DataFrame(generic.NDFrame):
                 it is assumed to be aliases for the column names.
             index (bool, default True):
                 Write row names (index).
+
+        Returns:
+            str or None: If buf is None, returns the result as a string. Otherwise returns
+            None.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -952,7 +987,8 @@ class DataFrame(generic.NDFrame):
                 These parameters will be passed to `tabulate <https://pypi.org/project/tabulate>`_.
 
         Returns:
-            DataFrame: DataFrame in Markdown-friendly format.
+            str:
+                DataFrame in Markdown-friendly format.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -994,6 +1030,11 @@ class DataFrame(generic.NDFrame):
                 we refer to objects with a write() method, such as a file handle
                 (e.g. via builtin open function). If path is None,
                 a bytes object is returned.
+
+        Returns:
+            bytes or None:
+                If buf is None, returns the result as bytes. Otherwise returns
+            None.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1020,7 +1061,8 @@ class DataFrame(generic.NDFrame):
                 are simply assigned to the column.
 
         Returns:
-            bigframes.dataframe.DataFrame: A new DataFrame with the new columns
+            bigframes.pandas.DataFrame:
+                A new DataFrame with the new columns
                 in addition to all the existing columns.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -1054,7 +1096,7 @@ class DataFrame(generic.NDFrame):
                 Axis to target. Can be either the axis name ('index', 'columns')
                 or number (0, 1).
         Returns:
-            DataFrame: DataFrame with changed index.
+            bigframes.pandas.DataFrame: DataFrame with changed index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1071,15 +1113,13 @@ class DataFrame(generic.NDFrame):
                 of this object.
 
         Returns:
-            Series or DataFrame: Same type as caller, but with changed indices on each axis.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Same type as caller, but with changed indices on each axis.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def insert(self, loc, column, value, allow_duplicates=False):
         """Insert column into DataFrame at specified location.
-
-        Raises a ValueError if `column` is already contained in the DataFrame,
-        unless `allow_duplicates` is set to True.
 
         **Examples:**
 
@@ -1117,6 +1157,13 @@ class DataFrame(generic.NDFrame):
                 Content of the inserted column.
             allow_duplicates (bool, default False):
                 Allow duplicate column labels to be created.
+
+        Raises:
+            IndexError:
+                If ``column`` index is out of bounds with the total count of columns.
+            ValueError:
+                If ``column`` is already contained in the DataFrame,
+                unless ``allow_duplicates`` is set to True.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1233,10 +1280,14 @@ class DataFrame(generic.NDFrame):
             level:
                 For MultiIndex, level from which the labels will be removed.
         Returns:
-            bigframes.dataframe.DataFrame: DataFrame without the removed column labels.
+            bigframes.pandas.DataFrame:
+                DataFrame without the removed column labels.
 
         Raises:
             KeyError: If any of the labels is not found in the selected axis.
+            ValueError: If values for both ``labels`` and ``index``/``columns`` are provided.
+            ValueError: If a multi-index tuple is provided as ``level``.
+            ValueError: If either ``labels`` or ``index``/``columns`` is not provided.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1266,7 +1317,8 @@ class DataFrame(generic.NDFrame):
                 Align on index (0), columns (1), or both (None).
 
         Returns:
-            tuple of (DataFrame, type of other): Aligned objects.
+            Tuple[bigframes.pandas.DataFrame or bigframes.pandas.Series, type of other]:
+                Aligned objects.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1309,7 +1361,7 @@ class DataFrame(generic.NDFrame):
                 Dict-like from old column labels to new column labels.
 
         Returns:
-            bigframes.dataframe.DataFrame: DataFrame with the renamed axis labels.
+            bigframes.pandas.DataFrame: DataFrame with the renamed axis labels.
 
         Raises:
             KeyError: If any of the labels is not found.
@@ -1328,7 +1380,7 @@ class DataFrame(generic.NDFrame):
                 Value to set the axis name attribute.
 
         Returns:
-            bigframes.dataframe.DataFrame: DataFrame with the new index name
+            bigframes.pandas.DataFrame: DataFrame with the new index name
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1392,7 +1444,12 @@ class DataFrame(generic.NDFrame):
                 Delete columns to be used as the new index.
 
         Returns:
-            DataFrame: Changed row labels.
+            bigframes.pandas.DataFrame:
+                Changed row labels.
+
+        Raises:
+            KeyError:
+                If key(s) are not in the columns.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1410,7 +1467,12 @@ class DataFrame(generic.NDFrame):
                 Where to reorder levels.
 
         Returns:
-            DataFrame: DataFrame of rearranged index.
+            bigframes.pandas.DataFrame:
+                DataFrame of rearranged index.
+
+        Raises:
+            ValueError:
+                If columns are not multi-index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1428,7 +1490,12 @@ class DataFrame(generic.NDFrame):
                 'columns' for column-wise.
 
         Returns:
-            DataFrame: DataFrame with levels swapped in MultiIndex.
+            bigframes.pandas.DataFrame:
+                DataFrame with levels swapped in MultiIndex.
+
+        Raises:
+            ValueError:
+                If columns are not multi-index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1447,7 +1514,12 @@ class DataFrame(generic.NDFrame):
                 * 0 or 'index': remove level(s) in column.
                 * 1 or 'columns': remove level(s) in row.
         Returns:
-            DataFrame: DataFrame with requested index / column level(s) removed.
+            bigframes.pandas.DataFrame:
+                DataFrame with requested index / column level(s) removed.
+
+        Raises:
+            ValueError:
+                If columns are not multi-index
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1553,7 +1625,7 @@ class DataFrame(generic.NDFrame):
                 the index to the default integer index.
 
         Returns:
-            bigframes.dataframe.DataFrame: DataFrame with the new index.
+            bigframes.pandas.DataFrame: DataFrame with the new index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1580,7 +1652,7 @@ class DataFrame(generic.NDFrame):
                 - ``False`` : Drop all duplicates.
 
         Returns:
-            bigframes.dataframe.DataFrame: DataFrame with duplicates removed
+            bigframes.pandas.DataFrame: DataFrame with duplicates removed
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1602,7 +1674,7 @@ class DataFrame(generic.NDFrame):
                 - False : Mark all duplicates as ``True``.
 
         Returns:
-            bigframes.series.Series: Boolean series for each duplicated rows.
+            bigframes.pandas.Series: Boolean series for each duplicated rows.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1614,6 +1686,8 @@ class DataFrame(generic.NDFrame):
         *,
         axis: int | str = 0,
         how: str = "any",
+        subset=None,
+        inplace: bool = False,
         ignore_index=False,
     ) -> DataFrame:
         """Remove missing values.
@@ -1662,6 +1736,15 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [3 rows x 3 columns]
 
+        Define in which columns to look for missing values.
+
+            >>> df.dropna(subset=['name', 'toy'])
+                   name        toy        born
+            1    Batman  Batmobile  1940-04-25
+            2  Catwoman   Bullwhip        <NA>
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
         Args:
             axis ({0 or 'index', 1 or 'columns'}, default 'columns'):
                 Determine if rows or columns which contain missing values are
@@ -1675,12 +1758,23 @@ class DataFrame(generic.NDFrame):
 
                 * 'any' : If any NA values are present, drop that row or column.
                 * 'all' : If all values are NA, drop that row or column.
+            subset (column label or sequence of labels, optional):
+                Labels along other axis to consider, e.g. if you are dropping
+                rows these would be a list of columns to include.
+                Only supports axis=0.
+            inplace (bool, default ``False``):
+                Not supported.
             ignore_index (bool, default ``False``):
                 If ``True``, the resulting axis will be labeled 0, 1, …, n - 1.
 
 
         Returns:
-            bigframes.dataframe.DataFrame: DataFrame with NA entries dropped from it.
+            bigframes.pandas.DataFrame:
+                DataFrame with NA entries dropped from it.
+
+        Raises:
+            ValueError:
+                If ``how`` is not one of ``any`` or ``all``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1728,8 +1822,13 @@ class DataFrame(generic.NDFrame):
                 the column names, which must match.
 
         Returns:
-            DataFrame: DataFrame of booleans showing whether each element
-            in the DataFrame is contained in values.
+            bigframes.pandas.DataFrame:
+                DataFrame of booleans showing whether each element
+                in the DataFrame is contained in values.
+
+        Raises:
+            TypeError:
+                If values provided are not list-like objects.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1752,16 +1851,13 @@ class DataFrame(generic.NDFrame):
             Index(['A', 'B'], dtype='object')
 
         Returns:
-            Index: Info axis.
+            pandas.Index: Info axis.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def iterrows(self):
         """
         Iterate over DataFrame rows as (index, Series) pairs.
-
-        Yields:
-            a tuple (index, data) where data contains row values as a Series
 
         **Examples:**
 
@@ -1773,11 +1869,15 @@ class DataFrame(generic.NDFrame):
             ...     })
             >>> index, row = next(df.iterrows())
             >>> index
-            0
+            np.int64(0)
             >>> row
             A    1
             B    4
             Name: 0, dtype: object
+
+        Returns:
+            Iterable[Tuple]:
+                A tuple where data contains row values as a Series
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1794,7 +1894,7 @@ class DataFrame(generic.NDFrame):
             ...     'B': [4, 5, 6],
             ...     })
             >>> next(df.itertuples(name="Pair"))
-            Pair(Index=0, A=1, B=4)
+            Pair(Index=np.int64(0), A=np.int64(1), B=np.int64(4))
 
         Args:
             index (bool, default True):
@@ -1804,7 +1904,7 @@ class DataFrame(generic.NDFrame):
                 tuples.
 
         Returns:
-            iterator:
+            Iterable[Tuple]:
                 An object to iterate over namedtuples for each row in the
                 DataFrame with the first field possibly being the index and
                 following fields being the column values.
@@ -1853,6 +1953,190 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             Iterator: Iterator of label, Series for each column.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def where(self, cond, other):
+        """Replace values where the condition is False.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'a': [20, 10, 0], 'b': [0, 10, 20]})
+            >>> df
+                a   b
+            0  20   0
+            1  10  10
+            2   0  20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can filter the values in the dataframe based on a condition. The
+        values matching the condition would be kept, and not matching would be
+        replaced. The default replacement value is ``NA``. For example, when the
+        condition is a dataframe:
+
+            >>> df.where(df > 0)
+                  a     b
+            0    20  <NA>
+            1    10    10
+            2  <NA>    20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can specify a custom replacement value for non-matching values.
+
+            >>> df.where(df > 0, -1)
+                  a     b
+            0    20    -1
+            1    10    10
+            2    -1    20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Besides dataframe, the condition can be a series too. For example:
+
+            >>> df.where(df['a'] > 10, -1)
+                  a     b
+            0    20     0
+            1    -1    -1
+            2    -1    -1
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        As for the replacement, it can be a dataframe too. For example:
+
+            >>> df.where(df > 10, -df)
+                  a     b
+            0    20     0
+            1   -10   -10
+            2     0    20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.where(df['a'] > 10, -df)
+                  a     b
+            0    20     0
+            1   -10   -10
+            2     0   -20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Please note, replacement doesn't support Series for now. In pandas, when
+        specifying a Series as replacement, the axis value should be specified
+        at the same time, which is not supported in bigframes DataFrame.
+
+        Args:
+            cond (bool Series/DataFrame, array-like, or callable):
+                Where cond is True, keep the original value. Where False, replace
+                with corresponding value from other. If cond is callable, it is
+                computed on the Series/DataFrame and returns boolean
+                Series/DataFrame or array. The callable must not change input
+                Series/DataFrame (though pandas doesn’t check it).
+            other (scalar, DataFrame, or callable):
+                Entries where cond is False are replaced with corresponding value
+                from other. If other is callable, it is computed on the
+                DataFrame and returns scalar or DataFrame. The callable must not
+                change input DataFrame (though pandas doesn’t check it). If not
+                specified, entries will be filled with the corresponding NULL
+                value (np.nan for numpy dtypes, pd.NA for extension dtypes).
+
+        Returns:
+            DataFrame: DataFrame after the replacement.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def mask(self, cond, other):
+        """Replace values where the condition is False.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({'a': [20, 10, 0], 'b': [0, 10, 20]})
+            >>> df
+                a   b
+            0  20   0
+            1  10  10
+            2   0  20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can filter the values in the dataframe based on a condition. The
+        values matching the condition would be kept, and not matching would be
+        replaced. The default replacement value is ``NA``. For example, when the
+        condition is a dataframe:
+
+            >>> df.mask(df > 0)
+                  a     b
+            0  <NA>     0
+            1  <NA>  <NA>
+            2     0  <NA>
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        You can specify a custom replacement value for non-matching values.
+
+            >>> df.mask(df > 0, -1)
+                a   b
+            0  -1   0
+            1  -1  -1
+            2   0  -1
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Besides dataframe, the condition can be a series too. For example:
+
+            >>> df.mask(df['a'] > 10, -1)
+                a   b
+            0  -1  -1
+            1  10  10
+            2   0  20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        As for the replacement, it can be a dataframe too. For example:
+
+            >>> df.mask(df > 10, -df)
+                  a     b
+            0   -20     0
+            1    10    10
+            2     0   -20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+            >>> df.mask(df['a'] > 10, -df)
+                  a     b
+            0   -20     0
+            1    10    10
+            2     0    20
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Please note, replacement doesn't support Series for now. In pandas, when
+        specifying a Series as replacement, the axis value should be specified
+        at the same time, which is not supported in bigframes DataFrame.
+
+        Args:
+            cond (bool Series/DataFrame, array-like, or callable):
+                Where cond is False, keep the original value. Where True, replace
+                with corresponding value from other. If cond is callable, it is
+                computed on the Series/DataFrame and returns boolean
+                Series/DataFrame or array. The callable must not change input
+                Series/DataFrame (though pandas doesn’t check it).
+            other (scalar, DataFrame, or callable):
+                Entries where cond is True are replaced with corresponding value
+                from other. If other is callable, it is computed on the
+                DataFrame and returns scalar or DataFrame. The callable must not
+                change input DataFrame (though pandas doesn’t check it). If not
+                specified, entries will be filled with the corresponding NULL
+                value (np.nan for numpy dtypes, pd.NA for extension dtypes).
+
+        Returns:
+            DataFrame: DataFrame after the replacement.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1959,7 +2243,12 @@ class DataFrame(generic.NDFrame):
              if `first`; `last` puts NaNs at the end.
 
         Returns:
-            DataFrame: DataFrame with sorted values.
+            bigframes.pandas.DataFrame:
+                DataFrame with sorted values.
+
+        Raises:
+            ValueError:
+                If value of ``na_position`` is not one of ``first`` or ``last``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1969,7 +2258,14 @@ class DataFrame(generic.NDFrame):
         """Sort object by labels (along an axis).
 
         Returns:
-            DataFrame: The original DataFrame sorted by the labels.
+            bigframes.pandas.DataFrame:
+                The original DataFrame sorted by the labels.
+
+        Raises:
+            ValueError:
+                If value of ``na_position`` is not one of ``first`` or ``last``.
+            ValueError:
+                If length of ``ascending`` dose not equal length of ``by``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2018,7 +2314,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns').
 
         Returns:
-            DataFrame: Result of the comparison.
+            bigframes.pandas.DataFrame: Result of the comparison.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2051,7 +2347,7 @@ class DataFrame(generic.NDFrame):
                 Object to be compared to the DataFrame for equality.
 
         Returns:
-            DataFrame: The result of comparing `other` to DataFrame.
+            bigframes.pandas.DataFrame: The result of comparing `other` to DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2075,7 +2371,7 @@ class DataFrame(generic.NDFrame):
             [3 rows x 2 columns]
 
         Returns:
-            DataFrame: The result of inverting elements in the input.
+            bigframes.pandas.DataFrame: The result of inverting elements in the input.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2120,7 +2416,7 @@ class DataFrame(generic.NDFrame):
                 Whether to compare by the index (0 or 'index') or columns
                 (1 or 'columns').
         Returns:
-            DataFrame: Result of the comparison.
+            bigframes.pandas.DataFrame: Result of the comparison.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2153,7 +2449,7 @@ class DataFrame(generic.NDFrame):
                 Object to be compared to the DataFrame for inequality.
 
         Returns:
-            DataFrame: The result of comparing `other` to DataFrame.
+            bigframes.pandas.DataFrame: The result of comparing `other` to DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2203,7 +2499,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns').
 
         Returns:
-            DataFrame: DataFrame of bool. The result of the comparison.
+            bigframes.pandas.DataFrame: DataFrame of bool. The result of the comparison.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2236,7 +2532,7 @@ class DataFrame(generic.NDFrame):
                 Object to be compared to the DataFrame.
 
         Returns:
-            DataFrame: The result of comparing `other` to DataFrame.
+            bigframes.pandas.DataFrame: The result of comparing `other` to DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2286,7 +2582,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns').
 
         Returns:
-            DataFrame: DataFrame of bool. The result of the comparison.
+            bigframes.pandas.DataFrame: DataFrame of bool. The result of the comparison.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2319,7 +2615,7 @@ class DataFrame(generic.NDFrame):
                 Object to be compared to the DataFrame.
 
         Returns:
-            DataFrame: The result of comparing `other` to DataFrame.
+            bigframes.pandas.DataFrame: The result of comparing `other` to DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2369,7 +2665,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns').
 
         Returns:
-            DataFrame: DataFrame of bool. The result of the comparison.
+            bigframes.pandas.DataFrame: DataFrame of bool. The result of the comparison.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2402,7 +2698,7 @@ class DataFrame(generic.NDFrame):
                 Object to be compared to the DataFrame.
 
         Returns:
-            DataFrame: The result of comparing `other` to DataFrame.
+            bigframes.pandas.DataFrame: The result of comparing `other` to DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2450,7 +2746,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns').
 
         Returns:
-            DataFrame: DataFrame of bool: The result of the comparison.
+            bigframes.pandas.DataFrame: DataFrame of bool: The result of the comparison.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2483,7 +2779,7 @@ class DataFrame(generic.NDFrame):
                 Object to be compared to the DataFrame.
 
         Returns:
-            DataFrame: The result of comparing `other` to DataFrame.
+            bigframes.pandas.DataFrame: The result of comparing `other` to DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2532,12 +2828,12 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def __add__(self, other) -> DataFrame:
-        """Get addition of DataFrame and other, column-wise, using arithmatic
+        """Get addition of DataFrame and other, column-wise, using arithmetic
         operator `+`.
 
         Equivalent to ``DataFrame.add(other)``.
@@ -2602,7 +2898,7 @@ class DataFrame(generic.NDFrame):
                 Object to be added to the DataFrame.
 
         Returns:
-            DataFrame: The result of adding `other` to DataFrame.
+            bigframes.pandas.DataFrame: The result of adding `other` to DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2651,7 +2947,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2700,7 +2996,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2743,7 +3039,7 @@ class DataFrame(generic.NDFrame):
                 Object to subtract from the DataFrame.
 
         Returns:
-            DataFrame: The result of the subtraction.
+            bigframes.pandas.DataFrame: The result of the subtraction.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2789,7 +3085,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2804,7 +3100,7 @@ class DataFrame(generic.NDFrame):
                 Object to subtract the DataFrame from.
 
         Returns:
-            DataFrame: The result of the subtraction.
+            bigframes.pandas.DataFrame: The result of the subtraction.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2853,7 +3149,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2896,7 +3192,7 @@ class DataFrame(generic.NDFrame):
                 Object to multiply with the DataFrame.
 
         Returns:
-            DataFrame: The result of the multiplication.
+            bigframes.pandas.DataFrame: The result of the multiplication.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2945,7 +3241,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2988,7 +3284,7 @@ class DataFrame(generic.NDFrame):
                 Object to multiply the DataFrame with.
 
         Returns:
-            DataFrame: The result of the multiplication.
+            bigframes.pandas.DataFrame: The result of the multiplication.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3037,7 +3333,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3080,7 +3376,7 @@ class DataFrame(generic.NDFrame):
                 Object to divide the DataFrame by.
 
         Returns:
-            DataFrame: The result of the division.
+            bigframes.pandas.DataFrame: The result of the division.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3126,7 +3422,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3141,7 +3437,7 @@ class DataFrame(generic.NDFrame):
                 Object to divide by the DataFrame.
 
         Returns:
-            DataFrame: The result of the division.
+            bigframes.pandas.DataFrame: The result of the division.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3190,13 +3486,13 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def __floordiv__(self, other):
         """
-        Get integer divison of DataFrame by other, using arithmatic operator `//`.
+        Get integer division of DataFrame by other, using arithmetic operator `//`.
 
         Equivalent to `DataFrame.floordiv(other)`.
 
@@ -3233,7 +3529,7 @@ class DataFrame(generic.NDFrame):
                 Object to divide the DataFrame by.
 
         Returns:
-            DataFrame: The result of the integer divison.
+            bigframes.pandas.DataFrame: The result of the integer divison.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3279,7 +3575,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3294,7 +3590,7 @@ class DataFrame(generic.NDFrame):
                 Object to divide by the DataFrame.
 
         Returns:
-            DataFrame: The result of the integer divison.
+            bigframes.pandas.DataFrame: The result of the integer divison.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3343,7 +3639,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3386,7 +3682,7 @@ class DataFrame(generic.NDFrame):
                 Object to modulo the DataFrame by.
 
         Returns:
-            DataFrame: The result of the modulo.
+            bigframes.pandas.DataFrame: The result of the modulo.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3432,7 +3728,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3447,7 +3743,7 @@ class DataFrame(generic.NDFrame):
                 Object to modulo by the DataFrame.
 
         Returns:
-            DataFrame: The result of the modulo.
+            bigframes.pandas.DataFrame: The result of the modulo.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3497,7 +3793,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3541,7 +3837,7 @@ class DataFrame(generic.NDFrame):
                 Object to exponentiate the DataFrame with.
 
         Returns:
-            DataFrame: The result of the exponentiation.
+            bigframes.pandas.DataFrame: The result of the exponentiation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3588,7 +3884,7 @@ class DataFrame(generic.NDFrame):
                 (1 or 'columns'). For Series input, axis to match Series index on.
 
         Returns:
-            DataFrame: DataFrame result of the arithmetic operation.
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3682,7 +3978,12 @@ class DataFrame(generic.NDFrame):
                 overwritten with NaNs.
 
         Returns:
-            DataFrame: Combination of the provided DataFrames.
+            bigframes.pandas.DataFrame:
+                Combination of the provided DataFrames.
+
+        Raises:
+            ValueError:
+                If ``func`` return value is not Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3717,7 +4018,8 @@ class DataFrame(generic.NDFrame):
                 Provided DataFrame to use to fill null values.
 
         Returns:
-            DataFrame: The result of combining the provided DataFrame with the other object.
+            bigframes.pandas.DataFrame:
+                The result of combining the provided DataFrame with the other object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3767,8 +4069,17 @@ class DataFrame(generic.NDFrame):
                 If True, the resulting index will be labeled 0, 1, …, n - 1.
 
         Returns:
-            bigframes.series.DataFrame: Exploded lists to rows of the subset columns;
+            bigframes.pandas.DataFrame:
+                Exploded lists to rows of the subset columns;
                 index will be duplicated for these rows.
+
+        Raises:
+            ValueError:
+                * If columns of the frame are not unique.
+                * If specified columns to explode is empty list.
+                * If specified columns to explode have not matching count of elements rowwise in the frame.
+            KeyError:
+                If incorrect column names are provided
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3802,7 +4113,7 @@ class DataFrame(generic.NDFrame):
                 Include only float, int, boolean, decimal data.
 
         Returns:
-            DataFrame: Correlation matrix.
+            bigframes.pandas.DataFrame: Correlation matrix.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3831,7 +4142,48 @@ class DataFrame(generic.NDFrame):
                 Include only float, int, boolean, decimal data.
 
         Returns:
-            DataFrame: The covariance matrix of the series of the DataFrame.
+            bigframes.pandas.DataFrame: The covariance matrix of the series of the DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def corrwith(
+        self,
+        other,
+        *,
+        numeric_only: bool = False,
+    ):
+        """
+        Compute pairwise correlation.
+
+        Pairwise correlation is computed between rows or columns of
+        DataFrame with rows or columns of Series or DataFrame. DataFrames
+        are first aligned along both axes before computing the
+        correlations.
+
+        **Examples:**
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> index = ["a", "b", "c", "d", "e"]
+            >>> columns = ["one", "two", "three", "four"]
+            >>> df1 = bpd.DataFrame(np.arange(20).reshape(5, 4), index=index, columns=columns)
+            >>> df2 = bpd.DataFrame(np.arange(16).reshape(4, 4), index=index[:4], columns=columns)
+            >>> df1.corrwith(df2)
+            one      1.0
+            two      1.0
+            three    1.0
+            four     1.0
+            dtype: Float64
+
+        Args:
+            other (DataFrame, Series):
+                Object with which to compute correlations.
+
+            numeric_only (bool, default False):
+                Include only `float`, `int` or `boolean` data.
+
+        Returns:
+            bigframes.pandas.Series: Pairwise correlations.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3883,6 +4235,10 @@ class DataFrame(generic.NDFrame):
 
         Returns:
             None: This method directly changes calling object.
+
+        Raises:
+            ValueError:
+              If a type of join other than ``left`` is provided as an argument.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3977,7 +4333,14 @@ class DataFrame(generic.NDFrame):
                 values will also be treated as the key in groups.
 
         Returns:
-            bigframes.core.groupby.SeriesGroupBy: A groupby object that contains information about the groups.
+            bigframes.core.groupby.SeriesGroupBy:
+                A groupby object that contains information about the groups.
+
+        Raises:
+            ValueError:
+                If both ``by`` and ``level`` are specified.
+            TypeError:
+                If one of ``by`` or `level`` is not specified.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4063,7 +4426,14 @@ class DataFrame(generic.NDFrame):
                 values, without passing them to func.
 
         Returns:
-            bigframes.dataframe.DataFrame: Transformed DataFrame.
+            bigframes.pandas.DataFrame:
+                Transformed DataFrame.
+
+        Raises:
+            TypeError:
+                If value provided for ``func`` is not callable.
+            ValueError:
+                If value provided for ``na_action`` is not ``None`` or ``ignore``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4147,7 +4517,7 @@ class DataFrame(generic.NDFrame):
 
         Args:
             other:
-                DataFrame with an Index similar to the Index of this one.
+                DataFrame or Series with an Index similar to the Index of this one.
             on:
                 Column in the caller to join on the index in other, otherwise
                 joins index-on-index. Like an Excel VLOOKUP operation.
@@ -4163,7 +4533,18 @@ class DataFrame(generic.NDFrame):
                 the order of the left keys.
 
         Returns:
-            bigframes.dataframe.DataFrame: A dataframe containing columns from both the caller and `other`.
+            bigframes.pandas.DataFrame:
+                A dataframe containing columns from both the caller and `other`.
+
+        Raises:
+            ValueError:
+                If value for ``on`` is specified for cross join.
+            ValueError:
+                If join on columns does not match the index level of the other
+                DataFrame. Join on columns with multi-index is not supported.
+            ValueError:
+                If left index to join on does not have the same number of levels
+                as the right index.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4202,7 +4583,7 @@ class DataFrame(generic.NDFrame):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-        Merge DataFrames df1 and df2 by specifiying type of merge:
+        Merge DataFrames df1 and df2 by specifying type of merge:
 
             >>> df1 = bpd.DataFrame({'a': ['foo', 'bar'], 'b': [1, 2]})
             >>> df1
@@ -4308,7 +4689,20 @@ class DataFrame(generic.NDFrame):
                 no suffix. At least one of the values must not be None.
 
         Returns:
-            bigframes.dataframe.DataFrame: A DataFrame of the two merged objects.
+            bigframes.pandas.DataFrame:
+                A DataFrame of the two merged objects.
+
+        Raises:
+            ValueError:
+                If value for ``on`` is specified for cross join.
+            ValueError:
+                If ``on`` or ``left_on`` + ``right_on`` are not specified when ``on`` is ``None``.
+            ValueError:
+                If ``on`` and ``left_on`` + ``right_on`` are specified when ``on`` is not ``None``.
+            ValueError:
+                If no column with the provided label is found in ``self`` for left join.
+            ValueError:
+                If no column with the provided label is found in ``self`` for right join.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4364,6 +4758,33 @@ class DataFrame(generic.NDFrame):
             0    11
             1    19
             dtype: Int64
+
+        You could return an array output for every input row from the remote
+        function.
+
+            >>> @bpd.remote_function(reuse=False)
+            ... def marks_analyzer(marks: pd.Series) -> list[float]:
+            ...     import statistics
+            ...     average = marks.mean()
+            ...     median = marks.median()
+            ...     gemetric_mean = statistics.geometric_mean(marks.values)
+            ...     harmonic_mean = statistics.harmonic_mean(marks.values)
+            ...     return [
+            ...         round(stat, 2) for stat in
+            ...         (average, median, gemetric_mean, harmonic_mean)
+            ...     ]
+
+            >>> df = bpd.DataFrame({
+            ...     "physics": [67, 80, 75],
+            ...     "chemistry": [88, 56, 72],
+            ...     "algebra": [78, 91, 79]
+            ... }, index=["Alice", "Bob", "Charlie"])
+            >>> stats = df.apply(marks_analyzer, axis=1)
+            >>> stats
+            Alice      [77.67 78.   77.19 76.71]
+            Bob        [75.67 80.   74.15 72.56]
+            Charlie    [75.33 75.   75.28 75.22]
+            dtype: list<item: double>[pyarrow]
 
         You could also apply a remote function which accepts multiple parameters
         to every row of a DataFrame by using it with `axis=1` if the DataFrame
@@ -4421,7 +4842,18 @@ class DataFrame(generic.NDFrame):
                 `func`.
 
         Returns:
-            pandas.Series or bigframes.DataFrame: Result of applying ``func`` along the given axis of the DataFrame.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Result of applying ``func`` along the given axis of the DataFrame.
+
+        Raises:
+            ValueError:
+                If a remote function is not provided when ``axis=1`` is specified.
+            ValueError:
+                If number or input params in the remote function are not the same as
+                the number of columns in the dataframe.
+            ValueError:
+                If the dtypes of the columns in the dataframe are not compatible with
+                the data types of the remote function input params.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4471,7 +4903,7 @@ class DataFrame(generic.NDFrame):
                 Include only boolean columns.
 
         Returns:
-            bigframes.series.Series: Series indicating if any element is True per column.
+            bigframes.pandas.Series: Series indicating if any element is True per column.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4518,7 +4950,7 @@ class DataFrame(generic.NDFrame):
                 Include only boolean columns.
 
         Returns:
-            bigframes.series.Series: Series indicating if all elements are True per column.
+            bigframes.pandas.Series: Series indicating if all elements are True per column.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4563,7 +4995,7 @@ class DataFrame(generic.NDFrame):
                 Include only float, int, boolean columns.
 
         Returns:
-            bigframes.series.Series: Series with the product of the values.
+            bigframes.pandas.Series: Series with the product of the values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4608,7 +5040,7 @@ class DataFrame(generic.NDFrame):
                 Default False. Include only float, int, boolean columns.
 
         Returns:
-            bigframes.series.Series: Series with the minimum of the values.
+            bigframes.pandas.Series: Series with the minimum of the values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4653,7 +5085,7 @@ class DataFrame(generic.NDFrame):
                 Default False. Include only float, int, boolean columns.
 
         Returns:
-            bigframes.series.Series: Series after the maximum of values.
+            bigframes.pandas.Series: Series after the maximum of values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4697,7 +5129,7 @@ class DataFrame(generic.NDFrame):
                 Default False. Include only float, int, boolean columns.
 
         Returns:
-            bigframes.series.Series: Series with the sum of values.
+            bigframes.pandas.Series: Series with the sum of values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4739,7 +5171,7 @@ class DataFrame(generic.NDFrame):
                 Default False. Include only float, int, boolean columns.
 
         Returns:
-            bigframes.series.Series: Series with the mean of values.
+            bigframes.pandas.Series: Series with the mean of values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4774,7 +5206,7 @@ class DataFrame(generic.NDFrame):
                 one.
 
         Returns:
-            bigframes.series.Series: Series with the median of values.
+            bigframes.pandas.Series: Series with the median of values.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4808,7 +5240,7 @@ class DataFrame(generic.NDFrame):
                 Include only `float`, `int` or `boolean` data.
 
         Returns:
-            Series or DataFrame:
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
                 If ``q`` is an array, a DataFrame will be returned where the
                 index is ``q``, the columns are the columns of self, and the
                 values are the quantiles.
@@ -4858,7 +5290,7 @@ class DataFrame(generic.NDFrame):
                 Default False. Include only float, int, boolean columns.
 
         Returns:
-            bigframes.series.Series: Series with unbiased variance over requested axis.
+            bigframes.pandas.Series: Series with unbiased variance over requested axis.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4898,7 +5330,7 @@ class DataFrame(generic.NDFrame):
                 Include only float, int, boolean columns.
 
         Returns:
-            Series: Series.
+            bigframes.pandas.Series: Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4939,7 +5371,7 @@ class DataFrame(generic.NDFrame):
                 Include only float, int, boolean columns.
 
         Returns:
-            Series: Series.
+            bigframes.pandas.Series: Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4979,7 +5411,7 @@ class DataFrame(generic.NDFrame):
                 Default False. Include only float, int, boolean columns.
 
         Returns:
-            bigframes.series.Series: Series with sample standard deviation.
+            bigframes.pandas.Series: Series with sample standard deviation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5021,7 +5453,7 @@ class DataFrame(generic.NDFrame):
                 Include only `float`, `int` or `boolean` data.
 
         Returns:
-            bigframes.series.Series: For each column/row the number of
+            bigframes.pandas.Series: For each column/row the number of
                 non-NA/null entries. If `level` is specified returns a `DataFrame`.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
@@ -5109,7 +5541,12 @@ class DataFrame(generic.NDFrame):
                   selecting more than `n` items.
 
         Returns:
-            DataFrame: The first `n` rows ordered by the given columns in descending order.
+            bigframes.pandas.DataFrame:
+                The first `n` rows ordered by the given columns in descending order.
+
+        Raises:
+            ValueError:
+                If value of ``keep`` is not ``first``, ``last``, or ``all``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5197,7 +5634,12 @@ class DataFrame(generic.NDFrame):
                   selecting more than `n` items.
 
         Returns:
-            DataFrame: The first `n` rows ordered by the given columns in ascending order.
+            bigframes.pandas.DataFrame:
+                The first `n` rows ordered by the given columns in ascending order.
+
+        Raises:
+            ValueError:
+                If value of ``keep`` is not ``first``, ``last``, or ``all``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5227,7 +5669,7 @@ class DataFrame(generic.NDFrame):
             dtype: Int64
 
         Returns:
-            Series: Indexes of minima along the columns.
+            bigframes.pandas.Series: Indexes of minima along the columns.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5257,7 +5699,7 @@ class DataFrame(generic.NDFrame):
             dtype: Int64
 
         Returns:
-            Series: Indexes of maxima along the columns.
+            bigframes.pandas.Series: Indexes of maxima along the columns.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5342,7 +5784,7 @@ class DataFrame(generic.NDFrame):
                 Name to use for the 'value' column.
 
         Returns:
-            DataFrame: Unpivoted DataFrame.
+            bigframes.pandas.DataFrame: Unpivoted DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5370,7 +5812,7 @@ class DataFrame(generic.NDFrame):
             dtype: Int64
 
         Returns:
-            bigframes.series.Series: Series with number of distinct elements.
+            bigframes.pandas.Series: Series with number of distinct elements.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5402,7 +5844,7 @@ class DataFrame(generic.NDFrame):
             [3 rows x 2 columns]
 
         Returns:
-            bigframes.dataframe.DataFrame: Return cumulative minimum of DataFrame.
+            bigframes.pandas.DataFrame: Return cumulative minimum of DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5434,7 +5876,7 @@ class DataFrame(generic.NDFrame):
             [3 rows x 2 columns]
 
         Returns:
-            bigframes.dataframe.DataFrame: Return cumulative maximum of DataFrame.
+            bigframes.pandas.DataFrame: Return cumulative maximum of DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5466,7 +5908,12 @@ class DataFrame(generic.NDFrame):
             [3 rows x 2 columns]
 
         Returns:
-            bigframes.dataframe.DataFrame: Return cumulative sum of DataFrame.
+            bigframes.pandas.DataFrame:
+                Return cumulative sum of DataFrame.
+
+        Raises:
+            ValueError:
+                If values are not of numeric type.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5498,7 +5945,12 @@ class DataFrame(generic.NDFrame):
             [3 rows x 2 columns]
 
         Returns:
-            bigframes.dataframe.DataFrame: Return cumulative product of DataFrame.
+            bigframes.pandas.DataFrame:
+                Return cumulative product of DataFrame.
+
+        Raises:
+            ValueError:
+                If values are not of numeric type.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5551,7 +6003,7 @@ class DataFrame(generic.NDFrame):
                 values.
 
         Returns:
-            bigframes.dataframe.DataFrame: First differences of the Series.
+            bigframes.pandas.DataFrame: First differences of the Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5596,7 +6048,7 @@ class DataFrame(generic.NDFrame):
                 function names, e.g. ``['sum', 'mean']``.
 
         Returns:
-            DataFrame or bigframes.series.Series: Aggregated results.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series: Aggregated results.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5648,7 +6100,12 @@ class DataFrame(generic.NDFrame):
             [8 rows x 2 columns]
 
         Returns:
-            bigframes.dataframe.DataFrame: Summary statistics of the Series or Dataframe provided.
+            bigframes.pandas.DataFrame:
+                Summary statistics of the Series or Dataframe provided.
+
+        Raises:
+            ValueError:
+                If unsupported ``include`` type is provided.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5730,7 +6187,7 @@ class DataFrame(generic.NDFrame):
                 have hierarchically indexed columns.
 
         Returns:
-            DataFrame: Returns reshaped DataFrame.
+            bigframes.pandas.DataFrame: Returns reshaped DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5812,7 +6269,7 @@ class DataFrame(generic.NDFrame):
                 Aggregation function name to compute summary statistics (e.g., 'sum', 'mean').
 
         Returns:
-            DataFrame: An Excel style pivot table.
+            bigframes.pandas.DataFrame: An Excel style pivot table.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5859,7 +6316,7 @@ class DataFrame(generic.NDFrame):
                 Level(s) to stack from the column axis onto the index axis.
 
         Returns:
-            DataFrame or Series: Stacked dataframe or series.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series: Stacked dataframe or series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5898,7 +6355,7 @@ class DataFrame(generic.NDFrame):
                 Level(s) of index to unstack, can pass level name.
 
         Returns:
-            DataFrame or Series: DataFrame or Series.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series: DataFrame or Series.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -6084,7 +6541,7 @@ class DataFrame(generic.NDFrame):
                 Don’t include counts of rows that contain NA values.
 
         Returns:
-            Series: Series containing counts of unique rows in the DataFrame
+            bigframes.pandas.Series: Series containing counts of unique rows in the DataFrame
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -6164,7 +6621,7 @@ class DataFrame(generic.NDFrame):
                 The expression string to evaluate.
 
         Returns:
-            DataFrame
+            bigframes.pandas.DataFrame: DataFrame result after the operation.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -6238,7 +6695,8 @@ class DataFrame(generic.NDFrame):
                 to sum it with ``b``, your query should be ```a a` + b``.
 
         Returns:
-            DataFrame
+            None or bigframes.pandas.DataFrame:
+                DataFrame result after the query operation, otherwise None.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -6286,7 +6744,7 @@ class DataFrame(generic.NDFrame):
                 'nearest', 'zero', 'slinear': Emulates `scipy.interpolate.interp1d`
 
         Returns:
-            DataFrame:
+            bigframes.pandas.DataFrame:
                 Returns the same object type as the caller, interpolated at
                 some or all ``NaN`` values
         """
@@ -6355,7 +6813,7 @@ class DataFrame(generic.NDFrame):
                 be a list.
 
         Returns:
-            DataFrame: Object with missing values filled
+            bigframes.pandas.DataFrame: Object with missing values filled
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -6443,7 +6901,8 @@ class DataFrame(generic.NDFrame):
                 string.
 
         Returns:
-            Series/DataFrame: Object after replacement.
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Object after replacement.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -6472,9 +6931,10 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
             ...                    columns=['A', 'B', 'C'])
-            >>> bpd.options.display.progress_bar = None
             >>> df
                 A       B       C
             0   0       2       3
@@ -6486,12 +6946,12 @@ class DataFrame(generic.NDFrame):
         Get value at specified row/column pair
 
             >>> df.iat[1, 2]
-            1
+            np.int64(1)
 
         Get value within a series
 
             >>> df.loc[0].iat[1]
-            2
+            np.int64(2)
 
         Returns:
             bigframes.core.indexers.IatDataFrameIndexer: Indexers object.
@@ -6505,9 +6965,10 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
             ...   index=[4, 5, 6], columns=['A', 'B', 'C'])
-            >>> bpd.options.display.progress_bar = None
             >>> df
                 A   B   C
             4   0   2   3
@@ -6519,12 +6980,12 @@ class DataFrame(generic.NDFrame):
         Get value at specified row/column pair
 
             >>> df.at[4, 'B']
-            2
+            np.int64(2)
 
         Get value within a series
 
             >>> df.loc[5].at['B']
-            4
+            np.int64(4)
 
         Returns:
             bigframes.core.indexers.AtDataFrameIndexer: Indexers object.
@@ -6626,10 +7087,14 @@ class DataFrame(generic.NDFrame):
                 The other object to compute the matrix product with.
 
         Returns:
-            Series or DataFrame:
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
                 If `other` is a Series, return the matrix product between self and
                 other as a Series. If other is a DataFrame, return
                 the matrix product of self and other in a DataFrame.
+
+        Raises:
+            RuntimeError:
+                If unable to construct all columns.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -6820,7 +7285,7 @@ class DataFrame(generic.NDFrame):
                 column labels
 
         Returns:
-            Series or Value: Value(s) at the requested index(es).
+            bigframes.pandas.Series or Any: Value(s) at the requested index(es).
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

@@ -22,16 +22,17 @@ import uuid
 
 from google.cloud import bigquery
 
-import bigframes
 import bigframes.constants as constants
+import bigframes.formatting_helpers as formatting_helpers
 from bigframes.ml import sql as ml_sql
 import bigframes.pandas as bpd
+import bigframes.session
 
 
 class BaseBqml:
     """Base class for BQML functionalities."""
 
-    def __init__(self, session: bigframes.Session):
+    def __init__(self, session: bigframes.session.Session):
         self._session = session
         self._base_sql_generator = ml_sql.BaseSqlGenerator()
 
@@ -46,8 +47,10 @@ class BqmlModel(BaseBqml):
     def __init__(self, session: bigframes.Session, model: bigquery.Model):
         self._session = session
         self._model = model
+        model_ref = self._model.reference
+        assert model_ref is not None
         self._model_manipulation_sql_generator = ml_sql.ModelManipulationSqlGenerator(
-            self.model_name
+            model_ref
         )
 
     def _apply_ml_tvf(
@@ -120,6 +123,17 @@ class BqmlModel(BaseBqml):
             self._model_manipulation_sql_generator.ml_predict,
         )
 
+    def explain_predict(
+        self, input_data: bpd.DataFrame, options: Mapping[str, int | float]
+    ) -> bpd.DataFrame:
+        return self._apply_ml_tvf(
+            input_data,
+            lambda source_sql: self._model_manipulation_sql_generator.ml_explain_predict(
+                source_sql=source_sql,
+                struct_options=options,
+            ),
+        )
+
     def transform(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         return self._apply_ml_tvf(
             input_data,
@@ -167,7 +181,23 @@ class BqmlModel(BaseBqml):
 
     def forecast(self, options: Mapping[str, int | float]) -> bpd.DataFrame:
         sql = self._model_manipulation_sql_generator.ml_forecast(struct_options=options)
-        return self._session.read_gbq(sql, index_col="forecast_timestamp").reset_index()
+        timestamp_col_name = "forecast_timestamp"
+        index_cols = [timestamp_col_name]
+        first_col_name = self._session.read_gbq(sql).columns.values[0]
+        if timestamp_col_name != first_col_name:
+            index_cols.append(first_col_name)
+        return self._session.read_gbq(sql, index_col=index_cols).reset_index()
+
+    def explain_forecast(self, options: Mapping[str, int | float]) -> bpd.DataFrame:
+        sql = self._model_manipulation_sql_generator.ml_explain_forecast(
+            struct_options=options
+        )
+        timestamp_col_name = "time_series_timestamp"
+        index_cols = [timestamp_col_name]
+        first_col_name = self._session.read_gbq(sql).columns.values[0]
+        if timestamp_col_name != first_col_name:
+            index_cols.append(first_col_name)
+        return self._session.read_gbq(sql, index_col=index_cols).reset_index()
 
     def evaluate(self, input_data: Optional[bpd.DataFrame] = None):
         sql = self._model_manipulation_sql_generator.ml_evaluate(
@@ -233,7 +263,7 @@ class BqmlModel(BaseBqml):
         copy_job = self._session.bqclient.copy_table(
             self.model_name, new_model_name, job_config=job_config
         )
-        self._session._start_generic_job(copy_job)
+        _start_generic_job(copy_job)
 
         new_model = self._session.bqclient.get_model(new_model_name)
         return BqmlModel(self._session, new_model)
@@ -304,9 +334,11 @@ class BqmlModelFactory:
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
         if y_train is None:
-            input_data = X_train.cache()
+            input_data = X_train.reset_index(drop=True).cache()
         else:
-            input_data = X_train.join(y_train, how="outer").cache()
+            input_data = (
+                X_train.join(y_train, how="outer").reset_index(drop=True).cache()
+            )
             options.update({"INPUT_LABEL_COLS": y_train.columns.tolist()})
 
         session = X_train._session
@@ -366,6 +398,7 @@ class BqmlModelFactory:
         self,
         X_train: bpd.DataFrame,
         y_train: bpd.DataFrame,
+        id_col: Optional[bpd.DataFrame] = None,
         transforms: Optional[Iterable[str]] = None,
         options: Mapping[str, Union[str, int, float, Iterable[str]]] = {},
     ) -> BqmlModel:
@@ -375,13 +408,21 @@ class BqmlModelFactory:
         assert (
             y_train.columns.size == 1
         ), "Time stamp data input must only contain 1 column."
+        assert id_col is None or (
+            id_col is not None and id_col.columns.size == 1
+        ), "Time series id input is either None or must only contain 1 column."
 
         options = dict(options)
         # Cache dataframes to make sure base table is not a snapshot
         # cached dataframe creates a full copy, never uses snapshot
-        input_data = X_train.join(y_train, how="outer").cache()
+        input_data = X_train.join(y_train, how="outer")
+        if id_col is not None:
+            input_data = input_data.join(id_col, how="outer")
+        input_data = input_data.cache()
         options.update({"TIME_SERIES_TIMESTAMP_COL": X_train.columns.tolist()[0]})
         options.update({"TIME_SERIES_DATA_COL": y_train.columns.tolist()[0]})
+        if id_col is not None:
+            options.update({"TIME_SERIES_ID_COL": id_col.columns.tolist()[0]})
 
         session = X_train._session
         model_ref = self._create_model_ref(session._anonymous_dataset)
@@ -479,3 +520,12 @@ class BqmlModelFactory:
         )
 
         return self._create_model_with_sql(session=session, sql=sql)
+
+
+def _start_generic_job(job: formatting_helpers.GenericJob):
+    if bigframes.options.display.progress_bar is not None:
+        formatting_helpers.wait_for_job(
+            job, bigframes.options.display.progress_bar
+        )  # Wait for the job to complete
+    else:
+        job.result()

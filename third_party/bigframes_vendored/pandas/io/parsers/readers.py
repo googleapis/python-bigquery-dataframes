@@ -49,10 +49,10 @@ class ReaderIOMixin:
             Literal["c", "python", "pyarrow", "python-fwf", "bigquery"]
         ] = None,
         encoding: Optional[str] = None,
+        write_engine="default",
         **kwargs,
     ):
-        """Loads DataFrame from comma-separated values (csv) file locally or from
-        Cloud Storage.
+        """Loads data from a comma-separated values (csv) file into a DataFrame.
 
         The CSV file data will be persisted as a temporary BigQuery table, which can be
         automatically recycled after the Session is closed.
@@ -60,7 +60,8 @@ class ReaderIOMixin:
         .. note::
             using `engine="bigquery"` will not guarantee the same ordering as the
             file. Instead, set a serialized index column as the index and sort by
-            that in the resulting DataFrame.
+            that in the resulting DataFrame. Only files stored on your local machine
+            or in Google Cloud Storage are supported.
 
         .. note::
             For non-bigquery engine, data is inlined in the query SQL if it is
@@ -142,12 +143,22 @@ class ReaderIOMixin:
                 documentation for a comprehensive list,
                 https://docs.python.org/3/library/codecs.html#standard-encodings
                 The BigQuery engine only supports `UTF-8` and `ISO-8859-1`.
+            write_engine (str):
+                How data should be written to BigQuery (if at all). See
+                :func:`bigframes.pandas.read_pandas` for a full description of
+                supported values.
+
             **kwargs:
                 keyword arguments for `pandas.read_csv` when not using the BigQuery engine.
 
-
         Returns:
-            bigframes.dataframe.DataFrame: A BigQuery DataFrames.
+            bigframes.pandas.DataFrame:
+                A BigQuery DataFrames.
+
+        Raises:
+            bigframes.exceptions.DefaultIndexWarning:
+                Using the default index is discouraged, such as with clustered
+                or partitioned tables without primary keys.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -162,6 +173,7 @@ class ReaderIOMixin:
         encoding: Optional[str] = None,
         lines: bool = False,
         engine: Literal["ujson", "pyarrow", "bigquery"] = "ujson",
+        write_engine="default",
         **kwargs,
     ):
         """
@@ -222,11 +234,23 @@ class ReaderIOMixin:
             engine ({{"ujson", "pyarrow", "bigquery"}}, default "ujson"):
                 Type of engine to use. If `engine="bigquery"` is specified, then BigQuery's load API will be used.
                 Otherwise, the engine will be passed to `pandas.read_json`.
+            write_engine (str):
+                How data should be written to BigQuery (if at all). See
+                :func:`bigframes.pandas.read_pandas` for a full description of
+                supported values.
+
             **kwargs:
                 keyword arguments for `pandas.read_json` when not using the BigQuery engine.
 
         Returns:
-            bigframes.dataframe.DataFrame:
+            bigframes.pandas.DataFrame:
                 The DataFrame representing JSON contents.
+
+        Raises:
+            bigframes.exceptions.DefaultIndexWarning:
+                Using the default index is discouraged, such as with clustered
+                or partitioned tables without primary keys.
+            ValueError:
+                ``lines`` is only valid when ``orient`` is ``records``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

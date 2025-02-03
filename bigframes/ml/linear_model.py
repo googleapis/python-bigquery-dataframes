@@ -19,15 +19,15 @@ from __future__ import annotations
 
 from typing import Dict, List, Literal, Optional, Union
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.sklearn.linear_model._base
 import bigframes_vendored.sklearn.linear_model._logistic
 from google.cloud import bigquery
 
-import bigframes
-import bigframes.constants as constants
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
+import bigframes.session
 
 _BQML_PARAMS_MAPPING = {
     "optimize_strategy": "optimizationStrategy",
@@ -47,7 +47,7 @@ _BQML_PARAMS_MAPPING = {
 
 @log_adapter.class_logger
 class LinearRegression(
-    base.SupervisedTrainablePredictor,
+    base.SupervisedTrainableWithEvaluationPredictor,
     bigframes_vendored.sklearn.linear_model._base.LinearRegression,
 ):
     __doc__ = bigframes_vendored.sklearn.linear_model._base.LinearRegression.__doc__
@@ -87,7 +87,7 @@ class LinearRegression(
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, bq_model: bigquery.Model
+        cls, session: bigframes.session.Session, bq_model: bigquery.Model
     ) -> LinearRegression:
         assert bq_model.model_type == "LINEAR_REGRESSION"
 
@@ -128,37 +128,90 @@ class LinearRegression(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> LinearRegression:
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
+
+        bqml_options = self._bqml_options
+
+        if X_eval is not None and y_eval is not None:
+            X_eval, y_eval = utils.batch_convert_to_dataframe(X_eval, y_eval)
+            X, y, bqml_options = utils.combine_training_and_evaluation_data(
+                X, y, X_eval, y_eval, bqml_options
+            )
 
         self._bqml_model = self._bqml_model_factory.create_model(
             X,
             y,
             transforms=transforms,
-            options=self._bqml_options,
+            options=bqml_options,
         )
         return self
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
+    def predict_explain(
+        self,
+        X: utils.ArrayType,
+        *,
+        top_k_features: int = 5,
+    ) -> bpd.DataFrame:
+        """
+        Explain predictions for a linear regression model.
+
+        .. note::
+            Output matches that of the BigQuery ML.EXPLAIN_PREDICT function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-predict
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or
+            pandas.core.frame.DataFrame or pandas.core.series.Series):
+                Series or a DataFrame to explain its predictions.
+            top_k_features (int, default 5):
+                an INT64 value that specifies how many top feature attribution
+                pairs are generated for each row of input data. The features are
+                ranked by the absolute values of their attributions.
+
+                By default, top_k_features is set to 5. If its value is greater
+                than the number of features in the training data, the
+                attributions of all features are returned.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                The predicted DataFrames with explanation columns.
+        """
+        if top_k_features < 1:
+            raise ValueError(
+                f"top_k_features must be at least 1, but is {top_k_features}."
+            )
+
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before predict")
+
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
+
+        return self._bqml_model.explain_predict(
+            X, options={"top_k_features": top_k_features}
+        )
+
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)
@@ -183,7 +236,7 @@ class LinearRegression(
 
 @log_adapter.class_logger
 class LogisticRegression(
-    base.SupervisedTrainablePredictor,
+    base.SupervisedTrainableWithEvaluationPredictor,
     bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression,
 ):
     __doc__ = (
@@ -229,7 +282,7 @@ class LogisticRegression(
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, bq_model: bigquery.Model
+        cls, session: bigframes.session.Session, bq_model: bigquery.Model
     ) -> LogisticRegression:
         assert bq_model.model_type == "LOGISTIC_REGRESSION"
 
@@ -280,41 +333,94 @@ class LogisticRegression(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> LogisticRegression:
-        """Fit model with transforms."""
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
+
+        bqml_options = self._bqml_options
+
+        if X_eval is not None and y_eval is not None:
+            X_eval, y_eval = utils.batch_convert_to_dataframe(X_eval, y_eval)
+            X, y, bqml_options = utils.combine_training_and_evaluation_data(
+                X, y, X_eval, y_eval, bqml_options
+            )
 
         self._bqml_model = self._bqml_model_factory.create_model(
             X,
             y,
             transforms=transforms,
-            options=self._bqml_options,
+            options=bqml_options,
         )
         return self
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
+    def predict_explain(
+        self,
+        X: utils.ArrayType,
+        *,
+        top_k_features: int = 5,
+    ) -> bpd.DataFrame:
+        """
+        Explain predictions for a logistic regression model.
+
+        .. note::
+            Output matches that of the BigQuery ML.EXPLAIN_PREDICT function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-predict
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or
+            pandas.core.frame.DataFrame or pandas.core.series.Series):
+                Series or a DataFrame to explain its predictions.
+            top_k_features (int, default 5):
+                an INT64 value that specifies how many top feature attribution
+                pairs are generated for each row of input data. The features are
+                ranked by the absolute values of their attributions.
+
+                By default, top_k_features is set to 5. If its value is greater
+                than the number of features in the training data, the
+                attributions of all features are returned.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                The predicted DataFrames with explanation columns.
+        """
+        if top_k_features < 1:
+            raise ValueError(
+                f"top_k_features must be at least 1, but is {top_k_features}."
+            )
+
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before predict")
+
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
+
+        return self._bqml_model.explain_predict(
+            X, options={"top_k_features": top_k_features}
+        )
+
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)

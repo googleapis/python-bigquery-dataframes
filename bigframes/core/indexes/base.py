@@ -17,14 +17,14 @@
 from __future__ import annotations
 
 import typing
-from typing import Hashable, Optional, Sequence, Union
+from typing import Hashable, Literal, Optional, Sequence, Union
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
 import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas
 
-import bigframes.constants as constants
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
@@ -78,7 +78,8 @@ class Index(vendored_pandas_index.Index):
             if name is not None:
                 index.name = name
             if dtype is not None:
-                index = index.astype(dtype)
+                bf_dtype = bigframes.dtypes.bigframes_type(dtype)
+                index = index.astype(bf_dtype)
             block = index._block
         elif isinstance(data, pandas.Index):
             pd_df = pandas.DataFrame(index=data)
@@ -134,7 +135,6 @@ class Index(vendored_pandas_index.Index):
 
     @property
     def names(self) -> typing.Sequence[blocks.Label]:
-        """Returns the names of the Index."""
         return self._block._index_labels
 
     @names.setter
@@ -175,7 +175,6 @@ class Index(vendored_pandas_index.Index):
 
     @property
     def size(self) -> int:
-        """Returns the size of the Index."""
         return self.shape[0]
 
     @property
@@ -186,12 +185,6 @@ class Index(vendored_pandas_index.Index):
     @property
     @validations.requires_ordering()
     def is_monotonic_increasing(self) -> bool:
-        """
-        Return a boolean if the values are equal or increasing.
-
-        Returns:
-            bool
-        """
         return typing.cast(
             bool,
             self._block.is_monotonic_increasing(self._block.index_columns),
@@ -200,12 +193,7 @@ class Index(vendored_pandas_index.Index):
     @property
     @validations.requires_ordering()
     def is_monotonic_decreasing(self) -> bool:
-        """
-        Return a boolean if the values are equal or decreasing.
 
-        Returns:
-            bool
-        """
         return typing.cast(
             bool,
             self._block.is_monotonic_decreasing(self._block.index_columns),
@@ -323,11 +311,20 @@ class Index(vendored_pandas_index.Index):
 
     def astype(
         self,
-        dtype: Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype],
+        dtype,
+        *,
+        errors: Literal["raise", "null"] = "raise",
     ) -> Index:
+        if errors not in ["raise", "null"]:
+            raise ValueError("Argument 'errors' must be one of 'raise' or 'null'")
         if self.nlevels > 1:
             raise TypeError("Multiindex does not support 'astype'")
-        return self._apply_unary_expr(ops.AsTypeOp(to_type=dtype).as_expr("arg"))
+        dtype = bigframes.dtypes.bigframes_type(dtype)
+        return self._apply_unary_expr(
+            ops.AsTypeOp(to_type=dtype, safe=(errors == "null")).as_expr(
+                ex.free_var("arg")
+            )
+        )
 
     def all(self) -> bool:
         if self.nlevels > 1:
@@ -396,7 +393,9 @@ class Index(vendored_pandas_index.Index):
     def fillna(self, value=None) -> Index:
         if self.nlevels > 1:
             raise TypeError("Multiindex does not support 'fillna'")
-        return self._apply_unary_expr(ops.fillna_op.as_expr("arg", ex.const(value)))
+        return self._apply_unary_expr(
+            ops.fillna_op.as_expr(ex.free_var("arg"), ex.const(value))
+        )
 
     def rename(self, name: Union[str, Sequence[str]]) -> Index:
         names = [name] if isinstance(name, str) else list(name)
@@ -446,7 +445,9 @@ class Index(vendored_pandas_index.Index):
             )
 
         return self._apply_unary_expr(
-            ops.IsInOp(values=tuple(values), match_nulls=True).as_expr("arg")
+            ops.IsInOp(values=tuple(values), match_nulls=True).as_expr(
+                ex.free_var("arg")
+            )
         ).fillna(value=False)
 
     def _apply_unary_expr(
@@ -454,14 +455,16 @@ class Index(vendored_pandas_index.Index):
         op: ex.Expression,
     ) -> Index:
         """Applies a unary operator to the index."""
-        if len(op.unbound_variables) != 1:
+        if len(op.free_variables) != 1:
             raise ValueError("Expression must have exactly 1 unbound variable.")
-        unbound_variable = op.unbound_variables[0]
+        unbound_variable = op.free_variables[0]
 
         block = self._block
         result_ids = []
         for col in self._block.index_columns:
-            block, result_id = block.project_expr(op.rename({unbound_variable: col}))
+            block, result_id = block.project_expr(
+                op.bind_variables({unbound_variable: ex.deref(col)})
+            )
             result_ids.append(result_id)
 
         block = block.set_index(result_ids, index_labels=self._block.index.names)

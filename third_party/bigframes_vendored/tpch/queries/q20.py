@@ -6,25 +6,25 @@ import bigframes
 import bigframes.pandas as bpd
 
 
-def q(dataset_id: str, session: bigframes.Session):
+def q(project_id: str, dataset_id: str, session: bigframes.Session):
     lineitem = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.LINEITEM",
+        f"{project_id}.{dataset_id}.LINEITEM",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     nation = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.NATION",
+        f"{project_id}.{dataset_id}.NATION",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     part = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.PART",
+        f"{project_id}.{dataset_id}.PART",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     partsupp = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.PARTSUPP",
+        f"{project_id}.{dataset_id}.PARTSUPP",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
     supplier = session.read_gbq(
-        f"bigframes-dev-perf.{dataset_id}.SUPPLIER",
+        f"{project_id}.{dataset_id}.SUPPLIER",
         index_col=bigframes.enums.DefaultIndexKind.NULL,
     )
 
@@ -44,9 +44,7 @@ def q(dataset_id: str, session: bigframes.Session):
 
     filtered_parts = part[part["P_NAME"].str.startswith(var4)]
 
-    if not session._strictly_ordered:
-        filtered_parts = filtered_parts[["P_PARTKEY"]].sort_values(by=["P_PARTKEY"])
-    filtered_parts = filtered_parts[["P_PARTKEY"]].drop_duplicates()
+    filtered_parts = filtered_parts["P_PARTKEY"].unique(keep_order=False).to_frame()
     joined_parts = filtered_parts.merge(
         partsupp, left_on="P_PARTKEY", right_on="PS_PARTKEY"
     )
@@ -56,12 +54,9 @@ def q(dataset_id: str, session: bigframes.Session):
     )
     final_filtered = final_join[final_join["PS_AVAILQTY"] > final_join["SUM_QUANTITY"]]
 
-    final_filtered = final_filtered[["PS_SUPPKEY"]]
-    if not session._strictly_ordered:
-        final_filtered = final_filtered.sort_values(by="PS_SUPPKEY")
-    final_filtered = final_filtered.drop_duplicates()
+    final_filtered = final_filtered["PS_SUPPKEY"].unique(keep_order=False).to_frame()
 
     final_result = final_filtered.merge(q3, left_on="PS_SUPPKEY", right_on="S_SUPPKEY")
     final_result = final_result[["S_NAME", "S_ADDRESS"]].sort_values(by="S_NAME")
 
-    final_result.to_gbq()
+    next(final_result.to_pandas_batches())

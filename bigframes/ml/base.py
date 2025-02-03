@@ -22,17 +22,19 @@ This library is an evolving attempt to
 """
 
 import abc
-from typing import cast, Optional, TypeVar, Union
+from typing import Callable, cast, Mapping, Optional, TypeVar
+import warnings
 
 import bigframes_vendored.sklearn.base
 
 from bigframes.ml import core
+import bigframes.ml.utils as utils
 import bigframes.pandas as bpd
 
 
 class BaseEstimator(bigframes_vendored.sklearn.base.BaseEstimator, abc.ABC):
     """
-    A BigQuery DataFrames machine learning component following the SKLearn API
+    A BigQuery DataFrames machine learning component follows sklearn API
     design Ref: https://bit.ly/3NyhKjN
 
     The estimator is the fundamental abstraction for all learning components. This includes learning
@@ -76,6 +78,9 @@ class BaseEstimator(bigframes_vendored.sklearn.base.BaseEstimator, abc.ABC):
                 ...
     """
 
+    def __init__(self):
+        self._bqml_model: Optional[core.BqmlModel] = None
+
     def __repr__(self):
         """Print the estimator's constructor with all non-default parameter values."""
 
@@ -93,9 +98,6 @@ class BaseEstimator(bigframes_vendored.sklearn.base.BaseEstimator, abc.ABC):
 # TODO(garrettwu): refactor to reflect the actual property. Now the class contains .register() method.
 class Predictor(BaseEstimator):
     """A BigQuery DataFrames ML Model base class that can be used to predict outputs."""
-
-    def __init__(self):
-        self._bqml_model: Optional[core.BqmlModel] = None
 
     @abc.abstractmethod
     def predict(self, X):
@@ -157,10 +159,72 @@ class SupervisedTrainablePredictor(TrainablePredictor):
 
     def fit(
         self: _T,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> _T:
         return self._fit(X, y)
+
+
+class SupervisedTrainableWithIdColPredictor(SupervisedTrainablePredictor):
+    """Inherits from SupervisedTrainablePredictor,
+    but adds an optional id_col parameter to fit()."""
+
+    def __init__(self):
+        super().__init__()
+        self.id_col = None
+
+    def _fit(
+        self,
+        X: utils.ArrayType,
+        y: utils.ArrayType,
+        transforms=None,
+        id_col: Optional[utils.ArrayType] = None,
+    ):
+        return self
+
+    def fit(
+        self,
+        X: utils.ArrayType,
+        y: utils.ArrayType,
+        transforms=None,
+        id_col: Optional[utils.ArrayType] = None,
+    ):
+        self.id_col = id_col
+        return self._fit(X, y, transforms=transforms, id_col=self.id_col)
+
+
+class TrainableWithEvaluationPredictor(TrainablePredictor):
+    """A BigQuery DataFrames ML Model base class that can be used to fit and predict outputs.
+
+    Additional evaluation data can be provided to measure the model in the fit phase."""
+
+    @abc.abstractmethod
+    def _fit(self, X, y, transforms=None, X_eval=None, y_eval=None):
+        pass
+
+    @abc.abstractmethod
+    def score(self, X, y):
+        pass
+
+
+class SupervisedTrainableWithEvaluationPredictor(TrainableWithEvaluationPredictor):
+    """A BigQuery DataFrames ML Supervised Model base class that can be used to fit and predict outputs.
+
+    Need to provide both X and y in supervised tasks.
+
+    Additional X_eval and y_eval can be provided to measure the model in the fit phase.
+    """
+
+    _T = TypeVar("_T", bound="SupervisedTrainableWithEvaluationPredictor")
+
+    def fit(
+        self: _T,
+        X: utils.ArrayType,
+        y: utils.ArrayType,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
+    ) -> _T:
+        return self._fit(X, y, X_eval=X_eval, y_eval=y_eval)
 
 
 class UnsupervisedTrainablePredictor(TrainablePredictor):
@@ -172,17 +236,66 @@ class UnsupervisedTrainablePredictor(TrainablePredictor):
 
     def fit(
         self: _T,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X: utils.ArrayType,
+        y: Optional[utils.ArrayType] = None,
     ) -> _T:
         return self._fit(X, y)
 
 
+class RetriableRemotePredictor(BaseEstimator):
+    @property
+    @abc.abstractmethod
+    def _predict_func(self) -> Callable[[bpd.DataFrame, Mapping], bpd.DataFrame]:
+        pass
+
+    @property
+    @abc.abstractmethod
+    def _status_col(self) -> str:
+        pass
+
+    def _predict_and_retry(
+        self, X: bpd.DataFrame, options: Mapping, max_retries: int
+    ) -> bpd.DataFrame:
+        assert self._bqml_model is not None
+
+        df_result = bpd.DataFrame(session=self._bqml_model.session)  # placeholder
+        df_fail = X
+        for _ in range(max_retries + 1):
+            df = self._predict_func(df_fail, options)
+
+            success = df[self._status_col].str.len() == 0
+            df_succ = df[success]
+            df_fail = df[~success]
+
+            if df_succ.empty:
+                if max_retries > 0:
+                    msg = "Can't make any progress, stop retrying."
+                    warnings.warn(msg, category=RuntimeWarning)
+                break
+
+            df_result = (
+                bpd.concat([df_result, df_succ]) if not df_result.empty else df_succ
+            )
+
+            if df_fail.empty:
+                break
+
+        if not df_fail.empty:
+            msg = (
+                f"Some predictions failed. Check column {self._status_col} for detailed "
+                "status. You may want to filter the failed rows and retry."
+            )
+            warnings.warn(msg, category=RuntimeWarning)
+
+        df_result = cast(
+            bpd.DataFrame,
+            bpd.concat([df_result, df_fail]) if not df_result.empty else df_fail,
+        )
+        return df_result
+
+
 class BaseTransformer(BaseEstimator):
     """Transformer base class."""
-
-    def __init__(self):
-        self._bqml_model: Optional[core.BqmlModel] = None
 
     @abc.abstractmethod
     def _keys(self):
@@ -198,10 +311,6 @@ class BaseTransformer(BaseEstimator):
             # pass the columns that are not transformed
             if "transformSql" not in transform_col_dict:
                 continue
-            transform_sql: str = transform_col_dict["transformSql"]
-            if not transform_sql.startswith("ML."):
-                continue
-
             output_names.append(transform_col_dict["name"])
 
         self._output_names = output_names
@@ -247,8 +356,8 @@ class Transformer(BaseTransformer):
 
     def fit_transform(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Optional[Union[bpd.DataFrame, bpd.Series]] = None,
+        X: utils.ArrayType,
+        y: Optional[utils.ArrayType] = None,
     ) -> bpd.DataFrame:
         return self.fit(X, y).transform(X)
 
@@ -268,6 +377,6 @@ class LabelTransformer(BaseTransformer):
 
     def fit_transform(
         self,
-        y: Union[bpd.DataFrame, bpd.Series],
+        y: utils.ArrayType,
     ) -> bpd.DataFrame:
         return self.fit(y).transform(y)
