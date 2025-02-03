@@ -200,14 +200,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self._query_job: Optional[bigquery.QueryJob] = None
         self._block.session._register_object(self)
 
-    def __call__(self, *args, **kwargs):
-        """Placeholder implementation to raise a more helpful error."""
-        raise TypeError(
-            "DataFrame is not callable. "
-            + "Did you mean to use square brackets (e.g. df[col]), instead? "
-            + constants.FEEDBACK_LINK
-        )
-
     def __dir__(self):
         return dir(type(self)) + [
             label
