@@ -178,8 +178,8 @@ class StructAccessor:
             ...     ))
             ... )
             >>> s.struct.dtypes()
-            project    string[pyarrow]
             version              Int64
+            project    string[pyarrow]
             dtype: object
 
         Returns:

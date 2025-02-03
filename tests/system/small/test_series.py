@@ -228,6 +228,57 @@ def test_series_construct_geodata():
     )
 
 
+@pytest.mark.parametrize(
+    ("dtype"),
+    [
+        pytest.param(pd.Int64Dtype(), id="int"),
+        pytest.param(pd.Float64Dtype(), id="float"),
+        pytest.param(pd.StringDtype(storage="pyarrow"), id="string"),
+    ],
+)
+def test_series_construct_w_dtype_for_int(dtype):
+    data = [1, 2, 3]
+    expected = pd.Series(data, dtype=dtype)
+    expected.index = expected.index.astype("Int64")
+    series = bigframes.pandas.Series(data, dtype=dtype)
+    pd.testing.assert_series_equal(series.to_pandas(), expected)
+
+
+def test_series_construct_w_dtype_for_struct():
+    # The data shows the struct fields are disordered and correctly handled during
+    # construction.
+    data = [
+        {"a": 1, "c": "pandas", "b": dt.datetime(2020, 1, 20, 20, 20, 20, 20)},
+        {"a": 2, "c": "pandas", "b": dt.datetime(2019, 1, 20, 20, 20, 20, 20)},
+        {"a": 1, "c": "numpy", "b": None},
+    ]
+    dtype = pd.ArrowDtype(
+        pa.struct([("a", pa.int64()), ("c", pa.string()), ("b", pa.timestamp("us"))])
+    )
+    series = bigframes.pandas.Series(data, dtype=dtype)
+    expected = pd.Series(data, dtype=dtype)
+    expected.index = expected.index.astype("Int64")
+    pd.testing.assert_series_equal(series.to_pandas(), expected)
+
+
+def test_series_construct_w_dtype_for_array_string():
+    data = [["1", "2", "3"], [], ["4", "5"]]
+    dtype = pd.ArrowDtype(pa.list_(pa.string()))
+    series = bigframes.pandas.Series(data, dtype=dtype)
+    expected = pd.Series(data, dtype=dtype)
+    expected.index = expected.index.astype("Int64")
+    pd.testing.assert_series_equal(series.to_pandas(), expected)
+
+
+def test_series_construct_w_dtype_for_array_struct():
+    data = [[{"a": 1, "c": "aa"}, {"a": 2, "c": "bb"}], [], [{"a": 3, "c": "cc"}]]
+    dtype = pd.ArrowDtype(pa.list_(pa.struct([("a", pa.int64()), ("c", pa.string())])))
+    series = bigframes.pandas.Series(data, dtype=dtype)
+    expected = pd.Series(data, dtype=dtype)
+    expected.index = expected.index.astype("Int64")
+    pd.testing.assert_series_equal(series.to_pandas(), expected)
+
+
 def test_series_keys(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df["int64_col"].keys().to_pandas()
