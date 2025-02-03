@@ -19,8 +19,8 @@ import warnings
 
 import bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 import pandas as pd
-import typing_extensions
 import pandas.api.types as pdtypes
+import typing_extensions
 
 import bigframes.exceptions as bfe
 
@@ -189,6 +189,7 @@ def preview(*, name: str):
 
 def timedelta_to_micros(td: pd.Timedelta) -> int:
     return round(td.total_seconds() * 1_000_000)
+
 
 def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:
     """
