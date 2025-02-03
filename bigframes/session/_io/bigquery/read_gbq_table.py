@@ -171,7 +171,7 @@ def infer_unique_columns(
         # Essentially, just reordering the primary key to match the index col order
         return tuple(index_col for index_col in index_cols if index_col in primary_keys)
 
-    if primary_keys or metadata_only:
+    if primary_keys or metadata_only or (not index_cols):
         # Sometimes not worth scanning data to check uniqueness
         return primary_keys
     # TODO(b/337925142): Avoid a "SELECT *" subquery here by ensuring
