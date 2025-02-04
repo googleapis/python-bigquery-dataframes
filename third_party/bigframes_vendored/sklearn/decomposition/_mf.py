@@ -77,7 +77,7 @@ class MatrixFactorization(BaseEstimator, metaclass=ABCMeta):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def predict(self, X):
+    def recommend(self, X):
         """Predict the closest cluster for each sample in X.
 
         Args:
