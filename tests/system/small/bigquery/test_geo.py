@@ -23,9 +23,9 @@ import bigframes.series
 
 def test_geo_st_area():
     data = [
-        Polygon([(0.0, 0.0), (0.1, 0.1), (0.0, 0.1)]),
-        Polygon([(0.10, 0.4), (0.9, 0.5), (0.10, 0.5)]),
-        Polygon([(0.1, 0.1), (0.2, 0.1), (0.2, 0.2)]),
+        Polygon([(0.000, 0.0), (0.001, 0.001), (0.000, 0.001)]),
+        Polygon([(0.0010, 0.004), (0.009, 0.005), (0.0010, 0.005)]),
+        Polygon([(0.001, 0.001), (0.002, 0.001), (0.002, 0.002)]),
         LineString([(0, 0), (1, 1), (0, 1)]),
         Point(0, 1),
     ]
@@ -33,9 +33,14 @@ def test_geo_st_area():
     geopd_s = geopandas.GeoSeries(data=data, crs="EPSG:4326")
     geobf_s = bigframes.geopandas.GeoSeries(data=data)
 
-    # Round both results to get an approximately similar output
-    geopd_s_result = geopd_s.to_crs(26393).area.round(-7)
-    geobf_s_result = bbq.st_area(geobf_s).to_pandas().round(-7)
+    # For `geopd_s`, the data was further projected with `geopandas.GeoSeries.to_crs`
+    # to `to_crs(26393)` to get the area in square meter. See: https://geopandas.org/en/stable/docs/user_guide/projections.html
+    # and https://spatialreference.org/ref/epsg/26393/. We then rounded both results
+    # to get them as close to each other as possible. Initially, the area results
+    # were +ten-millions. We added more zeros after the decimal point to round the
+    # area results to the nearest thousands.
+    geopd_s_result = geopd_s.to_crs(26393).area.round(-3)
+    geobf_s_result = bbq.st_area(geobf_s).to_pandas().round(-3)
 
     pd.testing.assert_series_equal(
         geobf_s_result,
