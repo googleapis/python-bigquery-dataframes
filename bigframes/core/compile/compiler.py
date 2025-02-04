@@ -65,6 +65,7 @@ class Compiler:
             node, ordering = rewrites.pull_up_order(
                 node, order_root=True, ordered_joins=self.strict
             )
+            node = rewrites.column_pruning(node)
             ir = self.compile_node(node)
             return ir.to_sql(
                 order_by=ordering.all_ordering_columns,
@@ -76,6 +77,7 @@ class Compiler:
             node, _ = rewrites.pull_up_order(
                 node, order_root=False, ordered_joins=self.strict
             )
+            node = rewrites.column_pruning(node)
             ir = self.compile_node(node)
             return ir.to_sql(selections=output_ids)
 
@@ -86,6 +88,7 @@ class Compiler:
         node, _ = rewrites.pull_up_order(
             node, order_root=False, ordered_joins=self.strict
         )
+        node = rewrites.column_pruning(node)
         return self.compile_node(node).to_sql(limit=n_rows, selections=ids)
 
     def compile_raw(
@@ -97,6 +100,7 @@ class Compiler:
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
         node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
         node, ordering = rewrites.pull_up_order(node, ordered_joins=self.strict)
+        node = rewrites.column_pruning(node)
         ir = self.compile_node(node)
         sql = ir.to_sql()
         return sql, node.schema.to_bigquery(), ordering
@@ -192,10 +196,12 @@ class Compiler:
         return self.compile_read_table_unordered(node.source, node.scan_list)
 
     def read_table_as_unordered_ibis(
-        self, source: nodes.BigqueryDataSource
+        self,
+        source: nodes.BigqueryDataSource,
+        scan_cols: typing.Sequence[str],
     ) -> ibis_types.Table:
         full_table_name = f"{source.table.project_id}.{source.table.dataset_id}.{source.table.table_id}"
-        used_columns = tuple(col.name for col in source.table.physical_schema)
+        used_columns = tuple(scan_cols)
         # Physical schema might include unused columns, unsupported datatypes like JSON
         physical_schema = ibis_bigquery.BigQuerySchema.to_ibis(
             list(i for i in source.table.physical_schema if i.name in used_columns)
@@ -216,7 +222,9 @@ class Compiler:
     def compile_read_table_unordered(
         self, source: nodes.BigqueryDataSource, scan: nodes.ScanList
     ):
-        ibis_table = self.read_table_as_unordered_ibis(source)
+        ibis_table = self.read_table_as_unordered_ibis(
+            source, scan_cols=[col.source_id for col in scan.items]
+        )
         return compiled.UnorderedIR(
             ibis_table,
             tuple(
@@ -291,7 +299,7 @@ def set_output_names(
     return nodes.SelectionNode(
         node,
         tuple(
-            (ex.DerefOp(old_id), ids.ColumnId(out_id))
+            bigframes.core.nodes.AliasedRef(ex.DerefOp(old_id), ids.ColumnId(out_id))
             for old_id, out_id in zip(node.ids, output_ids)
         ),
     )
