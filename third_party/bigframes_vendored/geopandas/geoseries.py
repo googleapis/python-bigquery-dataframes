@@ -90,24 +90,3 @@ class GeoSeries:
                 Return the y location (latitude) of point geometries.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
-
-    @property
-    def area(self, crs=None) -> bigframes.series.Series:
-        """Returns a Series containing the area of each geometry in the GeoSeries
-        expressed in the units of the CRS.
-
-        Args:
-            crs (optional):
-                Coordinate Reference System of the geometry objects. Can be
-                anything accepted by pyproj.CRS.from_user_input(), such as an
-                authority string (eg “EPSG:4326”) or a WKT string.
-
-        Returns:
-            float:
-                Series of float representing the areas.
-
-        Raises:
-            NotImplementedError:
-                GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series) insetead.
-        """
-        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
