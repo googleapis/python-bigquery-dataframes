@@ -40,6 +40,7 @@ def test_geo_st_area():
     # were +ten-millions. We added more zeros after the decimal point to round the
     # area results to the nearest thousands.
     geopd_s_result = geopd_s.to_crs(26393).area.round(-3)
+    geobf_s_result = bbq.st_area(geobf_s).to_pandas().round(-3)
     assert geobf_s_result.iloc[0] >= 1000
 
     pd.testing.assert_series_equal(
