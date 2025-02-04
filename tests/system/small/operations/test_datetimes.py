@@ -14,6 +14,8 @@
 
 import datetime
 
+import numpy
+from pandas import testing
 import pandas as pd
 import pytest
 
@@ -379,6 +381,30 @@ def test_timestamp_diff_two_series(scalars_dfs, column):
 
     expected_result = pd_series - pd_series
     assert_series_equal(actual_result, expected_result)
+
+
+@pytest.mark.parametrize("column", ["timestamp_col", "datetime_col"])
+def test_timestamp_diff_two_series_with_numpy_ops(scalars_dfs, column):
+    bf_df, pd_df = scalars_dfs
+    bf_series = bf_df[column]
+    pd_series = pd_df[column]
+
+    actual_result = numpy.subtract(bf_series, bf_series).to_pandas()
+
+    expected_result = numpy.subtract(pd_series, pd_series)
+    assert_series_equal(actual_result, expected_result)
+
+
+def test_timestamp_diff_two_dataframes(scalars_dfs):
+    columns = ["timestamp_col", "datetime_col"]
+    bf_df, pd_df = scalars_dfs
+    bf_df = bf_df[columns]
+    pd_df = pd_df[columns]
+
+    actual_result = (bf_df - bf_df).to_pandas()
+
+    expected_result = pd_df - pd_df
+    testing.assert_frame_equal(actual_result, expected_result)
 
 
 def test_timestamp_diff_two_series_with_different_types_raise_error(scalars_dfs):

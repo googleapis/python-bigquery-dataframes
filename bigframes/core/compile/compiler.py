@@ -57,6 +57,7 @@ class Compiler:
         # TODO: get rid of output_ids arg
         assert len(output_ids) == len(list(node.fields))
         node = set_output_names(node, output_ids)
+        node = nodes.bottom_up(node, rewrites.op_dynamic_dispatch)
         if ordered:
             node, limit = rewrites.pullup_limit_from_slice(node)
             node = nodes.bottom_up(node, rewrites.rewrite_slice)
@@ -108,7 +109,8 @@ class Compiler:
     @functools.lru_cache(maxsize=5000)
     def compile_node(self, node: nodes.BigFrameNode) -> compiled.UnorderedIR:
         """Compile node into CompileArrayValue. Caches result."""
-        return self._compile_node(node)
+        # Need to dispatch op before compilation to keep it consistent with the compile_sql() call
+        return self._compile_node(nodes.bottom_up(node, rewrites.op_dynamic_dispatch))
 
     @functools.singledispatchmethod
     def _compile_node(self, node: nodes.BigFrameNode) -> compiled.UnorderedIR:

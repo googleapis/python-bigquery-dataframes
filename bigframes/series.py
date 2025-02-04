@@ -808,15 +808,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def sub(
         self, other: float | int | pandas.Timestamp | datetime.datetime | Series
     ) -> Series:
-        if bigframes.dtypes.is_datetime_like(self.dtype) and _has_timestamp_type(other):
-            return self._apply_binary_op(other, ops.timestamp_diff_op)
         return self._apply_binary_op(other, ops.sub_op)
 
     def rsub(
         self, other: float | int | pandas.Timestamp | datetime.datetime | Series
     ) -> Series:
-        if bigframes.dtypes.is_datetime_like(self.dtype) and _has_timestamp_type(other):
-            return self._apply_binary_op(other, ops.timestamp_diff_op, reverse=True)
         return self._apply_binary_op(other, ops.sub_op, reverse=True)
 
     subtract = sub
