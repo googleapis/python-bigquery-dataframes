@@ -36,6 +36,7 @@ def op_dynamic_dispatch(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
         )
         root = nodes.ProjectionNode(root.child, updated_assignments)
 
+    # TODO(b/394354614): FilterByNode and OrderNode also contain expressions. Need to update them too.
     return root
 
 
