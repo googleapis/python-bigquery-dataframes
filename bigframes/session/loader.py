@@ -176,10 +176,16 @@ class GbqDataLoader:
         self._start_generic_job(load_job)
 
         destination_table = self._bqclient.get_table(load_table_destination)
+        col_type_overrides: typing.Dict[str, bigframes.dtypes.Dtype] = {
+            col: bigframes.dtypes.TIMEDETLA_DTYPE
+            for col in df_and_labels.timedelta_cols
+        }
         array_value = core.ArrayValue.from_table(
             table=destination_table,
-            # TODO: Generate this directly from original pandas df.
-            schema=schemata.ArraySchema.from_bq_table(destination_table),
+            # TODO (b/394156190): Generate this directly from original pandas df.
+            schema=schemata.ArraySchema.from_bq_table(
+                destination_table, col_type_overrides
+            ),
             session=self._session,
             offsets_col=ordering_col,
         ).drop_columns([ordering_col])
@@ -229,10 +235,16 @@ class GbqDataLoader:
                     f"Problem loading at least one row from DataFrame: {errors}. {constants.FEEDBACK_LINK}"
                 )
 
+        col_type_overrides: typing.Dict[str, bigframes.dtypes.Dtype] = {
+            col: bigframes.dtypes.TIMEDETLA_DTYPE
+            for col in df_and_labels.timedelta_cols
+        }
         array_value = (
             core.ArrayValue.from_table(
                 table=destination_table,
-                schema=schemata.ArraySchema.from_bq_table(destination_table),
+                schema=schemata.ArraySchema.from_bq_table(
+                    destination_table, col_type_overrides
+                ),
                 session=self._session,
                 # Don't set the offsets column because we want to group by it.
             )
@@ -424,7 +436,7 @@ class GbqDataLoader:
         # in the query that checks for index uniqueness.
         # TODO(b/338065601): Provide a way to assume uniqueness and avoid this
         # check.
-        is_index_unique = bf_read_gbq_table.are_index_cols_unique(
+        primary_key = bf_read_gbq_table.infer_unique_columns(
             bqclient=self._bqclient,
             table=table,
             index_cols=index_cols,
@@ -440,12 +452,12 @@ class GbqDataLoader:
             schema=schema,
             predicate=filter_str,
             at_time=time_travel_timestamp if enable_snapshot else None,
-            primary_key=index_cols if is_index_unique else (),
+            primary_key=primary_key,
             session=self._session,
         )
         # if we don't have a unique index, we order by row hash if we are in strict mode
         if self._force_total_order:
-            if not is_index_unique:
+            if not primary_key:
                 array_value = array_value.order_by(
                     [
                         bigframes.core.ordering.OrderingExpression(
