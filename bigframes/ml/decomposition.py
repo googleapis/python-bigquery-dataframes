@@ -273,7 +273,7 @@ class MatrixFactorization(
         )
         return self
 
-    def recommend(self, X: utils.ArrayType) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before recommend")
 
