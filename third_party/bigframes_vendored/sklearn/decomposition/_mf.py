@@ -78,7 +78,7 @@ class MatrixFactorization(BaseEstimator, metaclass=ABCMeta):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def predict(self, X):
-        """Predict the closest cluster for each sample in X.
+        """Generate a predicted rating for every user-item row combination for a matrix factorization model.
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
