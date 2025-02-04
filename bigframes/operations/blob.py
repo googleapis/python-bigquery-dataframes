@@ -281,3 +281,55 @@ class BlobAccessor(base.SeriesMethods):
         res.cache()  # to execute the udf
 
         return dst
+
+    def pdf_chunking(
+        self,
+        *,
+        dst: Union[str, bigframes.series.Series],
+        connection: Optional[str] = None,
+    ) -> bigframes.series.Series:
+        """Extracts text from PDF files and saves the text as a JSON string.
+
+        Args:
+            dst (str or bigframes.series.Series): Destination GCS folder str or blob series.
+            connection (str or None, default None): BQ connection used for function internet transactions, and the output blob if "dst" is str. If None, uses default connection of the session.
+
+        Returns:
+            BigFrames Blob Series
+        """
+        import bigframes.blob._functions as blob_func
+
+        connection = connection or self._block.session._bq_connection
+        connection = clients.resolve_full_bq_connection_name(
+            connection,
+            default_project=self._block.session._project,
+            default_location=self._block.session._location,
+        )
+
+        if isinstance(dst, str):
+            dst = os.path.join(dst, "")
+            src_uri = bigframes.series.Series(self._block).struct.explode()["uri"]
+            # Replace src folder with dst folder, keep the file names.
+            dst_uri = src_uri.str.replace(r"^.*\/(.*)$", rf"{dst}\1", regex=True)
+            dst = cast(
+                bigframes.series.Series, dst_uri.str.to_blob(connection=connection)
+            )
+
+        pdf_chunking_udf = blob_func.TransformFunction(
+            blob_func.pdf_chunking_def,
+            session=self._block.session,
+            connection=connection,
+        ).udf()
+
+        src_rt = self._get_runtime(mode="R")
+        dst_rt = dst.blob._get_runtime(mode="RW")
+
+        src_rt = src_rt._apply_unary_op(ops.ToJSONString())
+        dst_rt = dst_rt._apply_unary_op(ops.ToJSONString())
+
+        df = src_rt.to_frame().join(dst_rt.to_frame(), how="outer")
+
+        res = df.apply(pdf_chunking_udf, axis=1)
+        res.cache()  # to execute the udf
+
+        return dst

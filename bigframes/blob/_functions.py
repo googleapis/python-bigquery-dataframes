@@ -128,3 +128,65 @@ def image_blur_func(
 
 
 image_blur_def = FunctionDef(image_blur_func, ["opencv-python", "numpy", "requests"])
+
+
+def pdf_chunking_func(src_obj_ref_rt: str, dst_obj_ref_rt: str) -> str:
+    import io
+    import json
+
+    from pypdf import PdfReader  # type: ignore
+    import requests
+
+    print("Entering pdf_chunking_func")  # Debug print
+
+    # Load the source and destination object reference runtime JSON strings
+    src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
+    dst_obj_ref_rt_json = json.loads(dst_obj_ref_rt)
+
+    # Get the read URL from the source object reference
+    src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
+    dst_url = dst_obj_ref_rt_json["access_urls"]["write_url"]
+
+    print(f"Source URL: {src_url}")  # Debug print
+    print(f"Destination URL: {dst_url}")  # Debug print
+
+    # Download the PDF file from the source URL
+    response = requests.get(src_url, stream=True)
+    response.raise_for_status()
+
+    print("PDF file downloaded successfully")  # Debug print
+
+    # Read the PDF content into a BytesIO object
+    file_name = io.BytesIO(response.content)
+
+    # Initialize the PDF reader
+    reader = PdfReader(file_name, strict=False)
+
+    print("PDF reader initialized")  # Debug print
+
+    # Extract text from each page
+    all_text = []
+    for page in reader.pages:
+        page_extract_text = page.extract_text()
+        if page_extract_text:  # Ensure text is not None
+            all_text.append(page_extract_text)
+
+    print("Text extracted from PDF")  # Debug print
+
+    # Convert the extracted text to a JSON string
+    all_text_json_string = json.dumps(all_text)
+
+    # Upload the JSON string to the destination URL
+    requests.put(
+        url=dst_url,
+        data=all_text_json_string.encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+        },
+    )
+
+    print("JSON string uploaded to destination URL")  # Debug print
+    return dst_obj_ref_rt
+
+
+pdf_chunking_def = FunctionDef(pdf_chunking_func, ["pypdf", "requests"])
