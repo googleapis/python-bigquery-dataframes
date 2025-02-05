@@ -291,8 +291,11 @@ class BlobAccessor(base.SeriesMethods):
         """Extracts text from PDF files and saves the text as a JSON string.
 
         Args:
-            dst (str or bigframes.series.Series): Destination GCS folder str or blob series.
-            connection (str or None, default None): BQ connection used for function internet transactions, and the output blob if "dst" is str. If None, uses default connection of the session.
+            dst (str or bigframes.series.Series): Destination GCS folder str
+                or blob series.
+            connection (str or None, default None): BQ connection used for
+                function internet transactions, and the output blob if "dst"
+                is str. If None, uses default connection of the session.
 
         Returns:
             BigFrames Blob Series
