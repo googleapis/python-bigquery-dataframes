@@ -14,10 +14,12 @@
 
 
 def test_bigquery_dataframes_examples() -> None:
-    # [START bigframes_bigquery_methods]
+    # [START bigframes_bigquery_methods_imports]
     import bigframes.bigquery as bbq
     import bigframes.pandas as bpd
 
+    # [END bigframes_bigquery_methods_imports]
+    # [START bigframes_bigquery_methods_struct]
     # Load data from BigQuery
     query_or_table = "bigquery-public-data.ml_datasets.penguins"
     bq_df = bpd.read_gbq(query_or_table)
@@ -28,12 +30,32 @@ def test_bigquery_dataframes_examples() -> None:
     )
 
     lengths.peek()
-
     # 146	{'culmen_length_mm': 51.1, 'culmen_depth_mm': ...
     # 278	{'culmen_length_mm': 48.2, 'culmen_depth_mm': ...
     # 337	{'culmen_length_mm': 36.4, 'culmen_depth_mm': ...
     # 154	{'culmen_length_mm': 46.5, 'culmen_depth_mm': ...
     # 185	{'culmen_length_mm': 50.1, 'culmen_depth_mm': ...
     # dtype: struct[pyarrow]
-    # [END bigframes_bigquery_methods]
+    # [END bigframes_bigquery_methods_struct]
+    # [START bigframes_bigquery_methods_scalar]
+    shortest = bbq.sql_scalar(
+        "LEAST({0}, {1}, {2})",
+        columns=[
+            bq_df["culmen_depth_mm"],
+            bq_df["culmen_length_mm"],
+            bq_df["flipper_length_mm"],
+        ],
+    )
+
+    shortest.peek()
+    #         0
+    # 149	18.9
+    # 33	16.3
+    # 296	17.2
+    # 287	17.0
+    # 307	15.0
+    # dtype: Float64
+    # [END bigframes_bigquery_methods_scalar]
+    assert bq_df is not None
     assert lengths is not None
+    assert shortest is not None
