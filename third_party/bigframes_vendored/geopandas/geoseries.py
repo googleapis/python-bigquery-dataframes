@@ -108,7 +108,7 @@ class GeoSeries:
 
             >>> x = [2.5, 5, -3.0]
             >>> y = [0.5, 1, 1.5]
-            
+
             >>> s = bigframes.geopandas.GeoSeries.from_xy(x, y)
             >>> s
             0    POINT (2.5 0.5)
