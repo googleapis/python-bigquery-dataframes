@@ -49,6 +49,8 @@ IbisDtype = Union[
     ibis_dtypes.JSON,
 ]
 
+IBIS_GEO_TYPE = ibis_dtypes.GeoSpatial(geotype="geography", srid=4326, nullable=True)
+
 
 BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, bigframes.dtypes.Dtype]] = (
     (ibis_dtypes.boolean, pd.BooleanDtype()),
@@ -72,7 +74,7 @@ BIDIRECTIONAL_MAPPINGS: Iterable[Tuple[IbisDtype, bigframes.dtypes.Dtype]] = (
         pd.ArrowDtype(pa.decimal256(76, 38)),
     ),
     (
-        ibis_dtypes.GeoSpatial(geotype="geography", srid=4326, nullable=True),
+        IBIS_GEO_TYPE,
         gpd.array.GeometryDtype(),
     ),
     (ibis_dtypes.json, db_dtypes.JSONDtype()),
@@ -178,6 +180,14 @@ def cast_ibis_value(
             ibis_dtypes.timestamp,
         ),
         ibis_dtypes.binary: (ibis_dtypes.string,),
+        ibis_dtypes.point: (IBIS_GEO_TYPE,),
+        ibis_dtypes.geometry: (IBIS_GEO_TYPE,),
+        ibis_dtypes.geography: (IBIS_GEO_TYPE,),
+        ibis_dtypes.linestring: (IBIS_GEO_TYPE,),
+        ibis_dtypes.polygon: (IBIS_GEO_TYPE,),
+        ibis_dtypes.multilinestring: (IBIS_GEO_TYPE,),
+        ibis_dtypes.multipoint: (IBIS_GEO_TYPE,),
+        ibis_dtypes.multipolygon: (IBIS_GEO_TYPE,),
     }
 
     value = ibis_value_to_canonical_type(value)
