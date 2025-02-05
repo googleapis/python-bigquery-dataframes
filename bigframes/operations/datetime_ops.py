@@ -122,7 +122,7 @@ class TimestampDiff(base_ops.BinaryOp):
         if not dtypes.is_datetime_like(input_types[0]):
             raise TypeError("expected timestamp input")
 
-        return dtypes.TIMEDETLA_DTYPE
+        return dtypes.TIMEDELTA_DTYPE
 
 
 timestamp_diff_op = TimestampDiff()

@@ -143,7 +143,7 @@ class SubOp(base_ops.BinaryOp):
             return dtypes.coerce_to_common(left_type, right_type)
 
         if dtypes.is_datetime_like(left_type) and dtypes.is_datetime_like(right_type):
-            return dtypes.TIMEDETLA_DTYPE
+            return dtypes.TIMEDELTA_DTYPE
 
         raise TypeError(f"Cannot subtract dtypes {left_type} and {right_type}")
 

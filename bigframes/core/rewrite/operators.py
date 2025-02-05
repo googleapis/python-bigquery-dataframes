@@ -28,7 +28,11 @@ class _TypedExpr:
     dtype: dtypes.Dtype
 
 
-def op_dynamic_dispatch(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
+def rewrite_timedelta_ops(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
+    """
+    Rewrites expressions to properly handle timedelta values, because this type does not exist
+    in the SQL world.
+    """
     if isinstance(root, nodes.ProjectionNode):
         updated_assignments = tuple(
             (_rewrite_expressions(expr, root.schema).expr, column_id)
