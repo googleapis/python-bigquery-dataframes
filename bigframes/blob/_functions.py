@@ -130,7 +130,7 @@ def image_blur_func(
 image_blur_def = FunctionDef(image_blur_func, ["opencv-python", "numpy", "requests"])
 
 
-def pdf_chunking_func(src_obj_ref_rt: str, dst_obj_ref_rt: str) -> str:
+def pdf_chunking_func(src_obj_ref_rt: str) -> str:
     import io
     import json
 
@@ -138,13 +138,7 @@ def pdf_chunking_func(src_obj_ref_rt: str, dst_obj_ref_rt: str) -> str:
     import requests
 
     src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
-    dst_obj_ref_rt_json = json.loads(dst_obj_ref_rt)
-
     src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
-    dst_url = dst_obj_ref_rt_json["access_urls"]["write_url"]
-
-    print(f"Source URL: {src_url}")  # Debug print
-    print(f"Destination URL: {dst_url}")  # Debug print
 
     response = requests.get(src_url, stream=True)
     response.raise_for_status()
@@ -160,16 +154,7 @@ def pdf_chunking_func(src_obj_ref_rt: str, dst_obj_ref_rt: str) -> str:
 
     all_text_json_string = json.dumps(all_text)
 
-    # Upload the JSON string to the destination URL
-    requests.put(
-        url=dst_url,
-        data=all_text_json_string.encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-        },
-    )
-
-    return dst_obj_ref_rt
+    return all_text_json_string
 
 
 pdf_chunking_def = FunctionDef(pdf_chunking_func, ["pypdf", "requests"])

@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import os
-from typing import cast, Optional, Union
+from typing import cast, Literal, Optional, Union
 
 import IPython.display as ipy_display
 import requests
@@ -285,22 +285,27 @@ class BlobAccessor(base.SeriesMethods):
     def pdf_chunking(
         self,
         *,
-        dst: Union[str, bigframes.series.Series],
+        dst_table: str,
         connection: Optional[str] = None,
+        if_exists: Literal["fail", "replace", "append"] = "replace",
     ) -> bigframes.series.Series:
         """Extracts text from PDF files and saves the text as a JSON string.
 
         Args:
-            dst (str or bigframes.series.Series): Destination GCS folder str
-                or blob series.
+            dst_table (str): Destination Bigquery table (project.dataset.table).
             connection (str or None, default None): BQ connection used for
                 function internet transactions, and the output blob if "dst"
                 is str. If None, uses default connection of the session.
+            if_exists (Literal["fail", "replace", "append"], default "replace"):
+                What to do if the table exists.
+
 
         Returns:
-            BigFrames Blob Series
+            None (write to BigQuery directly)
         """
+        import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
+        import bigframes.pandas as bpd
 
         connection = connection or self._block.session._bq_connection
         connection = clients.resolve_full_bq_connection_name(
@@ -309,15 +314,6 @@ class BlobAccessor(base.SeriesMethods):
             default_location=self._block.session._location,
         )
 
-        if isinstance(dst, str):
-            dst = os.path.join(dst, "")
-            src_uri = bigframes.series.Series(self._block).struct.explode()["uri"]
-            # Replace src folder with dst folder, keep the file names.
-            dst_uri = src_uri.str.replace(r"^.*\/(.*)$", rf"{dst}\1", regex=True)
-            dst = cast(
-                bigframes.series.Series, dst_uri.str.to_blob(connection=connection)
-            )
-
         pdf_chunking_udf = blob_func.TransformFunction(
             blob_func.pdf_chunking_def,
             session=self._block.session,
@@ -325,14 +321,16 @@ class BlobAccessor(base.SeriesMethods):
         ).udf()
 
         src_rt = self._get_runtime(mode="R")
-        dst_rt = dst.blob._get_runtime(mode="RW")
-
         src_rt = src_rt._apply_unary_op(ops.ToJSONString())
-        dst_rt = dst_rt._apply_unary_op(ops.ToJSONString())
 
-        df = src_rt.to_frame().join(dst_rt.to_frame(), how="outer")
+        df = src_rt.to_frame()
 
         res = df.apply(pdf_chunking_udf, axis=1)
-        res.cache()  # to execute the udf
+        res_bf = bpd.Series(res)
+        res_df = bpd.DataFrame({"text_array": bbq.json_extract_string_array(res_bf)})
 
-        return dst
+        res_df.to_gbq(
+            destination_table=dst_table,
+            if_exists=if_exists,
+        )
+        return res_bf
