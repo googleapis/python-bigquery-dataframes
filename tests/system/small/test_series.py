@@ -26,6 +26,7 @@ import pyarrow as pa  # type: ignore
 import pytest
 import shapely  # type: ignore
 
+import bigframes.features
 import bigframes.pandas
 import bigframes.series as series
 from tests.system.utils import (
@@ -267,7 +268,18 @@ def test_series_construct_w_dtype_for_array_string():
     series = bigframes.pandas.Series(data, dtype=dtype)
     expected = pd.Series(data, dtype=dtype)
     expected.index = expected.index.astype("Int64")
-    pd.testing.assert_series_equal(series.to_pandas(), expected)
+
+    # Skip dtype check due to internal issue b/321013333. This issue causes array types
+    # to be converted to the `object` dtype when calling `to_pandas()`, resulting in
+    # a mismatch with the expected Pandas type.
+    if bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
+        check_dtype = True
+    else:
+        check_dtype = False
+
+    pd.testing.assert_series_equal(
+        series.to_pandas(), expected, check_dtype=check_dtype
+    )
 
 
 def test_series_construct_w_dtype_for_array_struct():
@@ -276,7 +288,18 @@ def test_series_construct_w_dtype_for_array_struct():
     series = bigframes.pandas.Series(data, dtype=dtype)
     expected = pd.Series(data, dtype=dtype)
     expected.index = expected.index.astype("Int64")
-    pd.testing.assert_series_equal(series.to_pandas(), expected)
+
+    # Skip dtype check due to internal issue b/321013333. This issue causes array types
+    # to be converted to the `object` dtype when calling `to_pandas()`, resulting in
+    # a mismatch with the expected Pandas type.
+    if bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
+        check_dtype = True
+    else:
+        check_dtype = False
+
+    pd.testing.assert_series_equal(
+        series.to_pandas(), expected, check_dtype=check_dtype
+    )
 
 
 def test_series_keys(scalars_dfs):
