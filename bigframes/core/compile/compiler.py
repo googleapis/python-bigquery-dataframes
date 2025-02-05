@@ -58,6 +58,7 @@ class Compiler:
         # TODO: get rid of output_ids arg
         assert len(output_ids) == len(list(node.fields))
         node = set_output_names(node, output_ids)
+        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
         if ordered:
             node, limit = rewrites.pullup_limit_from_slice(node)
             node = nodes.bottom_up(node, rewrites.rewrite_slice)
@@ -100,6 +101,8 @@ class Compiler:
 
     def _preprocess(self, node: nodes.BigFrameNode):
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
+        # Need to rewrite ops before compilation to keep it consistent with the compile_sql() call
+        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
         node, _ = rewrites.pull_up_order(
             node, order_root=False, ordered_joins=self.strict
         )
