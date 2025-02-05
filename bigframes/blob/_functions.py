@@ -142,9 +142,10 @@ def pdf_chunking_func(src_obj_ref_rt: str) -> str:
 
     response = requests.get(src_url, stream=True)
     response.raise_for_status()
+    pdf_bytes = response.content
 
-    file_name = io.BytesIO(response.content)
-    reader = PdfReader(file_name, strict=False)
+    pdf_file = io.BytesIO(pdf_bytes)
+    reader = PdfReader(pdf_file, strict=False)
 
     all_text = []
     for page in reader.pages:

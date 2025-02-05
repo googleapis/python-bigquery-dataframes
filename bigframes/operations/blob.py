@@ -15,12 +15,13 @@
 from __future__ import annotations
 
 import os
-from typing import cast, Literal, Optional, Union
+from typing import Any, cast, Literal, Optional, Union
 
 import IPython.display as ipy_display
 import requests
 
 from bigframes import clients
+import bigframes.blob._functions as blob_func
 import bigframes.dataframe
 from bigframes.operations import base
 import bigframes.operations as ops
@@ -224,6 +225,63 @@ class BlobAccessor(base.SeriesMethods):
         for _, row in df.iterrows():
             display_single_url(row["read_url"], row["content_type"])
 
+    def _resolve_connection(self, connection: Optional[str] = None) -> str:
+        """Resovle the BigQuery connection.
+
+        Args:
+            connection (str or None, default None): BQ connection used for
+                function internet transactions, and the output blob if "dst" is
+                str. If None, uses default connection of the session.
+
+        Returns:
+            str: the resolved BigQuery connection string in the format:
+             "project.location.connection_id".
+        """
+        connection = connection or self._block.session._bq_connection
+        return clients.resolve_full_bq_connection_name(
+            connection,
+            default_project=self._block.session._project,
+            default_location=self._block.session._location,
+        )
+
+    def _create_udf(self, function_def, connection: Optional[str]) -> Any:
+        """Create a UDF for the given function defination.
+
+        Args:
+            function_def: The function definition to be used for creating the UDF.
+                         This is typically a reference to a predefined function
+                         (e.g., `image_blur_def`).
+            connection (str or None, default None): BQ connection used for
+                function internet transactions, and the output blob if "dst" is
+                str. If None, uses default connection of the session.
+
+        Returns:
+            Any: The created UDF that can be applied to a DataFrame or Series.
+        """
+        if connection is None:
+            raise ValueError(
+                "Connection cannot be None. Provie a valid conenction string or ensure a default connection is set."
+            )
+        return blob_func.TransformFunction(
+            function_def,
+            session=self._block.session,
+            connection=connection,
+        ).udf()
+
+    def _get_transformed_runtime(self, mode: str = "R") -> Any:
+        """Get the runtime and apply the ToJSONSTring transformation.
+
+        Args:
+            mode(str or str, default "R"): the mode for accessing the runtime.
+                Default to "R". Possible values are "R" (read-only) and
+                "RW" (read-write)
+        Returns:
+            Any: the transformed runtime object after applying the "TOJSONString'
+                operation.
+        """
+        runtime = self._get_runtime(mode=mode)
+        return runtime._apply_unary_op(ops.ToJSONString())
+
     def image_blur(
         self,
         ksize: tuple[int, int],
@@ -244,14 +302,7 @@ class BlobAccessor(base.SeriesMethods):
         Returns:
             BigFrames Blob Series
         """
-        import bigframes.blob._functions as blob_func
-
-        connection = connection or self._block.session._bq_connection
-        connection = clients.resolve_full_bq_connection_name(
-            connection,
-            default_project=self._block.session._project,
-            default_location=self._block.session._location,
-        )
+        connection = self._resolve_connection(connection)
 
         if isinstance(dst, str):
             dst = os.path.join(dst, "")
@@ -262,17 +313,10 @@ class BlobAccessor(base.SeriesMethods):
                 bigframes.series.Series, dst_uri.str.to_blob(connection=connection)
             )
 
-        image_blur_udf = blob_func.TransformFunction(
-            blob_func.image_blur_def,
-            session=self._block.session,
-            connection=connection,
-        ).udf()
+        image_blur_udf = self._create_udf(blob_func.image_blur_def, connection)
 
-        src_rt = self._get_runtime(mode="R")
-        dst_rt = dst.blob._get_runtime(mode="RW")
-
-        src_rt = src_rt._apply_unary_op(ops.ToJSONString())
-        dst_rt = dst_rt._apply_unary_op(ops.ToJSONString())
+        src_rt = self._get_transformed_runtime(mode="R")
+        dst_rt = dst.blob._get_transformed_runtime(mode="RW")
 
         df = src_rt.to_frame().join(dst_rt.to_frame(), how="outer")
         df["ksize_x"], df["ksize_y"] = ksize
@@ -299,29 +343,18 @@ class BlobAccessor(base.SeriesMethods):
             if_exists (Literal["fail", "replace", "append"], default "replace"):
                 What to do if the table exists.
 
-
         Returns:
-            None (write to BigQuery directly)
+           bigframes.series.Series: A BigFrame Sereies containing the extracted
+                text as JSON strings.
         """
         import bigframes.bigquery as bbq
-        import bigframes.blob._functions as blob_func
         import bigframes.pandas as bpd
 
-        connection = connection or self._block.session._bq_connection
-        connection = clients.resolve_full_bq_connection_name(
-            connection,
-            default_project=self._block.session._project,
-            default_location=self._block.session._location,
-        )
+        connection = self._resolve_connection(connection)
 
-        pdf_chunking_udf = blob_func.TransformFunction(
-            blob_func.pdf_chunking_def,
-            session=self._block.session,
-            connection=connection,
-        ).udf()
+        pdf_chunking_udf = self._create_udf(blob_func.pdf_chunking_def, connection)
 
-        src_rt = self._get_runtime(mode="R")
-        src_rt = src_rt._apply_unary_op(ops.ToJSONString())
+        src_rt = self._get_transformed_runtime(mode="R")
 
         df = src_rt.to_frame()
 
