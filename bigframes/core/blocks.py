@@ -707,7 +707,7 @@ class Block:
         # Create an ordering col and convert to string
         block, ordering_col = block.promote_offsets()
         block, string_ordering_col = block.apply_unary_op(
-            ordering_col, ops.AsTypeOp(to_type="string[pyarrow]")
+            ordering_col, ops.AsTypeOp(to_type=bigframes.dtypes.STRING_DTYPE)
         )
 
         # Apply hash method to sum col and order by it.
@@ -1410,7 +1410,7 @@ class Block:
 
         block, result_id = self.apply_window_op(
             value_columns[0],
-            agg_ops.rank_op,
+            agg_ops.count_op,
             window_spec=window_spec,
         )
 
@@ -1479,7 +1479,9 @@ class Block:
                 expr, new_col = expr.project_to_id(
                     expression=ops.add_op.as_expr(
                         ex.const(prefix),
-                        ops.AsTypeOp(to_type="string").as_expr(index_col),
+                        ops.AsTypeOp(to_type=bigframes.dtypes.STRING_DTYPE).as_expr(
+                            index_col
+                        ),
                     ),
                 )
                 new_index_cols.append(new_col)
@@ -1502,7 +1504,9 @@ class Block:
             for index_col in self._index_columns:
                 expr, new_col = expr.project_to_id(
                     expression=ops.add_op.as_expr(
-                        ops.AsTypeOp(to_type="string").as_expr(index_col),
+                        ops.AsTypeOp(to_type=bigframes.dtypes.STRING_DTYPE).as_expr(
+                            index_col
+                        ),
                         ex.const(suffix),
                     ),
                 )
@@ -2036,23 +2040,15 @@ class Block:
         return block
 
     def _isin_inner(self: Block, col: str, unique_values: core.ArrayValue) -> Block:
-        unique_values, const = unique_values.create_constant(
-            True, dtype=bigframes.dtypes.BOOL_DTYPE
-        )
-        expr, (l_map, r_map) = self._expr.relational_join(
-            unique_values, ((col, unique_values.column_ids[0]),), type="left"
-        )
-        expr, matches = expr.project_to_id(ops.notnull_op.as_expr(r_map[const]))
+        expr, matches = self._expr.isin(unique_values, col, unique_values.column_ids[0])
 
-        new_index_cols = tuple(l_map[idx_col] for idx_col in self.index_columns)
         new_value_cols = tuple(
-            l_map[val_col] if val_col != col else matches
-            for val_col in self.value_columns
+            val_col if val_col != col else matches for val_col in self.value_columns
         )
-        expr = expr.select_columns((*new_index_cols, *new_value_cols))
+        expr = expr.select_columns((*self.index_columns, *new_value_cols))
         return Block(
             expr,
-            index_columns=new_index_cols,
+            index_columns=self.index_columns,
             column_labels=self.column_labels,
             index_labels=self._index_labels,
         )
@@ -2081,14 +2077,12 @@ class Block:
         result_columns = []
         matching_join_labels = []
 
-        coalesced_ids = []
-        for left_id, right_id in zip(left_join_ids, right_join_ids):
-            joined_expr, coalesced_id = joined_expr.project_to_id(
-                ops.coalesce_op.as_expr(
-                    get_column_left[left_id], get_column_right[right_id]
-                ),
-            )
-            coalesced_ids.append(coalesced_id)
+        left_post_join_ids = tuple(get_column_left[id] for id in left_join_ids)
+        right_post_join_ids = tuple(get_column_right[id] for id in right_join_ids)
+
+        joined_expr, coalesced_ids = coalesce_columns(
+            joined_expr, left_post_join_ids, right_post_join_ids, how=how, drop=False
+        )
 
         for col_id in self.value_columns:
             if col_id in left_join_ids:
@@ -2106,7 +2100,6 @@ class Block:
                 result_columns.append(get_column_left[col_id])
         for col_id in other.value_columns:
             if col_id in right_join_ids:
-                key_part = right_join_ids.index(col_id)
                 if other.col_id_to_label[matching_right_id] in matching_join_labels:
                     pass
                 else:
@@ -2932,26 +2925,31 @@ def join_multi_indexed(
     )
 
 
+# TODO: Rewrite just to return expressions
 def coalesce_columns(
     expr: core.ArrayValue,
     left_ids: typing.Sequence[str],
     right_ids: typing.Sequence[str],
     how: str,
+    drop: bool = True,
 ) -> Tuple[core.ArrayValue, Sequence[str]]:
     result_ids = []
     for left_id, right_id in zip(left_ids, right_ids):
         if how == "left" or how == "inner" or how == "cross":
             result_ids.append(left_id)
-            expr = expr.drop_columns([right_id])
+            if drop:
+                expr = expr.drop_columns([right_id])
         elif how == "right":
             result_ids.append(right_id)
-            expr = expr.drop_columns([left_id])
+            if drop:
+                expr = expr.drop_columns([left_id])
         elif how == "outer":
             coalesced_id = guid.generate_guid()
             expr, coalesced_id = expr.project_to_id(
                 ops.coalesce_op.as_expr(left_id, right_id)
             )
-            expr = expr.drop_columns([left_id, right_id])
+            if drop:
+                expr = expr.drop_columns([left_id, right_id])
             result_ids.append(coalesced_id)
         else:
             raise ValueError(f"Unexpected join type: {how}. {constants.FEEDBACK_LINK}")

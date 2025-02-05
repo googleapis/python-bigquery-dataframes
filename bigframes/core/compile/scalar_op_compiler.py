@@ -993,6 +993,11 @@ def geo_y_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).y()
 
 
+@scalar_op_compiler.register_unary_op(ops.geo_area_op)
+def geo_area_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).area()
+
+
 @scalar_op_compiler.register_binary_op(ops.geo_st_geogpoint_op, pass_op=False)
 def geo_st_geogpoint_op_impl(x: ibis_types.Value, y: ibis_types.Value):
     return typing.cast(ibis_types.NumericValue, x).point(
@@ -1145,6 +1150,13 @@ def to_timestamp_op_impl(x: ibis_types.Value, op: ops.ToTimestampOp):
             x = numeric_to_datetime(x, unit)
 
     return x.cast(ibis_dtypes.Timestamp(timezone="UTC"))
+
+
+@scalar_op_compiler.register_unary_op(ops.ToTimedeltaOp, pass_op=True)
+def to_timedelta_op_impl(x: ibis_types.Value, op: ops.ToTimedeltaOp):
+    return (
+        typing.cast(ibis_types.NumericValue, x) * UNIT_TO_US_CONVERSION_FACTORS[op.unit]  # type: ignore
+    ).floor()
 
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
