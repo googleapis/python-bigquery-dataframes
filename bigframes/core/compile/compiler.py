@@ -101,6 +101,7 @@ class Compiler:
 
     def _preprocess(self, node: nodes.BigFrameNode):
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
+        # Need to rewrite ops before compilation to keep it consistent with the compile_sql() call
         node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
         node, _ = rewrites.pull_up_order(
             node, order_root=False, ordered_joins=self.strict
@@ -111,7 +112,6 @@ class Compiler:
     @functools.lru_cache(maxsize=5000)
     def compile_node(self, node: nodes.BigFrameNode) -> compiled.UnorderedIR:
         """Compile node into CompileArrayValue. Caches result."""
-        # Need to dispatch op before compilation to keep it consistent with the compile_sql() call
         return self._compile_node(node)
 
     @functools.singledispatchmethod
