@@ -166,6 +166,19 @@ def test_df_construct_inline_respects_location():
         assert table.location == "europe-west1"
 
 
+def test_df_construct_dtype():
+    data = {
+        "int_col": [1, 2, 3],
+        "string_col": ["1.1", "2.0", "3.5"],
+        "float_col": [1.0, 2.0, 3.0],
+    }
+    dtype = pd.StringDtype(storage="pyarrow")
+    bf_result = dataframe.DataFrame(data, dtype=dtype)
+    pd_result = pd.DataFrame(data, dtype=dtype)
+    pd_result.index = pd_result.index.astype("Int64")
+    pandas.testing.assert_frame_equal(bf_result.to_pandas(), pd_result)
+
+
 def test_get_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
@@ -5315,7 +5328,7 @@ def test__resample_start_time(rule, origin, data):
         ),
     ],
 )
-def test_astype(scalars_dfs, dtype):
+def test_df_astype(scalars_dfs, dtype):
     bf_df, pd_df = scalars_dfs
     target_cols = ["bool_col", "int64_col"]
     bf_df = bf_df[target_cols]
@@ -5323,6 +5336,20 @@ def test_astype(scalars_dfs, dtype):
 
     bf_result = bf_df.astype(dtype).to_pandas()
     pd_result = pd_df.astype(dtype)
+
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
+
+
+def test_df_astype_python_types(scalars_dfs):
+    bf_df, pd_df = scalars_dfs
+    target_cols = ["bool_col", "int64_col"]
+    bf_df = bf_df[target_cols]
+    pd_df = pd_df[target_cols]
+
+    bf_result = bf_df.astype({"bool_col": str, "int64_col": float}).to_pandas()
+    pd_result = pd_df.astype(
+        {"bool_col": "string[pyarrow]", "int64_col": pd.Float64Dtype()}
+    )
 
     pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
 
