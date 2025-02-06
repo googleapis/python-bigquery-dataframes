@@ -190,6 +190,7 @@ def pull_up_selection(
         child_node, child_selections = pull_up_selection(
             node.additive_base, stop, rename_vars=rename_vars
         )
+        mapping = {out: ref.id for ref, out in child_selections}
         new_node: bigframes.core.nodes.BigFrameNode = node.replace_additive_base(
             child_node
         )
@@ -204,7 +205,7 @@ def pull_up_selection(
             var_renames = {}
         assert isinstance(new_node, bigframes.core.nodes.AdditiveNode)
         added_selections = tuple(
-            bigframes.core.nodes.AliasedRef.identity(field.id).remap_vars(var_renames)
+            bigframes.core.nodes.AliasedRef.identity(field.id).remap_refs(var_renames)
             for field in node.added_fields
         )
         new_selection = child_selections + added_selections

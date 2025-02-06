@@ -62,6 +62,7 @@ class Compiler:
         if ordered:
             node, limit = rewrites.pullup_limit_from_slice(node)
             node = nodes.bottom_up(node, rewrites.rewrite_slice)
+            # TODO: Extract out CTEs
             node, ordering = rewrites.pull_up_order(
                 node, order_root=True, ordered_joins=self.strict
             )

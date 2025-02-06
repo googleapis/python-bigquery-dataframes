@@ -1249,7 +1249,7 @@ class AliasedRef(typing.NamedTuple):
     def remap_vars(
         self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
     ) -> AliasedRef:
-        return AliasedRef(self.ref, mappings.get(self.ref.id, self.ref.id))
+        return AliasedRef(self.ref, mappings.get(self.id, self.id))
 
     def remap_refs(
         self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
