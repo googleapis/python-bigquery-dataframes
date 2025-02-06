@@ -27,5 +27,5 @@ class ToTimedeltaOp(base_ops.UnaryOp):
 
     def output_type(self, *input_types):
         if input_types[0] in (dtypes.INT_DTYPE, dtypes.FLOAT_DTYPE):
-            return dtypes.TIMEDETLA_DTYPE
+            return dtypes.TIMEDELTA_DTYPE
         raise TypeError("expected integer or float input")

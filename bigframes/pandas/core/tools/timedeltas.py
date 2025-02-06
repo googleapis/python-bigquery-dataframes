@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import functools
 import typing
 
 from bigframes_vendored.pandas.core.tools import (
@@ -25,38 +24,23 @@ from bigframes import operations as ops
 from bigframes import series, session
 
 
-@functools.singledispatch
 def to_timedelta(
     arg,
     unit: typing.Optional[vendored_pandas_timedeltas.UnitChoices] = None,
     *,
     session: typing.Optional[session.Session] = None,
-) -> typing.Union[series.Series, pd.Timedelta]:
-    return to_timedelta(series.Series(arg, session=session), unit, session=session)
+):
+    if isinstance(arg, series.Series):
+        canonical_unit = "us" if unit is None else _canonicalize_unit(unit)
+        return arg._apply_unary_op(ops.ToTimedeltaOp(canonical_unit))
+
+    if pdtypes.is_list_like(arg):
+        return to_timedelta(series.Series(arg), unit, session=session)
+
+    return pd.to_timedelta(arg, unit)
 
 
 to_timedelta.__doc__ = vendored_pandas_timedeltas.to_timedelta.__doc__
-
-
-@to_timedelta.register
-def _(
-    arg: series.Series,
-    unit: typing.Optional[vendored_pandas_timedeltas.UnitChoices] = None,
-    *,
-    session: typing.Optional[session.Session] = None,
-) -> series.Series:
-    canonical_unit = "us" if unit is None else _canonicalize_unit(unit)
-    return arg._apply_unary_op(ops.ToTimedeltaOp(canonical_unit))
-
-
-@to_timedelta.register
-def _(
-    arg: typing.Union[str, int, float],
-    unit: typing.Optional[vendored_pandas_timedeltas.UnitChoices] = None,
-    *,
-    session: typing.Optional[session.Session] = None,
-) -> pd.Timedelta:
-    return typing.cast(pd.Timedelta, pd.to_timedelta(arg, unit))
 
 
 def _canonicalize_unit(
