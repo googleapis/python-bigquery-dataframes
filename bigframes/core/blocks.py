@@ -275,8 +275,8 @@ class Block:
         for id, label in self.col_id_to_label.items():
             mapping[label] = (*mapping.get(label, ()), id)
         return mapping
-    
-    def resolve_label_exact(self, label:Label) -> Optional[str]:
+
+    def resolve_label_exact(self, label: Label) -> Optional[str]:
         """Returns the column id matching the label if there is exactly
         one such column. If there are multiple columns with the same name,
         raises an error. If there is no such column, returns None."""
@@ -286,14 +286,14 @@ class Block:
                 f"Multiple columns matching id {label} were found. {constants.FEEDBACK_LINK}"
             )
         return matches[0] if len(matches) != 0 else None
-    
-    def resolve_label_exact_or_error(self, label:Label) -> str:
+
+    def resolve_label_exact_or_error(self, label: Label) -> str:
         """Returns the column id matching the label if there is exactly
         one such column. If there are multiple columns with the same name,
         raises an error. If there is no such column, raises an error too."""
         col_id = self.resolve_label_exact(label)
         if col_id is None:
-            raise ValueError(f"Label not found: {label}")
+            raise ValueError(f"Label {label} not found. {constants.FEEDBACK_LINK}")
         return col_id
 
     @functools.cached_property
