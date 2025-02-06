@@ -3,6 +3,7 @@ import csv
 import os
 import sys
 
+import google.api_core.exceptions
 from google.cloud import bigquery
 
 
@@ -569,7 +570,7 @@ if __name__ == "__main__":
         client.get_dataset(dataset_ref)
         print(f"Dataset {project_id}:{dataset_id} already exists. Skipping.")
         sys.exit(1)
-    except Exception:
+    except google.api_core.exceptions.NotFound:
         # Create the dataset if it doesn't exist
         dataset = bigquery.Dataset(dataset_ref)
         client.create_dataset(dataset)
