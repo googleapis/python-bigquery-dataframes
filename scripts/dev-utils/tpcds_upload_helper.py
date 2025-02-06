@@ -521,7 +521,7 @@ def load_data_to_bigquery(table_name, file_paths, client, dataset_ref, temp_file
     client.create_table(table)
 
     # Load data from each file
-    for file_path in file_paths:
+    for file_path in sorted(file_paths):
         preprocess_csv(file_path, temp_file)
         with open(temp_file, "rb") as source_file:
             job = client.load_table_from_file(
@@ -577,7 +577,7 @@ if __name__ == "__main__":
         print(f"Created dataset {project_id}:{dataset_id}")
 
     # Iterate through the folders
-    for table_name in os.listdir(ds_path):
+    for table_name in sorted(os.listdir(ds_path)):
         table_path = os.path.join(ds_path, table_name)
         table_name = table_name.split(".")[0]
         if os.path.isdir(table_path):
