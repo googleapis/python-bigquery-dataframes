@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, cast, Literal, Optional, Union
+from typing import cast, Literal, Optional, Union
 
 import IPython.display as ipy_display
 import requests
@@ -246,45 +246,22 @@ class BlobAccessor(base.SeriesMethods):
             default_location=self._block.session._location,
         )
 
-    def _create_udf(self, function_def, connection: Optional[str]) -> Any:
-        """Create a UDF for the given function defination.
-
-        Args:
-            function_def: The function definition to be used for creating the UDF.
-                         This is typically a reference to a predefined function
-                         (e.g., `image_blur_def`).
-            connection (str or None, default None): BQ connection used for
-                function internet transactions, and the output blob if "dst" is
-                str. If None, uses default connection of the session.
-
-        Returns:
-            Any: The created UDF that can be applied to a DataFrame or Series.
-        """
-        if connection is None:
-            raise ValueError(
-                "Connection cannot be None. Provie a valid conenction string or ensure a default connection is set."
-            )
-
-        import bigframes.blob._functions as blob_func
-
-        return blob_func.TransformFunction(
-            function_def,
-            session=self._block.session,
-            connection=connection,
-        ).udf()
-
-    def _get_transformed_runtime(self, mode: str = "R") -> Any:
+    def _get_runtime_json_str(
+        self, mode: str = "R", with_metadata: bool = False
+    ) -> bigframes.series.Series:
         """Get the runtime and apply the ToJSONSTring transformation.
 
         Args:
             mode(str or str, default "R"): the mode for accessing the runtime.
                 Default to "R". Possible values are "R" (read-only) and
                 "RW" (read-write)
+            with_metadata (bool, default False): whether to include metadata
+                in the JOSN string. Default to False.
+
         Returns:
-            Any: the transformed runtime object after applying the "TOJSONString'
-                operation.
+            str: the runtime object in the JSON string.
         """
-        runtime = self._get_runtime(mode=mode)
+        runtime = self._get_runtime(mode=mode, with_metadata=with_metadata)
         return runtime._apply_unary_op(ops.ToJSONString())
 
     def image_blur(
@@ -320,10 +297,14 @@ class BlobAccessor(base.SeriesMethods):
                 bigframes.series.Series, dst_uri.str.to_blob(connection=connection)
             )
 
-        image_blur_udf = self._create_udf(blob_func.image_blur_def, connection)
+        image_blur_udf = blob_func.TransformFunction(
+            blob_func.image_blur_def,
+            session=self._block.session,
+            connection=connection,
+        ).udf()
 
-        src_rt = self._get_transformed_runtime(mode="R")
-        dst_rt = dst.blob._get_transformed_runtime(mode="RW")
+        src_rt = self._get_runtime_json_str(mode="R")
+        dst_rt = dst.blob._get_runtime_json_str(mode="RW")
 
         df = src_rt.to_frame().join(dst_rt.to_frame(), how="outer")
         df["ksize_x"], df["ksize_y"] = ksize
@@ -333,14 +314,15 @@ class BlobAccessor(base.SeriesMethods):
 
         return dst
 
-    def pdf_chunking(
+    def pdf_chunk(
         self,
         *,
         dst_table: str,
         connection: Optional[str] = None,
         if_exists: Literal["fail", "replace", "append"] = "replace",
-    ) -> bigframes.series.Series:
-        """Extracts text from PDF files and saves the text as a JSON string.
+    ) -> list:
+        """Extracts and chunks text from PDF files and saves the text as
+            array of string.
 
         Args:
             dst_table (str): Destination Bigquery table (project.dataset.table).
@@ -351,8 +333,8 @@ class BlobAccessor(base.SeriesMethods):
                 What to do if the table exists.
 
         Returns:
-           bigframes.series.Series: A BigFrame Sereies containing the extracted
-                text as JSON strings.
+            list: A list of strings, where each string is a chunk of text extracted
+                from the PDFs.
         """
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
@@ -360,13 +342,17 @@ class BlobAccessor(base.SeriesMethods):
 
         connection = self._resolve_connection(connection)
 
-        pdf_chunking_udf = self._create_udf(blob_func.pdf_chunking_def, connection)
+        pdf_chunk_udf = blob_func.TransformFunction(
+            blob_func.pdf_chunk_def,
+            session=self._block.session,
+            connection=connection,
+        ).udf()
 
-        src_rt = self._get_transformed_runtime(mode="R")
+        src_rt = self._get_runtime_json_str(mode="R")
 
         df = src_rt.to_frame()
 
-        res = df.apply(pdf_chunking_udf, axis=1)
+        res = df.apply(pdf_chunk_udf, axis=1)
         res_bf = bpd.Series(res)
         res_df = bpd.DataFrame({"text_array": bbq.json_extract_string_array(res_bf)})
 
@@ -374,4 +360,6 @@ class BlobAccessor(base.SeriesMethods):
             destination_table=dst_table,
             if_exists=if_exists,
         )
-        return res_bf
+
+        text_array = res_df["text_array"].tolist()
+        return text_array
