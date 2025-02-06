@@ -537,7 +537,7 @@ def scalars_df_index(
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
     df = session.read_gbq(scalars_table_id, index_col="rowindex")
-    df["timedelta_col"] = bpd.Series, bpd.to_timedelta(df["timedelta_col"], unit="us") # type: ignore
+    df["timedelta_col"] = bpd.Series, bpd.to_timedelta(df["timedelta_col"], unit="us")  # type: ignore
     return df
 
 
