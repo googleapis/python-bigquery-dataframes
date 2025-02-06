@@ -180,7 +180,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
                 block = block.set_index([r_mapping[idx_col] for idx_col in idx_cols])
             if columns:
-                column_ids = [block.resolve_label_exact_or_error(label) for label in list(columns)]
+                column_ids = [
+                    block.resolve_label_exact_or_error(label) for label in list(columns)
+                ]
                 block = block.select_columns(column_ids)  # type:ignore
             if dtype:
                 bf_dtype = bigframes.dtypes.bigframes_type(dtype)
