@@ -18,6 +18,7 @@ import pandas
 import pytest
 
 import bigframes.pandas as bpd
+from bigframes.functions import _function_session as bff_session
 from tests.system.large.functions import function_utils
 
 bpd.options.experiments.udf = True
@@ -35,7 +36,8 @@ def bq_cf_connection() -> str:
 
 @pytest.mark.flaky(retries=2, delay=120)
 @pytest.mark.skipif(
-    sys.version_info[:2] != (3, 11), reason="Test only runs on Python 3.11"
+    sys.version_info[:2] in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
+    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
 )
 def test_managed_function_multiply_with_ibis(
     session,
