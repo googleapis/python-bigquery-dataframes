@@ -292,6 +292,9 @@ def ibis_dtype_to_bigframes_dtype(
     if isinstance(ibis_dtype, ibis_dtypes.JSON):
         return bigframes.dtypes.JSON_DTYPE
 
+    if isinstance(ibis_dtype, ibis_dtypes.GeoSpatial):
+        return gpd.array.GeometryDtype()
+
     if ibis_dtype in IBIS_TO_BIGFRAMES:
         return IBIS_TO_BIGFRAMES[ibis_dtype]
     elif isinstance(ibis_dtype, ibis_dtypes.Decimal):
