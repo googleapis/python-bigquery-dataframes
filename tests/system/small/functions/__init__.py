@@ -11,21 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
-import dataclasses
-import typing
-
-from bigframes import dtypes
-from bigframes.operations import base_ops
-
-
-@dataclasses.dataclass(frozen=True)
-class ToTimedeltaOp(base_ops.UnaryOp):
-    name: typing.ClassVar[str] = "to_timedelta"
-    unit: typing.Literal["us", "ms", "s", "m", "h", "d", "W"]
-
-    def output_type(self, *input_types):
-        if input_types[0] in (dtypes.INT_DTYPE, dtypes.FLOAT_DTYPE):
-            return dtypes.TIMEDELTA_DTYPE
-        raise TypeError("expected integer or float input")
