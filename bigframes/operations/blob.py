@@ -21,7 +21,6 @@ import IPython.display as ipy_display
 import requests
 
 from bigframes import clients
-import bigframes.blob._functions as blob_func
 import bigframes.dataframe
 from bigframes.operations import base
 import bigframes.operations as ops
@@ -236,6 +235,9 @@ class BlobAccessor(base.SeriesMethods):
         Returns:
             str: the resolved BigQuery connection string in the format:
              "project.location.connection_id".
+
+        Raises:
+            ValueError: If the connection cannot be resolved to a valid string.
         """
         connection = connection or self._block.session._bq_connection
         return clients.resolve_full_bq_connection_name(
@@ -262,6 +264,9 @@ class BlobAccessor(base.SeriesMethods):
             raise ValueError(
                 "Connection cannot be None. Provie a valid conenction string or ensure a default connection is set."
             )
+
+        import bigframes.blob._functions as blob_func
+
         return blob_func.TransformFunction(
             function_def,
             session=self._block.session,
@@ -302,6 +307,8 @@ class BlobAccessor(base.SeriesMethods):
         Returns:
             BigFrames Blob Series
         """
+        import bigframes.blob._functions as blob_func
+
         connection = self._resolve_connection(connection)
 
         if isinstance(dst, str):
@@ -348,6 +355,7 @@ class BlobAccessor(base.SeriesMethods):
                 text as JSON strings.
         """
         import bigframes.bigquery as bbq
+        import bigframes.blob._functions as blob_func
         import bigframes.pandas as bpd
 
         connection = self._resolve_connection(connection)
