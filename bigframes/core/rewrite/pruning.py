@@ -13,7 +13,7 @@
 # limitations under the License.
 import dataclasses
 import functools
-from typing import AbstractSet, Iterable, TypeVar
+from typing import AbstractSet
 
 import bigframes.core.identifiers
 import bigframes.core.nodes
@@ -193,15 +193,3 @@ def filter_scanlist(
         # We need to select something, or stuff breaks
         result = bigframes.core.nodes.ScanList(scanlist.items[:1])
     return result
-
-
-T = TypeVar("T")
-
-
-def dedupe(items: Iterable[T]) -> Iterable[T]:
-    seen = set()
-
-    for item in items:
-        if item not in seen:
-            seen.add(item)
-            yield item
