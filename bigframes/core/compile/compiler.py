@@ -202,23 +202,22 @@ class Compiler:
         scan_cols: typing.Sequence[str],
     ) -> ibis_types.Table:
         full_table_name = f"{source.table.project_id}.{source.table.dataset_id}.{source.table.table_id}"
-        used_columns = tuple(scan_cols)
         # Physical schema might include unused columns, unsupported datatypes like JSON
         physical_schema = ibis_bigquery.BigQuerySchema.to_ibis(
-            list(i for i in source.table.physical_schema if i.name in used_columns)
+            list(source.table.physical_schema)
         )
         if source.at_time is not None or source.sql_predicate is not None:
             import bigframes.session._io.bigquery
 
             sql = bigframes.session._io.bigquery.to_query(
                 full_table_name,
-                columns=used_columns,
+                columns=scan_cols,
                 sql_predicate=source.sql_predicate,
                 time_travel_timestamp=source.at_time,
             )
             return ibis_bigquery.Backend().sql(schema=physical_schema, query=sql)
         else:
-            return ibis_api.table(physical_schema, full_table_name)
+            return ibis_api.table(physical_schema, full_table_name).select(scan_cols)
 
     def compile_read_table_unordered(
         self, source: nodes.BigqueryDataSource, scan: nodes.ScanList
