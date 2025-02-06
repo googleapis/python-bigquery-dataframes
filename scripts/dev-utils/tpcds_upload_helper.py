@@ -545,8 +545,8 @@ if __name__ == "__main__":
     Note: If the dataset already exists, the script will exit without uploading data.
 
     Usage:
-        python your_script.py --project_id <project_id> --dataset_id <dataset_id> --ds_path <local_data_path>
-        python your_script.py -d <dataset_id> -p <project_id> -s <local_data_path>
+        python tpcds_upload_helper.py --project_id <project_id> --dataset_id <dataset_id> --ds_path <local_data_path>
+        python tpcds_upload_helper.py -d <dataset_id> -p <project_id> -s <local_data_path>
     """
     parser = argparse.ArgumentParser(description="Load TPC-DS data to BigQuery")
     parser.add_argument(
