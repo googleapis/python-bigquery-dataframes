@@ -1015,6 +1015,11 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
             if not bigframes.options.experiments.blob:
                 raise NotImplementedError()
 
+            if self.model_name not in _GEMINI_MULTIMODAL_ENDPOINTS:
+                raise NotImplementedError(
+                    f"GeminiTextGenerator only supports model_name {', '.join(_GEMINI_MULTIMODAL_ENDPOINTS)} for Multimodal prompt."
+                )
+
             df_prompt = X[[X.columns[0]]].rename(
                 columns={X.columns[0]: "bigframes_placeholder_col"}
             )
