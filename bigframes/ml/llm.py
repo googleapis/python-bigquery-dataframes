@@ -1014,7 +1014,10 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         if prompt:
             if not bigframes.options.experiments.blob:
                 raise NotImplementedError()
-            df_prompt = bigframes.dataframe.DataFrame(session=session)
+
+            df_prompt = X[[X.columns[0]]].rename(
+                columns={X.columns[0]: "bigframes_placeholder_col"}
+            )
             for i, item in enumerate(prompt):
                 # must be distinct str column labels to construct a struct
                 if isinstance(item, str):
@@ -1022,6 +1025,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
                 else:  # Series
                     label = f"input_{i}_{item.name}"
 
+                # TODO(garrettwu): remove transform to ObjRefRuntime when BQML supports ObjRef as input
                 if (
                     isinstance(item, bigframes.series.Series)
                     and item.dtype == dtypes.OBJ_REF_DTYPE
@@ -1029,6 +1033,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
                     item = item.blob._get_runtime("R", with_metadata=True)
 
                 df_prompt[label] = item
+            df_prompt = df_prompt.drop(columns="bigframes_placeholder_col")
             X["prompt"] = bbq.struct(df_prompt)
 
         if len(X.columns) == 1:
