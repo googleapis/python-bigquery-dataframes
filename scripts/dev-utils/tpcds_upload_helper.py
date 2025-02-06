@@ -19,7 +19,6 @@ def preprocess_csv(input_file_path, output_file_path):
 
             for row in reader:
                 writer.writerow(row[:-1])
-        print(f"Preprocessed file saved to {output_file_path}")
     except Exception as e:
         print(f"An error occurred: {e}")
 
@@ -508,7 +507,7 @@ def get_schema(table_name):
     return schema[table_name]
 
 
-def load_data_to_bigquery(table_name, file_paths, client, dataset_ref):
+def load_data_to_bigquery(table_name, file_paths, client, dataset_ref, temp_file):
     """Loads data from a list of files into a BigQuery table."""
     job_config = bigquery.LoadJobConfig(
         source_format=bigquery.SourceFormat.CSV,
@@ -523,8 +522,8 @@ def load_data_to_bigquery(table_name, file_paths, client, dataset_ref):
 
     # Load data from each file
     for file_path in file_paths:
-        preprocess_csv(file_path, "temp.csv")
-        with open("temp.csv", "rb") as source_file:
+        preprocess_csv(file_path, temp_file)
+        with open(temp_file, "rb") as source_file:
             job = client.load_table_from_file(
                 source_file, table_ref, job_config=job_config
             )
@@ -561,6 +560,7 @@ if __name__ == "__main__":
     project_id = args.project_id
     dataset_id = args.dataset_id
     ds_path = args.ds_path
+    temp_file = "temp.csv"
 
     # Initialize BigQuery client
     client = bigquery.Client(project=project_id)
@@ -586,4 +586,12 @@ if __name__ == "__main__":
                 for f in os.listdir(table_path)
                 if f.endswith(".dat")
             ]
-            load_data_to_bigquery(table_name, file_paths, client, dataset_ref)
+            load_data_to_bigquery(
+                table_name, file_paths, client, dataset_ref, temp_file
+            )
+
+    try:
+        os.remove(temp_file)
+        print("Removed temporary file: temp.csv")
+    except FileNotFoundError:
+        print("Temporary file not found.")
