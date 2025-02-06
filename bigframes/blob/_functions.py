@@ -130,7 +130,7 @@ def image_blur_func(
 image_blur_def = FunctionDef(image_blur_func, ["opencv-python", "numpy", "requests"])
 
 
-def pdf_chunking_func(src_obj_ref_rt: str) -> str:
+def pdf_chunk_func(src_obj_ref_rt: str) -> str:
     import io
     import json
 
@@ -158,4 +158,4 @@ def pdf_chunking_func(src_obj_ref_rt: str) -> str:
     return all_text_json_string
 
 
-pdf_chunking_def = FunctionDef(pdf_chunking_func, ["pypdf", "requests"])
+pdf_chunk_def = FunctionDef(pdf_chunk_func, ["pypdf", "requests"])
