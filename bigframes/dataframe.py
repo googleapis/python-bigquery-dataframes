@@ -3996,7 +3996,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             warnings.warn(msg, category=bfe.PreviewWarning)
 
             # Check if the function is a remote function
-            if not hasattr(func, "bigframes_remote_function"):
+            if not hasattr(func, "bigframes_remote_function") and not hasattr(
+                func, "bigframes_function"
+            ):
                 raise ValueError("For axis=1 a remote function must be used.")
 
             is_row_processor = getattr(func, "is_row_processor")

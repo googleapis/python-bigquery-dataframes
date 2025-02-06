@@ -1514,25 +1514,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 "Only a ufunc (a function that applies to the entire Series) or a remote function that only works on single values are supported."
             )
 
-        if not hasattr(func, "bigframes_remote_function"):
-            # It is not a remote function
+        if not hasattr(func, "bigframes_remote_function") and not hasattr(
+            func, "bigframes_function"
+        ):
+            # It is neither a remote function nor a managed function.
             # Then it must be a vectorized function that applies to the Series
-            # as a whole
+            # as a whole.
             if by_row:
                 raise ValueError(
                     "A vectorized non-remote function can be provided only with by_row=False."
                     " For element-wise operation it must be a remote function."
                 )
-
-            try:
-                return func(self)
-            except Exception as ex:
-                # This could happen if any of the operators in func is not
-                # supported on a Series. Let's guide the customer to use a
-                # remote function instead
-                if hasattr(ex, "message"):
-                    ex.message += f"\n{_remote_function_recommendation_message}"
-                raise
 
         # We are working with remote function at this point
         result_series = self._apply_unary_op(
