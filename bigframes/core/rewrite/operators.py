@@ -67,6 +67,9 @@ def _rewrite_op_expr(
     if isinstance(expr.op, ops.SubOp):
         return _rewrite_sub_op(inputs[0], inputs[1])
 
+    if isinstance(expr.op, ops.AddOp):
+        return _rewrite_add_op(inputs[0], inputs[1])
+
     input_types = tuple(map(lambda x: x.dtype, inputs))
     return _TypedExpr(expr, expr.op.output_type(*input_types))
 
@@ -79,4 +82,25 @@ def _rewrite_sub_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
     return _TypedExpr(
         result_op.as_expr(left.expr, right.expr),
         result_op.output_type(left.dtype, right.dtype),
+    )
+
+
+def _rewrite_add_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
+    if dtypes.is_datetime_like(left.dtype) and right.dtype is dtypes.TIMEDELTA_DTYPE:
+        return _TypedExpr(
+            ops.timestamp_add_op.as_expr(left.expr, right.expr),
+            ops.timestamp_add_op.output_type(left.dtype, right.dtype),
+        )
+
+    if left.dtype is dtypes.TIMEDELTA_DTYPE and dtypes.is_datetime_like(right.dtype):
+        # Re-arrange operands such that timestamp is always on the left and timedelta is
+        # always on the right.
+        return _TypedExpr(
+            ops.timestamp_add_op.as_expr(right.expr, left.expr),
+            ops.timestamp_add_op.output_type(right.dtype, left.dtype),
+        )
+
+    return _TypedExpr(
+        ops.add_op.as_expr(left.expr, right.expr),
+        ops.add_op.output_type(left.dtype, right.dtype),
     )

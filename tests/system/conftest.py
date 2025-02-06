@@ -536,7 +536,9 @@ def scalars_df_index(
     scalars_table_id: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
-    return session.read_gbq(scalars_table_id, index_col="rowindex")
+    df = session.read_gbq(scalars_table_id, index_col="rowindex")
+    df["timedelta_col"] = bpd.Series, bpd.to_timedelta(df["timedelta_col"], unit="us") # type: ignore
+    return df
 
 
 @pytest.fixture(scope="session")

@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations
 
+import datetime
 import typing
 from typing import cast, Dict, Iterable, Optional, Tuple, Union
 
@@ -30,6 +31,7 @@ import google.cloud.bigquery as bigquery
 import pandas as pd
 import pyarrow as pa
 
+from bigframes.core import utils
 import bigframes.dtypes
 
 # Type hints for Ibis data types supported by BigQuery DataFrame
@@ -402,7 +404,12 @@ def literal_to_ibis_scalar(
             return bigframes_vendored.ibis.null()
 
     scalar_expr = bigframes_vendored.ibis.literal(literal)
-    if ibis_dtype:
+    if isinstance(literal, datetime.timedelta):
+        # In BigQuery, a timedelta is represented as an integer value in microseconds
+        scalar_expr = bigframes_vendored.ibis.literal(
+            utils.timedelta_to_micros(literal), ibis_dtype
+        )
+    elif ibis_dtype:
         scalar_expr = bigframes_vendored.ibis.literal(literal, ibis_dtype)
     elif scalar_expr.type().is_floating():
         scalar_expr = bigframes_vendored.ibis.literal(literal, ibis_dtypes.float64)

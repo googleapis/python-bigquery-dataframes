@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import functools
 import re
 import typing
@@ -187,9 +188,12 @@ def preview(*, name: str):
     return decorator
 
 
-def timedelta_to_micros(td: pd.Timedelta) -> int:
-    # td.value returns total nanoseconds.
-    return td.value // 1000
+def timedelta_to_micros(td: typing.Union[pd.Timedelta, datetime.timedelta]) -> int:
+    if isinstance(td, pd.Timedelta):
+        # td.value returns total nanoseconds.
+        return td.value // 1000
+
+    return ((td.days * 3600 * 24) + td.seconds) * 1_000_000 + td.microseconds
 
 
 def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:

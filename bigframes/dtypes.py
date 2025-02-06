@@ -105,6 +105,8 @@ LOCAL_SCALAR_TYPE = Union[
     pd.Timestamp,
     datetime.date,
     datetime.time,
+    pd.Timedelta,
+    datetime.timedelta,
 ]
 LOCAL_SCALAR_TYPES = typing.get_args(LOCAL_SCALAR_TYPE)
 
@@ -420,7 +422,7 @@ def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
         return pd.ArrowDtype(arrow_dtype)
 
     if pa.types.is_duration(arrow_dtype):
-        return pd.ArrowDtype(arrow_dtype)
+        return TIMEDELTA_DTYPE
 
     # BigFrames doesn't distinguish between string and large_string because the
     # largest string (2 GB) is already larger than the largest BigQuery row.
@@ -578,6 +580,8 @@ def _infer_dtype_from_python_type(type: type) -> Dtype:
         return DATE_DTYPE
     if issubclass(type, datetime.time):
         return TIME_DTYPE
+    if issubclass(type, datetime.timedelta):
+        return TIMEDELTA_DTYPE
     else:
         raise TypeError(
             f"No matching datatype for python type: {type}. {constants.FEEDBACK_LINK}"
