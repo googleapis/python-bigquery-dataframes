@@ -17,8 +17,8 @@ import sys
 import pandas
 import pytest
 
-import bigframes.pandas as bpd
 from bigframes.functions import _function_session as bff_session
+import bigframes.pandas as bpd
 from tests.system.large.functions import function_utils
 
 bpd.options.experiments.udf = True

@@ -3999,7 +3999,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if not hasattr(func, "bigframes_remote_function") and not hasattr(
                 func, "bigframes_function"
             ):
-                raise ValueError("For axis=1 a remote function must be used.")
+                raise ValueError("For axis=1 a bigframes function must be used.")
 
             is_row_processor = getattr(func, "is_row_processor")
             if is_row_processor:
