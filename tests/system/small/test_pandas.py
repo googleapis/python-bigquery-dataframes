@@ -793,11 +793,15 @@ def test_to_timedelta_with_bf_float_series_value_rounded_down(session):
         actual_result, expected_result, check_index_type=False
     )
 
-@pytest.mark.parametrize("input", [
-    pytest.param([1,2,3], id="list"),
-    pytest.param((1,2,3), id="tuple"),
-    pytest.param(pd.Series([1,2,3]), id="pandas-series"),
-])
+
+@pytest.mark.parametrize(
+    "input",
+    [
+        pytest.param([1, 2, 3], id="list"),
+        pytest.param((1, 2, 3), id="tuple"),
+        pytest.param(pd.Series([1, 2, 3]), id="pandas-series"),
+    ],
+)
 def test_to_timedelta_with_list_like_input(session, input):
     actual_result = (
         typing.cast(bpd.Series, bpd.to_timedelta(input, "s", session=session))
