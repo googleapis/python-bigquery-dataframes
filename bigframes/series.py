@@ -1526,6 +1526,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     " For element-wise operation it must be a remote function."
                 )
 
+            try:
+                return func(self)
+            except Exception as ex:
+                # This could happen if any of the operators in func is not
+                # supported on a Series. Let's guide the customer to use a
+                # remote function instead
+                if hasattr(ex, "message"):
+                    ex.message += f"\n{_remote_function_recommendation_message}"
+                raise
+
         # We are working with remote function at this point
         result_series = self._apply_unary_op(
             ops.RemoteFunctionOp(func=func, apply_on_null=True)
