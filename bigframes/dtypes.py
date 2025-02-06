@@ -56,7 +56,7 @@ DATE_DTYPE = pd.ArrowDtype(pa.date32())
 TIME_DTYPE = pd.ArrowDtype(pa.time64("us"))
 DATETIME_DTYPE = pd.ArrowDtype(pa.timestamp("us"))
 TIMESTAMP_DTYPE = pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
-TIMEDETLA_DTYPE = pd.ArrowDtype(pa.duration("us"))
+TIMEDELTA_DTYPE = pd.ArrowDtype(pa.duration("us"))
 NUMERIC_DTYPE = pd.ArrowDtype(pa.decimal128(38, 9))
 BIGNUMERIC_DTYPE = pd.ArrowDtype(pa.decimal256(76, 38))
 # No arrow equivalent
@@ -295,7 +295,10 @@ def is_object_like(type_: Union[ExpressionType, str]) -> bool:
     # See: https://stackoverflow.com/a/40312924/101923 and
     # https://numpy.org/doc/stable/reference/generated/numpy.dtype.kind.html
     # for the way to identify object type.
-    return type_ in ("object", "O") or getattr(type_, "kind", None) == "O"
+    return type_ in ("object", "O") or (
+        getattr(type_, "kind", None) == "O"
+        and getattr(type_, "storage", None) != "pyarrow"
+    )
 
 
 def is_string_like(type_: ExpressionType) -> bool:
@@ -409,9 +412,14 @@ _ARROW_TO_BIGFRAMES = {
 def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
     if arrow_dtype in _ARROW_TO_BIGFRAMES:
         return _ARROW_TO_BIGFRAMES[arrow_dtype]
+
     if pa.types.is_list(arrow_dtype):
         return pd.ArrowDtype(arrow_dtype)
+
     if pa.types.is_struct(arrow_dtype):
+        return pd.ArrowDtype(arrow_dtype)
+
+    if pa.types.is_duration(arrow_dtype):
         return pd.ArrowDtype(arrow_dtype)
 
     # BigFrames doesn't distinguish between string and large_string because the
