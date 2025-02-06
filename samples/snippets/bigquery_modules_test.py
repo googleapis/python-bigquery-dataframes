@@ -14,16 +14,16 @@
 
 
 def test_bigquery_dataframes_examples() -> None:
-    # [START bigquery_methods_imports]
+    # [START bigquery_methods_load]
     import bigframes.bigquery as bbq
     import bigframes.pandas as bpd
 
-    # [END bigquery_methods_imports]
-    # [START bigquery_methods_struct]
     # Load data from BigQuery
     query_or_table = "bigquery-public-data.ml_datasets.penguins"
     bq_df = bpd.read_gbq(query_or_table)
+    # [END bigquery_methods_load]
 
+    # [START bigquery_methods_struct]
     # Create a new STRUCT Series with subfields for each column in a DataFrames.
     lengths = bbq.struct(
         bq_df[["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"]]
@@ -37,6 +37,7 @@ def test_bigquery_dataframes_examples() -> None:
     # 185	{'culmen_length_mm': 50.1, 'culmen_depth_mm': ...
     # dtype: struct[pyarrow]
     # [END bigquery_methods_struct]
+
     # [START bigquery_methods_scalar]
     shortest = bbq.sql_scalar(
         "LEAST({0}, {1}, {2})",
