@@ -768,13 +768,13 @@ class FunctionSession:
         # Check the Python version.
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
         warnings.warn(
-            f"Currently, only Python {_MANAGED_FUNC_PYTHON_VERSIONS} is/are "
+            f"Currently, only Python version {_MANAGED_FUNC_PYTHON_VERSIONS} is "
             "supported for BigFrames managed function."
         )
         if python_version not in _MANAGED_FUNC_PYTHON_VERSIONS:
             raise RuntimeError(
-                f"Python {python_version} is not supported yet for BigFrames "
-                "managed function."
+                f"Python version {python_version} is not supported yet for "
+                "BigFrames managed function."
             )
 
         # Some defaults may be used from the session if not provided otherwise.

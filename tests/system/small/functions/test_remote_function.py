@@ -1137,7 +1137,7 @@ def test_df_apply_axis_1_unsupported_callable(scalars_dfs):
     # pandas works
     scalars_pandas_df.apply(add_ints, axis=1)
 
-    with pytest.raises(ValueError, match="For axis=1 a remote function must be used."):
+    with pytest.raises(ValueError, match="For axis=1 a bigframes function must be used."):
         scalars_df[columns].apply(add_ints, axis=1)
 
 
