@@ -18,7 +18,6 @@ import datetime
 import numpy as np
 import pandas as pd
 import pandas.testing
-import pyarrow as pa
 import pytest
 
 from bigframes import dtypes

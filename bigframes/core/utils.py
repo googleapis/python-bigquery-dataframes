@@ -22,7 +22,6 @@ import bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 import numpy as np
 import pandas as pd
 import pandas.api.types as pdtypes
-import pyarrow as pa
 import typing_extensions
 
 import bigframes.exceptions as bfe
