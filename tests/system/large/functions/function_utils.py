@@ -37,6 +37,6 @@ def cleanup_function_assets(
             cloudfunctions_client, bigframes_func.bigframes_cloud_function
         )
     except Exception:
-        # By default don't raise exception in cleanup
+        # By default don't raise exception in cleanup.
         if not ignore_failures:
             raise

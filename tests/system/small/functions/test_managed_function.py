@@ -37,7 +37,7 @@ def bq_cf_connection() -> str:
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
+    sys.version_info[:2] not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
     reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
 )
 @pytest.mark.flaky(retries=2, delay=120)
