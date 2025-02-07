@@ -113,17 +113,9 @@ class AddOp(base_ops.BinaryOp):
     def output_type(self, *input_types):
         left_type = input_types[0]
         right_type = input_types[1]
-
-        if left_type is None or right_type is None:
-            return None
-
         if all(map(dtypes.is_string_like, input_types)) and len(set(input_types)) == 1:
             # String addition
             return input_types[0]
-
-        if dtypes.is_numeric(left_type) and dtypes.is_numeric(right_type):
-            # Numeric addition
-            return dtypes.coerce_to_common(left_type, right_type)
 
         # Timestamp addition.
         if dtypes.is_datetime_like(left_type) and right_type is dtypes.TIMEDELTA_DTYPE:
@@ -131,6 +123,11 @@ class AddOp(base_ops.BinaryOp):
         if left_type is dtypes.TIMEDELTA_DTYPE and dtypes.is_datetime_like(right_type):
             return right_type
 
+        if (left_type is None or dtypes.is_numeric(left_type)) and (
+            right_type is None or dtypes.is_numeric(right_type)
+        ):
+            # Numeric addition
+            return dtypes.coerce_to_common(left_type, right_type)
         raise TypeError(f"Cannot add dtypes {left_type} and {right_type}")
 
 
