@@ -882,6 +882,10 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
             col_label = cast(blocks.Label, X.columns[0])
             X = X.rename(columns={col_label: "content"})
 
+        # TODO(garrettwu): remove transform to ObjRefRuntime when BQML supports ObjRef as input
+        if X["content"].dtype == dtypes.OBJ_REF_DTYPE:
+            X["content"] = X["content"].blob._get_runtime("R", with_metadata=True)
+
         options = {
             "flatten_json_output": True,
         }
