@@ -140,6 +140,39 @@ class FunctionSession:
             dataset_ref = session._anonymous_dataset
         return dataset_ref
 
+    def _get_cloud_functions_client(
+        self,
+        session: Session,
+        cloud_functions_client: Optional[functions_v2.FunctionServiceClient],
+    ) -> Optional[functions_v2.FunctionServiceClient]:
+        """Gets the Cloud Functions client."""
+        if not cloud_functions_client:
+            cloud_functions_client = session.cloudfunctionsclient
+        if not cloud_functions_client:
+            raise ValueError(
+                "A cloud functions client must be provided, either directly "
+                f"or via session. {constants.FEEDBACK_LINK}"
+            )
+        return cloud_functions_client
+
+    def _get_bigquery_connection(
+        self,
+        session: Session,
+        dataset_ref: bigquery.DatasetReference,
+        bq_location: str,
+        bigquery_connection: Optional[str] = None,
+    ) -> str:
+        """Gets BigQuery connection name."""
+        if not bigquery_connection:
+            bigquery_connection = session._bq_connection  # type: ignore
+
+        bigquery_connection = clients.resolve_full_bq_connection_name(
+            bigquery_connection,
+            default_project=dataset_ref.project,
+            default_location=bq_location,
+        )
+        return bigquery_connection
+
     def _update_temp_artifacts(self, bqrf_routine: str, gcf_path: str):
         """Update function artifacts in the current session."""
         with self._artifacts_lock:
@@ -413,13 +446,9 @@ class FunctionSession:
         dataset_ref = self._get_dataset_reference(session, bigquery_client, dataset)
 
         # A cloud functions client is required for cloud functions operations.
-        if not cloud_functions_client:
-            cloud_functions_client = session.cloudfunctionsclient
-        if not cloud_functions_client:
-            raise ValueError(
-                "A cloud functions client must be provided, either directly or via session. "
-                f"{constants.FEEDBACK_LINK}"
-            )
+        cloud_functions_client = self._get_cloud_functions_client(
+            session, cloud_functions_client
+        )
 
         bq_location, cloud_function_region = _utils.get_remote_function_locations(
             bigquery_client.location
@@ -427,14 +456,10 @@ class FunctionSession:
 
         # A connection is required for BQ remote function.
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function
-        if not bigquery_connection:
-            bigquery_connection = session._bq_connection  # type: ignore
-
-        bigquery_connection = clients.resolve_full_bq_connection_name(
-            bigquery_connection,
-            default_project=dataset_ref.project,
-            default_location=bq_location,
+        bigquery_connection = self._get_bigquery_connection(
+            session, dataset_ref, bq_location, bigquery_connection
         )
+
         # Guaranteed to be the form of <project>.<location>.<connection_id>
         (
             gcp_project_id,
