@@ -647,11 +647,12 @@ class FunctionSession:
             func.bigframes_cloud_function = (
                 remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
             )
-            func.bigframes_remote_function = (
+            func.bigframes_function = (
                 remote_function_client.get_remote_function_fully_qualilfied_name(
                     rf_name
                 )
             )
+            func.bigframes_remote_function = func.bigframes_function
             func.input_dtypes = tuple(
                 [
                     bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
@@ -690,10 +691,6 @@ class FunctionSession:
         output_type: Optional[type] = None,
         session: Optional[Session] = None,
         bigquery_client: Optional[bigquery.Client] = None,
-        bigquery_connection_client: Optional[
-            bigquery_connection_v1.ConnectionServiceClient
-        ] = None,
-        resource_manager_client: Optional[resourcemanager_v3.ProjectsClient] = None,
         dataset: Optional[str] = None,
         bigquery_connection: Optional[str] = None,
         name: Optional[str] = None,
@@ -746,17 +743,6 @@ class FunctionSession:
             bigquery_client (google.cloud.bigquery.Client, Optional):
                 Client to use for BigQuery operations. If this param is not
                 provided, then bigquery client from the session would be used.
-            bigquery_connection_client
-                (google.cloud.bigquery_connection_v1.ConnectionServiceClient, Optional):
-                Client to use for BigQuery connection operations. If this param
-                is not provided then bigquery connection client from the session
-                would be used.
-            resource_manager_client
-                (google.cloud.resourcemanager_v3.ProjectsClient, Optional):
-                Client to use for cloud resource management operations, e.g. for
-                getting and setting IAM roles on cloud resources. If this param
-                is not provided then resource manager client from the session
-                would be used.
             dataset (str, Optional):
                 Dataset in which to create a BigQuery managed function. It
                 should be in `<project_id>.<dataset_name>` or `<dataset_name>`
@@ -808,30 +794,16 @@ class FunctionSession:
         # A BigQuery client is required to perform BQ operations.
         bigquery_client = self._get_bigquery_client(session, bigquery_client)
 
-        # A BigQuery connection client is required for BQ connection operations.
-        bigquery_connection_client = self._get_bigquery_connection_client(
-            session, bigquery_connection_client
-        )
-
-        # A resource manager client is required to get/set IAM operations.
-        resource_manager_client = self._get_resource_manager_client(
-            session, resource_manager_client
-        )
-
         # BQ managed function must be persisted, for which we need a dataset.
         dataset_ref = self._get_dataset_reference(session, bigquery_client, dataset)
 
         bq_location, _ = _utils.get_remote_function_locations(bigquery_client.location)
 
         # A connection is required for BQ managed function.
-        if not bigquery_connection:
-            bigquery_connection = session._bq_connection  # type: ignore
-
-        bigquery_connection = clients.resolve_full_bq_connection_name(
-            bigquery_connection,
-            default_project=dataset_ref.project,
-            default_location=bq_location,
+        bigquery_connection = self._get_bigquery_connection(
+            session, dataset_ref, bq_location, bigquery_connection
         )
+
         # Guaranteed to be the form of <project>.<location>.<connection_id>
         (
             gcp_project_id,

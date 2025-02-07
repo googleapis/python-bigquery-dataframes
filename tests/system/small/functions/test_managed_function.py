@@ -41,8 +41,6 @@ def bq_cf_connection() -> str:
 )
 def test_managed_function_series_apply(
     bigquery_client,
-    bigqueryconnection_client,
-    resourcemanager_client,
     scalars_dfs,
     dataset_id_permanent,
     bq_cf_connection,
@@ -54,8 +52,6 @@ def test_managed_function_series_apply(
         int,
         int,
         bigquery_client=bigquery_client,
-        bigquery_connection_client=bigqueryconnection_client,
-        resource_manager_client=resourcemanager_client,
         dataset=dataset_id_permanent,
         bigquery_connection=bq_cf_connection,
         name=function_utils.get_function_name(square),
