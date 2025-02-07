@@ -63,7 +63,6 @@ def test_get_standardized_ids_tuple():
     assert col_ids == ["('foo', 1)", "('foo', 2)", "('bar', 1)"]
 
 
-
 @pytest.mark.parametrize(
     "input",
     [
