@@ -76,9 +76,7 @@ def test_timestamp_add__ts_series_plus_td_literal(temporal_dfs, literal):
 
     actual_result = bf_df["timestamp_col"] + literal
 
-    expected_result = (pd_df["timestamp_col"] + literal).astype(
-        dtypes.TIMESTAMP_DTYPE
-    )
+    expected_result = (pd_df["timestamp_col"] + literal).astype(dtypes.TIMESTAMP_DTYPE)
     pandas.testing.assert_series_equal(
         actual_result.to_pandas(), expected_result, check_index_type=False
     )
