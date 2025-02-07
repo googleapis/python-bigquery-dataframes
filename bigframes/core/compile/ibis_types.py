@@ -419,9 +419,9 @@ def literal_to_ibis_scalar(
 
     if isinstance(
         literal,
-        (datetime.timedelta, pd.Timedelta, numpy.timedelta64, pa.DurationScalar),
+        (datetime.timedelta, pd.Timedelta, numpy.timedelta64),
     ):
-        # numpy and pyarrow timedeltas are not compatible with Ibis, so we process them separately.
+        # numpy timedelta is compatible with Ibis, so we process them separately.
         return bigframes_vendored.ibis.literal(
             utils.timedelta_to_micros(literal), ibis_dtype
         )

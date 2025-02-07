@@ -69,7 +69,6 @@ def test_get_standardized_ids_tuple():
         datetime.timedelta(days=2, hours=3, seconds=4, milliseconds=5, microseconds=6),
         pd.Timedelta("2d3h4s5ms6us"),
         np.timedelta64(pd.Timedelta("2d3h4s5ms6us")),
-        pa.scalar(pd.Timedelta("2d3h4s5ms6us")),
     ],
 )
 def test_timedelta_to_micros(input):

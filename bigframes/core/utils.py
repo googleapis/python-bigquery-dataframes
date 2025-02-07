@@ -192,7 +192,7 @@ def preview(*, name: str):
 
 def timedelta_to_micros(
     timedelta: typing.Union[
-        pd.Timedelta, datetime.timedelta, np.timedelta64, pa.DurationScalar
+        pd.Timedelta, datetime.timedelta, np.timedelta64
     ]
 ) -> int:
     if isinstance(timedelta, pd.Timedelta):
@@ -201,9 +201,6 @@ def timedelta_to_micros(
 
     if isinstance(timedelta, np.timedelta64):
         return timedelta.astype("timedelta64[us]").astype(np.int64)
-
-    if isinstance(timedelta, pa.DurationScalar):
-        return timedelta_to_micros(timedelta.as_py())
 
     if isinstance(timedelta, datetime.timedelta):
         return (

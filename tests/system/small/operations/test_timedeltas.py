@@ -69,7 +69,6 @@ def test_timestamp_add__ts_series_plus_td_series(temporal_dfs, column, bf_dtype)
         pytest.param(pd.Timedelta(1, unit="s"), id="pandas"),
         pytest.param(datetime.timedelta(seconds=1), id="python-datetime"),
         pytest.param(np.timedelta64(1, "s"), id="numpy"),
-        pytest.param(pa.scalar(1, type=pa.duration("s")), id="pyarrow"),
     ],
 )
 def test_timestamp_add__ts_series_plus_td_literal(temporal_dfs, literal):
@@ -77,9 +76,7 @@ def test_timestamp_add__ts_series_plus_td_literal(temporal_dfs, literal):
 
     actual_result = bf_df["timestamp_col"] + literal
 
-    # We don't use the literal value here
-    # because pandas does not support: series + pyarrow.DurationScalar
-    expected_result = (pd_df["timestamp_col"] + pd.Timedelta("1s")).astype(
+    expected_result = (pd_df["timestamp_col"] + literal).astype(
         dtypes.TIMESTAMP_DTYPE
     )
     pandas.testing.assert_series_equal(

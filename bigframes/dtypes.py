@@ -108,7 +108,6 @@ LOCAL_SCALAR_TYPE = Union[
     pd.Timedelta,
     datetime.timedelta,
     np.timedelta64,
-    pa.DurationScalar,
 ]
 LOCAL_SCALAR_TYPES = typing.get_args(LOCAL_SCALAR_TYPE)
 
@@ -566,7 +565,7 @@ def _is_bigframes_dtype(dtype) -> bool:
 
 
 def _infer_dtype_from_python_type(type: type) -> Dtype:
-    if type in (datetime.timedelta, pd.Timedelta, np.timedelta64, pa.DurationScalar):
+    if type in (datetime.timedelta, pd.Timedelta, np.timedelta64):
         # Must check timedelta type first. Otherwise other branchs will be evaluated to true
         # E.g. np.timedelta64 is a sublcass as np.integer
         return TIMEDELTA_DTYPE
