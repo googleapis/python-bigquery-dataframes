@@ -15,7 +15,6 @@
 import pandas as pd
 import pytest
 
-import bigframes.exceptions
 from bigframes.functions import _function_session as bff_session
 from bigframes.functions import function as bff
 import bigframes.pandas as bpd
