@@ -227,6 +227,10 @@ class BlobAccessor(base.SeriesMethods):
     def _resolve_connection(self, connection: Optional[str] = None) -> str:
         """Resovle the BigQuery connection.
 
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and
+            subject to change in the future.
+
         Args:
             connection (str or None, default None): BQ connection used for
                 function internet transactions, and the output blob if "dst" is
@@ -250,6 +254,10 @@ class BlobAccessor(base.SeriesMethods):
         self, mode: str = "R", with_metadata: bool = False
     ) -> bigframes.series.Series:
         """Get the runtime and apply the ToJSONSTring transformation.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and
+            subject to change in the future.
 
         Args:
             mode(str or str, default "R"): the mode for accessing the runtime.
@@ -315,8 +323,12 @@ class BlobAccessor(base.SeriesMethods):
         return dst
 
     def pdf_extract(self, *, connection: Optional[str] = None) -> list:
-        """Extracts and chunks text from PDF files and saves the text as
-           array of string.
+        """Extracts and chunks text from PDF URLs and saves the text as
+           arrays of string.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and
+            subject to change in the future.
 
         Args:
             connection (str or None, default None): BQ connection used for
@@ -349,8 +361,12 @@ class BlobAccessor(base.SeriesMethods):
         chunk_size: int = 1000,
         overlap_size: int = 200,
     ) -> list:
-        """Extracts and chunks text from PDF files and saves the text as
-           array of string.
+        """Extracts and chunks text from PDF URLs and saves the text as
+           arrays of strings.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and
+            subject to change in the future.
 
         Args:
             connection (str or None, default None): BQ connection used for

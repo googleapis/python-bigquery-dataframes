@@ -130,7 +130,7 @@ def image_blur_func(
 image_blur_def = FunctionDef(image_blur_func, ["opencv-python", "numpy", "requests"])
 
 
-# Extracts all text from a PDF
+# Extracts all text from a PDF url
 def pdf_extract_func(src_obj_ref_rt: str) -> str:
     import io
     import json
@@ -159,7 +159,7 @@ def pdf_extract_func(src_obj_ref_rt: str) -> str:
 pdf_extract_def = FunctionDef(pdf_extract_func, ["pypdf", "requests"])
 
 
-# Chunks the text from a PDF
+# Extracts text from a PDF url and chunks it simultaneously
 def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> str:
     import io
     import json
@@ -184,21 +184,27 @@ def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> s
     pdf_file = io.BytesIO(pdf_bytes)
     reader = PdfReader(pdf_file, strict=False)
 
-    all_text_str = ""
-    for page in reader.pages:
-        page_extract_text = page.extract_text()
-        if page_extract_text:
-            all_text_str += page_extract_text
-
     all_text_chunks = []
-    start = 0
-    while start < len(all_text_str):
-        end = min(start + chunk_size, len(all_text_str))
-        all_text_chunks.append(all_text_str[start:end])
-        start += chunk_size - overlap_size
+    curr_chunk = ""
+    chunk_start_idx = 0
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            for char in page_text:
+                curr_chunk += char
+                if len(curr_chunk) >= chunk_size:
+                    all_text_chunks.append(curr_chunk)
+                    chunk_start_idx += chunk_size - overlap_size
+                    curr_chunk = page_text[
+                        chunk_start_idx : chunk_start_idx + overlap_size
+                    ]
+                    chunk_start_idx = 0
+                    if len(curr_chunk) > chunk_size:
+                        curr_chunk = curr_chunk[:chunk_size]
+    if curr_chunk:
+        all_text_chunks.append(curr_chunk)
 
     all_text_json_string = json.dumps(all_text_chunks)
-
     return all_text_json_string
 
 
