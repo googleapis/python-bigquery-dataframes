@@ -130,7 +130,8 @@ def image_blur_func(
 image_blur_def = FunctionDef(image_blur_func, ["opencv-python", "numpy", "requests"])
 
 
-def pdf_chunk_func(src_obj_ref_rt: str) -> str:
+# Extracts all text from a PDF
+def pdf_extract_func(src_obj_ref_rt: str) -> str:
     import io
     import json
 
@@ -147,13 +148,56 @@ def pdf_chunk_func(src_obj_ref_rt: str) -> str:
     pdf_file = io.BytesIO(pdf_bytes)
     reader = PdfReader(pdf_file, strict=False)
 
-    all_text = []
+    all_text = ""
     for page in reader.pages:
         page_extract_text = page.extract_text()
         if page_extract_text:
-            all_text.append(page_extract_text)
+            all_text += page_extract_text
+    return all_text
 
-    all_text_json_string = json.dumps(all_text)
+
+pdf_extract_def = FunctionDef(pdf_extract_func, ["pypdf", "requests"])
+
+
+# Chunks the text from a PDF
+def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> str:
+    import io
+    import json
+
+    from pypdf import PdfReader  # type: ignore
+    import requests
+
+    if overlap_size >= chunk_size:
+        raise ValueError("overlap_size must be smaller than chunk_size.")
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive.")
+    if overlap_size <= 0:
+        raise ValueError("overlap_size must be positive.")
+
+    src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
+    src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
+
+    response = requests.get(src_url, stream=True)
+    response.raise_for_status()
+    pdf_bytes = response.content
+
+    pdf_file = io.BytesIO(pdf_bytes)
+    reader = PdfReader(pdf_file, strict=False)
+
+    all_text_str = ""
+    for page in reader.pages:
+        page_extract_text = page.extract_text()
+        if page_extract_text:
+            all_text_str += page_extract_text
+
+    all_text_chunks = []
+    start = 0
+    while start < len(all_text_str):
+        end = min(start + chunk_size, len(all_text_str))
+        all_text_chunks.append(all_text_str[start:end])
+        start += chunk_size - overlap_size
+
+    all_text_json_string = json.dumps(all_text_chunks)
 
     return all_text_json_string
 

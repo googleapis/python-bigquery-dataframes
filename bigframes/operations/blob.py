@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import os
-from typing import cast, Literal, Optional, Union
+from typing import cast, Optional, Union
 
 import IPython.display as ipy_display
 import requests
@@ -314,28 +314,59 @@ class BlobAccessor(base.SeriesMethods):
 
         return dst
 
-    def pdf_chunk(
-        self,
-        *,
-        dst_table: str,
-        connection: Optional[str] = None,
-        if_exists: Literal["fail", "replace", "append"] = "replace",
-    ) -> list:
+    def pdf_extract(self, *, connection: Optional[str] = None) -> list:
         """Extracts and chunks text from PDF files and saves the text as
-            array of string.
+           array of string.
 
         Args:
-            dst_table (str): Destination Bigquery table (project.dataset.table).
             connection (str or None, default None): BQ connection used for
                 function internet transactions, and the output blob if "dst"
                 is str. If None, uses default connection of the session.
-            if_exists (Literal["fail", "replace", "append"], default "replace"):
-                What to do if the table exists.
+
+        Returns:
+            str: conatins all text from a pdf file
+        """
+
+        import bigframes.blob._functions as blob_func
+
+        connection = self._resolve_connection(connection)
+
+        pdf_chunk_udf = blob_func.TransformFunction(
+            blob_func.pdf_extract_def,
+            session=self._block.session,
+            connection=connection,
+        ).udf()
+
+        src_rt = self._get_runtime_json_str(mode="R")
+        res = src_rt.apply(pdf_chunk_udf)
+
+        return res
+
+    def pdf_chunk(
+        self,
+        *,
+        connection: Optional[str] = None,
+        chunk_size: int = 1000,
+        overlap_size: int = 200,
+    ) -> list:
+        """Extracts and chunks text from PDF files and saves the text as
+           array of string.
+
+        Args:
+            connection (str or None, default None): BQ connection used for
+                function internet transactions, and the output blob if "dst"
+                is str. If None, uses default connection of the session.
+            chunk_size (int, default 1000): the desired size of each text chunk
+                (number of characters).
+            overlap_size (int, default 200): the number of overlapping characters
+                between consective chunks. The helps to ensure context is
+                perserved across chunk boundaries.
 
         Returns:
             list: A list of strings, where each string is a chunk of text extracted
                 from the PDFs.
         """
+
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
         import bigframes.pandas as bpd
@@ -349,17 +380,13 @@ class BlobAccessor(base.SeriesMethods):
         ).udf()
 
         src_rt = self._get_runtime_json_str(mode="R")
-
         df = src_rt.to_frame()
+        df["chunk_size"] = chunk_size
+        df["overlap_size"] = overlap_size
 
         res = df.apply(pdf_chunk_udf, axis=1)
+        res.cache()  # to execute the udf
+
         res_bf = bpd.Series(res)
-        res_df = bpd.DataFrame({"text_array": bbq.json_extract_string_array(res_bf)})
-
-        res_df.to_gbq(
-            destination_table=dst_table,
-            if_exists=if_exists,
-        )
-
-        text_array = res_df["text_array"].tolist()
-        return text_array
+        res_list = bbq.json_extract_string_array(res_bf).tolist()
+        return res_list
