@@ -25,7 +25,6 @@ class ToTimedeltaOp(base_ops.UnaryOp):
     name: typing.ClassVar[str] = "to_timedelta"
     unit: typing.Literal["us", "ms", "s", "m", "h", "d", "W"]
 
-
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         if input_types[0] in (dtypes.INT_DTYPE, dtypes.FLOAT_DTYPE):
             return dtypes.TIMEDELTA_DTYPE
