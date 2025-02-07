@@ -430,7 +430,9 @@ def literal_to_ibis_scalar(
 
 
 def _to_ibis_literal(
-    literal: typing.Any, ibis_dtype: ibis_dtypes.DataType, validate: bool
+    literal: typing.Any,
+    ibis_dtype: typing.Optional[ibis_dtypes.DataType],
+    validate: bool,
 ):
     scalar_expr = bigframes_vendored.ibis.literal(literal)
 
