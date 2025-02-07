@@ -19,7 +19,7 @@ import typing
 from bigframes import dtypes
 from bigframes import operations as ops
 from bigframes.core import expression as ex
-from bigframes.core import nodes, schema
+from bigframes.core import nodes, schema, utils
 
 
 @dataclasses.dataclass
@@ -50,7 +50,7 @@ def _rewrite_expressions(expr: ex.Expression, schema: schema.ArraySchema) -> _Ty
         return _TypedExpr(expr, schema.get_type(expr.id.sql))
 
     if isinstance(expr, ex.ScalarConstantExpression):
-        return _TypedExpr(expr, expr.dtype)
+        return _rewrite_scalar_constant_expr(expr)
 
     if isinstance(expr, ex.OpExpression):
         updated_inputs = tuple(
@@ -59,6 +59,14 @@ def _rewrite_expressions(expr: ex.Expression, schema: schema.ArraySchema) -> _Ty
         return _rewrite_op_expr(expr, updated_inputs)
 
     raise AssertionError(f"Unexpected expression type: {type(expr)}")
+
+
+def _rewrite_scalar_constant_expr(expr: ex.ScalarConstantExpression) -> _TypedExpr:
+    if expr.dtype is dtypes.TIMEDELTA_DTYPE:
+        int_repr = utils.timedelta_to_micros(expr.value)  # type: ignore
+        return _TypedExpr(ex.const(int_repr, expr.dtype), expr.dtype)
+
+    return _TypedExpr(expr, expr.dtype)
 
 
 def _rewrite_op_expr(
