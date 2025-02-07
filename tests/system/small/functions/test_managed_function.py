@@ -12,16 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-
 import pandas as pd
 import pytest
 
+import bigframes.exceptions
 from bigframes.functions import _function_session as bff_session
 from bigframes.functions import function as bff
 import bigframes.pandas as bpd
 from tests.system.small.functions import function_utils
-from tests.system.utils import assert_pandas_df_equal
+from tests.system.utils import assert_pandas_df_equal, get_python_version
 
 bpd.options.experiments.udf = True
 
@@ -36,12 +35,12 @@ def bq_cf_connection() -> str:
     return "bigframes-rf-conn"
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 @pytest.mark.skipif(
-    sys.version_info[:2] not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
+    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
     reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
 )
-@pytest.mark.flaky(retries=2, delay=120)
-def test_managed_function_direct_no_session_param(
+def test_managed_function_series_apply(
     bigquery_client,
     bigqueryconnection_client,
     resourcemanager_client,
@@ -85,5 +84,43 @@ def test_managed_function_direct_no_session_param(
     pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
     pd_result_col = pd_result_col.astype(pd.Int64Dtype())
     pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.skipif(
+    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
+    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
+)
+def test_managed_function_dataframe_applymap(
+    session, scalars_dfs, dataset_id_permanent
+):
+    def add_one(x):
+        return x + 1
+
+    mf_add_one = session.udf(
+        [int],
+        int,
+        dataset=dataset_id_permanent,
+        name=function_utils.get_function_name(add_one),
+    )(add_one)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_cols = ["int64_col", "int64_too"]
+
+    bf_int64_df = scalars_df[int64_cols]
+    bf_int64_df_filtered = bf_int64_df.dropna()
+    bf_result = bf_int64_df_filtered.applymap(mf_add_one).to_pandas()
+
+    pd_int64_df = scalars_pandas_df[int64_cols]
+    pd_int64_df_filtered = pd_int64_df.dropna()
+    pd_result = pd_int64_df_filtered.applymap(add_one)
+    # TODO(shobs): Figure why pandas .applymap() changes the dtype, i.e.
+    # pd_int64_df_filtered.dtype is Int64Dtype()
+    # pd_int64_df_filtered.applymap(lambda x: x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as input.
+    for col in pd_result:
+        pd_result[col] = pd_result[col].astype(pd_int64_df_filtered[col].dtype)
 
     assert_pandas_df_equal(bf_result, pd_result)

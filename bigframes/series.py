@@ -1565,7 +1565,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 "Only a ufunc (a function that applies to the entire Series) or a remote function that only works on single values are supported."
             )
 
-        if not hasattr(func, "bigframes_remote_function"):
+        if not hasattr(func, "bigframes_remote_function") and not hasattr(
+            func, "bigframes_function"
+        ):
             # Keep this in sync with .apply
             try:
                 return func(self, other)

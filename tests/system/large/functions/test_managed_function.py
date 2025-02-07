@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-
 import pandas
 import pytest
 
 from bigframes.functions import _function_session as bff_session
 import bigframes.pandas as bpd
 from tests.system.large.functions import function_utils
+from tests.system.utils import get_python_version
 
 bpd.options.experiments.udf = True
 
@@ -36,7 +35,7 @@ def bq_cf_connection() -> str:
 
 @pytest.mark.flaky(retries=2, delay=120)
 @pytest.mark.skipif(
-    sys.version_info[:2] not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
+    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
     reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
 )
 def test_managed_function_multiply_with_ibis(
@@ -90,3 +89,96 @@ def test_managed_function_multiply_with_ibis(
     finally:
         # clean up the gcp assets created for the managed function.
         function_utils.cleanup_function_assets(multiply, bigquery_client)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.skipif(
+    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
+    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
+)
+def test_managed_function_stringify_with_ibis(
+    session,
+    scalars_table_id,
+    bigquery_client,
+    ibis_client,
+    dataset_id,
+    bq_cf_connection,
+):
+    try:
+
+        @session.udf(
+            [int],
+            str,
+            dataset_id,
+            bq_cf_connection,
+        )
+        def stringify(x):
+            return f"I got {x}"
+
+        # Function should work locally.
+        assert stringify(8912) == "I got 8912"
+
+        _, dataset_name, table_name = scalars_table_id.split(".")
+        if not ibis_client.dataset:
+            ibis_client.dataset = dataset_name
+
+        col_name = "int64_col"
+        table = ibis_client.tables[table_name]
+        table = table.filter(table[col_name].notnull()).order_by("rowindex").head(10)
+        sql = table.compile()
+        pandas_df_orig = bigquery_client.query(sql).to_dataframe()
+
+        col = table[col_name]
+        col_2x = stringify.ibis_node(col).name("int64_str_col")
+        table = table.mutate([col_2x])
+        sql = table.compile()
+        pandas_df_new = bigquery_client.query(sql).to_dataframe()
+
+        pandas.testing.assert_series_equal(
+            pandas_df_orig[col_name].apply(lambda x: f"I got {x}"),
+            pandas_df_new["int64_str_col"],
+            check_names=False,
+        )
+    finally:
+        # clean up the gcp assets created for the managed function.
+        function_utils.cleanup_function_assets(
+            bigquery_client, session.cloudfunctionsclient, stringify
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.skipif(
+    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
+    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
+)
+def test_managed_function_binop(session, scalars_dfs, dataset_id, bq_cf_connection):
+    try:
+
+        def func(x, y):
+            return x * abs(y % 4)
+
+        managed_func = session.udf(
+            [str, int],
+            str,
+            dataset_id,
+            bq_cf_connection,
+        )(func)
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        scalars_df = scalars_df.dropna()
+        scalars_pandas_df = scalars_pandas_df.dropna()
+        pd_result = scalars_pandas_df["string_col"].combine(
+            scalars_pandas_df["int64_col"], func
+        )
+        bf_result = (
+            scalars_df["string_col"]
+            .combine(scalars_df["int64_col"], managed_func)
+            .to_pandas()
+        )
+        pandas.testing.assert_series_equal(bf_result, pd_result)
+    finally:
+        # clean up the gcp assets created for the managed function.
+        function_utils.cleanup_function_assets(
+            session.bqclient, session.cloudfunctionsclient, managed_func
+        )
