@@ -2519,6 +2519,25 @@ def test_nested_analytic_ops_align(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+@skip_legacy_pandas
+def test_unfiltered_align_then_filtered_align(
+    scalars_df_index, scalars_pandas_df_index
+):
+    col_name = "float64_col"
+    bf_series = scalars_df_index[col_name].fillna(0.0)
+    pd_series = scalars_pandas_df_index[col_name].fillna(0.0)
+
+    bf_result = (bf_series + bf_series) + bf_series[bf_series > 0]
+
+    # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA
+    pd_result = (pd_series + pd_series) + pd_series[pd_series > 0]
+
+    pd.testing.assert_series_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
 def test_cumsum_int_filtered(scalars_df_index, scalars_pandas_df_index):
     col_name = "int64_col"
 
