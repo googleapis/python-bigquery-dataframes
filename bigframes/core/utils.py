@@ -19,8 +19,10 @@ from typing import Hashable, Iterable, List
 import warnings
 
 import bigframes_vendored.pandas.io.common as vendored_pandas_io_common
+import numpy as np
 import pandas as pd
 import pandas.api.types as pdtypes
+import pyarrow as pa
 import typing_extensions
 
 import bigframes.exceptions as bfe
@@ -188,12 +190,27 @@ def preview(*, name: str):
     return decorator
 
 
-def timedelta_to_micros(td: typing.Union[pd.Timedelta, datetime.timedelta]) -> int:
-    if isinstance(td, pd.Timedelta):
-        # td.value returns total nanoseconds.
-        return td.value // 1000
+def timedelta_to_micros(
+    timedelta: typing.Union[
+        pd.Timedelta, datetime.timedelta, np.timedelta64, pa.DurationScalar
+    ]
+) -> int:
+    if isinstance(timedelta, pd.Timedelta):
+        # pd.Timedelta.value returns total nanoseconds.
+        return timedelta.value // 1000
 
-    return ((td.days * 3600 * 24) + td.seconds) * 1_000_000 + td.microseconds
+    if isinstance(timedelta, np.timedelta64):
+        return timedelta.astype("timedelta64[us]").astype(np.int64)
+
+    if isinstance(timedelta, pa.DurationScalar):
+        return timedelta_to_micros(timedelta.as_py())
+
+    if isinstance(timedelta, datetime.timedelta):
+        return (
+            (timedelta.days * 3600 * 24) + timedelta.seconds
+        ) * 1_000_000 + timedelta.microseconds
+
+    raise TypeError(f"Unrecognized input type: {type(timedelta)}")
 
 
 def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:

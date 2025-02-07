@@ -13,9 +13,12 @@
 # limitations under the License.
 
 
-import numpy
+import datetime
+
+import numpy as np
 import pandas as pd
 import pandas.testing
+import pyarrow as pa
 import pytest
 
 
@@ -31,15 +34,21 @@ def test_timestamp_add__ts_series_plus_td_series(scalars_dfs, column):
     )
 
 
-def test_timestamp_add__ts_series_plus_td_literal(scalars_dfs):
+@pytest.mark.parametrize(
+    "literal",
+    [
+        pytest.param(pd.Timedelta(1, unit="s"), id="pandas"),
+        pytest.param(datetime.timedelta(seconds=1), id="python-datetime"),
+        pytest.param(np.timedelta64(1, "s"), id="numpy"),
+        pytest.param(pa.scalar(1, type=pa.duration("s")), id="pyarrow"),
+    ],
+)
+def test_timestamp_add__ts_series_plus_td_literal(scalars_dfs, literal):
     bf_df, pd_df = scalars_dfs
-    timedelta = pd.Timedelta(1, unit="s")
 
-    actual_result = bf_df["datetime_col"] + timedelta
+    actual_result = bf_df["datetime_col"] + literal
 
-    expected_result = (pd_df["datetime_col"] + timedelta).astype(
-        "timestamp[us][pyarrow]"
-    )
+    expected_result = (pd_df["datetime_col"] + literal).astype("timestamp[us][pyarrow]")
     pandas.testing.assert_series_equal(
         actual_result.to_pandas(), expected_result, check_index_type=False
     )
@@ -87,9 +96,9 @@ def test_timestamp_add__ts_literal_plus_td_series(scalars_dfs):
 def test_timestamp_add_with_numpy_op(scalars_dfs, column):
     bf_df, pd_df = scalars_dfs
 
-    actual_result = numpy.add(bf_df[column], bf_df["timedelta_col"])
+    actual_result = np.add(bf_df[column], bf_df["timedelta_col"])
 
-    expected_result = numpy.add(pd_df[column], pd_df["timedelta_col"])
+    expected_result = np.add(pd_df[column], pd_df["timedelta_col"])
     pandas.testing.assert_series_equal(
         actual_result.to_pandas(), expected_result, check_index_type=False
     )

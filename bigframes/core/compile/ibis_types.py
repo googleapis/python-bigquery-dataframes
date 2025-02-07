@@ -28,6 +28,7 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
+import numpy
 import pandas as pd
 import pyarrow as pa
 
@@ -403,13 +404,24 @@ def literal_to_ibis_scalar(
         else:
             return bigframes_vendored.ibis.null()
 
-    scalar_expr = bigframes_vendored.ibis.literal(literal)
-    if isinstance(literal, datetime.timedelta):
-        # In BigQuery, a timedelta is represented as an integer value in microseconds
-        scalar_expr = bigframes_vendored.ibis.literal(
+    if isinstance(
+        literal,
+        (datetime.timedelta, pd.Timedelta, numpy.timedelta64, pa.DurationScalar),
+    ):
+        # numpy and pyarrow timedeltas are not compatible with Ibis, so we process them separately.
+        return bigframes_vendored.ibis.literal(
             utils.timedelta_to_micros(literal), ibis_dtype
         )
-    elif ibis_dtype:
+
+    return _to_ibis_literal(literal, ibis_dtype, validate)
+
+
+def _to_ibis_literal(
+    literal: typing.Any, ibis_dtype: ibis_dtypes.DataType, validate: bool
+):
+    scalar_expr = bigframes_vendored.ibis.literal(literal)
+
+    if ibis_dtype:
         scalar_expr = bigframes_vendored.ibis.literal(literal, ibis_dtype)
     elif scalar_expr.type().is_floating():
         scalar_expr = bigframes_vendored.ibis.literal(literal, ibis_dtypes.float64)
