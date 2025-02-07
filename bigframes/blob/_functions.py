@@ -186,21 +186,21 @@ def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> s
 
     all_text_chunks = []
     curr_chunk = ""
-    chunk_start_idx = 0
     for page in reader.pages:
         page_text = page.extract_text()
         if page_text:
-            for char in page_text:
-                curr_chunk += char
-                if len(curr_chunk) >= chunk_size:
-                    all_text_chunks.append(curr_chunk)
-                    chunk_start_idx += chunk_size - overlap_size
-                    curr_chunk = page_text[
-                        chunk_start_idx : chunk_start_idx + overlap_size
-                    ]
-                    chunk_start_idx = 0
-                    if len(curr_chunk) > chunk_size:
-                        curr_chunk = curr_chunk[:chunk_size]
+            curr_chunk += page_text
+
+            while len(curr_chunk) >= chunk_size:
+                split_idx = curr_chunk.rfind(" ", 0, chunk_size)
+                if split_idx == -1:
+                    split_idx = chunk_size
+
+                actual_chunk = curr_chunk[:split_idx]
+                all_text_chunks.append(actual_chunk)
+                overlap = curr_chunk[split_idx + 1 : split_idx + 1 + overlap_size]
+                curr_chunk = overlap + curr_chunk[split_idx + 1 + overlap_size :]
+
     if curr_chunk:
         all_text_chunks.append(curr_chunk)
 

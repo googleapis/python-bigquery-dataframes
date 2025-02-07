@@ -322,7 +322,7 @@ class BlobAccessor(base.SeriesMethods):
 
         return dst
 
-    def pdf_extract(self, *, connection: Optional[str] = None) -> list:
+    def pdf_extract(self, *, connection: Optional[str] = None) -> str:
         """Extracts and chunks text from PDF URLs and saves the text as
            arrays of string.
 
@@ -351,8 +351,9 @@ class BlobAccessor(base.SeriesMethods):
 
         src_rt = self._get_runtime_json_str(mode="R")
         res = src_rt.apply(pdf_chunk_udf)
-
-        return res
+        if res is None:
+            return ""
+        return res.to_string() or ""
 
     def pdf_chunk(
         self,
