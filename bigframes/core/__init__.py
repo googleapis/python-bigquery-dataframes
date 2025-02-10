@@ -108,8 +108,8 @@ class ArrayValue:
             raise ValueError("must set at most one of 'offests', 'primary_key'")
         if any(i.field_type == "JSON" for i in table.schema if i.name in schema.names):
             msg = (
-                "Interpreting JSON column(s) as pyarrow.large_string. "
-                "This behavior may change in future versions."
+                "Interpreting JSON column(s) as the `db_dtypes.dbjson` extension type is"
+                "in preview; this behavior may change in future versions."
             )
             warnings.warn(msg, bfe.PreviewWarning)
         # define data source only for needed columns, this makes row-hashing cheaper
@@ -120,7 +120,9 @@ class ArrayValue:
         if offsets_col:
             ordering = orderings.TotalOrdering.from_offset_col(offsets_col)
         elif primary_key:
-            ordering = orderings.TotalOrdering.from_primary_key(primary_key)
+            ordering = orderings.TotalOrdering.from_primary_key(
+                [ids.ColumnId(key_part) for key_part in primary_key]
+            )
 
         # Scan all columns by default, we define this list as it can be pruned while preserving source_def
         scan_list = nodes.ScanList(
@@ -302,18 +304,25 @@ class ArrayValue:
         if destination_id in self.column_ids:  # Mutate case
             exprs = [
                 (
-                    ex.deref(source_id if (col_id == destination_id) else col_id),
-                    ids.ColumnId(col_id),
+                    bigframes.core.nodes.AliasedRef(
+                        ex.deref(source_id if (col_id == destination_id) else col_id),
+                        ids.ColumnId(col_id),
+                    )
                 )
                 for col_id in self.column_ids
             ]
         else:  # append case
             self_projection = (
-                (ex.deref(col_id), ids.ColumnId(col_id)) for col_id in self.column_ids
+                bigframes.core.nodes.AliasedRef.identity(ids.ColumnId(col_id))
+                for col_id in self.column_ids
             )
             exprs = [
                 *self_projection,
-                (ex.deref(source_id), ids.ColumnId(destination_id)),
+                (
+                    bigframes.core.nodes.AliasedRef(
+                        ex.deref(source_id), ids.ColumnId(destination_id)
+                    )
+                ),
             ]
         return ArrayValue(
             nodes.SelectionNode(
@@ -335,7 +344,10 @@ class ArrayValue:
 
     def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
         # This basically just drops and reorders columns - logically a no-op except as a final step
-        selections = ((ex.deref(col_id), ids.ColumnId(col_id)) for col_id in column_ids)
+        selections = (
+            bigframes.core.nodes.AliasedRef.identity(ids.ColumnId(col_id))
+            for col_id in column_ids
+        )
         return ArrayValue(
             nodes.SelectionNode(
                 child=self.node,
@@ -405,8 +417,7 @@ class ArrayValue:
             ArrayValue(
                 nodes.WindowOpNode(
                     child=self.node,
-                    column_name=ex.deref(column_name),
-                    op=op,
+                    expression=ex.UnaryAggregation(op, ex.deref(column_name)),
                     window_spec=window_spec,
                     output_name=ids.ColumnId(output_name),
                     never_skip_nulls=never_skip_nulls,
@@ -415,6 +426,18 @@ class ArrayValue:
             ),
             output_name,
         )
+
+    def isin(
+        self, other: ArrayValue, lcol: str, rcol: str
+    ) -> typing.Tuple[ArrayValue, str]:
+        node = nodes.InNode(
+            self.node,
+            other.node,
+            ex.deref(lcol),
+            ex.deref(rcol),
+            indicator_col=ids.ColumnId.unique(),
+        )
+        return ArrayValue(node), node.indicator_col.name
 
     def relational_join(
         self,
@@ -475,7 +498,9 @@ class ArrayValue:
                 nodes.SelectionNode(
                     other.node,
                     tuple(
-                        (ex.deref(old_id), ids.ColumnId(new_id))
+                        bigframes.core.nodes.AliasedRef(
+                            ex.deref(old_id), ids.ColumnId(new_id)
+                        )
                         for old_id, new_id in r_mapping.items()
                     ),
                 ),

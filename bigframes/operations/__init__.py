@@ -49,6 +49,7 @@ from bigframes.operations.datetime_ops import (
     date_op,
     StrftimeOp,
     time_op,
+    timestamp_diff_op,
     ToDatetimeOp,
     ToTimestampOp,
     UnixMicros,
@@ -84,7 +85,12 @@ from bigframes.operations.generic_ops import (
     SqlScalarOp,
     where_op,
 )
-from bigframes.operations.geo_ops import geo_x_op, geo_y_op
+from bigframes.operations.geo_ops import (
+    geo_area_op,
+    geo_st_geogpoint_op,
+    geo_x_op,
+    geo_y_op,
+)
 from bigframes.operations.json_ops import (
     JSONExtract,
     JSONExtractArray,
@@ -125,6 +131,7 @@ from bigframes.operations.numeric_ops import (
     sinh_op,
     sqrt_op,
     sub_op,
+    SubOp,
     tan_op,
     tanh_op,
     unsafe_pow_op,
@@ -170,6 +177,7 @@ from bigframes.operations.string_ops import (
 )
 from bigframes.operations.struct_ops import StructFieldOp, StructOp
 from bigframes.operations.time_ops import hour_op, minute_op, normalize_op, second_op
+from bigframes.operations.timedelta_ops import ToTimedeltaOp
 
 __all__ = [
     # Base ops
@@ -240,9 +248,12 @@ __all__ = [
     "minute_op",
     "second_op",
     "normalize_op",
+    # Timedelta ops
+    "ToTimedeltaOp",
     # Datetime ops
     "date_op",
     "time_op",
+    "timestamp_diff_op",
     "ToDatetimeOp",
     "ToTimestampOp",
     "StrftimeOp",
@@ -280,6 +291,7 @@ __all__ = [
     "sinh_op",
     "sqrt_op",
     "sub_op",
+    "SubOp",
     "tan_op",
     "tanh_op",
     "unsafe_pow_op",
@@ -329,6 +341,8 @@ __all__ = [
     # Geo ops
     "geo_x_op",
     "geo_y_op",
+    "geo_area_op",
+    "geo_st_geogpoint_op",
     # Numpy ops mapping
     "NUMPY_TO_BINOP",
     "NUMPY_TO_OP",

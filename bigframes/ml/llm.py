@@ -16,17 +16,19 @@
 
 from __future__ import annotations
 
-from typing import Callable, cast, Literal, Mapping, Optional
+from typing import Callable, cast, Iterable, Literal, Mapping, Optional, Union
 import warnings
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
 import typing_extensions
 
-from bigframes import clients, exceptions
+from bigframes import clients, dtypes, exceptions
+import bigframes.bigquery as bbq
 from bigframes.core import blocks, global_session, log_adapter
 import bigframes.dataframe
 from bigframes.ml import base, core, globals, utils
+import bigframes.series
 
 _BQML_PARAMS_MAPPING = {
     "max_iterations": "maxIterations",
@@ -55,6 +57,8 @@ _TEXT_EMBEDDING_ENDPOINTS = (
     _TEXT_MULTILINGUAL_EMBEDDING_002_ENDPOINT,
 )
 
+_MULTIMODAL_EMBEDDING_001_ENDPOINT = "multimodalembedding@001"
+
 _GEMINI_PRO_ENDPOINT = "gemini-pro"
 _GEMINI_1P5_PRO_PREVIEW_ENDPOINT = "gemini-1.5-pro-preview-0514"
 _GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT = "gemini-1.5-flash-preview-0514"
@@ -82,6 +86,13 @@ _GEMINI_FINE_TUNE_SCORE_ENDPOINTS = (
     _GEMINI_PRO_ENDPOINT,
     _GEMINI_1P5_PRO_002_ENDPOINT,
     _GEMINI_1P5_FLASH_002_ENDPOINT,
+)
+_GEMINI_MULTIMODAL_ENDPOINTS = (
+    _GEMINI_1P5_PRO_001_ENDPOINT,
+    _GEMINI_1P5_PRO_002_ENDPOINT,
+    _GEMINI_1P5_FLASH_001_ENDPOINT,
+    _GEMINI_1P5_FLASH_002_ENDPOINT,
+    _GEMINI_2_FLASH_EXP_ENDPOINT,
 )
 
 _CLAUDE_3_SONNET_ENDPOINT = "claude-3-sonnet"
@@ -643,37 +654,16 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
     ):
         self.model_name = model_name
         self.session = session or global_session.get_global_session()
-        self._bq_connection_manager = self.session.bqconnectionmanager
-
-        connection_name = connection_name or self.session._bq_connection
-        self.connection_name = clients.resolve_full_bq_connection_name(
-            connection_name,
-            default_project=self.session._project,
-            default_location=self.session._location,
-        )
+        self.connection_name = connection_name
 
         self._bqml_model_factory = globals.bqml_model_factory()
         self._bqml_model: core.BqmlModel = self._create_bqml_model()
 
     def _create_bqml_model(self):
         # Parse and create connection if needed.
-        if not self.connection_name:
-            raise ValueError(
-                "Must provide connection_name, either in constructor or through session options."
-            )
-
-        if self._bq_connection_manager:
-            connection_name_parts = self.connection_name.split(".")
-            if len(connection_name_parts) != 3:
-                raise ValueError(
-                    f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
-                )
-            self._bq_connection_manager.create_bq_connection(
-                project_id=connection_name_parts[0],
-                location=connection_name_parts[1],
-                connection_id=connection_name_parts[2],
-                iam_role="aiplatform.user",
-            )
+        self.connection_name = self.session._create_bq_connection(
+            connection=self.connection_name, iam_role="aiplatform.user"
+        )
 
         if self.model_name not in _TEXT_EMBEDDING_ENDPOINTS:
             msg = _MODEL_NOT_SUPPORTED_WARNING.format(
@@ -775,6 +765,152 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
 
 
 @log_adapter.class_logger
+class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
+    """Multimodal embedding generator LLM model.
+
+    .. note::
+        BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+    Args:
+        model_name (str, Default to "multimodalembedding@001"):
+            The model for multimodal embedding. Can set to "multimodalembedding@001". Multimodal-embedding models returns model embeddings for text, image and video inputs.
+            Default to "multimodalembedding@001".
+        session (bigframes.Session or None):
+            BQ session to create the model. If None, use the global default session.
+        connection_name (str or None):
+            Connection to connect with remote service. str of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
+            If None, use default connection in session context.
+    """
+
+    def __init__(
+        self,
+        *,
+        model_name: Literal["multimodalembedding@001"] = "multimodalembedding@001",
+        session: Optional[bigframes.Session] = None,
+        connection_name: Optional[str] = None,
+    ):
+        if not bigframes.options.experiments.blob:
+            raise NotImplementedError()
+        self.model_name = model_name
+        self.session = session or global_session.get_global_session()
+        self.connection_name = connection_name
+
+        self._bqml_model_factory = globals.bqml_model_factory()
+        self._bqml_model: core.BqmlModel = self._create_bqml_model()
+
+    def _create_bqml_model(self):
+        # Parse and create connection if needed.
+        self.connection_name = self.session._create_bq_connection(
+            connection=self.connection_name, iam_role="aiplatform.user"
+        )
+
+        if self.model_name != _MULTIMODAL_EMBEDDING_001_ENDPOINT:
+            msg = _MODEL_NOT_SUPPORTED_WARNING.format(
+                model_name=self.model_name,
+                known_models=_MULTIMODAL_EMBEDDING_001_ENDPOINT,
+            )
+            warnings.warn(msg)
+
+        options = {
+            "endpoint": self.model_name,
+        }
+        return self._bqml_model_factory.create_remote_model(
+            session=self.session, connection_name=self.connection_name, options=options
+        )
+
+    @classmethod
+    def _from_bq(
+        cls, session: bigframes.Session, bq_model: bigquery.Model
+    ) -> MultimodalEmbeddingGenerator:
+        assert bq_model.model_type == "MODEL_TYPE_UNSPECIFIED"
+        assert "remoteModelInfo" in bq_model._properties
+        assert "endpoint" in bq_model._properties["remoteModelInfo"]
+        assert "connection" in bq_model._properties["remoteModelInfo"]
+
+        # Parse the remote model endpoint
+        bqml_endpoint = bq_model._properties["remoteModelInfo"]["endpoint"]
+        model_connection = bq_model._properties["remoteModelInfo"]["connection"]
+        model_endpoint = bqml_endpoint.split("/")[-1]
+
+        model = cls(
+            session=session,
+            model_name=model_endpoint,  # type: ignore
+            connection_name=model_connection,
+        )
+
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
+
+    @property
+    def _predict_func(
+        self,
+    ) -> Callable[
+        [bigframes.dataframe.DataFrame, Mapping], bigframes.dataframe.DataFrame
+    ]:
+        return self._bqml_model.generate_embedding
+
+    @property
+    def _status_col(self) -> str:
+        return _ML_GENERATE_EMBEDDING_STATUS
+
+    def predict(
+        self, X: utils.ArrayType, *, max_retries: int = 0
+    ) -> bigframes.dataframe.DataFrame:
+        """Predict the result from input DataFrame.
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
+                Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, it must contain a "content" column for prediction.
+                The content column must be of string type or BigFrames Blob of image or video.
+
+            max_retries (int, default 0):
+                Max number of retries if the prediction for any rows failed. Each try needs to make progress (i.e. has successfully predicted rows) to continue the retry.
+                Each retry will append newly succeeded rows. When the max retries are reached, the remaining rows (the ones without successful predictions) will be appended to the end of the result.
+
+        Returns:
+            bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
+        """
+        if max_retries < 0:
+            raise ValueError(
+                f"max_retries must be larger than or equal to 0, but is {max_retries}."
+            )
+
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
+
+        if len(X.columns) == 1:
+            # BQML identified the column by name
+            col_label = cast(blocks.Label, X.columns[0])
+            X = X.rename(columns={col_label: "content"})
+
+        # TODO(garrettwu): remove transform to ObjRefRuntime when BQML supports ObjRef as input
+        if X["content"].dtype == dtypes.OBJ_REF_DTYPE:
+            X["content"] = X["content"].blob._get_runtime("R", with_metadata=True)
+
+        options = {
+            "flatten_json_output": True,
+        }
+
+        return self._predict_and_retry(X, options=options, max_retries=max_retries)
+
+    def to_gbq(
+        self, model_name: str, replace: bool = False
+    ) -> MultimodalEmbeddingGenerator:
+        """Save the model to BigQuery.
+
+        Args:
+            model_name (str):
+                The name of the model.
+            replace (bool, default False):
+                Determine whether to replace if the model already exists. Default to False.
+
+        Returns:
+            MultimodalEmbeddingGenerator: Saved model."""
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)
+
+
+@log_adapter.class_logger
 class GeminiTextGenerator(base.RetriableRemotePredictor):
     """Gemini text generator LLM model.
 
@@ -828,37 +964,16 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         self.model_name = model_name
         self.session = session or global_session.get_global_session()
         self.max_iterations = max_iterations
-        self._bq_connection_manager = self.session.bqconnectionmanager
-
-        connection_name = connection_name or self.session._bq_connection
-        self.connection_name = clients.resolve_full_bq_connection_name(
-            connection_name,
-            default_project=self.session._project,
-            default_location=self.session._location,
-        )
+        self.connection_name = connection_name
 
         self._bqml_model_factory = globals.bqml_model_factory()
         self._bqml_model: core.BqmlModel = self._create_bqml_model()
 
     def _create_bqml_model(self):
         # Parse and create connection if needed.
-        if not self.connection_name:
-            raise ValueError(
-                "Must provide connection_name, either in constructor or through session options."
-            )
-
-        if self._bq_connection_manager:
-            connection_name_parts = self.connection_name.split(".")
-            if len(connection_name_parts) != 3:
-                raise ValueError(
-                    f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
-                )
-            self._bq_connection_manager.create_bq_connection(
-                project_id=connection_name_parts[0],
-                location=connection_name_parts[1],
-                connection_id=connection_name_parts[2],
-                iam_role="aiplatform.user",
-            )
+        self.connection_name = self.session._create_bq_connection(
+            connection=self.connection_name, iam_role="aiplatform.user"
+        )
 
         if self.model_name not in _GEMINI_ENDPOINTS:
             msg = _MODEL_NOT_SUPPORTED_WARNING.format(
@@ -953,10 +1068,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         options["prompt_col"] = X.columns.tolist()[0]
 
         self._bqml_model = self._bqml_model_factory.create_llm_remote_model(
-            X,
-            y,
-            options=options,
-            connection_name=self.connection_name,
+            X, y, options=options, connection_name=cast(str, self.connection_name)
         )
         return self
 
@@ -970,12 +1082,13 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         top_p: float = 1.0,
         ground_with_google_search: bool = False,
         max_retries: int = 0,
+        prompt: Optional[Iterable[Union[str, bigframes.series.Series]]] = None,
     ) -> bigframes.dataframe.DataFrame:
         """Predict the result from input DataFrame.
 
         Args:
             X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
-                Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, it must contain a "prompt" column for prediction.
+                Input DataFrame or Series, can contain one or more columns. If multiple columns are in the DataFrame, the "prompt" column, or created by "prompt" parameter, is used for prediction.
                 Prompts can include preamble, questions, suggestions, instructions, or examples.
 
             temperature (float, default 0.9):
@@ -1011,6 +1124,14 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
             max_retries (int, default 0):
                 Max number of retries if the prediction for any rows failed. Each try needs to make progress (i.e. has successfully predicted rows) to continue the retry.
                 Each retry will append newly succeeded rows. When the max retries are reached, the remaining rows (the ones without successful predictions) will be appended to the end of the result.
+
+            prompt (Iterable of str or bigframes.series.Series, or None, default None):
+                .. note::
+                    BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+                Construct a prompt struct column for prediction based on the input. The input must be an Iterable that can take string literals,
+                such as "summarize", string column(s) of X, such as X["str_col"], or blob column(s) of X, such as X["blob_col"].
+                It creates a struct column of the items of the iterable, and use the concatenated result as the input prompt. No-op if set to None.
         Returns:
             bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
         """
@@ -1035,7 +1156,38 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
                 f"max_retries must be larger than or equal to 0, but is {max_retries}."
             )
 
-        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
+        session = self._bqml_model.session
+        (X,) = utils.batch_convert_to_dataframe(X, session=session)
+
+        if prompt:
+            if not bigframes.options.experiments.blob:
+                raise NotImplementedError()
+
+            if self.model_name not in _GEMINI_MULTIMODAL_ENDPOINTS:
+                raise NotImplementedError(
+                    f"GeminiTextGenerator only supports model_name {', '.join(_GEMINI_MULTIMODAL_ENDPOINTS)} for Multimodal prompt."
+                )
+
+            df_prompt = X[[X.columns[0]]].rename(
+                columns={X.columns[0]: "bigframes_placeholder_col"}
+            )
+            for i, item in enumerate(prompt):
+                # must be distinct str column labels to construct a struct
+                if isinstance(item, str):
+                    label = f"input_{i}"
+                else:  # Series
+                    label = f"input_{i}_{item.name}"
+
+                # TODO(garrettwu): remove transform to ObjRefRuntime when BQML supports ObjRef as input
+                if (
+                    isinstance(item, bigframes.series.Series)
+                    and item.dtype == dtypes.OBJ_REF_DTYPE
+                ):
+                    item = item.blob._get_runtime("R", with_metadata=True)
+
+                df_prompt[label] = item
+            df_prompt = df_prompt.drop(columns="bigframes_placeholder_col")
+            X["prompt"] = bbq.struct(df_prompt)
 
         if len(X.columns) == 1:
             # BQML identified the column by name
@@ -1179,37 +1331,16 @@ class Claude3TextGenerator(base.RetriableRemotePredictor):
     ):
         self.model_name = model_name
         self.session = session or global_session.get_global_session()
-        self._bq_connection_manager = self.session.bqconnectionmanager
-
-        connection_name = connection_name or self.session._bq_connection
-        self.connection_name = clients.resolve_full_bq_connection_name(
-            connection_name,
-            default_project=self.session._project,
-            default_location=self.session._location,
-        )
+        self.connection_name = connection_name
 
         self._bqml_model_factory = globals.bqml_model_factory()
         self._bqml_model: core.BqmlModel = self._create_bqml_model()
 
     def _create_bqml_model(self):
         # Parse and create connection if needed.
-        if not self.connection_name:
-            raise ValueError(
-                "Must provide connection_name, either in constructor or through session options."
-            )
-
-        if self._bq_connection_manager:
-            connection_name_parts = self.connection_name.split(".")
-            if len(connection_name_parts) != 3:
-                raise ValueError(
-                    f"connection_name must be of the format <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>, got {self.connection_name}."
-                )
-            self._bq_connection_manager.create_bq_connection(
-                project_id=connection_name_parts[0],
-                location=connection_name_parts[1],
-                connection_id=connection_name_parts[2],
-                iam_role="aiplatform.user",
-            )
+        self.connection_name = self.session._create_bq_connection(
+            connection=self.connection_name, iam_role="aiplatform.user"
+        )
 
         if self.model_name not in _CLAUDE_3_ENDPOINTS:
             msg = _MODEL_NOT_SUPPORTED_WARNING.format(

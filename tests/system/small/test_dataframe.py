@@ -44,8 +44,15 @@ from tests.system.utils import (
 def test_df_construct_copy(scalars_dfs):
     columns = ["int64_col", "string_col", "float64_col"]
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = dataframe.DataFrame(scalars_df, columns=columns).to_pandas()
-    pd_result = pd.DataFrame(scalars_pandas_df, columns=columns)
+    # Make the mapping from label to col_id non-trivial
+    bf_df = scalars_df.copy()
+    bf_df["int64_col"] = bf_df["int64_col"] / 2
+    pd_df = scalars_pandas_df.copy()
+    pd_df["int64_col"] = pd_df["int64_col"] / 2
+
+    bf_result = dataframe.DataFrame(bf_df, columns=columns).to_pandas()
+
+    pd_result = pd.DataFrame(pd_df, columns=columns)
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
@@ -164,6 +171,19 @@ def test_df_construct_inline_respects_location():
         table = bpd.get_global_session().bqclient.get_table(df.query_job.destination)
 
         assert table.location == "europe-west1"
+
+
+def test_df_construct_dtype():
+    data = {
+        "int_col": [1, 2, 3],
+        "string_col": ["1.1", "2.0", "3.5"],
+        "float_col": [1.0, 2.0, 3.0],
+    }
+    dtype = pd.StringDtype(storage="pyarrow")
+    bf_result = dataframe.DataFrame(data, dtype=dtype)
+    pd_result = pd.DataFrame(data, dtype=dtype)
+    pd_result.index = pd_result.index.astype("Int64")
+    pandas.testing.assert_frame_equal(bf_result.to_pandas(), pd_result)
 
 
 def test_get_column(scalars_dfs):
@@ -328,6 +348,17 @@ def test_where_series_cond(scalars_df_index, scalars_pandas_df_index):
     cond_pd = scalars_pandas_df_index["int64_col"] > 0
     bf_result = scalars_df_index.where(cond_bf).to_pandas()
     pd_result = scalars_pandas_df_index.where(cond_pd)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_mask_series_cond(scalars_df_index, scalars_pandas_df_index):
+    cond_bf = scalars_df_index["int64_col"] > 0
+    cond_pd = scalars_pandas_df_index["int64_col"] > 0
+
+    bf_df = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
+    pd_df = scalars_pandas_df_index[["int64_too", "int64_col", "float64_col"]]
+    bf_result = bf_df.mask(cond_bf, bf_df + 1).to_pandas()
+    pd_result = pd_df.mask(cond_pd, pd_df + 1)
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
@@ -2231,6 +2262,72 @@ def test_cov_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
     # - Column types: BigFrames uses Float64, Pandas uses float64.
     # - Index types: BigFrames uses strign, Pandas uses object.
     pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_corrwith_df(scalars_dfs_maybe_ordered):
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+
+    l_cols = ["int64_col", "float64_col", "int64_too"]
+    r_cols = ["int64_too", "float64_col"]
+
+    bf_result = scalars_df[l_cols].corrwith(scalars_df[r_cols]).to_pandas()
+    pd_result = scalars_pandas_df[l_cols].corrwith(scalars_pandas_df[r_cols])
+
+    # BigFrames and Pandas differ in their data type handling:
+    # - Column types: BigFrames uses Float64, Pandas uses float64.
+    # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_corrwith_df_numeric_only(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    l_cols = ["int64_col", "float64_col", "int64_too", "string_col"]
+    r_cols = ["int64_too", "float64_col", "bool_col"]
+
+    bf_result = (
+        scalars_df[l_cols].corrwith(scalars_df[r_cols], numeric_only=True).to_pandas()
+    )
+    pd_result = scalars_pandas_df[l_cols].corrwith(
+        scalars_pandas_df[r_cols], numeric_only=True
+    )
+
+    # BigFrames and Pandas differ in their data type handling:
+    # - Column types: BigFrames uses Float64, Pandas uses float64.
+    # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_series_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_corrwith_df_non_numeric_error(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+
+    l_cols = ["int64_col", "float64_col", "int64_too", "string_col"]
+    r_cols = ["int64_too", "float64_col", "bool_col"]
+
+    with pytest.raises(NotImplementedError):
+        scalars_df[l_cols].corrwith(scalars_df[r_cols], numeric_only=False)
+
+
+@skip_legacy_pandas
+def test_df_corrwith_series(scalars_dfs_maybe_ordered):
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+
+    l_cols = ["int64_col", "float64_col", "int64_too"]
+    r_col = "float64_col"
+
+    bf_result = scalars_df[l_cols].corrwith(scalars_df[r_col]).to_pandas()
+    pd_result = scalars_pandas_df[l_cols].corrwith(scalars_pandas_df[r_col])
+
+    # BigFrames and Pandas differ in their data type handling:
+    # - Column types: BigFrames uses Float64, Pandas uses float64.
+    # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_series_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
 
@@ -5238,7 +5335,7 @@ def test__resample_start_time(rule, origin, data):
         ),
     ],
 )
-def test_astype(scalars_dfs, dtype):
+def test_df_astype(scalars_dfs, dtype):
     bf_df, pd_df = scalars_dfs
     target_cols = ["bool_col", "int64_col"]
     bf_df = bf_df[target_cols]
@@ -5246,6 +5343,20 @@ def test_astype(scalars_dfs, dtype):
 
     bf_result = bf_df.astype(dtype).to_pandas()
     pd_result = pd_df.astype(dtype)
+
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
+
+
+def test_df_astype_python_types(scalars_dfs):
+    bf_df, pd_df = scalars_dfs
+    target_cols = ["bool_col", "int64_col"]
+    bf_df = bf_df[target_cols]
+    pd_df = pd_df[target_cols]
+
+    bf_result = bf_df.astype({"bool_col": str, "int64_col": float}).to_pandas()
+    pd_result = pd_df.astype(
+        {"bool_col": "string[pyarrow]", "int64_col": pd.Float64Dtype()}
+    )
 
     pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
 

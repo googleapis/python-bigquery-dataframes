@@ -18,7 +18,9 @@ import abc
 import dataclasses
 import itertools
 import typing
-from typing import Mapping, TypeVar, Union
+from typing import Generator, Mapping, TypeVar, Union
+
+import pandas as pd
 
 import bigframes.core.identifiers as ids
 import bigframes.dtypes as dtypes
@@ -154,6 +156,16 @@ class Expression(abc.ABC):
         return ()
 
     @property
+    def children(self) -> typing.Tuple[Expression, ...]:
+        return ()
+
+    @property
+    def expensive(self) -> bool:
+        return any(
+            isinstance(ex, OpExpression) and ex.op.expensive for ex in self.walk()
+        )
+
+    @property
     @abc.abstractmethod
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
         ...
@@ -214,6 +226,11 @@ class Expression(abc.ABC):
         """True for identity operation that does not transform input."""
         return False
 
+    def walk(self) -> Generator[Expression, None, None]:
+        yield self
+        for child in self.children:
+            yield from child.children
+
 
 @dataclasses.dataclass(frozen=True)
 class ScalarConstantExpression(Expression):
@@ -252,6 +269,17 @@ class ScalarConstantExpression(Expression):
     def is_bijective(self) -> bool:
         # () <-> value
         return True
+
+    def __eq__(self, other):
+        if not isinstance(other, ScalarConstantExpression):
+            return False
+
+        # With python 3.13 and the pre-release version of pandas,
+        # NA == NA is NA instead of True
+        if pd.isna(self.value) and pd.isna(other.value):  # type: ignore
+            return self.dtype == other.dtype
+
+        return self.value == other.value and self.dtype == other.dtype
 
 
 @dataclasses.dataclass(frozen=True)
@@ -376,6 +404,10 @@ class OpExpression(Expression):
     def is_const(self) -> bool:
         return all(child.is_const for child in self.inputs)
 
+    @property
+    def children(self):
+        return self.inputs
+
     def output_type(
         self, input_types: dict[ids.ColumnId, dtypes.ExpressionType]
     ) -> dtypes.ExpressionType:
@@ -420,3 +452,6 @@ class OpExpression(Expression):
         return (
             all(input.deterministic for input in self.inputs) and self.op.deterministic
         )
+
+
+RefOrConstant = Union[DerefOp, ScalarConstantExpression]
