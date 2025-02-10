@@ -167,13 +167,6 @@ def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> s
     from pypdf import PdfReader  # type: ignore
     import requests
 
-    if overlap_size >= chunk_size:
-        raise ValueError("overlap_size must be smaller than chunk_size.")
-    if chunk_size <= 0:
-        raise ValueError("chunk_size must be positive.")
-    if overlap_size <= 0:
-        raise ValueError("overlap_size must be positive.")
-
     src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
     src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
 
@@ -184,23 +177,23 @@ def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> s
     pdf_file = io.BytesIO(pdf_bytes)
     reader = PdfReader(pdf_file, strict=False)
 
+    # extract and chunk text simultaneously
     all_text_chunks = []
     curr_chunk = ""
     for page in reader.pages:
         page_text = page.extract_text()
         if page_text:
             curr_chunk += page_text
-
+            # split the accumulated text into chunks of a specific size with overlaop
+            # this loop implements a sliding window approach to create chunks
             while len(curr_chunk) >= chunk_size:
                 split_idx = curr_chunk.rfind(" ", 0, chunk_size)
                 if split_idx == -1:
                     split_idx = chunk_size
-
                 actual_chunk = curr_chunk[:split_idx]
                 all_text_chunks.append(actual_chunk)
                 overlap = curr_chunk[split_idx + 1 : split_idx + 1 + overlap_size]
                 curr_chunk = overlap + curr_chunk[split_idx + 1 + overlap_size :]
-
     if curr_chunk:
         all_text_chunks.append(curr_chunk)
 

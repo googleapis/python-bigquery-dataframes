@@ -322,7 +322,9 @@ class BlobAccessor(base.SeriesMethods):
 
         return dst
 
-    def pdf_extract(self, *, connection: Optional[str] = None) -> str:
+    def pdf_extract(
+        self, *, connection: Optional[str] = None
+    ) -> bigframes.series.Series:
         """Extracts and chunks text from PDF URLs and saves the text as
            arrays of string.
 
@@ -336,7 +338,7 @@ class BlobAccessor(base.SeriesMethods):
                 is str. If None, uses default connection of the session.
 
         Returns:
-            str: conatins all text from a pdf file
+            bigframes.series.Series: conatins all text from a pdf file
         """
 
         import bigframes.blob._functions as blob_func
@@ -351,9 +353,7 @@ class BlobAccessor(base.SeriesMethods):
 
         src_rt = self._get_runtime_json_str(mode="R")
         res = src_rt.apply(pdf_chunk_udf)
-        if res is None:
-            return ""
-        return res.to_string() or ""
+        return res
 
     def pdf_chunk(
         self,
@@ -361,7 +361,7 @@ class BlobAccessor(base.SeriesMethods):
         connection: Optional[str] = None,
         chunk_size: int = 1000,
         overlap_size: int = 200,
-    ) -> list:
+    ) -> bigframes.series.Series:
         """Extracts and chunks text from PDF URLs and saves the text as
            arrays of strings.
 
@@ -380,15 +380,21 @@ class BlobAccessor(base.SeriesMethods):
                 perserved across chunk boundaries.
 
         Returns:
-            list: A list of strings, where each string is a chunk of text extracted
-                from the PDFs.
+            bigframe.series.Series of array[str], where each string is a
+                chunk of text extracted from PDF.
         """
 
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
-        import bigframes.pandas as bpd
 
         connection = self._resolve_connection(connection)
+
+        if chunk_size <= 0:
+            raise ValueError("chunk_size must be a positive integer.")
+        if overlap_size < 0:
+            raise ValueError("overlap_size must be a non-negative integer.")
+        if overlap_size >= chunk_size:
+            raise ValueError("overlap_size must be smaller than chunk_size.")
 
         pdf_chunk_udf = blob_func.TransformFunction(
             blob_func.pdf_chunk_def,
@@ -402,8 +408,6 @@ class BlobAccessor(base.SeriesMethods):
         df["overlap_size"] = overlap_size
 
         res = df.apply(pdf_chunk_udf, axis=1)
-        res.cache()  # to execute the udf
 
-        res_bf = bpd.Series(res)
-        res_list = bbq.json_extract_string_array(res_bf).tolist()
-        return res_list
+        res_array = bbq.json_extract_string_array(res)
+        return res_array
