@@ -16,7 +16,7 @@ from __future__ import annotations
 import functools
 import itertools
 import typing
-from typing import Optional, Sequence
+from typing import Literal, Optional, Sequence, Tuple
 
 import bigframes_vendored.ibis
 import bigframes_vendored.ibis.backends.bigquery.backend as ibis_bigquery
@@ -323,7 +323,97 @@ class UnorderedIR:
             columns=columns,
         )
 
-    ## Methods that only work with ordering
+    def join(
+        self: UnorderedIR,
+        right: UnorderedIR,
+        conditions: Tuple[Tuple[str, str], ...],
+        type: Literal["inner", "outer", "left", "right", "cross"],
+        *,
+        join_nulls: bool = True,
+    ) -> UnorderedIR:
+        """Join two expressions by column equality.
+
+        Arguments:
+            left: Expression for left table to join.
+            left_column_ids: Column IDs (not label) to join by.
+            right: Expression for right table to join.
+            right_column_ids: Column IDs (not label) to join by.
+            how: The type of join to perform.
+            join_nulls (bool):
+                If True, will joins NULL keys to each other.
+        Returns:
+            The joined expression. The resulting columns will be, in order,
+            first the coalesced join keys, then, all the left columns, and
+            finally, all the right columns.
+        """
+        # Shouldn't need to select the column ids explicitly, but it seems that ibis has some
+        # bug resolving column ids otherwise, potentially because of the "JoinChain" op
+        left_table = self._to_ibis_expr().select(self.column_ids)
+        right_table = right._to_ibis_expr().select(right.column_ids)
+
+        keyfunc = value_to_join_key if join_nulls else _as_identity
+        join_conditions = [
+            keyfunc(left_table[left_index]) == keyfunc(right_table[right_index])
+            for left_index, right_index in conditions
+        ]
+
+        combined_table = bigframes_vendored.ibis.join(
+            left_table,
+            right_table,
+            predicates=join_conditions,
+            how=type,  # type: ignore
+        )
+        combined_table = bigframes_vendored.ibis.join(
+            left_table,
+            right_table,
+            predicates=join_conditions,
+            how=type,  # type: ignore
+        )
+        columns = [combined_table[col.get_name()] for col in self.columns] + [
+            combined_table[col.get_name()] for col in right.columns
+        ]
+        return UnorderedIR(
+            combined_table,
+            columns=columns,
+        )
+
+    def isin_join(
+        self: UnorderedIR,
+        right: UnorderedIR,
+        indicator_col: str,
+        conditions: Tuple[str, str],
+        *,
+        join_nulls: bool = True,
+    ) -> UnorderedIR:
+        """Join two expressions by column equality.
+
+        Arguments:
+            left: Expression for left table to join.
+            right: Expression for right table to join.
+            conditions: Id pairs to compare
+        Returns:
+            The joined expression.
+        """
+        left_table = self._to_ibis_expr()
+        right_table = right._to_ibis_expr()
+        keyfunc = value_to_join_key if join_nulls else _as_identity
+        new_column = (
+            keyfunc(left_table[conditions[0]])
+            .isin(keyfunc(right_table[conditions[1]]))
+            .name(indicator_col)
+        )
+
+        columns = tuple(
+            itertools.chain(
+                (left_table[col.get_name()] for col in self.columns), (new_column,)
+            )
+        )
+
+        return UnorderedIR(
+            left_table,
+            columns=columns,
+        )
+
     def project_window_op(
         self,
         expression: ex.Aggregation,
@@ -519,3 +609,15 @@ def _as_identity(value: ibis_types.Value):
     if value.type().is_float64() or value.type().is_geospatial():
         return value.cast(ibis_dtypes.str)
     return value
+
+
+def value_to_join_key(value: ibis_types.Value):
+    """Converts nullable values to non-null string SQL will not match null keys together - but pandas does."""
+    if not value.type().is_string():
+        value = value.cast(ibis_dtypes.str)
+
+    return (
+        value.fill_null(ibis_types.literal("$NULL_SENTINEL$"))
+        if hasattr(value, "fill_null")
+        else value.fillna(ibis_types.literal("$NULL_SENTINEL$"))
+    )
