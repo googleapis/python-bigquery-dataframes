@@ -44,8 +44,15 @@ from tests.system.utils import (
 def test_df_construct_copy(scalars_dfs):
     columns = ["int64_col", "string_col", "float64_col"]
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = dataframe.DataFrame(scalars_df, columns=columns).to_pandas()
-    pd_result = pd.DataFrame(scalars_pandas_df, columns=columns)
+    # Make the mapping from label to col_id non-trivial
+    bf_df = scalars_df.copy()
+    bf_df["int64_col"] = bf_df["int64_col"] / 2
+    pd_df = scalars_pandas_df.copy()
+    pd_df["int64_col"] = pd_df["int64_col"] / 2
+
+    bf_result = dataframe.DataFrame(bf_df, columns=columns).to_pandas()
+
+    pd_result = pd.DataFrame(pd_df, columns=columns)
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
@@ -164,6 +171,19 @@ def test_df_construct_inline_respects_location():
         table = bpd.get_global_session().bqclient.get_table(df.query_job.destination)
 
         assert table.location == "europe-west1"
+
+
+def test_df_construct_dtype():
+    data = {
+        "int_col": [1, 2, 3],
+        "string_col": ["1.1", "2.0", "3.5"],
+        "float_col": [1.0, 2.0, 3.0],
+    }
+    dtype = pd.StringDtype(storage="pyarrow")
+    bf_result = dataframe.DataFrame(data, dtype=dtype)
+    pd_result = pd.DataFrame(data, dtype=dtype)
+    pd_result.index = pd_result.index.astype("Int64")
+    pandas.testing.assert_frame_equal(bf_result.to_pandas(), pd_result)
 
 
 def test_get_column(scalars_dfs):

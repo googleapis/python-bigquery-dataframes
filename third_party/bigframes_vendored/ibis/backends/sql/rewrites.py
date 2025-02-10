@@ -245,6 +245,8 @@ def merge_select_select(_, **kwargs):
         ops.InSubquery,
         ops.Unnest,
         ops.Impure,
+        # This is used for remote functions, which we don't want to copy
+        ops.ScalarUDF,
     )
     if _.find_below(blocking, filter=ops.Value):
         return _
@@ -357,7 +359,7 @@ def sqlize(
         return CTE(new) if node in ctes else new
 
     result = simplified.replace(wrap)
-    ctes = reversed([cte.parent for cte in result.find(CTE)])
+    ctes = [cte.parent for cte in result.find(CTE, ordered=True)]
 
     return result, ctes
 

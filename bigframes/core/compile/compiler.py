@@ -24,6 +24,7 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import google.cloud.bigquery
 import pandas as pd
 
+from bigframes.core import utils
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
 import bigframes.core.compile.explode
@@ -57,12 +58,15 @@ class Compiler:
         # TODO: get rid of output_ids arg
         assert len(output_ids) == len(list(node.fields))
         node = set_output_names(node, output_ids)
+        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
         if ordered:
             node, limit = rewrites.pullup_limit_from_slice(node)
             node = nodes.bottom_up(node, rewrites.rewrite_slice)
+            # TODO: Extract out CTEs
             node, ordering = rewrites.pull_up_order(
                 node, order_root=True, ordered_joins=self.strict
             )
+            node = rewrites.column_pruning(node)
             ir = self.compile_node(node)
             return ir.to_sql(
                 order_by=ordering.all_ordering_columns,
@@ -74,15 +78,18 @@ class Compiler:
             node, _ = rewrites.pull_up_order(
                 node, order_root=False, ordered_joins=self.strict
             )
+            node = rewrites.column_pruning(node)
             ir = self.compile_node(node)
             return ir.to_sql(selections=output_ids)
 
     def compile_peek_sql(self, node: nodes.BigFrameNode, n_rows: int) -> str:
         ids = [id.sql for id in node.ids]
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
+        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
         node, _ = rewrites.pull_up_order(
             node, order_root=False, ordered_joins=self.strict
         )
+        node = rewrites.column_pruning(node)
         return self.compile_node(node).to_sql(limit=n_rows, selections=ids)
 
     def compile_raw(
@@ -92,13 +99,16 @@ class Compiler:
         str, typing.Sequence[google.cloud.bigquery.SchemaField], bf_ordering.RowOrdering
     ]:
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
+        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
         node, ordering = rewrites.pull_up_order(node, ordered_joins=self.strict)
+        node = rewrites.column_pruning(node)
         ir = self.compile_node(node)
         sql = ir.to_sql()
         return sql, node.schema.to_bigquery(), ordering
 
     def _preprocess(self, node: nodes.BigFrameNode):
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
+        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
         node, _ = rewrites.pull_up_order(
             node, order_root=False, ordered_joins=self.strict
         )
@@ -173,6 +183,10 @@ class Compiler:
             io.BytesIO(node.feather_bytes),
             columns=[item.source_id for item in node.scan_list.items],
         )
+
+        # Convert timedeltas to microseconds for compatibility with BigQuery
+        _ = utils.replace_timedeltas_with_micros(array_as_pd)
+
         offsets = node.offsets_col.sql if node.offsets_col else None
         return compiled.UnorderedIR.from_pandas(
             array_as_pd, node.scan_list, offsets=offsets
@@ -183,31 +197,34 @@ class Compiler:
         return self.compile_read_table_unordered(node.source, node.scan_list)
 
     def read_table_as_unordered_ibis(
-        self, source: nodes.BigqueryDataSource
+        self,
+        source: nodes.BigqueryDataSource,
+        scan_cols: typing.Sequence[str],
     ) -> ibis_types.Table:
         full_table_name = f"{source.table.project_id}.{source.table.dataset_id}.{source.table.table_id}"
-        used_columns = tuple(col.name for col in source.table.physical_schema)
         # Physical schema might include unused columns, unsupported datatypes like JSON
         physical_schema = ibis_bigquery.BigQuerySchema.to_ibis(
-            list(i for i in source.table.physical_schema if i.name in used_columns)
+            list(source.table.physical_schema)
         )
         if source.at_time is not None or source.sql_predicate is not None:
             import bigframes.session._io.bigquery
 
             sql = bigframes.session._io.bigquery.to_query(
                 full_table_name,
-                columns=used_columns,
+                columns=scan_cols,
                 sql_predicate=source.sql_predicate,
                 time_travel_timestamp=source.at_time,
             )
             return ibis_bigquery.Backend().sql(schema=physical_schema, query=sql)
         else:
-            return ibis_api.table(physical_schema, full_table_name)
+            return ibis_api.table(physical_schema, full_table_name).select(scan_cols)
 
     def compile_read_table_unordered(
         self, source: nodes.BigqueryDataSource, scan: nodes.ScanList
     ):
-        ibis_table = self.read_table_as_unordered_ibis(source)
+        ibis_table = self.read_table_as_unordered_ibis(
+            source, scan_cols=[col.source_id for col in scan.items]
+        )
         return compiled.UnorderedIR(
             ibis_table,
             tuple(
@@ -282,7 +299,7 @@ def set_output_names(
     return nodes.SelectionNode(
         node,
         tuple(
-            (ex.DerefOp(old_id), ids.ColumnId(out_id))
+            bigframes.core.nodes.AliasedRef(ex.DerefOp(old_id), ids.ColumnId(out_id))
             for old_id, out_id in zip(node.ids, output_ids)
         ),
     )

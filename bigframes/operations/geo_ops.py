@@ -29,3 +29,14 @@ geo_y_op = base_ops.create_unary_op(
         dtypes.is_geo_like, dtypes.FLOAT_DTYPE, description="geo-like"
     ),
 )
+
+geo_area_op = base_ops.create_unary_op(
+    name="geo_area",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.FLOAT_DTYPE, description="geo-like"
+    ),
+)
+
+geo_st_geogpoint_op = base_ops.create_binary_op(
+    name="geo_st_geogpoint", type_signature=op_typing.BinaryNumericGeo()
+)
