@@ -24,6 +24,7 @@ from typing import Callable, cast, Iterable, Mapping, Optional, Sequence, Tuple,
 
 import google.cloud.bigquery as bq
 
+from bigframes.core import identifiers as bf_ids
 import bigframes.core.expression as ex
 import bigframes.core.guid
 import bigframes.core.identifiers
@@ -1015,7 +1016,7 @@ class ReadTableNode(LeafNode):
         scan_cols = {col.source_id for col in self.scan_list.items}
         new_scan_cols = [
             ScanItem(
-                bigframes.core.ids.ColumnId.unique(),
+                bf_ids.ColumnId.unique(),
                 dtype=bigframes.dtypes.convert_schema_field(field)[1],
                 source_id=field.name,
             )
@@ -1024,10 +1025,7 @@ class ReadTableNode(LeafNode):
         ]
         new_scan_list = ScanList(items=(*self.scan_list.items, *new_scan_cols))
         new_order = self.source.ordering.remap_column_refs(
-            {
-                bigframes.core.ids.ColumnId(item.source_id): item.id
-                for item in new_scan_cols
-            },
+            {bf_ids.ColumnId(item.source_id): item.id for item in new_scan_cols},
             allow_partial_bindings=True,
         )
         return dataclasses.replace(self, scan_list=new_scan_list), new_order
