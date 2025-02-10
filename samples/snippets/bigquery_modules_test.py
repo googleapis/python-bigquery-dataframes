@@ -14,16 +14,16 @@
 
 
 def test_bigquery_dataframes_examples() -> None:
-    # [START bigquery_methods_load]
+    # [START bigquery_dataframes_bigquery_methods_load]
     import bigframes.bigquery as bbq
     import bigframes.pandas as bpd
 
     # Load data from BigQuery
     query_or_table = "bigquery-public-data.ml_datasets.penguins"
     bq_df = bpd.read_gbq(query_or_table)
-    # [END bigquery_methods_load]
+    # [END bigquery_dataframes_bigquery_methods_load]
 
-    # [START bigquery_methods_struct]
+    # [START bigquery_dataframes_bigquery_methods_struct]
     # Create a new STRUCT Series with subfields for each column in a DataFrames.
     lengths = bbq.struct(
         bq_df[["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"]]
@@ -36,9 +36,9 @@ def test_bigquery_dataframes_examples() -> None:
     # 154	{'culmen_length_mm': 46.5, 'culmen_depth_mm': ...
     # 185	{'culmen_length_mm': 50.1, 'culmen_depth_mm': ...
     # dtype: struct[pyarrow]
-    # [END bigquery_methods_struct]
+    # [END bigquery_dataframes_bigquery_methods_struct]
 
-    # [START bigquery_methods_scalar]
+    # [START bigquery_dataframes_bigquery_methods_scalar]
     shortest = bbq.sql_scalar(
         "LEAST({0}, {1}, {2})",
         columns=[
@@ -56,7 +56,7 @@ def test_bigquery_dataframes_examples() -> None:
     # 287	17.0
     # 307	15.0
     # dtype: Float64
-    # [END bigquery_methods_scalar]
+    # [END bigquery_dataframes_bigquery_methods_scalar]
     assert bq_df is not None
     assert lengths is not None
     assert shortest is not None
