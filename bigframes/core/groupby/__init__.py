@@ -24,7 +24,6 @@ import pandas as pd
 
 from bigframes import session
 from bigframes.core import log_adapter
-import bigframes.core as core
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.expression
