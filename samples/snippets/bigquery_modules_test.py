@@ -14,16 +14,14 @@
 
 
 def test_bigquery_dataframes_examples() -> None:
-    # [START bigquery_dataframes_bigquery_methods_load]
+    # [START bigquery_dataframes_bigquery_methods_struct]
     import bigframes.bigquery as bbq
     import bigframes.pandas as bpd
 
     # Load data from BigQuery
     query_or_table = "bigquery-public-data.ml_datasets.penguins"
     bq_df = bpd.read_gbq(query_or_table)
-    # [END bigquery_dataframes_bigquery_methods_load]
 
-    # [START bigquery_dataframes_bigquery_methods_struct]
     # Create a new STRUCT Series with subfields for each column in a DataFrames.
     lengths = bbq.struct(
         bq_df[["culmen_length_mm", "culmen_depth_mm", "flipper_length_mm"]]
