@@ -248,7 +248,7 @@ def pull_up_order(
             else:
                 offsets_id = node.offsets_col
                 new_explode = node.replace_child(child_result)
-            inner_order = bigframes.core.orderings.TotalOrdering.from_offset_col(
+            inner_order = bigframes.core.ordering.TotalOrdering.from_offset_col(
                 offsets_id
             )
             return new_explode, child_order.join(inner_order)
