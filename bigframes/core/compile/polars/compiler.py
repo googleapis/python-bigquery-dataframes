@@ -293,6 +293,12 @@ class PolarsCompiler:
         return pl.concat(self.compile_node(child) for child in node.child_nodes)
 
     @compile_node.register
+    def compile_row_join(self, node: nodes.RowJoinNode):
+        return pl.concat(
+            (self.compile_node(child) for child in node.child_nodes), how="horizontal"
+        )
+
+    @compile_node.register
     def compile_agg(self, node: nodes.AggregateNode):
         df = self.compile_node(node.child)
 

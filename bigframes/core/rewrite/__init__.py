@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from bigframes.core.rewrite.identifiers import remap_variables
-from bigframes.core.rewrite.implicit_align import try_row_join
+from bigframes.core.rewrite.implicit_align import rewrite_row_join
 from bigframes.core.rewrite.legacy_align import legacy_join_as_projection
 from bigframes.core.rewrite.operators import rewrite_timedelta_ops
 from bigframes.core.rewrite.order import pull_up_order
@@ -22,11 +22,12 @@ from bigframes.core.rewrite.slices import pullup_limit_from_slice, rewrite_slice
 
 __all__ = [
     "legacy_join_as_projection",
-    "try_row_join",
     "rewrite_slice",
     "rewrite_timedelta_ops",
     "pullup_limit_from_slice",
     "remap_variables",
+    "combine_nodes",
+    "rewrite_row_join",
     "pull_up_order",
     "column_pruning",
 ]

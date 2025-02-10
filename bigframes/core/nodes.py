@@ -172,6 +172,15 @@ class BigFrameNode(abc.ABC):
         )
         return set(roots)
 
+    @property
+    def all_nodes(self) -> Iterable[BigFrameNode]:
+        yield self
+        for child in self.child_nodes:
+            yield from child.all_nodes
+
+    def contains(self, node: BigFrameNode) -> bool:
+        return node in set(self.all_nodes)
+
     # TODO: Store some local data lazily for select, aggregate nodes.
     @property
     @abc.abstractmethod
@@ -612,6 +621,76 @@ class JoinNode(BigFrameNode):
             for l_cond, r_cond in self.conditions
         )
         return dataclasses.replace(self, conditions=new_conds)  # type: ignore
+
+
+@dataclasses.dataclass(frozen=True, eq=False)
+class RowJoinNode(BigFrameNode):
+    left_child: BigFrameNode
+    right_child: BigFrameNode
+
+    def _validate(self):
+        assert not (
+            set(self.left_child.ids) & set(self.right_child.ids)
+        ), "Join ids collide"
+
+    @property
+    def row_preserving(self) -> bool:
+        return True
+
+    @property
+    def child_nodes(self) -> typing.Sequence[BigFrameNode]:
+        return (self.left_child, self.right_child)
+
+    @property
+    def order_ambiguous(self) -> bool:
+        return False
+
+    @property
+    def explicitly_ordered(self) -> bool:
+        # Do not consider user pre-join ordering intent - they need to re-order post-join in unordered mode.
+        return True
+
+    @property
+    def fields(self) -> Iterable[Field]:
+        return itertools.chain(self.left_child.fields, self.right_child.fields)
+
+    @functools.cached_property
+    def variables_introduced(self) -> int:
+        return 0
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.left_child.row_count
+
+    @property
+    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+        return ()
+
+    @property
+    def added_fields(self) -> Tuple[Field, ...]:
+        return tuple(self.right_child.fields)
+
+    def transform_children(
+        self, t: Callable[[BigFrameNode], BigFrameNode]
+    ) -> BigFrameNode:
+        transformed = dataclasses.replace(
+            self, left_child=t(self.left_child), right_child=t(self.right_child)
+        )
+        if self == transformed:
+            # reusing existing object speeds up eq, and saves a small amount of memory
+            return self
+        return transformed
+
+    def prune(self, used_cols: COLUMN_SET) -> BigFrameNode:
+        return self.transform_children(lambda x: x.prune(used_cols))
+
+    def remap_vars(
+        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+    ) -> BigFrameNode:
+        return self
+
+    def remap_refs(self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]):
+        return self
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
@@ -1776,8 +1855,9 @@ def bottom_up(
     root: BigFrameNode,
     transform: Callable[[BigFrameNode], BigFrameNode],
     *,
-    memoize=False,
-    validate=False,
+    stop: Optional[Callable[[BigFrameNode], bool]] = None,
+    memoize: bool = False,
+    validate: bool = False,
 ) -> BigFrameNode:
     """
     Perform a bottom-up transformation of the BigFrameNode tree.
@@ -1786,6 +1866,8 @@ def bottom_up(
     """
 
     def bottom_up_internal(root: BigFrameNode) -> BigFrameNode:
+        if (stop is not None) and (stop(root)):
+            return root
         return transform(root.transform_children(bottom_up_internal))
 
     if memoize:

@@ -87,27 +87,36 @@ def get_expression_spec(
         curr_node = curr_node.child_nodes[0]
 
 
-def try_row_join(
-    l_node: bigframes.core.nodes.BigFrameNode,
-    r_node: bigframes.core.nodes.BigFrameNode,
-    join_keys: Tuple[Tuple[str, str], ...],
-) -> Optional[bigframes.core.nodes.BigFrameNode]:
-    """Joins the two nodes"""
+def rewrite_row_join(
+    node: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    if not isinstance(node, bigframes.core.nodes.RowJoinNode):
+        return node
+
+    l_node = node.left_child
+    r_node = node.right_child
     divergent_node = first_shared_descendent(
         {l_node, r_node}, descendable_types=ALIGNABLE_NODES
     )
-    if divergent_node is None:
-        return None
-    # check join keys are equivalent by normalizing the expressions as much as posisble
-    # instead of just comparing ids
-    for l_key, r_key in join_keys:
-        # Caller is block, so they still work with raw strings rather than ids
-        left_id = bigframes.core.identifiers.ColumnId(l_key)
-        right_id = bigframes.core.identifiers.ColumnId(r_key)
-        if get_expression_spec(l_node, left_id) != get_expression_spec(
-            r_node, right_id
-        ):
-            return None
+    assert divergent_node is not None
+    # Inner handler can't RowJoinNode, so bottom up apply the algorithm locally
+    return bigframes.core.nodes.bottom_up(
+        node,
+        lambda x: _rewrite_row_join_node(x, divergent_node),
+        stop=lambda x: x == divergent_node,
+        memoize=True,
+    )
+
+
+def _rewrite_row_join_node(
+    node: bigframes.core.nodes.BigFrameNode,
+    divergent_node: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    if not isinstance(node, bigframes.core.nodes.RowJoinNode):
+        return node
+
+    l_node = node.left_child
+    r_node = node.right_child
 
     l_node, l_selection = pull_up_selection(l_node, stop=divergent_node)
     r_node, r_selection = pull_up_selection(
@@ -130,7 +139,37 @@ def try_row_join(
         )
 
     merged_node = _linearize_trees(l_node, r_node)
+
+    # RowJoin rewrites can otherwise create too deep a tree
+    merged_node = bigframes.core.nodes.bottom_up(
+        merged_node,
+        fold_projections,
+        stop=lambda x: (x == divergent_node) or (divergent_node in x.child_nodes),
+        memoize=True,
+    )
     return bigframes.core.nodes.SelectionNode(merged_node, combined_selection)
+
+
+def fold_projections(
+    root: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    """If root and child are projection nodes, merge them."""
+    if not isinstance(root, bigframes.core.nodes.ProjectionNode):
+        return root
+    if not isinstance(root.child, bigframes.core.nodes.ProjectionNode):
+        return root
+    mapping = {id: expr for expr, id in root.child.assignments}
+    root_assignments = (
+        (expr.bind_refs(mapping, allow_partial_bindings=True), id)
+        for expr, id in root.assignments
+    )
+    new_exprs = tuple(
+        itertools.chain(
+            root.child.assignments,
+            root_assignments,
+        )
+    )
+    return bigframes.core.nodes.ProjectionNode(root.child.child, new_exprs)
 
 
 def pull_up_selection(
