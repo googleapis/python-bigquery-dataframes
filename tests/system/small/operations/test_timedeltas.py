@@ -264,9 +264,11 @@ def test_timedelta_ordering(session):
     )
     bf_df = session.read_pandas(pd_df)
 
-    actual_result = (bf_df['col_2'] - bf_df['col_1']).sort_values().to_pandas()
+    actual_result = (bf_df["col_2"] - bf_df["col_1"]).sort_values().to_pandas()
 
-    expected_result = (pd_df['col_2'] - pd_df['col_1']).sort_values().astype('duration[us][pyarrow]')
+    expected_result = (
+        (pd_df["col_2"] - pd_df["col_1"]).sort_values().astype("duration[us][pyarrow]")
+    )
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
