@@ -887,7 +887,7 @@ class GbqTable:
             dataset_id=table.dataset_id,
             table_id=table.table_id,
             physical_schema=schema,
-            n_rows=table.num_rows or 0,
+            n_rows=table.num_rows,
             is_physically_stored=(table.table_type in ["TABLE", "MATERIALIZED_VIEW"]),
             cluster_cols=None
             if table.clustering_fields is None
