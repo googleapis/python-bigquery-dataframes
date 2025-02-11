@@ -29,7 +29,7 @@ def test_limit_single_timeseries(random_model_id: str) -> None:
     )
     num_trips = features.groupby(["date"]).count()
 
-    num_trips.plot.bar()
+    num_trips.plot.line()
     # [END bigquery_dataframes_bqml_limit_forecast_visualize]
 
     # [START bigquery_dataframes_bqml_limit_forecast_create]
