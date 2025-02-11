@@ -87,6 +87,9 @@ def _rewrite_sub_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
     if dtypes.is_datetime_like(left.dtype) and dtypes.is_datetime_like(right.dtype):
         result_op = ops.timestamp_diff_op
 
+    if dtypes.is_datetime_like(left.dtype) and right.dtype is dtypes.TIMEDELTA_DTYPE:
+        result_op = ops.timestamp_sub_op
+
     return _TypedExpr(
         result_op.as_expr(left.expr, right.expr),
         result_op.output_type(left.dtype, right.dtype),
