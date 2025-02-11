@@ -1317,9 +1317,7 @@ class SelectionNode(UnaryNode):
 class ProjectionNode(UnaryNode, AdditiveNode):
     """Assigns new variables (without modifying existing ones)"""
 
-    assignments: typing.Tuple[
-        typing.Tuple[ex.Expression, identifiers.ColumnId], ...
-    ]
+    assignments: typing.Tuple[typing.Tuple[ex.Expression, identifiers.ColumnId], ...]
 
     def _validate(self):
         input_types = self.child._dtype_lookup
@@ -1445,9 +1443,7 @@ class RowCountNode(UnaryNode):
 
 @dataclasses.dataclass(frozen=True, eq=False)
 class AggregateNode(UnaryNode):
-    aggregations: typing.Tuple[
-        typing.Tuple[ex.Aggregation, identifiers.ColumnId], ...
-    ]
+    aggregations: typing.Tuple[typing.Tuple[ex.Aggregation, identifiers.ColumnId], ...]
     by_column_ids: typing.Tuple[ex.DerefOp, ...] = tuple([])
     order_by: Tuple[OrderingExpression, ...] = ()
     dropna: bool = True
