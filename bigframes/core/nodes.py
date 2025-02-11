@@ -800,7 +800,7 @@ class ReadLocalNode(LeafNode):
     # Mapping of local ids to bfet id.
     scan_list: ScanList
     # Offsets are generated only if this is non-null
-    offsets_col: Optional[bigframes.core.identifiers.ColumnId] = None
+    offsets_col: Optional[identifiers.ColumnId] = None
     session: typing.Optional[bigframes.session.Session] = None
 
     @property
@@ -887,7 +887,7 @@ class GbqTable:
             dataset_id=table.dataset_id,
             table_id=table.table_id,
             physical_schema=schema,
-            n_rows=table.num_rows,
+            n_rows=table.num_rows or 0,
             is_physically_stored=(table.table_type in ["TABLE", "MATERIALIZED_VIEW"]),
             cluster_cols=None
             if table.clustering_fields is None
@@ -1039,7 +1039,7 @@ class CachedTableNode(ReadTableNode):
 # Unary nodes
 @dataclasses.dataclass(frozen=True, eq=False)
 class PromoteOffsetsNode(UnaryNode, AdditiveNode):
-    col_id: bigframes.core.identifiers.ColumnId
+    col_id: identifiers.ColumnId
 
     @property
     def non_local(self) -> bool:
@@ -1318,7 +1318,7 @@ class ProjectionNode(UnaryNode, AdditiveNode):
     """Assigns new variables (without modifying existing ones)"""
 
     assignments: typing.Tuple[
-        typing.Tuple[ex.Expression, bigframes.core.identifiers.ColumnId], ...
+        typing.Tuple[ex.Expression, identifiers.ColumnId], ...
     ]
 
     def _validate(self):
@@ -1446,7 +1446,7 @@ class RowCountNode(UnaryNode):
 @dataclasses.dataclass(frozen=True, eq=False)
 class AggregateNode(UnaryNode):
     aggregations: typing.Tuple[
-        typing.Tuple[ex.Aggregation, bigframes.core.identifiers.ColumnId], ...
+        typing.Tuple[ex.Aggregation, identifiers.ColumnId], ...
     ]
     by_column_ids: typing.Tuple[ex.DerefOp, ...] = tuple([])
     order_by: Tuple[OrderingExpression, ...] = ()
@@ -1539,7 +1539,7 @@ class AggregateNode(UnaryNode):
 class WindowOpNode(UnaryNode, AdditiveNode):
     expression: ex.Aggregation
     window_spec: window.WindowSpec
-    output_name: bigframes.core.identifiers.ColumnId
+    output_name: identifiers.ColumnId
     never_skip_nulls: bool = False
     skip_reproject_unsafe: bool = False
 
@@ -1682,7 +1682,7 @@ class RandomSampleNode(UnaryNode):
 class ExplodeNode(UnaryNode):
     column_ids: typing.Tuple[ex.DerefOp, ...]
     # Offsets are generated only if this is non-null
-    offsets_col: Optional[bigframes.core.identifiers.ColumnId] = None
+    offsets_col: Optional[identifiers.ColumnId] = None
 
     @property
     def row_preserving(self) -> bool:
