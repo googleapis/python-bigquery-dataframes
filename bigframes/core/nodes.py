@@ -510,7 +510,7 @@ class InNode(BigFrameNode, AdditiveNode):
     def joins_nulls(self) -> bool:
         left_nullable = self.left_child.field_by_id[self.left_col.id].nullable
         right_nullable = self.right_child.field_by_id[self.right_col.id].nullable
-        return left_nullable and right_nullable
+        return left_nullable or right_nullable
 
     def replace_additive_base(self, node: BigFrameNode):
         return dataclasses.replace(self, left_child=node)

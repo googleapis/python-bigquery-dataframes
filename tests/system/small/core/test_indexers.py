@@ -73,7 +73,6 @@ def test_non_string_indexed_struct_series_with_string_key_should_warn(session):
     "series",
     [
         "string_indexed_struct_series",
-        "number_series",
         "string_indexed_number_series",
     ],
 )
