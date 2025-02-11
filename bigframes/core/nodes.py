@@ -24,11 +24,9 @@ from typing import Callable, cast, Iterable, Mapping, Optional, Sequence, Tuple,
 
 import google.cloud.bigquery as bq
 
-from bigframes.core import identifiers as bf_ids
+from bigframes.core import identifiers
 import bigframes.core.expression as ex
 import bigframes.core.guid
-import bigframes.core.identifiers
-import bigframes.core.identifiers as bfet_ids
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.schema as schemata
 import bigframes.core.slices as slices
@@ -43,14 +41,14 @@ if typing.TYPE_CHECKING:
 # A fixed number of variable to assume for overhead on some operations
 OVERHEAD_VARIABLES = 5
 
-COLUMN_SET = frozenset[bfet_ids.ColumnId]
+COLUMN_SET = frozenset[identifiers.ColumnId]
 
 Self = TypeVar("Self")
 
 
 @dataclasses.dataclass(frozen=True)
 class Field:
-    id: bfet_ids.ColumnId
+    id: identifiers.ColumnId
     dtype: bigframes.dtypes.Dtype
 
 
@@ -92,21 +90,21 @@ class BigFrameNode(abc.ABC):
 
     @abc.abstractmethod
     def remap_vars(
-        self: Self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self: Self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> Self:
         """Remap defined (in this node only) variables."""
         ...
 
     @abc.abstractmethod
     def remap_refs(
-        self: Self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self: Self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> Self:
         """Remap variable references"""
         ...
 
     @property
     @abc.abstractmethod
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         """The variables defined in this node (as opposed to by child nodes)."""
         ...
 
@@ -180,7 +178,7 @@ class BigFrameNode(abc.ABC):
         ...
 
     @property
-    def ids(self) -> Iterable[bfet_ids.ColumnId]:
+    def ids(self) -> Iterable[identifiers.ColumnId]:
         """All output ids from the node."""
         return (field.id for field in self.fields)
 
@@ -276,7 +274,7 @@ class BigFrameNode(abc.ABC):
         """
         return False
 
-    def get_type(self, id: bfet_ids.ColumnId) -> bigframes.dtypes.Dtype:
+    def get_type(self, id: identifiers.ColumnId) -> bigframes.dtypes.Dtype:
         return self._dtype_lookup[id]
 
     @functools.cached_property
@@ -397,7 +395,7 @@ class SliceNode(UnaryNode):
         )
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return ()
 
     @property
@@ -405,12 +403,12 @@ class SliceNode(UnaryNode):
         return frozenset()
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> SliceNode:
         return self
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> SliceNode:
         return self
 
@@ -427,7 +425,7 @@ class InNode(BigFrameNode, AdditiveNode):
     right_child: BigFrameNode
     left_col: ex.DerefOp
     right_col: ex.DerefOp
-    indicator_col: bfet_ids.ColumnId
+    indicator_col: identifiers.ColumnId
 
     def _validate(self):
         assert not (
@@ -480,7 +478,7 @@ class InNode(BigFrameNode, AdditiveNode):
         return self.left_child.row_count
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return (self.indicator_col,)
 
     @property
@@ -504,14 +502,14 @@ class InNode(BigFrameNode, AdditiveNode):
         return transformed
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> InNode:
         return dataclasses.replace(
             self, indicator_col=mappings.get(self.indicator_col, self.indicator_col)
         )
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> InNode:
         return dataclasses.replace(self, left_col=self.left_col.remap_column_refs(mappings, allow_partial_bindings=True), right_col=self.right_col.remap_column_refs(mappings, allow_partial_bindings=True))  # type: ignore
 
@@ -572,7 +570,7 @@ class JoinNode(BigFrameNode):
         return None
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return ()
 
     @property
@@ -598,12 +596,12 @@ class JoinNode(BigFrameNode):
         return transformed
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> JoinNode:
         return self
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> JoinNode:
         new_conds = tuple(
             (
@@ -619,7 +617,7 @@ class JoinNode(BigFrameNode):
 class ConcatNode(BigFrameNode):
     # TODO: Explcitly map column ids from each child
     children: Tuple[BigFrameNode, ...]
-    output_ids: Tuple[bfet_ids.ColumnId, ...]
+    output_ids: Tuple[identifiers.ColumnId, ...]
 
     def _validate(self):
         if len(self.children) == 0:
@@ -665,7 +663,7 @@ class ConcatNode(BigFrameNode):
         return total
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return self.output_ids
 
     def transform_children(
@@ -680,13 +678,13 @@ class ConcatNode(BigFrameNode):
         return transformed
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ConcatNode:
         new_ids = tuple(mappings.get(id, id) for id in self.output_ids)
         return dataclasses.replace(self, output_ids=new_ids)
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ConcatNode:
         return self
 
@@ -697,7 +695,7 @@ class FromRangeNode(BigFrameNode):
     start: BigFrameNode
     end: BigFrameNode
     step: int
-    output_id: bfet_ids.ColumnId = bfet_ids.ColumnId("labels")
+    output_id: identifiers.ColumnId = identifiers.ColumnId("labels")
 
     @property
     def roots(self) -> typing.Set[BigFrameNode]:
@@ -729,7 +727,7 @@ class FromRangeNode(BigFrameNode):
         return None
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return (self.output_id,)
 
     @property
@@ -746,14 +744,14 @@ class FromRangeNode(BigFrameNode):
         return transformed
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> FromRangeNode:
         return dataclasses.replace(
             self, output_id=mappings.get(self.output_id, self.output_id)
         )
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> FromRangeNode:
         return self
 
@@ -780,11 +778,11 @@ class LeafNode(BigFrameNode):
 
 
 class ScanItem(typing.NamedTuple):
-    id: bfet_ids.ColumnId
+    id: identifiers.ColumnId
     dtype: bigframes.dtypes.Dtype  # Might be multiple logical types for a given physical source type
     source_id: str  # Flexible enough for both local data and bq data
 
-    def with_id(self, id: bfet_ids.ColumnId) -> ScanItem:
+    def with_id(self, id: identifiers.ColumnId) -> ScanItem:
         return ScanItem(id, self.dtype, self.source_id)
 
 
@@ -840,11 +838,11 @@ class ReadLocalNode(LeafNode):
         return self.n_rows
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return tuple(item.id for item in self.fields)
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ReadLocalNode:
         new_scan_list = ScanList(
             tuple(
@@ -862,7 +860,7 @@ class ReadLocalNode(LeafNode):
         )
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ReadLocalNode:
         return self
 
@@ -988,11 +986,11 @@ class ReadTableNode(LeafNode):
         return None
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return tuple(item.id for item in self.scan_list.items)
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ReadTableNode:
         new_scan_list = ScanList(
             tuple(
@@ -1003,7 +1001,7 @@ class ReadTableNode(LeafNode):
         return dataclasses.replace(self, scan_list=new_scan_list)
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ReadTableNode:
         return self
 
@@ -1016,7 +1014,7 @@ class ReadTableNode(LeafNode):
         scan_cols = {col.source_id for col in self.scan_list.items}
         new_scan_cols = [
             ScanItem(
-                bf_ids.ColumnId.unique(),
+                identifiers.ColumnId.unique(),
                 dtype=bigframes.dtypes.convert_schema_field(field)[1],
                 source_id=field.name,
             )
@@ -1025,7 +1023,7 @@ class ReadTableNode(LeafNode):
         ]
         new_scan_list = ScanList(items=(*self.scan_list.items, *new_scan_cols))
         new_order = self.source.ordering.remap_column_refs(
-            {bf_ids.ColumnId(item.source_id): item.id for item in new_scan_cols},
+            {identifiers.ColumnId(item.source_id): item.id for item in new_scan_cols},
             allow_partial_bindings=True,
         )
         return dataclasses.replace(self, scan_list=new_scan_list), new_order
@@ -1066,7 +1064,7 @@ class PromoteOffsetsNode(UnaryNode, AdditiveNode):
         return self.child.row_count
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return (self.col_id,)
 
     @property
@@ -1085,12 +1083,12 @@ class PromoteOffsetsNode(UnaryNode, AdditiveNode):
         return dataclasses.replace(self, child=node)
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> PromoteOffsetsNode:
         return dataclasses.replace(self, col_id=mappings.get(self.col_id, self.col_id))
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> PromoteOffsetsNode:
         return self
 
@@ -1112,7 +1110,7 @@ class FilterNode(UnaryNode):
         return None
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return ()
 
     @property
@@ -1124,12 +1122,12 @@ class FilterNode(UnaryNode):
         return frozenset(self.predicate.column_references)
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> FilterNode:
         return self
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> FilterNode:
         return dataclasses.replace(
             self,
@@ -1164,7 +1162,7 @@ class OrderByNode(UnaryNode):
         return self.child.row_count
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return ()
 
     @property
@@ -1178,12 +1176,12 @@ class OrderByNode(UnaryNode):
         )
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> OrderByNode:
         return self
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> OrderByNode:
         all_refs = set(
             itertools.chain.from_iterable(map(lambda x: x.referenced_columns, self.by))
@@ -1218,7 +1216,7 @@ class ReversedNode(UnaryNode):
         return self.child.row_count
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return ()
 
     @property
@@ -1226,31 +1224,31 @@ class ReversedNode(UnaryNode):
         return frozenset()
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ReversedNode:
         return self
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ReversedNode:
         return self
 
 
 class AliasedRef(typing.NamedTuple):
     ref: ex.DerefOp
-    id: bfet_ids.ColumnId
+    id: identifiers.ColumnId
 
     @classmethod
-    def identity(cls, id: bfet_ids.ColumnId) -> AliasedRef:
+    def identity(cls, id: identifiers.ColumnId) -> AliasedRef:
         return cls(ex.DerefOp(id), id)
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> AliasedRef:
         return AliasedRef(self.ref, mappings.get(self.id, self.id))
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> AliasedRef:
         return AliasedRef(ex.DerefOp(mappings.get(self.ref.id, self.ref.id)), self.id)
 
@@ -1288,18 +1286,18 @@ class SelectionNode(UnaryNode):
         return self.child.row_count
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return tuple(id for _, id in self.input_output_pairs)
 
     @property
     def consumed_ids(self) -> COLUMN_SET:
         return frozenset(ref.id for ref, id in self.input_output_pairs)
 
-    def get_id_mapping(self) -> dict[bfet_ids.ColumnId, bfet_ids.ColumnId]:
+    def get_id_mapping(self) -> dict[identifiers.ColumnId, identifiers.ColumnId]:
         return {ref.id: id for ref, id in self.input_output_pairs}
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> SelectionNode:
         new_fields = tuple(
             item.remap_vars(mappings) for item in self.input_output_pairs
@@ -1307,7 +1305,7 @@ class SelectionNode(UnaryNode):
         return dataclasses.replace(self, input_output_pairs=new_fields)
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> SelectionNode:
         new_fields = tuple(
             item.remap_refs(mappings) for item in self.input_output_pairs
@@ -1354,7 +1352,7 @@ class ProjectionNode(UnaryNode, AdditiveNode):
         return self.child.row_count
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return tuple(id for _, id in self.assignments)
 
     @property
@@ -1381,13 +1379,13 @@ class ProjectionNode(UnaryNode, AdditiveNode):
         return dataclasses.replace(self, child=node)
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ProjectionNode:
         new_fields = tuple((ex, mappings.get(id, id)) for ex, id in self.assignments)
         return dataclasses.replace(self, assignments=new_fields)
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ProjectionNode:
         new_fields = tuple(
             (ex.remap_column_refs(mappings, allow_partial_bindings=True), id)
@@ -1400,7 +1398,7 @@ class ProjectionNode(UnaryNode, AdditiveNode):
 # Row count can be compute from table metadata sometimes, so it is a bit special.
 @dataclasses.dataclass(frozen=True, eq=False)
 class RowCountNode(UnaryNode):
-    col_id: bfet_ids.ColumnId = bfet_ids.ColumnId("count")
+    col_id: identifiers.ColumnId = identifiers.ColumnId("count")
 
     @property
     def row_preserving(self) -> bool:
@@ -1427,7 +1425,7 @@ class RowCountNode(UnaryNode):
         return 1
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return (self.col_id,)
 
     @property
@@ -1435,12 +1433,12 @@ class RowCountNode(UnaryNode):
         return frozenset()
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> RowCountNode:
         return dataclasses.replace(self, col_id=mappings.get(self.col_id, self.col_id))
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> RowCountNode:
         return self
 
@@ -1497,7 +1495,7 @@ class AggregateNode(UnaryNode):
         return None
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return tuple(id for _, id in self.aggregations)
 
     @property
@@ -1518,13 +1516,13 @@ class AggregateNode(UnaryNode):
         )
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> AggregateNode:
         new_aggs = tuple((agg, mappings.get(id, id)) for agg, id in self.aggregations)
         return dataclasses.replace(self, aggregations=new_aggs)
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> AggregateNode:
         new_aggs = tuple(
             (agg.remap_column_refs(mappings, allow_partial_bindings=True), id)
@@ -1587,7 +1585,7 @@ class WindowOpNode(UnaryNode, AdditiveNode):
         )
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return (self.output_name,)
 
     @property
@@ -1620,14 +1618,14 @@ class WindowOpNode(UnaryNode, AdditiveNode):
         return dataclasses.replace(self, child=node)
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> WindowOpNode:
         return dataclasses.replace(
             self, output_name=mappings.get(self.output_name, self.output_name)
         )
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> WindowOpNode:
         return dataclasses.replace(
             self,
@@ -1661,7 +1659,7 @@ class RandomSampleNode(UnaryNode):
         return None
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return ()
 
     @property
@@ -1669,12 +1667,12 @@ class RandomSampleNode(UnaryNode):
         return frozenset()
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> RandomSampleNode:
         return self
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> RandomSampleNode:
         return self
 
@@ -1722,7 +1720,7 @@ class ExplodeNode(UnaryNode):
         return None
 
     @property
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         return (self.offsets_col,) if (self.offsets_col is not None) else ()
 
     @property
@@ -1730,14 +1728,14 @@ class ExplodeNode(UnaryNode):
         return frozenset(ref.id for ref in self.column_ids)
 
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ExplodeNode:
         if (self.offsets_col is not None) and self.offsets_col in mappings:
             return dataclasses.replace(self, offsets_col=mappings[self.offsets_col])
         return self
 
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ExplodeNode:
         new_ids = tuple(id.remap_column_refs(mappings) for id in self.column_ids)
         return dataclasses.replace(self, column_ids=new_ids)  # type: ignore

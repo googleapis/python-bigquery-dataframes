@@ -17,7 +17,6 @@ from typing import Mapping, Tuple
 
 from bigframes.core import identifiers
 import bigframes.core.expression
-import bigframes.core.identifiers
 import bigframes.core.nodes
 import bigframes.core.ordering
 import bigframes.core.window_spec
