@@ -14,6 +14,7 @@
 
 
 import datetime
+import operator
 
 import numpy as np
 import pandas as pd
@@ -180,11 +181,12 @@ def test_timestamp_add_dataframes(temporal_dfs):
 @pytest.mark.parametrize(
     "compare_func",
     [
-        pytest.param(lambda x, y: x > y, id="gt"),
-        pytest.param(lambda x, y: x >= y, id="ge"),
-        pytest.param(lambda x, y: x == y, id="eq"),
-        pytest.param(lambda x, y: x < y, id="lt"),
-        pytest.param(lambda x, y: x <= y, id="le"),
+        pytest.param(operator.gt, id="gt"),
+        pytest.param(operator.ge, id="ge"),
+        pytest.param(operator.eq, id="eq"),
+        pytest.param(operator.ne, id="ne"),
+        pytest.param(operator.lt, id="lt"),
+        pytest.param(operator.le, id="le"),
     ],
 )
 def test_timedelta_series_comparison(temporal_dfs, compare_func):
@@ -205,11 +207,12 @@ def test_timedelta_series_comparison(temporal_dfs, compare_func):
 @pytest.mark.parametrize(
     "compare_func",
     [
-        pytest.param(lambda x, y: x > y, id="gt"),
-        pytest.param(lambda x, y: x >= y, id="ge"),
-        pytest.param(lambda x, y: x == y, id="eq"),
-        pytest.param(lambda x, y: x < y, id="lt"),
-        pytest.param(lambda x, y: x <= y, id="le"),
+        pytest.param(operator.gt, id="gt"),
+        pytest.param(operator.ge, id="ge"),
+        pytest.param(operator.eq, id="eq"),
+        pytest.param(operator.ne, id="ne"),
+        pytest.param(operator.lt, id="lt"),
+        pytest.param(operator.le, id="le"),
     ],
 )
 def test_timedelta_series_and_literal_comparison(temporal_dfs, compare_func):
