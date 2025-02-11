@@ -81,7 +81,7 @@ def _rewrite_expressions(expr: ex.Expression, schema: schema.ArraySchema) -> _Ty
         updated_inputs = tuple(
             map(lambda x: _rewrite_expressions(x, schema), expr.inputs)
         )
-        return _rewrite_op_expr(expr.op, updated_inputs)
+        return _rewrite_op_expr(expr, updated_inputs)
 
     raise AssertionError(f"Unexpected expression type: {type(expr)}")
 
@@ -94,30 +94,26 @@ def _rewrite_scalar_constant_expr(expr: ex.ScalarConstantExpression) -> _TypedEx
     return _TypedExpr(expr, expr.dtype)
 
 
-@functools.singledispatch
 def _rewrite_op_expr(
-    op: ops.ScalarOp, inputs: typing.Tuple[_TypedExpr, ...]
+    expr: ex.OpExpression, inputs: typing.Tuple[_TypedExpr, ...]
 ) -> _TypedExpr:
-    return _TypedExpr.create_op_expr(op, *inputs)
+    if isinstance(expr.op, ops.SubOp):
+        return _rewrite_sub_op(inputs[0], inputs[1])
+
+    if isinstance(expr.op, ops.AddOp):
+        return _rewrite_add_op(inputs[0], inputs[1])
+
+    return _TypedExpr.create_op_expr(expr.op, *inputs)
 
 
-@_rewrite_op_expr.register
-def _(op: ops.SubOp, inputs: typing.Tuple[_TypedExpr, ...]) -> _TypedExpr:
-    left = inputs[0]
-    right = inputs[1]
-
-    result_op: ops.BinaryOp = ops.sub_op
+def _rewrite_sub_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
     if dtypes.is_datetime_like(left.dtype) and dtypes.is_datetime_like(right.dtype):
-        result_op = ops.timestamp_diff_op
+        return _TypedExpr.create_op_expr(ops.timestamp_diff_op, left, right)
 
-    return _TypedExpr.create_op_expr(result_op, left, right)
+    return _TypedExpr.create_op_expr(ops.sub_op, left, right)
 
 
-@_rewrite_op_expr.register
-def _(op: ops.AddOp, inputs: typing.Tuple[_TypedExpr, ...]) -> _TypedExpr:
-    left = inputs[0]
-    right = inputs[1]
-
+def _rewrite_add_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
     if dtypes.is_datetime_like(left.dtype) and right.dtype is dtypes.TIMEDELTA_DTYPE:
         return _TypedExpr.create_op_expr(ops.timestamp_add_op, left, right)
 
