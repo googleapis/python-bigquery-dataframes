@@ -355,12 +355,7 @@ class BlobAccessor(base.SeriesMethods):
 
         import bigframes.blob._functions as blob_func
 
-        connection = connection or self._block.session._bq_connection
-        connection = clients.resolve_full_bq_connection_name(
-            connection,
-            default_project=self._block.session._project,
-            default_location=self._block.session._location,
-        )
+        connection = self._resolve_connection(connection)
 
         if isinstance(dst, str):
             dst = os.path.join(dst, "")
@@ -377,11 +372,8 @@ class BlobAccessor(base.SeriesMethods):
             connection=connection,
         ).udf()
 
-        src_rt = self._get_runtime(mode="R")
-        dst_rt = dst.blob._get_runtime(mode="RW")
-
-        src_rt = src_rt._apply_unary_op(ops.ToJSONString())
-        dst_rt = dst_rt._apply_unary_op(ops.ToJSONString())
+        src_rt = self._get_runtime_json_str(mode="R")
+        dst_rt = dst.blob._get_runtime_json_str(mode="RW")
 
         df = src_rt.to_frame().join(dst_rt.to_frame(), how="outer")
         df["dsize_x"], df["dsizye_y"] = dsize
