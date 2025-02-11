@@ -95,7 +95,9 @@ def _rewrite_scalar_constant_expr(expr: ex.ScalarConstantExpression) -> _TypedEx
 
 
 @functools.singledispatch
-def _rewrite_op_expr(op: ops.ScalarOp, inputs: typing.Tuple[_TypedExpr, ...]) -> _TypedExpr:
+def _rewrite_op_expr(
+    op: ops.ScalarOp, inputs: typing.Tuple[_TypedExpr, ...]
+) -> _TypedExpr:
     return _TypedExpr.create_op_expr(op, *inputs)
 
 
@@ -110,11 +112,12 @@ def _(op: ops.SubOp, inputs: typing.Tuple[_TypedExpr, ...]) -> _TypedExpr:
 
     return _TypedExpr.create_op_expr(result_op, left, right)
 
+
 @_rewrite_op_expr.register
 def _(op: ops.AddOp, inputs: typing.Tuple[_TypedExpr, ...]) -> _TypedExpr:
     left = inputs[0]
     right = inputs[1]
-    
+
     if dtypes.is_datetime_like(left.dtype) and right.dtype is dtypes.TIMEDELTA_DTYPE:
         return _TypedExpr.create_op_expr(ops.timestamp_add_op, left, right)
 
