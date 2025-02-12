@@ -22,21 +22,20 @@ import itertools
 import typing
 from typing import Callable, Dict, Generator, Iterable, Mapping, Set, Tuple
 
+from bigframes.core import identifiers
 import bigframes.core.guid
-import bigframes.core.identifiers
-import bigframes.core.identifiers as bfet_ids
 import bigframes.core.schema as schemata
 import bigframes.dtypes
 
 if typing.TYPE_CHECKING:
     import bigframes.session
 
-COLUMN_SET = frozenset[bfet_ids.ColumnId]
+COLUMN_SET = frozenset[identifiers.ColumnId]
 
 
 @dataclasses.dataclass(frozen=True)
 class Field:
-    id: bfet_ids.ColumnId
+    id: identifiers.ColumnId
     dtype: bigframes.dtypes.Dtype
 
 
@@ -78,14 +77,14 @@ class BigFrameNode:
 
     @abc.abstractmethod
     def remap_refs(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> BigFrameNode:
         """Remap variable references"""
         ...
 
     @property
     @abc.abstractmethod
-    def node_defined_ids(self) -> Tuple[bfet_ids.ColumnId, ...]:
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
         """The variables defined in this node (as opposed to by child nodes)."""
         ...
 
@@ -155,7 +154,7 @@ class BigFrameNode:
         ...
 
     @property
-    def ids(self) -> Iterable[bfet_ids.ColumnId]:
+    def ids(self) -> Iterable[identifiers.ColumnId]:
         """All output ids from the node."""
         return (field.id for field in self.fields)
 
@@ -244,7 +243,7 @@ class BigFrameNode:
 
     @abc.abstractmethod
     def remap_vars(
-        self, mappings: Mapping[bfet_ids.ColumnId, bfet_ids.ColumnId]
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> BigFrameNode:
         """Remap defined (in this node only) variables."""
         ...
@@ -272,7 +271,7 @@ class BigFrameNode:
             *(child.defined_variables for child in self.child_nodes)
         )
 
-    def get_type(self, id: bfet_ids.ColumnId) -> bigframes.dtypes.Dtype:
+    def get_type(self, id: identifiers.ColumnId) -> bigframes.dtypes.Dtype:
         return self._dtype_lookup[id]
 
     @functools.cached_property
@@ -300,7 +299,7 @@ class BigFrameNode:
             for child in item.child_nodes:
                 yield (item, child)
 
-    def topo(self: BigFrameNode) -> Generator[BigFrameNode, None, None]:
+    def iter_nodes_topo(self: BigFrameNode) -> Generator[BigFrameNode, None, None]:
         """Returns nodes from bottom up."""
         queue = collections.deque(
             [node for node in self.unique_nodes() if not node.child_nodes]
@@ -360,7 +359,7 @@ class BigFrameNode:
         Returns the transformed root node.
         """
         results: dict[BigFrameNode, BigFrameNode] = {}
-        for node in list(self.topo()):
+        for node in list(self.iter_nodes_topo()):
             # child nodes have already been transformed
             result = node.transform_children(lambda x: results[x])
             result = transform(result)

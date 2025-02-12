@@ -25,10 +25,10 @@ from typing import Callable, cast, Iterable, Mapping, Optional, Sequence, Tuple
 import google.cloud.bigquery as bq
 
 from bigframes.core import identifiers
+from bigframes.core.bigframe_node import BigFrameNode, COLUMN_SET, Field
 import bigframes.core.expression as ex
 import bigframes.core.guid
 from bigframes.core.ordering import OrderingExpression
-from bigframes.core.plan import BigFrameNode, COLUMN_SET, Field
 import bigframes.core.schema as schemata
 import bigframes.core.slices as slices
 import bigframes.core.window_spec as window
