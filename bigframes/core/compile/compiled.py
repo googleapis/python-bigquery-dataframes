@@ -392,11 +392,17 @@ class UnorderedIR:
         left_table = self._to_ibis_expr()
         right_table = right._to_ibis_expr()
         if join_nulls:  # nullsafe isin join must actually use "exists" subquery
-            cond1 = (left_table[conditions[0]]) == (right_table[conditions[1]])
-            cond2 = (
-                left_table[conditions[0]].isnull() & right_table[conditions[1]].isnull()
+            new_column = (
+                (
+                    _join_condition(
+                        left_table[conditions[0]],
+                        right_table[conditions[1]],
+                        nullsafe=True,
+                    )
+                )
+                .any()
+                .name(indicator_col)
             )
-            new_column = (cond1 | cond2).any().name(indicator_col)
 
         else:  # Can do simpler "in" subquery
             new_column = (
@@ -606,26 +612,43 @@ def _convert_ordering_to_table_values(
     return ordering_values
 
 
+def _string_cast_join_cond(
+    lvalue: ibis_types.Value, rvalue: ibis_types.Value
+) -> ibis_types.Value:
+    return (
+        lvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal("0"))
+        == rvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal("0"))
+    ) & (
+        lvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal("1"))
+        == rvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal("1"))
+    )
+
+
+def _numeric_join_cond(
+    lvalue: ibis_types.Value, rvalue: ibis_types.Value
+) -> ibis_types.Value:
+    return (
+        lvalue.fill_null(ibis_types.literal(0))
+        == rvalue.fill_null(ibis_types.literal(1))
+    ) & (
+        lvalue.fill_null(ibis_types.literal(0))
+        == rvalue.fill_null(ibis_types.literal(1))
+    )
+
+
 def _join_condition(
     lvalue: ibis_types.Value, rvalue: ibis_types.Value, nullsafe: bool
 ) -> ibis_types.BooleanValue:
+    if lvalue.type().is_floating() or rvalue.type().is_floating():
+        # Could try to keep in float domain, but need to handle both NaN and Null separately
+        return _string_cast_join_cond(lvalue, rvalue)
+
     if nullsafe:
-        if lvalue.type().is_numeric():
-            return (
-                lvalue.fill_null(ibis_types.literal(0))
-                == rvalue.fill_null(ibis_types.literal(1))
-            ) & (
-                lvalue.fill_null(ibis_types.literal(0))
-                == rvalue.fill_null(ibis_types.literal(1))
-            )
+        # TODO: Define more coalesce constants for non-numeric types
+        if (lvalue.type().is_numeric()) and (lvalue.type().is_numeric()):
+            return _numeric_join_cond(lvalue, rvalue)
         else:
-            return (
-                lvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal(""))
-                == rvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal(""))
-            ) & (
-                lvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal(""))
-                == rvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal(""))
-            )
+            return _string_cast_join_cond(lvalue, rvalue)
     return lvalue == rvalue
 
 
