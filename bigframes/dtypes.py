@@ -62,7 +62,7 @@ BIGNUMERIC_DTYPE = pd.ArrowDtype(pa.decimal256(76, 38))
 # No arrow equivalent
 GEO_DTYPE = gpd.array.GeometryDtype()
 # JSON
-JSON_DTYPE = db_dtypes.JSONDtype()
+JSON_DTYPE = pd.ArrowDtype(db_dtypes.JSONArrowType())
 OBJ_REF_DTYPE = pd.ArrowDtype(
     pa.struct(
         (

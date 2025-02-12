@@ -304,7 +304,7 @@ def test_load_json_w_unboxed_py_value(session):
     """
     df = session.read_gbq(sql, index_col="id")
 
-    assert df.dtypes["json_col"] == db_dtypes.JSONDtype()
+    assert df.dtypes["json_col"] == pd.ArrowDtype(db_dtypes.JSONArrowType())
     assert isinstance(df["json_col"][0], dict)
 
     assert df["json_col"][0]["boolean"]
@@ -321,13 +321,13 @@ def test_load_json_w_unboxed_py_value(session):
 
 def test_load_json_to_pandas_has_correct_result(session):
     df = session.read_gbq("SELECT JSON_OBJECT('foo', 10, 'bar', TRUE) AS json_col")
-    assert df.dtypes["json_col"] == db_dtypes.JSONDtype()
+    assert df.dtypes["json_col"] == pd.ArrowDtype(db_dtypes.JSONArrowType())
     result = df.to_pandas()
 
     # The order of keys within the JSON object shouldn't matter for equality checks.
     pd_df = pd.DataFrame(
         {"json_col": [{"bar": True, "foo": 10}]},
-        dtype=db_dtypes.JSONDtype(),
+        dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()),
     )
     pd_df.index = pd_df.index.astype("Int64")
     pd.testing.assert_series_equal(result.dtypes, pd_df.dtypes)
@@ -365,7 +365,7 @@ def test_load_json_in_struct(session):
     assert isinstance(df.dtypes["struct_col"].pyarrow_dtype, pa.StructType)
 
     data = df["struct_col"].struct.field("data")
-    assert data.dtype == db_dtypes.JSONDtype()
+    assert data.dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
 
     assert data[0]["boolean"]
     assert data[1]["int"] == 100
@@ -406,7 +406,7 @@ def test_load_json_in_array(session):
 
     data = df["array_col"].list
     assert data.len()[0] == 7
-    assert data[0].dtype == db_dtypes.JSONDtype()
+    assert data[0].dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
 
     assert data[0][0]["boolean"]
     assert data[1][0]["int"] == 100
