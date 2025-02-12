@@ -25,6 +25,7 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import google.cloud.bigquery
 import pandas as pd
 
+from bigframes import dtypes
 from bigframes.core import utils
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
@@ -37,7 +38,6 @@ import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as bf_ordering
 import bigframes.core.rewrite as rewrites
-import bigframes.dtypes
 
 if typing.TYPE_CHECKING:
     import bigframes.core
@@ -229,7 +229,7 @@ class Compiler:
         # TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
         for scan_item in scan.items:
             if (
-                scan_item.dtype == bigframes.dtypes.JSON_DTYPE
+                scan_item.dtype == dtypes.JSON_DTYPE
                 and ibis_table[scan_item.source_id].type() == ibis_dtypes.string
             ):
                 json_column = compile_scalar.parse_json(
