@@ -39,6 +39,7 @@ class DataFrameAndLabels:
     index_labels: Collection
     ordering_col: str
     timedelta_cols: List[str]
+    json_cols: List[str]
 
 
 def _arrow_to_pandas_arrowdtype(
@@ -165,6 +166,7 @@ def pandas_to_bq_compatible(pandas_dataframe: pandas.DataFrame) -> DataFrameAndL
     pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
 
     timedelta_cols = utils.replace_timedeltas_with_micros(pandas_dataframe_copy)
+    json_cols = utils.replace_json_with_string(pandas_dataframe_copy)
 
     return DataFrameAndLabels(
         df=pandas_dataframe_copy,
@@ -172,4 +174,5 @@ def pandas_to_bq_compatible(pandas_dataframe: pandas.DataFrame) -> DataFrameAndL
         index_labels=idx_labels,
         ordering_col=ordering_col,
         timedelta_cols=timedelta_cols,
+        json_cols=json_cols,
     )

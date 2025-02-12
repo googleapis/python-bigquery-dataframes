@@ -20,6 +20,7 @@ import typing
 
 import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery
 import bigframes_vendored.ibis.expr.api as ibis_api
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.types as ibis_types
 import google.cloud.bigquery
 import pandas as pd
@@ -29,7 +30,6 @@ import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
 import bigframes.core.compile.explode
 import bigframes.core.compile.ibis_types
-import bigframes.core.compile.scalar_op_compiler
 import bigframes.core.compile.scalar_op_compiler as compile_scalar
 import bigframes.core.compile.schema_translator
 import bigframes.core.expression as ex
@@ -37,6 +37,7 @@ import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as bf_ordering
 import bigframes.core.rewrite as rewrites
+import bigframes.dtypes
 
 if typing.TYPE_CHECKING:
     import bigframes.core
@@ -224,6 +225,18 @@ class Compiler:
         ibis_table = self.read_table_as_unordered_ibis(
             source, scan_cols=[col.source_id for col in scan.items]
         )
+
+        # TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
+        for scan_item in scan.items:
+            if (
+                scan_item.dtype == bigframes.dtypes.JSON_DTYPE
+                and ibis_table[scan_item.source_id].type() == ibis_dtypes.string
+            ):
+                json_column = compile_scalar.parse_json(
+                    ibis_table[scan_item.source_id]
+                ).name(scan_item.source_id)
+                ibis_table = ibis_table.mutate(json_column)
+
         return compiled.UnorderedIR(
             ibis_table,
             tuple(
