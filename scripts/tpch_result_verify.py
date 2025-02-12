@@ -23,7 +23,7 @@ from tqdm import tqdm
 import bigframes
 
 project_id = "bigframes-dev-perf"
-dataset_id = "tpch_0100g"
+dataset_id = "tpch_0001g"
 dataset = {
     "line_item_ds": f"bigframes-dev-perf.{dataset_id}.LINEITEM",
     "region_ds": f"bigframes-dev-perf.{dataset_id}.REGION",
