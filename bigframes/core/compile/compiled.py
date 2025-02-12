@@ -351,11 +351,17 @@ class UnorderedIR:
         left_table = self._to_ibis_expr().select(self.column_ids)
         right_table = right._to_ibis_expr().select(right.column_ids)
 
-        keyfunc = value_to_join_key if join_nulls else _as_identity
         join_conditions = [
-            keyfunc(left_table[left_index]) == keyfunc(right_table[right_index])
+            _join_condition(
+                left_table[left_index], right_table[right_index], nullsafe=join_nulls
+            )
             for left_index, right_index in conditions
         ]
+        if join_nulls:
+            join_conditions.extend(
+                (left_table[left_index]).isnull() & (right_table[right_index]).isnull()
+                for left_index, right_index in conditions
+            )
 
         combined_table = bigframes_vendored.ibis.join(
             left_table,
@@ -390,12 +396,19 @@ class UnorderedIR:
         """
         left_table = self._to_ibis_expr()
         right_table = right._to_ibis_expr()
-        keyfunc = value_to_join_key if join_nulls else _as_identity
-        new_column = (
-            keyfunc(left_table[conditions[0]])
-            .isin(keyfunc(right_table[conditions[1]]))
-            .name(indicator_col)
-        )
+        if join_nulls:  # nullsafe isin join must actually use "exists" subquery
+            cond1 = (left_table[conditions[0]]) == (right_table[conditions[1]])
+            cond2 = (
+                left_table[conditions[0]].isnull() & right_table[conditions[1]].isnull()
+            )
+            new_column = (cond1 | cond2).any().name(indicator_col)
+
+        else:  # Can do simpler "in" subquery
+            new_column = (
+                (left_table[conditions[0]])
+                .isin((right_table[conditions[1]]))
+                .name(indicator_col)
+            )
 
         columns = tuple(
             itertools.chain(
@@ -598,20 +611,19 @@ def _convert_ordering_to_table_values(
     return ordering_values
 
 
+def _join_condition(
+    lvalue: ibis_types.Value, rvalue: ibis_types.Value, nullsafe: bool
+) -> ibis_types.BooleanValue:
+    if nullsafe:
+        # BigQuery recognizes this pattern and optimizes it well
+        return (_as_identity(lvalue) == _as_identity(rvalue)) | (
+            lvalue.isnull() & rvalue.isnull()
+        )
+    return _as_identity(lvalue) == _as_identity(rvalue)
+
+
 def _as_identity(value: ibis_types.Value):
     # Some types need to be converted to string to enable groupby
     if value.type().is_float64() or value.type().is_geospatial():
         return value.cast(ibis_dtypes.str)
     return value
-
-
-def value_to_join_key(value: ibis_types.Value):
-    """Converts nullable values to non-null string SQL will not match null keys together - but pandas does."""
-    if not value.type().is_string():
-        value = value.cast(ibis_dtypes.str)
-
-    return (
-        value.fill_null(ibis_types.literal("$NULL_SENTINEL$"))
-        if hasattr(value, "fill_null")
-        else value.fillna(ibis_types.literal("$NULL_SENTINEL$"))
-    )
