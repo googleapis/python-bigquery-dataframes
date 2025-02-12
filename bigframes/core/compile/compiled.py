@@ -613,20 +613,21 @@ def _convert_ordering_to_table_values(
 
 
 def _string_cast_join_cond(
-    lvalue: ibis_types.Value, rvalue: ibis_types.Value
-) -> ibis_types.Value:
-    return (
+    lvalue: ibis_types.Column, rvalue: ibis_types.Column
+) -> ibis_types.BooleanColumn:
+    result = (
         lvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal("0"))
         == rvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal("0"))
     ) & (
         lvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal("1"))
         == rvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal("1"))
     )
+    return typing.cast(ibis_types.BooleanColumn, result)
 
 
 def _numeric_join_cond(
-    lvalue: ibis_types.Value, rvalue: ibis_types.Value
-) -> ibis_types.BooleanValue:
+    lvalue: ibis_types.Column, rvalue: ibis_types.Column
+) -> ibis_types.BooleanColumn:
     lvalue1 = lvalue.fill_null(ibis_types.literal(0))
     lvalue2 = lvalue.fill_null(ibis_types.literal(1))
     rvalue1 = rvalue.fill_null(ibis_types.literal(0))
@@ -634,31 +635,32 @@ def _numeric_join_cond(
     if lvalue.type().is_floating() and rvalue.type().is_floating():
         # NaN aren't equal so need to coalesce as well with diff constants
         lvalue1 = (
-            typing.cast(ibis_dtypes.FloatingValue, lvalue)
+            typing.cast(ibis_types.FloatingColumn, lvalue)
             .isnan()
             .ifelse(ibis_types.literal(2), lvalue1)
         )
         lvalue2 = (
-            typing.cast(ibis_dtypes.FloatingValue, lvalue)
+            typing.cast(ibis_types.FloatingColumn, lvalue)
             .isnan()
             .ifelse(ibis_types.literal(3), lvalue2)
         )
         rvalue1 = (
-            typing.cast(ibis_dtypes.FloatingValue, rvalue)
+            typing.cast(ibis_types.FloatingColumn, rvalue)
             .isnan()
             .ifelse(ibis_types.literal(2), rvalue1)
         )
         rvalue2 = (
-            typing.cast(ibis_dtypes.FloatingValue, rvalue)
+            typing.cast(ibis_types.FloatingColumn, rvalue)
             .isnan()
             .ifelse(ibis_types.literal(3), rvalue2)
         )
-    return (lvalue1 == rvalue1) & (lvalue2 == rvalue2)
+    result = (lvalue1 == rvalue1) & (lvalue2 == rvalue2)
+    return typing.cast(ibis_types.BooleanColumn, result)
 
 
 def _join_condition(
-    lvalue: ibis_types.Value, rvalue: ibis_types.Value, nullsafe: bool
-) -> ibis_types.Value:
+    lvalue: ibis_types.Column, rvalue: ibis_types.Column, nullsafe: bool
+) -> ibis_types.BooleanColumn:
     if (lvalue.type().is_floating()) and (lvalue.type().is_floating()):
         # Need to always make safe join condition to handle nan, even if no nulls
         return _numeric_join_cond(lvalue, rvalue)
@@ -668,7 +670,7 @@ def _join_condition(
             return _numeric_join_cond(lvalue, rvalue)
         else:
             return _string_cast_join_cond(lvalue, rvalue)
-    return lvalue == rvalue
+    return typing.cast(ibis_types.BooleanColumn, lvalue == rvalue)
 
 
 def _as_groupable(value: ibis_types.Value):
