@@ -1,7 +1,6 @@
 # Contains code from https://github.com/pola-rs/tpch/blob/main/queries/polars/q10.py
 
 from datetime import date
-import typing
 
 import bigframes
 import bigframes.pandas as bpd
@@ -28,19 +27,13 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
     var1 = date(1993, 10, 1)
     var2 = date(1994, 1, 1)
 
-    q_final = (
-        customer.merge(orders, left_on="C_CUSTKEY", right_on="O_CUSTKEY")
-        .merge(lineitem, left_on="O_ORDERKEY", right_on="L_ORDERKEY")
-        .merge(nation, left_on="C_NATIONKEY", right_on="N_NATIONKEY")
-    )
+    orders = orders[(orders["O_ORDERDATE"] >= var1) & (orders["O_ORDERDATE"] < var2)]
+    lineitem = lineitem[lineitem["L_RETURNFLAG"] == "R"]
 
-    q_final = typing.cast(
-        bpd.DataFrame,
-        q_final[
-            (q_final["O_ORDERDATE"] >= var1)
-            & (q_final["O_ORDERDATE"] < var2)
-            & (q_final["L_RETURNFLAG"] == "R")
-        ],
+    q_final = (
+        orders.merge(lineitem, left_on="O_ORDERKEY", right_on="L_ORDERKEY")
+        .merge(customer, right_on="C_CUSTKEY", left_on="O_CUSTKEY")
+        .merge(nation, left_on="C_NATIONKEY", right_on="N_NATIONKEY")
     )
     q_final["INTERMEDIATE_REVENUE"] = (
         q_final["L_EXTENDEDPRICE"] * (1 - q_final["L_DISCOUNT"])

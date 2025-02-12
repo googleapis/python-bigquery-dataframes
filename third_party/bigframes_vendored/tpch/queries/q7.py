@@ -40,14 +40,14 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
         (lineitem["L_SHIPDATE"] >= var3) & (lineitem["L_SHIPDATE"] <= var4)
     ]
 
-    jn1 = customer.merge(nation, left_on="C_NATIONKEY", right_on="N_NATIONKEY")
-    jn2 = jn1.merge(orders, left_on="C_CUSTKEY", right_on="O_CUSTKEY")
-    jn2 = jn2.rename(columns={"N_NAME": "CUST_NATION"})
-    jn3 = jn2.merge(lineitem, left_on="O_ORDERKEY", right_on="L_ORDERKEY")
-    jn4 = jn3.merge(supplier, left_on="L_SUPPKEY", right_on="S_SUPPKEY")
-    jn5 = jn4.merge(nation, left_on="S_NATIONKEY", right_on="N_NATIONKEY")
-    df1 = jn5.rename(columns={"N_NAME": "SUPP_NATION"})
-    total = df1[df1["CUST_NATION"] != df1["SUPP_NATION"]]
+    jn1 = supplier.merge(nation, left_on="S_NATIONKEY", right_on="N_NATIONKEY")
+    df1 = jn1.rename(columns={"N_NAME": "SUPP_NATION"})
+    jn2 = lineitem.merge(df1, left_on="L_SUPPKEY", right_on="S_SUPPKEY")
+    jn3 = orders.merge(jn2, left_on="O_ORDERKEY", right_on="L_ORDERKEY")
+    jn4 = customer.merge(jn3, left_on="C_CUSTKEY", right_on="O_CUSTKEY")
+    jn5 = jn4.merge(nation, left_on="C_NATIONKEY", right_on="N_NATIONKEY")
+    jn5 = jn5.rename(columns={"N_NAME": "CUST_NATION"})
+    total = jn5[jn5["CUST_NATION"] != jn5["SUPP_NATION"]]
 
     total["VOLUME"] = total["L_EXTENDEDPRICE"] * (1.0 - total["L_DISCOUNT"])
     total["L_YEAR"] = total["L_SHIPDATE"].dt.year
