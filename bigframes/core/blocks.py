@@ -48,6 +48,7 @@ import numpy
 import pandas as pd
 import pyarrow as pa
 
+from bigframes import session
 import bigframes._config.sampling_options as sampling_options
 import bigframes.constants
 import bigframes.core as core
@@ -257,7 +258,7 @@ class Block:
         return [self.expr.get_column_type(col) for col in self.value_columns]
 
     @property
-    def session(self) -> core.Session:
+    def session(self) -> session.Session:
         return self._expr.session
 
     @functools.cached_property
@@ -275,6 +276,26 @@ class Block:
         for id, label in self.col_id_to_label.items():
             mapping[label] = (*mapping.get(label, ()), id)
         return mapping
+
+    def resolve_label_exact(self, label: Label) -> Optional[str]:
+        """Returns the column id matching the label if there is exactly
+        one such column. If there are multiple columns with the same name,
+        raises an error. If there is no such a column, returns None."""
+        matches = self.label_to_col_id.get(label, [])
+        if len(matches) > 1:
+            raise ValueError(
+                f"Multiple columns matching id {label} were found. {constants.FEEDBACK_LINK}"
+            )
+        return matches[0] if len(matches) != 0 else None
+
+    def resolve_label_exact_or_error(self, label: Label) -> str:
+        """Returns the column id matching the label if there is exactly
+        one such column. If there are multiple columns with the same name,
+        raises an error. If there is no such a column, raises an error too."""
+        col_id = self.resolve_label_exact(label)
+        if col_id is None:
+            raise ValueError(f"Label {label} not found. {constants.FEEDBACK_LINK}")
+        return col_id
 
     @functools.cached_property
     def col_id_to_index_name(self) -> typing.Mapping[str, Label]:
@@ -2633,7 +2654,7 @@ class BlockIndexProperties:
         ]
 
     @property
-    def session(self) -> core.Session:
+    def session(self) -> session.Session:
         return self._expr.session
 
     @property
@@ -3151,7 +3172,7 @@ def unpivot(
 
 
 def _pd_index_to_array_value(
-    session: core.Session,
+    session: session.Session,
     index: pd.Index,
 ) -> core.ArrayValue:
     """
