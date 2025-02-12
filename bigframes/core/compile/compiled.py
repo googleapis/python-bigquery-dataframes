@@ -521,7 +521,7 @@ class UnorderedIR:
         group_by: typing.List[ibis_types.Value] = (
             [
                 typing.cast(
-                    ibis_types.Column, _as_identity(self._compile_expression(column))
+                    ibis_types.Column, _as_groupable(self._compile_expression(column))
                 )
                 for column in window_spec.grouping_keys
             ]
@@ -610,12 +610,26 @@ def _join_condition(
     lvalue: ibis_types.Value, rvalue: ibis_types.Value, nullsafe: bool
 ) -> ibis_types.BooleanValue:
     if nullsafe:
-        # BigQuery recognizes this pattern and optimizes it well
-        return ((lvalue) == (rvalue)) | (lvalue.isnull() & rvalue.isnull())
-    return (lvalue) == (rvalue)
+        if lvalue.type().is_numeric():
+            return (
+                lvalue.fill_null(ibis_types.literal(0))
+                == rvalue.fill_null(ibis_types.literal(1))
+            ) & (
+                lvalue.fill_null(ibis_types.literal(0))
+                == rvalue.fill_null(ibis_types.literal(1))
+            )
+        else:
+            return (
+                lvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal(""))
+                == rvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal(""))
+            ) & (
+                lvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal(""))
+                == rvalue.cast(ibis_dtypes.str).fill_null(ibis_types.literal(""))
+            )
+    return lvalue == rvalue
 
 
-def _as_identity(value: ibis_types.Value):
+def _as_groupable(value: ibis_types.Value):
     # Some types need to be converted to string to enable groupby
     if value.type().is_float64() or value.type().is_geospatial():
         return value.cast(ibis_dtypes.str)
