@@ -40,13 +40,9 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
     lineitem["REVENUE"] = lineitem["L_EXTENDEDPRICE"] * (1.0 - lineitem["L_DISCOUNT"])
 
     jn1 = region.merge(nation, left_on="R_REGIONKEY", right_on="N_REGIONKEY")
-
     jn2 = jn1.merge(customer, left_on="N_NATIONKEY", right_on="C_NATIONKEY")
-
     jn3 = orders.merge(jn2, left_on="O_CUSTKEY", right_on="C_CUSTKEY")
-
     jn4 = lineitem.merge(jn3, left_on="L_ORDERKEY", right_on="O_ORDERKEY")
-
     jn5 = jn4.merge(
         supplier,
         left_on=["L_SUPPKEY", "N_NATIONKEY"],
