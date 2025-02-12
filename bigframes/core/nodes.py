@@ -59,7 +59,7 @@ class Field:
     def with_nonnull(self) -> Field:
         return Field(self.id, self.dtype, nullable=False)
 
-    def with_id(self, id: bfet_ids.ColumnId) -> Field:
+    def with_id(self, id: identifiers.ColumnId) -> Field:
         return Field(id, self.dtype, nullable=self.nullable)
 
 
@@ -290,11 +290,11 @@ class BigFrameNode(abc.ABC):
 
     # TODO: Deprecate in favor of field_by_id, and eventually, by rich references
     @functools.cached_property
-    def _dtype_lookup(self) -> dict[bfet_ids.ColumnId, bigframes.dtypes.Dtype]:
+    def _dtype_lookup(self) -> dict[identifiers.ColumnId, bigframes.dtypes.Dtype]:
         return {field.id: field.dtype for field in self.fields}
 
     @functools.cached_property
-    def field_by_id(self) -> Mapping[bfet_ids.ColumnId, Field]:
+    def field_by_id(self) -> Mapping[identifiers.ColumnId, Field]:
         return {field.id: field for field in self.fields}
 
 

@@ -16,7 +16,7 @@ from __future__ import annotations
 import functools
 import itertools
 import typing
-from typing import Literal, Optional, Sequence, Tuple
+from typing import Literal, Optional, Sequence
 
 import bigframes_vendored.ibis
 import bigframes_vendored.ibis.backends.bigquery.backend as ibis_bigquery
@@ -94,7 +94,7 @@ class UnorderedIR:
         return typing.cast(str, sql)
 
     @property
-    def columns(self) -> typing.Tuple[ibis_types.Value, ...]:
+    def columns(self) -> tuple[ibis_types.Value, ...]:
         return self._columns
 
     @property
@@ -107,7 +107,7 @@ class UnorderedIR:
 
     def projection(
         self,
-        expression_id_pairs: typing.Tuple[typing.Tuple[ex.Expression, str], ...],
+        expression_id_pairs: tuple[tuple[ex.Expression, str], ...],
     ) -> UnorderedIR:
         """Apply an expression to the ArrayValue and assign the output to a column."""
         cannot_inline = any(expr.expensive for expr, _ in expression_id_pairs)
@@ -126,7 +126,7 @@ class UnorderedIR:
 
     def selection(
         self,
-        input_output_pairs: typing.Tuple[typing.Tuple[ex.DerefOp, str], ...],
+        input_output_pairs: tuple[tuple[ex.DerefOp, str], ...],
     ) -> UnorderedIR:
         """Apply an expression to the ArrayValue and assign the output to a column."""
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
@@ -203,7 +203,7 @@ class UnorderedIR:
 
     def aggregate(
         self,
-        aggregations: typing.Sequence[typing.Tuple[ex.Aggregation, str]],
+        aggregations: typing.Sequence[tuple[ex.Aggregation, str]],
         by_column_ids: typing.Sequence[ex.DerefOp] = (),
         dropna: bool = True,
         order_by: typing.Sequence[OrderingExpression] = (),
@@ -326,7 +326,7 @@ class UnorderedIR:
     def join(
         self: UnorderedIR,
         right: UnorderedIR,
-        conditions: Tuple[Tuple[str, str], ...],
+        conditions: tuple[tuple[str, str], ...],
         type: Literal["inner", "outer", "left", "right", "cross"],
         *,
         join_nulls: bool = True,
@@ -363,12 +363,6 @@ class UnorderedIR:
             predicates=join_conditions,
             how=type,  # type: ignore
         )
-        combined_table = bigframes_vendored.ibis.join(
-            left_table,
-            right_table,
-            predicates=join_conditions,
-            how=type,  # type: ignore
-        )
         columns = [combined_table[col.get_name()] for col in self.columns] + [
             combined_table[col.get_name()] for col in right.columns
         ]
@@ -381,7 +375,7 @@ class UnorderedIR:
         self: UnorderedIR,
         right: UnorderedIR,
         indicator_col: str,
-        conditions: Tuple[str, str],
+        conditions: tuple[str, str],
         *,
         join_nulls: bool = True,
     ) -> UnorderedIR:
