@@ -195,11 +195,9 @@ def test_timestamp_sub__ts_series_minus_td_series(temporal_dfs, column, pd_dtype
 )
 def test_timestamp_sub__ts_series_minus_td_literal(temporal_dfs, column, pd_dtype):
     bf_df, pd_df = temporal_dfs
-    literal = pd.Timedelta(1, 'h')
+    literal = pd.Timedelta(1, "h")
 
-    actual_result = (
-        (bf_df[column] - literal).to_pandas().astype(pd_dtype)
-    )
+    actual_result = (bf_df[column] - literal).to_pandas().astype(pd_dtype)
 
     expected_result = pd_df[column] - literal
     pandas.testing.assert_series_equal(
@@ -209,13 +207,11 @@ def test_timestamp_sub__ts_series_minus_td_literal(temporal_dfs, column, pd_dtyp
 
 def test_timestamp_sub__ts_literal_minus_td_series(temporal_dfs):
     bf_df, pd_df = temporal_dfs
-    literal = pd.Timestamp('2025-01-01 01:00:00')
+    literal = pd.Timestamp("2025-01-01 01:00:00")
 
-    actual_result = (
-        (literal - bf_df['timedelta_col']).to_pandas().astype("<M8[ns]")
-    )
+    actual_result = (literal - bf_df["timedelta_col"]).to_pandas().astype("<M8[ns]")
 
-    expected_result = literal - pd_df['timedelta_col']
+    expected_result = literal - pd_df["timedelta_col"]
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
@@ -237,8 +233,9 @@ def test_timestamp_sub_with_numpy_op(temporal_dfs, column, pd_dtype):
 
     expected_result = np.subtract(pd_df[column], pd_df["timedelta_col"])
     pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False)
-    
+        actual_result, expected_result, check_index_type=False
+    )
+
 
 def test_timestamp_sub_dataframes(temporal_dfs):
     columns = ["datetime_col", "timestamp_col"]
