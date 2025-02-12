@@ -130,6 +130,98 @@ def image_blur_func(
 image_blur_def = FunctionDef(image_blur_func, ["opencv-python", "numpy", "requests"])
 
 
+def image_resize_func(
+    src_obj_ref_rt: str,
+    dst_obj_ref_rt: str,
+    dsize_x: int,
+    dsize_y: int,
+    fx: float,
+    fy: float,
+) -> str:
+    import json
+
+    import cv2 as cv  # type: ignore
+    import numpy as np
+    import requests
+
+    src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
+    dst_obj_ref_rt_json = json.loads(dst_obj_ref_rt)
+
+    src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
+    dst_url = dst_obj_ref_rt_json["access_urls"]["write_url"]
+
+    response = requests.get(src_url)
+    bts = response.content
+
+    nparr = np.frombuffer(bts, np.uint8)
+    img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
+    img_resized = cv.resize(img, dsize=(dsize_x, dsize_y), fx=fx, fy=fy)
+    bts = cv.imencode(".jpeg", img_resized)[1].tobytes()
+
+    requests.put(
+        url=dst_url,
+        data=bts,
+        headers={
+            "Content-Type": "image/jpeg",
+        },
+    )
+
+    return dst_obj_ref_rt
+
+
+image_resize_def = FunctionDef(
+    image_resize_func, ["opencv-python", "numpy", "requests"]
+)
+
+
+def image_normalize_func(
+    src_obj_ref_rt: str, dst_obj_ref_rt: str, alpha: float, beta: float, norm_type: str
+) -> str:
+    import json
+
+    import cv2 as cv  # type: ignore
+    import numpy as np
+    import requests
+
+    norm_type_mapping = {
+        "inf": cv.NORM_INF,
+        "l1": cv.NORM_L1,
+        "l2": cv.NORM_L2,
+        "minmax": cv.NORM_MINMAX,
+    }
+
+    src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
+    dst_obj_ref_rt_json = json.loads(dst_obj_ref_rt)
+
+    src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
+    dst_url = dst_obj_ref_rt_json["access_urls"]["write_url"]
+
+    response = requests.get(src_url)
+    bts = response.content
+
+    nparr = np.frombuffer(bts, np.uint8)
+    img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
+    img_normalized = cv.normalize(
+        img, None, alpha=alpha, beta=beta, norm_type=norm_type_mapping[norm_type]
+    )
+    bts = cv.imencode(".jpeg", img_normalized)[1].tobytes()
+
+    requests.put(
+        url=dst_url,
+        data=bts,
+        headers={
+            "Content-Type": "image/jpeg",
+        },
+    )
+
+    return dst_obj_ref_rt
+
+
+image_normalize_def = FunctionDef(
+    image_normalize_func, ["opencv-python", "numpy", "requests"]
+)
+
+
 # Extracts all text from a PDF url
 def pdf_extract_func(src_obj_ref_rt: str) -> str:
     import io
