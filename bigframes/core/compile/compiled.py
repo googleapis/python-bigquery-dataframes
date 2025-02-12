@@ -357,11 +357,6 @@ class UnorderedIR:
             )
             for left_index, right_index in conditions
         ]
-        if join_nulls:
-            join_conditions.extend(
-                (left_table[left_index]).isnull() & (right_table[right_index]).isnull()
-                for left_index, right_index in conditions
-            )
 
         combined_table = bigframes_vendored.ibis.join(
             left_table,
@@ -616,10 +611,8 @@ def _join_condition(
 ) -> ibis_types.BooleanValue:
     if nullsafe:
         # BigQuery recognizes this pattern and optimizes it well
-        return (_as_identity(lvalue) == _as_identity(rvalue)) | (
-            lvalue.isnull() & rvalue.isnull()
-        )
-    return _as_identity(lvalue) == _as_identity(rvalue)
+        return ((lvalue) == (rvalue)) | (lvalue.isnull() & rvalue.isnull())
+    return (lvalue) == (rvalue)
 
 
 def _as_identity(value: ibis_types.Value):
