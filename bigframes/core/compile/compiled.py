@@ -626,25 +626,44 @@ def _string_cast_join_cond(
 
 def _numeric_join_cond(
     lvalue: ibis_types.Value, rvalue: ibis_types.Value
-) -> ibis_types.Value:
-    return (
-        lvalue.fill_null(ibis_types.literal(0))
-        == rvalue.fill_null(ibis_types.literal(1))
-    ) & (
-        lvalue.fill_null(ibis_types.literal(0))
-        == rvalue.fill_null(ibis_types.literal(1))
-    )
+) -> ibis_types.BooleanValue:
+    lvalue1 = lvalue.fill_null(ibis_types.literal(0))
+    lvalue2 = lvalue.fill_null(ibis_types.literal(1))
+    rvalue1 = rvalue.fill_null(ibis_types.literal(0))
+    rvalue2 = rvalue.fill_null(ibis_types.literal(1))
+    if lvalue.type().is_floating() and rvalue.type().is_floating():
+        # NaN aren't equal so need to coalesce as well with diff constants
+        lvalue1 = (
+            typing.cast(ibis_dtypes.FloatingValue, lvalue)
+            .isnan()
+            .ifelse(ibis_types.literal(2), lvalue1)
+        )
+        lvalue2 = (
+            typing.cast(ibis_dtypes.FloatingValue, lvalue)
+            .isnan()
+            .ifelse(ibis_types.literal(3), lvalue2)
+        )
+        rvalue1 = (
+            typing.cast(ibis_dtypes.FloatingValue, rvalue)
+            .isnan()
+            .ifelse(ibis_types.literal(2), rvalue1)
+        )
+        rvalue2 = (
+            typing.cast(ibis_dtypes.FloatingValue, rvalue)
+            .isnan()
+            .ifelse(ibis_types.literal(3), rvalue2)
+        )
+    return (lvalue1 == rvalue1) & (lvalue2 == rvalue2)
 
 
 def _join_condition(
     lvalue: ibis_types.Value, rvalue: ibis_types.Value, nullsafe: bool
-) -> ibis_types.BooleanValue:
-    if lvalue.type().is_floating() or rvalue.type().is_floating():
-        # Could try to keep in float domain, but need to handle both NaN and Null separately
-        return _string_cast_join_cond(lvalue, rvalue)
-
+) -> ibis_types.Value:
+    if (lvalue.type().is_floating()) and (lvalue.type().is_floating()):
+        # Need to always make safe join condition to handle nan, even if no nulls
+        return _numeric_join_cond(lvalue, rvalue)
     if nullsafe:
-        # TODO: Define more coalesce constants for non-numeric types
+        # TODO: Define more coalesce constants for non-numeric types to avoid cast
         if (lvalue.type().is_numeric()) and (lvalue.type().is_numeric()):
             return _numeric_join_cond(lvalue, rvalue)
         else:
