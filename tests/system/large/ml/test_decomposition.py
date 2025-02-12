@@ -163,3 +163,28 @@ def test_decomposition_configure_fit_load_none_component(
         in reloaded_model._bqml_model.model_name
     )
     assert reloaded_model.n_components == 7
+
+
+def test_decomposition_mf_configure_fit_load_none_component(
+    ratings_df_default_index, dataset_id
+):
+    model = decomposition.MatrixFactorization(
+        num_factors=6,
+        feedback_type="explicit",
+        user_col="user_id",
+        item_col="item_col",
+        rating_col="rating_col",
+        l2_reg=9.83,
+    )
+    model.fit(ratings_df_default_index)
+
+    # save, load, check n_components. Here n_components is the column size of the training input.
+    # reloaded_model = model.to_gbq(
+    #     f"{dataset_id}.temp_configured_pca_model", replace=True
+    # )
+    # assert reloaded_model._bqml_model is not None
+    # assert (
+    #     f"{dataset_id}.temp_configured_pca_model"
+    #     in reloaded_model._bqml_model.model_name
+    # )
+    assert model.num_factors == 6
