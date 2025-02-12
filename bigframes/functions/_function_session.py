@@ -699,32 +699,9 @@ class FunctionSession:
         """Decorator to turn a Python udf into a BigQuery managed function.
 
         .. note::
-            Please make sure following is setup before using this API:
-
-        1. Have the below APIs enabled for your project:
-
-            * BigQuery Connection API
-            * Artifact Registry API
-            * Cloud Resource Manager API
-
-           This can be done from the cloud console (change `PROJECT_ID` to yours):
-           Or from the gcloud CLI:
-           `$ gcloud services enable bigqueryconnection.googleapis.com artifactregistry.googleapis.com cloudresourcemanager.googleapis.com`
-
-        2. Have following IAM roles enabled for you:
+            Please have following IAM roles enabled for you:
 
             * BigQuery Data Editor (roles/bigquery.dataEditor)
-            * BigQuery Connection Admin (roles/bigquery.connectionAdmin)
-            * Project IAM Admin (roles/resourcemanager.projectIamAdmin) (Only required if the bigquery connection being used is not pre-created and is created dynamically with user credentials.)
-
-        3. Either the user has setIamPolicy privilege on the project, or a BigQuery connection is pre-created with necessary IAM role set:
-
-            1. To create a connection, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_connection
-            2. To set up IAM, follow https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#grant_permission_on_function
-
-               Alternatively, the IAM could also be setup via the gcloud CLI:
-
-               `$ gcloud projects add-iam-policy-binding PROJECT_ID --member="serviceAccount:CONNECTION_SERVICE_ACCOUNT_ID" --role="roles/run.invoker"`.
 
         Args:
             input_types (type or sequence(type), Optional):
