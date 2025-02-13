@@ -301,6 +301,7 @@ def is_object_like(type_: Union[ExpressionType, str]) -> bool:
     return type_ in ("object", "O") or (
         getattr(type_, "kind", None) == "O"
         and getattr(type_, "storage", None) != "pyarrow"
+        and getattr(type_, "name", None) != "dbjson"
     )
 
 
@@ -357,7 +358,7 @@ _ORDERABLE_SIMPLE_TYPES = set(
 
 def is_orderable(type_: ExpressionType) -> bool:
     # On BQ side, ARRAY, STRUCT, GEOGRAPHY, JSON are not orderable
-    return type_ in _ORDERABLE_SIMPLE_TYPES
+    return type_ in _ORDERABLE_SIMPLE_TYPES or type_ is TIMEDELTA_DTYPE
 
 
 _CLUSTERABLE_SIMPLE_TYPES = set(
