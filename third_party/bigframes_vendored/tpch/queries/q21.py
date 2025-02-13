@@ -37,14 +37,16 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
         N_SUPP_BY_ORDER_FINAL=bpd.NamedAgg(column="L_SUPPKEY", aggfunc="size")
     )
 
-    q_final = q_final[q_final["N_SUPP_BY_ORDER_FINAL"] == 1]
-    nation = nation[nation["N_NAME"] == var1]
-    orders = orders[(orders["O_ORDERSTATUS"] == "F")]
-
-    q_final = q1.merge(q_final, on="L_ORDERKEY")
+    q_final = q_final.merge(q1, on="L_ORDERKEY")
     q_final = q_final.merge(supplier, left_on="L_SUPPKEY", right_on="S_SUPPKEY")
     q_final = q_final.merge(nation, left_on="S_NATIONKEY", right_on="N_NATIONKEY")
     q_final = q_final.merge(orders, left_on="L_ORDERKEY", right_on="O_ORDERKEY")
+
+    q_final = q_final[
+        (q_final["N_SUPP_BY_ORDER_FINAL"] == 1)
+        & (q_final["N_NAME"] == var1)
+        & (q_final["O_ORDERSTATUS"] == "F")
+    ]
 
     q_final = q_final.groupby("S_NAME", as_index=False).agg(
         NUMWAIT=bpd.NamedAgg(column="L_SUPPKEY", aggfunc="size")
