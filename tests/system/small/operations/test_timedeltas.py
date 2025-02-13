@@ -196,9 +196,6 @@ def test_timestamp_sub__ts_series_minus_td_series(temporal_dfs, column, pd_dtype
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
-    
-
-
 
 
 @pytest.mark.parametrize(
@@ -218,7 +215,6 @@ def test_timestamp_sub__ts_series_minus_td_literal(temporal_dfs, column, pd_dtyp
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
-
 
 
 def test_timestamp_sub__ts_literal_minus_td_series(temporal_dfs):
@@ -253,7 +249,6 @@ def test_timestamp_sub_with_numpy_op(temporal_dfs, column, pd_dtype):
     )
 
 
-
 def test_timestamp_sub_dataframes(temporal_dfs):
     columns = ["datetime_col", "timestamp_col"]
     timedelta = pd.Timedelta(1, unit="s")
@@ -269,8 +264,8 @@ def test_timestamp_sub_dataframes(temporal_dfs):
     pandas.testing.assert_frame_equal(
         actual_result, expected_result, check_index_type=False
     )
-    
-    
+
+
 @pytest.mark.parametrize(
     "compare_func",
     [
@@ -296,8 +291,7 @@ def test_timedelta_series_comparison(temporal_dfs, compare_func):
         actual_result, expected_result, check_index_type=False
     )
 
-  
-  
+
 @pytest.mark.parametrize(
     "compare_func",
     [
@@ -319,9 +313,7 @@ def test_timedelta_series_and_literal_comparison(temporal_dfs, compare_func):
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
-    
-    
-    
+
 
 def test_timedelta_filtering(session):
     pd_series = pd.Series(
@@ -345,7 +337,7 @@ def test_timedelta_filtering(session):
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
-      
+
 
 def test_timedelta_ordering(session):
     pd_df = pd.DataFrame(
