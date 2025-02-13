@@ -748,7 +748,7 @@ def timestamp_add_op_impl(x: ibis_types.TimestampValue, y: ibis_types.IntegerVal
 
 
 @scalar_op_compiler.register_binary_op(ops.timedelta_mul_op)
-def timestamp_mul_op_impl(x: ibis_types.Value, y: ibis_types.Value):
+def timestamp_mul_op_impl(x: ibis_types.NumericValue, y: ibis_types.NumericValue):
     return (x * y).floor()
 
 
