@@ -69,7 +69,7 @@ class TimestampSub(base_ops.BinaryOp):
             return input_types[0]
 
         raise TypeError(
-            f"unsupported types for timestamp_add. left: {input_types[0]} right: {input_types[1]}"
+            f"unsupported types for timestamp_sub. left: {input_types[0]} right: {input_types[1]}"
         )
 
 
