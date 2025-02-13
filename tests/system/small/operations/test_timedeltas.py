@@ -333,7 +333,6 @@ def test_timedelta_filtering(session):
     )
 
     expected_result = pd_series[(pd_series - timestamp) > pd.Timedelta(1, "h")]
-
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
