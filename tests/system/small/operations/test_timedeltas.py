@@ -240,7 +240,9 @@ def test_timestamp_sub_with_numpy_op(temporal_dfs, column, pd_dtype):
     bf_df, pd_df = temporal_dfs
 
     actual_result = (
-        np.subtract(bf_df[column], bf_df["timedelta_col_1"]).to_pandas().astype(pd_dtype)
+        np.subtract(bf_df[column], bf_df["timedelta_col_1"])
+        .to_pandas()
+        .astype(pd_dtype)
     )
 
     expected_result = np.subtract(pd_df[column], pd_df["timedelta_col_1"])
