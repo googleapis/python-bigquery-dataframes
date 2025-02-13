@@ -20,11 +20,12 @@ import datetime
 import functools
 import itertools
 import typing
-from typing import Callable, cast, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar
+from typing import Callable, cast, Iterable, Mapping, Optional, Sequence, Tuple
 
 import google.cloud.bigquery as bq
 
 from bigframes.core import identifiers
+from bigframes.core.bigframe_node import BigFrameNode, COLUMN_SET, Field
 import bigframes.core.expression as ex
 import bigframes.core.guid
 from bigframes.core.ordering import OrderingExpression
@@ -40,246 +41,6 @@ if typing.TYPE_CHECKING:
 
 # A fixed number of variable to assume for overhead on some operations
 OVERHEAD_VARIABLES = 5
-
-COLUMN_SET = frozenset[identifiers.ColumnId]
-
-Self = TypeVar("Self")
-
-
-@dataclasses.dataclass(frozen=True)
-class Field:
-    id: identifiers.ColumnId
-    dtype: bigframes.dtypes.Dtype
-
-
-@dataclasses.dataclass(eq=False, frozen=True)
-class BigFrameNode(abc.ABC):
-    """
-    Immutable node for representing 2D typed array as a tree of operators.
-
-    All subclasses must be hashable so as to be usable as caching key.
-    """
-
-    @property
-    def deterministic(self) -> bool:
-        """Whether this node will evaluates deterministically."""
-        return True
-
-    @property
-    def row_preserving(self) -> bool:
-        """Whether this node preserves input rows."""
-        return True
-
-    @property
-    def non_local(self) -> bool:
-        """
-        Whether this node combines information across multiple rows instead of processing rows independently.
-        Used as an approximation for whether the expression may require shuffling to execute (and therefore be expensive).
-        """
-        return False
-
-    @property
-    def child_nodes(self) -> typing.Sequence[BigFrameNode]:
-        """Direct children of this node"""
-        return tuple([])
-
-    @property
-    @abc.abstractmethod
-    def row_count(self) -> typing.Optional[int]:
-        return None
-
-    @abc.abstractmethod
-    def remap_vars(
-        self: Self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
-    ) -> Self:
-        """Remap defined (in this node only) variables."""
-        ...
-
-    @abc.abstractmethod
-    def remap_refs(
-        self: Self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
-    ) -> Self:
-        """Remap variable references"""
-        ...
-
-    @property
-    @abc.abstractmethod
-    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
-        """The variables defined in this node (as opposed to by child nodes)."""
-        ...
-
-    @property
-    def referenced_ids(self) -> COLUMN_SET:
-        return frozenset()
-
-    @functools.cached_property
-    def session(self):
-        sessions = []
-        for child in self.child_nodes:
-            if child.session is not None:
-                sessions.append(child.session)
-        unique_sessions = len(set(sessions))
-        if unique_sessions > 1:
-            raise ValueError("Cannot use combine sources from multiple sessions.")
-        elif unique_sessions == 1:
-            return sessions[0]
-        return None
-
-    def _validate(self):
-        """Validate the local data in the node."""
-        return
-
-    @functools.cache
-    def validate_tree(self) -> bool:
-        for child in self.child_nodes:
-            child.validate_tree()
-        self._validate()
-        field_list = list(self.fields)
-        if len(set(field_list)) != len(field_list):
-            raise ValueError(f"Non unique field ids {list(self.fields)}")
-        return True
-
-    def _as_tuple(self) -> Tuple:
-        """Get all fields as tuple."""
-        return tuple(getattr(self, field.name) for field in dataclasses.fields(self))
-
-    def __hash__(self) -> int:
-        # Custom hash that uses cache to avoid costly recomputation
-        return self._cached_hash
-
-    def __eq__(self, other) -> bool:
-        # Custom eq that tries to short-circuit full structural comparison
-        if not isinstance(other, self.__class__):
-            return False
-        if self is other:
-            return True
-        if hash(self) != hash(other):
-            return False
-        return self._as_tuple() == other._as_tuple()
-
-    # BigFrameNode trees can be very deep so its important avoid recalculating the hash from scratch
-    # Each subclass of BigFrameNode should use this property to implement __hash__
-    # The default dataclass-generated __hash__ method is not cached
-    @functools.cached_property
-    def _cached_hash(self):
-        return hash(self._as_tuple())
-
-    @property
-    def roots(self) -> typing.Set[BigFrameNode]:
-        roots = itertools.chain.from_iterable(
-            map(lambda child: child.roots, self.child_nodes)
-        )
-        return set(roots)
-
-    # TODO: Store some local data lazily for select, aggregate nodes.
-    @property
-    @abc.abstractmethod
-    def fields(self) -> Iterable[Field]:
-        ...
-
-    @property
-    def ids(self) -> Iterable[identifiers.ColumnId]:
-        """All output ids from the node."""
-        return (field.id for field in self.fields)
-
-    @property
-    @abc.abstractmethod
-    def variables_introduced(self) -> int:
-        """
-        Defines number of values created by the current node. Helps represent the "width" of a query
-        """
-        ...
-
-    @property
-    def relation_ops_created(self) -> int:
-        """
-        Defines the number of relational ops generated by the current node. Used to estimate query planning complexity.
-        """
-        return 1
-
-    @property
-    def joins(self) -> bool:
-        """
-        Defines whether the node joins data.
-        """
-        return False
-
-    @property
-    @abc.abstractmethod
-    def order_ambiguous(self) -> bool:
-        """
-        Whether row ordering is potentially ambiguous. For example, ReadTable (without a primary key) could be ordered in different ways.
-        """
-        ...
-
-    @property
-    @abc.abstractmethod
-    def explicitly_ordered(self) -> bool:
-        """
-        Whether row ordering is potentially ambiguous. For example, ReadTable (without a primary key) could be ordered in different ways.
-        """
-        ...
-
-    @functools.cached_property
-    def height(self) -> int:
-        if len(self.child_nodes) == 0:
-            return 0
-        return max(child.height for child in self.child_nodes) + 1
-
-    @functools.cached_property
-    def total_variables(self) -> int:
-        return self.variables_introduced + sum(
-            map(lambda x: x.total_variables, self.child_nodes)
-        )
-
-    @functools.cached_property
-    def total_relational_ops(self) -> int:
-        return self.relation_ops_created + sum(
-            map(lambda x: x.total_relational_ops, self.child_nodes)
-        )
-
-    @functools.cached_property
-    def total_joins(self) -> int:
-        return int(self.joins) + sum(map(lambda x: x.total_joins, self.child_nodes))
-
-    @functools.cached_property
-    def schema(self) -> schemata.ArraySchema:
-        # TODO: Make schema just a view on fields
-        return schemata.ArraySchema(
-            tuple(schemata.SchemaItem(i.id.name, i.dtype) for i in self.fields)
-        )
-
-    @property
-    def planning_complexity(self) -> int:
-        """
-        Empirical heuristic measure of planning complexity.
-
-        Used to determine when to decompose overly complex computations. May require tuning.
-        """
-        return self.total_variables * self.total_relational_ops * (1 + self.total_joins)
-
-    @abc.abstractmethod
-    def transform_children(
-        self: Self, t: Callable[[BigFrameNode], BigFrameNode]
-    ) -> Self:
-        """Apply a function to each child node."""
-        ...
-
-    @property
-    def defines_namespace(self) -> bool:
-        """
-        If true, this node establishes a new column id namespace.
-
-        If false, this node consumes and produces ids in the namespace
-        """
-        return False
-
-    def get_type(self, id: identifiers.ColumnId) -> bigframes.dtypes.Dtype:
-        return self._dtype_lookup[id]
-
-    @functools.cached_property
-    def _dtype_lookup(self):
-        return {field.id: field.dtype for field in self.fields}
 
 
 class AdditiveNode:
@@ -455,7 +216,7 @@ class InNode(BigFrameNode, AdditiveNode):
 
     @property
     def added_fields(self) -> Tuple[Field, ...]:
-        return (Field(self.indicator_col, bigframes.dtypes.BOOL_DTYPE),)
+        return (Field(self.indicator_col, bigframes.dtypes.BOOL_DTYPE, nullable=False),)
 
     @property
     def fields(self) -> Iterable[Field]:
@@ -488,6 +249,12 @@ class InNode(BigFrameNode, AdditiveNode):
     @property
     def additive_base(self) -> BigFrameNode:
         return self.left_child
+
+    @property
+    def joins_nulls(self) -> bool:
+        left_nullable = self.left_child.field_by_id[self.left_col.id].nullable
+        right_nullable = self.right_child.field_by_id[self.right_col.id].nullable
+        return left_nullable or right_nullable
 
     def replace_additive_base(self, node: BigFrameNode):
         return dataclasses.replace(self, left_child=node)
@@ -549,7 +316,23 @@ class JoinNode(BigFrameNode):
 
     @property
     def fields(self) -> Iterable[Field]:
-        return itertools.chain(self.left_child.fields, self.right_child.fields)
+        left_fields = self.left_child.fields
+        if self.type in ("right", "outer"):
+            left_fields = map(lambda x: x.with_nullable(), left_fields)
+        right_fields = self.right_child.fields
+        if self.type in ("left", "outer"):
+            right_fields = map(lambda x: x.with_nullable(), right_fields)
+        return itertools.chain(left_fields, right_fields)
+
+    @property
+    def joins_nulls(self) -> bool:
+        for left_ref, right_ref in self.conditions:
+            if (
+                self.left_child.field_by_id[left_ref.id].nullable
+                and self.right_child.field_by_id[right_ref.id].nullable
+            ):
+                return True
+        return False
 
     @functools.cached_property
     def variables_introduced(self) -> int:
@@ -642,6 +425,7 @@ class ConcatNode(BigFrameNode):
     @property
     def fields(self) -> Iterable[Field]:
         # TODO: Output names should probably be aligned beforehand or be part of concat definition
+        # TODO: Handle nullability
         return (
             Field(id, field.dtype)
             for id, field in zip(self.output_ids, self.children[0].fields)
@@ -715,7 +499,9 @@ class FromRangeNode(BigFrameNode):
 
     @functools.cached_property
     def fields(self) -> Iterable[Field]:
-        return (Field(self.output_id, next(iter(self.start.fields)).dtype),)
+        return (
+            Field(self.output_id, next(iter(self.start.fields)).dtype, nullable=False),
+        )
 
     @functools.cached_property
     def variables_introduced(self) -> int:
@@ -794,6 +580,7 @@ class ScanList:
 @dataclasses.dataclass(frozen=True, eq=False)
 class ReadLocalNode(LeafNode):
     # TODO: Combine feather_bytes, data_schema, n_rows into a LocalDataDef struct
+    # TODO: Track nullability for local data
     feather_bytes: bytes
     data_schema: schemata.ArraySchema
     n_rows: int
@@ -808,7 +595,8 @@ class ReadLocalNode(LeafNode):
         fields = (Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
         if self.offsets_col is not None:
             return itertools.chain(
-                fields, (Field(self.offsets_col, bigframes.dtypes.INT_DTYPE),)
+                fields,
+                (Field(self.offsets_col, bigframes.dtypes.INT_DTYPE, nullable=False),),
             )
         return fields
 
@@ -894,6 +682,11 @@ class GbqTable:
             else tuple(table.clustering_fields),
         )
 
+    @property
+    @functools.cache
+    def schema_by_id(self):
+        return {col.name: col for col in self.physical_schema}
+
 
 @dataclasses.dataclass(frozen=True)
 class BigqueryDataSource:
@@ -936,7 +729,10 @@ class ReadTableNode(LeafNode):
 
     @property
     def fields(self) -> Iterable[Field]:
-        return (Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
+        return (
+            Field(col_id, dtype, self.source.table.schema_by_id[source_id].is_nullable)
+            for col_id, dtype, source_id in self.scan_list.items
+        )
 
     @property
     def relation_ops_created(self) -> int:
@@ -1047,9 +843,7 @@ class PromoteOffsetsNode(UnaryNode, AdditiveNode):
 
     @property
     def fields(self) -> Iterable[Field]:
-        return itertools.chain(
-            self.child.fields, [Field(self.col_id, bigframes.dtypes.INT_DTYPE)]
-        )
+        return itertools.chain(self.child.fields, self.added_fields)
 
     @property
     def relation_ops_created(self) -> int:
@@ -1073,7 +867,7 @@ class PromoteOffsetsNode(UnaryNode, AdditiveNode):
 
     @property
     def added_fields(self) -> Tuple[Field, ...]:
-        return (Field(self.col_id, bigframes.dtypes.INT_DTYPE),)
+        return (Field(self.col_id, bigframes.dtypes.INT_DTYPE, nullable=False),)
 
     @property
     def additive_base(self) -> BigFrameNode:
@@ -1095,6 +889,7 @@ class PromoteOffsetsNode(UnaryNode, AdditiveNode):
 
 @dataclasses.dataclass(frozen=True, eq=False)
 class FilterNode(UnaryNode):
+    # TODO: Infer null constraints from predicate
     predicate: ex.Expression
 
     @property
@@ -1264,8 +1059,13 @@ class SelectionNode(UnaryNode):
 
     @functools.cached_property
     def fields(self) -> Iterable[Field]:
+        input_fields_by_id = {field.id: field for field in self.child.fields}
         return tuple(
-            Field(output, self.child.get_type(ref.id))
+            Field(
+                output,
+                input_fields_by_id[ref.id].dtype,
+                input_fields_by_id[ref.id].nullable,
+            )
             for ref, output in self.input_output_pairs
         )
 
@@ -1330,10 +1130,22 @@ class ProjectionNode(UnaryNode, AdditiveNode):
     @functools.cached_property
     def added_fields(self) -> Tuple[Field, ...]:
         input_types = self.child._dtype_lookup
-        return tuple(
-            Field(id, bigframes.dtypes.dtype_for_etype(ex.output_type(input_types)))
-            for ex, id in self.assignments
-        )
+
+        fields = []
+        for expr, id in self.assignments:
+            field = Field(
+                id,
+                bigframes.dtypes.dtype_for_etype(expr.output_type(input_types)),
+                nullable=expr.nullable,
+            )
+            # Special case until we get better nullability inference in expression objects themselves
+            if expr.is_identity and not any(
+                self.child.field_by_id[id].nullable for id in expr.column_references
+            ):
+                field = field.with_nonnull()
+            fields.append(field)
+
+        return tuple(fields)
 
     @property
     def fields(self) -> Iterable[Field]:
@@ -1408,7 +1220,7 @@ class RowCountNode(UnaryNode):
 
     @property
     def fields(self) -> Iterable[Field]:
-        return (Field(self.col_id, bigframes.dtypes.INT_DTYPE),)
+        return (Field(self.col_id, bigframes.dtypes.INT_DTYPE, nullable=False),)
 
     @property
     def variables_introduced(self) -> int:
@@ -1458,19 +1270,22 @@ class AggregateNode(UnaryNode):
 
     @functools.cached_property
     def fields(self) -> Iterable[Field]:
-        by_items = (
-            Field(ref.id, self.child.get_type(ref.id)) for ref in self.by_column_ids
-        )
+        # TODO: Use child nullability to infer grouping key nullability
+        by_fields = (self.child.field_by_id[ref.id] for ref in self.by_column_ids)
+        if self.dropna:
+            by_fields = (field.with_nonnull() for field in by_fields)
+        # TODO: Label aggregate ops to determine which are guaranteed non-null
         agg_items = (
             Field(
                 id,
                 bigframes.dtypes.dtype_for_etype(
                     agg.output_type(self.child._dtype_lookup)
                 ),
+                nullable=True,
             )
             for agg, id in self.aggregations
         )
-        return tuple(itertools.chain(by_items, agg_items))
+        return tuple(itertools.chain(by_fields, agg_items))
 
     @property
     def variables_introduced(self) -> int:
@@ -1575,6 +1390,7 @@ class WindowOpNode(UnaryNode, AdditiveNode):
     @functools.cached_property
     def added_field(self) -> Field:
         input_types = self.child._dtype_lookup
+        # TODO: Determine if output could be non-null
         return Field(
             self.output_name,
             bigframes.dtypes.dtype_for_etype(self.expression.output_type(input_types)),
@@ -1692,6 +1508,7 @@ class ExplodeNode(UnaryNode):
                 bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
                     self.child.get_type(field.id).pyarrow_dtype.value_type  # type: ignore
                 ),
+                nullable=True,
             )
             if field.id in set(map(lambda x: x.id, self.column_ids))
             else field
@@ -1699,7 +1516,8 @@ class ExplodeNode(UnaryNode):
         )
         if self.offsets_col is not None:
             return itertools.chain(
-                fields, (Field(self.offsets_col, bigframes.dtypes.INT_DTYPE),)
+                fields,
+                (Field(self.offsets_col, bigframes.dtypes.INT_DTYPE, nullable=False),),
             )
         return fields
 
@@ -1741,50 +1559,24 @@ class ExplodeNode(UnaryNode):
 def top_down(
     root: BigFrameNode,
     transform: Callable[[BigFrameNode], BigFrameNode],
-    *,
-    memoize=False,
-    validate=False,
 ) -> BigFrameNode:
     """
     Perform a top-down transformation of the BigFrameNode tree.
-
-    If memoize=True, recursive calls are memoized within the scope of the traversal only.
     """
-
-    def top_down_internal(root: BigFrameNode) -> BigFrameNode:
-        return transform(root).transform_children(top_down_internal)
-
-    if memoize:
-        # MUST reassign to the same name or caching won't work recursively
-        top_down_internal = functools.cache(top_down_internal)
-
-    result = top_down_internal(root)
-    if validate:
-        result.validate_tree()
-    return result
+    return root.top_down(transform)
 
 
 def bottom_up(
     root: BigFrameNode,
     transform: Callable[[BigFrameNode], BigFrameNode],
-    *,
-    memoize=False,
-    validate=False,
 ) -> BigFrameNode:
     """
     Perform a bottom-up transformation of the BigFrameNode tree.
 
-    If memoize=True, recursive calls are memoized within the scope of the traversal only.
+    The `transform` function is applied to each node *after* its children
+    have been transformed.  This allows for transformations that depend
+    on the results of transforming subtrees.
+
+    Returns the transformed root node.
     """
-
-    def bottom_up_internal(root: BigFrameNode) -> BigFrameNode:
-        return transform(root.transform_children(bottom_up_internal))
-
-    if memoize:
-        # MUST reassign to the same name or caching won't work recursively
-        bottom_up_internal = functools.cache(bottom_up_internal)
-
-    result = bottom_up_internal(root)
-    if validate:
-        result.validate_tree()
-    return result
+    return root.bottom_up(transform)
