@@ -172,8 +172,8 @@ def test_decomposition_mf_configure_fit_load_none_component(
         num_factors=6,
         feedback_type="explicit",
         user_col="user_id",
-        item_col="item_col",
-        rating_col="rating_col",
+        item_col="item_id",
+        rating_col="ratings",
         l2_reg=9.83,
     )
     model.fit(ratings_df_default_index)
