@@ -1032,10 +1032,10 @@ class GroupBy:
 
         **Examples:**
 
-        For SeriesGroupBy:
-
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
+
+        For SeriesGroupBy:
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([1, 2, 3], index=lst)
@@ -1071,6 +1071,67 @@ class GroupBy:
                 Number of rows in each group as a Series if as_index is True
                 or a DataFrame if as_index is False.
 
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __iter__(self):
+        """
+        Groupby iterator.
+
+        This method provides an iterator over the groups created by the ``resample``
+        or ``groupby`` operation on the object. The method yields tuples where
+        the first element is the label (group key) corresponding to each group or
+        resampled bin, and the second element is the subset of the data that falls
+        within that group or bin.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+        For SeriesGroupBy:
+
+            >>> lst = ["a", "a", "b"]
+            >>> ser = bpd.Series([1, 2, 3], index=lst)
+            >>> ser
+            a    1
+            a    2
+            b    3
+            dtype: Int64
+            >>> for x, y in ser.groupby(level=0):
+            ...     print(f"{x}\\n{y}\\n")
+            a
+            a    1
+            a    2
+            dtype: Int64
+            b
+            b    3
+            dtype: Int64
+
+        For DataFrameGroupBy:
+
+            >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+            >>> df = bpd.DataFrame(data, columns=["a", "b", "c"])
+            >>> df
+               a  b  c
+            0  1  2  3
+            1  1  5  6
+            2  7  8  9
+            >>> for x, y in df.groupby(by=["a"]):
+            ...     print(f"{x}\\n{y}\\n")
+            (1,)
+               a  b  c
+            0  1  2  3
+            1  1  5  6
+            (7,)
+               a  b  c
+            2  7  8  9
+
+
+        Returns:
+            Iterator of tuples:
+                Generator yielding a sequence of (``name``, downloaded
+                ``pandas.DataFrame`` or ``pandas.Series``) for each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

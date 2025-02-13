@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Sequence, Union
+from typing import Iterable, Sequence, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
@@ -141,6 +141,10 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 n=n,
             )
         )
+
+    def __iter__(self) -> Iterable[Tuple[blocks.Label, pd.DataFrame]]:
+        # TODO: make a struct of all columns and then array_agg that.
+        return ()
 
     def size(self) -> typing.Union[df.DataFrame, series.Series]:
         agg_block, _ = self._block.aggregate_size(
