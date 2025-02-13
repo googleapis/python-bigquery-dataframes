@@ -54,3 +54,30 @@ class TimestampAdd(base_ops.BinaryOp):
 
 
 timestamp_add_op = TimestampAdd()
+
+
+@dataclasses.dataclass(frozen=True)
+class TimedeltaMulOp(base_ops.BinaryOp):
+    """A multiplication that always floors the result and returns a timedelta type."""
+
+    name: typing.ClassVar[str] = "timedelta_mul"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        # timestamp + timedelta => timestamp
+        if (
+            dtypes.is_numeric(input_types[0])
+            and input_types[1] is dtypes.TIMEDELTA_DTYPE
+        ):
+            return dtypes.TIMEDELTA_DTYPE
+        # timedelta + timestamp => timestamp
+        if input_types[0] is dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(
+            input_types[1]
+        ):
+            return dtypes.TIMEDELTA_DTYPE
+
+        raise TypeError(
+            f"unsupported types for timedelta_mul. left: {input_types[0]} right: {input_types[1]}"
+        )
+
+
+timedelta_mul_op = TimedeltaMulOp()

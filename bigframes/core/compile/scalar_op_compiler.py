@@ -747,6 +747,11 @@ def timestamp_add_op_impl(x: ibis_types.TimestampValue, y: ibis_types.IntegerVal
     return x + y.to_interval("us")
 
 
+@scalar_op_compiler.register_binary_op(ops.timedelta_mul_op)
+def timestamp_mul_op_impl(x: ibis_types.Value, y: ibis_types.Value):
+    return (x * y).floor()
+
+
 @scalar_op_compiler.register_unary_op(ops.FloorDtOp, pass_op=True)
 def floor_dt_op_impl(x: ibis_types.Value, op: ops.FloorDtOp):
     supported_freqs = ["Y", "Q", "M", "W", "D", "h", "min", "s", "ms", "us", "ns"]

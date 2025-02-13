@@ -115,6 +115,7 @@ from bigframes.operations.numeric_ops import (
     cos_op,
     cosh_op,
     div_op,
+    DivOp,
     exp_op,
     expm1_op,
     floor_op,
@@ -124,6 +125,7 @@ from bigframes.operations.numeric_ops import (
     log10_op,
     mod_op,
     mul_op,
+    MulOp,
     neg_op,
     pos_op,
     pow_op,
@@ -178,7 +180,11 @@ from bigframes.operations.string_ops import (
 )
 from bigframes.operations.struct_ops import StructFieldOp, StructOp
 from bigframes.operations.time_ops import hour_op, minute_op, normalize_op, second_op
-from bigframes.operations.timedelta_ops import timestamp_add_op, ToTimedeltaOp
+from bigframes.operations.timedelta_ops import (
+    timedelta_mul_op,
+    timestamp_add_op,
+    ToTimedeltaOp,
+)
 
 __all__ = [
     # Base ops
@@ -251,6 +257,7 @@ __all__ = [
     "normalize_op",
     # Timedelta ops
     "timestamp_add_op",
+    "timedelta_mul_op",
     "ToTimedeltaOp",
     # Datetime ops
     "date_op",
@@ -277,6 +284,7 @@ __all__ = [
     "cos_op",
     "cosh_op",
     "div_op",
+    "DivOp",
     "exp_op",
     "expm1_op",
     "floor_op",
@@ -286,6 +294,7 @@ __all__ = [
     "log10_op",
     "mod_op",
     "mul_op",
+    "MulOp",
     "neg_op",
     "pos_op",
     "pow_op",
