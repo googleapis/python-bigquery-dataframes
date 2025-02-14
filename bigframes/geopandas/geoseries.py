@@ -69,10 +69,8 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         )
 
     @classmethod
-    def from_wkt(
-        cls, data, index=None, crs=None, on_invalid="raise", **kwargs
-    ) -> GeoSeries:
-        series = bigframes.series.Series(data, index=index, **kwargs)
+    def from_wkt(cls, data, index=None) -> GeoSeries:
+        series = bigframes.series.Series(data, index=index)
 
         return cls(series._apply_unary_op(ops.geo_st_geogfromtext_op))
 

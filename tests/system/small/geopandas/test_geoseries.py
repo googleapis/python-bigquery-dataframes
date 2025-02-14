@@ -148,9 +148,9 @@ def test_geo_to_wkt():
         ]
     )
 
-    bf_result = bf_geo.to_wkt().to_pandas()
+    bf_result = bf_geo.to_wkt().astype("string[pyarrow]").to_pandas()
 
-    pd_result = pd_geo.to_wkt()
+    pd_result = pd_geo.to_wkt().astype("string[pyarrow]").to_pandas()
 
     pd.testing.assert_series_equal(
         bf_result,

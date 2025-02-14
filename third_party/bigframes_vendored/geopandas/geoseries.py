@@ -134,9 +134,7 @@ class GeoSeries:
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     @classmethod
-    def from_wkt(
-        cls, data, index=None, crs=None, **kwargs
-    ) -> bigframes.geopandas.GeoSeries:
+    def from_wkt(cls, data, index=None) -> bigframes.geopandas.GeoSeries:
         """
         Alternate constructor to create a GeoSeries from a list or array of
         WKT objects.
@@ -165,22 +163,13 @@ class GeoSeries:
             index (array-like or Index, optional):
                 The index for the GeoSeries.
 
-            crs (optional):
-                Coordinate Reference System of the geometry objects.
-                Coordinate Reference System of the geometry objects. Can be
-                anything accepted by pyproj.CRS.from_user_input(), such as an
-                authority string (eg “EPSG:4326”) or a WKT string.
-
-            **kwargs:
-                Additional arguments passed to the Series constructor, e.g. `name`.
-
         Returns:
             bigframes.geopandas.GeoSeries:
                 A GeoSeries of geometries.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_wkt(self, **kwargs) -> bigframes.series.Series:
+    def to_wkt(self) -> bigframes.series.Series:
         """
         Convert GeoSeries geometries to WKT
 
@@ -202,10 +191,6 @@ class GeoSeries:
             1    POINT(2 2)
             2    POINT(3 3)
             dtype: string  ### geopandas = object
-
-        Args:
-            **kwargs:
-                Keyword args will be passed to shapely.to_wkt().
 
         Returns:
             bigframes.series.Series:
