@@ -107,3 +107,55 @@ def test_geo_from_xy():
         check_series_type=False,
         check_index=False,
     )
+
+
+def test_geo_from_wkt():
+    wkts = [
+        "Point(0 1)",
+        "Point(2 4)",
+        "Point(5 3)",
+        "Point(6 8)",
+    ]
+
+    bf_result = bigframes.geopandas.GeoSeries.from_wkt(wkts).to_pandas()
+
+    pd_result = geopandas.GeoSeries.from_wkt(wkts)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+        check_series_type=False,
+        check_index=False,
+    )
+
+
+def test_geo_to_wkt():
+    bf_geo = bigframes.geopandas.GeoSeries(
+        [
+            Point(0, 1),
+            Point(2, 4),
+            Point(5, 3),
+            Point(6, 8),
+        ]
+    )
+
+    pd_geo = geopandas.GeoSeries(
+        [
+            Point(0, 1),
+            Point(2, 4),
+            Point(5, 3),
+            Point(6, 8),
+        ]
+    )
+
+    bf_result = bf_geo.to_wkt().to_pandas()
+
+    pd_result = pd_geo.to_wkt()
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+        check_series_type=False,
+        check_dtype=False,
+        check_index=False,
+    )
