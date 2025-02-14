@@ -144,8 +144,31 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         )
 
     def __iter__(self) -> Iterable[Tuple[blocks.Label, pd.DataFrame]]:
-        # TODO: make a struct of all columns and then array_agg that.
-        return ()
+        # TODO: cache original block, clustered by column ids
+        block = self._block.set_index(
+            self._by_col_ids,
+            # TODO: do we need to keep the original index?
+            drop=False,
+            index_labels=self._block._get_labels_for_columns(
+                self._by_col_ids
+            ).to_list(),
+        )
+        block.cached(force=True)
+
+        keys_block, _ = block.aggregate(
+            by_column_ids=self._by_col_ids,
+            dropna=self._dropna,
+        )
+        for batch in keys_block.to_pandas_batches():
+            for key in batch.index:
+                # group_block = block
+                # for col in self._by_col_ids:  # TODO: can't loop through key if only one by_col_id.
+
+                #
+                #  = block.project_expr(bigframes.core.expression.const(key, dtype=self._block._column_type(self._by_col_ids))
+                #     ops.eq_op( ex.const(key)
+                # )
+                yield key, batch  # TODO: filter clustered block by row
 
     def size(self) -> typing.Union[df.DataFrame, series.Series]:
         agg_block, _ = self._block.aggregate_size(
