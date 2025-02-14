@@ -23,9 +23,10 @@ import warnings
 
 from google.cloud import bigquery
 
-import bigframes
 from bigframes import dataframe
-from bigframes.core import log_adapter
+from bigframes.core import log_adapter, nodes
+import bigframes.exceptions as bfe
+import bigframes.session
 
 
 def _return_type_wrapper(method, cls):
@@ -53,8 +54,8 @@ def _curate_df_doc(doc: Optional[str]):
 
 
 class StreamingBase:
-    sql: str
-    _session: bigframes.Session
+    _appends_sql: str
+    _session: bigframes.session.Session
 
     def to_bigtable(
         self,
@@ -123,7 +124,7 @@ class StreamingBase:
                 can be examined.
         """
         return _to_bigtable(
-            self.sql,
+            self._appends_sql,
             instance=instance,
             table=table,
             service_account_email=service_account_email,
@@ -180,7 +181,7 @@ class StreamingBase:
                 can be examined.
         """
         return _to_pubsub(
-            self.sql,
+            self._appends_sql,
             topic=topic,
             service_account_email=service_account_email,
             session=self._session,
@@ -208,7 +209,7 @@ class StreamingDataFrame(StreamingBase):
     def __init__(self, df: dataframe.DataFrame, *, create_key=0):
         if create_key is not StreamingDataFrame._create_key:
             raise ValueError(
-                "StreamingDataFrame class shouldn't be created through constructor. Call bigframes.Session.read_gbq_table_streaming method to create."
+                "StreamingDataFrame class shouldn't be created through constructor. Call bigframes.pandas.read_gbq_table_streaming method to create."
             )
         self._df = df
         self._df._disable_cache_override = True
@@ -216,6 +217,19 @@ class StreamingDataFrame(StreamingBase):
     @classmethod
     def _from_table_df(cls, df: dataframe.DataFrame) -> StreamingDataFrame:
         return cls(df, create_key=cls._create_key)
+
+    @property
+    def _original_table(self):
+        def traverse(node: nodes.BigFrameNode):
+            if isinstance(node, nodes.ReadTableNode):
+                return f"{node.source.table.project_id}.{node.source.table.dataset_id}.{node.source.table.table_id}"
+            for child in node.child_nodes:
+                original_table = traverse(child)
+                if original_table:
+                    return original_table
+            return None
+
+        return traverse(self._df._block._expr.node)
 
     def __getitem__(self, *args, **kwargs):
         return _return_type_wrapper(self._df.__getitem__, StreamingDataFrame)(
@@ -265,6 +279,17 @@ class StreamingDataFrame(StreamingBase):
 
     sql.__doc__ = _curate_df_doc(inspect.getdoc(dataframe.DataFrame.sql))
 
+    # Patch for the required APPENDS clause
+    @property
+    def _appends_sql(self):
+        sql_str = self.sql
+        original_table = self._original_table
+        assert original_table is not None
+
+        appends_clause = f"APPENDS(TABLE `{original_table}`, NULL, NULL)"
+        sql_str = sql_str.replace(f"`{original_table}`", appends_clause)
+        return sql_str
+
     @property
     def _session(self):
         return self._df._session
@@ -278,7 +303,7 @@ def _to_bigtable(
     instance: str,
     table: str,
     service_account_email: Optional[str] = None,
-    session: Optional[bigframes.Session] = None,
+    session: Optional[bigframes.session.Session] = None,
     app_profile: Optional[str] = None,
     truncate: bool = False,
     overwrite: bool = False,
@@ -310,7 +335,7 @@ def _to_bigtable(
             Example: accountname@projectname.gserviceaccounts.com
             If not provided, the user account will be used, but this
             limits the lifetime of the continuous query.
-        session (bigframes.Session, default None):
+        session (bigframes.session.Session, default None):
             The session object to use for the query. This determines
             the project id and location of the query. If None, will
             default to the bigframes global session.
@@ -347,11 +372,8 @@ def _to_bigtable(
             For example, the job can be cancelled or its error status
             can be examined.
     """
-    warnings.warn(
-        "The bigframes.streaming module is a preview feature, and subject to change.",
-        stacklevel=1,
-        category=bigframes.exceptions.PreviewWarning,
-    )
+    msg = "The bigframes.streaming module is a preview feature, and subject to change."
+    warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
 
     # get default client if not passed
     if session is None:
@@ -416,7 +438,7 @@ def _to_pubsub(
     *,
     topic: str,
     service_account_email: str,
-    session: Optional[bigframes.Session] = None,
+    session: Optional[bigframes.session.Session] = None,
     job_id: Optional[str] = None,
     job_id_prefix: Optional[str] = None,
 ) -> bigquery.QueryJob:
@@ -442,7 +464,7 @@ def _to_pubsub(
         service_account_email (str):
             Full name of the service account to run the continuous query.
             Example: accountname@projectname.gserviceaccounts.com
-        session (bigframes.Session, default None):
+        session (bigframes.session.Session, default None):
             The session object to use for the query. This determines
             the project id and location of the query. If None, will
             default to the bigframes global session.
@@ -462,11 +484,8 @@ def _to_pubsub(
             For example, the job can be cancelled or its error status
             can be examined.
     """
-    warnings.warn(
-        "The bigframes.streaming module is a preview feature, and subject to change.",
-        stacklevel=1,
-        category=bigframes.exceptions.PreviewWarning,
-    )
+    msg = "The bigframes.streaming module is a preview feature, and subject to change."
+    warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
 
     # get default client if not passed
     if session is None:

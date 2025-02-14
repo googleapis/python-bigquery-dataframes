@@ -245,6 +245,8 @@ def merge_select_select(_, **kwargs):
         ops.InSubquery,
         ops.Unnest,
         ops.Impure,
+        # This is used for remote functions, which we don't want to copy
+        ops.ScalarUDF,
     )
     if _.find_below(blocking, filter=ops.Value):
         return _
@@ -357,7 +359,7 @@ def sqlize(
         return CTE(new) if node in ctes else new
 
     result = simplified.replace(wrap)
-    ctes = reversed([cte.parent for cte in result.find(CTE)])
+    ctes = [cte.parent for cte in result.find(CTE, ordered=True)]
 
     return result, ctes
 
@@ -400,25 +402,26 @@ def rewrite_empty_order_by_window(_, **kwargs):
     return _.copy(order_by=(ops.NULL,))
 
 
-@replace(p.WindowFunction(p.RowNumber | p.NTile))
+@replace(p.WindowFunction(p.RowNumber | p.NTile | p.MinRank | p.DenseRank))
 def exclude_unsupported_window_frame_from_row_number(_, **kwargs):
-    return ops.Subtract(_.copy(start=None, end=0), 1)
-
-
-@replace(p.WindowFunction(p.MinRank | p.DenseRank, start=None))
-def exclude_unsupported_window_frame_from_rank(_, **kwargs):
+    # These functions do not support window bounds, only an ordering.
+    # Also, its kind of messy to insert subtract here, should probably be in visitor
     return ops.Subtract(
-        _.copy(start=None, end=0, order_by=_.order_by or (ops.NULL,)), 1
+        _.copy(how="none", start=None, end=None, order_by=_.order_by or (ops.NULL,)), 1
     )
 
 
-@replace(
-    p.WindowFunction(
-        p.Lag | p.Lead | p.PercentRank | p.CumeDist | p.Any | p.All, start=None
-    )
-)
+@replace(p.WindowFunction(p.PercentRank | p.CumeDist, start=None))
+def exclude_unsupported_window_frame_from_rank(_, **kwargs):
+    # These functions do not support window bounds, only an ordering.
+    # Also, its kind of messy to insert subtract here, should probably be in visitor
+    return _.copy(how="none", start=None, end=None, order_by=_.order_by or (ops.NULL,))
+
+
+@replace(p.WindowFunction(p.Lag | p.Lead, start=None))
 def exclude_unsupported_window_frame_from_ops(_, **kwargs):
-    return _.copy(start=None, end=0, order_by=_.order_by or (ops.NULL,))
+    # lag/lead dont' support bounds, but do support ordering
+    return _.copy(how="none", start=None, end=None, order_by=_.order_by or (ops.NULL,))
 
 
 # Rewrite rules for lowering a high-level operation into one composed of more

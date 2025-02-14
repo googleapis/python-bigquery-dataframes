@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
 import google.api_core.exceptions
 import pandas
 import pytest
@@ -130,6 +132,20 @@ def test_linear_reg_model_predict_explain(penguins_linear_model, new_penguins_df
         check_exact=False,
         rtol=0.1,
     )
+
+
+def test_linear_model_predict_explain_top_k_features(
+    penguins_logistic_model: linear_model.LinearRegression, new_penguins_df
+):
+    top_k_features = 0
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(f"top_k_features must be at least 1, but is {top_k_features}."),
+    ):
+        penguins_logistic_model.predict_explain(
+            new_penguins_df, top_k_features=top_k_features
+        ).to_pandas()
 
 
 def test_linear_reg_model_predict_params(
@@ -305,6 +321,64 @@ def test_logistic_model_predict(penguins_logistic_model, new_penguins_df):
         check_exact=False,
         rtol=0.1,
     )
+
+
+def test_logistic_model_predict_explain_top_k_features(
+    penguins_logistic_model: linear_model.LogisticRegression, new_penguins_df
+):
+    top_k_features = 0
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(f"top_k_features must be at least 1, but is {top_k_features}."),
+    ):
+        penguins_logistic_model.predict_explain(
+            new_penguins_df, top_k_features=top_k_features
+        ).to_pandas()
+
+
+def test_logistic_model_predict_params(
+    penguins_logistic_model: linear_model.LogisticRegression, new_penguins_df
+):
+    predictions = penguins_logistic_model.predict(new_penguins_df).to_pandas()
+    assert predictions.shape[0] >= 1
+    prediction_columns = set(predictions.columns)
+    expected_columns = {
+        "predicted_sex",
+        "predicted_sex_probs",
+        "species",
+        "island",
+        "culmen_length_mm",
+        "culmen_depth_mm",
+        "flipper_length_mm",
+        "body_mass_g",
+        "sex",
+    }
+    assert expected_columns <= prediction_columns
+
+
+def test_logistic_model_predict_explain_params(
+    penguins_logistic_model: linear_model.LogisticRegression, new_penguins_df
+):
+    predictions = penguins_logistic_model.predict_explain(new_penguins_df).to_pandas()
+    assert predictions.shape[0] >= 1
+    prediction_columns = set(predictions.columns)
+    expected_columns = {
+        "predicted_sex",
+        "probability",
+        "top_feature_attributions",
+        "baseline_prediction_value",
+        "prediction_value",
+        "approximation_error",
+        "species",
+        "island",
+        "culmen_length_mm",
+        "culmen_depth_mm",
+        "flipper_length_mm",
+        "body_mass_g",
+        "sex",
+    }
+    assert expected_columns <= prediction_columns
 
 
 def test_logistic_model_to_gbq_saved_score(

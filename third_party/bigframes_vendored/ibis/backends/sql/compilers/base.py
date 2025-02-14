@@ -432,7 +432,7 @@ class SQLGlotCompiler(abc.ABC):
         ops.IntervalSubtract,
     )
 
-    NEEDS_PARENS = BINARY_INFIX_OPS + (ops.IsNull,)
+    NEEDS_PARENS = BINARY_INFIX_OPS + (ops.IsNull, ops.NotNull)
 
     # Constructed dynamically in `__init_subclass__` from their respective
     # UPPERCASE values to handle inheritance, do not modify directly here.
@@ -1022,7 +1022,7 @@ class SQLGlotCompiler(abc.ABC):
         return arg.is_(NULL)
 
     def visit_NotNull(self, op, *, arg):
-        return arg.is_(sg.not_(NULL, copy=False))
+        return self._add_parens(op, arg).is_(sg.not_(NULL, copy=False))
 
     def visit_InValues(self, op, *, value, options):
         return value.isin(*options)
@@ -1088,6 +1088,13 @@ class SQLGlotCompiler(abc.ABC):
         )
 
     visit_SearchedCase = visit_SimpleCase
+
+    def visit_SqlScalar(self, op, *, sql_template, values, output_type):
+        # TODO: can we include a string in the sqlglot expression without parsing?
+        return sg.parse_one(
+            sql_template.format(*[value.sql(dialect="bigquery") for value in values]),
+            dialect="bigquery",
+        )
 
     def visit_ExistsSubquery(self, op, *, rel):
         select = rel.this.select(1, append=False)

@@ -29,7 +29,7 @@ from typing import cast, Tuple, TYPE_CHECKING
 from bigframes_vendored import constants
 import requests
 
-import bigframes.functions.remote_function_template
+import bigframes.functions.function_template as bff_template
 
 if TYPE_CHECKING:
     from bigframes.session import Session
@@ -54,10 +54,12 @@ _INGRESS_SETTINGS_MAP = types.MappingProxyType(
 )
 
 
-class RemoteFunctionClient:
+class FunctionClient:
     # Wait time (in seconds) for an IAM binding to take effect after creation
     _iam_wait_seconds = 120
 
+    # TODO(b/392707725): Convert all necessary parameters for cloud function
+    # deployment into method parameters.
     def __init__(
         self,
         gcp_project_id,
@@ -95,6 +97,7 @@ class RemoteFunctionClient:
         endpoint,
         bq_function_name,
         max_batching_rows,
+        metadata,
     ):
         """Create a BigQuery remote function given the artifacts of a user defined
         function and the http endpoint of a corresponding cloud function."""
@@ -120,9 +123,14 @@ class RemoteFunctionClient:
             "max_batching_rows": max_batching_rows,
         }
 
+        if metadata:
+            # We are using the description field to store this structured
+            # bigframes specific metadata for the lack of a better option
+            remote_function_options["description"] = metadata
+
         remote_function_options_str = ", ".join(
             [
-                f'{key}="{val}"' if isinstance(val, str) else f"{key}={val}"
+                f"{key}='{val}'" if isinstance(val, str) else f"{key}={val}"
                 for key, val in remote_function_options.items()
                 if val is not None
             ]
@@ -200,14 +208,7 @@ class RemoteFunctionClient:
         package_requirements=None,
         is_row_processor=False,
     ):
-        """Generate the cloud function code for a given user defined function.
-
-        Args:
-            input_types (tuple[str]):
-                Types of the input arguments in BigQuery SQL data type names.
-            output_type (str):
-                Types of the output scalar as a BigQuery SQL data type name.
-        """
+        """Generate the cloud function code for a given user defined function."""
 
         # requirements.txt
         if package_requirements:
@@ -216,7 +217,7 @@ class RemoteFunctionClient:
                 f.write("\n".join(package_requirements))
 
         # main.py
-        entry_point = bigframes.functions.remote_function_template.generate_cloud_function_main_code(
+        entry_point = bff_template.generate_cloud_function_main_code(
             def_,
             directory,
             input_types=input_types,
@@ -240,14 +241,7 @@ class RemoteFunctionClient:
         memory_mib=1024,
         ingress_settings="all",
     ):
-        """Create a cloud function from the given user defined function.
-
-        Args:
-            input_types (tuple[str]):
-                Types of the input arguments in BigQuery SQL data type names.
-            output_type (str):
-                Types of the output scalar as a BigQuery SQL data type name.
-        """
+        """Create a cloud function from the given user defined function."""
 
         # Build and deploy folder structure containing cloud function
         with tempfile.TemporaryDirectory() as directory:
@@ -394,6 +388,7 @@ class RemoteFunctionClient:
         cloud_function_vpc_connector,
         cloud_function_memory_mib,
         cloud_function_ingress_settings,
+        bq_metadata,
     ):
         """Provision a BigQuery remote function."""
         # Augment user package requirements with any internal package
@@ -473,6 +468,7 @@ class RemoteFunctionClient:
                 cf_endpoint,
                 remote_function_name,
                 max_batching_rows,
+                bq_metadata,
             )
 
             created_new = True

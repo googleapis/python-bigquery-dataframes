@@ -20,13 +20,14 @@ import warnings
 
 import numpy as np
 
-import bigframes.core.guid as guid
-import bigframes.dtypes as dtypes
+from bigframes import dtypes, exceptions
+from bigframes.core import guid, log_adapter
 
 
+@log_adapter.class_logger
 class Semantics:
     def __init__(self, df) -> None:
-        import bigframes
+        import bigframes  # Import in the function body to avoid circular imports.
         import bigframes.dataframe
 
         if not bigframes.options.experiments.semantic_operators:
@@ -53,6 +54,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -115,6 +117,15 @@ class Semantics:
         self._validate_model(model)
         columns = self._parse_columns(instruction)
 
+        if max_agg_rows <= 1:
+            raise ValueError(
+                f"Invalid value for `max_agg_rows`: {max_agg_rows}."
+                "It must be greater than 1."
+            )
+
+        work_estimate = len(self._df) * int(max_agg_rows / (max_agg_rows - 1))
+        self._confirm_operation(work_estimate)
+
         df: bigframes.dataframe.DataFrame = self._df.copy()
         for column in columns:
             if column not in self._df.columns:
@@ -130,16 +141,11 @@ class Semantics:
         column = columns[0]
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
-
-        if max_agg_rows <= 1:
-            raise ValueError(
-                f"Invalid value for `max_agg_rows`: {max_agg_rows}."
-                "It must be greater than 1."
-            )
+            warnings.warn(msg)
 
         user_instruction = self._format_instruction(instruction, columns)
 
@@ -243,6 +249,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.TextEmbeddingGenerator()
@@ -296,6 +303,8 @@ class Semantics:
                 "It must be greater than 1."
             )
 
+        self._confirm_operation(len(self._df))
+
         df: bigframes.dataframe.DataFrame = self._df.copy()
         embeddings_df = model.predict(df[column])
 
@@ -314,6 +323,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -362,10 +372,13 @@ class Semantics:
                 raise ValueError(f"Column {column} not found.")
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
+
+        self._confirm_operation(len(self._df))
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         for column in columns:
@@ -403,6 +416,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -457,10 +471,13 @@ class Semantics:
                 raise ValueError(f"Column {column} not found.")
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
+
+        self._confirm_operation(len(self._df))
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         for column in columns:
@@ -490,7 +507,6 @@ class Semantics:
         other,
         instruction: str,
         model,
-        max_rows: int = 1000,
         ground_with_google_search: bool = False,
     ):
         """
@@ -502,6 +518,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -556,17 +573,14 @@ class Semantics:
         columns = self._parse_columns(instruction)
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
 
-        joined_table_rows = len(self._df) * len(other)
-
-        if joined_table_rows > max_rows:
-            raise ValueError(
-                f"Number of rows that need processing is {joined_table_rows}, which exceeds row limit {max_rows}."
-            )
+        work_estimate = len(self._df) * len(other)
+        self._confirm_operation(work_estimate)
 
         left_columns = []
         right_columns = []
@@ -645,6 +659,7 @@ class Semantics:
 
             >>> import bigframes
             >>> bigframes.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
@@ -679,6 +694,8 @@ class Semantics:
 
         if search_column not in self._df.columns:
             raise ValueError(f"Column `{search_column}` not found")
+
+        self._confirm_operation(len(self._df))
 
         import bigframes.ml.llm as llm
 
@@ -743,6 +760,7 @@ class Semantics:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -798,10 +816,14 @@ class Semantics:
             )
 
         if ground_with_google_search:
-            warnings.warn(
+            msg = (
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
+            warnings.warn(msg)
+
+        work_estimate = int(len(self._df) * (len(self._df) - 1) / 2)
+        self._confirm_operation(work_estimate)
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         column = columns[0]
@@ -940,9 +962,8 @@ class Semantics:
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
-
-            >>> import bigframes
-            >>> bigframes.options.experiments.semantic_operators = True
+            >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
@@ -1000,6 +1021,9 @@ class Semantics:
 
         if top_k < 1:
             raise ValueError("top_k must be an integer greater than or equal to 1.")
+
+        work_estimate = len(self._df) * len(other)
+        self._confirm_operation(work_estimate)
 
         base_table_embedding_column = guid.generate_guid()
         base_table = self._attach_embedding(
@@ -1072,3 +1096,29 @@ class Semantics:
 
         if not isinstance(model, GeminiTextGenerator):
             raise TypeError("Model is not GeminiText Generator")
+
+    @staticmethod
+    def _confirm_operation(row_count: int):
+        """Raises OperationAbortedError when the confirmation fails"""
+        import bigframes  # Import in the function body to avoid circular imports.
+
+        threshold = bigframes.options.compute.semantic_ops_confirmation_threshold
+
+        if threshold is None or row_count <= threshold:
+            return
+
+        if bigframes.options.compute.semantic_ops_threshold_autofail:
+            raise exceptions.OperationAbortedError(
+                f"Operation was cancelled because your work estimate is {row_count} rows, which exceeds the threshold {threshold} rows."
+            )
+
+        # Separate the prompt out. In IDE such VS Code, leaving prompt in the
+        # input function makes it less visible to the end user.
+        print(f"This operation will process about {row_count} rows.")
+        print(
+            "You can raise the confirmation threshold by setting `bigframes.options.compute.semantic_ops_confirmation_threshold` to a higher value. To completely turn off the confirmation check, set the threshold to `None`."
+        )
+        print("Proceed? [Y/n]")
+        reply = input().casefold()
+        if reply not in {"y", "yes", ""}:
+            raise exceptions.OperationAbortedError("Operation was cancelled.")
