@@ -109,6 +109,9 @@ def _rewrite_op_expr(
     if isinstance(expr.op, ops.DivOp):
         return _rewrite_div_op(inputs[0], inputs[1])
 
+    if isinstance(expr.op, ops.FloorDivOp):
+        return _rewrite_floordiv_op(inputs[0], inputs[1])
+
     return _TypedExpr.create_op_expr(expr.op, *inputs)
 
 
@@ -144,8 +147,14 @@ def _rewrite_mul_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
 
 
 def _rewrite_div_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
-    # timedelta division is always floor div
     if left.dtype is dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype):
-        return _TypedExpr.create_op_expr(ops.floordiv_op, left, right)
+        return _TypedExpr.create_op_expr(ops.timedelta_div_op, left, right)
 
     return _TypedExpr.create_op_expr(ops.div_op, left, right)
+
+
+def _rewrite_floordiv_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
+    if left.dtype is dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype):
+        return _TypedExpr.create_op_expr(ops.timedelta_div_op, left, right)
+
+    return _TypedExpr.create_op_expr(ops.floordiv_op, left, right)

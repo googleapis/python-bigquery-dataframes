@@ -77,18 +77,18 @@ timestamp_sub_op = TimestampSub()
 
 @dataclasses.dataclass(frozen=True)
 class TimedeltaMulOp(base_ops.BinaryOp):
-    """A multiplication that always floors the result and returns a timedelta type."""
+    """A multiplication that always floors the result to an integer.
+    This is different from the numeric multiplication as the latter can return float values.
+    """
 
     name: typing.ClassVar[str] = "timedelta_mul"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        # timestamp + timedelta => timestamp
         if (
             dtypes.is_numeric(input_types[0])
             and input_types[1] is dtypes.TIMEDELTA_DTYPE
         ):
             return dtypes.TIMEDELTA_DTYPE
-        # timedelta + timestamp => timestamp
         if input_types[0] is dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(
             input_types[1]
         ):
@@ -100,3 +100,25 @@ class TimedeltaMulOp(base_ops.BinaryOp):
 
 
 timedelta_mul_op = TimedeltaMulOp()
+
+
+@dataclasses.dataclass(frozen=True)
+class TimedeltaDivOp(base_ops.BinaryOp):
+    """A division that always floors the result to an integer.
+    This is different from the numeric division as the latter can return float values.
+    """
+
+    name: typing.ClassVar[str] = "timedelta_div"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] is dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(
+            input_types[1]
+        ):
+            return dtypes.TIMEDELTA_DTYPE
+
+        raise TypeError(
+            f"unsupported types for timedelta_div. left: {input_types[0]} right: {input_types[1]}"
+        )
+
+
+timedelta_div_op = TimedeltaDivOp()

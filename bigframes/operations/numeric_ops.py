@@ -214,7 +214,9 @@ class DivOp(base_ops.BinaryOp):
         if (left_type is None or dtypes.is_numeric(left_type)) and (
             right_type is None or dtypes.is_numeric(right_type)
         ):
-            return dtypes.coerce_to_common(left_type, right_type)
+            lcd_type = dtypes.coerce_to_common(left_type, right_type)
+            # Real numeric ops produce floats on int input
+            return dtypes.FLOAT_DTYPE if lcd_type == dtypes.INT_DTYPE else lcd_type
 
         raise TypeError(f"Cannot divide dtypes {left_type} and {right_type}")
 
