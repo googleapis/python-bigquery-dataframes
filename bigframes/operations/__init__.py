@@ -183,6 +183,7 @@ from bigframes.operations.time_ops import hour_op, minute_op, normalize_op, seco
 from bigframes.operations.timedelta_ops import (
     timedelta_mul_op,
     timestamp_add_op,
+    timestamp_sub_op,
     ToTimedeltaOp,
 )
 
@@ -258,6 +259,7 @@ __all__ = [
     # Timedelta ops
     "timestamp_add_op",
     "timedelta_mul_op",
+    "timestamp_sub_op",
     "ToTimedeltaOp",
     # Datetime ops
     "date_op",

@@ -55,6 +55,24 @@ class TimestampAdd(base_ops.BinaryOp):
 
 timestamp_add_op = TimestampAdd()
 
+class TimestampSub(base_ops.BinaryOp):
+    name: typing.ClassVar[str] = "timestamp_sub"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        # timestamp - timedelta => timestamp
+        if (
+            dtypes.is_datetime_like(input_types[0])
+            and input_types[1] is dtypes.TIMEDELTA_DTYPE
+        ):
+            return input_types[0]
+
+        raise TypeError(
+            f"unsupported types for timestamp_sub. left: {input_types[0]} right: {input_types[1]}"
+        )
+
+
+timestamp_sub_op = TimestampSub()
+
 
 @dataclasses.dataclass(frozen=True)
 class TimedeltaMulOp(base_ops.BinaryOp):
