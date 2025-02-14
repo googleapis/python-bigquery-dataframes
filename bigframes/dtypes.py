@@ -105,6 +105,9 @@ LOCAL_SCALAR_TYPE = Union[
     pd.Timestamp,
     datetime.date,
     datetime.time,
+    pd.Timedelta,
+    datetime.timedelta,
+    np.timedelta64,
 ]
 LOCAL_SCALAR_TYPES = typing.get_args(LOCAL_SCALAR_TYPE)
 
@@ -298,6 +301,7 @@ def is_object_like(type_: Union[ExpressionType, str]) -> bool:
     return type_ in ("object", "O") or (
         getattr(type_, "kind", None) == "O"
         and getattr(type_, "storage", None) != "pyarrow"
+        and getattr(type_, "name", None) != "dbjson"
     )
 
 
@@ -354,7 +358,7 @@ _ORDERABLE_SIMPLE_TYPES = set(
 
 def is_orderable(type_: ExpressionType) -> bool:
     # On BQ side, ARRAY, STRUCT, GEOGRAPHY, JSON are not orderable
-    return type_ in _ORDERABLE_SIMPLE_TYPES
+    return type_ in _ORDERABLE_SIMPLE_TYPES or type_ is TIMEDELTA_DTYPE
 
 
 _CLUSTERABLE_SIMPLE_TYPES = set(
@@ -420,7 +424,7 @@ def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
         return pd.ArrowDtype(arrow_dtype)
 
     if pa.types.is_duration(arrow_dtype):
-        return pd.ArrowDtype(arrow_dtype)
+        return TIMEDELTA_DTYPE
 
     # BigFrames doesn't distinguish between string and large_string because the
     # largest string (2 GB) is already larger than the largest BigQuery row.
@@ -562,6 +566,10 @@ def _is_bigframes_dtype(dtype) -> bool:
 
 
 def _infer_dtype_from_python_type(type: type) -> Dtype:
+    if type in (datetime.timedelta, pd.Timedelta, np.timedelta64):
+        # Must check timedelta type first. Otherwise other branchs will be evaluated to true
+        # E.g. np.timedelta64 is a sublcass as np.integer
+        return TIMEDELTA_DTYPE
     if issubclass(type, (bool, np.bool_)):
         return BOOL_DTYPE
     if issubclass(type, (int, np.integer)):

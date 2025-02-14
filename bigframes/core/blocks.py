@@ -48,6 +48,7 @@ import numpy
 import pandas as pd
 import pyarrow as pa
 
+from bigframes import session
 import bigframes._config.sampling_options as sampling_options
 import bigframes.constants
 import bigframes.core as core
@@ -257,7 +258,7 @@ class Block:
         return [self.expr.get_column_type(col) for col in self.value_columns]
 
     @property
-    def session(self) -> core.Session:
+    def session(self) -> session.Session:
         return self._expr.session
 
     @functools.cached_property
@@ -2048,7 +2049,6 @@ class Block:
 
     def isin(self, other: Block):
         # TODO: Support multiple other columns and match on label
-        # TODO: Model as explicit "IN" subquery/join to better allow db to optimize
         assert len(other.value_columns) == 1
         unique_other_values = other.expr.select_columns(
             [other.value_columns[0]]
@@ -2653,7 +2653,7 @@ class BlockIndexProperties:
         ]
 
     @property
-    def session(self) -> core.Session:
+    def session(self) -> session.Session:
         return self._expr.session
 
     @property
@@ -3171,7 +3171,7 @@ def unpivot(
 
 
 def _pd_index_to_array_value(
-    session: core.Session,
+    session: session.Session,
     index: pd.Index,
 ) -> core.ArrayValue:
     """

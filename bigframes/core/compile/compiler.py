@@ -20,20 +20,19 @@ import typing
 
 import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery
 import bigframes_vendored.ibis.expr.api as ibis_api
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.types as ibis_types
 import google.cloud.bigquery
 import pandas as pd
 
+from bigframes import dtypes
 from bigframes.core import utils
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
 import bigframes.core.compile.explode
 import bigframes.core.compile.ibis_types
-import bigframes.core.compile.isin
-import bigframes.core.compile.scalar_op_compiler
 import bigframes.core.compile.scalar_op_compiler as compile_scalar
 import bigframes.core.compile.schema_translator
-import bigframes.core.compile.single_column
 import bigframes.core.expression as ex
 import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
@@ -58,7 +57,7 @@ class Compiler:
         # TODO: get rid of output_ids arg
         assert len(output_ids) == len(list(node.fields))
         node = set_output_names(node, output_ids)
-        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
+        node = nodes.top_down(node, rewrites.rewrite_timedelta_expressions)
         if ordered:
             node, limit = rewrites.pullup_limit_from_slice(node)
             node = nodes.bottom_up(node, rewrites.rewrite_slice)
@@ -85,7 +84,7 @@ class Compiler:
     def compile_peek_sql(self, node: nodes.BigFrameNode, n_rows: int) -> str:
         ids = [id.sql for id in node.ids]
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
-        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
+        node = nodes.top_down(node, rewrites.rewrite_timedelta_expressions)
         node, _ = rewrites.pull_up_order(
             node, order_root=False, ordered_joins=self.strict
         )
@@ -99,7 +98,7 @@ class Compiler:
         str, typing.Sequence[google.cloud.bigquery.SchemaField], bf_ordering.RowOrdering
     ]:
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
-        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
+        node = nodes.top_down(node, rewrites.rewrite_timedelta_expressions)
         node, ordering = rewrites.pull_up_order(node, ordered_joins=self.strict)
         node = rewrites.column_pruning(node)
         ir = self.compile_node(node)
@@ -108,7 +107,7 @@ class Compiler:
 
     def _preprocess(self, node: nodes.BigFrameNode):
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
-        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
+        node = nodes.top_down(node, rewrites.rewrite_timedelta_expressions)
         node, _ = rewrites.pull_up_order(
             node, order_root=False, ordered_joins=self.strict
         )
@@ -130,24 +129,25 @@ class Compiler:
         condition_pairs = tuple(
             (left.id.sql, right.id.sql) for left, right in node.conditions
         )
+
         left_unordered = self.compile_node(node.left_child)
         right_unordered = self.compile_node(node.right_child)
-        return bigframes.core.compile.single_column.join_by_column_unordered(
-            left=left_unordered,
+        return left_unordered.join(
             right=right_unordered,
             type=node.type,
             conditions=condition_pairs,
+            join_nulls=node.joins_nulls,
         )
 
     @_compile_node.register
     def compile_isin(self, node: nodes.InNode):
         left_unordered = self.compile_node(node.left_child)
         right_unordered = self.compile_node(node.right_child)
-        return bigframes.core.compile.isin.isin_unordered(
-            left=left_unordered,
+        return left_unordered.isin_join(
             right=right_unordered,
             indicator_col=node.indicator_col.sql,
             conditions=(node.left_col.id.sql, node.right_col.id.sql),
+            join_nulls=node.joins_nulls,
         )
 
     @_compile_node.register
@@ -225,6 +225,18 @@ class Compiler:
         ibis_table = self.read_table_as_unordered_ibis(
             source, scan_cols=[col.source_id for col in scan.items]
         )
+
+        # TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
+        for scan_item in scan.items:
+            if (
+                scan_item.dtype == dtypes.JSON_DTYPE
+                and ibis_table[scan_item.source_id].type() == ibis_dtypes.string
+            ):
+                json_column = compile_scalar.parse_json(
+                    ibis_table[scan_item.source_id]
+                ).name(scan_item.source_id)
+                ibis_table = ibis_table.mutate(json_column)
+
         return compiled.UnorderedIR(
             ibis_table,
             tuple(
