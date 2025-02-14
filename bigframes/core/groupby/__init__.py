@@ -144,14 +144,17 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         )
 
     def __iter__(self) -> Iterable[Tuple[blocks.Label, pd.DataFrame]]:
-        # TODO: cache original block, clustered by column ids
+        # Cache original block, clustered by column ids.
+        # To force block.cached() to cluster by our by_col_ids,
+        # we set those columns as the index. This also makes filtering
+        # by our groupby key a bit easier with respect to fewer
+        # cases to worry about (e.g. MultiIndex).
+        original_index_labels = self._block._index_labels
+        by_col_labels = self._block._get_labels_for_columns(self._by_col_ids).to_list()
         block = self._block.set_index(
             self._by_col_ids,
-            # TODO: do we need to keep the original index?
             drop=False,
-            index_labels=self._block._get_labels_for_columns(
-                self._by_col_ids
-            ).to_list(),
+            index_labels=by_col_labels,
         )
         block.cached(force=True)
 
@@ -161,14 +164,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         )
         for batch in keys_block.to_pandas_batches():
             for key in batch.index:
-                # group_block = block
-                # for col in self._by_col_ids:  # TODO: can't loop through key if only one by_col_id.
-
-                #
-                #  = block.project_expr(bigframes.core.expression.const(key, dtype=self._block._column_type(self._by_col_ids))
-                #     ops.eq_op( ex.const(key)
-                # )
-                yield key, batch  # TODO: filter clustered block by row
+                yield key, df.DataFrame(block).loc[key].set_index(
+                    original_index_labels, drop=False
+                )
 
     def size(self) -> typing.Union[df.DataFrame, series.Series]:
         agg_block, _ = self._block.aggregate_size(
