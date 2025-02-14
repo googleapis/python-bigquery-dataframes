@@ -747,15 +747,14 @@ def timestamp_add_op_impl(x: ibis_types.TimestampValue, y: ibis_types.IntegerVal
     return x + y.to_interval("us")
 
 
-
 @scalar_op_compiler.register_binary_op(ops.timedelta_mul_op)
-def timestamp_mul_op_impl(x: ibis_types.NumericValue, y: ibis_types.NumericValue):
+def timedelta_mul_op_impl(x: ibis_types.NumericValue, y: ibis_types.NumericValue):
     return (x * y).floor()
+
 
 @scalar_op_compiler.register_binary_op(ops.timestamp_sub_op)
 def timestamp_sub_op_impl(x: ibis_types.TimestampValue, y: ibis_types.IntegerValue):
     return x - y.to_interval("us")
-
 
 
 @scalar_op_compiler.register_unary_op(ops.FloorDtOp, pass_op=True)

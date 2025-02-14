@@ -55,6 +55,7 @@ class TimestampAdd(base_ops.BinaryOp):
 
 timestamp_add_op = TimestampAdd()
 
+
 class TimestampSub(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "timestamp_sub"
 
