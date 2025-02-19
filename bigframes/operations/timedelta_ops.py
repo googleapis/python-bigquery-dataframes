@@ -26,7 +26,11 @@ class ToTimedeltaOp(base_ops.UnaryOp):
     unit: typing.Literal["us", "ms", "s", "m", "h", "d", "W"]
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if input_types[0] in (dtypes.INT_DTYPE, dtypes.FLOAT_DTYPE):
+        if input_types[0] in (
+            dtypes.INT_DTYPE,
+            dtypes.FLOAT_DTYPE,
+            dtypes.TIMEDELTA_DTYPE,
+        ):
             return dtypes.TIMEDELTA_DTYPE
         raise TypeError("expected integer or float input")
 
@@ -54,3 +58,22 @@ class TimestampAdd(base_ops.BinaryOp):
 
 
 timestamp_add_op = TimestampAdd()
+
+
+class TimestampSub(base_ops.BinaryOp):
+    name: typing.ClassVar[str] = "timestamp_sub"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        # timestamp - timedelta => timestamp
+        if (
+            dtypes.is_datetime_like(input_types[0])
+            and input_types[1] is dtypes.TIMEDELTA_DTYPE
+        ):
+            return input_types[0]
+
+        raise TypeError(
+            f"unsupported types for timestamp_sub. left: {input_types[0]} right: {input_types[1]}"
+        )
+
+
+timestamp_sub_op = TimestampSub()

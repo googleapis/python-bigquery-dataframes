@@ -20,20 +20,19 @@ import typing
 
 import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery
 import bigframes_vendored.ibis.expr.api as ibis_api
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.types as ibis_types
 import google.cloud.bigquery
 import pandas as pd
 
+from bigframes import dtypes, operations
 from bigframes.core import utils
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
 import bigframes.core.compile.explode
 import bigframes.core.compile.ibis_types
-import bigframes.core.compile.isin
-import bigframes.core.compile.scalar_op_compiler
 import bigframes.core.compile.scalar_op_compiler as compile_scalar
 import bigframes.core.compile.schema_translator
-import bigframes.core.compile.single_column
 import bigframes.core.expression as ex
 import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
@@ -130,24 +129,25 @@ class Compiler:
         condition_pairs = tuple(
             (left.id.sql, right.id.sql) for left, right in node.conditions
         )
+
         left_unordered = self.compile_node(node.left_child)
         right_unordered = self.compile_node(node.right_child)
-        return bigframes.core.compile.single_column.join_by_column_unordered(
-            left=left_unordered,
+        return left_unordered.join(
             right=right_unordered,
             type=node.type,
             conditions=condition_pairs,
+            join_nulls=node.joins_nulls,
         )
 
     @_compile_node.register
     def compile_isin(self, node: nodes.InNode):
         left_unordered = self.compile_node(node.left_child)
         right_unordered = self.compile_node(node.right_child)
-        return bigframes.core.compile.isin.isin_unordered(
-            left=left_unordered,
+        return left_unordered.isin_join(
             right=right_unordered,
             indicator_col=node.indicator_col.sql,
             conditions=(node.left_col.id.sql, node.right_col.id.sql),
+            join_nulls=node.joins_nulls,
         )
 
     @_compile_node.register
@@ -225,6 +225,18 @@ class Compiler:
         ibis_table = self.read_table_as_unordered_ibis(
             source, scan_cols=[col.source_id for col in scan.items]
         )
+
+        # TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
+        for scan_item in scan.items:
+            if (
+                scan_item.dtype == dtypes.JSON_DTYPE
+                and ibis_table[scan_item.source_id].type() == ibis_dtypes.string
+            ):
+                json_column = compile_scalar.parse_json(
+                    ibis_table[scan_item.source_id]
+                ).name(scan_item.source_id)
+                ibis_table = ibis_table.mutate(json_column)
+
         return compiled.UnorderedIR(
             ibis_table,
             tuple(
@@ -266,8 +278,13 @@ class Compiler:
     def compile_aggregate(self, node: nodes.AggregateNode):
         aggs = tuple((agg, id.sql) for agg, id in node.aggregations)
         result = self.compile_node(node.child).aggregate(
-            aggs, node.by_column_ids, node.dropna, order_by=node.order_by
+            aggs, node.by_column_ids, order_by=node.order_by
         )
+        # TODO: Remove dropna field and use filter node instead
+        if node.dropna:
+            for key in node.by_column_ids:
+                if node.child.field_by_id[key.id].nullable:
+                    result = result.filter(operations.notnull_op.as_expr(key))
         return result
 
     @_compile_node.register
