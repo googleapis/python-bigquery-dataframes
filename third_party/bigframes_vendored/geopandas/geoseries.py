@@ -192,7 +192,7 @@ class GeoSeries:
             0    POINT(1 1)
             1    POINT(2 2)
             2    POINT(3 3)
-            dtype: string  ### geopandas = object
+            dtype: string
 
         Returns:
             bigframes.series.Series:
