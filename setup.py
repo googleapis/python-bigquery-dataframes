@@ -75,6 +75,7 @@ extras = {
     "tests": [],
     # used for local engine, which is only needed for unit tests at present.
     "polars": ["polars >= 1.7.0"],
+    "scikit-learn": ["scikit-learn>=1.2.2"],
     # Packages required for basic development flow.
     "dev": [
         "pytest",
@@ -82,7 +83,6 @@ extras = {
         "pre-commit",
         "nox",
         "google-cloud-testutils",
-        "scikit-learn>=1.2.2",
     ],
 }
 extras["all"] = list(sorted(frozenset(itertools.chain.from_iterable(extras.values()))))

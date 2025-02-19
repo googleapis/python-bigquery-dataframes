@@ -72,7 +72,13 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
-UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {"3.12": ["polars"]}
+UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
+    "3.9": ["scikit-learn"],
+    "3.10": ["scikit-learn"],
+    "3.11": ["scikit-learn"],
+    "3.12": ["polars", "scikit-learn"],
+    "3.13": ["scikit-learn"],
+}
 
 # 3.10 is needed for Windows tests as it is the only version installed in the
 # bigframes-windows container image. For more information, search
@@ -96,7 +102,7 @@ SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
 ]
 SYSTEM_TEST_LOCAL_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_DEPENDENCIES: List[str] = []
-SYSTEM_TEST_EXTRAS: List[str] = ["tests"]
+SYSTEM_TEST_EXTRAS: List[str] = ["tests", "scikit-learn"]
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
@@ -227,17 +233,11 @@ def run_unit(session, install_test_extra):
 
 @nox.session(python=UNIT_TEST_PYTHON_VERSIONS)
 def unit(session):
-    session.install(
-        "scikit-learn>=1.2.2",
-    )
     run_unit(session, install_test_extra=True)
 
 
 @nox.session(python=UNIT_TEST_PYTHON_VERSIONS[-1])
 def unit_noextras(session):
-    session.install(
-        "scikit-learn>=1.2.2",
-    )
     run_unit(session, install_test_extra=False)
 
 
@@ -474,8 +474,7 @@ def cover(session):
 @nox.session(python=DEFAULT_PYTHON_VERSION)
 def docs(session):
     """Build the docs for this library."""
-
-    session.install("-e", ".")
+    session.install("-e", ".[scikit-learn]")
     session.install(
         # We need to pin to specific versions of the `sphinxcontrib-*` packages
         # which still support sphinx 4.x.
@@ -489,7 +488,6 @@ def docs(session):
         SPHINX_VERSION,
         "alabaster",
         "recommonmark",
-        "scikit-learn>=1.2.2",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
@@ -517,7 +515,7 @@ def docs(session):
 def docfx(session):
     """Build the docfx yaml files for this library."""
 
-    session.install("-e", ".")
+    session.install("-e", ".[scikit-learn]")
     session.install(
         # We need to pin to specific versions of the `sphinxcontrib-*` packages
         # which still support sphinx 4.x.
@@ -532,7 +530,6 @@ def docfx(session):
         "alabaster",
         "recommonmark",
         "gcp-sphinx-docfx-yaml==3.0.1",
-        "scikit-learn>=1.2.2",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
