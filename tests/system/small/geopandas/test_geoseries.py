@@ -148,14 +148,16 @@ def test_geo_to_wkt():
         ]
     )
 
-    bf_result = bf_geo.to_wkt().astype("string[pyarrow]").to_pandas()
+    # Test was failing before using str.replace because the pd_result had extra
+    # whitespace "POINT (0 1)" while bf_result had none "POINT(0 1)".
+    # str.replace replaces any encountered whitespaces with none.
+    bf_result = (
+        bf_geo.to_wkt().astype("string[pyarrow]").to_pandas().str.replace(" ", "")
+    )
 
-    pd_result = pd_geo.to_wkt().astype("string[pyarrow]").to_pandas()
+    pd_result = pd_geo.to_wkt().astype("string[pyarrow]").str.replace(" ", "")
 
     pd.testing.assert_series_equal(
         bf_result,
         pd_result,
-        check_series_type=False,
-        check_dtype=False,
-        check_index=False,
     )
