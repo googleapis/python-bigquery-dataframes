@@ -8,10 +8,10 @@ GeoSeries
    :local:
    :backlinks: none
 
-Series
-------
+GeoSeries
+---------
 
-.. autoclass:: bigframes.geopandas.geoseries.GeoSeries
+.. autoclass:: bigframes.geopandas.GeoSeries
     :members:
     :inherited-members:
     :undoc-members:

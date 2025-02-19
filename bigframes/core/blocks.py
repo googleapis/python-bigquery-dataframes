@@ -48,6 +48,7 @@ import numpy
 import pandas as pd
 import pyarrow as pa
 
+from bigframes import session
 import bigframes._config.sampling_options as sampling_options
 import bigframes.constants
 import bigframes.core as core
@@ -257,7 +258,7 @@ class Block:
         return [self.expr.get_column_type(col) for col in self.value_columns]
 
     @property
-    def session(self) -> core.Session:
+    def session(self) -> session.Session:
         return self._expr.session
 
     @functools.cached_property
@@ -275,6 +276,26 @@ class Block:
         for id, label in self.col_id_to_label.items():
             mapping[label] = (*mapping.get(label, ()), id)
         return mapping
+
+    def resolve_label_exact(self, label: Label) -> Optional[str]:
+        """Returns the column id matching the label if there is exactly
+        one such column. If there are multiple columns with the same name,
+        raises an error. If there is no such a column, returns None."""
+        matches = self.label_to_col_id.get(label, [])
+        if len(matches) > 1:
+            raise ValueError(
+                f"Multiple columns matching id {label} were found. {constants.FEEDBACK_LINK}"
+            )
+        return matches[0] if len(matches) != 0 else None
+
+    def resolve_label_exact_or_error(self, label: Label) -> str:
+        """Returns the column id matching the label if there is exactly
+        one such column. If there are multiple columns with the same name,
+        raises an error. If there is no such a column, raises an error too."""
+        col_id = self.resolve_label_exact(label)
+        if col_id is None:
+            raise ValueError(f"Label {label} not found. {constants.FEEDBACK_LINK}")
+        return col_id
 
     @functools.cached_property
     def col_id_to_index_name(self) -> typing.Mapping[str, Label]:
@@ -707,7 +728,7 @@ class Block:
         # Create an ordering col and convert to string
         block, ordering_col = block.promote_offsets()
         block, string_ordering_col = block.apply_unary_op(
-            ordering_col, ops.AsTypeOp(to_type="string[pyarrow]")
+            ordering_col, ops.AsTypeOp(to_type=bigframes.dtypes.STRING_DTYPE)
         )
 
         # Apply hash method to sum col and order by it.
@@ -897,7 +918,6 @@ class Block:
 
     def multi_apply_unary_op(
         self,
-        columns: typing.Sequence[str],
         op: Union[ops.UnaryOp, ex.Expression],
     ) -> Block:
         if isinstance(op, ops.UnaryOp):
@@ -911,26 +931,36 @@ class Block:
 
         block = self
 
-        result_ids = []
-        for col_id in columns:
-            label = self.col_id_to_label[col_id]
-            block, result_id = block.project_expr(
-                expr.bind_variables({input_varname: ex.deref(col_id)}),
-                label=label,
-            )
-            block = block.copy_values(result_id, col_id)
-            result_ids.append(result_id)
-        block = block.drop_columns(result_ids)
+        exprs = [
+            expr.bind_variables({input_varname: ex.deref(col_id)})
+            for col_id in self.value_columns
+        ]
+        block = self.project_exprs(exprs, labels=self.column_labels, drop=True)
+
         # Special case, we can preserve transpose cache for full-frame unary ops
-        if (self._transpose_cache is not None) and set(self.value_columns) == set(
-            columns
-        ):
-            transpose_columns = self._transpose_cache.value_columns
-            new_transpose_cache = self._transpose_cache.multi_apply_unary_op(
-                transpose_columns, op
-            )
+        if self._transpose_cache is not None:
+            new_transpose_cache = self._transpose_cache.multi_apply_unary_op(op)
             block = block.with_transpose_cache(new_transpose_cache)
         return block
+
+    def project_exprs(
+        self,
+        exprs: Sequence[ex.Expression],
+        labels: Union[Sequence[Label], pd.Index],
+        drop=False,
+    ) -> Block:
+        new_array, _ = self.expr.compute_values(exprs)
+        if drop:
+            new_array = new_array.drop_columns(self.value_columns)
+
+        return Block(
+            new_array,
+            index_columns=self.index_columns,
+            column_labels=labels
+            if drop
+            else self.column_labels.append(pd.Index(labels)),
+            index_labels=self._index_labels,
+        )
 
     def apply_window_op(
         self,
@@ -1165,37 +1195,30 @@ class Block:
     def aggregate(
         self,
         by_column_ids: typing.Sequence[str] = (),
-        aggregations: typing.Sequence[
-            typing.Tuple[
-                str, typing.Union[agg_ops.UnaryAggregateOp, agg_ops.NullaryAggregateOp]
-            ]
-        ] = (),
+        aggregations: typing.Sequence[ex.Aggregation] = (),
+        column_labels: Optional[pd.Index] = None,
         *,
         dropna: bool = True,
     ) -> typing.Tuple[Block, typing.Sequence[str]]:
         """
-        Apply aggregations to the block. Callers responsible for setting index column(s) after.
+        Apply aggregations to the block.
         Arguments:
             by_column_id: column id of the aggregation key, this is preserved through the transform and used as index.
             aggregations: input_column_id, operation tuples
-            as_index: if True, grouping keys will be index columns in result, otherwise they will be non-index columns.
             dropna: whether null keys should be dropped
         """
+        if column_labels is None:
+            column_labels = pd.Index(range(len(aggregations)))
+
         agg_specs = [
             (
-                ex.UnaryAggregation(operation, ex.deref(input_id))
-                if isinstance(operation, agg_ops.UnaryAggregateOp)
-                else ex.NullaryAggregation(operation),
+                aggregation,
                 guid.generate_guid(),
             )
-            for input_id, operation in aggregations
+            for aggregation in aggregations
         ]
         output_col_ids = [agg_spec[1] for agg_spec in agg_specs]
         result_expr = self.expr.aggregate(agg_specs, by_column_ids, dropna=dropna)
-
-        aggregate_labels = self._get_labels_for_columns(
-            [agg[0] for agg in aggregations]
-        )
 
         names: typing.List[Label] = []
         if len(by_column_ids) == 0:
@@ -1214,7 +1237,7 @@ class Block:
             Block(
                 result_expr,
                 index_columns=index_columns,
-                column_labels=aggregate_labels,
+                column_labels=column_labels,
                 index_labels=names,
             ),
             output_col_ids,
@@ -1408,7 +1431,7 @@ class Block:
 
         block, result_id = self.apply_window_op(
             value_columns[0],
-            agg_ops.rank_op,
+            agg_ops.count_op,
             window_spec=window_spec,
         )
 
@@ -1477,7 +1500,9 @@ class Block:
                 expr, new_col = expr.project_to_id(
                     expression=ops.add_op.as_expr(
                         ex.const(prefix),
-                        ops.AsTypeOp(to_type="string").as_expr(index_col),
+                        ops.AsTypeOp(to_type=bigframes.dtypes.STRING_DTYPE).as_expr(
+                            index_col
+                        ),
                     ),
                 )
                 new_index_cols.append(new_col)
@@ -1500,7 +1525,9 @@ class Block:
             for index_col in self._index_columns:
                 expr, new_col = expr.project_to_id(
                     expression=ops.add_op.as_expr(
-                        ops.AsTypeOp(to_type="string").as_expr(index_col),
+                        ops.AsTypeOp(to_type=bigframes.dtypes.STRING_DTYPE).as_expr(
+                            index_col
+                        ),
                         ex.const(suffix),
                     ),
                 )
@@ -1552,7 +1579,10 @@ class Block:
                 column_ids.append(masked_id)
 
         block = block.select_columns(column_ids)
-        aggregations = [(col_id, agg_ops.AnyValueOp()) for col_id in column_ids]
+        aggregations = [
+            ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.deref(col_id))
+            for col_id in column_ids
+        ]
         result_block, _ = block.aggregate(
             by_column_ids=self.index_columns,
             aggregations=aggregations,
@@ -2019,7 +2049,6 @@ class Block:
 
     def isin(self, other: Block):
         # TODO: Support multiple other columns and match on label
-        # TODO: Model as explicit "IN" subquery/join to better allow db to optimize
         assert len(other.value_columns) == 1
         unique_other_values = other.expr.select_columns(
             [other.value_columns[0]]
@@ -2031,23 +2060,15 @@ class Block:
         return block
 
     def _isin_inner(self: Block, col: str, unique_values: core.ArrayValue) -> Block:
-        unique_values, const = unique_values.create_constant(
-            True, dtype=bigframes.dtypes.BOOL_DTYPE
-        )
-        expr, (l_map, r_map) = self._expr.relational_join(
-            unique_values, ((col, unique_values.column_ids[0]),), type="left"
-        )
-        expr, matches = expr.project_to_id(ops.notnull_op.as_expr(r_map[const]))
+        expr, matches = self._expr.isin(unique_values, col, unique_values.column_ids[0])
 
-        new_index_cols = tuple(l_map[idx_col] for idx_col in self.index_columns)
         new_value_cols = tuple(
-            l_map[val_col] if val_col != col else matches
-            for val_col in self.value_columns
+            val_col if val_col != col else matches for val_col in self.value_columns
         )
-        expr = expr.select_columns((*new_index_cols, *new_value_cols))
+        expr = expr.select_columns((*self.index_columns, *new_value_cols))
         return Block(
             expr,
-            index_columns=new_index_cols,
+            index_columns=self.index_columns,
             column_labels=self.column_labels,
             index_labels=self._index_labels,
         )
@@ -2076,14 +2097,12 @@ class Block:
         result_columns = []
         matching_join_labels = []
 
-        coalesced_ids = []
-        for left_id, right_id in zip(left_join_ids, right_join_ids):
-            joined_expr, coalesced_id = joined_expr.project_to_id(
-                ops.coalesce_op.as_expr(
-                    get_column_left[left_id], get_column_right[right_id]
-                ),
-            )
-            coalesced_ids.append(coalesced_id)
+        left_post_join_ids = tuple(get_column_left[id] for id in left_join_ids)
+        right_post_join_ids = tuple(get_column_right[id] for id in right_join_ids)
+
+        joined_expr, coalesced_ids = coalesce_columns(
+            joined_expr, left_post_join_ids, right_post_join_ids, how=how, drop=False
+        )
 
         for col_id in self.value_columns:
             if col_id in left_join_ids:
@@ -2101,7 +2120,6 @@ class Block:
                 result_columns.append(get_column_left[col_id])
         for col_id in other.value_columns:
             if col_id in right_join_ids:
-                key_part = right_join_ids.index(col_id)
                 if other.col_id_to_label[matching_right_id] in matching_join_labels:
                     pass
                 else:
@@ -2147,7 +2165,7 @@ class Block:
 
     def _align_both_axes(
         self, other: Block, how: str
-    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.Expression, ex.Expression]]]:
+    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.RefOrConstant, ex.RefOrConstant]]]:
         # Join rows
         aligned_block, (get_column_left, get_column_right) = self.join(other, how=how)
         # join columns schema
@@ -2156,7 +2174,7 @@ class Block:
             columns, lcol_indexer, rcol_indexer = self.column_labels, None, None
         else:
             columns, lcol_indexer, rcol_indexer = self.column_labels.join(
-                other.column_labels, how="outer", return_indexers=True
+                other.column_labels, how=how, return_indexers=True
             )
         lcol_indexer = (
             lcol_indexer if (lcol_indexer is not None) else range(len(columns))
@@ -2178,11 +2196,11 @@ class Block:
 
         left_inputs = [left_input_lookup(i) for i in lcol_indexer]
         right_inputs = [righ_input_lookup(i) for i in rcol_indexer]
-        return aligned_block, columns, tuple(zip(left_inputs, right_inputs))
+        return aligned_block, columns, tuple(zip(left_inputs, right_inputs))  # type: ignore
 
     def _align_axis_0(
         self, other: Block, how: str
-    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.Expression, ex.Expression]]]:
+    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.DerefOp, ex.DerefOp]]]:
         assert len(other.value_columns) == 1
         aligned_block, (get_column_left, get_column_right) = self.join(other, how=how)
 
@@ -2198,7 +2216,7 @@ class Block:
 
     def _align_series_block_axis_1(
         self, other: Block, how: str
-    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.Expression, ex.Expression]]]:
+    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.RefOrConstant, ex.RefOrConstant]]]:
         assert len(other.value_columns) == 1
         if other._transpose_cache is None:
             raise ValueError(
@@ -2239,11 +2257,11 @@ class Block:
 
         left_inputs = [left_input_lookup(i) for i in lcol_indexer]
         right_inputs = [righ_input_lookup(i) for i in rcol_indexer]
-        return aligned_block, columns, tuple(zip(left_inputs, right_inputs))
+        return aligned_block, columns, tuple(zip(left_inputs, right_inputs))  # type: ignore
 
     def _align_pd_series_axis_1(
         self, other: pd.Series, how: str
-    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.Expression, ex.Expression]]]:
+    ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.RefOrConstant, ex.RefOrConstant]]]:
         if self.column_labels.equals(other.index):
             columns, lcol_indexer, rcol_indexer = self.column_labels, None, None
         else:
@@ -2270,7 +2288,7 @@ class Block:
 
         left_inputs = [left_input_lookup(i) for i in lcol_indexer]
         right_inputs = [righ_input_lookup(i) for i in rcol_indexer]
-        return self, columns, tuple(zip(left_inputs, right_inputs))
+        return self, columns, tuple(zip(left_inputs, right_inputs))  # type: ignore
 
     def _apply_binop(
         self,
@@ -2279,18 +2297,15 @@ class Block:
         labels: pd.Index,
         reverse: bool = False,
     ) -> Block:
-        block = self
-        binop_result_ids = []
+        exprs = []
         for left_input, right_input in inputs:
-            expr = (
+            exprs.append(
                 op.as_expr(right_input, left_input)
                 if reverse
                 else op.as_expr(left_input, right_input)
             )
-            block, result_col_id = block.project_expr(expr)
-            binop_result_ids.append(result_col_id)
 
-        return block.select_columns(binop_result_ids).with_column_labels(labels)
+        return self.project_exprs(exprs, labels=labels, drop=True)
 
     def join(
         self,
@@ -2638,7 +2653,7 @@ class BlockIndexProperties:
         ]
 
     @property
-    def session(self) -> core.Session:
+    def session(self) -> session.Session:
         return self._expr.session
 
     @property
@@ -2930,26 +2945,31 @@ def join_multi_indexed(
     )
 
 
+# TODO: Rewrite just to return expressions
 def coalesce_columns(
     expr: core.ArrayValue,
     left_ids: typing.Sequence[str],
     right_ids: typing.Sequence[str],
     how: str,
+    drop: bool = True,
 ) -> Tuple[core.ArrayValue, Sequence[str]]:
     result_ids = []
     for left_id, right_id in zip(left_ids, right_ids):
         if how == "left" or how == "inner" or how == "cross":
             result_ids.append(left_id)
-            expr = expr.drop_columns([right_id])
+            if drop:
+                expr = expr.drop_columns([right_id])
         elif how == "right":
             result_ids.append(right_id)
-            expr = expr.drop_columns([left_id])
+            if drop:
+                expr = expr.drop_columns([left_id])
         elif how == "outer":
             coalesced_id = guid.generate_guid()
             expr, coalesced_id = expr.project_to_id(
                 ops.coalesce_op.as_expr(left_id, right_id)
             )
-            expr = expr.drop_columns([left_id, right_id])
+            if drop:
+                expr = expr.drop_columns([left_id, right_id])
             result_ids.append(coalesced_id)
         else:
             raise ValueError(f"Unexpected join type: {how}. {constants.FEEDBACK_LINK}")
@@ -3151,7 +3171,7 @@ def unpivot(
 
 
 def _pd_index_to_array_value(
-    session: core.Session,
+    session: session.Session,
     index: pd.Index,
 ) -> core.ArrayValue:
     """

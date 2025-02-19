@@ -14,9 +14,11 @@
 from __future__ import annotations
 
 import dataclasses
+import typing
 from typing import Collection, Union
 
 import bigframes_vendored.constants as constants
+import db_dtypes  # type: ignore
 import geopandas  # type: ignore
 import numpy as np
 import pandas
@@ -37,6 +39,7 @@ class DataFrameAndLabels:
     column_labels: Collection
     index_labels: Collection
     ordering_col: str
+    col_type_overrides: typing.Dict[str, bigframes.dtypes.Dtype]
 
 
 def _arrow_to_pandas_arrowdtype(
@@ -122,6 +125,8 @@ def arrow_to_pandas(
             )
         elif isinstance(dtype, pandas.ArrowDtype):
             series = _arrow_to_pandas_arrowdtype(column, dtype)
+        elif isinstance(dtype, db_dtypes.JSONDtype):
+            series = db_dtypes.JSONArray(column)
         else:
             series = column.to_pandas(types_mapper=lambda _: dtype)
 
@@ -160,9 +165,17 @@ def pandas_to_bq_compatible(pandas_dataframe: pandas.DataFrame) -> DataFrameAndL
     pandas_dataframe_copy.columns = pandas.Index(new_col_ids)
     pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
 
+    timedelta_cols = utils.replace_timedeltas_with_micros(pandas_dataframe_copy)
+    json_cols = utils.replace_json_with_string(pandas_dataframe_copy)
+    col_type_overrides: typing.Dict[str, bigframes.dtypes.Dtype] = {
+        **{col: bigframes.dtypes.TIMEDELTA_DTYPE for col in timedelta_cols},
+        **{col: bigframes.dtypes.JSON_DTYPE for col in json_cols},
+    }
+
     return DataFrameAndLabels(
         df=pandas_dataframe_copy,
         column_labels=col_labels,
         index_labels=idx_labels,
         ordering_col=ordering_col,
+        col_type_overrides=col_type_overrides,
     )

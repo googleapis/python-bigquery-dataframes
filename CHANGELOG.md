@@ -4,6 +4,125 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.37.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.36.0...v1.37.0) (2025-02-19)
+
+
+### Features
+
+* JSON dtype support for read_pandas and Series constructor ([#1391](https://github.com/googleapis/python-bigquery-dataframes/issues/1391)) ([44f4137](https://github.com/googleapis/python-bigquery-dataframes/commit/44f4137adb02790e07c696f0641bc58390857210))
+* Support add, sub, mult, div, and more between timedeltas ([#1396](https://github.com/googleapis/python-bigquery-dataframes/issues/1396)) ([ffa63d4](https://github.com/googleapis/python-bigquery-dataframes/commit/ffa63d47ca1dd1a18617f44d9b3bc33419656a20))
+* Support comparison, ordering, and filtering for timedeltas ([#1387](https://github.com/googleapis/python-bigquery-dataframes/issues/1387)) ([34d01b2](https://github.com/googleapis/python-bigquery-dataframes/commit/34d01b27f867abf10bddffdf4f88fa7052cd237c))
+* Support subtraction in DATETIME/TIMESTAMP columns with timedelta columns ([#1390](https://github.com/googleapis/python-bigquery-dataframes/issues/1390)) ([50ad3a5](https://github.com/googleapis/python-bigquery-dataframes/commit/50ad3a56e9bd77bb77d60d7d5ec497e3335a7177))
+
+
+### Bug Fixes
+
+* Ensure binops with pandas objects returns bigquery dataframes ([#1404](https://github.com/googleapis/python-bigquery-dataframes/issues/1404)) ([3cee24b](https://github.com/googleapis/python-bigquery-dataframes/commit/3cee24bae1d352015a5b6a8c18d5c394293d08fd))
+
+
+### Performance Improvements
+
+* Prune projections more aggressively ([#1398](https://github.com/googleapis/python-bigquery-dataframes/issues/1398)) ([7990262](https://github.com/googleapis/python-bigquery-dataframes/commit/7990262cf09e97c0739be922ede151d616655726))
+* Simplify sum aggregate SQL text ([#1395](https://github.com/googleapis/python-bigquery-dataframes/issues/1395)) ([0145656](https://github.com/googleapis/python-bigquery-dataframes/commit/0145656e5e378442f2f38f9f04e87e33ddf345f5))
+* Use simple null constraints to simplify queries ([#1381](https://github.com/googleapis/python-bigquery-dataframes/issues/1381)) ([00611d4](https://github.com/googleapis/python-bigquery-dataframes/commit/00611d4d697a8b74451375f5a7700b92a4410295))
+
+
+### Documentation
+
+* Add DataFrame.struct docs ([#1348](https://github.com/googleapis/python-bigquery-dataframes/issues/1348)) ([7e9e93a](https://github.com/googleapis/python-bigquery-dataframes/commit/7e9e93aafd26cbfec9a1710caaf97937bcb6ee05))
+
+## [1.36.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.35.0...v1.36.0) (2025-02-11)
+
+
+### Features
+
+* Add `bigframes.bigquery.st_area` and suggest it from `GeoSeries.area` ([#1318](https://github.com/googleapis/python-bigquery-dataframes/issues/1318)) ([8b5ffa8](https://github.com/googleapis/python-bigquery-dataframes/commit/8b5ffa8893b51016c51794865c40def74ea6716b))
+* Add `GeoSeries.from_xy()` ([#1364](https://github.com/googleapis/python-bigquery-dataframes/issues/1364)) ([3c3e14c](https://github.com/googleapis/python-bigquery-dataframes/commit/3c3e14c715f476ca44f254c0d53d639ea5988a8d))
+
+
+### Bug Fixes
+
+* Dtype parameter ineffective in Series/DataFrame construction ([#1354](https://github.com/googleapis/python-bigquery-dataframes/issues/1354)) ([b9bdca8](https://github.com/googleapis/python-bigquery-dataframes/commit/b9bdca8285ee54fecf3795fbf3cbea6f878ee8ca))
+* Translate labels to col ids when copying dataframes ([#1372](https://github.com/googleapis/python-bigquery-dataframes/issues/1372)) ([0c55b07](https://github.com/googleapis/python-bigquery-dataframes/commit/0c55b07dc001b568875f06d578ca7d59409f2a11))
+
+
+### Performance Improvements
+
+* Prune unused operations from sql ([#1365](https://github.com/googleapis/python-bigquery-dataframes/issues/1365)) ([923da03](https://github.com/googleapis/python-bigquery-dataframes/commit/923da037ef6e4e7f8b54924ea5644c2c5ceb2234))
+* Simplify merge join key coalescing ([#1361](https://github.com/googleapis/python-bigquery-dataframes/issues/1361)) ([7ae565d](https://github.com/googleapis/python-bigquery-dataframes/commit/7ae565d9e0e59fdf75c7659c0263562688ccc1e8))
+
+## [1.35.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.34.0...v1.35.0) (2025-02-04)
+
+
+### Features
+
+* Add Series.keys() ([#1342](https://github.com/googleapis/python-bigquery-dataframes/issues/1342)) ([deb015d](https://github.com/googleapis/python-bigquery-dataframes/commit/deb015dc1276549519d51363501355272f8976d8))
+* Allow `case_when` to change dtypes if case list contains the condition `(True, some_default_value)` ([#1311](https://github.com/googleapis/python-bigquery-dataframes/issues/1311)) ([5c2a2c6](https://github.com/googleapis/python-bigquery-dataframes/commit/5c2a2c6086be20cba7da08ecd37899699aab518f))
+* Support python type as astype arg ([#1316](https://github.com/googleapis/python-bigquery-dataframes/issues/1316)) ([b26e135](https://github.com/googleapis/python-bigquery-dataframes/commit/b26e13570f198ec4d252590a8c07253624db667a))
+* Support time_series_id_col in ARIMAPlus  ([#1282](https://github.com/googleapis/python-bigquery-dataframes/issues/1282)) ([97532c9](https://github.com/googleapis/python-bigquery-dataframes/commit/97532c9ba02cd709d69666dd0afca5c1df8b9faf))
+
+
+### Bug Fixes
+
+* Exclude `DataFrame` and `Series` `__call__` from unimplemented API metrics ([#1351](https://github.com/googleapis/python-bigquery-dataframes/issues/1351)) ([f2d5264](https://github.com/googleapis/python-bigquery-dataframes/commit/f2d526445da7dae29c49c8d6dacdfee7d2fa9d79))
+* Make `DataFrame` `__getattr__` and `__setattr__` more robust to subclassing ([#1352](https://github.com/googleapis/python-bigquery-dataframes/issues/1352)) ([417de3a](https://github.com/googleapis/python-bigquery-dataframes/commit/417de3a449e5d0748831b502f4f5b9fb9ba38714))
+
+
+### Performance Improvements
+
+* Fall back to ordering by bq pk when possible ([#1350](https://github.com/googleapis/python-bigquery-dataframes/issues/1350)) ([3c4abf2](https://github.com/googleapis/python-bigquery-dataframes/commit/3c4abf24ea186e98f629b6f83c0f3e36dc0571c6))
+* Improve isin performance ([#1203](https://github.com/googleapis/python-bigquery-dataframes/issues/1203)) ([db087b0](https://github.com/googleapis/python-bigquery-dataframes/commit/db087b0bfe4b3ba965682d620079c923e098e362))
+* Prevent inlining of remote ops ([#1347](https://github.com/googleapis/python-bigquery-dataframes/issues/1347)) ([012081a](https://github.com/googleapis/python-bigquery-dataframes/commit/012081af9ef825ced96ec1e772b9646cbe09d9a1))
+
+
+### Dependencies
+
+* Add support for Python 3.13 for everything but remote functions ([#1307](https://github.com/googleapis/python-bigquery-dataframes/issues/1307)) ([533db96](https://github.com/googleapis/python-bigquery-dataframes/commit/533db9685d159de2bc76307b0e0add676bd679a0))
+
+
+### Documentation
+
+* Add `GeoSeries` docs ([#1327](https://github.com/googleapis/python-bigquery-dataframes/issues/1327)) ([05f83d1](https://github.com/googleapis/python-bigquery-dataframes/commit/05f83d18d276091a1549dbba1f2baf8c91c8c37e))
+* Add link to DataFrames intro to improve SEO ([#1176](https://github.com/googleapis/python-bigquery-dataframes/issues/1176)) ([aafb5be](https://github.com/googleapis/python-bigquery-dataframes/commit/aafb5be3e9c50f477fca2a1ebb5338194672913f))
+* Add snippet to explain the univariate model's forecast result in the Forecast a single time series with a univariate model tutorial ([#1272](https://github.com/googleapis/python-bigquery-dataframes/issues/1272)) ([c22126b](https://github.com/googleapis/python-bigquery-dataframes/commit/c22126b846db428d21c0f5cbd2d439ecc56365b2))
+
+## [1.34.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.33.0...v1.34.0) (2025-01-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* Enable reading JSON data with `dbjson` extension dtype ([#1139](https://github.com/googleapis/python-bigquery-dataframes/issues/1139))
+
+### Features
+
+* (df|s).hist(), (df|s).line(), (df|s).area(), (df|s).bar(), df.scatter() ([#1320](https://github.com/googleapis/python-bigquery-dataframes/issues/1320)) ([bd3f584](https://github.com/googleapis/python-bigquery-dataframes/commit/bd3f584a7eab5d01dedebb7ca2485942ef5b5ebe))
+* Add DataFrame.corrwith method ([#1315](https://github.com/googleapis/python-bigquery-dataframes/issues/1315)) ([b503355](https://github.com/googleapis/python-bigquery-dataframes/commit/b5033559a77a9bc5ffb7dc1e44e02aaaaf1e051e))
+* Add DataFrame.mask method ([#1302](https://github.com/googleapis/python-bigquery-dataframes/issues/1302)) ([8b8155f](https://github.com/googleapis/python-bigquery-dataframes/commit/8b8155fef9c5cd36cfabf728ccebf6a14a1cbbda))
+* Enable reading JSON data with `dbjson` extension dtype ([#1139](https://github.com/googleapis/python-bigquery-dataframes/issues/1139)) ([f672262](https://github.com/googleapis/python-bigquery-dataframes/commit/f6722629fb47eed5befb0ecae2e6b5ec9042d669))
+
+## [1.33.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.32.0...v1.33.0) (2025-01-22)
+
+
+### Features
+
+* Add `bigframes.bigquery.sql_scalar()` to apply SQL syntax on Series objects ([#1293](https://github.com/googleapis/python-bigquery-dataframes/issues/1293)) ([aa2f73a](https://github.com/googleapis/python-bigquery-dataframes/commit/aa2f73ad86e42c37d85ac867a3702eb6f2724b11))
+* Add unix_seconds, unix_millis and unix_micros for timestamp series. ([#1297](https://github.com/googleapis/python-bigquery-dataframes/issues/1297)) ([e4b0c8d](https://github.com/googleapis/python-bigquery-dataframes/commit/e4b0c8dd9edda48e07c433b99f44db82e1ea2054))
+* DataFrame.join supports Series other ([#1303](https://github.com/googleapis/python-bigquery-dataframes/issues/1303)) ([ee37a0a](https://github.com/googleapis/python-bigquery-dataframes/commit/ee37a0ab84e9415046e0e15955c14a1965b3a904))
+* Support array output in `remote_function` ([#1057](https://github.com/googleapis/python-bigquery-dataframes/issues/1057)) ([bdee173](https://github.com/googleapis/python-bigquery-dataframes/commit/bdee1734809589e5a7a3c23ee9cd2f967adf346f))
+
+
+### Bug Fixes
+
+* Dataframe sort_values Series input keyerror. ([#1285](https://github.com/googleapis/python-bigquery-dataframes/issues/1285)) ([5a2731b](https://github.com/googleapis/python-bigquery-dataframes/commit/5a2731bda8b2e9ea54bf582f823acdb6153dbb8f))
+* Fix read_gbq_function issue in dataframe apply method ([#1174](https://github.com/googleapis/python-bigquery-dataframes/issues/1174)) ([0318764](https://github.com/googleapis/python-bigquery-dataframes/commit/0318764030f6753a4e925c62612aabbb8e192fdf))
+* Series sort_index and sort_values now raises when axis!=0 ([#1294](https://github.com/googleapis/python-bigquery-dataframes/issues/1294)) ([94bc2f2](https://github.com/googleapis/python-bigquery-dataframes/commit/94bc2f2dc3514fffeac625592ec4b28c32957723))
+
+
+### Documentation
+
+* Add snippet to forecast future time series in the Forecast a single time series with a univariate model tutorial ([#1271](https://github.com/googleapis/python-bigquery-dataframes/issues/1271)) ([a687050](https://github.com/googleapis/python-bigquery-dataframes/commit/a687050b2a92bed1af9cb86a812b62f9a69cf959))
+* Update `bigframes.pandas.Series` docs ([#1273](https://github.com/googleapis/python-bigquery-dataframes/issues/1273)) ([0cac64f](https://github.com/googleapis/python-bigquery-dataframes/commit/0cac64f5ba3f3c9e8495fc5acb09d81c39d36de0))
+
 ## [1.32.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.31.0...v1.32.0) (2025-01-13)
 
 
