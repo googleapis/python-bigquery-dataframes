@@ -29,7 +29,7 @@ def test_blob_create_from_uri_str(bq_connection: str, session: bigframes.Session
     uri_series = bpd.Series(uris, session=session)
     blob_series = uri_series.str.to_blob(connection=bq_connection)
 
-    pd_blob_df = blob_series.to_pandas().struct.explode()
+    pd_blob_df = blob_series.struct.explode().to_pandas()
     expected_pd_df = pd.DataFrame(
         {
             "uri": uris,
@@ -50,7 +50,7 @@ def test_blob_create_from_glob_path(bq_connection: str, session: bigframes.Sessi
     blob_df = session.from_glob_path(
         "gs://bigframes_blob_test/images/*", connection=bq_connection, name="blob_col"
     )
-    pd_blob_df = blob_df["blob_col"].to_pandas().struct.explode()
+    pd_blob_df = blob_df["blob_col"].struct.explode().to_pandas()
     expected_df = pd.DataFrame(
         {
             "uri": [
