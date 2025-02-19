@@ -199,6 +199,3 @@ def _rewrite_aggregation(
         )
 
     return aggregation
-
-
-
