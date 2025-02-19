@@ -141,6 +141,7 @@ class GeoSeries:
 
         **Examples:**
 
+            >>> import bigframes as bpd
             >>> import bigframes.geopandas
             >>> bpd.options.display.progress_bar = None
 
@@ -175,8 +176,9 @@ class GeoSeries:
 
         **Examples:**
 
-            >>> from shapely.geometry import Point
+            >>> import bigframes as bpd
             >>> import bigframes.geopandas
+            >>> from shapely.geometry import Point
             >>> bpd.options.display.progress_bar = None
 
             >>> s = bigframes.geopandas.GeoSeries([Point(1, 1), Point(2, 2), Point(3, 3)])
