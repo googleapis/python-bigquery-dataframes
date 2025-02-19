@@ -21,6 +21,8 @@ import pandas as pd
 import pandas.testing
 import pytest
 
+from bigframes import dtypes
+
 
 @pytest.fixture(scope="module")
 def temporal_dfs(session):
@@ -37,21 +39,116 @@ def temporal_dfs(session):
                 pd.Timestamp("2005-03-05 02:00:00", tz="UTC"),
             ],
             "timedelta_col_1": [
-                pd.Timedelta(3, "s"),
+                pd.Timedelta(5, "s"),
                 pd.Timedelta(-4, "d"),
                 pd.Timedelta(5, "h"),
             ],
             "timedelta_col_2": [
-                pd.Timedelta(2, "s"),
+                pd.Timedelta(3, "s"),
                 pd.Timedelta(-4, "d"),
                 pd.Timedelta(6, "h"),
             ],
+            "numeric_col": [1.5, 2, -3],
         }
     )
 
     bigframes_df = session.read_pandas(pandas_df)
 
     return bigframes_df, pandas_df
+
+
+def _assert_series_equal(actual: pd.Series, expected: pd.Series):
+    """Helper function specifically for timedelta testsing. Don't use it outside of this module."""
+    if actual.dtype == dtypes.FLOAT_DTYPE:
+        pandas.testing.assert_series_equal(
+            actual, expected.astype("Float64"), check_index_type=False
+        )
+    elif actual.dtype == dtypes.INT_DTYPE:
+        pandas.testing.assert_series_equal(
+            actual, expected.astype("Int64"), check_index_type=False
+        )
+    else:
+        pandas.testing.assert_series_equal(
+            actual.astype("timedelta64[ns]"),
+            expected.dt.floor("us"),  # in BF the precision is microsecond
+            check_index_type=False,
+        )
+
+
+@pytest.mark.parametrize(
+    ("op", "col_1", "col_2"),
+    [
+        (operator.add, "timedelta_col_1", "timedelta_col_2"),
+        (operator.sub, "timedelta_col_1", "timedelta_col_2"),
+        (operator.truediv, "timedelta_col_1", "timedelta_col_2"),
+        (operator.floordiv, "timedelta_col_1", "timedelta_col_2"),
+        (operator.truediv, "timedelta_col_1", "numeric_col"),
+        (operator.floordiv, "timedelta_col_1", "numeric_col"),
+        (operator.mul, "timedelta_col_1", "numeric_col"),
+        (operator.mul, "numeric_col", "timedelta_col_1"),
+    ],
+)
+def test_timedelta_binary_ops_between_series(temporal_dfs, op, col_1, col_2):
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = op(bf_df[col_1], bf_df[col_2]).to_pandas()
+
+    expected_result = op(pd_df[col_1], pd_df[col_2])
+    _assert_series_equal(actual_result, expected_result)
+
+
+@pytest.mark.parametrize(
+    ("op", "col", "literal"),
+    [
+        (operator.add, "timedelta_col_1", pd.Timedelta(2, "s")),
+        (operator.sub, "timedelta_col_1", pd.Timedelta(2, "s")),
+        (operator.truediv, "timedelta_col_1", pd.Timedelta(2, "s")),
+        (operator.floordiv, "timedelta_col_1", pd.Timedelta(2, "s")),
+        (operator.truediv, "timedelta_col_1", 3),
+        (operator.floordiv, "timedelta_col_1", 3),
+        (operator.mul, "timedelta_col_1", 3),
+        (operator.mul, "numeric_col", pd.Timedelta(1, "s")),
+    ],
+)
+def test_timedelta_binary_ops_series_and_literal(temporal_dfs, op, col, literal):
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = op(bf_df[col], literal).to_pandas()
+
+    expected_result = op(pd_df[col], literal)
+    _assert_series_equal(actual_result, expected_result)
+
+
+@pytest.mark.parametrize(
+    ("op", "col", "literal"),
+    [
+        (operator.add, "timedelta_col_1", pd.Timedelta(2, "s")),
+        (operator.sub, "timedelta_col_1", pd.Timedelta(2, "s")),
+        (operator.truediv, "timedelta_col_1", pd.Timedelta(2, "s")),
+        (operator.floordiv, "timedelta_col_1", pd.Timedelta(2, "s")),
+        (operator.truediv, "numeric_col", pd.Timedelta(2, "s")),
+        (operator.floordiv, "numeric_col", pd.Timedelta(2, "s")),
+        (operator.mul, "timedelta_col_1", 3),
+        (operator.mul, "numeric_col", pd.Timedelta(1, "s")),
+    ],
+)
+def test_timedelta_binary_ops_literal_and_series(temporal_dfs, op, col, literal):
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = op(literal, bf_df[col]).to_pandas()
+
+    expected_result = op(literal, pd_df[col])
+    _assert_series_equal(actual_result, expected_result)
+
+
+@pytest.mark.parametrize("op", [operator.pos, operator.neg, operator.abs])
+def test_timedelta_unary_ops(temporal_dfs, op):
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = op(bf_df["timedelta_col_1"]).to_pandas()
+
+    expected_result = op(pd_df["timedelta_col_1"])
+    _assert_series_equal(actual_result, expected_result)
 
 
 @pytest.mark.parametrize(
@@ -173,6 +270,96 @@ def test_timestamp_add_dataframes(temporal_dfs):
     )
 
     expected_result = pd_df[columns] + timedelta
+    pandas.testing.assert_frame_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("column", "pd_dtype"),
+    [
+        ("datetime_col", "<M8[ns]"),
+        ("timestamp_col", "datetime64[ns, UTC]"),
+    ],
+)
+def test_timestamp_sub__ts_series_minus_td_series(temporal_dfs, column, pd_dtype):
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = (
+        (bf_df[column] - bf_df["timedelta_col_1"]).to_pandas().astype(pd_dtype)
+    )
+
+    expected_result = pd_df[column] - pd_df["timedelta_col_1"]
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("column", "pd_dtype"),
+    [
+        ("datetime_col", "<M8[ns]"),
+        ("timestamp_col", "datetime64[ns, UTC]"),
+    ],
+)
+def test_timestamp_sub__ts_series_minus_td_literal(temporal_dfs, column, pd_dtype):
+    bf_df, pd_df = temporal_dfs
+    literal = pd.Timedelta(1, "h")
+
+    actual_result = (bf_df[column] - literal).to_pandas().astype(pd_dtype)
+
+    expected_result = pd_df[column] - literal
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+def test_timestamp_sub__ts_literal_minus_td_series(temporal_dfs):
+    bf_df, pd_df = temporal_dfs
+    literal = pd.Timestamp("2025-01-01 01:00:00")
+
+    actual_result = (literal - bf_df["timedelta_col_1"]).to_pandas().astype("<M8[ns]")
+
+    expected_result = literal - pd_df["timedelta_col_1"]
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("column", "pd_dtype"),
+    [
+        ("datetime_col", "<M8[ns]"),
+        ("timestamp_col", "datetime64[ns, UTC]"),
+    ],
+)
+def test_timestamp_sub_with_numpy_op(temporal_dfs, column, pd_dtype):
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = (
+        np.subtract(bf_df[column], bf_df["timedelta_col_1"])
+        .to_pandas()
+        .astype(pd_dtype)
+    )
+
+    expected_result = np.subtract(pd_df[column], pd_df["timedelta_col_1"])
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+def test_timestamp_sub_dataframes(temporal_dfs):
+    columns = ["datetime_col", "timestamp_col"]
+    timedelta = pd.Timedelta(1, unit="s")
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = (bf_df[columns] - timedelta).to_pandas()
+    actual_result["datetime_col"] = actual_result["datetime_col"].astype("<M8[ns]")
+    actual_result["timestamp_col"] = actual_result["timestamp_col"].astype(
+        "datetime64[ns, UTC]"
+    )
+
+    expected_result = pd_df[columns] - timedelta
     pandas.testing.assert_frame_equal(
         actual_result, expected_result, check_index_type=False
     )
