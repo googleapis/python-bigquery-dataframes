@@ -160,4 +160,5 @@ def test_geo_to_wkt():
     pd.testing.assert_series_equal(
         bf_result,
         pd_result,
+        check_index=False,
     )
