@@ -36,7 +36,26 @@ class ToTimedeltaOp(base_ops.UnaryOp):
 
 
 @dataclasses.dataclass(frozen=True)
-class TimestampAdd(base_ops.BinaryOp):
+class TimedeltaFloorOp(base_ops.UnaryOp):
+    """Floors the numeric value to the nearest integer and use it to represent a timedelta.
+
+    This operator is only meant to be used during expression tree rewrites. Do not use it anywhere else!
+    """
+
+    name: typing.ClassVar[str] = "timedelta_floor"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        input_type = input_types[0]
+        if dtypes.is_numeric(input_type) or input_type is dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+        raise TypeError(f"unsupported type: {input_type}")
+
+
+timedelta_floor_op = TimedeltaFloorOp()
+
+
+@dataclasses.dataclass(frozen=True)
+class TimestampAddOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "timestamp_add"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
@@ -57,11 +76,11 @@ class TimestampAdd(base_ops.BinaryOp):
         )
 
 
-timestamp_add_op = TimestampAdd()
+timestamp_add_op = TimestampAddOp()
 
 
 @dataclasses.dataclass(frozen=True)
-class TimestampSub(base_ops.BinaryOp):
+class TimestampSubOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "timestamp_sub"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
@@ -76,8 +95,7 @@ class TimestampSub(base_ops.BinaryOp):
             f"unsupported types for timestamp_sub. left: {input_types[0]} right: {input_types[1]}"
         )
 
-
-timestamp_sub_op = TimestampSub()
+timestamp_sub_op = TimestampSubOp()
 
 
 @dataclasses.dataclass(frozen=True)
