@@ -78,6 +78,9 @@ _list = list  # Type alias to escape Series.list property
 
 @log_adapter.class_logger
 class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Series):
+    # Must be above 5000 for pandas to delegate to bigframes for binops
+    __pandas_priority__ = 13000
+
     def __init__(self, *args, **kwargs):
         self._query_job: Optional[bigquery.QueryJob] = None
         super().__init__(*args, **kwargs)
@@ -960,6 +963,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             other, ops.coalesce_op, reverse=True, alignment="left"
         )
         self._set_block(result._get_block())
+
+    def __abs__(self) -> Series:
+        return self.abs()
 
     def abs(self) -> Series:
         return self._apply_unary_op(ops.abs_op)
