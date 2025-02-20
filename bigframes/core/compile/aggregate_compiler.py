@@ -164,9 +164,7 @@ def _(
 ) -> ibis_types.NumericValue:
     # Will be null if all inputs are null. Pandas defaults to zero sum though.
     bq_sum = _apply_window_if_present(column.sum(), window)
-    return (
-        ibis_api.case().when(bq_sum.isnull(), ibis_types.literal(0)).else_(bq_sum).end()  # type: ignore
-    )
+    return bq_sum.fillna(ibis_types.literal(0))
 
 
 @compile_unary_agg.register
@@ -551,6 +549,24 @@ def _(
         )
     else:
         raise TypeError(f"Cannot perform diff on type{column.type()}")
+
+
+@compile_unary_agg.register
+def _(
+    op: agg_ops.TimeSeriesDiffOp,
+    column: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
+    if not column.type().is_timestamp():
+        raise TypeError(f"Cannot perform time series diff on type{column.type()}")
+
+    original_column = cast(ibis_types.TimestampColumn, column)
+    shifted_column = cast(
+        ibis_types.TimestampColumn,
+        compile_unary_agg(agg_ops.ShiftOp(op.periods), column, window),
+    )
+
+    return original_column.delta(shifted_column, part="microsecond")
 
 
 @compile_unary_agg.register
