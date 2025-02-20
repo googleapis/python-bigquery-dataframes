@@ -1520,6 +1520,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 "Only a ufunc (a function that applies to the entire Series) or a remote function that only works on single values are supported."
             )
 
+        # TODO(jialuo): Deprecate the "bigframes_remote_function" attribute.
+        # We have some tests using pre-defined remote_function that were defined
+        # based on "bigframes_remote_function" instead of "bigframes_function".
+        # So we need to fix those pre-defined remote functions before
+        # deprecating the "bigframes_remote_function" attribute.
         if not hasattr(func, "bigframes_remote_function") and not hasattr(
             func, "bigframes_function"
         ):

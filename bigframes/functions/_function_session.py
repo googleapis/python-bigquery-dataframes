@@ -72,18 +72,18 @@ class FunctionSession:
         # Lock to synchronize the update of the session artifacts
         self._artifacts_lock = threading.Lock()
 
-    def _get_session(self, session: Optional[Session]) -> Session:
-        """Gets the BigFrames session."""
+    def _resolve_session(self, session: Optional[Session]) -> Session:
+        """Resolves the BigFrames session."""
         import bigframes.pandas as bpd
         import bigframes.session
 
         # Using the global session if none is provided.
         return cast(bigframes.session.Session, session or bpd.get_global_session())
 
-    def _get_bigquery_client(
+    def _resolve_bigquery_client(
         self, session: Session, bigquery_client: Optional[bigquery.Client]
     ) -> bigquery.Client:
-        """Gets the BigQuery client."""
+        """Resolves the BigQuery client."""
         if not bigquery_client:
             bigquery_client = session.bqclient
         if not bigquery_client:
@@ -93,14 +93,14 @@ class FunctionSession:
             )
         return bigquery_client
 
-    def _get_bigquery_connection_client(
+    def _resolve_bigquery_connection_client(
         self,
         session: Session,
         bigquery_connection_client: Optional[
             bigquery_connection_v1.ConnectionServiceClient
         ],
     ) -> bigquery_connection_v1.ConnectionServiceClient:
-        """Gets the BigQuery connection client."""
+        """Resolves the BigQuery connection client."""
         if not bigquery_connection_client:
             bigquery_connection_client = session.bqconnectionclient
         if not bigquery_connection_client:
@@ -110,12 +110,12 @@ class FunctionSession:
             )
         return bigquery_connection_client
 
-    def _get_resource_manager_client(
+    def _resolve_resource_manager_client(
         self,
         session: Session,
         resource_manager_client: Optional[resourcemanager_v3.ProjectsClient],
     ) -> resourcemanager_v3.ProjectsClient:
-        """Gets the resource manager client."""
+        """Resolves the resource manager client."""
         if not resource_manager_client:
             resource_manager_client = session.resourcemanagerclient
         if not resource_manager_client:
@@ -125,13 +125,13 @@ class FunctionSession:
             )
         return resource_manager_client
 
-    def _get_dataset_reference(
+    def _resolve_dataset_reference(
         self,
         session: Session,
         bigquery_client: bigquery.Client,
         dataset: Optional[str],
     ) -> bigquery.DatasetReference:
-        """Gets the dataset reference for the bigframes function."""
+        """Resolves the dataset reference for the bigframes function."""
         if dataset:
             dataset_ref = bigquery.DatasetReference.from_string(
                 dataset, default_project=bigquery_client.project
@@ -140,12 +140,12 @@ class FunctionSession:
             dataset_ref = session._anonymous_dataset
         return dataset_ref
 
-    def _get_cloud_functions_client(
+    def _resolve_cloud_functions_client(
         self,
         session: Session,
         cloud_functions_client: Optional[functions_v2.FunctionServiceClient],
     ) -> Optional[functions_v2.FunctionServiceClient]:
-        """Gets the Cloud Functions client."""
+        """Resolves the Cloud Functions client."""
         if not cloud_functions_client:
             cloud_functions_client = session.cloudfunctionsclient
         if not cloud_functions_client:
@@ -155,14 +155,14 @@ class FunctionSession:
             )
         return cloud_functions_client
 
-    def _get_bigquery_connection(
+    def _resolve_bigquery_connection_id(
         self,
         session: Session,
         dataset_ref: bigquery.DatasetReference,
         bq_location: str,
         bigquery_connection: Optional[str] = None,
     ) -> str:
-        """Gets BigQuery connection name."""
+        """Resolves BigQuery connection id."""
         if not bigquery_connection:
             bigquery_connection = session._bq_connection  # type: ignore
 
@@ -171,7 +171,23 @@ class FunctionSession:
             default_project=dataset_ref.project,
             default_location=bq_location,
         )
-        return bigquery_connection
+        # Guaranteed to be the form of <project>.<location>.<connection_id>
+        (
+            gcp_project_id,
+            bq_connection_location,
+            bq_connection_id,
+        ) = bigquery_connection.split(".")
+        if gcp_project_id.casefold() != dataset_ref.project.casefold():
+            raise ValueError(
+                "The project_id does not match BigQuery connection "
+                f"gcp_project_id: {dataset_ref.project}."
+            )
+        if bq_connection_location.casefold() != bq_location.casefold():
+            raise ValueError(
+                "The location does not match BigQuery connection location: "
+                f"{bq_location}."
+            )
+        return bq_connection_id
 
     def _update_temp_artifacts(self, bqrf_routine: str, gcf_path: str):
         """Update function artifacts in the current session."""
@@ -426,27 +442,27 @@ class FunctionSession:
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
         """
         # Some defaults may be used from the session if not provided otherwise.
-        session = self._get_session(session)
+        session = self._resolve_session(session)
 
         # A BigQuery client is required to perform BQ operations.
-        bigquery_client = self._get_bigquery_client(session, bigquery_client)
+        bigquery_client = self._resolve_bigquery_client(session, bigquery_client)
 
         # A BigQuery connection client is required for BQ connection operations.
-        bigquery_connection_client = self._get_bigquery_connection_client(
+        bigquery_connection_client = self._resolve_bigquery_connection_client(
             session, bigquery_connection_client
         )
 
         # A resource manager client is required to get/set IAM operations.
-        resource_manager_client = self._get_resource_manager_client(
+        resource_manager_client = self._resolve_resource_manager_client(
             session, resource_manager_client
         )
 
         # BQ remote function must be persisted, for which we need a dataset.
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#:~:text=You%20cannot%20create%20temporary%20remote%20functions.
-        dataset_ref = self._get_dataset_reference(session, bigquery_client, dataset)
+        dataset_ref = self._resolve_dataset_reference(session, bigquery_client, dataset)
 
         # A cloud functions client is required for cloud functions operations.
-        cloud_functions_client = self._get_cloud_functions_client(
+        cloud_functions_client = self._resolve_cloud_functions_client(
             session, cloud_functions_client
         )
 
@@ -456,26 +472,9 @@ class FunctionSession:
 
         # A connection is required for BQ remote function.
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function
-        bigquery_connection = self._get_bigquery_connection(
+        bq_connection_id = self._resolve_bigquery_connection_id(
             session, dataset_ref, bq_location, bigquery_connection
         )
-
-        # Guaranteed to be the form of <project>.<location>.<connection_id>
-        (
-            gcp_project_id,
-            bq_connection_location,
-            bq_connection_id,
-        ) = bigquery_connection.split(".")
-        if gcp_project_id.casefold() != dataset_ref.project.casefold():
-            raise ValueError(
-                "The project_id does not match BigQuery connection gcp_project_id: "
-                f"{dataset_ref.project}."
-            )
-        if bq_connection_location.casefold() != bq_location.casefold():
-            raise ValueError(
-                "The location does not match BigQuery connection location: "
-                f"{bq_location}."
-            )
 
         # If any CMEK is intended then check that a docker repository is also specified.
         if (
@@ -726,12 +725,9 @@ class FunctionSession:
                 format. If this parameter is not provided then session dataset
                 id is used.
             bigquery_connection (str, Optional):
-                Name of the BigQuery connection. You should either have the
-                connection already created in the `location` you have chosen, or
-                you should have the Project IAM Admin role to enable the service
-                to create the connection for you if you need it. If this
-                parameter is not provided then the BigQuery connection from the
-                session is used.
+                Name of the BigQuery connection. It is used to provide an
+                identity to the serverless instances running the user code. It
+                helps BigQuery manage and track the resources used by the udf.
             name (str, Optional):
                 Explicit name of the persisted BigQuery managed function. Use it
                 with caution, because more than one users working in the same
@@ -755,10 +751,6 @@ class FunctionSession:
 
         # Check the Python version.
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-        warnings.warn(
-            f"Currently, only Python version {_MANAGED_FUNC_PYTHON_VERSIONS} is "
-            "supported for BigFrames managed function."
-        )
         if python_version not in _MANAGED_FUNC_PYTHON_VERSIONS:
             raise RuntimeError(
                 f"Python version {python_version} is not supported yet for "
@@ -766,37 +758,20 @@ class FunctionSession:
             )
 
         # Some defaults may be used from the session if not provided otherwise.
-        session = self._get_session(session)
+        session = self._resolve_session(session)
 
         # A BigQuery client is required to perform BQ operations.
-        bigquery_client = self._get_bigquery_client(session, bigquery_client)
+        bigquery_client = self._resolve_bigquery_client(session, bigquery_client)
 
         # BQ managed function must be persisted, for which we need a dataset.
-        dataset_ref = self._get_dataset_reference(session, bigquery_client, dataset)
+        dataset_ref = self._resolve_dataset_reference(session, bigquery_client, dataset)
 
         bq_location, _ = _utils.get_remote_function_locations(bigquery_client.location)
 
         # A connection is required for BQ managed function.
-        bigquery_connection = self._get_bigquery_connection(
+        bq_connection_id = self._resolve_bigquery_connection_id(
             session, dataset_ref, bq_location, bigquery_connection
         )
-
-        # Guaranteed to be the form of <project>.<location>.<connection_id>
-        (
-            gcp_project_id,
-            bq_connection_location,
-            bq_connection_id,
-        ) = bigquery_connection.split(".")
-        if gcp_project_id.casefold() != dataset_ref.project.casefold():
-            raise ValueError(
-                "The project_id does not match BigQuery connection "
-                f"gcp_project_id: {dataset_ref.project}."
-            )
-        if bq_connection_location.casefold() != bq_location.casefold():
-            raise ValueError(
-                "The location does not match BigQuery connection location: "
-                f"{bq_location}."
-            )
 
         bq_connection_manager = session.bqconnectionmanager
 
@@ -891,6 +866,7 @@ class FunctionSession:
                 runtime_version="python-3.11",
                 bq_function_name=bq_function_name,
                 packages=packages,
+                is_row_processor=is_row_processor,
             )
 
             # TODO(shobs): Find a better way to support udfs with param named

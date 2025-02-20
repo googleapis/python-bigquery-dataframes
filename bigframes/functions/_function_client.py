@@ -127,6 +127,15 @@ class FunctionClient:
         )
         logger.info(f"Created bigframes function {query_job.ddl_target_routine}")
 
+    def _format_function_options(self, function_options: dict) -> str:
+        return ", ".join(
+            [
+                f"{key}='{val}'" if isinstance(val, str) else f"{key}={val}"
+                for key, val in function_options.items()
+                if val is not None
+            ]
+        )
+
     def create_bq_remote_function(
         self,
         input_args,
@@ -160,12 +169,8 @@ class FunctionClient:
             # bigframes specific metadata for the lack of a better option
             remote_function_options["description"] = metadata
 
-        remote_function_options_str = ", ".join(
-            [
-                f"{key}='{val}'" if isinstance(val, str) else f"{key}={val}"
-                for key, val in remote_function_options.items()
-                if val is not None
-            ]
+        remote_function_options_str = self._format_function_options(
+            remote_function_options
         )
 
         create_function_ddl = f"""
@@ -188,6 +193,7 @@ class FunctionClient:
         runtime_version,
         bq_function_name,
         packages,
+        is_row_processor,
     ):
         """Create a BigQuery managed function."""
         self._create_bq_connection()
@@ -196,14 +202,6 @@ class FunctionClient:
 
         pickled = cloudpickle.dumps(func)
 
-        code_block = f"""\
-import cloudpickle
-
-udf = cloudpickle.loads({pickled})
-
-def managed_func(*args, **kwargs):
-    return udf(*args, **kwargs)
-"""
         # Create BQ managed function.
         bq_function_args = []
         bq_function_return_type = output_type
@@ -218,17 +216,13 @@ def managed_func(*args, **kwargs):
             "entry_point": "managed_func",
         }
 
-        managed_function_options_str = ", ".join(
-            [
-                f'{key}="{val}"' if isinstance(val, str) else f"{key}={val}"
-                for key, val in managed_function_options.items()
-                if val is not None
-            ]
+        managed_function_options_str = self._format_function_options(
+            managed_function_options
         )
-        if not packages:
-            packages = ["cloudpickle"]
-        if "cloudpickle" not in packages:
-            packages += ["cloudpickle"]
+
+        # Augment user package requirements with any internal package
+        # requirements
+        packages = _utils._get_updated_package_requirements(packages, is_row_processor)
         managed_function_options_str = (
             f"{managed_function_options_str}, packages={packages}"
         )
@@ -242,7 +236,14 @@ def managed_func(*args, **kwargs):
             LANGUAGE {language}
             OPTIONS ({managed_function_options_str})
             AS r'''
-{code_block}
+
+import cloudpickle
+
+udf = cloudpickle.loads({pickled})
+
+def managed_func(*args, **kwargs):
+    return udf(*args, **kwargs)
+
             '''
         """
 
