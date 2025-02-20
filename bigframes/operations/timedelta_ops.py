@@ -60,6 +60,7 @@ class TimestampAdd(base_ops.BinaryOp):
 timestamp_add_op = TimestampAdd()
 
 
+@dataclasses.dataclass(frozen=True)
 class TimestampSub(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "timestamp_sub"
 
@@ -77,3 +78,49 @@ class TimestampSub(base_ops.BinaryOp):
 
 
 timestamp_sub_op = TimestampSub()
+
+
+@dataclasses.dataclass(frozen=True)
+class DateAddOp(base_ops.BinaryOp):
+    name: typing.ClassVar[str] = "date_add"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        # date + timedelta => date
+        if (
+            input_types[0] == dtypes.DATE_DTYPE
+            and input_types[1] == dtypes.TIMEDELTA_DTYPE
+        ):
+            return dtypes.DATE_DTYPE
+        # timedelta + date => date
+        if (
+            input_types[0] == dtypes.TIMEDELTA_DTYPE
+            and input_types[1] == dtypes.DATE_DTYPE
+        ):
+            return dtypes.DATE_DTYPE
+
+        raise TypeError(
+            f"unsupported types for date_add. left: {input_types[0]} right: {input_types[1]}"
+        )
+
+
+date_add_op = DateAddOp()
+
+
+@dataclasses.dataclass(frozen=True)
+class DateSubOp(base_ops.BinaryOp):
+    name: typing.ClassVar[str] = "date_sub"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        # date - timedelta => date
+        if (
+            input_types[0] == dtypes.DATE_DTYPE
+            and input_types[1] == dtypes.TIMEDELTA_DTYPE
+        ):
+            return dtypes.DATE_DTYPE
+
+        raise TypeError(
+            f"unsupported types for date_sub. left: {input_types[0]} right: {input_types[1]}"
+        )
+
+
+date_sub_op = DateSubOp()

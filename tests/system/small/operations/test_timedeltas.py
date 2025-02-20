@@ -19,6 +19,7 @@ import operator
 import numpy as np
 import pandas as pd
 import pandas.testing
+import pyarrow as pa
 import pytest
 
 from bigframes import dtypes
@@ -38,14 +39,19 @@ def temporal_dfs(session):
                 pd.Timestamp("2024-01-02 02:00:00", tz="UTC"),
                 pd.Timestamp("2005-03-05 02:00:00", tz="UTC"),
             ],
+            "date_col": [
+                datetime.date(2000, 1, 1),
+                datetime.date(2001, 2, 3),
+                datetime.date(2020, 9, 30),
+            ],
             "timedelta_col_1": [
                 pd.Timedelta(5, "s"),
-                pd.Timedelta(-4, "d"),
+                pd.Timedelta(-4, "m"),
                 pd.Timedelta(5, "h"),
             ],
             "timedelta_col_2": [
                 pd.Timedelta(3, "s"),
-                pd.Timedelta(-4, "d"),
+                pd.Timedelta(-4, "m"),
                 pd.Timedelta(6, "h"),
             ],
             "numeric_col": [1.5, 2, -3],
@@ -361,6 +367,77 @@ def test_timestamp_sub_dataframes(temporal_dfs):
 
     expected_result = pd_df[columns] - timedelta
     pandas.testing.assert_frame_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("left_col", "right_col"),
+    [
+        ("date_col", "timedelta_col_1"),
+        ("timedelta_col_1", "date_col"),
+    ],
+)
+def test_date_add__series_add_series(temporal_dfs, left_col, right_col):
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = (bf_df[left_col] + bf_df[right_col]).to_pandas()
+
+    expected_result = (pd_df[left_col] + pd_df[right_col]).astype(dtypes.DATE_DTYPE)
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+# Pandas does not support datetime.date literal + timedelta series
+# so we don't test it here either.
+def test_date_add__literal_add_series(temporal_dfs):
+    bf_df, pd_df = temporal_dfs
+    literal = pd.Timedelta(1, "d")
+
+    actual_result = (literal + bf_df["date_col"]).to_pandas()
+
+    expected_result = (literal + pd_df["date_col"]).astype(dtypes.DATE_DTYPE)
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+# Pandas does not support timedelta series + datetime.date literal
+# so we don't test it here either.
+def test_date_add__series_add_literal(temporal_dfs):
+    bf_df, pd_df = temporal_dfs
+    literal = pd.Timedelta(1, "d")
+
+    actual_result = (bf_df["date_col"] + literal).to_pandas()
+
+    expected_result = (pd_df["date_col"] + literal).astype(dtypes.DATE_DTYPE)
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+def test_date_sub__series_sub_series(temporal_dfs):
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = (bf_df["date_col"] - bf_df["timedelta_col_1"]).to_pandas()
+
+    expected_result = (pd_df["date_col"] - pd_df["timedelta_col_1"]).astype(
+        dtypes.DATE_DTYPE
+    )
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+def test_date_sub__series_sub_literal(temporal_dfs):
+    bf_df, pd_df = temporal_dfs
+    literal = pd.Timedelta(1, "d")
+
+    actual_result = (bf_df["date_col"] - literal).to_pandas()
+
+    expected_result = (pd_df["date_col"] - literal).astype(dtypes.DATE_DTYPE)
+    pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
 

@@ -39,6 +39,7 @@ from bigframes.operations.comparison_ops import (
     ne_op,
 )
 from bigframes.operations.date_ops import (
+    date_diff_op,
     day_op,
     dayofweek_op,
     month_op,
@@ -184,6 +185,8 @@ from bigframes.operations.string_ops import (
 from bigframes.operations.struct_ops import StructFieldOp, StructOp
 from bigframes.operations.time_ops import hour_op, minute_op, normalize_op, second_op
 from bigframes.operations.timedelta_ops import (
+    date_add_op,
+    date_sub_op,
     timestamp_add_op,
     timestamp_sub_op,
     ToTimedeltaOp,
@@ -248,6 +251,7 @@ __all__ = [
     "upper_op",
     "ZfillOp",
     # Date ops
+    "date_diff_op",
     "day_op",
     "month_op",
     "year_op",
@@ -259,6 +263,8 @@ __all__ = [
     "second_op",
     "normalize_op",
     # Timedelta ops
+    "date_add_op",
+    "date_sub_op",
     "timestamp_add_op",
     "timestamp_sub_op",
     "ToTimedeltaOp",
