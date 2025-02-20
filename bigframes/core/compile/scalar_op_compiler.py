@@ -1020,7 +1020,8 @@ def geo_st_astext_op_impl(x: ibis_types.Value):
 
 @scalar_op_compiler.register_unary_op(ops.geo_st_geogfromtext_op)
 def geo_st_geogfromtext_op_impl(x: ibis_types.Value):
-    # Casting x to a str by passing it to the new function, st_geogfromtext()
+    # Ibis doesn't seem to provide a dedicated method to cast from string to geography,
+    # so we use a BigQuery scalar function, st_geogfromtext(), directly.
     return st_geogfromtext(x)
 
 

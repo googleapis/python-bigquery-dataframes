@@ -35,7 +35,7 @@ def st_area(series: bigframes.series.Series) -> bigframes.series.Series:
 
 
     ..note::
-        BigQuery's Geography functions, like `st_area`, interpret the geomtry
+        BigQuery's Geography functions, like `st_area`, interpret the geometry
         data type as a point set on the Earth's surface. A point set is a set
         of points, lines, and polygons on the WGS84 reference spheroid, with
         geodesic edges. See: https://cloud.google.com/bigquery/docs/geospatial-data
