@@ -657,6 +657,8 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
         if match.group(1) not in already_installed
     ]
 
+    print(already_installed)
+
     # We use --no-deps to ensure that pre-release versions aren't overwritten
     # by the version ranges in setup.py.
     session.install(*deps)
