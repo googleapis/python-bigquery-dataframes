@@ -95,6 +95,7 @@ class TimestampSubOp(base_ops.BinaryOp):
             f"unsupported types for timestamp_sub. left: {input_types[0]} right: {input_types[1]}"
         )
 
+
 timestamp_sub_op = TimestampSubOp()
 
 
