@@ -5941,7 +5941,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def __array__(self, dtype=None, copy=None) -> numpy.ndarray:
+    def __array__(self, dtype=None, copy: Optional[bool] = None) -> numpy.ndarray:
         """
         Returns the values as NumPy array.
 

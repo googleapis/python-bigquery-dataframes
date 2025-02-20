@@ -7179,7 +7179,7 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def __array__(self, dtype=None, copy=None):
+    def __array__(self, dtype=None, copy: Optional[bool] = None):
         """
         Returns the rows as NumPy array.
 
