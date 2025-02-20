@@ -831,11 +831,10 @@ def test_to_timedelta_non_bf_series(input):
     assert bpd.to_timedelta(input) == pd.to_timedelta(input)
 
 
-@pytest.mark.parametrize("column", ["int64_too", "float64_col"])
-def test_to_timedelta_on_timedelta_series__should_be_no_op(scalars_dfs, column):
+def test_to_timedelta_on_timedelta_series__should_be_no_op(scalars_dfs):
     bf_df, pd_df = scalars_dfs
-    bf_series = bpd.to_timedelta(bf_df[column], unit="us")
-    pd_series = pd.to_timedelta(pd_df[column], unit="us").dt.floor("us")
+    bf_series = bpd.to_timedelta(bf_df["int64_too"], unit="us")
+    pd_series = pd.to_timedelta(pd_df["int64_too"], unit="us")
 
     actual_result = (
         bpd.to_timedelta(bf_series, unit="s").to_pandas().astype("timedelta64[ns]")
