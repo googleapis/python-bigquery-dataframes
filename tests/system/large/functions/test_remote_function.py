@@ -2359,6 +2359,11 @@ def test_df_apply_axis_1_array_output(session, scalars_dfs):
             {}, functions_v2.ServiceConfig.IngressSettings.ALLOW_ALL, id="no-set"
         ),
         pytest.param(
+            {"cloud_function_ingress_settings": None},
+            functions_v2.ServiceConfig.IngressSettings.ALLOW_ALL,
+            id="set-none",
+        ),
+        pytest.param(
             {"cloud_function_ingress_settings": "all"},
             functions_v2.ServiceConfig.IngressSettings.ALLOW_ALL,
             id="set-all",
