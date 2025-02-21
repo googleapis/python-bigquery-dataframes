@@ -742,10 +742,10 @@ def test_read_gbq_function_runs_existing_udf_array_output(session, routine_id_un
     pd_s = pd.Series(["alpha", "beta", "gamma"])
     bf_s = session.read_pandas(pd_s)
     pd_result = pd_s.apply(func)
-    bf_result = bf_s.apply(func).to_pandas()
+    bf_result = bf_s.apply(func)
     assert bigframes.dtypes.is_array_string_like(bf_result.dtype)
     pd.testing.assert_series_equal(
-        pd_result, bf_result, check_dtype=False, check_index_type=False
+        pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
     )
 
 
