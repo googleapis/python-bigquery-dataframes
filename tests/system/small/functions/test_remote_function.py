@@ -749,6 +749,90 @@ def test_read_gbq_function_runs_existing_udf_array_output(session, routine_id_un
     )
 
 
+def test_read_gbq_function_runs_existing_udf_2_params_array_output(
+    session, routine_id_unique
+):
+    bigframes.session._io.bigquery.start_query_with_client(
+        session.bqclient,
+        textwrap.dedent(
+            f"""
+                CREATE OR REPLACE FUNCTION `{routine_id_unique}`(x STRING, y STRING)
+                RETURNS ARRAY<STRING>
+                AS (
+                    [x, y]
+                )
+            """
+        ),
+        job_config=bigquery.QueryJobConfig(),
+    )
+    func = session.read_gbq_function(routine_id_unique)
+
+    # Test on scalar value
+    got = func("hello", "world")
+    assert got == ["hello", "world"]
+
+    # Test on series, assert pandas parity
+    pd_df = pd.DataFrame(
+        {"col0": ["alpha", "beta", "gamma"], "col1": ["delta", "theta", "phi"]}
+    )
+    bf_df = session.read_pandas(pd_df)
+    pd_result = pd_df["col0"].combine(pd_df["col1"], func)
+    bf_result = bf_df["col0"].combine(bf_df["col1"], func)
+    assert bigframes.dtypes.is_array_string_like(bf_result.dtype)
+    pd.testing.assert_series_equal(
+        pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
+    )
+
+
+def test_read_gbq_function_runs_existing_udf_4_params_array_output(
+    session, routine_id_unique
+):
+    bigframes.session._io.bigquery.start_query_with_client(
+        session.bqclient,
+        textwrap.dedent(
+            f"""
+                CREATE OR REPLACE FUNCTION `{routine_id_unique}`(x STRING, y BOOL, z INT64, w FLOAT64)
+                RETURNS ARRAY<STRING>
+                AS (
+                    [x, CAST(y AS STRING), CAST(z AS STRING), CAST(w AS STRING)]
+                )
+            """
+        ),
+        job_config=bigquery.QueryJobConfig(),
+    )
+    func = session.read_gbq_function(routine_id_unique)
+
+    # Test on scalar value
+    got = func("hello", True, 1, 2.3)
+    assert got == ["hello", "true", "1", "2.3"]
+
+    # Test on a dataframe, assert pandas parity
+    pd_df = pd.DataFrame(
+        {
+            "col0": ["alpha", "beta", "gamma"],
+            "col1": [True, False, True],
+            "col2": [1, 2, 3],
+            "col3": [4.5, 6, 7.75],
+        }
+    )
+    bf_df = session.read_pandas(pd_df)
+    # Simulate the result directly, since the function cannot be applied
+    # directly on a pandas dataframe with axis=1, as this is a special type of
+    # function with multiple params supported only on bigframes dataframe.
+    pd_result = pd.Series(
+        [
+            ["alpha", "true", "1", "4.5"],
+            ["beta", "false", "2", "6"],
+            ["gamma", "true", "3", "7.75"],
+        ]
+    )
+    bf_result = bf_df.apply(func, axis=1)
+    assert bigframes.dtypes.is_array_string_like(bf_result.dtype)
+    pd.testing.assert_series_equal(
+        pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
+    )
+
+
 def test_read_gbq_function_reads_udfs(session, bigquery_client, dataset_id):
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
     arg = bigquery.RoutineArgument(
