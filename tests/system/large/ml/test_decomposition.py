@@ -165,8 +165,8 @@ def test_decomposition_configure_fit_load_none_component(
     assert reloaded_model.n_components == 7
 
 
-def test_decomposition_mf_configure_fit_load_none_component(
-    ratings_df_default_index, dataset_id
+def test_decomposition_mf_configure_fit_load(
+    session, ratings_df_default_index, dataset_id
 ):
     model = decomposition.MatrixFactorization(
         num_factors=6,
@@ -178,13 +178,24 @@ def test_decomposition_mf_configure_fit_load_none_component(
     )
     model.fit(ratings_df_default_index)
 
-    # save, load, check n_components. Here n_components is the column size of the training input.
-    # reloaded_model = model.to_gbq(
-    #     f"{dataset_id}.temp_configured_pca_model", replace=True
-    # )
-    # assert reloaded_model._bqml_model is not None
-    # assert (
-    #     f"{dataset_id}.temp_configured_pca_model"
-    #     in reloaded_model._bqml_model.model_name
-    # )
-    assert model.num_factors == 6
+    reloaded_model = model.to_gbq(
+        f"{dataset_id}.temp_configured_mf_model", replace=True
+    )
+
+    new_ratings = session.read_pandas(
+        pd.DataFrame(
+            {
+                "user_id": ["11", "12", "13"],
+                "item_id": [1, 2, 3],
+                "ratings": [1.0, 2.0, 3.0],
+            }
+        )
+    )
+
+    reloaded_model.score(new_ratings)
+
+    result = reloaded_model.predict(
+        new_ratings.rename(columns={"item_id": "item_col"})
+    ).to_pandas()
+
+    assert result is not None

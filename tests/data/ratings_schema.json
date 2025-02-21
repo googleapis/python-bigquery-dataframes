@@ -7,7 +7,7 @@
     {
       "mode": "NULLABLE",
       "name": "item_id",
-      "type": "STRING"
+      "type": "INT64"
     },
     {
       "mode": "NULLABLE",
