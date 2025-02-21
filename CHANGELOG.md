@@ -4,6 +4,32 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.38.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.37.0...v1.38.0) (2025-02-21)
+
+
+### Features
+
+* (Preview) Support diff aggregation for timestamp series. ([#1405](https://github.com/googleapis/python-bigquery-dataframes/issues/1405)) ([abe48d6](https://github.com/googleapis/python-bigquery-dataframes/commit/abe48d6f13a954534460fa14c9337e1085d9fbb3))
+* Add `GeoSeries.from_wkt() `and `GeoSeries.to_wkt()` ([#1401](https://github.com/googleapis/python-bigquery-dataframes/issues/1401)) ([2993b28](https://github.com/googleapis/python-bigquery-dataframes/commit/2993b283966960430ad8482f40f177e276db2d64))
+* Support DF.__array__(copy=True) ([#1403](https://github.com/googleapis/python-bigquery-dataframes/issues/1403)) ([693ed8c](https://github.com/googleapis/python-bigquery-dataframes/commit/693ed8cfb1ecc3af161801225d3e9cda489c29dd))
+* Support routines with ARRAY return type in `read_gbq_function` ([#1412](https://github.com/googleapis/python-bigquery-dataframes/issues/1412)) ([4b60049](https://github.com/googleapis/python-bigquery-dataframes/commit/4b60049e8362bfb07c136d8b2eb02b984d71f084))
+
+
+### Bug Fixes
+
+* Calling to_timdelta() over timedeltas no longer changes their values ([#1411](https://github.com/googleapis/python-bigquery-dataframes/issues/1411)) ([650a190](https://github.com/googleapis/python-bigquery-dataframes/commit/650a1907fdf84897eb7aa288863ee27d938e0879))
+* Replace empty dict with None to avoid mutable default arguments ([#1416](https://github.com/googleapis/python-bigquery-dataframes/issues/1416)) ([fa4e3ad](https://github.com/googleapis/python-bigquery-dataframes/commit/fa4e3ad8bcd5db56fa26b26609cc7e58b1edf498))
+
+
+### Performance Improvements
+
+* Avoid redundant SQL casts ([#1399](https://github.com/googleapis/python-bigquery-dataframes/issues/1399)) ([6ee48d5](https://github.com/googleapis/python-bigquery-dataframes/commit/6ee48d5c16870f1caa99c3f658c2c1a0e14be749))
+
+
+### Dependencies
+
+* Remove scikit-learn and sqlalchemy as required dependencies ([#1296](https://github.com/googleapis/python-bigquery-dataframes/issues/1296)) ([fd8bc89](https://github.com/googleapis/python-bigquery-dataframes/commit/fd8bc894bdbdf551ebbec1fb93832588371ae6af))
+
 ## [1.37.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.36.0...v1.37.0) (2025-02-19)
 
 
