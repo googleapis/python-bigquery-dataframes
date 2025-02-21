@@ -47,22 +47,16 @@ def temporal_dfs(session):
                 ],
                 dtype=pd.ArrowDtype(pa.date32()),
             ),
-            "timedelta_col_1": pd.Series(
-                [
-                    pd.Timedelta(5, "s"),
-                    pd.Timedelta(-4, "m"),
-                    pd.Timedelta(5, "h"),
-                ],
-                dtype=dtypes.TIMEDELTA_DTYPE,
-            ),
-            "timedelta_col_2": pd.Series(
-                [
-                    pd.Timedelta(3, "s"),
-                    pd.Timedelta(-4, "m"),
-                    pd.Timedelta(6, "h"),
-                ],
-                dtype=dtypes.TIMEDELTA_DTYPE,
-            ),
+            "timedelta_col_1": [
+                pd.Timedelta(5, "s"),
+                pd.Timedelta(-4, "m"),
+                pd.Timedelta(5, "h"),
+            ],
+            "timedelta_col_2": [
+                pd.Timedelta(3, "s"),
+                pd.Timedelta(-4, "m"),
+                pd.Timedelta(6, "h"),
+            ],
             "numeric_col": [1.5, 2, -3],
         }
     )
@@ -390,9 +384,13 @@ def test_timestamp_sub_dataframes(temporal_dfs):
 def test_date_add__series_add_series(temporal_dfs, left_col, right_col):
     bf_df, pd_df = temporal_dfs
 
-    actual_result = (bf_df[left_col] + bf_df[right_col]).to_pandas()
+    actual_result = (
+        (bf_df[left_col] + bf_df[right_col])
+        .to_pandas()
+        .astype("timestamp[ns][pyarrow]")
+    )
 
-    expected_result = (pd_df[left_col] + pd_df[right_col]).astype(dtypes.DATETIME_DTYPE)
+    expected_result = pd_df[left_col] + pd_df[right_col]
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
@@ -403,9 +401,11 @@ def test_date_add__literal_add_series(temporal_dfs):
     bf_df, pd_df = temporal_dfs
     literal = pd.Timedelta(1, "d")
 
-    actual_result = (literal + bf_df["date_col"]).to_pandas()
+    actual_result = (
+        (literal + bf_df["date_col"]).to_pandas().astype("timestamp[ns][pyarrow]")
+    )
 
-    expected_result = (literal + pd_df["date_col"]).astype(dtypes.DATETIME_DTYPE)
+    expected_result = literal + pd_df["date_col"]
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
@@ -416,9 +416,11 @@ def test_date_add__series_add_literal(temporal_dfs):
     bf_df, pd_df = temporal_dfs
     literal = pd.Timedelta(1, "d")
 
-    actual_result = (bf_df["date_col"] + literal).to_pandas()
+    actual_result = (
+        (bf_df["date_col"] + literal).to_pandas().astype("timestamp[ns][pyarrow]")
+    )
 
-    expected_result = (pd_df["date_col"] + literal).astype(dtypes.DATETIME_DTYPE)
+    expected_result = pd_df["date_col"] + literal
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
@@ -427,11 +429,13 @@ def test_date_add__series_add_literal(temporal_dfs):
 def test_date_sub__series_sub_series(temporal_dfs):
     bf_df, pd_df = temporal_dfs
 
-    actual_result = (bf_df["date_col"] - bf_df["timedelta_col_1"]).to_pandas()
-
-    expected_result = (pd_df["date_col"] - pd_df["timedelta_col_1"]).astype(
-        dtypes.DATETIME_DTYPE
+    actual_result = (
+        (bf_df["date_col"] - bf_df["timedelta_col_1"])
+        .to_pandas()
+        .astype("timestamp[ns][pyarrow]")
     )
+
+    expected_result = pd_df["date_col"] - pd_df["timedelta_col_1"]
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
@@ -441,9 +445,11 @@ def test_date_sub__series_sub_literal(temporal_dfs):
     bf_df, pd_df = temporal_dfs
     literal = pd.Timedelta(1, "d")
 
-    actual_result = (bf_df["date_col"] - literal).to_pandas()
+    actual_result = (
+        (bf_df["date_col"] - literal).to_pandas().astype("timestamp[ns][pyarrow]")
+    )
 
-    expected_result = (pd_df["date_col"] - literal).astype(dtypes.DATETIME_DTYPE)
+    expected_result = pd_df["date_col"] - literal
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
