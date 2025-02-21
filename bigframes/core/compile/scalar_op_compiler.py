@@ -754,17 +754,17 @@ def timestamp_sub_op_impl(x: ibis_types.TimestampValue, y: ibis_types.IntegerVal
 
 @scalar_op_compiler.register_binary_op(ops.date_diff_op)
 def date_diff_op_impl(x: ibis_types.DateValue, y: ibis_types.DateValue):
-    return (x.delta(y, "day") * UNIT_TO_US_CONVERSION_FACTORS["d"]).floor()
+    return (x.delta(y, "day") * UNIT_TO_US_CONVERSION_FACTORS["d"]).floor() # type: ignore
 
 
 @scalar_op_compiler.register_binary_op(ops.date_add_op)
 def date_add_op_impl(x: ibis_types.DateValue, y: ibis_types.IntegerValue):
-    return x.cast("timestamp") + y.to_interval("us")
+    return x.cast("timestamp") + y.to_interval("us") # type: ignore
 
 
 @scalar_op_compiler.register_binary_op(ops.date_sub_op)
 def date_sub_op_impl(x: ibis_types.DateValue, y: ibis_types.IntegerValue):
-    return x.cast("timestamp") - y.to_interval("us")
+    return x.cast("timestamp") - y.to_interval("us") # type: ignore
 
 
 @scalar_op_compiler.register_unary_op(ops.FloorDtOp, pass_op=True)
