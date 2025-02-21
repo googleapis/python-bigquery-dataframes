@@ -47,16 +47,22 @@ def temporal_dfs(session):
                 ],
                 dtype=pd.ArrowDtype(pa.date32()),
             ),
-            "timedelta_col_1": [
-                pd.Timedelta(5, "s"),
-                pd.Timedelta(-4, "m"),
-                pd.Timedelta(5, "h"),
-            ],
-            "timedelta_col_2": [
-                pd.Timedelta(3, "s"),
-                pd.Timedelta(-4, "m"),
-                pd.Timedelta(6, "h"),
-            ],
+            "timedelta_col_1": pd.Series(
+                [
+                    pd.Timedelta(5, "s"),
+                    pd.Timedelta(-4, "m"),
+                    pd.Timedelta(5, "h"),
+                ],
+                dtype=dtypes.TIMEDELTA_DTYPE,
+            ),
+            "timedelta_col_2": pd.Series(
+                [
+                    pd.Timedelta(3, "s"),
+                    pd.Timedelta(-4, "m"),
+                    pd.Timedelta(6, "h"),
+                ],
+                dtype=dtypes.TIMEDELTA_DTYPE,
+            ),
             "numeric_col": [1.5, 2, -3],
         }
     )

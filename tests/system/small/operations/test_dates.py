@@ -26,7 +26,7 @@ def test_date_diff_between_series(session):
             "col_1": [datetime.date(2025, 1, 2), datetime.date(2025, 2, 1)],
             "col_2": [datetime.date(2024, 1, 2), datetime.date(2026, 1, 30)],
         }
-    )
+    ).astype(dtypes.DATE_DTYPE)
     bf_df = session.read_pandas(pd_df)
 
     actual_result = (bf_df["col_1"] - bf_df["col_2"]).to_pandas()
