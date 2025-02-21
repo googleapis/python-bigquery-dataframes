@@ -41,7 +41,9 @@ class ArraySchema:
     def from_bq_table(
         cls,
         table: google.cloud.bigquery.Table,
-        column_type_overrides: typing.Optional[typing.Dict[str, bigframes.dtypes.Dtype]] = None,
+        column_type_overrides: typing.Optional[
+            typing.Dict[str, bigframes.dtypes.Dtype]
+        ] = None,
     ):
         if column_type_overrides is None:
             column_type_overrides = {}
