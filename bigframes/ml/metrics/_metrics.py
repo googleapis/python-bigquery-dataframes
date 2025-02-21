@@ -177,24 +177,7 @@ def auc(
 
     x_pandas = x_series.to_pandas()
     y_pandas = y_series.to_pandas()
-
-    if len(x_pandas) < 2:
-        raise ValueError(
-            f"At least 2 points are needed to compute area under curve, but x.shape = {len(x_pandas)}"
-        )
-
-    if x_pandas.is_monotonic_decreasing:
-        d = -1
-    elif x_pandas.is_monotonic_increasing:
-        d = 1
-    else:
-        raise ValueError(f"x is neither increasing nor decreasing : {x_pandas}.")
-
-    if hasattr(np, "trapezoid"):
-        # new in numpy 2.0
-        return d * np.trapezoid(y_pandas, x_pandas)
-    # np.trapz has been deprecated in 2.0
-    return d * np.trapz(y_pandas, x_pandas)  # type: ignore
+    return vendored_metrics_ranking.auc(x_pandas, y_pandas)
 
 
 auc.__doc__ = inspect.getdoc(vendored_metrics_ranking.auc)
