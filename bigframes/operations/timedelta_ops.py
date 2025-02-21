@@ -104,18 +104,18 @@ class DateAddOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "date_add"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        # date + timedelta => date
+        # date + timedelta => timestamp without timezone
         if (
             input_types[0] == dtypes.DATE_DTYPE
             and input_types[1] == dtypes.TIMEDELTA_DTYPE
         ):
-            return dtypes.DATE_DTYPE
-        # timedelta + date => date
+            return dtypes.DATETIME_DTYPE
+        # timedelta + date => timestamp without timezone
         if (
             input_types[0] == dtypes.TIMEDELTA_DTYPE
             and input_types[1] == dtypes.DATE_DTYPE
         ):
-            return dtypes.DATE_DTYPE
+            return dtypes.DATETIME_DTYPE
 
         raise TypeError(
             f"unsupported types for date_add. left: {input_types[0]} right: {input_types[1]}"
@@ -130,12 +130,12 @@ class DateSubOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "date_sub"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        # date - timedelta => date
+        # date - timedelta => timestamp without timezone
         if (
             input_types[0] == dtypes.DATE_DTYPE
             and input_types[1] == dtypes.TIMEDELTA_DTYPE
         ):
-            return dtypes.DATE_DTYPE
+            return dtypes.DATETIME_DTYPE
 
         raise TypeError(
             f"unsupported types for date_sub. left: {input_types[0]} right: {input_types[1]}"

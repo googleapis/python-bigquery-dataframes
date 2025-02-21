@@ -130,10 +130,10 @@ class AddOp(base_ops.BinaryOp):
             return right_type
 
         if left_type == dtypes.DATE_DTYPE and right_type == dtypes.TIMEDELTA_DTYPE:
-            return left_type
+            return dtypes.DATETIME_DTYPE
 
         if left_type == dtypes.TIMEDELTA_DTYPE and right_type == dtypes.DATE_DTYPE:
-            return right_type
+            return dtypes.DATETIME_DTYPE
 
         if left_type is dtypes.TIMEDELTA_DTYPE and right_type is dtypes.TIMEDELTA_DTYPE:
             return dtypes.TIMEDELTA_DTYPE
@@ -168,7 +168,7 @@ class SubOp(base_ops.BinaryOp):
             return left_type
 
         if left_type == dtypes.DATE_DTYPE and right_type == dtypes.TIMEDELTA_DTYPE:
-            return left_type
+            return dtypes.DATETIME_DTYPE
 
         if left_type is dtypes.TIMEDELTA_DTYPE and right_type is dtypes.TIMEDELTA_DTYPE:
             return dtypes.TIMEDELTA_DTYPE
