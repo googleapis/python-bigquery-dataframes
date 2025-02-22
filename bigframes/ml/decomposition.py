@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional, Union
 
+import bigframes_vendored.sklearn.decomposition._mf
 import bigframes_vendored.sklearn.decomposition._pca
 from google.cloud import bigquery
 
@@ -181,6 +182,116 @@ class PCA(
 
         Returns:
             PCA: Saved model."""
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before it can be saved")
+
+        new_model = self._bqml_model.copy(model_name, replace)
+        return new_model.session.read_gbq_model(model_name)
+
+    def score(
+        self,
+        X=None,
+        y=None,
+    ) -> bpd.DataFrame:
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before score")
+
+        # TODO(b/291973741): X param is ignored. Update BQML supports input in ML.EVALUATE.
+        return self._bqml_model.evaluate()
+
+
+@log_adapter.class_logger
+class MatrixFactorization(
+    base.UnsupervisedTrainablePredictor,
+    bigframes_vendored.sklearn.decomposition._mf.MatrixFactorization,
+):
+    __doc__ = bigframes_vendored.sklearn.decomposition._mf.MatrixFactorization.__doc__
+
+    def __init__(
+        self,
+        *,
+        feedback_type: Literal["explicit", "implicit"] = "explicit",
+        num_factors: int,
+        user_col: str,
+        item_col: str,
+        rating_col: str = "rating",
+        # TODO: Add support for hyperparameter tuning.
+        l2_reg: float = 1.0,
+    ):
+        self.feedback_type = feedback_type
+        self.num_factors = num_factors
+        self.user_col = user_col
+        self.item_col = item_col
+        self.rating_col = rating_col
+        self.l2_reg = l2_reg
+        self._bqml_model: Optional[core.BqmlModel] = None
+        self._bqml_model_factory = globals.bqml_model_factory()
+
+    @classmethod
+    def _from_bq(
+        cls, session: bigframes.session.Session, bq_model: bigquery.Model
+    ) -> MatrixFactorization:
+        assert bq_model.model_type == "MATRIX_FACTORIZATION"
+
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
+
+        model = cls(**kwargs)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
+
+    @property
+    def _bqml_options(self) -> dict:
+        """The model options as they will be set for BQML"""
+        options: dict = {
+            "model_type": "matrix_factorization",
+            "feedback_type": self.feedback_type,
+            "user_col": self.user_col,
+            "item_col": self.item_col,
+            "rating_col": self.rating_col,
+            "l2_reg": self.l2_reg,
+        }
+
+        if self.num_factors is not None:
+            options["num_factors"] = self.num_factors
+
+        return options
+
+    def _fit(
+        self,
+        X: utils.ArrayType,
+        y=None,
+        transforms: Optional[List[str]] = None,
+    ) -> MatrixFactorization:
+        (X,) = utils.batch_convert_to_dataframe(X)
+
+        self._bqml_model = self._bqml_model_factory.create_model(
+            X_train=X,
+            transforms=transforms,
+            options=self._bqml_options,
+        )
+        return self
+
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before recommend")
+
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
+
+        return self._bqml_model.recommend(X)
+
+    def to_gbq(self, model_name: str, replace: bool = False) -> MatrixFactorization:
+        """Save the model to BigQuery.
+
+        Args:
+            model_name (str):
+                The name of the model.
+            replace (bool, default False):
+                Determine whether to replace if the model already exists. Default to False.
+
+        Returns:
+            MatrixFactorization: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
