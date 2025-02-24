@@ -23,6 +23,7 @@ import pyarrow as pa
 import pytest
 
 from bigframes import dtypes
+from packaging import version
 
 
 @pytest.fixture(scope="module")
@@ -382,6 +383,9 @@ def test_timestamp_sub_dataframes(temporal_dfs):
     ],
 )
 def test_date_add__series_add_series(temporal_dfs, left_col, right_col):
+    if version.Version(pd.__version__) < version.Version("2.1.0"):
+        pytest.skip("not supported by Pandas < 2.1.0")
+
     bf_df, pd_df = temporal_dfs
 
     actual_result = (bf_df[left_col] + bf_df[right_col]).to_pandas()
@@ -419,6 +423,9 @@ def test_date_add__series_add_literal(temporal_dfs):
 
 
 def test_date_sub__series_sub_series(temporal_dfs):
+    if version.Version(pd.__version__) < version.Version("2.1.0"):
+        pytest.skip("not supported by Pandas < 2.1.0")
+    
     bf_df, pd_df = temporal_dfs
 
     actual_result = (bf_df["date_col"] - bf_df["timedelta_col_1"]).to_pandas()
