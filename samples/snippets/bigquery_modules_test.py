@@ -42,6 +42,9 @@ def test_bigquery_dataframes_examples() -> None:
 
     # Load data from BigQuery
     query_or_table = "bigquery-public-data.ml_datasets.penguins"
+
+    # The sql_scalar function can be used to inject SQL syntax that is not supported
+    # or difficult to express with the bigframes.pandas APIs.
     bq_df = bpd.read_gbq(query_or_table)
     shortest = bbq.sql_scalar(
         "LEAST({0}, {1}, {2})",
