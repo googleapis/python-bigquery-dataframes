@@ -46,6 +46,7 @@ from google.cloud import (
 )
 
 from bigframes import clients
+from bigframes import version as bigframes_version
 
 if TYPE_CHECKING:
     from bigframes.session import Session
@@ -128,6 +129,13 @@ class FunctionSession:
 
         .. deprecated:: 0.0.1
         This is an internal method. Please use :func:`bigframes.pandas.remote_function` instead.
+
+        .. warn::
+            To use remote functions with Bigframes 2.0 and onwards, please set an
+            explicit user-managed cloud_function_service_account or explicitly set
+            cloud_function_service_account to `None`.
+
+            See, https://cloud.google.com/functions/docs/securing/function-identity.
 
         .. note::
             Please make sure following is setup before using this API:
@@ -313,6 +321,22 @@ class FunctionSession:
         import bigframes.session
 
         session = cast(bigframes.session.Session, session or bpd.get_global_session())
+
+        # raise a UserWarning if user does not explicitly set cloud_function_service_account to a
+        # user-managed cloud_function_service_account of to default
+        msg = (
+            "You have not explicitly set a user-managed cloud_function_service_account. "
+            "Using the default compute service account."
+            "To use Bigframes 2.0, please set an explicit user-managed "
+            "cloud_function_service_account or explicitly set cloud_function_service_account to `None`."
+            "See, https://cloud.google.com/functions/docs/securing/function-identity."
+        )
+
+        if (
+            bigframes_version.__version__.startswith("1.")
+            and cloud_function_service_account is None
+        ):
+            warnings.warn(msg, category=UserWarning)
 
         # A BigQuery client is required to perform BQ operations
         if not bigquery_client:

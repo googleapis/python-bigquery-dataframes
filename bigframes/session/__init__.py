@@ -1215,6 +1215,13 @@ class Session(
             supports dataframe with column types ``Int64``/``Float64``/``boolean``/
             ``string``/``binary[pyarrow]``.
 
+        .. warn::
+            To use remote functions with Bigframes 2.0 and onwards, please set an
+            explicit user-managed cloud_function_service_account or explicitly set
+            cloud_function_service_account to `None`.
+
+            See, https://cloud.google.com/functions/docs/securing/function-identity.
+
         .. note::
             Please make sure following is setup before using this API:
 
