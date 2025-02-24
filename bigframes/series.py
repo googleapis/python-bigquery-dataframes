@@ -1522,11 +1522,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
         # TODO(jialuo): Deprecate the "bigframes_remote_function" attribute.
         # We have some tests using pre-defined remote_function that were defined
-        # based on "bigframes_remote_function" instead of "bigframes_function".
-        # So we need to fix those pre-defined remote functions before
-        # deprecating the "bigframes_remote_function" attribute.
+        # based on "bigframes_remote_function" instead of
+        # "bigframes_bigquery_function". So we need to fix those pre-defined
+        # remote functions before deprecating the "bigframes_remote_function"
+        # attribute.
         if not hasattr(func, "bigframes_remote_function") and not hasattr(
-            func, "bigframes_function"
+            func, "bigframes_bigquery_function"
         ):
             # It is neither a remote function nor a managed function.
             # Then it must be a vectorized function that applies to the Series
@@ -1577,7 +1578,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )
 
         if not hasattr(func, "bigframes_remote_function") and not hasattr(
-            func, "bigframes_function"
+            func, "bigframes_bigquery_function"
         ):
             # Keep this in sync with .apply
             try:

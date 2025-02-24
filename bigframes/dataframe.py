@@ -4000,12 +4000,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # TODO(jialuo): Deprecate the "bigframes_remote_function" attribute.
             # We have some tests using pre-defined remote_function that were
             # defined based on "bigframes_remote_function" instead of
-            # "bigframes_function". So we need to fix those pre-defined remote
-            # functions before deprecating the "bigframes_remote_function"
-            # attribute.
-            # Check if the function is a remote function.
+            # "bigframes_bigquery_function". So we need to fix those pre-defined
+            # remote functions before deprecating the "bigframes_remote_function"
+            # attribute. Check if the function is a remote function.
             if not hasattr(func, "bigframes_remote_function") and not hasattr(
-                func, "bigframes_function"
+                func, "bigframes_bigquery_function"
             ):
                 raise ValueError("For axis=1 a bigframes function must be used.")
 

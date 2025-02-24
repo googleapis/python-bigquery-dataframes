@@ -646,12 +646,12 @@ class FunctionSession:
             func.bigframes_cloud_function = (
                 remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
             )
-            func.bigframes_function = (
+            func.bigframes_bigquery_function = (
                 remote_function_client.get_remote_function_fully_qualilfied_name(
                     rf_name
                 )
             )
-            func.bigframes_remote_function = func.bigframes_function
+            func.bigframes_remote_function = func.bigframes_bigquery_function
             func.input_dtypes = tuple(
                 [
                     bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
@@ -845,7 +845,7 @@ class FunctionSession:
 
             func = cloudpickle.loads(cloudpickle.dumps(func))
 
-            self._try_delattr(func, "bigframes_function")
+            self._try_delattr(func, "bigframes_bigquery_function")
             self._try_delattr(func, "input_dtypes")
             self._try_delattr(func, "output_dtype")
             self._try_delattr(func, "is_row_processor")
@@ -889,7 +889,7 @@ class FunctionSession:
                 database=dataset_ref.dataset_id,
                 signature=(ibis_signature.input_types, ibis_signature.output_type),
             )  # type: ignore
-            func.bigframes_function = (
+            func.bigframes_bigquery_function = (
                 remote_function_client.get_remote_function_fully_qualilfied_name(
                     bq_function_name
                 )

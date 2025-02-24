@@ -60,7 +60,7 @@ def test_managed_function_series_apply(
     # Function should still work normally.
     assert square(2) == 4
 
-    assert hasattr(square, "bigframes_function")
+    assert hasattr(square, "bigframes_bigquery_function")
     assert hasattr(square, "ibis_node")
 
     scalars_df, scalars_pandas_df = scalars_dfs

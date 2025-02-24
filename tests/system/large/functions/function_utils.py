@@ -25,7 +25,9 @@ def cleanup_function_assets(
 
     # Clean up bigframes function.
     try:
-        bigquery_client.delete_routine(bigframes_func.bigframes_function)
+        bigquery_client.delete_routine(
+            bigframes_func.bigframes_bigquery_function
+        )
     except Exception:
         # By default don't raise exception in cleanup.
         if not ignore_failures:
