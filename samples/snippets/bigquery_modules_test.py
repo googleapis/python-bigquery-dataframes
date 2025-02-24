@@ -37,6 +37,12 @@ def test_bigquery_dataframes_examples() -> None:
     # [END bigquery_dataframes_bigquery_methods_struct]
 
     # [START bigquery_dataframes_bigquery_methods_scalar]
+    import bigframes.bigquery as bbq
+    import bigframes.pandas as bpd
+
+    # Load data from BigQuery
+    query_or_table = "bigquery-public-data.ml_datasets.penguins"
+    bq_df = bpd.read_gbq(query_or_table)
     shortest = bbq.sql_scalar(
         "LEAST({0}, {1}, {2})",
         columns=[
