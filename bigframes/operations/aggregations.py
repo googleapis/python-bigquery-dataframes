@@ -174,7 +174,7 @@ class MedianOp(UnaryAggregateOp):
 @dataclasses.dataclass(frozen=True)
 class QuantileOp(UnaryAggregateOp):
     q: float
-    floor_result: bool = False
+    should_floor_result: bool = False
 
     @property
     def name(self):
@@ -230,7 +230,7 @@ class ApproxTopCountOp(UnaryAggregateOp):
 class MeanOp(UnaryAggregateOp):
     name: ClassVar[str] = "mean"
 
-    floor_result: bool = False
+    should_floor_result: bool = False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         if input_types[0] is dtypes.TIMEDELTA_DTYPE:
@@ -272,7 +272,7 @@ class MinOp(UnaryAggregateOp):
 class StdOp(UnaryAggregateOp):
     name: ClassVar[str] = "std"
 
-    floor_result: bool = False
+    should_floor_result: bool = False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         if input_types[0] is dtypes.TIMEDELTA_DTYPE:

@@ -221,17 +221,22 @@ def _rewrite_aggregation(
         )
 
     if isinstance(aggregation.op, aggs.StdOp) and input_type is dtypes.TIMEDELTA_DTYPE:
-        return ex.UnaryAggregation(aggs.StdOp(floor_result=True), aggregation.arg)
+        return ex.UnaryAggregation(
+            aggs.StdOp(should_floor_result=True), aggregation.arg
+        )
 
     if isinstance(aggregation.op, aggs.MeanOp) and input_type is dtypes.TIMEDELTA_DTYPE:
-        return ex.UnaryAggregation(aggs.MeanOp(floor_result=True), aggregation.arg)
+        return ex.UnaryAggregation(
+            aggs.MeanOp(should_floor_result=True), aggregation.arg
+        )
 
     if (
         isinstance(aggregation.op, aggs.QuantileOp)
         and input_type is dtypes.TIMEDELTA_DTYPE
     ):
         return ex.UnaryAggregation(
-            aggs.QuantileOp(q=aggregation.op.q, floor_result=True), aggregation.arg
+            aggs.QuantileOp(q=aggregation.op.q, should_floor_result=True),
+            aggregation.arg,
         )
 
     return aggregation

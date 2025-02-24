@@ -232,7 +232,7 @@ def _(
     window=None,
 ) -> ibis_types.NumericValue:
     result = column.quantile(op.q)
-    if op.floor_result:
+    if op.should_floor_result:
         result = result.floor()  # type:ignore
 
     return _apply_window_if_present(result, window)
@@ -246,7 +246,7 @@ def _(
     window=None,
     # order_by: typing.Sequence[ibis_types.Value] = [],
 ) -> ibis_types.NumericValue:
-    result = column.mean().floor() if op.floor_result else column.mean()
+    result = column.mean().floor() if op.should_floor_result else column.mean()
     return _apply_window_if_present(result, window)
 
 
@@ -314,7 +314,7 @@ def _(
     x: ibis_types.NumericColumn,
     window=None,
 ) -> ibis_types.Value:
-    result = x.std().floor() if op.floor_result else x.std()
+    result = x.std().floor() if op.should_floor_result else x.std()
     return _apply_window_if_present(result, window)
 
 
