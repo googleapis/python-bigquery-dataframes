@@ -17,7 +17,8 @@ from typing import Optional, Sequence, Tuple, TYPE_CHECKING
 
 import google.cloud.bigquery as bigquery
 
-import bigframes.core.compile.compiler as compiler
+from bigframes.core import rewrite
+from bigframes.core.compile import compiler
 
 if TYPE_CHECKING:
     import bigframes.core.nodes
@@ -52,21 +53,15 @@ class SQLCompiler:
         return self._compiler.compile_raw(node)
 
 
-def test_only_try_evaluate(node: bigframes.core.nodes.BigFrameNode):
-    """Use only for unit testing paths - not fully featured. Will throw exception if fails."""
-    node = _STRICT_COMPILER._replace_unsupported_ops(node)
-    ibis = _STRICT_COMPILER.compile_node(node)._to_ibis_expr()
-    return ibis.pandas.connect({}).execute(ibis)
-
-
 def test_only_ibis_inferred_schema(node: bigframes.core.nodes.BigFrameNode):
     """Use only for testing paths to ensure ibis inferred schema does not diverge from bigframes inferred schema."""
     import bigframes.core.schema
 
     node = _STRICT_COMPILER._replace_unsupported_ops(node)
-    compiled = _STRICT_COMPILER.compile_node(node)
+    node, _ = rewrite.pull_up_order(node, order_root=False)
+    ir = _STRICT_COMPILER.compile_node(node)
     items = tuple(
-        bigframes.core.schema.SchemaItem(name, compiled.get_column_type(ibis_id))
-        for name, ibis_id in zip(node.schema.names, compiled.column_ids)
+        bigframes.core.schema.SchemaItem(name, ir.get_column_type(ibis_id))
+        for name, ibis_id in zip(node.schema.names, ir.column_ids)
     )
     return bigframes.core.schema.ArraySchema(items)

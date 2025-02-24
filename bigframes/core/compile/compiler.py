@@ -65,7 +65,6 @@ class Compiler:
             ):
                 limit = pulled_up_limit
 
-            node = self._replace_unsupported_ops(node)
         node = self._replace_unsupported_ops(node)
         # prune before pulling up order to avoid unnnecessary row_number() ops
         node = rewrites.column_pruning(node)
@@ -87,14 +86,18 @@ class Compiler:
         str, typing.Sequence[google.cloud.bigquery.SchemaField], bf_ordering.RowOrdering
     ]:
         node = self._replace_unsupported_ops(node)
-        node, ordering = rewrites.pull_up_order(node, ordered_joins=self.strict)
+        node = rewrites.column_pruning(node)
+        node, ordering = rewrites.pull_up_order(
+            node, order_root=True, ordered_joins=self.strict
+        )
+        node = rewrites.column_pruning(node)
         sql = self.compile_node(node).to_sql()
         return sql, node.schema.to_bigquery(), ordering
 
     def _replace_unsupported_ops(self, node: nodes.BigFrameNode):
-        """Apply common replacements and pruning needed for all compilation paths."""
+        # TODO: Run all replacement rules as single bottom-up pass
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
-        node = nodes.top_down(node, rewrites.rewrite_timedelta_expressions)
+        node = nodes.bottom_up(node, rewrites.rewrite_timedelta_expressions)
         return node
 
     # TODO: Remove cache when schema no longer requires compilation to derive schema (and therefor only compiles for execution)
