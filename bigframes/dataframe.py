@@ -3705,7 +3705,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> numpy.ndarray:
         return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
 
-    def __array__(self, dtype=None) -> numpy.ndarray:
+    def __array__(self, dtype=None, copy: Optional[bool] = None) -> numpy.ndarray:
+        if copy is False:
+            raise ValueError("Cannot convert to array without copy.")
         return self.to_numpy(dtype=dtype)
 
     __array__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__array__)
@@ -4086,9 +4088,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             result_series.name = None
 
-            # if the output is an array, reconstruct it from the json serialized
-            # string form
-            if bigframes.dtypes.is_array_like(func.output_dtype):
+            # If the result type is string but the function output is intended
+            # to be an array, reconstruct the array from the string assuming it
+            # is a json serialized form of the array.
+            if bigframes.dtypes.is_string_like(
+                result_series.dtype
+            ) and bigframes.dtypes.is_array_like(func.output_dtype):
                 import bigframes.bigquery as bbq
 
                 result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
