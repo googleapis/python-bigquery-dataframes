@@ -384,13 +384,9 @@ def test_timestamp_sub_dataframes(temporal_dfs):
 def test_date_add__series_add_series(temporal_dfs, left_col, right_col):
     bf_df, pd_df = temporal_dfs
 
-    actual_result = (
-        (bf_df[left_col] + bf_df[right_col])
-        .to_pandas()
-        .astype("timestamp[ns][pyarrow]")
-    )
+    actual_result = (bf_df[left_col] + bf_df[right_col]).to_pandas()
 
-    expected_result = pd_df[left_col] + pd_df[right_col]
+    expected_result = (pd_df[left_col] + pd_df[right_col]).astype(dtypes.DATETIME_DTYPE)
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
@@ -401,11 +397,9 @@ def test_date_add__literal_add_series(temporal_dfs):
     bf_df, pd_df = temporal_dfs
     literal = pd.Timedelta(1, "d")
 
-    actual_result = (
-        (literal + bf_df["date_col"]).to_pandas().astype("timestamp[ns][pyarrow]")
-    )
+    actual_result = (literal + bf_df["date_col"]).to_pandas()
 
-    expected_result = literal + pd_df["date_col"]
+    expected_result = (literal + pd_df["date_col"]).astype(dtypes.DATETIME_DTYPE)
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
@@ -416,11 +410,9 @@ def test_date_add__series_add_literal(temporal_dfs):
     bf_df, pd_df = temporal_dfs
     literal = pd.Timedelta(1, "d")
 
-    actual_result = (
-        (bf_df["date_col"] + literal).to_pandas().astype("timestamp[ns][pyarrow]")
-    )
+    actual_result = (bf_df["date_col"] + literal).to_pandas()
 
-    expected_result = pd_df["date_col"] + literal
+    expected_result = (pd_df["date_col"] + literal).astype(dtypes.DATETIME_DTYPE)
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
@@ -429,13 +421,11 @@ def test_date_add__series_add_literal(temporal_dfs):
 def test_date_sub__series_sub_series(temporal_dfs):
     bf_df, pd_df = temporal_dfs
 
-    actual_result = (
-        (bf_df["date_col"] - bf_df["timedelta_col_1"])
-        .to_pandas()
-        .astype("timestamp[ns][pyarrow]")
-    )
+    actual_result = (bf_df["date_col"] - bf_df["timedelta_col_1"]).to_pandas()
 
-    expected_result = pd_df["date_col"] - pd_df["timedelta_col_1"]
+    expected_result = (pd_df["date_col"] - pd_df["timedelta_col_1"]).astype(
+        dtypes.DATETIME_DTYPE
+    )
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
@@ -445,11 +435,9 @@ def test_date_sub__series_sub_literal(temporal_dfs):
     bf_df, pd_df = temporal_dfs
     literal = pd.Timedelta(1, "d")
 
-    actual_result = (
-        (bf_df["date_col"] - literal).to_pandas().astype("timestamp[ns][pyarrow]")
-    )
+    actual_result = (bf_df["date_col"] - literal).to_pandas()
 
-    expected_result = pd_df["date_col"] - literal
+    expected_result = (pd_df["date_col"] - literal).astype(dtypes.DATETIME_DTYPE)
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
