@@ -33,6 +33,7 @@ except ImportError:  # pragma: NO COVER
 import typing
 
 import bigframes
+from bigframes import dtypes
 import bigframes.dataframe
 import bigframes.features
 import bigframes.pandas as bpd
@@ -671,6 +672,38 @@ def test_to_gbq_w_json(bigquery_client):
 
     assert table.schema[1].name == "json_col"
     assert table.schema[1].field_type == "JSON"
+
+
+def test_to_gbq_with_timedelta(bigquery_client, dataset_id):
+    destination_table = f"{dataset_id}.test_to_gbq_with_timedelta"
+    s1 = bpd.Series([1, 2, 3, 4])
+    s2 = bpd.to_timedelta(bpd.Series([1, 2, 3, 4]), unit="s")
+    df = bpd.DataFrame({"id": s1, "timedelta_col": s2})
+
+    df.to_gbq(destination_table)
+    table = bigquery_client.get_table(destination_table)
+
+    assert table.schema[1].name == "timedelta_col"
+    assert table.schema[1].field_type == "INTEGER"
+    assert dtypes.TIMEDELTA_DESCRIPTION_TAG in table.schema[1].description
+
+
+def test_gbq_round_trip_with_timedelta(session, dataset_id):
+    destination_table = f"{dataset_id}.test_gbq_roundtrip_with_timedelta"
+    df = pd.DataFrame(
+        {
+            "col_1": [1],
+            "col_2": [pd.Timedelta(1, "s")],
+            "col_3": [1.1],
+        }
+    )
+    bpd.DataFrame(df).to_gbq(destination_table)
+
+    result = session.read_gbq(destination_table)
+
+    assert result["col_1"].dtype == dtypes.INT_DTYPE
+    assert result["col_2"].dtype == dtypes.TIMEDELTA_DTYPE
+    assert result["col_3"].dtype == dtypes.FLOAT_DTYPE
 
 
 @pytest.mark.parametrize(

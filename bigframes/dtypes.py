@@ -678,6 +678,12 @@ def convert_schema_field(
         pa_struct = pa.struct(fields)
         pa_type = pa.list_(pa_struct) if is_repeated else pa_struct
         return field.name, pd.ArrowDtype(pa_type)
+    elif (
+        field.field_type == "INTEGER"
+        and field.description is not None
+        and TIMEDELTA_DESCRIPTION_TAG in field.description
+    ):
+        return field.name, TIMEDELTA_DTYPE
     elif field.field_type in _TK_TO_BIGFRAMES:
         if is_repeated:
             pa_type = pa.list_(
@@ -876,3 +882,6 @@ RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS = {
     "STRING",
     "ARRAY",
 }
+
+
+TIMEDELTA_DESCRIPTION_TAG = "#microsecond"

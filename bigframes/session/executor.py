@@ -39,6 +39,7 @@ import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
 import pyarrow
 
+from bigframes import dtypes
 import bigframes.core
 import bigframes.core.compile
 import bigframes.core.guid
@@ -324,7 +325,50 @@ class BigQueryCachingExecutor(Executor):
             sql=sql,
             job_config=job_config,
         )
+        self._attach_timedelta_metadata(
+            query_job.destination, array_value, col_id_overrides
+        )
         return query_job
+
+    def _attach_timedelta_metadata(
+        self,
+        table_ref: bigquery.TableReference | None,
+        array_value: bigframes.core.ArrayValue,
+        col_id_overrides: Mapping[str, str],
+    ):
+        """Updates the descriptions of columns that are holding timedeltas values with a special tag."""
+        assert table_ref is not None
+
+        table = self.bqclient.get_table(table_ref)
+        table_def = table.to_api_repr()
+        for field in table_def["schema"]["fields"]:
+            if not self._is_timedelta_column(
+                field["name"], array_value, col_id_overrides
+            ):
+                continue
+
+            if "description" not in field:
+                field["description"] = dtypes.TIMEDELTA_DESCRIPTION_TAG
+            elif dtypes.TIMEDELTA_DESCRIPTION_TAG not in field["description"]:
+                field["description"] += f" {dtypes.TIMEDELTA_DESCRIPTION_TAG}"
+
+        self.bqclient.update_table(table.from_api_repr(table_def), ["schema"])
+
+    def _is_timedelta_column(
+        self,
+        column_name: str,
+        array_value: bigframes.core.ArrayValue,
+        col_id_overrides: Mapping[str, str],
+    ) -> bool:
+        if column_name in array_value.column_ids:
+            return array_value.get_column_type(column_name) is dtypes.TIMEDELTA_DTYPE
+
+        for col_id in array_value.column_ids:
+            if col_id_overrides.get(col_id) != column_name:
+                continue
+            return array_value.get_column_type(col_id) is dtypes.TIMEDELTA_DTYPE
+
+        return False
 
     def export_gcs(
         self,
