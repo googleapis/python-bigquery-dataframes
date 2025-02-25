@@ -57,6 +57,9 @@ def test_date_diff_series_sub_literal(scalars_dfs):
     actual_result = (bf_df["date_col"] - literal).to_pandas()
 
     expected_result = (pd_df["date_col"] - literal).astype(dtypes.TIMEDELTA_DTYPE)
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
 
 
 def test_date_series_diff_agg(scalars_dfs):
