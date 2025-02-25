@@ -488,9 +488,14 @@ class Block:
         self,
         *,
         ordered: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Tuple[pa.Table, bigquery.QueryJob]:
         """Run query and download results as a pyarrow Table."""
-        execute_result = self.session._executor.execute(self.expr, ordered=ordered)
+        if allow_large_results is None:
+            allow_large_results = bigframes.options.bigquery.allow_large_results
+        execute_result = self.session._executor.execute(
+            self.expr, ordered=ordered, use_explicit_destination=allow_large_results
+        )
         pa_table = execute_result.to_arrow_table()
 
         pa_index_labels = []

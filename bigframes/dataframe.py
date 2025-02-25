@@ -1529,6 +1529,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         *,
         ordered: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> pyarrow.Table:
         """Write DataFrame to an Arrow table / record batch.
 
@@ -1536,6 +1537,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordered (bool, default True):
                 Determines whether the resulting Arrow table will be ordered.
                 In some cases, unordered may result in a faster-executing query.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
 
         Returns:
             pyarrow.Table: A pyarrow Table with all rows and columns of this DataFrame.
@@ -1543,7 +1547,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         msg = "to_arrow is in preview. Types and unnamed / duplicate name columns may change in future."
         warnings.warn(msg, category=bfe.PreviewWarning)
 
-        pa_table, query_job = self._block.to_arrow(ordered=ordered)
+        pa_table, query_job = self._block.to_arrow(
+            ordered=ordered, allow_large_results=allow_large_results
+        )
         self._set_internal_query_job(query_job)
         return pa_table
 
