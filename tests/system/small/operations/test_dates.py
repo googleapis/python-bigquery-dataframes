@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import datetime
 
 import pandas as pd
@@ -56,6 +57,14 @@ def test_date_diff_series_sub_literal(scalars_dfs):
     actual_result = (bf_df["date_col"] - literal).to_pandas()
 
     expected_result = (pd_df["date_col"] - literal).astype(dtypes.TIMEDELTA_DTYPE)
+
+
+def test_date_series_diff_agg(scalars_dfs):
+    bf_df, pd_df = scalars_dfs
+
+    actual_result = bf_df["date_col"].diff().to_pandas()
+
+    expected_result = pd_df["date_col"].diff().astype(dtypes.TIMEDELTA_DTYPE)
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
