@@ -130,7 +130,7 @@ class FunctionSession:
         .. deprecated:: 0.0.1
         This is an internal method. Please use :func:`bigframes.pandas.remote_function` instead.
 
-        .. warn::
+        .. warning::
             To use remote functions with Bigframes 2.0 and onwards, please set an
             explicit user-managed cloud_function_service_account or explicitly set
             cloud_function_service_account to `None`.
