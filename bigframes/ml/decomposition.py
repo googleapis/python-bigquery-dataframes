@@ -28,7 +28,15 @@ from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
 import bigframes.session
 
-_BQML_PARAMS_MAPPING = {"svd_solver": "pcaSolver"}
+_BQML_PARAMS_MAPPING = {
+    "svd_solver": "pcaSolver",
+    "feedback_type": "feedbackType",
+    "num_factors": "numFactors",
+    "user_col": "userColumn",
+    "item_col": "itemColumn",
+    # TODO: Add rating_col
+    "l2_reg": "l2Regularization",
+}
 
 
 @log_adapter.class_logger
