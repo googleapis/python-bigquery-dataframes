@@ -506,8 +506,10 @@ class Index(vendored_pandas_index.Index):
             ordered=True, allow_large_results=allow_large_results
         )
 
-    def to_numpy(self, dtype=None, **kwargs) -> np.ndarray:
-        return self.to_pandas().to_numpy(dtype, **kwargs)
+    def to_numpy(self, dtype=None, allow_large_results=None, **kwargs) -> np.ndarray:
+        return self.to_pandas(allow_large_results=allow_large_results).to_numpy(
+            dtype, **kwargs
+        )
 
     __array__ = to_numpy
 

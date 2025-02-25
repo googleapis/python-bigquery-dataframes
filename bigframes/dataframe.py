@@ -3720,9 +3720,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return destination_table
 
     def to_numpy(
-        self, dtype=None, copy=False, na_value=None, **kwargs
+        self, dtype=None, copy=False, na_value=None, allow_large_results=None, **kwargs
     ) -> numpy.ndarray:
-        return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
+        return self.to_pandas(allow_large_results=allow_large_results).to_numpy(
+            dtype, copy, na_value, **kwargs
+        )
 
     def __array__(self, dtype=None) -> numpy.ndarray:
         return self.to_numpy(dtype=dtype)
@@ -3774,12 +3776,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "dict", "list", "series", "split", "tight", "records", "index"
         ] = "dict",
         into: type[dict] = dict,
+        allow_large_results: Optional[bool] = None,
         **kwargs,
     ) -> dict | list[dict]:
-        return self.to_pandas().to_dict(orient, into, **kwargs)  # type: ignore
+        return self.to_pandas(allow_large_results=allow_large_results).to_dict(orient, into, **kwargs)  # type: ignore
 
-    def to_excel(self, excel_writer, sheet_name: str = "Sheet1", **kwargs) -> None:
-        return self.to_pandas().to_excel(excel_writer, sheet_name, **kwargs)
+    def to_excel(
+        self,
+        excel_writer,
+        sheet_name: str = "Sheet1",
+        allow_large_results=None,
+        **kwargs,
+    ) -> None:
+        return self.to_pandas(allow_large_results=allow_large_results).to_excel(
+            excel_writer, sheet_name, **kwargs
+        )
 
     def to_latex(
         self,
@@ -3787,16 +3798,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         columns: Sequence | None = None,
         header: bool | Sequence[str] = True,
         index: bool = True,
+        allow_large_results=None,
         **kwargs,
     ) -> str | None:
-        return self.to_pandas().to_latex(
+        return self.to_pandas(allow_large_results=allow_large_results).to_latex(
             buf, columns=columns, header=header, index=index, **kwargs  # type: ignore
         )
 
     def to_records(
-        self, index: bool = True, column_dtypes=None, index_dtypes=None
+        self,
+        index: bool = True,
+        column_dtypes=None,
+        index_dtypes=None,
+        allow_large_result=None,
     ) -> numpy.recarray:
-        return self.to_pandas().to_records(index, column_dtypes, index_dtypes)
+        return self.to_pandas(allow_large_results=allow_large_result).to_records(
+            index, column_dtypes, index_dtypes
+        )
 
     def to_string(
         self,
@@ -3819,8 +3837,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         min_rows: int | None = None,
         max_colwidth: int | None = None,
         encoding: str | None = None,
+        allow_large_result=None,
     ) -> str | None:
-        return self.to_pandas().to_string(
+        return self.to_pandas(allow_large_results=allow_large_result).to_string(
             buf,
             columns,  # type: ignore
             col_space,
@@ -3867,8 +3886,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         table_id: str | None = None,
         render_links: bool = False,
         encoding: str | None = None,
+        allow_large_results: bool | None = None,
     ) -> str:
-        return self.to_pandas().to_html(
+        return self.to_pandas(allow_large_results=allow_large_results).to_html(
             buf,
             columns,  # type: ignore
             col_space,
@@ -3899,15 +3919,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         buf=None,
         mode: str = "wt",
         index: bool = True,
+        allow_large_results=None,
         **kwargs,
     ) -> str | None:
-        return self.to_pandas().to_markdown(buf, mode, index, **kwargs)  # type: ignore
+        return self.to_pandas(allow_large_results=allow_large_results).to_markdown(buf, mode, index, **kwargs)  # type: ignore
 
-    def to_pickle(self, path, **kwargs) -> None:
+    def to_pickle(self, path, allow_large_results=None, **kwargs) -> None:
         return self.to_pandas().to_pickle(path, **kwargs)
 
-    def to_orc(self, path=None, **kwargs) -> bytes | None:
-        as_pandas = self.to_pandas()
+    def to_orc(self, path=None, allow_large_results=None, **kwargs) -> bytes | None:
+        as_pandas = self.to_pandas(allow_large_results=allow_large_results)
         # to_orc only works with default index
         as_pandas_default_index = as_pandas.reset_index()
         return as_pandas_default_index.to_orc(path, **kwargs)
