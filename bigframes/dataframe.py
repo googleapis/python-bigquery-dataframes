@@ -1554,6 +1554,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> pandas.DataFrame:
         """Write DataFrame to pandas DataFrame.
 
@@ -1576,6 +1577,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordered (bool, default True):
                 Determines whether the resulting pandas dataframe will be ordered.
                 In some cases, unordered may result in a faster-executing query.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
 
         Returns:
             pandas.DataFrame: A pandas DataFrame with all rows and columns of this DataFrame if the
@@ -1588,12 +1592,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             sampling_method=sampling_method,
             random_state=random_state,
             ordered=ordered,
+            allow_large_results=allow_large_results,
         )
         self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
     def to_pandas_batches(
-        self, page_size: Optional[int] = None, max_results: Optional[int] = None
+        self,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+        allow_large_results: Optional[bool] = None,
     ) -> Iterable[pandas.DataFrame]:
         """Stream DataFrame results to an iterable of pandas DataFrame.
 
@@ -1605,6 +1613,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 The size of each batch.
             max_results (int, default None):
                 If given, only download this many rows at maximum.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
 
         Returns:
             Iterable[pandas.DataFrame]:
@@ -1613,7 +1624,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
         """
         return self._block.to_pandas_batches(
-            page_size=page_size, max_results=max_results
+            page_size=page_size,
+            max_results=max_results,
+            allow_large_results=allow_large_results,
         )
 
     def _compute_dry_run(self) -> bigquery.QueryJob:

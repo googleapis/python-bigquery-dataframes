@@ -381,6 +381,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> pandas.Series:
         """Writes Series to pandas Series.
 
@@ -403,6 +404,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ordered (bool, default True):
                 Determines whether the resulting pandas series will be  ordered.
                 In some cases, unordered may result in a faster-executing query.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
 
 
         Returns:
@@ -414,6 +418,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             sampling_method=sampling_method,
             random_state=random_state,
             ordered=ordered,
+            allow_large_results=allow_large_results,
         )
         self._set_internal_query_job(query_job)
         series = df.squeeze(axis=1)
