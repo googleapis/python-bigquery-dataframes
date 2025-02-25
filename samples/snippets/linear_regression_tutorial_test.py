@@ -84,7 +84,7 @@ def test_linear_regression(random_model_id: str) -> None:
     # Using the trained model and utilizing data specific to Biscoe Island, explain the predictions of the top 3 features
     explained = model.predict_explain(biscoe_data, top_k_features=3)
 
-    # Expected outputu results:
+    # Expected results:
     #   predicted_body_mass_g               top_feature_attributions	        baseline_prediction_value	prediction_value	approximation_error	              species	            island	culmen_length_mm	culmen_depth_mm	flipper_length_mm	body_mass_g	    sex
     # 0	 5413.510134	        [{'feature': 'island', 'attribution': 7348.877...	-5320.222128	          5413.510134	            0.0	         Gentoo penguin (Pygoscelis papua)	Biscoe	    45.2	              16.4	        223.0	           5950.0	    MALE
     # 1	 4768.351092            [{'feature': 'island', 'attribution': 7348.877...	-5320.222128	          4768.351092	            0.0	         Gentoo penguin (Pygoscelis papua)	Biscoe	    46.5	              14.5	        213.0	           4400.0	   FEMALE
