@@ -26,6 +26,7 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 
+from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
 import bigframes.core.compile.default_ordering
 import bigframes.core.compile.ibis_types
 import bigframes.core.expression as ex
@@ -49,19 +50,6 @@ _OBJ_REF_STRUCT_SCHEMA = (
     ("details", ibis_dtypes.JSON),
 )
 _OBJ_REF_IBIS_DTYPE = ibis_dtypes.Struct.from_tuples(_OBJ_REF_STRUCT_SCHEMA)  # type: ignore
-
-# Datetime constants
-UNIT_TO_US_CONVERSION_FACTORS = {
-    "W": 7 * 24 * 60 * 60 * 1000 * 1000,
-    "d": 24 * 60 * 60 * 1000 * 1000,
-    "D": 24 * 60 * 60 * 1000 * 1000,
-    "h": 60 * 60 * 1000 * 1000,
-    "m": 60 * 1000 * 1000,
-    "s": 1000 * 1000,
-    "ms": 1000,
-    "us": 1,
-    "ns": 1e-3,
-}
 
 
 class ScalarOpCompiler:
@@ -1013,6 +1001,18 @@ def geo_area_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).area()
 
 
+@scalar_op_compiler.register_unary_op(ops.geo_st_astext_op)
+def geo_st_astext_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).as_text()
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_st_geogfromtext_op)
+def geo_st_geogfromtext_op_impl(x: ibis_types.Value):
+    # Ibis doesn't seem to provide a dedicated method to cast from string to geography,
+    # so we use a BigQuery scalar function, st_geogfromtext(), directly.
+    return st_geogfromtext(x)
+
+
 @scalar_op_compiler.register_binary_op(ops.geo_st_geogpoint_op, pass_op=False)
 def geo_st_geogpoint_op_impl(x: ibis_types.Value, y: ibis_types.Value):
     return typing.cast(ibis_types.NumericValue, x).point(
@@ -1172,6 +1172,11 @@ def to_timedelta_op_impl(x: ibis_types.Value, op: ops.ToTimedeltaOp):
     return (
         typing.cast(ibis_types.NumericValue, x) * UNIT_TO_US_CONVERSION_FACTORS[op.unit]  # type: ignore
     ).floor()
+
+
+@scalar_op_compiler.register_unary_op(ops.timedelta_floor_op)
+def timedelta_floor_op_impl(x: ibis_types.NumericValue):
+    return x.floor()
 
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
@@ -1928,6 +1933,11 @@ def is_null(value) -> bool:
 
 def _ibis_num(number: float):
     return typing.cast(ibis_types.NumericValue, ibis_types.literal(number))
+
+
+@ibis_udf.scalar.builtin
+def st_geogfromtext(a: str) -> ibis_dtypes.geography:  # type: ignore
+    """Convert string to geography."""
 
 
 @ibis_udf.scalar.builtin
