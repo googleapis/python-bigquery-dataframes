@@ -1861,7 +1861,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     __array__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__array__)
 
     def to_pickle(self, path, allow_large_results=None, **kwargs) -> None:
-        return self.to_pandas().to_pickle(path, **kwargs)
+        return self.to_pandas(allow_large_results=allow_large_results).to_pickle(
+            path, **kwargs
+        )
 
     def to_string(
         self,
@@ -1875,9 +1877,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         name=False,
         max_rows=None,
         min_rows=None,
-        allow_large_result=None,
+        allow_large_results=None,
     ) -> typing.Optional[str]:
-        return self.to_pandas(allow_large_results=allow_large_result).to_string(
+        return self.to_pandas(allow_large_results=allow_large_results).to_string(
             buf,
             na_rep,
             float_format,

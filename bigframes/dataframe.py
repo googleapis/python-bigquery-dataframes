@@ -3819,9 +3819,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         index: bool = True,
         column_dtypes=None,
         index_dtypes=None,
-        allow_large_result=None,
+        allow_large_results=None,
     ) -> numpy.recarray:
-        return self.to_pandas(allow_large_results=allow_large_result).to_records(
+        return self.to_pandas(allow_large_results=allow_large_results).to_records(
             index, column_dtypes, index_dtypes
         )
 
@@ -3846,9 +3846,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         min_rows: int | None = None,
         max_colwidth: int | None = None,
         encoding: str | None = None,
-        allow_large_result=None,
+        allow_large_results=None,
     ) -> str | None:
-        return self.to_pandas(allow_large_results=allow_large_result).to_string(
+        return self.to_pandas(allow_large_results=allow_large_results).to_string(
             buf,
             columns,  # type: ignore
             col_space,
@@ -3934,7 +3934,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self.to_pandas(allow_large_results=allow_large_results).to_markdown(buf, mode, index, **kwargs)  # type: ignore
 
     def to_pickle(self, path, allow_large_results=None, **kwargs) -> None:
-        return self.to_pandas().to_pickle(path, **kwargs)
+        return self.to_pandas(allow_large_results=allow_large_results).to_pickle(
+            path, **kwargs
+        )
 
     def to_orc(self, path=None, allow_large_results=None, **kwargs) -> bytes | None:
         as_pandas = self.to_pandas(allow_large_results=allow_large_results)
