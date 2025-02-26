@@ -223,6 +223,7 @@ class NDFrame(indexing.IndexingMixin):
         *,
         index: bool = True,
         lines: bool = False,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[str]:
         """Convert the object to a JSON string, written to Cloud Storage.
 
@@ -278,6 +279,10 @@ class NDFrame(indexing.IndexingMixin):
                 throw ValueError if incorrect 'orient' since others are not
                 list-like.
 
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
+
         Returns:
             None or str:
                 If path_or_buf is None, returns the resulting json format as a
@@ -312,6 +317,10 @@ class NDFrame(indexing.IndexingMixin):
 
             index (bool, default True):
                 If True, write row names (index).
+
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
 
         Returns:
             None or str: If path_or_buf is None, returns the resulting json format as a

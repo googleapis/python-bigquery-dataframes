@@ -3546,6 +3546,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         header: bool = True,
         index: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[str]:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
@@ -3553,7 +3554,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # query results? See:
         # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
         if not utils.is_gcs_path(path_or_buf):
-            pd_df = self.to_pandas()
+            pd_df = self.to_pandas(allow_large_results=allow_large_results)
             return pd_df.to_csv(path_or_buf, sep=sep, header=header, index=index)
         if "*" not in path_or_buf:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
@@ -3572,6 +3573,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             path_or_buf,
             format="csv",
             export_options=options,
+            allow_large_results=allow_large_results,
         )
         self._set_internal_query_job(query_job)
         return None
@@ -3585,10 +3587,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         lines: bool = False,
         index: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[str]:
         # TODO(swast): Can we support partition columns argument?
         if not utils.is_gcs_path(path_or_buf):
-            pd_df = self.to_pandas()
+            pd_df = self.to_pandas(allow_large_results=allow_large_results)
             return pd_df.to_json(
                 path_or_buf,
                 orient=orient,
@@ -3616,7 +3619,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID,
         )
         query_job = self._session._executor.export_gcs(
-            export_array, id_overrides, path_or_buf, format="json", export_options={}
+            export_array,
+            id_overrides,
+            path_or_buf,
+            format="json",
+            export_options={},
+            allow_large_results=allow_large_results,
         )
         self._set_internal_query_job(query_job)
         return None
@@ -3737,6 +3745,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         compression: Optional[Literal["snappy", "gzip"]] = "snappy",
         index: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[bytes]:
         # TODO(swast): Can we support partition columns argument?
         # TODO(chelsealin): Support local file paths.
@@ -3744,7 +3753,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # query results? See:
         # https://cloud.google.com/bigquery/docs/exporting-data#limit_the_exported_file_size
         if not utils.is_gcs_path(path):
-            pd_df = self.to_pandas()
+            pd_df = self.to_pandas(allow_large_results=allow_large_results)
             return pd_df.to_parquet(path, compression=compression, index=index)
         if "*" not in path:
             raise NotImplementedError(ERROR_IO_REQUIRES_WILDCARD)
@@ -3766,6 +3775,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             path,
             format="parquet",
             export_options=export_options,
+            allow_large_results=allow_large_results,
         )
         self._set_internal_query_job(query_job)
         return None

@@ -113,7 +113,7 @@ class MaterializationOptions:
     downsampling: sampling_options.SamplingOptions = dataclasses.field(
         default_factory=sampling_options.SamplingOptions
     )
-    allow_large_results: bool = True
+    allow_large_results: Optional[bool] = None
     ordered: bool = True
 
 
@@ -491,8 +491,6 @@ class Block:
         allow_large_results: Optional[bool] = None,
     ) -> Tuple[pa.Table, bigquery.QueryJob]:
         """Run query and download results as a pyarrow Table."""
-        if allow_large_results is None:
-            allow_large_results = bigframes.options.bigquery.allow_large_results
         execute_result = self.session._executor.execute(
             self.expr, ordered=ordered, use_explicit_destination=allow_large_results
         )
@@ -558,9 +556,6 @@ class Block:
         else:
             sampling = sampling.with_disabled()
 
-        if allow_large_results is None:
-            allow_large_results = bigframes.options.bigquery.allow_large_results
-
         df, query_job = self._materialize_local(
             materialize_options=MaterializationOptions(
                 downsampling=sampling,
@@ -592,8 +587,6 @@ class Block:
 
         page_size and max_results determine the size and number of batches,
         see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob#google_cloud_bigquery_job_QueryJob_result"""
-        if allow_large_results is None:
-            allow_large_results = bigframes.options.bigquery.allow_large_results
         execute_result = self.session._executor.execute(
             self.expr,
             ordered=True,

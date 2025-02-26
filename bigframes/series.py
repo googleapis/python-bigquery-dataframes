@@ -1753,13 +1753,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         *,
         header: bool = True,
         index: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[str]:
         if utils.is_gcs_path(path_or_buf):
             return self.to_frame().to_csv(
-                path_or_buf, sep=sep, header=header, index=index
+                path_or_buf,
+                sep=sep,
+                header=header,
+                index=index,
+                allow_large_results=allow_large_results,
             )
         else:
-            pd_series = self.to_pandas()
+            pd_series = self.to_pandas(allow_large_results=allow_large_results)
             return pd_series.to_csv(
                 path_or_buf=path_or_buf, sep=sep, header=header, index=index
             )
@@ -1787,13 +1792,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         *,
         lines: bool = False,
         index: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[str]:
         if utils.is_gcs_path(path_or_buf):
             return self.to_frame().to_json(
-                path_or_buf=path_or_buf, orient=orient, lines=lines, index=index
+                path_or_buf=path_or_buf,
+                orient=orient,
+                lines=lines,
+                index=index,
+                allow_large_results=allow_large_results,
             )
         else:
-            pd_series = self.to_pandas()
+            pd_series = self.to_pandas(allow_large_results=allow_large_results)
             return pd_series.to_json(
                 path_or_buf=path_or_buf, orient=orient, lines=lines, index=index  # type: ignore
             )

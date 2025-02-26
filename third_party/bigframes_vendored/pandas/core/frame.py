@@ -513,6 +513,7 @@ class DataFrame(generic.NDFrame):
         *,
         compression: Optional[Literal["snappy", "gzip"]] = "snappy",
         index: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[bytes]:
         """Write a DataFrame to the binary Parquet format.
 
@@ -538,14 +539,15 @@ class DataFrame(generic.NDFrame):
                 should be formatted ``gs://<bucket_name>/<object_name_or_glob>``.
                 If the data size is more than 1GB, you must use a wildcard to export
                 the data into multiple files and the size of the files varies.
-
             compression (str, default 'snappy'):
                 Name of the compression to use. Use ``None`` for no compression.
                 Supported options: ``'gzip'``, ``'snappy'``.
-
             index (bool, default True):
                 If ``True``, include the dataframe's index(es) in the file output.
                 If ``False``, they will not be written to the file.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
 
         Returns:
             None or bytes:
