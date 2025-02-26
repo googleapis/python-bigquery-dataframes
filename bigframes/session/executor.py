@@ -26,6 +26,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Union,
 )
@@ -123,6 +124,7 @@ class Executor(abc.ABC):
         destination: bigquery.TableReference,
         if_exists: Literal["fail", "replace", "append"] = "fail",
         cluster_cols: Sequence[str] = [],
+        timedelta_col_labels: Set[str] | None = None,
     ) -> bigquery.QueryJob:
         """
         Export the ArrayValue to an existing BigQuery table.
@@ -300,6 +302,7 @@ class BigQueryCachingExecutor(Executor):
         destination: bigquery.TableReference,
         if_exists: Literal["fail", "replace", "append"] = "fail",
         cluster_cols: Sequence[str] = [],
+        timedelta_col_labels: Set[str] | None = None,
     ):
         """
         Export the ArrayValue to an existing BigQuery table.
@@ -325,15 +328,14 @@ class BigQueryCachingExecutor(Executor):
             job_config=job_config,
         )
         self._attach_timedelta_metadata(
-            query_job.destination, array_value, col_id_overrides
+            query_job.destination, timedelta_col_labels or set()
         )
         return query_job
 
     def _attach_timedelta_metadata(
         self,
         table_ref: bigquery.TableReference | None,
-        array_value: bigframes.core.ArrayValue,
-        col_id_overrides: Mapping[str, str],
+        timedelta_cols: Set[str],
     ):
         """Updates the descriptions of columns that are holding timedeltas values with a special tag."""
         assert table_ref is not None
@@ -341,9 +343,7 @@ class BigQueryCachingExecutor(Executor):
         table = self.bqclient.get_table(table_ref)
         table_def = table.to_api_repr()
         for field in table_def["schema"]["fields"]:
-            if not self._is_timedelta_column(
-                field["name"], array_value, col_id_overrides
-            ):
+            if field["name"] not in timedelta_cols:
                 continue
 
             if "description" not in field:
@@ -352,22 +352,6 @@ class BigQueryCachingExecutor(Executor):
                 field["description"] += f" {dtypes.TIMEDELTA_DESCRIPTION_TAG}"
 
         self.bqclient.update_table(table.from_api_repr(table_def), ["schema"])
-
-    def _is_timedelta_column(
-        self,
-        column_name: str,
-        array_value: bigframes.core.ArrayValue,
-        col_id_overrides: Mapping[str, str],
-    ) -> bool:
-        if column_name in array_value.column_ids:
-            return array_value.get_column_type(column_name) is dtypes.TIMEDELTA_DTYPE
-
-        for col_id in array_value.column_ids:
-            if col_id_overrides.get(col_id) != column_name:
-                continue
-            return array_value.get_column_type(col_id) is dtypes.TIMEDELTA_DTYPE
-
-        return False
 
     def export_gcs(
         self,
