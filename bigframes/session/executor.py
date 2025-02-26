@@ -134,7 +134,6 @@ class Executor(abc.ABC):
         uri: str,
         format: Literal["json", "csv", "parquet"],
         export_options: Mapping[str, Union[bool, str]],
-        allow_large_results: Optional[bool] = None,
     ) -> bigquery.QueryJob:
         """
         Export the ArrayValue to gcs.
@@ -251,6 +250,10 @@ class BigQueryCachingExecutor(Executor):
     ):
         if use_explicit_destination is None:
             use_explicit_destination = bigframes.options.bigquery.allow_large_results
+
+        if ordered and use_explicit_destination:
+            # Setting both 'ordered' and 'use_explicit_destination' to True is not allowed
+            use_explicit_destination = False
         if bigframes.options.compute.enable_multi_query_execution:
             self._simplify_with_caching(array_value)
 
@@ -336,13 +339,12 @@ class BigQueryCachingExecutor(Executor):
         uri: str,
         format: Literal["json", "csv", "parquet"],
         export_options: Mapping[str, Union[bool, str]],
-        allow_large_results: Optional[bool] = None,
     ):
         query_job = self.execute(
             array_value,
             ordered=False,
             col_id_overrides=col_id_overrides,
-            use_explicit_destination=allow_large_results,
+            use_explicit_destination=True,
         ).query_job
         result_table = query_job.destination
         export_data_statement = bq_io.create_export_data_statement(

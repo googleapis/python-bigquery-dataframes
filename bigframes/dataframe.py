@@ -3573,7 +3573,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             path_or_buf,
             format="csv",
             export_options=options,
-            allow_large_results=allow_large_results,
         )
         self._set_internal_query_job(query_job)
         return None
@@ -3624,7 +3623,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             path_or_buf,
             format="json",
             export_options={},
-            allow_large_results=allow_large_results,
         )
         self._set_internal_query_job(query_job)
         return None
@@ -3775,7 +3773,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             path,
             format="parquet",
             export_options=export_options,
-            allow_large_results=allow_large_results,
         )
         self._set_internal_query_job(query_job)
         return None
