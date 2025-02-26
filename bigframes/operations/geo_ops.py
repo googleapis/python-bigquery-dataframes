@@ -29,3 +29,30 @@ geo_y_op = base_ops.create_unary_op(
         dtypes.is_geo_like, dtypes.FLOAT_DTYPE, description="geo-like"
     ),
 )
+
+geo_area_op = base_ops.create_unary_op(
+    name="geo_area",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.FLOAT_DTYPE, description="geo-like"
+    ),
+)
+
+
+geo_st_astext_op = base_ops.create_unary_op(
+    name="geo_st_astext",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.STRING_DTYPE, description="geo-like"
+    ),
+)
+
+
+geo_st_geogfromtext_op = base_ops.create_unary_op(
+    name="geo_st_geogfromtext",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_string_like, dtypes.GEO_DTYPE, description="string-like"
+    ),
+)
+
+geo_st_geogpoint_op = base_ops.create_binary_op(
+    name="geo_st_geogpoint", type_signature=op_typing.BinaryNumericGeo()
+)

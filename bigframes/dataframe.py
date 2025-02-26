@@ -84,7 +84,7 @@ if typing.TYPE_CHECKING:
 
     import bigframes.session
 
-    SingleItemValue = Union[bigframes.series.Series, int, float, Callable]
+    SingleItemValue = Union[bigframes.series.Series, int, float, str, Callable]
 
 LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
@@ -103,6 +103,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     __doc__ = vendored_pandas_frame.DataFrame.__doc__
     # internal flag to disable cache at all
     _disable_cache_override: bool = False
+    # Must be above 5000 for pandas to delegate to bigframes for binops
+    __pandas_priority__ = 15000
 
     def __init__(
         self,
@@ -117,6 +119,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         session: typing.Optional[bigframes.session.Session] = None,
     ):
         global bigframes
+
+        self._query_job: Optional[bigquery.QueryJob] = None
 
         if copy is not None and not copy:
             raise ValueError(
@@ -178,10 +182,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
                 block = block.set_index([r_mapping[idx_col] for idx_col in idx_cols])
             if columns:
-                block = block.select_columns(list(columns))  # type:ignore
+                column_ids = [
+                    block.resolve_label_exact_or_error(label) for label in list(columns)
+                ]
+                block = block.select_columns(column_ids)  # type:ignore
             if dtype:
-                block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=dtype))
-            self._block = block
+                bf_dtype = bigframes.dtypes.bigframes_type(dtype)
+                block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=bf_dtype))
 
         else:
             import bigframes.pandas
@@ -193,10 +200,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 dtype=dtype,  # type:ignore
             )
             if session:
-                self._block = session.read_pandas(pd_dataframe)._get_block()
+                block = session.read_pandas(pd_dataframe)._get_block()
             else:
-                self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
-        self._query_job: Optional[bigquery.QueryJob] = None
+                block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
+
+        # We use _block as an indicator in __getattr__ and __setattr__ to see
+        # if the object is fully initialized, so make sure we set the _block
+        # attribute last.
+        self._block = block
         self._block.session._register_object(self)
 
     def __dir__(self):
@@ -232,15 +243,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return [self._block.value_columns.index(col_id) for col_id in col_ids]
 
     def _resolve_label_exact(self, label) -> Optional[str]:
-        """Returns the column id matching the label if there is exactly
-        one such column. If there are multiple columns with the same name,
-        raises an error. If there is no such column, returns None."""
-        matches = self._block.label_to_col_id.get(label, [])
-        if len(matches) > 1:
-            raise ValueError(
-                f"Multiple columns matching id {label} were found. {constants.FEEDBACK_LINK}"
-            )
-        return matches[0] if len(matches) != 0 else None
+        return self._block.resolve_label_exact(label)
 
     def _sql_names(
         self,
@@ -368,6 +371,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         dtype: Union[
             bigframes.dtypes.DtypeString,
             bigframes.dtypes.Dtype,
+            type,
             dict[str, Union[bigframes.dtypes.DtypeString, bigframes.dtypes.Dtype]],
         ],
         *,
@@ -378,23 +382,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         safe_cast = errors == "null"
 
-        # Type strings check
-        if dtype in bigframes.dtypes.DTYPE_STRINGS:
-            return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
-
-        # Type instances check
-        if type(dtype) in bigframes.dtypes.DTYPES:
-            return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
-
         if isinstance(dtype, dict):
             result = self.copy()
             for col, to_type in dtype.items():
                 result[col] = result[col].astype(to_type)
             return result
 
-        raise TypeError(
-            f"Invalid type {type(dtype)} for dtype input. {constants.FEEDBACK_LINK}"
-        )
+        dtype = bigframes.dtypes.bigframes_type(dtype)
+
+        return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
 
     def _to_sql_query(
         self, include_index: bool, enable_cache: bool = True
@@ -631,13 +627,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def __getattr__(self, key: str):
-        # Protect against recursion errors with uninitialized DataFrame
-        # objects. See:
+        # To allow subclasses to set private attributes before the class is
+        # fully initialized, protect against recursion errors with
+        # uninitialized DataFrame objects. Note: this comes at the downside
+        # that columns with a leading `_` won't be treated as columns.
+        #
+        # See:
         # https://github.com/googleapis/python-bigquery-dataframes/issues/728
         # and
         # https://nedbatchelder.com/blog/201010/surprising_getattr_recursion.html
         if key == "_block":
-            raise AttributeError("_block")
+            raise AttributeError(key)
 
         if key in self._block.column_labels:
             return self.__getitem__(key)
@@ -657,26 +657,36 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         raise AttributeError(key)
 
     def __setattr__(self, key: str, value):
-        if key in ["_block", "_query_job"]:
+        if key == "_block":
             object.__setattr__(self, key, value)
             return
-        # Can this be removed???
+
+        # To allow subclasses to set private attributes before the class is
+        # fully initialized, assume anything set before `_block` is initialized
+        # is a regular attribute.
+        if not hasattr(self, "_block"):
+            object.__setattr__(self, key, value)
+            return
+
+        # If someone has a column named the same as a normal attribute
+        # (e.g. index), we want to set the normal attribute, not the column.
+        # To do that, check if there is a normal attribute by using
+        # __getattribute__ (not __getattr__, because that includes columns).
+        # If that returns a value without raising, then we know this is a
+        # normal attribute and we should prefer that.
         try:
-            # boring attributes go through boring old path
             object.__getattribute__(self, key)
             return object.__setattr__(self, key, value)
         except AttributeError:
             pass
 
-        # if this fails, go on to more involved attribute setting
-        # (note that this matches __getattr__, above).
-        try:
-            if key in self.columns:
-                self[key] = value
-            else:
-                object.__setattr__(self, key, value)
-        # Can this be removed?
-        except (AttributeError, TypeError):
+        # If we made it here, then we know that it's not a regular attribute
+        # already, so it might be a column to update. Note: we don't allow
+        # adding new columns using __setattr__, only __setitem__, that way we
+        # can still add regular new attributes.
+        if key in self._block.column_labels:
+            self[key] = value
+        else:
             object.__setattr__(self, key, value)
 
     def __repr__(self) -> str:
@@ -748,9 +758,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 if df[col].dtype == bigframes.dtypes.OBJ_REF_DTYPE
             ]
             for col in blob_cols:
-                df[col] = df[col]._apply_unary_op(ops.obj_fetch_metadata_op)
                 # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
-                df[col] = df[col]._apply_unary_op(ops.ObjGetAccessUrl(mode="R"))
+                df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
@@ -769,11 +778,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
                 def obj_ref_rt_to_html(obj_ref_rt) -> str:
                     obj_ref_rt_json = json.loads(obj_ref_rt)
+                    gcs_metadata = obj_ref_rt_json["objectref"]["details"][
+                        "gcs_metadata"
+                    ]
                     content_type = typing.cast(
-                        str,
-                        obj_ref_rt_json["objectref"]["details"]["gcs_metadata"][
-                            "content_type"
-                        ],
+                        str, gcs_metadata.get("content_type", "")
                     )
                     if content_type.startswith("image"):
                         url = obj_ref_rt_json["access_urls"]["read_url"]
@@ -1511,6 +1520,48 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return result
 
+    def corrwith(
+        self,
+        other: typing.Union[DataFrame, bigframes.series.Series],
+        *,
+        numeric_only: bool = False,
+    ):
+        other_frame = other if isinstance(other, DataFrame) else other.to_frame()
+        if numeric_only:
+            l_frame = self._drop_non_numeric()
+            r_frame = other_frame._drop_non_numeric()
+        else:
+            l_frame = self._raise_on_non_numeric("corrwith")
+            r_frame = other_frame._raise_on_non_numeric("corrwith")
+
+        l_block = l_frame.astype(bigframes.dtypes.FLOAT_DTYPE)._block
+        r_block = r_frame.astype(bigframes.dtypes.FLOAT_DTYPE)._block
+
+        if isinstance(other, DataFrame):
+            block, labels, expr_pairs = l_block._align_both_axes(r_block, how="inner")
+        else:
+            assert isinstance(other, bigframes.series.Series)
+            block, labels, expr_pairs = l_block._align_axis_0(r_block, how="inner")
+
+        na_cols = l_block.column_labels.join(
+            r_block.column_labels, how="outer"
+        ).difference(labels)
+
+        block, _ = block.aggregate(
+            aggregations=tuple(
+                ex.BinaryAggregation(agg_ops.CorrOp(), left_ex, right_ex)
+                for left_ex, right_ex in expr_pairs
+            ),
+            column_labels=labels,
+        )
+        block = block.project_exprs(
+            (ex.const(float("nan")),) * len(na_cols), labels=na_cols
+        )
+        block = block.transpose(
+            original_row_index=pandas.Index([None]), single_row_mode=True
+        )
+        return bigframes.pandas.Series(block)
+
     def to_arrow(
         self,
         *,
@@ -1936,7 +1987,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 result_block = result_block.drop_columns([src_col])
         return DataFrame(result_block)
 
-    def _assign_scalar(self, label: str, value: Union[int, float]) -> DataFrame:
+    def _assign_scalar(self, label: str, value: Union[int, float, str]) -> DataFrame:
         col_ids = self._block.cols_matching_label(label)
 
         block, constant_col_id = self._block.create_constant(value, label)
@@ -2402,6 +2453,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         result.columns.name = self.columns.name
         result.columns.names = self.columns.names
         return result
+
+    def mask(self, cond, other=None):
+        return self.where(~cond, other=other)
 
     def dropna(
         self,
@@ -3688,7 +3742,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> numpy.ndarray:
         return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
 
-    def __array__(self, dtype=None) -> numpy.ndarray:
+    def __array__(self, dtype=None, copy: Optional[bool] = None) -> numpy.ndarray:
+        if copy is False:
+            raise ValueError("Cannot convert to array without copy.")
         return self.to_numpy(dtype=dtype)
 
     __array__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__array__)
@@ -3989,7 +4045,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 # Early check whether the dataframe dtypes are currently supported
                 # in the remote function
                 # NOTE: Keep in sync with the value converters used in the gcf code
-                # generated in remote_function_template.py
+                # generated in function_template.py
                 remote_function_supported_dtypes = (
                     bigframes.dtypes.INT_DTYPE,
                     bigframes.dtypes.FLOAT_DTYPE,
@@ -4069,9 +4125,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             result_series.name = None
 
-            # if the output is an array, reconstruct it from the json serialized
-            # string form
-            if bigframes.dtypes.is_array_like(func.output_dtype):
+            # If the result type is string but the function output is intended
+            # to be an array, reconstruct the array from the string assuming it
+            # is a json serialized form of the array.
+            if bigframes.dtypes.is_string_like(
+                result_series.dtype
+            ) and bigframes.dtypes.is_array_like(func.output_dtype):
                 import bigframes.bigquery as bbq
 
                 result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
@@ -4305,6 +4364,56 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @property
     def plot(self):
         return plotting.PlotAccessor(self)
+
+    def hist(
+        self, by: typing.Optional[typing.Sequence[str]] = None, bins: int = 10, **kwargs
+    ):
+        return self.plot.hist(by=by, bins=bins, **kwargs)
+
+    hist.__doc__ = inspect.getdoc(plotting.PlotAccessor.hist)
+
+    def line(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        **kwargs,
+    ):
+        return self.plot.line(x=x, y=y, **kwargs)
+
+    line.__doc__ = inspect.getdoc(plotting.PlotAccessor.line)
+
+    def area(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        stacked: bool = True,
+        **kwargs,
+    ):
+        return self.plot.area(x=x, y=y, stacked=stacked, **kwargs)
+
+    area.__doc__ = inspect.getdoc(plotting.PlotAccessor.area)
+
+    def bar(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        **kwargs,
+    ):
+        return self.plot.bar(x=x, y=y, **kwargs)
+
+    bar.__doc__ = inspect.getdoc(plotting.PlotAccessor.bar)
+
+    def scatter(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        s: typing.Union[typing.Hashable, typing.Sequence[typing.Hashable]] = None,
+        c: typing.Union[typing.Hashable, typing.Sequence[typing.Hashable]] = None,
+        **kwargs,
+    ):
+        return self.plot.scatter(x=x, y=y, s=s, c=c, **kwargs)
+
+    scatter.__doc__ = inspect.getdoc(plotting.PlotAccessor.scatter)
 
     def __matmul__(self, other) -> DataFrame:
         return self.dot(other)

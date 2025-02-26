@@ -21,7 +21,7 @@ import pytest
 
 import bigframes.core.compile.ibis_types
 import bigframes.dtypes
-import bigframes.functions.remote_function
+import bigframes.functions.function as bff
 import bigframes.series
 from tests.unit import resources
 
@@ -42,9 +42,7 @@ from tests.unit import resources
 def test_series_input_types_to_str(series_type):
     """Check that is_row_processor=True uses str as the input type to serialize a row."""
     session = resources.create_bigquery_session()
-    remote_function_decorator = bigframes.functions.remote_function.remote_function(
-        session=session
-    )
+    remote_function_decorator = bff.remote_function(session=session)
 
     with pytest.warns(
         bigframes.exceptions.PreviewWarning,
@@ -68,6 +66,12 @@ def test_supported_types_correspond():
     ibis_types_from_bigquery = {
         third_party_ibis_bqtypes.BigQueryType.to_ibis(tk)
         for tk in bigframes.dtypes.RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS
+        # TODO(b/284515241): ARRAY is the only exception because it is supported
+        # as an output type of the BQ routine in the read_gbq_function path but
+        # not in the remote function path. Remove this handline once BQ remote
+        # functions supports ARRAY output and the bigframes remote functions
+        # utilizes that to support array output.
+        if tk != "ARRAY"
     }
 
     assert ibis_types_from_python == ibis_types_from_bigquery
@@ -75,9 +79,7 @@ def test_supported_types_correspond():
 
 def test_missing_input_types():
     session = resources.create_bigquery_session()
-    remote_function_decorator = bigframes.functions.remote_function.remote_function(
-        session=session
-    )
+    remote_function_decorator = bff.remote_function(session=session)
 
     def function_without_parameter_annotations(myparam) -> str:
         return str(myparam)
@@ -93,9 +95,7 @@ def test_missing_input_types():
 
 def test_missing_output_type():
     session = resources.create_bigquery_session()
-    remote_function_decorator = bigframes.functions.remote_function.remote_function(
-        session=session
-    )
+    remote_function_decorator = bff.remote_function(session=session)
 
     def function_without_return_annotation(myparam: int):
         return str(myparam)

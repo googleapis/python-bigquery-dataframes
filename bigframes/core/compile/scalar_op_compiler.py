@@ -26,6 +26,7 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 
+from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
 import bigframes.core.compile.default_ordering
 import bigframes.core.compile.ibis_types
 import bigframes.core.expression as ex
@@ -49,19 +50,6 @@ _OBJ_REF_STRUCT_SCHEMA = (
     ("details", ibis_dtypes.JSON),
 )
 _OBJ_REF_IBIS_DTYPE = ibis_dtypes.Struct.from_tuples(_OBJ_REF_STRUCT_SCHEMA)  # type: ignore
-
-# Datetime constants
-UNIT_TO_US_CONVERSION_FACTORS = {
-    "W": 7 * 24 * 60 * 60 * 1000 * 1000,
-    "d": 24 * 60 * 60 * 1000 * 1000,
-    "D": 24 * 60 * 60 * 1000 * 1000,
-    "h": 60 * 60 * 1000 * 1000,
-    "m": 60 * 1000 * 1000,
-    "s": 1000 * 1000,
-    "ms": 1000,
-    "us": 1,
-    "ns": 1e-3,
-}
 
 
 class ScalarOpCompiler:
@@ -737,6 +725,21 @@ def unix_millis_op_impl(x: ibis_types.TimestampValue):
     return unix_millis(x)
 
 
+@scalar_op_compiler.register_binary_op(ops.timestamp_diff_op)
+def timestamp_diff_op_impl(x: ibis_types.TimestampValue, y: ibis_types.TimestampValue):
+    return x.delta(y, "microsecond")
+
+
+@scalar_op_compiler.register_binary_op(ops.timestamp_add_op)
+def timestamp_add_op_impl(x: ibis_types.TimestampValue, y: ibis_types.IntegerValue):
+    return x + y.to_interval("us")
+
+
+@scalar_op_compiler.register_binary_op(ops.timestamp_sub_op)
+def timestamp_sub_op_impl(x: ibis_types.TimestampValue, y: ibis_types.IntegerValue):
+    return x - y.to_interval("us")
+
+
 @scalar_op_compiler.register_unary_op(ops.FloorDtOp, pass_op=True)
 def floor_dt_op_impl(x: ibis_types.Value, op: ops.FloorDtOp):
     supported_freqs = ["Y", "Q", "M", "W", "D", "h", "min", "s", "ms", "us", "ns"]
@@ -993,6 +996,30 @@ def geo_y_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).y()
 
 
+@scalar_op_compiler.register_unary_op(ops.geo_area_op)
+def geo_area_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).area()
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_st_astext_op)
+def geo_st_astext_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).as_text()
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_st_geogfromtext_op)
+def geo_st_geogfromtext_op_impl(x: ibis_types.Value):
+    # Ibis doesn't seem to provide a dedicated method to cast from string to geography,
+    # so we use a BigQuery scalar function, st_geogfromtext(), directly.
+    return st_geogfromtext(x)
+
+
+@scalar_op_compiler.register_binary_op(ops.geo_st_geogpoint_op, pass_op=False)
+def geo_st_geogpoint_op_impl(x: ibis_types.Value, y: ibis_types.Value):
+    return typing.cast(ibis_types.NumericValue, x).point(
+        typing.cast(ibis_types.NumericValue, y)
+    )
+
+
 # Parameterized ops
 @scalar_op_compiler.register_unary_op(ops.StructFieldOp, pass_op=True)
 def struct_field_op_impl(x: ibis_types.Value, op: ops.StructFieldOp):
@@ -1140,6 +1167,18 @@ def to_timestamp_op_impl(x: ibis_types.Value, op: ops.ToTimestampOp):
     return x.cast(ibis_dtypes.Timestamp(timezone="UTC"))
 
 
+@scalar_op_compiler.register_unary_op(ops.ToTimedeltaOp, pass_op=True)
+def to_timedelta_op_impl(x: ibis_types.Value, op: ops.ToTimedeltaOp):
+    return (
+        typing.cast(ibis_types.NumericValue, x) * UNIT_TO_US_CONVERSION_FACTORS[op.unit]  # type: ignore
+    ).floor()
+
+
+@scalar_op_compiler.register_unary_op(ops.timedelta_floor_op)
+def timedelta_floor_op_impl(x: ibis_types.NumericValue):
+    return x.floor()
+
+
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
 def remote_function_op_impl(x: ibis_types.Value, op: ops.RemoteFunctionOp):
     ibis_node = getattr(op.func, "ibis_node", None)
@@ -1188,34 +1227,33 @@ def array_slice_op_impl(x: ibis_types.Value, op: ops.ArraySliceOp):
 # JSON Ops
 @scalar_op_compiler.register_binary_op(ops.JSONSet, pass_op=True)
 def json_set_op_impl(x: ibis_types.Value, y: ibis_types.Value, op: ops.JSONSet):
-    if x.type().is_json():
-        return json_set(
-            json_obj=x,
-            json_path=op.json_path,
-            json_value=y,
-        )
-    else:
-        # Enabling JSON type eliminates the need for less efficient string conversions.
-        return to_json_string(
-            json_set(  # type: ignore
-                json_obj=parse_json(json_str=x),
-                json_path=op.json_path,
-                json_value=y,
-            )
-        )
+    return json_set(json_obj=x, json_path=op.json_path, json_value=y)
 
 
 @scalar_op_compiler.register_unary_op(ops.JSONExtract, pass_op=True)
 def json_extract_op_impl(x: ibis_types.Value, op: ops.JSONExtract):
-    if x.type().is_json():
-        return json_extract(json_obj=x, json_path=op.json_path)
-    # json string
-    return json_extract_string(json_obj=x, json_path=op.json_path)
+    # Define a user-defined function whose returned type is dynamically matching the input.
+    def json_extract(json_or_json_string, json_path: ibis_dtypes.str):  # type: ignore
+        """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
+        ...
+
+    return_type = x.type()
+    json_extract.__annotations__["return"] = return_type
+    json_extract_op = ibis_udf.scalar.builtin(json_extract)
+    return json_extract_op(json_or_json_string=x, json_path=op.json_path)
 
 
 @scalar_op_compiler.register_unary_op(ops.JSONExtractArray, pass_op=True)
 def json_extract_array_op_impl(x: ibis_types.Value, op: ops.JSONExtractArray):
-    return json_extract_array(json_obj=x, json_path=op.json_path)
+    # Define a user-defined function whose returned type is dynamically matching the input.
+    def json_extract_array(json_or_json_string, json_path: ibis_dtypes.str):  # type: ignore
+        """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
+        ...
+
+    return_type = x.type()
+    json_extract_array.__annotations__["return"] = ibis_dtypes.Array[return_type]  # type: ignore
+    json_extract_op = ibis_udf.scalar.builtin(json_extract_array)
+    return json_extract_op(json_or_json_string=x, json_path=op.json_path)
 
 
 @scalar_op_compiler.register_unary_op(ops.JSONExtractStringArray, pass_op=True)
@@ -1898,6 +1936,11 @@ def _ibis_num(number: float):
 
 
 @ibis_udf.scalar.builtin
+def st_geogfromtext(a: str) -> ibis_dtypes.geography:  # type: ignore
+    """Convert string to geography."""
+
+
+@ibis_udf.scalar.builtin
 def timestamp(a: str) -> ibis_dtypes.timestamp:  # type: ignore
     """Convert string to timestamp."""
 
@@ -1935,27 +1978,6 @@ def json_set(  # type: ignore[empty-body]
     json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String, json_value
 ) -> ibis_dtypes.JSON:
     """Produces a new SQL JSON value with the specified JSON data inserted or replaced."""
-
-
-@ibis_udf.scalar.builtin(name="json_extract")
-def json_extract(  # type: ignore[empty-body]
-    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
-) -> ibis_dtypes.JSON:
-    """Extracts a JSON value and converts it to a JSON value."""
-
-
-@ibis_udf.scalar.builtin(name="json_extract")
-def json_extract_string(  # type: ignore[empty-body]
-    json_obj: ibis_dtypes.String, json_path: ibis_dtypes.String
-) -> ibis_dtypes.String:
-    """Extracts a JSON SRING value and converts it to a SQL JSON-formatted STRING."""
-
-
-@ibis_udf.scalar.builtin(name="json_extract_array")
-def json_extract_array(  # type: ignore[empty-body]
-    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
-) -> ibis_dtypes.Array[ibis_dtypes.String]:
-    """Extracts a JSON array and converts it to a SQL ARRAY of JSON-formatted STRINGs or JSON values."""
 
 
 @ibis_udf.scalar.builtin(name="json_extract_string_array")

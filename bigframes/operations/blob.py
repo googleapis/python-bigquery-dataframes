@@ -66,11 +66,11 @@ class BlobAccessor(base.SeriesMethods):
 
         Returns:
             BigFrames Series: Version as string."""
-        # version must be retrived after fetching metadata
+        # version must be retrieved after fetching metadata
         return self._apply_unary_op(ops.obj_fetch_metadata_op).struct.field("version")
 
     def metadata(self) -> bigframes.series.Series:
-        """Retrive the metadata of the Blob.
+        """Retrieve the metadata of the Blob.
 
         .. note::
             BigFrames Blob is still under experiments. It may not work and subject to change in the future.
@@ -85,7 +85,7 @@ class BlobAccessor(base.SeriesMethods):
         return bbq.json_extract(details_json, "$.gcs_metadata").rename("metadata")
 
     def content_type(self) -> bigframes.series.Series:
-        """Retrive the content type of the Blob.
+        """Retrieve the content type of the Blob.
 
         .. note::
             BigFrames Blob is still under experiments. It may not work and subject to change in the future.
@@ -99,7 +99,7 @@ class BlobAccessor(base.SeriesMethods):
         )
 
     def md5_hash(self) -> bigframes.series.Series:
-        """Retrive the md5 hash of the Blob.
+        """Retrieve the md5 hash of the Blob.
 
         .. note::
             BigFrames Blob is still under experiments. It may not work and subject to change in the future.
@@ -113,7 +113,7 @@ class BlobAccessor(base.SeriesMethods):
         )
 
     def size(self) -> bigframes.series.Series:
-        """Retrive the file size of the Blob.
+        """Retrieve the file size of the Blob.
 
         .. note::
             BigFrames Blob is still under experiments. It may not work and subject to change in the future.
@@ -128,7 +128,7 @@ class BlobAccessor(base.SeriesMethods):
         )
 
     def updated(self) -> bigframes.series.Series:
-        """Retrive the updated time of the Blob.
+        """Retrieve the updated time of the Blob.
 
         .. note::
             BigFrames Blob is still under experiments. It may not work and subject to change in the future.
@@ -146,6 +146,46 @@ class BlobAccessor(base.SeriesMethods):
 
         return bpd.to_datetime(updated, unit="us", utc=True)
 
+    def _get_runtime(
+        self, mode: str, with_metadata: bool = False
+    ) -> bigframes.series.Series:
+        """Retrieve the ObjectRefRuntime as JSON.
+
+        Args:
+            mode (str): mode for the URLs, "R" for read, "RW" for read & write.
+            metadata (bool, default False): whether to fetch the metadata in the ObjectRefRuntime.
+
+        Returns:
+            bigframes Series: ObjectRefRuntime JSON.
+        """
+        s = self._apply_unary_op(ops.obj_fetch_metadata_op) if with_metadata else self
+
+        return s._apply_unary_op(ops.ObjGetAccessUrl(mode=mode))
+
+    def read_url(self) -> bigframes.series.Series:
+        """Retrieve the read URL of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: Read only URLs."""
+        return self._get_runtime(mode="R")._apply_unary_op(
+            ops.JSONValue(json_path="$.access_urls.read_url")
+        )
+
+    def write_url(self) -> bigframes.series.Series:
+        """Retrieve the write URL of the Blob.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Returns:
+            BigFrames Series: Writable URLs."""
+        return self._get_runtime(mode="RW")._apply_unary_op(
+            ops.JSONValue(json_path="$.access_urls.write_url")
+        )
+
     def display(self, n: int = 3, *, content_type: str = ""):
         """Display the blob content in the IPython Notebook environment. Only works for image type now.
 
@@ -159,10 +199,7 @@ class BlobAccessor(base.SeriesMethods):
         # col name doesn't matter here. Rename to avoid column name conflicts
         df = bigframes.series.Series(self._block).rename("blob_col").head(n).to_frame()
 
-        obj_ref_runtime = df["blob_col"]._apply_unary_op(ops.ObjGetAccessUrl(mode="R"))
-        df["read_url"] = obj_ref_runtime._apply_unary_op(
-            ops.JSONValue(json_path="$.access_urls.read_url")
-        )
+        df["read_url"] = df["blob_col"].blob.read_url()
 
         if content_type:
             df["content_type"] = content_type
@@ -179,7 +216,7 @@ class BlobAccessor(base.SeriesMethods):
                 response = requests.get(read_url)
                 ipy_display.display(ipy_display.Audio(response.content))
             elif content_type.startswith("video"):
-                ipy_display.display(ipy_display.Video(url=read_url))
+                ipy_display.display(ipy_display.Video(read_url))
             else:  # display as raw data
                 response = requests.get(read_url)
                 ipy_display.display(response.content)
@@ -187,12 +224,63 @@ class BlobAccessor(base.SeriesMethods):
         for _, row in df.iterrows():
             display_single_url(row["read_url"], row["content_type"])
 
+    def _resolve_connection(self, connection: Optional[str] = None) -> str:
+        """Resovle the BigQuery connection.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and
+            subject to change in the future.
+
+        Args:
+            connection (str or None, default None): BQ connection used for
+                function internet transactions, and the output blob if "dst" is
+                str. If None, uses default connection of the session.
+
+        Returns:
+            str: the resolved BigQuery connection string in the format:
+             "project.location.connection_id".
+
+        Raises:
+            ValueError: If the connection cannot be resolved to a valid string.
+        """
+        connection = connection or self._block.session._bq_connection
+        return clients.resolve_full_bq_connection_name(
+            connection,
+            default_project=self._block.session._project,
+            default_location=self._block.session._location,
+        )
+
+    def _get_runtime_json_str(
+        self, mode: str = "R", with_metadata: bool = False
+    ) -> bigframes.series.Series:
+        """Get the runtime and apply the ToJSONSTring transformation.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and
+            subject to change in the future.
+
+        Args:
+            mode(str or str, default "R"): the mode for accessing the runtime.
+                Default to "R". Possible values are "R" (read-only) and
+                "RW" (read-write)
+            with_metadata (bool, default False): whether to include metadata
+                in the JOSN string. Default to False.
+
+        Returns:
+            str: the runtime object in the JSON string.
+        """
+        runtime = self._get_runtime(mode=mode, with_metadata=with_metadata)
+        return runtime._apply_unary_op(ops.ToJSONString())
+
     def image_blur(
         self,
         ksize: tuple[int, int],
         *,
-        dst: Union[str, bigframes.series.Series],
+        dst: Optional[Union[str, bigframes.series.Series]] = None,
         connection: Optional[str] = None,
+        max_batching_rows: int = 8192,
+        container_cpu: Union[float, int] = 0.33,
+        container_memory: str = "512Mi",
     ) -> bigframes.series.Series:
         """Blurs images.
 
@@ -201,20 +289,34 @@ class BlobAccessor(base.SeriesMethods):
 
         Args:
             ksize (tuple(int, int)): Kernel size.
-            dst (str or bigframes.series.Series): Destination GCS folder str or blob series.
+            dst (str or bigframes.series.Series or None, default None): Destination GCS folder str or blob series. If None, output to BQ as bytes.
             connection (str or None, default None): BQ connection used for function internet transactions, and the output blob if "dst" is str. If None, uses default connection of the session.
+            max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
+            container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
+            container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
 
         Returns:
             BigFrames Blob Series
         """
         import bigframes.blob._functions as blob_func
 
-        connection = connection or self._block.session._bq_connection
-        connection = clients.resolve_full_bq_connection_name(
-            connection,
-            default_project=self._block.session._project,
-            default_location=self._block.session._location,
-        )
+        connection = self._resolve_connection(connection)
+        df = self._get_runtime_json_str(mode="R").to_frame()
+
+        if dst is None:
+            image_blur_udf = blob_func.TransformFunction(
+                blob_func.image_blur_to_bytes_def,
+                session=self._block.session,
+                connection=connection,
+                max_batching_rows=max_batching_rows,
+                container_cpu=container_cpu,
+                container_memory=container_memory,
+            ).udf()
+
+            df["ksize_x"], df["ksize_y"] = ksize
+            res = df.apply(image_blur_udf, axis=1)
+
+            return res
 
         if isinstance(dst, str):
             dst = os.path.join(dst, "")
@@ -229,20 +331,298 @@ class BlobAccessor(base.SeriesMethods):
             blob_func.image_blur_def,
             session=self._block.session,
             connection=connection,
+            max_batching_rows=max_batching_rows,
+            container_cpu=container_cpu,
+            container_memory=container_memory,
         ).udf()
 
-        src_rt = bigframes.series.Series(self._block)._apply_unary_op(
-            ops.ObjGetAccessUrl(mode="R")
-        )
-        dst_rt = dst._apply_unary_op(ops.ObjGetAccessUrl(mode="RW"))
+        dst_rt = dst.blob._get_runtime_json_str(mode="RW")
 
-        src_rt = src_rt._apply_unary_op(ops.ToJSONString())
-        dst_rt = dst_rt._apply_unary_op(ops.ToJSONString())
-
-        df = src_rt.to_frame().join(dst_rt.to_frame(), how="outer")
+        df = df.join(dst_rt, how="outer")
         df["ksize_x"], df["ksize_y"] = ksize
 
         res = df.apply(image_blur_udf, axis=1)
         res.cache()  # to execute the udf
 
         return dst
+
+    def image_resize(
+        self,
+        dsize: tuple[int, int] = (0, 0),
+        *,
+        fx: float = 0.0,
+        fy: float = 0.0,
+        dst: Optional[Union[str, bigframes.series.Series]] = None,
+        connection: Optional[str] = None,
+        max_batching_rows: int = 8192,
+        container_cpu: Union[float, int] = 0.33,
+        container_memory: str = "512Mi",
+    ):
+        """Resize images.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Args:
+            dsize (tuple(int, int), default (0, 0)): Destination size. If set to 0, fx and fy parameters determine the size.
+            fx (float, default 0.0): scale factor along the horizontal axis. If set to 0.0, dsize parameter determines the output size.
+            fy (float, defalut 0.0): scale factor along the vertical axis. If set to 0.0, dsize parameter determines the output size.
+            dst (str or bigframes.series.Series or None, default None): Destination GCS folder str or blob series. If None, output to BQ as bytes.
+            connection (str or None, default None): BQ connection used for function internet transactions, and the output blob if "dst" is str. If None, uses default connection of the session.
+            max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
+            container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
+            container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+
+        Returns:
+            BigFrames Blob Series
+        """
+        dsize_set = dsize[0] > 0 and dsize[1] > 0
+        fsize_set = fx > 0.0 and fy > 0.0
+        if not dsize_set ^ fsize_set:
+            raise ValueError(
+                "Only one of dsize or (fx, fy) parameters must be set. And the set values must be positive. "
+            )
+
+        import bigframes.blob._functions as blob_func
+
+        connection = self._resolve_connection(connection)
+        df = self._get_runtime_json_str(mode="R").to_frame()
+
+        if dst is None:
+            image_resize_udf = blob_func.TransformFunction(
+                blob_func.image_resize_to_bytes_def,
+                session=self._block.session,
+                connection=connection,
+                max_batching_rows=max_batching_rows,
+                container_cpu=container_cpu,
+                container_memory=container_memory,
+            ).udf()
+
+            df["dsize_x"], df["dsizye_y"] = dsize
+            df["fx"], df["fy"] = fx, fy
+            res = df.apply(image_resize_udf, axis=1)
+
+            return res
+
+        if isinstance(dst, str):
+            dst = os.path.join(dst, "")
+            src_uri = bigframes.series.Series(self._block).struct.explode()["uri"]
+            # Replace src folder with dst folder, keep the file names.
+            dst_uri = src_uri.str.replace(r"^.*\/(.*)$", rf"{dst}\1", regex=True)
+            dst = cast(
+                bigframes.series.Series, dst_uri.str.to_blob(connection=connection)
+            )
+
+        image_resize_udf = blob_func.TransformFunction(
+            blob_func.image_resize_def,
+            session=self._block.session,
+            connection=connection,
+            max_batching_rows=max_batching_rows,
+            container_cpu=container_cpu,
+            container_memory=container_memory,
+        ).udf()
+
+        dst_rt = dst.blob._get_runtime_json_str(mode="RW")
+
+        df = df.join(dst_rt, how="outer")
+        df["dsize_x"], df["dsizye_y"] = dsize
+        df["fx"], df["fy"] = fx, fy
+
+        res = df.apply(image_resize_udf, axis=1)
+        res.cache()  # to execute the udf
+
+        return dst
+
+    def image_normalize(
+        self,
+        *,
+        alpha: float = 1.0,
+        beta: float = 0.0,
+        norm_type: str = "l2",
+        dst: Optional[Union[str, bigframes.series.Series]] = None,
+        connection: Optional[str] = None,
+        max_batching_rows: int = 8192,
+        container_cpu: Union[float, int] = 0.33,
+        container_memory: str = "512Mi",
+    ) -> bigframes.series.Series:
+        """Normalize images.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Args:
+            alpha (float, default 1.0): Norm value to normalize to or the lower range boundary in case of the range normalization.
+            beta (float, default 0.0): Upper range boundary in case of the range normalization; it is not used for the norm normalization.
+            norm_type (str, default "l2"): Normalization type. Accepted values are "inf", "l1", "l2" and "minmax".
+            dst (str or bigframes.series.Series or None, default None): Destination GCS folder str or blob series. If None, output to BQ as bytes.
+            connection (str or None, default None): BQ connection used for function internet transactions, and the output blob if "dst" is str. If None, uses default connection of the session.
+            max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
+            container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
+            container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+
+        Returns:
+            BigFrames Blob Series
+        """
+        import bigframes.blob._functions as blob_func
+
+        connection = self._resolve_connection(connection)
+        df = self._get_runtime_json_str(mode="R").to_frame()
+
+        if dst is None:
+            image_normalize_udf = blob_func.TransformFunction(
+                blob_func.image_normalize_to_bytes_def,
+                session=self._block.session,
+                connection=connection,
+                max_batching_rows=max_batching_rows,
+                container_cpu=container_cpu,
+                container_memory=container_memory,
+            ).udf()
+
+            df["alpha"] = alpha
+            df["beta"] = beta
+            df["norm_type"] = norm_type
+            res = df.apply(image_normalize_udf, axis=1)
+
+            return res
+
+        if isinstance(dst, str):
+            dst = os.path.join(dst, "")
+            src_uri = bigframes.series.Series(self._block).struct.explode()["uri"]
+            # Replace src folder with dst folder, keep the file names.
+            dst_uri = src_uri.str.replace(r"^.*\/(.*)$", rf"{dst}\1", regex=True)
+            dst = cast(
+                bigframes.series.Series, dst_uri.str.to_blob(connection=connection)
+            )
+
+        image_normalize_udf = blob_func.TransformFunction(
+            blob_func.image_normalize_def,
+            session=self._block.session,
+            connection=connection,
+            max_batching_rows=max_batching_rows,
+            container_cpu=container_cpu,
+            container_memory=container_memory,
+        ).udf()
+
+        dst_rt = dst.blob._get_runtime_json_str(mode="RW")
+
+        df = df.join(dst_rt, how="outer")
+        df["alpha"] = alpha
+        df["beta"] = beta
+        df["norm_type"] = norm_type
+
+        res = df.apply(image_normalize_udf, axis=1)
+        res.cache()  # to execute the udf
+
+        return dst
+
+    def pdf_extract(
+        self,
+        *,
+        connection: Optional[str] = None,
+        max_batching_rows: int = 8192,
+        container_cpu: Union[float, int] = 0.33,
+        container_memory: str = "512Mi",
+    ) -> bigframes.series.Series:
+        """Extracts and chunks text from PDF URLs and saves the text as
+           arrays of string.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and
+            subject to change in the future.
+
+        Args:
+            connection (str or None, default None): BQ connection used for
+                function internet transactions, and the output blob if "dst"
+                is str. If None, uses default connection of the session.
+            max_batching_rows (int, default 8,192): Max number of rows per batch
+                send to cloud run to execute the function.
+            container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
+            container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+
+        Returns:
+            bigframes.series.Series: conatins all text from a pdf file
+        """
+
+        import bigframes.blob._functions as blob_func
+
+        connection = self._resolve_connection(connection)
+
+        pdf_extract_udf = blob_func.TransformFunction(
+            blob_func.pdf_extract_def,
+            session=self._block.session,
+            connection=connection,
+            max_batching_rows=max_batching_rows,
+            container_cpu=container_cpu,
+            container_memory=container_memory,
+        ).udf()
+
+        src_rt = self._get_runtime_json_str(mode="R")
+        res = src_rt.apply(pdf_extract_udf)
+        return res
+
+    def pdf_chunk(
+        self,
+        *,
+        connection: Optional[str] = None,
+        chunk_size: int = 1000,
+        overlap_size: int = 200,
+        max_batching_rows: int = 8192,
+        container_cpu: Union[float, int] = 0.33,
+        container_memory: str = "512Mi",
+    ) -> bigframes.series.Series:
+        """Extracts and chunks text from PDF URLs and saves the text as
+           arrays of strings.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and
+            subject to change in the future.
+
+        Args:
+            connection (str or None, default None): BQ connection used for
+                function internet transactions, and the output blob if "dst"
+                is str. If None, uses default connection of the session.
+            chunk_size (int, default 1000): the desired size of each text chunk
+                (number of characters).
+            overlap_size (int, default 200): the number of overlapping characters
+                between consective chunks. The helps to ensure context is
+                perserved across chunk boundaries.
+            max_batching_rows (int, default 8,192): Max number of rows per batch
+                send to cloud run to execute the function.
+            container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
+            container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+
+        Returns:
+            bigframe.series.Series of array[str], where each string is a
+                chunk of text extracted from PDF.
+        """
+
+        import bigframes.bigquery as bbq
+        import bigframes.blob._functions as blob_func
+
+        connection = self._resolve_connection(connection)
+
+        if chunk_size <= 0:
+            raise ValueError("chunk_size must be a positive integer.")
+        if overlap_size < 0:
+            raise ValueError("overlap_size must be a non-negative integer.")
+        if overlap_size >= chunk_size:
+            raise ValueError("overlap_size must be smaller than chunk_size.")
+
+        pdf_chunk_udf = blob_func.TransformFunction(
+            blob_func.pdf_chunk_def,
+            session=self._block.session,
+            connection=connection,
+            max_batching_rows=max_batching_rows,
+            container_cpu=container_cpu,
+            container_memory=container_memory,
+        ).udf()
+
+        src_rt = self._get_runtime_json_str(mode="R")
+        df = src_rt.to_frame()
+        df["chunk_size"] = chunk_size
+        df["overlap_size"] = overlap_size
+
+        res = df.apply(pdf_chunk_udf, axis=1)
+
+        res_array = bbq.json_extract_string_array(res)
+        return res_array

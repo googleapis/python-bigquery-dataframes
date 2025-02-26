@@ -78,6 +78,9 @@ _list = list  # Type alias to escape Series.list property
 
 @log_adapter.class_logger
 class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Series):
+    # Must be above 5000 for pandas to delegate to bigframes for binops
+    __pandas_priority__ = 13000
+
     def __init__(self, *args, **kwargs):
         self._query_job: Optional[bigquery.QueryJob] = None
         super().__init__(*args, **kwargs)
@@ -167,6 +170,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @validations.requires_index
     def index(self) -> indexes.Index:
         return indexes.Index.from_frame(self)
+
+    @validations.requires_index
+    def keys(self) -> indexes.Index:
+        return self.index
 
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
@@ -362,6 +369,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> Series:
         if errors not in ["raise", "null"]:
             raise ValueError("Argument 'errors' must be one of 'raise' or 'null'")
+        dtype = bigframes.dtypes.bigframes_type(dtype)
         return self._apply_unary_op(
             bigframes.operations.AsTypeOp(to_type=dtype, safe=(errors == "null"))
         )
@@ -483,7 +491,19 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def case_when(self, caselist) -> Series:
-        cases = list(itertools.chain(*caselist, (True, self)))
+        cases = []
+
+        for condition, output in itertools.chain(caselist, [(True, self)]):
+            cases.append(condition)
+            cases.append(output)
+            # In pandas, the default value if no case matches is the original value.
+            # This makes it impossible to change the type of the column, but if
+            # the condition is always True, we know it will match and no subsequent
+            # conditions matter (including the fallback to `self`). This break allows
+            # the type to change (see: internal issue 349926559).
+            if condition is True:
+                break
+
         return self._apply_nary_op(
             ops.case_when_op,
             cases,
@@ -788,10 +808,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     __rsub__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__rsub__)
 
-    def sub(self, other: float | int | Series) -> Series:
+    def sub(self, other) -> Series:
         return self._apply_binary_op(other, ops.sub_op)
 
-    def rsub(self, other: float | int | Series) -> Series:
+    def rsub(self, other) -> Series:
         return self._apply_binary_op(other, ops.sub_op, reverse=True)
 
     subtract = sub
@@ -943,6 +963,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             other, ops.coalesce_op, reverse=True, alignment="left"
         )
         self._set_block(result._get_block())
+
+    def __abs__(self) -> Series:
+        return self.abs()
 
     def abs(self) -> Series:
         return self._apply_unary_op(ops.abs_op)
@@ -1522,9 +1545,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ops.RemoteFunctionOp(func=func, apply_on_null=True)
         )
 
-        # if the output is an array, reconstruct it from the json serialized
-        # string form
-        if bigframes.dtypes.is_array_like(func.output_dtype):
+        # If the result type is string but the function output is intended to
+        # be an array, reconstruct the array from the string assuming it is a
+        # json serialized form of the array.
+        if bigframes.dtypes.is_string_like(
+            result_series.dtype
+        ) and bigframes.dtypes.is_array_like(func.output_dtype):
             import bigframes.bigquery as bbq
 
             result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
@@ -1562,9 +1588,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             other, ops.BinaryRemoteFunctionOp(func=func)
         )
 
-        # if the output is an array, reconstruct it from the json serialized
-        # string form
-        if bigframes.dtypes.is_array_like(func.output_dtype):
+        # If the result type is string but the function output is intended to
+        # be an array, reconstruct the array from the string assuming it is a
+        # json serialized form of the array.
+        if bigframes.dtypes.is_string_like(
+            result_series.dtype
+        ) and bigframes.dtypes.is_array_like(func.output_dtype):
             import bigframes.bigquery as bbq
 
             result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
@@ -1789,7 +1818,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> numpy.ndarray:
         return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
 
-    def __array__(self, dtype=None) -> numpy.ndarray:
+    def __array__(self, dtype=None, copy: Optional[bool] = None) -> numpy.ndarray:
+        if copy is False:
+            raise ValueError("Cannot convert to array without copy.")
         return self.to_numpy(dtype=dtype)
 
     __array__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__array__)
@@ -1984,15 +2015,47 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
         return NotImplemented
 
-    # Keep this at the bottom of the Series class to avoid
-    # confusing type checker by overriding str
-    @property
-    def str(self) -> strings.StringMethods:
-        return strings.StringMethods(self._block)
-
     @property
     def plot(self):
         return plotting.PlotAccessor(self)
+
+    def hist(
+        self, by: typing.Optional[typing.Sequence[str]] = None, bins: int = 10, **kwargs
+    ):
+        return self.plot.hist(by=by, bins=bins, **kwargs)
+
+    hist.__doc__ = inspect.getdoc(plotting.PlotAccessor.hist)
+
+    def line(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        **kwargs,
+    ):
+        return self.plot.line(x=x, y=y, **kwargs)
+
+    line.__doc__ = inspect.getdoc(plotting.PlotAccessor.line)
+
+    def area(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        stacked: bool = True,
+        **kwargs,
+    ):
+        return self.plot.area(x=x, y=y, stacked=stacked, **kwargs)
+
+    area.__doc__ = inspect.getdoc(plotting.PlotAccessor.area)
+
+    def bar(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        **kwargs,
+    ):
+        return self.plot.bar(x=x, y=y, **kwargs)
+
+    bar.__doc__ = inspect.getdoc(plotting.PlotAccessor.bar)
 
     def _slice(
         self,
@@ -2021,6 +2084,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def _cached(self, *, force: bool = True, session_aware: bool = True) -> Series:
         self._block.cached(force=force, session_aware=session_aware)
         return self
+
+    # Keep this at the bottom of the Series class to avoid
+    # confusing type checker by overriding str
+    @property
+    def str(self) -> strings.StringMethods:
+        return strings.StringMethods(self._block)
 
 
 def _is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:

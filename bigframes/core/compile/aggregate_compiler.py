@@ -26,6 +26,7 @@ import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import bigframes_vendored.ibis.expr.types as ibis_types
 import pandas as pd
 
+from bigframes.core.compile import constants as compiler_constants
 import bigframes.core.compile.ibis_types as compile_ibis_types
 import bigframes.core.compile.scalar_op_compiler as scalar_compilers
 import bigframes.core.expression as ex
@@ -55,7 +56,7 @@ def compile_aggregate(
         return compile_nullary_agg(aggregate.op)
     if isinstance(aggregate, ex.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
-        if aggregate.op.can_order_by:
+        if not aggregate.op.order_independent:
             return compile_ordered_unary_agg(aggregate.op, input, order_by=order_by)  # type: ignore
         else:
             return compile_unary_agg(aggregate.op, input)  # type: ignore
@@ -151,6 +152,11 @@ def _(op: agg_ops.SizeOp, window=None) -> ibis_types.NumericValue:
 
 
 @compile_unary_agg.register
+def _(op: agg_ops.SizeUnaryOp, _, window=None) -> ibis_types.NumericValue:
+    return _apply_window_if_present(ibis_ops.count(1), window)
+
+
+@compile_unary_agg.register
 @numeric_op
 def _(
     op: agg_ops.SumOp,
@@ -159,9 +165,7 @@ def _(
 ) -> ibis_types.NumericValue:
     # Will be null if all inputs are null. Pandas defaults to zero sum though.
     bq_sum = _apply_window_if_present(column.sum(), window)
-    return (
-        ibis_api.case().when(bq_sum.isnull(), ibis_types.literal(0)).else_(bq_sum).end()  # type: ignore
-    )
+    return bq_sum.fillna(ibis_types.literal(0))
 
 
 @compile_unary_agg.register
@@ -171,13 +175,6 @@ def _(
     column: ibis_types.NumericColumn,
     window=None,
 ) -> ibis_types.NumericValue:
-    # PERCENTILE_CONT has very few allowed windows. For example, "window
-    # framing clause is not allowed for analytic function percentile_cont".
-    if window is not None:
-        raise NotImplementedError(
-            f"Median with windowing is not supported. {constants.FEEDBACK_LINK}"
-        )
-
     # TODO(swast): Allow switching between exact and approximate median.
     # For now, the best we can do is an approximate median when we're doing
     # an aggregation, as PERCENTILE_CONT is only an analytic function.
@@ -235,7 +232,11 @@ def _(
     column: ibis_types.NumericColumn,
     window=None,
 ) -> ibis_types.NumericValue:
-    return _apply_window_if_present(column.quantile(op.q), window)
+    result = column.quantile(op.q)
+    if op.should_floor_result:
+        result = result.floor()  # type:ignore
+
+    return _apply_window_if_present(result, window)
 
 
 @compile_unary_agg.register
@@ -246,7 +247,8 @@ def _(
     window=None,
     # order_by: typing.Sequence[ibis_types.Value] = [],
 ) -> ibis_types.NumericValue:
-    return _apply_window_if_present(column.mean(), window)
+    result = column.mean().floor() if op.should_floor_result else column.mean()
+    return _apply_window_if_present(result, window)
 
 
 @compile_unary_agg.register
@@ -310,10 +312,11 @@ def _(
 @numeric_op
 def _(
     op: agg_ops.StdOp,
-    x: ibis_types.Column,
+    x: ibis_types.NumericColumn,
     window=None,
 ) -> ibis_types.Value:
-    return _apply_window_if_present(cast(ibis_types.NumericColumn, x).std(), window)
+    result = x.std().floor() if op.should_floor_result else x.std()
+    return _apply_window_if_present(result, window)
 
 
 @compile_unary_agg.register
@@ -479,10 +482,9 @@ def _(
     return _apply_window_if_present(column.dense_rank(), window) + 1
 
 
-@compile_unary_agg.register
+@compile_nullary_agg.register
 def _(
     op: agg_ops.RowNumberOp,
-    column: ibis_types.Column,
     window=None,
 ) -> ibis_types.IntegerValue:
     return _apply_window_if_present(ibis_api.row_number(), window)
@@ -554,6 +556,48 @@ def _(
         )
     else:
         raise TypeError(f"Cannot perform diff on type{column.type()}")
+
+
+@compile_unary_agg.register
+def _(
+    op: agg_ops.TimeSeriesDiffOp,
+    column: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
+    if not column.type().is_timestamp():
+        raise TypeError(f"Cannot perform time series diff on type{column.type()}")
+
+    original_column = cast(ibis_types.TimestampColumn, column)
+    shifted_column = cast(
+        ibis_types.TimestampColumn,
+        compile_unary_agg(agg_ops.ShiftOp(op.periods), column, window),
+    )
+
+    return original_column.delta(shifted_column, part="microsecond")
+
+
+@compile_unary_agg.register
+def _(
+    op: agg_ops.DateSeriesDiffOp,
+    column: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
+    if not column.type().is_date():
+        raise TypeError(f"Cannot perform date series diff on type{column.type()}")
+
+    original_column = cast(ibis_types.DateColumn, column)
+    shifted_column = cast(
+        ibis_types.DateColumn,
+        compile_unary_agg(agg_ops.ShiftOp(op.periods), column, window),
+    )
+
+    conversion_factor = typing.cast(
+        ibis_types.IntegerValue, compiler_constants.UNIT_TO_US_CONVERSION_FACTORS["D"]
+    )
+
+    return (
+        original_column.delta(shifted_column, part="day") * conversion_factor
+    ).floor()
 
 
 @compile_unary_agg.register

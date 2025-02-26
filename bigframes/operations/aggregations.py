@@ -34,18 +34,21 @@ class WindowOp:
         return True
 
     @property
-    def uses_total_row_ordering(self):
-        """Whether the operator needs total row ordering. (eg. lead, lag, array_agg)"""
-        return False
+    def implicitly_inherits_order(self):
+        """
+        Whether the operator implicitly inherits the underlying array order, should it exist.
 
-    @property
-    def can_order_by(self):
-        return False
+        Notably, rank operations do not want to inherit ordering. Even order-independent operations
+        may inherit order when needed for row bounds.
+        """
+        return True
 
     @property
     def order_independent(self):
         """
         True if the output of the operator does not depend on the ordering of input rows.
+
+        Aggregation functions are usually order independent, except array_agg, string_agg.
 
         Navigation functions are a notable case that are not order independent.
         """
@@ -89,12 +92,11 @@ class AggregateOp(WindowOp):
 
     @property
     def order_independent(self):
-        """
-        True if results don't depend on the order of the input.
+        return True
 
-        Almost all aggregation functions are order independent, excepting ``array_agg`` and ``string_agg``.
-        """
-        return not self.can_order_by
+    @property
+    def uses_total_row_ordering(self):
+        return False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -126,22 +128,38 @@ class SizeOp(NullaryAggregateOp):
         return dtypes.INT_DTYPE
 
 
+# TODO: Remove this temporary hack once nullary ops are better supported in APIs
+@dataclasses.dataclass(frozen=True)
+class SizeUnaryOp(UnaryAggregateOp):
+    name: ClassVar[str] = "size"
+
+    def output_type(self, *input_types: dtypes.ExpressionType):
+        return dtypes.INT_DTYPE
+
+
 @dataclasses.dataclass(frozen=True)
 class SumOp(UnaryAggregateOp):
     name: ClassVar[str] = "sum"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if not dtypes.is_numeric(input_types[0]):
-            raise TypeError(f"Type {input_types[0]} is not numeric")
-        if pd.api.types.is_bool_dtype(input_types[0]):
-            return dtypes.INT_DTYPE
-        else:
+        if input_types[0] is dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+
+        if dtypes.is_numeric(input_types[0]):
+            if pd.api.types.is_bool_dtype(input_types[0]):
+                return dtypes.INT_DTYPE
             return input_types[0]
+
+        raise TypeError(f"Type {input_types[0]} is not numeric or timedelta")
 
 
 @dataclasses.dataclass(frozen=True)
 class MedianOp(UnaryAggregateOp):
     name: ClassVar[str] = "median"
+
+    @property
+    def order_independent(self) -> bool:
+        return True
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         # These will change if median is changed to exact implementation.
@@ -156,12 +174,19 @@ class MedianOp(UnaryAggregateOp):
 @dataclasses.dataclass(frozen=True)
 class QuantileOp(UnaryAggregateOp):
     q: float
+    should_floor_result: bool = False
 
     @property
     def name(self):
         return f"{int(self.q * 100)}%"
 
+    @property
+    def order_independent(self) -> bool:
+        return True
+
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] is dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
         return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
 
 
@@ -205,7 +230,11 @@ class ApproxTopCountOp(UnaryAggregateOp):
 class MeanOp(UnaryAggregateOp):
     name: ClassVar[str] = "mean"
 
+    should_floor_result: bool = False
+
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] is dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
         return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
 
 
@@ -243,7 +272,12 @@ class MinOp(UnaryAggregateOp):
 class StdOp(UnaryAggregateOp):
     name: ClassVar[str] = "std"
 
+    should_floor_result: bool = False
+
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] is dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+
         return signatures.FixedOutputType(
             dtypes.is_numeric, dtypes.FLOAT_DTYPE, "numeric"
         ).output_type(input_types[0])
@@ -288,8 +322,8 @@ class ArrayAggOp(UnaryAggregateOp):
     name: ClassVar[str] = "arrayagg"
 
     @property
-    def can_order_by(self):
-        return True
+    def order_independent(self):
+        return False
 
     @property
     def skips_nulls(self):
@@ -335,7 +369,7 @@ class CutOp(UnaryWindowOp):
 
 
 @dataclasses.dataclass(frozen=True)
-class QcutOp(UnaryWindowOp):
+class QcutOp(UnaryWindowOp):  # bucket op
     quantiles: typing.Union[int, typing.Tuple[float, ...]]
 
     @property
@@ -381,7 +415,7 @@ class AnyValueOp(UnaryAggregateOp):
 
 # This should really by a NullaryWindowOp, but APIs don't support that yet.
 @dataclasses.dataclass(frozen=True)
-class RowNumberOp(UnaryWindowOp):
+class RowNumberOp(NullaryWindowOp):
     name: ClassVar[str] = "rownumber"
 
     @property
@@ -392,6 +426,7 @@ class RowNumberOp(UnaryWindowOp):
         return dtypes.INT_DTYPE
 
 
+# TODO: Convert to NullaryWindowOp
 @dataclasses.dataclass(frozen=True)
 class RankOp(UnaryWindowOp):
     name: ClassVar[str] = "rank"
@@ -401,15 +436,14 @@ class RankOp(UnaryWindowOp):
         return False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return signatures.FixedOutputType(
-            dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
-        ).output_type(input_types[0])
+        return dtypes.INT_DTYPE
 
     @property
-    def order_independent(self):
-        return True
+    def implicitly_inherits_order(self):
+        return False
 
 
+# TODO: Convert to NullaryWindowOp
 @dataclasses.dataclass(frozen=True)
 class DenseRankOp(UnaryWindowOp):
     @property
@@ -417,30 +451,20 @@ class DenseRankOp(UnaryWindowOp):
         return False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return signatures.FixedOutputType(
-            dtypes.is_orderable, dtypes.INT_DTYPE, "orderable"
-        ).output_type(input_types[0])
+        return dtypes.INT_DTYPE
 
     @property
-    def order_independent(self):
-        return True
+    def implicitly_inherits_order(self):
+        return False
 
 
 @dataclasses.dataclass(frozen=True)
 class FirstOp(UnaryWindowOp):
     name: ClassVar[str] = "first"
 
-    @property
-    def uses_total_row_ordering(self):
-        return True
-
 
 @dataclasses.dataclass(frozen=True)
 class FirstNonNullOp(UnaryWindowOp):
-    @property
-    def uses_total_row_ordering(self):
-        return True
-
     @property
     def skips_nulls(self):
         return False
@@ -450,17 +474,9 @@ class FirstNonNullOp(UnaryWindowOp):
 class LastOp(UnaryWindowOp):
     name: ClassVar[str] = "last"
 
-    @property
-    def uses_total_row_ordering(self):
-        return True
-
 
 @dataclasses.dataclass(frozen=True)
 class LastNonNullOp(UnaryWindowOp):
-    @property
-    def uses_total_row_ordering(self):
-        return True
-
     @property
     def skips_nulls(self):
         return False
@@ -469,10 +485,6 @@ class LastNonNullOp(UnaryWindowOp):
 @dataclasses.dataclass(frozen=True)
 class ShiftOp(UnaryWindowOp):
     periods: int
-
-    @property
-    def uses_total_row_ordering(self):
-        return True
 
     @property
     def skips_nulls(self):
@@ -484,12 +496,41 @@ class DiffOp(UnaryWindowOp):
     periods: int
 
     @property
-    def uses_total_row_ordering(self):
-        return True
+    def skips_nulls(self):
+        return False
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if dtypes.is_date_like(input_types[0]):
+            return dtypes.TIMEDELTA_DTYPE
+        return super().output_type(*input_types)
+
+
+@dataclasses.dataclass(frozen=True)
+class TimeSeriesDiffOp(UnaryWindowOp):
+    periods: int
 
     @property
     def skips_nulls(self):
         return False
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if dtypes.is_datetime_like(input_types[0]):
+            return dtypes.TIMEDELTA_DTYPE
+        raise TypeError(f"expect datetime-like types, but got {input_types[0]}")
+
+
+@dataclasses.dataclass(frozen=True)
+class DateSeriesDiffOp(UnaryWindowOp):
+    periods: int
+
+    @property
+    def skips_nulls(self):
+        return False
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] == dtypes.DATE_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+        raise TypeError(f"expect date type, but got {input_types[0]}")
 
 
 @dataclasses.dataclass(frozen=True)

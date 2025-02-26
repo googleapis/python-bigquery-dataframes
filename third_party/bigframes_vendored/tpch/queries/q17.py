@@ -19,7 +19,7 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
 
     filtered_part = part[(part["P_BRAND"] == VAR1) & (part["P_CONTAINER"] == VAR2)]
     q1 = bpd.merge(
-        filtered_part, lineitem, how="left", left_on="P_PARTKEY", right_on="L_PARTKEY"
+        lineitem, filtered_part, how="right", left_on="L_PARTKEY", right_on="P_PARTKEY"
     )
 
     grouped = (
@@ -37,4 +37,4 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
         (q_final[["L_EXTENDEDPRICE"]].sum() / 7.0).round(2).to_frame(name="AVG_YEARLY")
     )
 
-    q_final.to_gbq()
+    next(q_final.to_pandas_batches(max_results=1500))

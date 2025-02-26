@@ -35,9 +35,9 @@ import google.iam.v1
 import bigframes.core.compile.ibis_types
 import bigframes.dtypes
 import bigframes.exceptions as bfe
-import bigframes.functions.remote_function_template
+import bigframes.functions.function_template
 
-from . import _remote_function_session as rf_session
+from . import _function_session as bff_session
 from . import _utils
 
 logger = logging.getLogger(__name__)
@@ -56,8 +56,10 @@ class ReturnTypeMissingError(ValueError):
 # TODO: Move this to compile folder
 def ibis_signature_from_routine(routine: bigquery.Routine) -> _utils.IbisSignature:
     if routine.return_type:
-        ibis_output_type = bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
-            routine.return_type.type_kind
+        ibis_output_type = (
+            bigframes.core.compile.ibis_types.ibis_type_from_bigquery_type(
+                routine.return_type
+            )
         )
     else:
         raise ReturnTypeMissingError
@@ -82,8 +84,8 @@ def ibis_signature_from_routine(routine: bigquery.Routine) -> _utils.IbisSignatu
     return _utils.IbisSignature(
         parameter_names=[arg.name for arg in routine.arguments],
         input_types=[
-            bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
-                arg.data_type.type_kind
+            bigframes.core.compile.ibis_types.ibis_type_from_bigquery_type(
+                arg.data_type
             )
             if arg.data_type
             else None
@@ -120,11 +122,11 @@ def get_routine_reference(
 
 
 def remote_function(*args, **kwargs):
-    remote_function_session = rf_session.RemoteFunctionSession()
+    remote_function_session = bff_session.FunctionSession()
     return remote_function_session.remote_function(*args, **kwargs)
 
 
-remote_function.__doc__ = rf_session.RemoteFunctionSession.remote_function.__doc__
+remote_function.__doc__ = bff_session.FunctionSession.remote_function.__doc__
 
 
 def read_gbq_function(
@@ -174,7 +176,7 @@ def read_gbq_function(
     # The name "args" conflicts with the Ibis operator, so we use
     # non-standard names for the arguments here.
     def func(*bigframes_args, **bigframes_kwargs):
-        f"""Remote function {str(routine_ref)}."""
+        f"""Bigframes function {str(routine_ref)}."""
         nonlocal node  # type: ignore
 
         expr = node(*bigframes_args, **bigframes_kwargs)  # type: ignore
@@ -232,6 +234,8 @@ def read_gbq_function(
         if ibis_signature.output_type_override
         else ibis_signature.output_type
     )
+
+    func.bigframes_bigquery_function_output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(ibis_signature.output_type)  # type: ignore
 
     func.is_row_processor = is_row_processor  # type: ignore
     func.ibis_node = node  # type: ignore
