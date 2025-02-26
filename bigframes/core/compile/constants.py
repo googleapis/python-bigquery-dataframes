@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,11 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from __future__ import annotations
 
-from bigframes.core.compile.api import SQLCompiler, test_only_ibis_inferred_schema
 
-__all__ = [
-    "SQLCompiler",
-    "test_only_ibis_inferred_schema",
-]
+# Datetime constants
+UNIT_TO_US_CONVERSION_FACTORS = {
+    "W": 7 * 24 * 60 * 60 * 1000 * 1000,
+    "d": 24 * 60 * 60 * 1000 * 1000,
+    "D": 24 * 60 * 60 * 1000 * 1000,
+    "h": 60 * 60 * 1000 * 1000,
+    "m": 60 * 1000 * 1000,
+    "s": 1000 * 1000,
+    "ms": 1000,
+    "us": 1,
+    "ns": 1e-3,
+}
