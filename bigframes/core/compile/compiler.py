@@ -55,7 +55,7 @@ class Compiler:
         ordered: bool,
         limit: typing.Optional[int] = None,
     ) -> str:
-        # later steps might add ids, so snapshot before those steps
+        # later steps might add ids, so snapshot before those steps.
         output_ids = node.schema.names
         if ordered:
             # Need to do this before replacing unsupported ops, as that will rewrite slice ops
@@ -171,7 +171,7 @@ class Compiler:
             columns=[item.source_id for item in node.scan_list.items],
         )
 
-        # Convert timedeltas to microseconds for compatbility with BigQuery
+        # Convert timedeltas to microseconds for compatibility with BigQuery
         _ = utils.replace_timedeltas_with_micros(array_as_pd)
 
         offsets = node.offsets_col.sql if node.offsets_col else None
