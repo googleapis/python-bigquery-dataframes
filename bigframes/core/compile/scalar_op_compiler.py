@@ -742,7 +742,7 @@ def timestamp_sub_op_impl(x: ibis_types.TimestampValue, y: ibis_types.IntegerVal
 
 @scalar_op_compiler.register_binary_op(ops.date_diff_op)
 def date_diff_op_impl(x: ibis_types.DateValue, y: ibis_types.DateValue):
-    return (x.delta(y, "day") * UNIT_TO_US_CONVERSION_FACTORS["d"]).floor()  # type: ignore
+    return x.delta(y, "day") * int(UNIT_TO_US_CONVERSION_FACTORS["d"])  # type: ignore
 
 
 @scalar_op_compiler.register_binary_op(ops.date_add_op)
