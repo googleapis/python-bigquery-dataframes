@@ -281,7 +281,8 @@ class NDFrame(indexing.IndexingMixin):
 
             allow_large_results (bool, default None):
                 If not None, overrides the global setting to allow or disallow large
-                query results over the default size limit of 10 GB.
+                query results over the default size limit of 10 GB. This parameter has
+                no effect when results are saved to Google Cloud Storage (GCS).
 
         Returns:
             None or str:
@@ -320,7 +321,8 @@ class NDFrame(indexing.IndexingMixin):
 
             allow_large_results (bool, default None):
                 If not None, overrides the global setting to allow or disallow large
-                query results over the default size limit of 10 GB.
+                query results over the default size limit of 10 GB. This parameter has
+                no effect when results are saved to Google Cloud Storage (GCS).
 
         Returns:
             None or str: If path_or_buf is None, returns the resulting json format as a

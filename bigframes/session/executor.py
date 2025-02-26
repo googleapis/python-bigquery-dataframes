@@ -60,6 +60,7 @@ MAX_SUBTREE_FACTORINGS = 5
 _MAX_CLUSTER_COLUMNS = 4
 # TODO: b/338258028 Enable pruning to reduce text size.
 ENABLE_PRUNING = False
+MAX_SMALL_RESULT_BYTES = 10 * 1024 * 1024 * 1024  # 10G
 
 
 @dataclasses.dataclass(frozen=True)
@@ -251,9 +252,6 @@ class BigQueryCachingExecutor(Executor):
         if use_explicit_destination is None:
             use_explicit_destination = bigframes.options.bigquery.allow_large_results
 
-        if ordered and use_explicit_destination:
-            # Setting both 'ordered' and 'use_explicit_destination' to True is not allowed
-            use_explicit_destination = False
         if bigframes.options.compute.enable_multi_query_execution:
             self._simplify_with_caching(array_value)
 
@@ -281,10 +279,17 @@ class BigQueryCachingExecutor(Executor):
         def iterator_supplier():
             return iterator.to_arrow_iterable(bqstorage_client=self.bqstoragereadclient)
 
-        if get_size_bytes is True:
+        if get_size_bytes is True or use_explicit_destination:
             size_bytes = self.bqclient.get_table(query_job.destination).num_bytes
         else:
             size_bytes = None
+
+        if size_bytes is not None and size_bytes >= MAX_SMALL_RESULT_BYTES:
+            warnings.warn(
+                "The query result size has exceeded 10 GB. In BigFrames 2.0 and "
+                "later, you might need to manually set allow_large_results = True.",
+                FutureWarning,
+            )
 
         # Runs strict validations to ensure internal type predictions and ibis are completely in sync
         # Do not execute these validations outside of testing suite.
