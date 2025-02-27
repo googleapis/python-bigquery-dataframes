@@ -32,7 +32,6 @@ import google.cloud.resourcemanager_v3
 import pydata_google_auth
 
 import bigframes.constants
-import bigframes.exceptions
 import bigframes.version
 
 _ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
@@ -107,7 +106,7 @@ class ClientsProvider:
                 bigframes.constants.LEP_DEPRECATION_WARNING_MESSAGE.format(
                     location=location
                 ),
-                category=bigframes.exceptions.DeprecationWarning,
+                category=DeprecationWarning,
             )
         self._location = location
         self._use_regional_endpoints = use_regional_endpoints

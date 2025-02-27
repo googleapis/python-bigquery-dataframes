@@ -81,10 +81,6 @@ class UnknownDataTypeWarning(Warning):
     """Data type is unknown."""
 
 
-class DeprecationWarning(Warning):
-    """The functionality or support is being deprecated."""
-
-
 class ApiDeprecationWarning(FutureWarning):
     """The API has been deprecated."""
 
