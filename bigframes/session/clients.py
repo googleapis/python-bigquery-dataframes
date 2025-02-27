@@ -106,7 +106,7 @@ class ClientsProvider:
                 bigframes.constants.LEP_DEPRECATION_WARNING_MESSAGE.format(
                     location=location
                 ),
-                category=DeprecationWarning,
+                category=FutureWarning,
             )
         self._location = location
         self._use_regional_endpoints = use_regional_endpoints
