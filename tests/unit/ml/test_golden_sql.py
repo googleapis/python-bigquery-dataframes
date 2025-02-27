@@ -221,13 +221,13 @@ def test_decomposition_mf_default_fit(bqml_model_factory, mock_session, mock_X, 
     model._bqml_model_factory = bqml_model_factory
     model.fit(mock_X, mock_y)
 
-    mock_session._start_query_ml_ddl.assert_called_once_with(  # revice
-        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='MATRIX_FACTORIZATION',\n "
+    mock_session._start_query_ml_ddl.assert_called_once_with(
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='matrix_factorization',\n  feedback_type='explicit',\n  user_col='user_id',\n  item_col='item_col',\n  rating_col='rating_col',\n  l2_reg=9.83,\n  num_factors=34)\nAS input_X_y_no_index_sql"
     )
 
 
 def test_decomposition_mf_predict(mock_session, bqml_model, mock_X):
-    model = decomposition.MatrixFactorization(  # revise
+    model = decomposition.MatrixFactorization(
         num_factors=34,
         feedback_type="explicit",
         user_col="user_id",
@@ -236,10 +236,10 @@ def test_decomposition_mf_predict(mock_session, bqml_model, mock_X):
         l2_reg=9.83,
     )
     model._bqml_model = bqml_model
-    model.predict(mock_X)  # mock x requires item_col
+    model.predict(mock_X)
 
-    mock_session.read_gbq.assert_called_once_with(  # revise
-        "SELECT * FROM ML.PREDICT(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_sql))",
+    mock_session.read_gbq.assert_called_once_with(
+        "SELECT * FROM ML.RECOMMEND(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_sql))",
         index_col=["index_column_id"],
     )
 
@@ -257,5 +257,5 @@ def test_decomposition_mf_score(mock_session, bqml_model, mock_X, mock_y):
     model.score(mock_X, mock_y)
 
     mock_session.read_gbq.assert_called_once_with(  # revise
-        "SELECT * FROM ML.EVALUATE(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_y_sql))"
+        "SELECT * FROM ML.EVALUATE(MODEL `model_project`.`model_dataset`.`model_id`)"
     )
