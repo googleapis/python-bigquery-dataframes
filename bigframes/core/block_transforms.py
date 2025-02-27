@@ -18,7 +18,6 @@ import typing
 from typing import Optional, Sequence
 
 import bigframes_vendored.constants as constants
-import numpy as np
 import pandas as pd
 
 import bigframes.constants
@@ -477,6 +476,7 @@ def rank(
         rownum_col_ids = post_agg_rownum_col_ids
 
     # Pandas masks all values where any grouping column is null
+    # Note: we use pd.NA instead of float('nan')
     if grouping_cols:
         predicate = functools.reduce(
             ops.and_op.as_expr,
@@ -487,7 +487,7 @@ def rank(
                 ops.where_op.as_expr(
                     ex.deref(col),
                     predicate,
-                    ex.const(np.nan, bigframes.dtypes.FLOAT_DTYPE),
+                    ex.const(None),
                 )
                 for col in rownum_col_ids
             ],

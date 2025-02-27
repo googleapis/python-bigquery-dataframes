@@ -27,7 +27,6 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import google.cloud.bigquery as bigquery
-import numpy as np
 import pandas as pd
 import pyarrow as pa
 
@@ -400,8 +399,6 @@ def literal_to_ibis_scalar(
         return tuple(literal)
 
     if not pd.api.types.is_list_like(literal) and pd.isna(literal):
-        if isinstance(literal, float) and np.isnan(literal):
-            return bigframes_vendored.ibis.literal(float("nan"))
         if ibis_dtype:
             return bigframes_vendored.ibis.null().cast(ibis_dtype)
         else:

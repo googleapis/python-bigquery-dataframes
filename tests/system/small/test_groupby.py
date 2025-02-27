@@ -143,14 +143,18 @@ def test_dataframe_groupby_rank(
         )
     ).to_pandas()
     pd_result = (
-        scalars_pandas_df_index[col_names]
-        .groupby("string_col")
-        .rank(
-            na_option=na_option,
-            method=method,
-            ascending=ascending,
+        (
+            scalars_pandas_df_index[col_names]
+            .groupby("string_col")
+            .rank(
+                na_option=na_option,
+                method=method,
+                ascending=ascending,
+            )
         )
-    ).astype(pd.Float64Dtype())
+        .astype("float64")
+        .astype("Float64")
+    )
     pd.testing.assert_frame_equal(
         pd_result, bf_result, check_dtype=False, check_index_type=False
     )
@@ -645,14 +649,18 @@ def test_series_groupby_rank(
         )
     ).to_pandas()
     pd_result = (
-        scalars_pandas_df_index[col_names]
-        .groupby("string_col")["int64_col"]
-        .rank(
-            na_option=na_option,
-            method=method,
-            ascending=ascending,
+        (
+            scalars_pandas_df_index[col_names]
+            .groupby("string_col")["int64_col"]
+            .rank(
+                na_option=na_option,
+                method=method,
+                ascending=ascending,
+            )
         )
-    ).astype(pd.Float64Dtype())
+        .astype("float64")
+        .astype("Float64")
+    )
     pd.testing.assert_series_equal(
         pd_result, bf_result, check_dtype=False, check_index_type=False
     )
