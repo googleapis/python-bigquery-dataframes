@@ -39,6 +39,7 @@ from bigframes.operations.comparison_ops import (
     ne_op,
 )
 from bigframes.operations.date_ops import (
+    date_diff_op,
     day_op,
     dayofweek_op,
     month_op,
@@ -87,7 +88,9 @@ from bigframes.operations.generic_ops import (
 )
 from bigframes.operations.geo_ops import (
     geo_area_op,
+    geo_st_astext_op,
     geo_st_boundary_op,
+    geo_st_geogfromtext_op,
     geo_st_geogpoint_op,
     geo_x_op,
     geo_y_op,
@@ -116,15 +119,18 @@ from bigframes.operations.numeric_ops import (
     cos_op,
     cosh_op,
     div_op,
+    DivOp,
     exp_op,
     expm1_op,
     floor_op,
     floordiv_op,
+    FloorDivOp,
     ln_op,
     log1p_op,
     log10_op,
     mod_op,
     mul_op,
+    MulOp,
     neg_op,
     pos_op,
     pow_op,
@@ -180,6 +186,9 @@ from bigframes.operations.string_ops import (
 from bigframes.operations.struct_ops import StructFieldOp, StructOp
 from bigframes.operations.time_ops import hour_op, minute_op, normalize_op, second_op
 from bigframes.operations.timedelta_ops import (
+    date_add_op,
+    date_sub_op,
+    timedelta_floor_op,
     timestamp_add_op,
     timestamp_sub_op,
     ToTimedeltaOp,
@@ -244,6 +253,7 @@ __all__ = [
     "upper_op",
     "ZfillOp",
     # Date ops
+    "date_diff_op",
     "day_op",
     "month_op",
     "year_op",
@@ -255,6 +265,9 @@ __all__ = [
     "second_op",
     "normalize_op",
     # Timedelta ops
+    "date_add_op",
+    "date_sub_op",
+    "timedelta_floor_op",
     "timestamp_add_op",
     "timestamp_sub_op",
     "ToTimedeltaOp",
@@ -283,15 +296,18 @@ __all__ = [
     "cos_op",
     "cosh_op",
     "div_op",
+    "DivOp",
     "exp_op",
     "expm1_op",
     "floor_op",
     "floordiv_op",
+    "FloorDivOp",
     "ln_op",
     "log1p_op",
     "log10_op",
     "mod_op",
     "mul_op",
+    "MulOp",
     "neg_op",
     "pos_op",
     "pow_op",
@@ -350,6 +366,8 @@ __all__ = [
     # Geo ops
     "geo_area_op",
     "geo_st_boundary_op",
+    "geo_st_astext_op",
+    "geo_st_geogfromtext_op",
     "geo_st_geogpoint_op",
     "geo_x_op",
     "geo_y_op",

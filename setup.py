@@ -52,11 +52,9 @@ dependencies = [
     "numpy >=1.24.0",
     "pandas >=1.5.3",
     "pandas-gbq >=0.26.0",
-    "pyarrow >=10.0.1",
+    "pyarrow >=15.0.2",
     "pydata-google-auth >=1.8.2",
     "requests >=2.27.1",
-    "scikit-learn >=1.2.2",
-    "sqlalchemy >=1.4,<3.0dev",
     "sqlglot >=23.6.3",
     "tabulate >=0.9",
     "ipywidgets >=7.7.1",
@@ -77,8 +75,15 @@ extras = {
     "tests": [],
     # used for local engine, which is only needed for unit tests at present.
     "polars": ["polars >= 1.7.0"],
+    "scikit-learn": ["scikit-learn>=1.2.2"],
     # Packages required for basic development flow.
-    "dev": ["pytest", "pytest-mock", "pre-commit", "nox", "google-cloud-testutils"],
+    "dev": [
+        "pytest",
+        "pytest-mock",
+        "pre-commit",
+        "nox",
+        "google-cloud-testutils",
+    ],
 }
 extras["all"] = list(sorted(frozenset(itertools.chain.from_iterable(extras.values()))))
 

@@ -641,6 +641,8 @@ def test_series_replace_dict(scalars_dfs, replacement_dict):
     ),
 )
 def test_series_interpolate(method):
+    pytest.importorskip("scipy")
+
     values = [None, 1, 2, None, None, 16, None]
     index = [-3.2, 11.4, 3.56, 4, 4.32, 5.55, 76.8]
     pd_series = pd.Series(values, index)
@@ -1649,6 +1651,27 @@ def test_series_binop_w_other_types(scalars_dfs, other):
 
     bf_result = (scalars_df["int64_col"].head(3) + other).to_pandas()
     pd_result = scalars_pandas_df["int64_col"].head(3) + other
+
+    assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("other",),
+    [
+        ([-1.4, 2.3, None],),
+        (pd.Index([-1.4, 2.3, None]),),
+        (pd.Series([-1.4, 2.3, None], index=[44, 2, 1]),),
+    ],
+)
+@skip_legacy_pandas
+def test_series_reverse_binop_w_other_types(scalars_dfs, other):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = (other + scalars_df["int64_col"].head(3)).to_pandas()
+    pd_result = other + scalars_pandas_df["int64_col"].head(3)
 
     assert_series_equal(
         bf_result,

@@ -103,6 +103,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     __doc__ = vendored_pandas_frame.DataFrame.__doc__
     # internal flag to disable cache at all
     _disable_cache_override: bool = False
+    # Must be above 5000 for pandas to delegate to bigframes for binops
+    __pandas_priority__ = 15000
 
     def __init__(
         self,
@@ -1268,6 +1270,35 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def combine_first(self, other: DataFrame):
         return self._apply_dataframe_binop(other, ops.fillna_op)
 
+    def _fast_stat_matrix(self, op: agg_ops.BinaryAggregateOp) -> DataFrame:
+        """Faster corr, cov calculations, but creates more sql text, so cannot scale to many columns"""
+        assert len(self.columns) * len(self.columns) < bigframes.constants.MAX_COLUMNS
+        orig_columns = self.columns
+        frame = self.copy()
+        # Replace column names with 0 to n - 1 to keep order
+        # and avoid the influence of duplicated column name
+        frame.columns = pandas.Index(range(len(orig_columns)))
+        frame = frame.astype(bigframes.dtypes.FLOAT_DTYPE)
+        block = frame._block
+
+        aggregations = [
+            ex.BinaryAggregation(op, ex.deref(left_col), ex.deref(right_col))
+            for left_col in block.value_columns
+            for right_col in block.value_columns
+        ]
+        # unique columns stops
+        uniq_orig_columns = utils.combine_indices(
+            orig_columns, pandas.Index(range(len(orig_columns)))
+        )
+        labels = utils.cross_indices(uniq_orig_columns, uniq_orig_columns)
+
+        block, _ = block.aggregate(aggregations=aggregations, column_labels=labels)
+
+        block = block.stack(levels=orig_columns.nlevels + 1)
+        # The aggregate operation crated a index level with just 0, need to drop it
+        # Also, drop the last level of each index, which was created to guarantee uniqueness
+        return DataFrame(block).droplevel(0).droplevel(-1, axis=0).droplevel(-1, axis=1)
+
     def corr(self, method="pearson", min_periods=None, numeric_only=False) -> DataFrame:
         if method != "pearson":
             raise NotImplementedError(
@@ -1283,6 +1314,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             frame = self._drop_non_numeric()
 
+        if len(frame.columns) <= 30:
+            return frame._fast_stat_matrix(agg_ops.CorrOp())
+
+        frame = frame.copy()
         orig_columns = frame.columns
         # Replace column names with 0 to n - 1 to keep order
         # and avoid the influence of duplicated column name
@@ -1391,6 +1426,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             frame = self._drop_non_numeric()
 
+        if len(frame.columns) <= 30:
+            return frame._fast_stat_matrix(agg_ops.CovOp())
+
+        frame = frame.copy()
         orig_columns = frame.columns
         # Replace column names with 0 to n - 1 to keep order
         # and avoid the influence of duplicated column name
@@ -3703,7 +3742,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> numpy.ndarray:
         return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
 
-    def __array__(self, dtype=None) -> numpy.ndarray:
+    def __array__(self, dtype=None, copy: Optional[bool] = None) -> numpy.ndarray:
+        if copy is False:
+            raise ValueError("Cannot convert to array without copy.")
         return self.to_numpy(dtype=dtype)
 
     __array__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__array__)
@@ -4084,9 +4125,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             result_series.name = None
 
-            # if the output is an array, reconstruct it from the json serialized
-            # string form
-            if bigframes.dtypes.is_array_like(func.output_dtype):
+            # If the result type is string but the function output is intended
+            # to be an array, reconstruct the array from the string assuming it
+            # is a json serialized form of the array.
+            if bigframes.dtypes.is_string_like(
+                result_series.dtype
+            ) and bigframes.dtypes.is_array_like(func.output_dtype):
                 import bigframes.bigquery as bbq
 
                 result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(

@@ -2214,7 +2214,7 @@ def test_combine_first(
         ),
     ],
 )
-def test_corr_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
+def test_df_corr_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
     scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
 
     bf_result = scalars_df[columns].corr(numeric_only=numeric_only).to_pandas()
@@ -2228,7 +2228,7 @@ def test_corr_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
     )
 
 
-def test_corr_w_invalid_parameters(scalars_dfs):
+def test_df_corr_w_invalid_parameters(scalars_dfs):
     columns = ["int64_too", "int64_col", "float64_col"]
     scalars_df, _ = scalars_dfs
 
@@ -2467,6 +2467,20 @@ def test_listlike_binop_axis_1_in_memory_data(scalars_dfs, input):
     if hasattr(input, "to_pandas"):
         input = input.to_pandas()
     pd_result = scalars_pandas_df[df_columns].add(input, axis=1)
+
+    assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
+
+
+@skip_legacy_pandas
+def test_df_reverse_binop_pandas(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_series = pd.Series([100, 200, 300])
+
+    df_columns = ["int64_col", "float64_col", "int64_too"]
+
+    bf_result = pd_series + scalars_df[df_columns].to_pandas()
+    pd_result = pd_series + scalars_pandas_df[df_columns]
 
     assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
 
