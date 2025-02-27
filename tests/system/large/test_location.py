@@ -169,7 +169,7 @@ def test_bq_lep_endpoints(bigquery_location):
             location=bigquery_location, use_regional_endpoints=True
         )
         assert len(record) == 1
-        assert record[0].message.args[
+        assert typing.cast(Warning, record[0].message).args[
             0
         ] == bigframes.constants.LEP_DEPRECATION_WARNING_MESSAGE.format(
             location=bigquery_location
