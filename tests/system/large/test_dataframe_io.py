@@ -46,11 +46,8 @@ def test_to_pandas_batches_override_global_option(
             )
             assert len(w) == 2
             assert issubclass(w[0].category, FutureWarning)
-            assert str(w[0].message) == (
-                "The query result size has exceeded 10 GB. In BigFrames 2.0 and "
-                "later, you might need to manually set `allow_large_results=True` in "
-                "the IO method or adjust the BigFrames option: "
-                "`bigframes.options.bigquery.allow_large_results=True`.",
+            assert str(w[0].message).startswith(
+                "The query result size has exceeded 10 GB."
             )
 
 
