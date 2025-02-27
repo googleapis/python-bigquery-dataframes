@@ -20,6 +20,7 @@ import pytest
 
 import bigframes
 import bigframes.constants
+import bigframes.exceptions
 import bigframes.session.clients
 
 
@@ -131,7 +132,7 @@ def test_bq_rep_endpoints(bigquery_location):
                 [
                     warn
                     for warn in record
-                    if isinstance(warn.message, DeprecationWarning)
+                    if isinstance(warn.message, bigframes.exceptions.DeprecationWarning)
                 ]
             )
             == 0
@@ -164,7 +165,7 @@ def test_bq_lep_endpoints(bigquery_location):
     # allowlisted for LEP access. We could hardcode one project which is
     # allowlisted but then not every open source developer will have access to
     # that. Let's rely on just creating the clients for LEP.
-    with pytest.warns(DeprecationWarning) as record:
+    with pytest.warns(bigframes.exceptions.DeprecationWarning) as record:
         clients_provider = bigframes.session.clients.ClientsProvider(
             location=bigquery_location, use_regional_endpoints=True
         )
