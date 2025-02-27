@@ -408,7 +408,7 @@ class FunctionSession:
                 "which may change. Consider using 'internal-only' for enhanced security. "
                 "See https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings for details."
             )
-            warnings.warn(msg, category=UserWarning)
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
 
         bq_connection_manager = session.bqconnectionmanager
 
