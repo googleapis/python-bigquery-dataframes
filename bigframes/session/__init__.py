@@ -1465,7 +1465,7 @@ class Session(
                 ssets can be located through the following properties set in the
                 object:
 
-                `bigframes_managed_function` - The bigquery managed function
+                `bigframes_bigquery_function` - The bigquery managed function
                 deployed for the user defined code.
         """
         return self._function_session.udf(

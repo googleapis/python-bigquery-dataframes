@@ -196,8 +196,6 @@ class FunctionClient:
         is_row_processor,
     ):
         """Create a BigQuery managed function."""
-        self._create_bq_connection()
-
         import cloudpickle
 
         pickled = cloudpickle.dumps(func)
@@ -213,7 +211,7 @@ class FunctionClient:
 
         managed_function_options = {
             "runtime_version": runtime_version,
-            "entry_point": "managed_func",
+            "entry_point": "bigframes_handler",
         }
 
         managed_function_options_str = self._format_function_options(
@@ -241,8 +239,8 @@ import cloudpickle
 
 udf = cloudpickle.loads({pickled})
 
-def managed_func(*args, **kwargs):
-    return udf(*args, **kwargs)
+def bigframes_handler(*args):
+    return udf(*args)
 
             '''
         """
@@ -523,7 +521,7 @@ def managed_func(*args, **kwargs):
         # Derive the name of the remote function
         remote_function_name = name
         if not remote_function_name:
-            remote_function_name = _utils.get_remote_function_name(
+            remote_function_name = _utils.get_bigframes_function_name(
                 function_hash, self._session.session_id, uniq_suffix
             )
         rf_endpoint, rf_conn = self.get_remote_function_specs(remote_function_name)

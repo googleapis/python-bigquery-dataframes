@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import collections.abc
 import inspect
+import random
+import string
 import sys
 import threading
 from typing import (
@@ -207,12 +209,13 @@ class FunctionSession:
                 # deleted directly by the user
                 bqclient.delete_routine(bqrf_routine, not_found_ok=True)
 
-                # Let's accept the possibility that the cloud function may have
-                # been deleted directly by the user
-                try:
-                    gcfclient.delete_function(name=gcf_path)
-                except google.api_core.exceptions.NotFound:
-                    pass
+                if gcf_path:
+                    # Let's accept the possibility that the cloud function may
+                    # have been deleted directly by the user
+                    try:
+                        gcfclient.delete_function(name=gcf_path)
+                    except google.api_core.exceptions.NotFound:
+                        pass
 
             self._temp_artifacts.clear()
 
@@ -575,6 +578,7 @@ class FunctionSession:
 
             self._try_delattr(func, "bigframes_cloud_function")
             self._try_delattr(func, "bigframes_remote_function")
+            self._try_delattr(func, "bigframes_bigquery_function")
             self._try_delattr(func, "input_dtypes")
             self._try_delattr(func, "output_dtype")
             self._try_delattr(func, "is_row_processor")
@@ -775,8 +779,8 @@ class FunctionSession:
 
         bq_connection_manager = session.bqconnectionmanager
 
-        # TODO(jialuo): Write a method for the repeated part in the wrapper for
-        # both managed function and remote function.
+        # TODO(b/399129906): Write a method for the repeated part in the wrapper
+        # for both managed function and remote function.
         def wrapper(func):
             nonlocal input_types, output_type
 
@@ -851,7 +855,21 @@ class FunctionSession:
             self._try_delattr(func, "is_row_processor")
             self._try_delattr(func, "ibis_node")
 
-            bq_function_name = name if name else func.__name__
+            bq_function_name = name
+            if not bq_function_name:
+                # Compute a unique hash representing the user code
+                function_hash = _utils._get_hash(func, packages)
+                # use 4 digits as a unique suffix which should suffice for
+                # uniqueness per session
+                uniq_suffix = "".join(
+                    random.choices(string.ascii_lowercase + string.digits, k=4)
+                )
+                bq_function_name = _utils.get_bigframes_function_name(
+                    function_hash,
+                    session.session_id if session else session,
+                    uniq_suffix,
+                )
+
             remote_function_client.create_bq_managed_function(
                 func=func,
                 input_types=tuple(
@@ -863,7 +881,9 @@ class FunctionSession:
                     ibis_signature.output_type
                 ),
                 language="python",
-                runtime_version="python-3.11",
+                runtime_version=(
+                    f"python-{sys.version_info.major}.{sys.version_info.minor}"
+                ),
                 bq_function_name=bq_function_name,
                 packages=packages,
                 is_row_processor=is_row_processor,
@@ -910,6 +930,9 @@ class FunctionSession:
             )
             func.is_row_processor = is_row_processor
             func.ibis_node = node
+
+            if not name:
+                self._update_temp_artifacts(func.bigframes_bigquery_function, "")
 
             return func
 

@@ -17,23 +17,11 @@ import pytest
 
 from bigframes.functions import _function_session as bff_session
 import bigframes.pandas as bpd
-from tests.system.large.functions import function_utils
-from tests.system.utils import get_python_version
+from tests.system.utils import cleanup_function_assets, get_python_version
 
 bpd.options.experiments.udf = True
 
 
-@pytest.fixture(scope="module")
-def bq_cf_connection() -> str:
-    """Pre-created BQ connection in the test project in US location, used to
-    invoke cloud function.
-
-    $ bq show --connection --location=us --project_id=PROJECT_ID bigframes-rf-conn
-    """
-    return "bigframes-rf-conn"
-
-
-@pytest.mark.flaky(retries=2, delay=120)
 @pytest.mark.skipif(
     get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
     reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
@@ -44,7 +32,6 @@ def test_managed_function_multiply_with_ibis(
     bigquery_client,
     ibis_client,
     dataset_id,
-    bq_cf_connection,
 ):
 
     try:
@@ -53,7 +40,6 @@ def test_managed_function_multiply_with_ibis(
             [int, int],
             int,
             dataset_id,
-            bq_cf_connection,
         )
         def multiply(x, y):
             return x * y
@@ -88,10 +74,9 @@ def test_managed_function_multiply_with_ibis(
         )
     finally:
         # clean up the gcp assets created for the managed function.
-        function_utils.cleanup_function_assets(multiply, bigquery_client)
+        cleanup_function_assets(multiply, bigquery_client)
 
 
-@pytest.mark.flaky(retries=2, delay=120)
 @pytest.mark.skipif(
     get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
     reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
@@ -102,7 +87,6 @@ def test_managed_function_stringify_with_ibis(
     bigquery_client,
     ibis_client,
     dataset_id,
-    bq_cf_connection,
 ):
     try:
 
@@ -110,7 +94,6 @@ def test_managed_function_stringify_with_ibis(
             [int],
             str,
             dataset_id,
-            bq_cf_connection,
         )
         def stringify(x):
             return f"I got {x}"
@@ -141,17 +124,16 @@ def test_managed_function_stringify_with_ibis(
         )
     finally:
         # clean up the gcp assets created for the managed function.
-        function_utils.cleanup_function_assets(
+        cleanup_function_assets(
             bigquery_client, session.cloudfunctionsclient, stringify
         )
 
 
-@pytest.mark.flaky(retries=2, delay=120)
 @pytest.mark.skipif(
     get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
     reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
 )
-def test_managed_function_binop(session, scalars_dfs, dataset_id, bq_cf_connection):
+def test_managed_function_binop(session, scalars_dfs, dataset_id):
     try:
 
         def func(x, y):
@@ -161,7 +143,6 @@ def test_managed_function_binop(session, scalars_dfs, dataset_id, bq_cf_connecti
             [str, int],
             str,
             dataset_id,
-            bq_cf_connection,
         )(func)
 
         scalars_df, scalars_pandas_df = scalars_dfs
@@ -179,6 +160,6 @@ def test_managed_function_binop(session, scalars_dfs, dataset_id, bq_cf_connecti
         pandas.testing.assert_series_equal(bf_result, pd_result)
     finally:
         # clean up the gcp assets created for the managed function.
-        function_utils.cleanup_function_assets(
+        cleanup_function_assets(
             session.bqclient, session.cloudfunctionsclient, managed_func
         )
