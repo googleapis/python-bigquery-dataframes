@@ -455,8 +455,15 @@ def _iloc_getitem_series_or_dataframe(
         isinstance(key, tuple)
         and isinstance(series_or_dataframe, bigframes.dataframe.DataFrame)
         and len(key) == 2
+        and isinstance(key[1], int)
     ):
         return series_or_dataframe.iat[key]
+    elif (
+        isinstance(key, tuple)
+        and isinstance(series_or_dataframe, bigframes.dataframe.DataFrame)
+        and isinstance(key[1], list)
+    ):
+        return series_or_dataframe[series_or_dataframe.columns[key[1]]].iloc[key[0]]
     elif isinstance(key, tuple):
         raise pd.errors.IndexingError("Too many indexers")
     elif pd.api.types.is_list_like(key):
