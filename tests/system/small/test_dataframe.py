@@ -3426,7 +3426,7 @@ def test_iloc_tuple_multi_columns(scalars_df_index, scalars_pandas_df_index, ind
 
 
 def test_iloc_tuple_multi_columns_single_row(scalars_df_index, scalars_pandas_df_index):
-    index = (2, [2, 1, 3, 4])
+    index = (2, [2, 1, 3, -4])
     bf_result = scalars_df_index.iloc[index]
     pd_result = scalars_pandas_df_index.iloc[index]
     pd.testing.assert_series_equal(bf_result, pd_result)
