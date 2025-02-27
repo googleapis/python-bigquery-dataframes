@@ -1719,7 +1719,7 @@ class Block:
         original_row_index = (
             original_row_index
             if original_row_index is not None
-            else self.index.to_pandas(ordered=True)
+            else self.index.to_pandas(ordered=True)[0]
         )
         original_row_count = len(original_row_index)
         if original_row_count > bigframes.constants.MAX_COLUMNS:
@@ -2683,18 +2683,17 @@ class BlockIndexProperties:
         *,
         ordered: Optional[bool] = None,
         allow_large_results: Optional[bool] = None,
-    ) -> pd.Index:
+    ) -> Tuple[pd.Index, Optional[bigquery.QueryJob]]:
         """Executes deferred operations and downloads the results."""
         if len(self.column_ids) == 0:
             raise bigframes.exceptions.NullIndexError(
                 "Cannot materialize index, as this object does not have an index. Set index column(s) using set_index."
             )
         ordered = ordered if ordered is not None else True
-        return (
-            self._block.select_columns([])
-            .to_pandas(ordered=ordered, allow_large_results=allow_large_results)[0]
-            .index
+        df, query_job = self._block.select_columns([]).to_pandas(
+            ordered=ordered, allow_large_results=allow_large_results
         )
+        return df.index, query_job
 
     def resolve_level(self, level: LevelsType) -> typing.Sequence[str]:
         if utils.is_list_like(level):

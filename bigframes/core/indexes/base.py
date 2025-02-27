@@ -502,9 +502,11 @@ class Index(vendored_pandas_index.Index):
             pandas.Index:
                 A pandas Index with all of the labels from this Index.
         """
-        return self._block.index.to_pandas(
+        df, query_job = self._block.index.to_pandas(
             ordered=True, allow_large_results=allow_large_results
         )
+        self._query_job = query_job
+        return df
 
     def to_numpy(self, dtype=None, allow_large_results=None, **kwargs) -> np.ndarray:
         return self.to_pandas(allow_large_results=allow_large_results).to_numpy(
