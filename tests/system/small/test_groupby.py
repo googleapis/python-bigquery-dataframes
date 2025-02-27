@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_df_equal
+from tests.system.utils import assert_pandas_df_equal, skip_legacy_pandas
 
 # =================
 # DataFrame.groupby
@@ -94,6 +94,7 @@ def test_dataframe_groupby_quantile(scalars_df_index, scalars_pandas_df_index, q
     )
 
 
+@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("na_option", "method", "ascending"),
     [
@@ -595,6 +596,7 @@ def test_series_groupby_agg_list(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("na_option", "method", "ascending"),
     [
