@@ -3585,8 +3585,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "header": header,
         }
         query_job = self._session._executor.export_gcs(
-            export_array,
-            id_overrides,
+            export_array.rename(id_overrides),
             path_or_buf,
             format="csv",
             export_options=options,
@@ -3634,7 +3633,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID,
         )
         query_job = self._session._executor.export_gcs(
-            export_array, id_overrides, path_or_buf, format="json", export_options={}
+            export_array.rename(id_overrides),
+            path_or_buf,
+            format="json",
+            export_options={},
         )
         self._set_internal_query_job(query_job)
         return None
@@ -3710,9 +3712,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         )
         query_job = self._session._executor.export_gbq(
-            export_array,
+            export_array.rename(id_overrides),
             destination=destination,
-            col_id_overrides=id_overrides,
             cluster_cols=clustering_fields,
             if_exists=if_exists,
         )
@@ -3779,8 +3780,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID,
         )
         query_job = self._session._executor.export_gcs(
-            export_array,
-            id_overrides,
+            export_array.rename(id_overrides),
             path,
             format="parquet",
             export_options=export_options,
@@ -4007,7 +4007,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # the arbitrary unicode column labels feature in BigQuery, which is
         # currently (June 2023) in preview.
         id_overrides = {
-            col_id: col_label for col_id, col_label in zip(columns, column_labels)
+            col_id: col_label
+            for col_id, col_label in zip(columns, column_labels)
+            if (col_id != col_label)
         }
 
         if ordering_id is not None:
