@@ -151,6 +151,12 @@ def _rewrite_sub_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
     if dtypes.is_datetime_like(left.dtype) and right.dtype is dtypes.TIMEDELTA_DTYPE:
         return _TypedExpr.create_op_expr(ops.timestamp_sub_op, left, right)
 
+    if left.dtype == dtypes.DATE_DTYPE and right.dtype == dtypes.DATE_DTYPE:
+        return _TypedExpr.create_op_expr(ops.date_diff_op, left, right)
+
+    if left.dtype == dtypes.DATE_DTYPE and right.dtype is dtypes.TIMEDELTA_DTYPE:
+        return _TypedExpr.create_op_expr(ops.date_sub_op, left, right)
+
     return _TypedExpr.create_op_expr(ops.sub_op, left, right)
 
 
@@ -162,6 +168,14 @@ def _rewrite_add_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
         # Re-arrange operands such that timestamp is always on the left and timedelta is
         # always on the right.
         return _TypedExpr.create_op_expr(ops.timestamp_add_op, right, left)
+
+    if left.dtype == dtypes.DATE_DTYPE and right.dtype is dtypes.TIMEDELTA_DTYPE:
+        return _TypedExpr.create_op_expr(ops.date_add_op, left, right)
+
+    if left.dtype is dtypes.TIMEDELTA_DTYPE and right.dtype == dtypes.DATE_DTYPE:
+        # Re-arrange operands such that date is always on the left and timedelta is
+        # always on the right.
+        return _TypedExpr.create_op_expr(ops.date_add_op, right, left)
 
     return _TypedExpr.create_op_expr(ops.add_op, left, right)
 
@@ -215,10 +229,15 @@ def _rewrite_aggregation(
     else:
         input_type = aggregation.arg.dtype
 
-    if isinstance(aggregation.op, aggs.DiffOp) and dtypes.is_datetime_like(input_type):
-        return ex.UnaryAggregation(
-            aggs.TimeSeriesDiffOp(aggregation.op.periods), aggregation.arg
-        )
+    if isinstance(aggregation.op, aggs.DiffOp):
+        if dtypes.is_datetime_like(input_type):
+            return ex.UnaryAggregation(
+                aggs.TimeSeriesDiffOp(aggregation.op.periods), aggregation.arg
+            )
+        elif input_type == dtypes.DATE_DTYPE:
+            return ex.UnaryAggregation(
+                aggs.DateSeriesDiffOp(aggregation.op.periods), aggregation.arg
+            )
 
     if isinstance(aggregation.op, aggs.StdOp) and input_type is dtypes.TIMEDELTA_DTYPE:
         return ex.UnaryAggregation(
