@@ -366,7 +366,13 @@ class DataFrame(generic.NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def to_numpy(
-        self, dtype=None, copy=False, na_value=None, allow_large_results=None, **kwargs
+        self,
+        dtype=None,
+        copy=False,
+        na_value=None,
+        *,
+        allow_large_results=None,
+        **kwargs,
     ) -> np.ndarray:
         """
         Convert the DataFrame to a NumPy array.
@@ -567,6 +573,7 @@ class DataFrame(generic.NDFrame):
             "dict", "list", "series", "split", "tight", "records", "index"
         ] = "dict",
         into: type[dict] = dict,
+        *,
         allow_large_results: Optional[bool] = None,
         **kwargs,
     ) -> dict | list[dict]:
@@ -639,7 +646,8 @@ class DataFrame(generic.NDFrame):
         self,
         excel_writer,
         sheet_name: str = "Sheet1",
-        allow_large_results=None,
+        *,
+        allow_large_results: Optional[bool] = None,
         **kwargs,
     ) -> None:
         """
@@ -681,6 +689,7 @@ class DataFrame(generic.NDFrame):
         columns=None,
         header=True,
         index=True,
+        *,
         allow_large_results=None,
         **kwargs,
     ) -> str | None:
@@ -733,7 +742,8 @@ class DataFrame(generic.NDFrame):
         index: bool = True,
         column_dtypes=None,
         index_dtypes=None,
-        allow_large_result=None,
+        *,
+        allow_large_results=None,
     ) -> np.recarray:
         """
         Convert DataFrame to a NumPy record array.
@@ -796,6 +806,8 @@ class DataFrame(generic.NDFrame):
         min_rows: int | None = None,
         max_colwidth: int | None = None,
         encoding: str | None = None,
+        *,
+        allow_large_results: Optional[bool] = None,
     ):
         """Render a DataFrame to a console-friendly tabular output.
 
@@ -894,6 +906,7 @@ class DataFrame(generic.NDFrame):
         table_id: str | None = None,
         render_links: bool = False,
         encoding: str | None = None,
+        *,
         allow_large_results: bool | None = None,
     ):
         """Render a DataFrame as an HTML table.
@@ -1002,7 +1015,8 @@ class DataFrame(generic.NDFrame):
         buf=None,
         mode: str = "wt",
         index: bool = True,
-        allow_large_results=None,
+        *,
+        allow_large_results: Optional[bool] = None,
         **kwargs,
     ):
         """Print DataFrame in Markdown-friendly format.
@@ -1038,7 +1052,7 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_pickle(self, path, **kwargs) -> None:
+    def to_pickle(self, path, *, allow_large_results, **kwargs) -> None:
         """Pickle (serialize) object to file.
 
         **Examples:**
@@ -1059,7 +1073,7 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_orc(self, path=None, allow_large_results=None, **kwargs) -> bytes | None:
+    def to_orc(self, path=None, *, allow_large_results=None, **kwargs) -> bytes | None:
         """
         Write a DataFrame to the ORC format.
 

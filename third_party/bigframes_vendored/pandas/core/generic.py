@@ -295,7 +295,13 @@ class NDFrame(indexing.IndexingMixin):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_csv(self, path_or_buf, *, index: bool = True) -> Optional[str]:
+    def to_csv(
+        self,
+        path_or_buf,
+        *,
+        index: bool = True,
+        allow_large_results: Optional[bool] = None,
+    ) -> Optional[str]:
         """Write object to a comma-separated values (csv) file on Cloud Storage.
 
         Args:

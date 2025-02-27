@@ -490,7 +490,7 @@ class Index(vendored_pandas_index.Index):
         else:
             raise NotImplementedError(f"Index key not supported {key}")
 
-    def to_pandas(self, allow_large_results: Optional[bool] = None) -> pandas.Index:
+    def to_pandas(self, *, allow_large_results: Optional[bool] = None) -> pandas.Index:
         """Gets the Index as a pandas Index.
 
         Args:
@@ -508,7 +508,7 @@ class Index(vendored_pandas_index.Index):
         self._query_job = query_job
         return df
 
-    def to_numpy(self, dtype=None, allow_large_results=None, **kwargs) -> np.ndarray:
+    def to_numpy(self, dtype=None, *, allow_large_results=None, **kwargs) -> np.ndarray:
         return self.to_pandas(allow_large_results=allow_large_results).to_numpy(
             dtype, **kwargs
         )

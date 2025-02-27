@@ -458,6 +458,8 @@ class Series(NDFrame):  # type: ignore[misc]
         name: bool = False,
         max_rows: int | None = None,
         min_rows: int | None = None,
+        *,
+        allow_large_results: Optional[bool] = None,
     ) -> str | None:
         """
         Render a string representation of the Series.
@@ -501,7 +503,8 @@ class Series(NDFrame):  # type: ignore[misc]
         buf: IO[str] | None = None,
         mode: str = "wt",
         index: bool = True,
-        allow_large_results=None,
+        *,
+        allow_large_results: Optional[bool] = None,
         **kwargs,
     ) -> str | None:
         """
@@ -556,6 +559,7 @@ class Series(NDFrame):  # type: ignore[misc]
     def to_dict(
         self,
         into: type[dict] = dict,
+        *,
         allow_large_results: Optional[bool] = None,
     ) -> Mapping:
         """
@@ -629,6 +633,7 @@ class Series(NDFrame):  # type: ignore[misc]
         self,
         excel_writer,
         sheet_name,
+        *,
         allow_large_results=None,
     ):
         """
@@ -661,6 +666,7 @@ class Series(NDFrame):  # type: ignore[misc]
         columns=None,
         header=True,
         index=True,
+        *,
         allow_large_results=None,
         **kwargs,
     ):
@@ -688,7 +694,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def tolist(self, allow_large_results: Optional[bool] = None) -> list:
+    def tolist(self, *, allow_large_results: Optional[bool] = None) -> list:
         """
         Return a list of the values.
 
@@ -724,7 +730,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
     to_list = tolist
 
-    def to_numpy(self, dtype, copy=False, na_value=None, allow_large_results=None):
+    def to_numpy(self, dtype, copy=False, na_value=None, *, allow_large_results=None):
         """
         A NumPy ndarray representing the values in this Series or Index.
 
@@ -779,7 +785,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_pickle(self, path, **kwargs):
+    def to_pickle(self, path, *, allow_large_results=None, **kwargs):
         """
         Pickle (serialize) object to file.
 
@@ -826,7 +832,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_xarray(self, allow_large_results=None):
+    def to_xarray(self, *, allow_large_results=None):
         """
         Return an xarray object from the pandas object.
 

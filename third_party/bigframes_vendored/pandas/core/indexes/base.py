@@ -1061,7 +1061,7 @@ class Index:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_numpy(self, dtype):
+    def to_numpy(self, dtype, *, allow_large_results=None):
         """
         A NumPy ndarray representing the values in this Series or Index.
 

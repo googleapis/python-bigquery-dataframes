@@ -1778,12 +1778,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def to_dict(
         self,
         into: type[dict] = dict,
+        *,
         allow_large_results: Optional[bool] = None,
     ) -> typing.Mapping:
         return typing.cast(dict, self.to_pandas(allow_large_results=allow_large_results).to_dict(into))  # type: ignore
 
     def to_excel(
-        self, excel_writer, sheet_name="Sheet1", allow_large_results=None, **kwargs
+        self, excel_writer, sheet_name="Sheet1", *, allow_large_results=None, **kwargs
     ) -> None:
         return self.to_pandas(allow_large_results=allow_large_results).to_excel(
             excel_writer, sheet_name, **kwargs
@@ -1820,6 +1821,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         columns=None,
         header=True,
         index=True,
+        *,
         allow_large_results=None,
         **kwargs,
     ) -> typing.Optional[str]:
@@ -1829,6 +1831,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def tolist(
         self,
+        *,
         allow_large_results: Optional[bool] = None,
     ) -> _list:
         return self.to_pandas(allow_large_results=allow_large_results).to_list()
@@ -1841,13 +1844,20 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         buf: typing.IO[str] | None = None,
         mode: str = "wt",
         index: bool = True,
-        allow_large_results=None,
+        *,
+        allow_large_results: Optional[bool] = None,
         **kwargs,
     ) -> typing.Optional[str]:
         return self.to_pandas(allow_large_results=allow_large_results).to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
 
     def to_numpy(
-        self, dtype=None, copy=False, na_value=None, allow_large_results=None, **kwargs
+        self,
+        dtype=None,
+        copy=False,
+        na_value=None,
+        *,
+        allow_large_results=None,
+        **kwargs,
     ) -> numpy.ndarray:
         return self.to_pandas(allow_large_results=allow_large_results).to_numpy(
             dtype, copy, na_value, **kwargs
@@ -1860,7 +1870,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     __array__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__array__)
 
-    def to_pickle(self, path, allow_large_results=None, **kwargs) -> None:
+    def to_pickle(self, path, *, allow_large_results=None, **kwargs) -> None:
         return self.to_pandas(allow_large_results=allow_large_results).to_pickle(
             path, **kwargs
         )
@@ -1877,6 +1887,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         name=False,
         max_rows=None,
         min_rows=None,
+        *,
         allow_large_results=None,
     ) -> typing.Optional[str]:
         return self.to_pandas(allow_large_results=allow_large_results).to_string(
@@ -1894,7 +1905,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def to_xarray(
         self,
-        allow_large_results=None,
+        *,
+        allow_large_results: Optional[bool] = None,
     ):
         return self.to_pandas(allow_large_results=allow_large_results).to_xarray()
 
