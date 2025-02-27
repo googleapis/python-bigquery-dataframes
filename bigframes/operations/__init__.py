@@ -87,6 +87,7 @@ from bigframes.operations.generic_ops import (
 )
 from bigframes.operations.geo_ops import (
     geo_area_op,
+    geo_st_boundary_op,
     geo_st_geogpoint_op,
     geo_x_op,
     geo_y_op,
@@ -347,10 +348,11 @@ __all__ = [
     "euclidean_distance_op",
     "manhattan_distance_op",
     # Geo ops
+    "geo_area_op",
+    "geo_st_boundary_op",
+    "geo_st_geogpoint_op",
     "geo_x_op",
     "geo_y_op",
-    "geo_area_op",
-    "geo_st_geogpoint_op",
     # Numpy ops mapping
     "NUMPY_TO_BINOP",
     "NUMPY_TO_OP",

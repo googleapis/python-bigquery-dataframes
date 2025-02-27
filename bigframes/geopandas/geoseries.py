@@ -17,6 +17,7 @@ import bigframes_vendored.constants as constants
 import bigframes_vendored.geopandas.geoseries as vendored_geoseries
 import geopandas.array  # type: ignore
 
+import bigframes.geopandas
 import bigframes.operations as ops
 import bigframes.series
 
@@ -66,6 +67,12 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         raise NotImplementedError(
             f"GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series), instead. {constants.FEEDBACK_LINK}"
         )
+
+    @property
+    def boundary(self) -> GeoSeries:  # type: ignore
+        series = self._apply_unary_op(ops.geo_st_boundary_op)
+        series.name = None
+        return series
 
     @classmethod
     def from_xy(cls, x, y, index=None, session=None, **kwargs) -> GeoSeries:

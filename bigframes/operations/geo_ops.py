@@ -16,6 +16,24 @@ from bigframes import dtypes
 from bigframes.operations import base_ops
 import bigframes.operations.type as op_typing
 
+geo_area_op = base_ops.create_unary_op(
+    name="geo_area",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.FLOAT_DTYPE, description="geo-like"
+    ),
+)
+
+geo_st_boundary_op = base_ops.create_unary_op(
+    name="geo_st_boundary",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.GEO_DTYPE, description="geo-like"
+    ),
+)
+
+geo_st_geogpoint_op = base_ops.create_binary_op(
+    name="geo_st_geogpoint", type_signature=op_typing.BinaryNumericGeo()
+)
+
 geo_x_op = base_ops.create_unary_op(
     name="geo_x",
     type_signature=op_typing.FixedOutputType(
@@ -28,15 +46,4 @@ geo_y_op = base_ops.create_unary_op(
     type_signature=op_typing.FixedOutputType(
         dtypes.is_geo_like, dtypes.FLOAT_DTYPE, description="geo-like"
     ),
-)
-
-geo_area_op = base_ops.create_unary_op(
-    name="geo_area",
-    type_signature=op_typing.FixedOutputType(
-        dtypes.is_geo_like, dtypes.FLOAT_DTYPE, description="geo-like"
-    ),
-)
-
-geo_st_geogpoint_op = base_ops.create_binary_op(
-    name="geo_st_geogpoint", type_signature=op_typing.BinaryNumericGeo()
 )
