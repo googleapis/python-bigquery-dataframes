@@ -133,7 +133,7 @@ class FunctionSession:
         .. warning::
             To use remote functions with Bigframes 2.0 and onwards, please set an
             explicit user-managed cloud_function_service_account or explicitly set
-            cloud_function_service_account to `None`.
+            cloud_function_service_account to `"default"`.
 
             See, https://cloud.google.com/functions/docs/securing/function-identity.
 
@@ -326,17 +326,20 @@ class FunctionSession:
         # user-managed cloud_function_service_account of to default
         msg = (
             "You have not explicitly set a user-managed cloud_function_service_account. "
-            "Using the default compute service account."
+            "Using the default compute service account. "
             "To use Bigframes 2.0, please set an explicit user-managed "
-            "cloud_function_service_account or explicitly set cloud_function_service_account to `None`."
+            'cloud_function_service_account or explicitly set cloud_function_service_account to `"default"`. '
             "See, https://cloud.google.com/functions/docs/securing/function-identity."
         )
+
+        if cloud_function_service_account == "default":
+            cloud_function_service_account = None
 
         if (
             bigframes_version.__version__.startswith("1.")
             and cloud_function_service_account is None
         ):
-            warnings.warn(msg, category=UserWarning)
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
 
         # A BigQuery client is required to perform BQ operations
         if not bigquery_client:

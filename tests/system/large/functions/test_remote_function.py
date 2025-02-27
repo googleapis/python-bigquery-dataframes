@@ -1364,13 +1364,20 @@ def test_remote_function_via_session_custom_sa(scalars_dfs):
 def test_remote_function_warns_default_cloud_function_service_account(scalars_dfs):
     project = "bigframes-dev-perf"
 
+    gcf_service_account = "default"
+
     rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
 
     try:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            @rf_session.remote_function([int], int, reuse=False)
+            @rf_session.remote_function(
+                [int],
+                int,
+                reuse=False,
+                cloud_function_service_account=gcf_service_account,
+            )
             def square_num(x):
                 if x is None:
                     return x
@@ -1388,7 +1395,7 @@ def test_remote_function_warns_default_cloud_function_service_account(scalars_df
 
             assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
 
-            assert issubclass(w[0].category, UserWarning)
+            assert issubclass(w[0].category, FutureWarning)
             assert "To use Bigframes 2.0, please set an explicit" in str(w[0].message)
     finally:
         # clean up the gcp assets created for the remote function

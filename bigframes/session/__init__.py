@@ -1218,7 +1218,7 @@ class Session(
         .. warning::
             To use remote functions with Bigframes 2.0 and onwards, please set an
             explicit user-managed cloud_function_service_account or explicitly set
-            cloud_function_service_account to `None`.
+            cloud_function_service_account to `"default"`.
 
             See, https://cloud.google.com/functions/docs/securing/function-identity.
 
