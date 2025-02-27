@@ -511,6 +511,7 @@ class Block:
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        dry_run: bool = False,
     ) -> Tuple[pd.DataFrame, Optional[bigquery.QueryJob]]:
         """Run query and download results as a pandas DataFrame.
 
@@ -533,10 +534,16 @@ class Block:
             ordered (bool, default True):
                 Determines whether the resulting pandas dataframe will be ordered.
                 Whether the row ordering is deterministics depends on whether session ordering is strict.
+            dry_run (bool, default False):
+                Whether to perfrom a dry run. If true, the method will return a dataframe containing dry run
+                stats instead.
 
         Returns:
             pandas.DataFrame, QueryJob
         """
+        if dry_run:
+            self._compute_dry_run()
+
         if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
             raise NotImplementedError(
                 f"The downsampling method {sampling_method} is not implemented, "
@@ -780,10 +787,10 @@ class Block:
         return [sliced_block.drop_columns(drop_cols) for sliced_block in sliced_blocks]
 
     def _compute_dry_run(
-        self, value_keys: Optional[Iterable[str]] = None
+        self, value_keys: Optional[Iterable[str]] = None, ordered: bool = True
     ) -> bigquery.QueryJob:
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
-        query_job = self.session._executor.dry_run(expr)
+        query_job = self.session._executor.dry_run(expr, ordered)
         return query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
+
 import numpy
 import pandas as pd
 import pytest
@@ -24,8 +26,9 @@ def test_index_construct_from_list():
     bf_result = bpd.Index(
         [3, 14, 159], dtype=pd.Int64Dtype(), name="my_index"
     ).to_pandas()
+
     pd_result: pd.Index = pd.Index([3, 14, 159], dtype=pd.Int64Dtype(), name="my_index")
-    pd.testing.assert_index_equal(bf_result, pd_result)
+    pd.testing.assert_index_equal(typing.cast(pd.Index, bf_result), pd_result)
 
 
 def test_index_construct_from_series():
@@ -39,7 +42,7 @@ def test_index_construct_from_series():
         name="index_name",
         dtype=pd.Int64Dtype(),
     )
-    pd.testing.assert_index_equal(bf_result, pd_result)
+    pd.testing.assert_index_equal(typing.cast(pd.Index, bf_result), pd_result)
 
 
 def test_index_construct_from_index():
@@ -55,7 +58,7 @@ def test_index_construct_from_index():
     pd_result: pd.Index = pd.Index(
         pd_index_input, dtype=pd.Int64Dtype(), name="index_name"
     )
-    pd.testing.assert_index_equal(bf_result, pd_result)
+    pd.testing.assert_index_equal(typing.cast(pd.Index, bf_result), pd_result)
 
 
 def test_get_index(scalars_df_index, scalars_pandas_df_index):
@@ -425,3 +428,12 @@ def test_multiindex_repr_includes_all_names(session):
     )
     index = session.read_pandas(df).set_index(["A", "B"]).index
     assert "names=['A', 'B']" in repr(index)
+
+
+def test_to_pandas_dry_run(scalars_df_index):
+    index = scalars_df_index.index
+
+    result = index.to_pandas(dry_run=True)
+
+    assert result["dtype"] == index.dtype
+    assert result["total_bytes_processed"] >= 0

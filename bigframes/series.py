@@ -381,6 +381,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        dry_run: bool = False,
     ) -> pandas.Series:
         """Writes Series to pandas Series.
 
@@ -403,12 +404,28 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ordered (bool, default True):
                 Determines whether the resulting pandas series will be  ordered.
                 In some cases, unordered may result in a faster-executing query.
+            dry_run (bool, default False):
+                If this argument is true, this method will not process the data. Instead, it returns
+                a Pandas series containing dtype and the amount of bytes to be processed.
 
 
         Returns:
             pandas.Series: A pandas Series with all rows of this Series if the data_sampling_threshold_mb
-                is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame.
+                is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame. If dry_run
+                is set to True, a pandas Series containing dry run statistics will be returned.
         """
+        if dry_run:
+            dry_run_job = self._compute_dry_run(ordered)
+
+            return pandas.Series(
+                data=[
+                    self.dtype,
+                    self.index.dtype,
+                    dry_run_job.total_bytes_processed,
+                ],
+                index=["dtype", "index_dtype", "total_bytes_processed"],
+            )
+
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
@@ -420,8 +437,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         series.name = self._name
         return series
 
-    def _compute_dry_run(self) -> bigquery.QueryJob:
-        return self._block._compute_dry_run((self._value_column,))
+    def _compute_dry_run(self, ordered: bool = True) -> bigquery.QueryJob:
+        return self._block._compute_dry_run((self._value_column,), ordered)
 
     def drop(
         self,

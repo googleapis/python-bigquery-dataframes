@@ -1554,6 +1554,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        dry_run: bool = False,
     ) -> pandas.DataFrame:
         """Write DataFrame to pandas DataFrame.
 
@@ -1576,12 +1577,30 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordered (bool, default True):
                 Determines whether the resulting pandas dataframe will be ordered.
                 In some cases, unordered may result in a faster-executing query.
+            dry_run (bool, default False):
+                If this argument is true, this method will not process the data. Instead, it returns
+                a Pandas dataframe containing dry run statistics
 
         Returns:
             pandas.DataFrame: A pandas DataFrame with all rows and columns of this DataFrame if the
                 data_sampling_threshold_mb is not exceeded; otherwise, a pandas DataFrame with
-                downsampled rows and all columns of this DataFrame.
+                downsampled rows and all columns of this DataFrame. If dry_run is set, a pandas
+                DataFrame containing dry run statistics will be returned.
         """
+        if dry_run:
+            dry_run_job = self._compute_dry_run(ordered)
+
+            return pandas.DataFrame(
+                data={
+                    "dry_run_stats": [
+                        *self.dtypes,
+                        self.index.dtype,
+                        dry_run_job.total_bytes_processed,
+                    ]
+                },
+                index=[*self.columns, "index_dtype", "total_bytes_processed"],
+            )
+
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
@@ -1616,8 +1635,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             page_size=page_size, max_results=max_results
         )
 
-    def _compute_dry_run(self) -> bigquery.QueryJob:
-        return self._block._compute_dry_run()
+    def _compute_dry_run(self, ordered: bool = True) -> bigquery.QueryJob:
+        return self._block._compute_dry_run(ordered=ordered)
 
     def copy(self) -> DataFrame:
         return DataFrame(self._block)
