@@ -18,7 +18,7 @@ import datetime
 import functools
 import io
 import typing
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
 import warnings
 
 import google.cloud.bigquery
@@ -349,6 +349,20 @@ class ArrayValue:
             )
         )
 
+    def rename_columns(self, col_id_overrides: Mapping[str, str]) -> ArrayValue:
+        if not col_id_overrides:
+            return self
+        output_ids = [col_id_overrides.get(id, id) for id in self.node.schema.names]
+        return ArrayValue(
+            nodes.SelectionNode(
+                self.node,
+                tuple(
+                    nodes.AliasedRef(ex.DerefOp(old_id), ids.ColumnId(out_id))
+                    for old_id, out_id in zip(self.node.ids, output_ids)
+                ),
+            )
+        )
+
     def drop_columns(self, columns: Iterable[str]) -> ArrayValue:
         return self.select_columns(
             [col_id for col_id in self.column_ids if col_id not in columns]
@@ -438,6 +452,7 @@ class ArrayValue:
         other: ArrayValue,
         conditions: typing.Tuple[typing.Tuple[str, str], ...] = (),
         type: typing.Literal["inner", "outer", "left", "right", "cross"] = "inner",
+        propogate_order: Optional[bool] = None,
     ) -> typing.Tuple[ArrayValue, typing.Tuple[dict[str, str], dict[str, str]]]:
         l_mapping = {  # Identity mapping, only rename right side
             lcol.name: lcol.name for lcol in self.node.ids
@@ -451,6 +466,7 @@ class ArrayValue:
                 for l_col, r_col in conditions
             ),
             type=type,
+            propogate_order=propogate_order or self.session._strictly_ordered,
         )
         return ArrayValue(join_node), (l_mapping, r_mapping)
 
