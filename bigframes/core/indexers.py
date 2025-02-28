@@ -460,13 +460,12 @@ def _iloc_getitem_series_or_dataframe(
             return _iloc_getitem_series_or_dataframe(series_or_dataframe, key[0])
 
         # len(key) == 2
+        df = typing.cast(bigframes.dataframe.DataFrame, series_or_dataframe)
         if isinstance(key[1], int):
-            return series_or_dataframe.iat[key]
+            return df.iat[key]
         elif isinstance(key[1], list):
-            columns = series_or_dataframe.columns[key[1]]
-            return _iloc_getitem_series_or_dataframe(
-                series_or_dataframe[columns], key[0]
-            )
+            columns = df.columns[key[1]]
+            return _iloc_getitem_series_or_dataframe(df[columns], key[0])
         raise NotImplementedError(
             f"iloc does not yet support indexing with {key}. {constants.FEEDBACK_LINK}"
         )
