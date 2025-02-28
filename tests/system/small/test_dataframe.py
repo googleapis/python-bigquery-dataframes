@@ -2223,8 +2223,14 @@ def test_df_corr_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only
     # BigFrames and Pandas differ in their data type handling:
     # - Column types: BigFrames uses Float64, Pandas uses float64.
     # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_index_equal(bf_result.columns, pd_result.columns)
+    # Only check row order in ordered mode.
     pd.testing.assert_frame_equal(
-        bf_result, pd_result, check_dtype=False, check_index_type=False
+        bf_result,
+        pd_result,
+        check_dtype=False,
+        check_index_type=False,
+        check_like=~scalars_df._block.session._strictly_ordered,
     )
 
 
@@ -2261,8 +2267,14 @@ def test_cov_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
     # BigFrames and Pandas differ in their data type handling:
     # - Column types: BigFrames uses Float64, Pandas uses float64.
     # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_index_equal(bf_result.columns, pd_result.columns)
+    # Only check row order in ordered mode.
     pd.testing.assert_frame_equal(
-        bf_result, pd_result, check_dtype=False, check_index_type=False
+        bf_result,
+        pd_result,
+        check_dtype=False,
+        check_index_type=False,
+        check_like=~scalars_df._block.session._strictly_ordered,
     )
 
 
@@ -3412,6 +3424,24 @@ def test_iloc_tuple(scalars_df_index, scalars_pandas_df_index, index):
     pd_result = scalars_pandas_df_index.iloc[index]
 
     assert bf_result == pd_result
+
+
+@pytest.mark.parametrize(
+    "index",
+    [(slice(None), [1, 2, 3]), (slice(1, 7, 2), [2, 5, 3])],
+)
+def test_iloc_tuple_multi_columns(scalars_df_index, scalars_pandas_df_index, index):
+    bf_result = scalars_df_index.iloc[index].to_pandas()
+    pd_result = scalars_pandas_df_index.iloc[index]
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_iloc_tuple_multi_columns_single_row(scalars_df_index, scalars_pandas_df_index):
+    index = (2, [2, 1, 3, -4])
+    bf_result = scalars_df_index.iloc[index]
+    pd_result = scalars_pandas_df_index.iloc[index]
+    pd.testing.assert_series_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
