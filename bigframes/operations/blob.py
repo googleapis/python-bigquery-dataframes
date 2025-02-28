@@ -323,7 +323,7 @@ class BlobAccessor(base.SeriesMethods):
             ).udf()
 
             df["ksize_x"], df["ksize_y"] = ksize
-            df["ext"] = ext
+            df["ext"] = ext  # type: ignore
             res = df.apply(image_blur_udf, axis=1)
 
             return res
@@ -351,7 +351,7 @@ class BlobAccessor(base.SeriesMethods):
 
         df = df.join(dst_rt, how="outer")
         df["ksize_x"], df["ksize_y"] = ksize
-        df["ext"] = ext
+        df["ext"] = ext  # type: ignore
 
         res = df.apply(image_blur_udf, axis=1)
         res.cache()  # to execute the udf
@@ -418,7 +418,7 @@ class BlobAccessor(base.SeriesMethods):
 
             df["dsize_x"], df["dsizye_y"] = dsize
             df["fx"], df["fy"] = fx, fy
-            df["ext"] = ext
+            df["ext"] = ext  # type: ignore
             res = df.apply(image_resize_udf, axis=1)
 
             return res
@@ -447,7 +447,7 @@ class BlobAccessor(base.SeriesMethods):
         df = df.join(dst_rt, how="outer")
         df["dsize_x"], df["dsizye_y"] = dsize
         df["fx"], df["fy"] = fx, fy
-        df["ext"] = ext
+        df["ext"] = ext  # type: ignore
 
         res = df.apply(image_resize_udf, axis=1)
         res.cache()  # to execute the udf
@@ -508,7 +508,7 @@ class BlobAccessor(base.SeriesMethods):
             df["alpha"] = alpha
             df["beta"] = beta
             df["norm_type"] = norm_type
-            df["ext"] = ext
+            df["ext"] = ext  # type: ignore
             res = df.apply(image_normalize_udf, axis=1)
 
             return res
@@ -538,7 +538,7 @@ class BlobAccessor(base.SeriesMethods):
         df["alpha"] = alpha
         df["beta"] = beta
         df["norm_type"] = norm_type
-        df["ext"] = ext
+        df["ext"] = ext  # type: ignore
 
         res = df.apply(image_normalize_udf, axis=1)
         res.cache()  # to execute the udf

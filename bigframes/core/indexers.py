@@ -475,13 +475,14 @@ def _iloc_getitem_series_or_dataframe(
                 Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
                 series_or_dataframe.iloc[0:0],
             )
-        df = series_or_dataframe
         if isinstance(series_or_dataframe, bigframes.series.Series):
             original_series_name = series_or_dataframe.name
             series_name = (
                 original_series_name if original_series_name is not None else 0
             )
             df = series_or_dataframe.to_frame()
+        else:
+            df = series_or_dataframe
         original_index_names = df.index.names
         temporary_index_names = [
             guid.generate_guid(prefix="temp_iloc_index_")
