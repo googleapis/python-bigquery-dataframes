@@ -799,16 +799,12 @@ class Block:
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
         query_job = self.session._executor.dry_run(expr, ordered)
 
-        if len(self.index.dtypes) > 1:
-            index_type = tuple(self.index.dtypes)
-        else:
-            index_type = self.index.dtypes[0]
-
+        index_types = self.index.dtypes
         df = pd.DataFrame(
             data={
                 "dry_run_stats": [
                     *self.dtypes,
-                    index_type,
+                    tuple(index_types) if len(index_types) > 1 else index_types[0],
                     query_job.total_bytes_processed,
                 ]
             },

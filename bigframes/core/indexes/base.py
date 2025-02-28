@@ -228,7 +228,7 @@ class Index(vendored_pandas_index.Index):
         return self.transpose()
 
     @property
-    def query_job(self) -> Optional[bigquery.QueryJob]:
+    def query_job(self) -> bigquery.QueryJob:
         """BigQuery job metadata for the most recent query.
 
         Returns:
@@ -236,7 +236,8 @@ class Index(vendored_pandas_index.Index):
             <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
         """
         if self._query_job is None:
-            self._query_job = self._block._compute_dry_run()
+            _, query_job = self._block._compute_dry_run()
+            self._query_job = query_job
         return self._query_job
 
     def __repr__(self) -> str:
@@ -252,7 +253,8 @@ class Index(vendored_pandas_index.Index):
         opts = bigframes.options.display
         max_results = opts.max_rows
         if opts.repr_mode == "deferred":
-            return formatter.repr_query_job(self._block._compute_dry_run())
+            _, dry_run_query_job = self._block._compute_dry_run()
+            return formatter.repr_query_job(dry_run_query_job)
 
         pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
         self._query_job = query_job
@@ -510,10 +512,10 @@ class Index(vendored_pandas_index.Index):
         """
 
         if dry_run:
-            df, query_job = self._block.to_pandas(ordered=True, dry_run=True)
+            dry_run_df, query_job = self._block.to_pandas(ordered=True, dry_run=True)
             self._query_job = query_job
 
-            return df.squeeze(axis=1)
+            return dry_run_df.squeeze(axis=1)
 
         df, query_job = self._block.index.to_pandas(
             ordered=True, allow_large_results=allow_large_results
