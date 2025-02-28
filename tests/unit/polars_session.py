@@ -39,7 +39,7 @@ class TestExecutor(bigframes.session.executor.Executor):
         array_value: bigframes.core.ArrayValue,
         *,
         ordered: bool = True,
-        use_explicit_destination: bool = False,
+        use_explicit_destination: Optional[bool] = False,
         get_size_bytes: bool = False,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
