@@ -2214,7 +2214,7 @@ def test_combine_first(
         ),
     ],
 )
-def test_corr_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
+def test_df_corr_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
     scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
 
     bf_result = scalars_df[columns].corr(numeric_only=numeric_only).to_pandas()
@@ -2228,7 +2228,7 @@ def test_corr_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
     )
 
 
-def test_corr_w_invalid_parameters(scalars_dfs):
+def test_df_corr_w_invalid_parameters(scalars_dfs):
     columns = ["int64_too", "int64_col", "float64_col"]
     scalars_df, _ = scalars_dfs
 
@@ -3412,6 +3412,24 @@ def test_iloc_tuple(scalars_df_index, scalars_pandas_df_index, index):
     pd_result = scalars_pandas_df_index.iloc[index]
 
     assert bf_result == pd_result
+
+
+@pytest.mark.parametrize(
+    "index",
+    [(slice(None), [1, 2, 3]), (slice(1, 7, 2), [2, 5, 3])],
+)
+def test_iloc_tuple_multi_columns(scalars_df_index, scalars_pandas_df_index, index):
+    bf_result = scalars_df_index.iloc[index].to_pandas()
+    pd_result = scalars_pandas_df_index.iloc[index]
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_iloc_tuple_multi_columns_single_row(scalars_df_index, scalars_pandas_df_index):
+    index = (2, [2, 1, 3, -4])
+    bf_result = scalars_df_index.iloc[index]
+    pd_result = scalars_pandas_df_index.iloc[index]
+    pd.testing.assert_series_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
