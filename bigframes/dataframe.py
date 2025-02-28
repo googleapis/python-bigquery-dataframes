@@ -3585,7 +3585,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "header": header,
         }
         query_job = self._session._executor.export_gcs(
-            export_array.rename(id_overrides),
+            export_array.rename_columns(id_overrides),
             path_or_buf,
             format="csv",
             export_options=options,
@@ -3633,7 +3633,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID,
         )
         query_job = self._session._executor.export_gcs(
-            export_array.rename(id_overrides),
+            export_array.rename_columns(id_overrides),
             path_or_buf,
             format="json",
             export_options={},
@@ -3712,7 +3712,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         )
         query_job = self._session._executor.export_gbq(
-            export_array.rename(id_overrides),
+            export_array.rename_columns(id_overrides),
             destination=destination,
             cluster_cols=clustering_fields,
             if_exists=if_exists,
@@ -3780,7 +3780,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID,
         )
         query_job = self._session._executor.export_gcs(
-            export_array.rename(id_overrides),
+            export_array.rename_columns(id_overrides),
             path,
             format="parquet",
             export_options=export_options,

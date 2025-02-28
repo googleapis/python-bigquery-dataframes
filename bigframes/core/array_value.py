@@ -349,7 +349,7 @@ class ArrayValue:
             )
         )
 
-    def rename(self, col_id_overrides: Mapping[str, str]) -> ArrayValue:
+    def rename_columns(self, col_id_overrides: Mapping[str, str]) -> ArrayValue:
         if not col_id_overrides:
             return self
         output_ids = [col_id_overrides.get(id, id) for id in self.node.schema.names]
