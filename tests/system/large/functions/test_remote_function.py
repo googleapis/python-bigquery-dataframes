@@ -1364,19 +1364,17 @@ def test_remote_function_via_session_custom_sa(scalars_dfs):
 def test_remote_function_warns_default_cloud_function_service_account(scalars_dfs):
     project = "bigframes-dev-perf"
 
-    gcf_service_account = "default"
-
     rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
 
     try:
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(FutureWarning, match="You have not explicitly set a"):
             warnings.simplefilter("always")
 
             @rf_session.remote_function(
                 [int],
                 int,
                 reuse=False,
-                cloud_function_service_account=gcf_service_account,
+                cloud_function_service_account=None,  # Explicitly omit service account.
             )
             def square_num(x):
                 if x is None:
@@ -1395,9 +1393,6 @@ def test_remote_function_warns_default_cloud_function_service_account(scalars_df
 
             assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
 
-            if len(w) > 0:
-                assert issubclass(w[0].category, FutureWarning)
-                assert "You have not explicitly set a user-managed" in str(w[0].message)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(
