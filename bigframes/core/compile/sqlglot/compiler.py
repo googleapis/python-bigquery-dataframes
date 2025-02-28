@@ -27,14 +27,27 @@ import sqlglot as sg
 import sqlglot.expressions as sge
 
 import bigframes.core
+import bigframes.core.compile.sqlglot.scalar_op_compiler as scalar_op_compiler
 import bigframes.core.compile.sqlglot.sqlglot_types as sgt
 import bigframes.core.expression as ex
 import bigframes.core.guid as guid
+import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
-import bigframes.core.rewrite
+import bigframes.core.rewrite as rewrites
 import bigframes.dtypes as dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+
+
+def set_output_names(node: nodes.BigFrameNode, output_ids: typing.Sequence[str]):
+    # TODO: Create specialized output operators that will handle final names
+    return nodes.SelectionNode(
+        node,
+        tuple(
+            nodes.AliasedRef(ex.DerefOp(old_id), ids.ColumnId(out_id))
+            for old_id, out_id in zip(node.ids, output_ids)
+        ),
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -43,8 +56,13 @@ class SQLGlotCompiler:
     Compiles BigFrameNode to SQLGlot expression tree recursively.
     """
 
+    # In strict mode, ordering will always be deterministic
+    # In unstrict mode, ordering from ReadTable or after joins may be ambiguous to improve query performance.
+    strict: bool = True
     # Whether to always quote identifiers.
     quoted: bool = True
+    # Define scalar compiler for converting bigframes expressions to sqlglot expressions.
+    scalar_op_compiler = scalar_op_compiler.SQLGlotScalarOpCompiler()
 
     # TODO: add BigQuery Dialect
     def compile_sql(
@@ -64,7 +82,31 @@ class SQLGlotCompiler:
 
     @compile_node.register
     def compile_selection(self, node: nodes.SelectionNode):
-        return self.compile_node(node.child)
+        child = self.compile_node(node.child)
+
+        selected_cols = [
+            sge.Alias(
+                this=self.scalar_op_compiler.compile_expression(expr),
+                alias=sge.Identifier(this=id),
+            )
+            for expr, id in node.input_output_pairs
+        ]
+
+        return child.select(*selected_cols, append=False)
+
+    @compile_node.register
+    def compile_projection(self, node: nodes.ProjectionNode):
+        child = self.compile_node(node.child)
+
+        new_cols = [
+            sge.Alias(
+                this=self.scalar_op_compiler.compile_expression(expr),
+                alias=sge.Identifier(this=id.sql),
+            )
+            for expr, id in node.assignments
+        ]
+
+        return sge.select(new_cols).from_(child)
 
     @compile_node.register
     def compile_readlocal(self, node: nodes.ReadLocalNode):

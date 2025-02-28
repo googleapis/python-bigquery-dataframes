@@ -2085,6 +2085,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         self._block.cached(force=force, session_aware=session_aware)
         return self
 
+    @property
+    def sql(self) -> str:
+        """Compiles this Series's expression tree to SQL.
+
+        Returns:
+            str:
+                string representing the compiled SQL.
+        """
+        sql, _, _ = self._block.to_sql_query(include_index=False)
+        return sql
+
     # Keep this at the bottom of the Series class to avoid
     # confusing type checker by overriding str
     @property

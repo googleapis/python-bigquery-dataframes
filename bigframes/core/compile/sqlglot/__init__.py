@@ -15,4 +15,4 @@ from __future__ import annotations
 
 from bigframes.core.compile.sqlglot.compiler import SQLGlotCompiler
 
-__all__ = ["SQLGlotCompiler"]
+__all__ = ["SQLGlotCompiler", "SQLGlotScalarOpCompiler"]

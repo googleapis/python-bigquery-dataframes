@@ -161,6 +161,8 @@ class Expression(abc.ABC):
 
     @property
     def expensive(self) -> bool:
+        """TODO: understand it more?"""
+        # TODO: It travels tree again?
         return any(
             isinstance(ex, OpExpression) and ex.op.expensive for ex in self.walk()
         )
