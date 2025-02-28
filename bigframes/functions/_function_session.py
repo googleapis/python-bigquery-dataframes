@@ -131,9 +131,10 @@ class FunctionSession:
         This is an internal method. Please use :func:`bigframes.pandas.remote_function` instead.
 
         .. warning::
-            To use remote functions with Bigframes 2.0 and onwards, please set an
-            explicit user-managed cloud_function_service_account or explicitly set
-            cloud_function_service_account to `"default"`.
+            To use remote functions with Bigframes 2.0 and onwards, please (preferred)
+            set an explicit user-managed ``cloud_function_service_account`` or (discouraged)
+            set ``cloud_function_service_account`` to use the Compute Engine service account
+            by setting it to `"default"`.
 
             See, https://cloud.google.com/functions/docs/securing/function-identity.
 
@@ -325,21 +326,22 @@ class FunctionSession:
         # raise a UserWarning if user does not explicitly set cloud_function_service_account to a
         # user-managed cloud_function_service_account of to default
         msg = (
-            "You have not explicitly set a user-managed cloud_function_service_account. "
-            "Using the default compute service account. "
-            "To use Bigframes 2.0, please set an explicit user-managed "
-            'cloud_function_service_account or explicitly set cloud_function_service_account to `"default"`. '
+            "You have not explicitly set a user-managed `cloud_function_service_account`. "
+            "Using the default Compute Engine service account. "
+            "To use Bigframes 2.0, please explicitly set `cloud_function_service_account` "
+            'either to a user-managed service account (preferred) or to `"default"` '
+            "to use the Compute Engine service account (discouraged). "
             "See, https://cloud.google.com/functions/docs/securing/function-identity."
         )
-
-        if cloud_function_service_account == "default":
-            cloud_function_service_account = None
 
         if (
             bigframes_version.__version__.startswith("1.")
             and cloud_function_service_account is None
         ):
-            warnings.warn(msg, category=FutureWarning, stacklevel=2)
+            warnings.warn(msg, stacklevel=2, category=FutureWarning)
+
+        if cloud_function_service_account == "default":
+            cloud_function_service_account = None
 
         # A BigQuery client is required to perform BQ operations
         if not bigquery_client:

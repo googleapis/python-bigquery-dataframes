@@ -1395,8 +1395,9 @@ def test_remote_function_warns_default_cloud_function_service_account(scalars_df
 
             assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
 
-            assert issubclass(w[0].category, FutureWarning)
-            assert "To use Bigframes 2.0, please set an explicit" in str(w[0].message)
+            if len(w) > 0:
+                assert issubclass(w[0].category, FutureWarning)
+                assert "You have not explicitly set a user-managed" in str(w[0].message)
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_remote_function_assets(

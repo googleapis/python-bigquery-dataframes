@@ -1212,9 +1212,10 @@ class Session(
             ``string``/``binary[pyarrow]``.
 
         .. warning::
-            To use remote functions with Bigframes 2.0 and onwards, please set an
-            explicit user-managed cloud_function_service_account or explicitly set
-            cloud_function_service_account to `"default"`.
+            To use remote functions with Bigframes 2.0 and onwards, please (preferred)
+            set an explicit user-managed ``cloud_function_service_account`` or (discouraged)
+            set ``cloud_function_service_account`` to use the Compute Engine service account
+            by setting it to `"default"`.
 
             See, https://cloud.google.com/functions/docs/securing/function-identity.
 
