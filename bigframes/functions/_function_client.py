@@ -23,6 +23,7 @@ import shutil
 import string
 import sys
 import tempfile
+import textwrap
 import types
 from typing import cast, Tuple, TYPE_CHECKING
 
@@ -184,14 +185,12 @@ class FunctionClient:
         self._ensure_dataset_exists()
         self._create_bq_function(create_function_ddl)
 
-    def create_bq_managed_function(
+    def provision_bq_managed_function(
         self,
         func,
         input_types,
         output_type,
-        language,
-        runtime_version,
-        bq_function_name,
+        name,
         packages,
         is_row_processor,
     ):
@@ -206,47 +205,55 @@ class FunctionClient:
 
         input_args = inspect.getargs(func.__code__).args
         # We expect the input type annotations to be 1:1 with the input args.
-        for name, type_ in zip(input_args, input_types):
-            bq_function_args.append(f"{name} {type_}")
+        for name_, type_ in zip(input_args, input_types):
+            bq_function_args.append(f"{name_} {type_}")
 
         managed_function_options = {
-            "runtime_version": runtime_version,
+            "runtime_version": f"python-{sys.version_info.major}.{sys.version_info.minor}",
             "entry_point": "bigframes_handler",
         }
 
+        # Augment user package requirements with any internal package
+        # requirements.
+        packages = _utils._get_updated_package_requirements(packages, is_row_processor)
+        if packages:
+            managed_function_options["packages"] = packages
         managed_function_options_str = self._format_function_options(
             managed_function_options
         )
 
-        # Augment user package requirements with any internal package
-        # requirements
-        packages = _utils._get_updated_package_requirements(packages, is_row_processor)
-        managed_function_options_str = (
-            f"{managed_function_options_str}, packages={packages}"
-        )
+        session_id = None if name else self._session.session_id
+        bq_function_name = name
+        if not bq_function_name:
+            # Compute a unique hash representing the user code.
+            function_hash = _utils._get_hash(func, packages)
+            bq_function_name = _utils.get_bigframes_function_name(
+                function_hash,
+                session_id,
+            )
 
         persistent_func_id = (
             f"`{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name}"
         )
-        create_function_ddl = f"""
+        create_function_ddl = textwrap.dedent(
+            f"""
             CREATE OR REPLACE FUNCTION {persistent_func_id}({','.join(bq_function_args)})
             RETURNS {bq_function_return_type}
-            LANGUAGE {language}
+            LANGUAGE python
             OPTIONS ({managed_function_options_str})
             AS r'''
-
-import cloudpickle
-
-udf = cloudpickle.loads({pickled})
-
-def bigframes_handler(*args):
-    return udf(*args)
-
+            import cloudpickle
+            udf = cloudpickle.loads({pickled})
+            def bigframes_handler(*args):
+                return udf(*args)
             '''
         """
+        ).strip()
 
         self._ensure_dataset_exists()
         self._create_bq_function(create_function_ddl)
+
+        return bq_function_name
 
     def get_cloud_function_fully_qualified_parent(self):
         "Get the fully qualilfied parent for a cloud function."

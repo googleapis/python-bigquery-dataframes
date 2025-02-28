@@ -17,8 +17,6 @@ from __future__ import annotations
 
 import collections.abc
 import inspect
-import random
-import string
 import sys
 import threading
 from typing import (
@@ -855,22 +853,7 @@ class FunctionSession:
             self._try_delattr(func, "is_row_processor")
             self._try_delattr(func, "ibis_node")
 
-            bq_function_name = name
-            if not bq_function_name:
-                # Compute a unique hash representing the user code
-                function_hash = _utils._get_hash(func, packages)
-                # use 4 digits as a unique suffix which should suffice for
-                # uniqueness per session
-                uniq_suffix = "".join(
-                    random.choices(string.ascii_lowercase + string.digits, k=4)
-                )
-                bq_function_name = _utils.get_bigframes_function_name(
-                    function_hash,
-                    session.session_id if session else session,
-                    uniq_suffix,
-                )
-
-            remote_function_client.create_bq_managed_function(
+            bq_function_name = remote_function_client.provision_bq_managed_function(
                 func=func,
                 input_types=tuple(
                     third_party_ibis_bqtypes.BigQueryType.from_ibis(type_)
@@ -880,11 +863,7 @@ class FunctionSession:
                 output_type=third_party_ibis_bqtypes.BigQueryType.from_ibis(
                     ibis_signature.output_type
                 ),
-                language="python",
-                runtime_version=(
-                    f"python-{sys.version_info.major}.{sys.version_info.minor}"
-                ),
-                bq_function_name=bq_function_name,
+                name=name,
                 packages=packages,
                 is_row_processor=is_row_processor,
             )

@@ -135,6 +135,7 @@ def udf(*args, **kwargs):
 udf.__doc__ = bff_session.FunctionSession.udf.__doc__
 
 
+# TODO(b/399894805): Support managed function.
 def read_gbq_function(
     function_name: str,
     *,
