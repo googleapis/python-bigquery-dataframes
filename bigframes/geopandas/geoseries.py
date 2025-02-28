@@ -69,7 +69,7 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         )
 
     @property
-    def boundary(self) -> GeoSeries:  # type: ignore
+    def boundary(self) -> bigframes.series.Series:  # type: ignore
         series = self._apply_unary_op(ops.geo_st_boundary_op)
         series.name = None
         return series
