@@ -405,7 +405,8 @@ class FunctionSession:
             cloud_function_ingress_settings = "all"
             msg = (
                 "The `cloud_function_ingress_settings` are set to 'all' by default, "
-                "which may change. Consider using 'internal-only' for enhanced security. "
+                "which will change to 'internal-only' for enhanced security in future version 2.0 onwards. "
+                "However, you will be able to explicitly pass cloud_function_ingress_settings='all' if you need. "
                 "See https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings for details."
             )
             warnings.warn(msg, category=FutureWarning, stacklevel=2)
