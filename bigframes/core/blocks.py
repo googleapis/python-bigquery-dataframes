@@ -538,9 +538,6 @@ class Block:
         Returns:
             pandas.DataFrame, QueryJob
         """
-        if dry_run:
-            self._compute_dry_run()
-
         if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
             raise NotImplementedError(
                 f"The downsampling method {sampling_method} is not implemented, "
@@ -554,6 +551,11 @@ class Block:
             )
         else:
             sampling = sampling.with_disabled()
+
+        if dry_run:
+            if sampling.enable_downsampling:
+                raise NotImplementedError("Dry run with sampling is not supproted")
+            return self._compute_dry_run(ordered=ordered)
 
         df, query_job = self._materialize_local(
             materialize_options=MaterializationOptions(
@@ -793,10 +795,27 @@ class Block:
 
     def _compute_dry_run(
         self, value_keys: Optional[Iterable[str]] = None, ordered: bool = True
-    ) -> bigquery.QueryJob:
+    ) -> typing.Tuple[pd.DataFrame, bigquery.QueryJob]:
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
         query_job = self.session._executor.dry_run(expr, ordered)
-        return query_job
+
+        if len(self.index.dtypes) > 1:
+            index_type = tuple(self.index.dtypes)
+        else:
+            index_type = self.index.dtypes[0]
+
+        df = pd.DataFrame(
+            data={
+                "dry_run_stats": [
+                    *self.dtypes,
+                    index_type,
+                    query_job.total_bytes_processed,
+                ]
+            },
+            index=[*self.column_labels, "[index]", "total_bytes_processed"],
+        )
+
+        return df, query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):
         expr = self._expr

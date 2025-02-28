@@ -236,7 +236,7 @@ class Index(vendored_pandas_index.Index):
             <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
         """
         if self._query_job is None:
-            self._query_job = self._block._compute_dry_run(ordered=True)
+            self._query_job = self._block._compute_dry_run()
         return self._query_job
 
     def __repr__(self) -> str:
@@ -252,7 +252,7 @@ class Index(vendored_pandas_index.Index):
         opts = bigframes.options.display
         max_results = opts.max_rows
         if opts.repr_mode == "deferred":
-            return formatter.repr_query_job(self._block._compute_dry_run(ordered=True))
+            return formatter.repr_query_job(self._block._compute_dry_run())
 
         pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
         self._query_job = query_job
@@ -490,8 +490,9 @@ class Index(vendored_pandas_index.Index):
         else:
             raise NotImplementedError(f"Index key not supported {key}")
 
-
-    def to_pandas(self, *, allow_large_results: Optional[bool] = None, dry_run: bool = False) -> pandas.Index | pandas.Series:
+    def to_pandas(
+        self, *, allow_large_results: Optional[bool] = None, dry_run: bool = False
+    ) -> pandas.Index | pandas.Series:
         """Gets the Index as a pandas Index.
 
         Args:
@@ -509,22 +510,16 @@ class Index(vendored_pandas_index.Index):
         """
 
         if dry_run:
-            query_job = self._block._compute_dry_run(ordered=True)
+            df, query_job = self._block.to_pandas(ordered=True, dry_run=True)
+            self._query_job = query_job
 
-            return pandas.Series(
-                data=[
-                    self.dtype,
-                    query_job.total_bytes_processed,
-                ],
-                index=["dtype", "total_bytes_processed"],
-            )
+            return df.squeeze(axis=1)
 
         df, query_job = self._block.index.to_pandas(
             ordered=True, allow_large_results=allow_large_results
         )
         self._query_job = query_job
         return df
-
 
     def to_numpy(self, dtype=None, *, allow_large_results=None, **kwargs) -> np.ndarray:
         return self.to_pandas(allow_large_results=allow_large_results).to_numpy(

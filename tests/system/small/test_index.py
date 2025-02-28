@@ -435,5 +435,5 @@ def test_to_pandas_dry_run(scalars_df_index):
 
     result = index.to_pandas(dry_run=True)
 
-    assert result["dtype"] == index.dtype
+    assert result["[index]"] == index.dtype
     assert result["total_bytes_processed"] >= 0

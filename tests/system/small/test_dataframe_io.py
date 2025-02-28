@@ -877,6 +877,6 @@ def test_to_pandas_dry_run(scalars_df_index):
     result = scalars_df_index.to_pandas(dry_run=True)
 
     for col in scalars_df_index.columns:
-        assert result["dry_run_stats", col] == scalars_df_index[col].dtype
-    assert result["dry_run_stats", "index_dtype"] == scalars_df_index.index.dtype
-    assert result["dry_run_stats", "total_bytes_processed"] >= 0
+        assert result["dry_run_stats"][col] == scalars_df_index[col].dtype
+    assert result["dry_run_stats"]["[index]"] == scalars_df_index.index.dtype
+    assert result["dry_run_stats"]["total_bytes_processed"] >= 0

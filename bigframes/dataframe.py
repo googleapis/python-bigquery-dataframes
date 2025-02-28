@@ -1634,19 +1634,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 downsampled rows and all columns of this DataFrame. If dry_run is set, a pandas
                 DataFrame containing dry run statistics will be returned.
         """
-        if dry_run:
-            dry_run_job = self._compute_dry_run(ordered)
-
-            return pandas.DataFrame(
-                data={
-                    "dry_run_stats": [
-                        *self.dtypes,
-                        self.index.dtype,
-                        dry_run_job.total_bytes_processed,
-                    ]
-                },
-                index=[*self.columns, "index_dtype", "total_bytes_processed"],
-            )
 
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
         df, query_job = self._block.to_pandas(
@@ -1654,9 +1641,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             sampling_method=sampling_method,
             random_state=random_state,
             ordered=ordered,
+            dry_run=dry_run,
             allow_large_results=allow_large_results,
         )
         self._set_internal_query_job(query_job)
+        if dry_run:
+            return df
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
     def to_pandas_batches(
@@ -1692,8 +1682,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             allow_large_results=allow_large_results,
         )
 
-    def _compute_dry_run(self, ordered: bool = True) -> bigquery.QueryJob:
-        return self._block._compute_dry_run(ordered=ordered)
+    def _compute_dry_run(self) -> bigquery.QueryJob:
+        _, query_job = self._block._compute_dry_run()
+        return query_job
 
     def copy(self) -> DataFrame:
         return DataFrame(self._block)
