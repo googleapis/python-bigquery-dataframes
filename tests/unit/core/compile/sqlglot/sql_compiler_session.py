@@ -42,10 +42,15 @@ class SQLCompiler(bigframes.session.executor.Executor):
         array_value: bigframes.core.ArrayValue,
         offset_column: Optional[str] = None,
         col_id_overrides: Mapping[str, str] = {},
-        ordered: bool = False,
+        ordered: bool = True,
         enable_cache: bool = True,
     ) -> str:
-        exp = self.compiler.compile(array_value)
+        output_ids = [
+            col_id_overrides.get(id, id) for id in array_value.node.schema.names
+        ]
+        exp = self.compiler.compile_sql(
+            array_value.node, ordered=ordered, output_ids=output_ids
+        )
         return exp.sql(dialect="bigquery", pretty=False)
 
 

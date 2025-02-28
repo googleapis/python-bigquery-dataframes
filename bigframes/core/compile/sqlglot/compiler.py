@@ -18,7 +18,7 @@ import dataclasses
 import functools
 import io
 import itertools
-from typing import cast, Sequence, Tuple, TYPE_CHECKING
+import typing
 
 import pandas as pd
 import pyarrow as pa
@@ -47,11 +47,15 @@ class SQLGlotCompiler:
     quoted: bool = True
 
     # TODO: add BigQuery Dialect
+    def compile_sql(
+        self, node: nodes.BigFrameNode, ordered: bool, output_ids: typing.Sequence[str]
+    ) -> sg.Expression:
+        return self.compile_node(node)
 
-    def compile(self, array_value: bigframes.core.ArrayValue) -> sg.Expression:
-        # TODO: do we need rewrite here?
-        # node = nodes.bottom_up(array_value.node, bigframes.core.rewrite.rewrite_slice)
-        return self.compile_node(array_value.node)
+    # def compile(self, array_value: bigframes.core.ArrayValue) -> sg.Expression:
+    #     # TODO: do we need rewrite here?
+    #     # node = nodes.bottom_up(array_value.node, bigframes.core.rewrite.rewrite_slice)
+    #     return self.compile_node(array_value.node)
 
     @functools.singledispatchmethod
     def compile_node(self, node: nodes.BigFrameNode):
