@@ -577,6 +577,7 @@ class FunctionSession:
             self._try_delattr(func, "bigframes_cloud_function")
             self._try_delattr(func, "bigframes_remote_function")
             self._try_delattr(func, "bigframes_bigquery_function")
+            self._try_delattr(func, "bigframes_bigquery_function_output_dtype")
             self._try_delattr(func, "input_dtypes")
             self._try_delattr(func, "output_dtype")
             self._try_delattr(func, "is_row_processor")
@@ -666,6 +667,11 @@ class FunctionSession:
             func.output_dtype = (
                 bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
                     ibis_signature.output_type
+                )
+            )
+            func.bigframes_bigquery_function_output_dtype = (
+                bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
+                    ibis_output_type_for_bqrf
                 )
             )
             func.is_row_processor = is_row_processor

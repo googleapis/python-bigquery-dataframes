@@ -425,7 +425,7 @@ def _iloc_getitem_series_or_dataframe(
 @typing.overload
 def _iloc_getitem_series_or_dataframe(
     series_or_dataframe: bigframes.dataframe.DataFrame, key
-) -> Union[bigframes.dataframe.DataFrame, pd.Series]:
+) -> Union[bigframes.dataframe.DataFrame, pd.Series, bigframes.core.scalar.Scalar]:
     ...
 
 
@@ -447,31 +447,42 @@ def _iloc_getitem_series_or_dataframe(
         return result_pd_df.iloc[0]
     elif isinstance(key, slice):
         return series_or_dataframe._slice(key.start, key.stop, key.step)
-    elif isinstance(key, tuple) and len(key) == 0:
-        return series_or_dataframe
-    elif isinstance(key, tuple) and len(key) == 1:
-        return _iloc_getitem_series_or_dataframe(series_or_dataframe, key[0])
-    elif (
-        isinstance(key, tuple)
-        and isinstance(series_or_dataframe, bigframes.dataframe.DataFrame)
-        and len(key) == 2
-    ):
-        return series_or_dataframe.iat[key]
     elif isinstance(key, tuple):
-        raise pd.errors.IndexingError("Too many indexers")
+        if len(key) > 2 or (
+            len(key) == 2 and isinstance(series_or_dataframe, bigframes.series.Series)
+        ):
+            raise pd.errors.IndexingError("Too many indexers")
+
+        if len(key) == 0:
+            return series_or_dataframe
+
+        if len(key) == 1:
+            return _iloc_getitem_series_or_dataframe(series_or_dataframe, key[0])
+
+        # len(key) == 2
+        df = typing.cast(bigframes.dataframe.DataFrame, series_or_dataframe)
+        if isinstance(key[1], int):
+            return df.iat[key]
+        elif isinstance(key[1], list):
+            columns = df.columns[key[1]]
+            return _iloc_getitem_series_or_dataframe(df[columns], key[0])
+        raise NotImplementedError(
+            f"iloc does not yet support indexing with {key}. {constants.FEEDBACK_LINK}"
+        )
     elif pd.api.types.is_list_like(key):
         if len(key) == 0:
             return typing.cast(
                 Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
                 series_or_dataframe.iloc[0:0],
             )
-        df = series_or_dataframe
         if isinstance(series_or_dataframe, bigframes.series.Series):
             original_series_name = series_or_dataframe.name
             series_name = (
                 original_series_name if original_series_name is not None else 0
             )
             df = series_or_dataframe.to_frame()
+        else:
+            df = series_or_dataframe
         original_index_names = df.index.names
         temporary_index_names = [
             guid.generate_guid(prefix="temp_iloc_index_")
@@ -491,11 +502,6 @@ def _iloc_getitem_series_or_dataframe(
             result = result.rename(original_series_name)
 
         return result
-
-    elif isinstance(key, tuple):
-        raise NotImplementedError(
-            f"iloc does not yet support indexing with a (row, column) tuple. {constants.FEEDBACK_LINK}"
-        )
     elif callable(key):
         raise NotImplementedError(
             f"iloc does not yet support indexing with a callable. {constants.FEEDBACK_LINK}"

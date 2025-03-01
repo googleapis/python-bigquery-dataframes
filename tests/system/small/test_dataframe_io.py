@@ -249,6 +249,30 @@ def test_to_pandas_array_struct_correct_result(session):
     )
 
 
+def test_to_pandas_override_global_option(scalars_df_index):
+    # Direct call to_pandas uses global default setting (allow_large_results=True),
+    # table has 'bqdf' prefix.
+    scalars_df_index.to_pandas()
+    assert scalars_df_index._query_job.destination.table_id.startswith("bqdf")
+
+    # When allow_large_results=False, a destination table is implicitly created,
+    # table has 'anon' prefix.
+    scalars_df_index.to_pandas(allow_large_results=False)
+    assert scalars_df_index._query_job.destination.table_id.startswith("anon")
+
+
+def test_to_arrow_override_global_option(scalars_df_index):
+    # Direct call to_pandas uses global default setting (allow_large_results=True),
+    # table has 'bqdf' prefix.
+    scalars_df_index.to_arrow()
+    assert scalars_df_index._query_job.destination.table_id.startswith("bqdf")
+
+    # When allow_large_results=False, a destination table is implicitly created,
+    # table has 'anon' prefix.
+    scalars_df_index.to_arrow(allow_large_results=False)
+    assert scalars_df_index._query_job.destination.table_id.startswith("anon")
+
+
 def test_load_json_w_unboxed_py_value(session):
     sql = """
         SELECT 0 AS id, JSON_OBJECT('boolean', True) AS json_col,
@@ -509,7 +533,7 @@ def test_to_gbq_index(scalars_dfs, dataset_id, index):
         df_out = df_out.sort_values("rowindex_2").reset_index(drop=True)
 
     utils.convert_pandas_dtypes(df_out, bytes_col=False)
-    # pd.read_gbq interpets bytes_col as object, reconvert to pyarrow binary
+    # pd.read_gbq interprets bytes_col as object, reconvert to pyarrow binary
     df_out["bytes_col"] = df_out["bytes_col"].astype(pd.ArrowDtype(pa.binary()))
     expected = scalars_pandas_df.copy()
     expected.index.name = index_col

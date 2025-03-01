@@ -14,7 +14,7 @@
 
 from dataclasses import dataclass
 import inspect
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Union
 
 import google.cloud.bigquery as bigquery
 
@@ -42,12 +42,18 @@ class TransformFunction:
         session: bigframes.session.Session,
         connection: str,
         max_batching_rows: int,
+        container_cpu: Union[float, int],
+        container_memory: str,
     ):
         self._func = func_def.func
         self._requirements = func_def.requirements
         self._session = session
         self._connection = connection
-        self._max_batching_rows = max_batching_rows
+        self._max_batching_rows = (
+            int(max_batching_rows) if max_batching_rows > 1 else max_batching_rows
+        )
+        self._container_cpu = container_cpu
+        self._container_memory = container_memory
 
     def _input_bq_signature(self):
         sig = inspect.signature(self._func)
@@ -72,7 +78,7 @@ class TransformFunction:
 CREATE OR REPLACE FUNCTION `{udf_name}`({self._input_bq_signature()})
 RETURNS {self._output_bq_type()} LANGUAGE python
 WITH CONNECTION `{self._connection}`
-OPTIONS (entry_point='{func_name}', runtime_version='python-3.11', packages={packages}, max_batching_rows={self._max_batching_rows})
+OPTIONS (entry_point='{func_name}', runtime_version='python-3.11', packages={packages}, max_batching_rows={self._max_batching_rows}, container_cpu={self._container_cpu}, container_memory='{self._container_memory}')
 AS r\"\"\"
 
 
@@ -99,13 +105,15 @@ AS r\"\"\"
 
 # Blur images. Takes ObjectRefRuntime as JSON string. Outputs ObjectRefRuntime JSON string.
 def image_blur_func(
-    src_obj_ref_rt: str, dst_obj_ref_rt: str, ksize_x: int, ksize_y: int
+    src_obj_ref_rt: str, dst_obj_ref_rt: str, ksize_x: int, ksize_y: int, ext: str
 ) -> str:
     import json
 
     import cv2 as cv  # type: ignore
     import numpy as np
     import requests
+
+    ext = ext or ".jpeg"
 
     src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
     dst_obj_ref_rt_json = json.loads(dst_obj_ref_rt)
@@ -119,13 +127,19 @@ def image_blur_func(
     nparr = np.frombuffer(bts, np.uint8)
     img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
     img_blurred = cv.blur(img, ksize=(ksize_x, ksize_y))
-    bts = cv.imencode(".jpeg", img_blurred)[1].tobytes()
+
+    bts = cv.imencode(ext, img_blurred)[1].tobytes()
+
+    ext = ext.replace(".", "")
+    ext_mappings = {"jpg": "jpeg", "tif": "tiff"}
+    ext = ext_mappings.get(ext, ext)
+    content_type = "image/" + ext
 
     requests.put(
         url=dst_url,
         data=bts,
         headers={
-            "Content-Type": "image/jpeg",
+            "Content-Type": content_type,
         },
     )
 
@@ -135,12 +149,16 @@ def image_blur_func(
 image_blur_def = FunctionDef(image_blur_func, ["opencv-python", "numpy", "requests"])
 
 
-def image_blur_to_bytes_func(src_obj_ref_rt: str, ksize_x: int, ksize_y: int) -> bytes:
+def image_blur_to_bytes_func(
+    src_obj_ref_rt: str, ksize_x: int, ksize_y: int, ext: str
+) -> bytes:
     import json
 
     import cv2 as cv  # type: ignore
     import numpy as np
     import requests
+
+    ext = ext or ".jpeg"
 
     src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
     src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
@@ -151,7 +169,7 @@ def image_blur_to_bytes_func(src_obj_ref_rt: str, ksize_x: int, ksize_y: int) ->
     nparr = np.frombuffer(bts, np.uint8)
     img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
     img_blurred = cv.blur(img, ksize=(ksize_x, ksize_y))
-    bts = cv.imencode(".jpeg", img_blurred)[1].tobytes()
+    bts = cv.imencode(ext, img_blurred)[1].tobytes()
 
     return bts
 
@@ -168,12 +186,15 @@ def image_resize_func(
     dsize_y: int,
     fx: float,
     fy: float,
+    ext: str,
 ) -> str:
     import json
 
     import cv2 as cv  # type: ignore
     import numpy as np
     import requests
+
+    ext = ext or ".jpeg"
 
     src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
     dst_obj_ref_rt_json = json.loads(dst_obj_ref_rt)
@@ -187,13 +208,19 @@ def image_resize_func(
     nparr = np.frombuffer(bts, np.uint8)
     img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
     img_resized = cv.resize(img, dsize=(dsize_x, dsize_y), fx=fx, fy=fy)
-    bts = cv.imencode(".jpeg", img_resized)[1].tobytes()
+
+    bts = cv.imencode(ext, img_resized)[1].tobytes()
+
+    ext = ext.replace(".", "")
+    ext_mappings = {"jpg": "jpeg", "tif": "tiff"}
+    ext = ext_mappings.get(ext, ext)
+    content_type = "image/" + ext
 
     requests.put(
         url=dst_url,
         data=bts,
         headers={
-            "Content-Type": "image/jpeg",
+            "Content-Type": content_type,
         },
     )
 
@@ -211,12 +238,15 @@ def image_resize_to_bytes_func(
     dsize_y: int,
     fx: float,
     fy: float,
+    ext: str,
 ) -> bytes:
     import json
 
     import cv2 as cv  # type: ignore
     import numpy as np
     import requests
+
+    ext = ext or ".jpeg"
 
     src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
     src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
@@ -238,13 +268,20 @@ image_resize_to_bytes_def = FunctionDef(
 
 
 def image_normalize_func(
-    src_obj_ref_rt: str, dst_obj_ref_rt: str, alpha: float, beta: float, norm_type: str
+    src_obj_ref_rt: str,
+    dst_obj_ref_rt: str,
+    alpha: float,
+    beta: float,
+    norm_type: str,
+    ext: str,
 ) -> str:
     import json
 
     import cv2 as cv  # type: ignore
     import numpy as np
     import requests
+
+    ext = ext or ".jpeg"
 
     norm_type_mapping = {
         "inf": cv.NORM_INF,
@@ -267,13 +304,19 @@ def image_normalize_func(
     img_normalized = cv.normalize(
         img, None, alpha=alpha, beta=beta, norm_type=norm_type_mapping[norm_type]
     )
-    bts = cv.imencode(".jpeg", img_normalized)[1].tobytes()
+
+    bts = cv.imencode(ext, img_normalized)[1].tobytes()
+
+    ext = ext.replace(".", "")
+    ext_mappings = {"jpg": "jpeg", "tif": "tiff"}
+    ext = ext_mappings.get(ext, ext)
+    content_type = "image/" + ext
 
     requests.put(
         url=dst_url,
         data=bts,
         headers={
-            "Content-Type": "image/jpeg",
+            "Content-Type": content_type,
         },
     )
 
@@ -286,13 +329,15 @@ image_normalize_def = FunctionDef(
 
 
 def image_normalize_to_bytes_func(
-    src_obj_ref_rt: str, alpha: float, beta: float, norm_type: str
+    src_obj_ref_rt: str, alpha: float, beta: float, norm_type: str, ext: str
 ) -> bytes:
     import json
 
     import cv2 as cv  # type: ignore
     import numpy as np
     import requests
+
+    ext = ext or ".jpeg"
 
     norm_type_mapping = {
         "inf": cv.NORM_INF,
@@ -389,7 +434,7 @@ def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> s
     if curr_chunk:
         all_text_chunks.append(curr_chunk)
 
-    all_text_json_string = json.dumps(all_text_chunks)
+    all_text_json_string = json.dumps(["123"])
     return all_text_json_string
 
 

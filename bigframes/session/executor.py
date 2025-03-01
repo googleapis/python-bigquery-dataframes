@@ -60,6 +60,7 @@ MAX_SUBTREE_FACTORINGS = 5
 _MAX_CLUSTER_COLUMNS = 4
 # TODO: b/338258028 Enable pruning to reduce text size.
 ENABLE_PRUNING = False
+MAX_SMALL_RESULT_BYTES = 10 * 1024 * 1024 * 1024  # 10G
 
 
 @dataclasses.dataclass(frozen=True)
@@ -89,7 +90,6 @@ class Executor(abc.ABC):
         self,
         array_value: bigframes.core.ArrayValue,
         offset_column: Optional[str] = None,
-        col_id_overrides: Mapping[str, str] = {},
         ordered: bool = False,
         enable_cache: bool = True,
     ) -> str:
@@ -103,8 +103,7 @@ class Executor(abc.ABC):
         array_value: bigframes.core.ArrayValue,
         *,
         ordered: bool = True,
-        col_id_overrides: Mapping[str, str] = {},
-        use_explicit_destination: bool = False,
+        use_explicit_destination: Optional[bool] = False,
         get_size_bytes: bool = False,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
@@ -117,7 +116,6 @@ class Executor(abc.ABC):
     def export_gbq(
         self,
         array_value: bigframes.core.ArrayValue,
-        col_id_overrides: Mapping[str, str],
         destination: bigquery.TableReference,
         if_exists: Literal["fail", "replace", "append"] = "fail",
         cluster_cols: Sequence[str] = [],
@@ -130,7 +128,6 @@ class Executor(abc.ABC):
     def export_gcs(
         self,
         array_value: bigframes.core.ArrayValue,
-        col_id_overrides: Mapping[str, str],
         uri: str,
         format: Literal["json", "csv", "parquet"],
         export_options: Mapping[str, Union[bool, str]],
@@ -218,48 +215,40 @@ class BigQueryCachingExecutor(Executor):
         self,
         array_value: bigframes.core.ArrayValue,
         offset_column: Optional[str] = None,
-        col_id_overrides: Mapping[str, str] = {},
         ordered: bool = False,
         enable_cache: bool = True,
     ) -> str:
         if offset_column:
             array_value, internal_offset_col = array_value.promote_offsets()
-            col_id_overrides = dict(col_id_overrides)
-            col_id_overrides[internal_offset_col] = offset_column
         node = (
             self.replace_cached_subtrees(array_value.node)
             if enable_cache
             else array_value.node
         )
-        if ordered:
-            return self.compiler.compile_ordered(
-                node, col_id_overrides=col_id_overrides
-            )
-        return self.compiler.compile_unordered(node, col_id_overrides=col_id_overrides)
+        return self.compiler.compile(node, ordered=ordered)
 
     def execute(
         self,
         array_value: bigframes.core.ArrayValue,
         *,
         ordered: bool = True,
-        col_id_overrides: Mapping[str, str] = {},
-        use_explicit_destination: bool = False,
+        use_explicit_destination: Optional[bool] = False,
         get_size_bytes: bool = False,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
     ):
+        if use_explicit_destination is None:
+            use_explicit_destination = bigframes.options.bigquery.allow_large_results
+
         if bigframes.options.compute.enable_multi_query_execution:
             self._simplify_with_caching(array_value)
 
-        sql = self.to_sql(
-            array_value, ordered=ordered, col_id_overrides=col_id_overrides
-        )
-        adjusted_schema = array_value.schema.rename(col_id_overrides)
+        sql = self.to_sql(array_value, ordered=ordered)
         job_config = bigquery.QueryJobConfig()
         # Use explicit destination to avoid 10GB limit of temporary table
         if use_explicit_destination:
             destination_table = self.storage_manager.create_temp_table(
-                adjusted_schema.to_bigquery(), cluster_cols=[]
+                array_value.schema.to_bigquery(), cluster_cols=[]
             )
             job_config.destination = destination_table
         # TODO(swast): plumb through the api_name of the user-facing api that
@@ -275,19 +264,27 @@ class BigQueryCachingExecutor(Executor):
         def iterator_supplier():
             return iterator.to_arrow_iterable(bqstorage_client=self.bqstoragereadclient)
 
-        if get_size_bytes is True:
+        if get_size_bytes is True or use_explicit_destination:
             size_bytes = self.bqclient.get_table(query_job.destination).num_bytes
         else:
             size_bytes = None
 
+        if size_bytes is not None and size_bytes >= MAX_SMALL_RESULT_BYTES:
+            warnings.warn(
+                "The query result size has exceeded 10 GB. In BigFrames 2.0 and "
+                "later, you might need to manually set `allow_large_results=True` in "
+                "the IO method or adjust the BigFrames option: "
+                "`bigframes.options.bigquery.allow_large_results=True`.",
+                FutureWarning,
+            )
         # Runs strict validations to ensure internal type predictions and ibis are completely in sync
         # Do not execute these validations outside of testing suite.
-        if "PYTEST_CURRENT_TEST" in os.environ and len(col_id_overrides) == 0:
+        if "PYTEST_CURRENT_TEST" in os.environ:
             self._validate_result_schema(array_value, iterator.schema)
 
         return ExecuteResult(
             arrow_batches=iterator_supplier,
-            schema=adjusted_schema,
+            schema=array_value.schema,
             query_job=query_job,
             total_bytes=size_bytes,
             total_rows=iterator.total_rows,
@@ -296,7 +293,6 @@ class BigQueryCachingExecutor(Executor):
     def export_gbq(
         self,
         array_value: bigframes.core.ArrayValue,
-        col_id_overrides: Mapping[str, str],
         destination: bigquery.TableReference,
         if_exists: Literal["fail", "replace", "append"] = "fail",
         cluster_cols: Sequence[str] = [],
@@ -312,7 +308,7 @@ class BigQueryCachingExecutor(Executor):
             "replace": bigquery.WriteDisposition.WRITE_TRUNCATE,
             "append": bigquery.WriteDisposition.WRITE_APPEND,
         }
-        sql = self.to_sql(array_value, ordered=False, col_id_overrides=col_id_overrides)
+        sql = self.to_sql(array_value, ordered=False)
         job_config = bigquery.QueryJobConfig(
             write_disposition=dispositions[if_exists],
             destination=destination,
@@ -329,7 +325,6 @@ class BigQueryCachingExecutor(Executor):
     def export_gcs(
         self,
         array_value: bigframes.core.ArrayValue,
-        col_id_overrides: Mapping[str, str],
         uri: str,
         format: Literal["json", "csv", "parquet"],
         export_options: Mapping[str, Union[bool, str]],
@@ -337,7 +332,7 @@ class BigQueryCachingExecutor(Executor):
         query_job = self.execute(
             array_value,
             ordered=False,
-            col_id_overrides=col_id_overrides,
+            use_explicit_destination=True,
         ).query_job
         result_table = query_job.destination
         export_data_statement = bq_io.create_export_data_statement(
@@ -377,7 +372,7 @@ class BigQueryCachingExecutor(Executor):
             msg = "Peeking this value cannot be done efficiently."
             warnings.warn(msg)
 
-        sql = self.compiler.compile_peek(plan, n_rows)
+        sql = self.compiler.compile(plan, ordered=False, limit=n_rows)
 
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
@@ -416,7 +411,7 @@ class BigQueryCachingExecutor(Executor):
             assert tree_properties.can_fast_head(plan)
 
         head_plan = generate_head_plan(plan, n_rows)
-        sql = self.compiler.compile_ordered(head_plan)
+        sql = self.compiler.compile(head_plan)
 
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
@@ -439,7 +434,7 @@ class BigQueryCachingExecutor(Executor):
             row_count_plan = self.replace_cached_subtrees(
                 generate_row_count_plan(array_value.node)
             )
-            sql = self.compiler.compile_unordered(row_count_plan)
+            sql = self.compiler.compile(row_count_plan, ordered=False)
             iter, _ = self._run_execute_query(sql)
             return next(iter)[0]
 
@@ -549,8 +544,8 @@ class BigQueryCachingExecutor(Executor):
         """Executes the query and uses the resulting table to rewrite future executions."""
         offset_column = bigframes.core.guid.generate_guid("bigframes_offsets")
         w_offsets, offset_column = array_value.promote_offsets()
-        sql = self.compiler.compile_unordered(
-            self.replace_cached_subtrees(w_offsets.node)
+        sql = self.compiler.compile(
+            self.replace_cached_subtrees(w_offsets.node), ordered=False
         )
 
         tmp_table = self._sql_as_cached_temp_table(

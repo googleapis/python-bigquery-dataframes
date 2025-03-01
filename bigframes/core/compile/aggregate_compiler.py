@@ -26,6 +26,7 @@ import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import bigframes_vendored.ibis.expr.types as ibis_types
 import pandas as pd
 
+from bigframes.core.compile import constants as compiler_constants
 import bigframes.core.compile.ibis_types as compile_ibis_types
 import bigframes.core.compile.scalar_op_compiler as scalar_compilers
 import bigframes.core.expression as ex
@@ -231,7 +232,11 @@ def _(
     column: ibis_types.NumericColumn,
     window=None,
 ) -> ibis_types.NumericValue:
-    return _apply_window_if_present(column.quantile(op.q), window)
+    result = column.quantile(op.q)
+    if op.should_floor_result:
+        result = result.floor()  # type:ignore
+
+    return _apply_window_if_present(result, window)
 
 
 @compile_unary_agg.register
@@ -242,7 +247,8 @@ def _(
     window=None,
     # order_by: typing.Sequence[ibis_types.Value] = [],
 ) -> ibis_types.NumericValue:
-    return _apply_window_if_present(column.mean(), window)
+    result = column.mean().floor() if op.should_floor_result else column.mean()
+    return _apply_window_if_present(result, window)
 
 
 @compile_unary_agg.register
@@ -306,10 +312,11 @@ def _(
 @numeric_op
 def _(
     op: agg_ops.StdOp,
-    x: ibis_types.Column,
+    x: ibis_types.NumericColumn,
     window=None,
 ) -> ibis_types.Value:
-    return _apply_window_if_present(cast(ibis_types.NumericColumn, x).std(), window)
+    result = x.std().floor() if op.should_floor_result else x.std()
+    return _apply_window_if_present(result, window)
 
 
 @compile_unary_agg.register
@@ -567,6 +574,30 @@ def _(
     )
 
     return original_column.delta(shifted_column, part="microsecond")
+
+
+@compile_unary_agg.register
+def _(
+    op: agg_ops.DateSeriesDiffOp,
+    column: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
+    if not column.type().is_date():
+        raise TypeError(f"Cannot perform date series diff on type{column.type()}")
+
+    original_column = cast(ibis_types.DateColumn, column)
+    shifted_column = cast(
+        ibis_types.DateColumn,
+        compile_unary_agg(agg_ops.ShiftOp(op.periods), column, window),
+    )
+
+    conversion_factor = typing.cast(
+        ibis_types.IntegerValue, compiler_constants.UNIT_TO_US_CONVERSION_FACTORS["D"]
+    )
+
+    return (
+        original_column.delta(shifted_column, part="day") * conversion_factor
+    ).floor()
 
 
 @compile_unary_agg.register

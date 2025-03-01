@@ -17,8 +17,10 @@ import datetime
 import operator
 
 import numpy as np
+from packaging import version
 import pandas as pd
 import pandas.testing
+import pyarrow as pa
 import pytest
 
 from bigframes import dtypes
@@ -38,14 +40,22 @@ def temporal_dfs(session):
                 pd.Timestamp("2024-01-02 02:00:00", tz="UTC"),
                 pd.Timestamp("2005-03-05 02:00:00", tz="UTC"),
             ],
+            "date_col": pd.Series(
+                [
+                    datetime.date(2000, 1, 1),
+                    datetime.date(2001, 2, 3),
+                    datetime.date(2020, 9, 30),
+                ],
+                dtype=pd.ArrowDtype(pa.date32()),
+            ),
             "timedelta_col_1": [
                 pd.Timedelta(5, "s"),
-                pd.Timedelta(-4, "d"),
+                pd.Timedelta(-4, "m"),
                 pd.Timedelta(5, "h"),
             ],
             "timedelta_col_2": [
                 pd.Timedelta(3, "s"),
-                pd.Timedelta(-4, "d"),
+                pd.Timedelta(-4, "m"),
                 pd.Timedelta(6, "h"),
             ],
             "numeric_col": [1.5, 2, -3],
@@ -366,6 +376,81 @@ def test_timestamp_sub_dataframes(temporal_dfs):
 
 
 @pytest.mark.parametrize(
+    ("left_col", "right_col"),
+    [
+        ("date_col", "timedelta_col_1"),
+        ("timedelta_col_1", "date_col"),
+    ],
+)
+def test_date_add__series_add_series(temporal_dfs, left_col, right_col):
+    if version.Version(pd.__version__) < version.Version("2.1.0"):
+        pytest.skip("not supported by Pandas < 2.1.0")
+
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = (bf_df[left_col] + bf_df[right_col]).to_pandas()
+
+    expected_result = (pd_df[left_col] + pd_df[right_col]).astype(dtypes.DATETIME_DTYPE)
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+# Pandas does not support date literal + timedelta series so we don't test it here.
+def test_date_add__literal_add_series(temporal_dfs):
+    bf_df, pd_df = temporal_dfs
+    literal = pd.Timedelta(1, "d")
+
+    actual_result = (literal + bf_df["date_col"]).to_pandas()
+
+    expected_result = (literal + pd_df["date_col"]).astype(dtypes.DATETIME_DTYPE)
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+# Pandas does not support timedelta series + date literal so we don't test it here.
+def test_date_add__series_add_literal(temporal_dfs):
+    bf_df, pd_df = temporal_dfs
+    literal = pd.Timedelta(1, "d")
+
+    actual_result = (bf_df["date_col"] + literal).to_pandas()
+
+    expected_result = (pd_df["date_col"] + literal).astype(dtypes.DATETIME_DTYPE)
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+def test_date_sub__series_sub_series(temporal_dfs):
+    if version.Version(pd.__version__) < version.Version("2.1.0"):
+        pytest.skip("not supported by Pandas < 2.1.0")
+
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = (bf_df["date_col"] - bf_df["timedelta_col_1"]).to_pandas()
+
+    expected_result = (pd_df["date_col"] - pd_df["timedelta_col_1"]).astype(
+        dtypes.DATETIME_DTYPE
+    )
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+def test_date_sub__series_sub_literal(temporal_dfs):
+    bf_df, pd_df = temporal_dfs
+    literal = pd.Timedelta(1, "d")
+
+    actual_result = (bf_df["date_col"] - literal).to_pandas()
+
+    expected_result = (pd_df["date_col"] - literal).astype(dtypes.DATETIME_DTYPE)
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
     "compare_func",
     [
         pytest.param(operator.gt, id="gt"),
@@ -465,3 +550,49 @@ def test_timedelta_ordering(session):
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
+
+
+def test_timedelta_cumsum(temporal_dfs):
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = bf_df["timedelta_col_1"].cumsum().to_pandas()
+
+    expected_result = pd_df["timedelta_col_1"].cumsum()
+    _assert_series_equal(actual_result, expected_result)
+
+
+@pytest.mark.parametrize(
+    "agg_func",
+    [
+        pytest.param(lambda x: x.min(), id="min"),
+        pytest.param(lambda x: x.max(), id="max"),
+        pytest.param(lambda x: x.sum(), id="sum"),
+        pytest.param(lambda x: x.mean(), id="mean"),
+        pytest.param(lambda x: x.median(), id="median"),
+        pytest.param(lambda x: x.quantile(0.5), id="quantile"),
+        pytest.param(lambda x: x.std(), id="std"),
+    ],
+)
+def test_timedelta_agg__timedelta_result(temporal_dfs, agg_func):
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = agg_func(bf_df["timedelta_col_1"])
+
+    expected_result = agg_func(pd_df["timedelta_col_1"]).floor("us")
+    assert actual_result == expected_result
+
+
+@pytest.mark.parametrize(
+    "agg_func",
+    [
+        pytest.param(lambda x: x.count(), id="count"),
+        pytest.param(lambda x: x.nunique(), id="nunique"),
+    ],
+)
+def test_timedelta_agg__int_result(temporal_dfs, agg_func):
+    bf_df, pd_df = temporal_dfs
+
+    actual_result = agg_func(bf_df["timedelta_col_1"])
+
+    expected_result = agg_func(pd_df["timedelta_col_1"])
+    assert actual_result == expected_result

@@ -36,7 +36,26 @@ class ToTimedeltaOp(base_ops.UnaryOp):
 
 
 @dataclasses.dataclass(frozen=True)
-class TimestampAdd(base_ops.BinaryOp):
+class TimedeltaFloorOp(base_ops.UnaryOp):
+    """Floors the numeric value to the nearest integer and use it to represent a timedelta.
+
+    This operator is only meant to be used during expression tree rewrites. Do not use it anywhere else!
+    """
+
+    name: typing.ClassVar[str] = "timedelta_floor"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        input_type = input_types[0]
+        if dtypes.is_numeric(input_type) or input_type is dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+        raise TypeError(f"unsupported type: {input_type}")
+
+
+timedelta_floor_op = TimedeltaFloorOp()
+
+
+@dataclasses.dataclass(frozen=True)
+class TimestampAddOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "timestamp_add"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
@@ -57,10 +76,11 @@ class TimestampAdd(base_ops.BinaryOp):
         )
 
 
-timestamp_add_op = TimestampAdd()
+timestamp_add_op = TimestampAddOp()
 
 
-class TimestampSub(base_ops.BinaryOp):
+@dataclasses.dataclass(frozen=True)
+class TimestampSubOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "timestamp_sub"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
@@ -76,4 +96,50 @@ class TimestampSub(base_ops.BinaryOp):
         )
 
 
-timestamp_sub_op = TimestampSub()
+timestamp_sub_op = TimestampSubOp()
+
+
+@dataclasses.dataclass(frozen=True)
+class DateAddOp(base_ops.BinaryOp):
+    name: typing.ClassVar[str] = "date_add"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        # date + timedelta => timestamp without timezone
+        if (
+            input_types[0] == dtypes.DATE_DTYPE
+            and input_types[1] == dtypes.TIMEDELTA_DTYPE
+        ):
+            return dtypes.DATETIME_DTYPE
+        # timedelta + date => timestamp without timezone
+        if (
+            input_types[0] == dtypes.TIMEDELTA_DTYPE
+            and input_types[1] == dtypes.DATE_DTYPE
+        ):
+            return dtypes.DATETIME_DTYPE
+
+        raise TypeError(
+            f"unsupported types for date_add. left: {input_types[0]} right: {input_types[1]}"
+        )
+
+
+date_add_op = DateAddOp()
+
+
+@dataclasses.dataclass(frozen=True)
+class DateSubOp(base_ops.BinaryOp):
+    name: typing.ClassVar[str] = "date_sub"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        # date - timedelta => timestamp without timezone
+        if (
+            input_types[0] == dtypes.DATE_DTYPE
+            and input_types[1] == dtypes.TIMEDELTA_DTYPE
+        ):
+            return dtypes.DATETIME_DTYPE
+
+        raise TypeError(
+            f"unsupported types for date_sub. left: {input_types[0]} right: {input_types[1]}"
+        )
+
+
+date_sub_op = DateSubOp()

@@ -2152,6 +2152,10 @@ def test_df_apply_axis_1_multiple_params_array_output(session):
                 )
             )
         )
+        assert (
+            getattr(foo, "bigframes_bigquery_function_output_dtype")
+            == bigframes.dtypes.STRING_DTYPE
+        )
 
         # Fails to apply on dataframe with incompatible number of columns
         with pytest.raises(

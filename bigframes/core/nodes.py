@@ -287,6 +287,7 @@ class JoinNode(BigFrameNode):
     right_child: BigFrameNode
     conditions: typing.Tuple[typing.Tuple[ex.DerefOp, ex.DerefOp], ...]
     type: typing.Literal["inner", "outer", "left", "right", "cross"]
+    propogate_order: bool
 
     def _validate(self):
         assert not (
@@ -311,8 +312,7 @@ class JoinNode(BigFrameNode):
 
     @property
     def explicitly_ordered(self) -> bool:
-        # Do not consider user pre-join ordering intent - they need to re-order post-join in unordered mode.
-        return False
+        return self.propogate_order
 
     @property
     def fields(self) -> Iterable[Field]:
@@ -1553,6 +1553,14 @@ class ExplodeNode(UnaryNode):
     ) -> ExplodeNode:
         new_ids = tuple(id.remap_column_refs(mappings) for id in self.column_ids)
         return dataclasses.replace(self, column_ids=new_ids)  # type: ignore
+
+
+# Introduced during planing/compilation
+@dataclasses.dataclass(frozen=True, eq=False)
+class ResultNode(UnaryNode):
+    output_names: tuple[str, ...]
+    order_by: Tuple[OrderingExpression, ...] = ()
+    limit: Optional[int] = None
 
 
 # Tree operators
