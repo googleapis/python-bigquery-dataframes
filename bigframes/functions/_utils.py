@@ -185,8 +185,8 @@ def get_cloud_function_name(function_hash, session_id=None, uniq_suffix=None):
     return _GCF_FUNCTION_NAME_SEPERATOR.join(parts)
 
 
-def get_remote_function_name(function_hash, session_id, uniq_suffix=None):
-    "Get a name for the remote function for the given user defined function."
+def get_bigframes_function_name(function_hash, session_id, uniq_suffix=None):
+    "Get a name for the bigframes function for the given user defined function."
     parts = [_BIGFRAMES_FUNCTION_PREFIX, session_id, function_hash]
     if uniq_suffix:
         parts.append(uniq_suffix)
