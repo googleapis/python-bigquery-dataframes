@@ -507,6 +507,7 @@ class Block:
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        dry_run: bool = False,
         allow_large_results: Optional[bool] = None,
     ) -> Tuple[pd.DataFrame, Optional[bigquery.QueryJob]]:
         """Run query and download results as a pandas DataFrame.
@@ -530,6 +531,9 @@ class Block:
             ordered (bool, default True):
                 Determines whether the resulting pandas dataframe will be ordered.
                 Whether the row ordering is deterministics depends on whether session ordering is strict.
+            dry_run (bool, default False):
+                Whether to perfrom a dry run. If true, the method will return a dataframe containing dry run
+                stats instead.
 
         Returns:
             pandas.DataFrame, QueryJob
@@ -547,6 +551,11 @@ class Block:
             )
         else:
             sampling = sampling.with_disabled()
+
+        if dry_run:
+            if sampling.enable_downsampling:
+                raise NotImplementedError("Dry run with sampling is not supproted")
+            return self._compute_dry_run(ordered=ordered)
 
         df, query_job = self._materialize_local(
             materialize_options=MaterializationOptions(
@@ -785,11 +794,24 @@ class Block:
         return [sliced_block.drop_columns(drop_cols) for sliced_block in sliced_blocks]
 
     def _compute_dry_run(
-        self, value_keys: Optional[Iterable[str]] = None
-    ) -> bigquery.QueryJob:
+        self, value_keys: Optional[Iterable[str]] = None, ordered: bool = True
+    ) -> typing.Tuple[pd.DataFrame, bigquery.QueryJob]:
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
-        query_job = self.session._executor.dry_run(expr)
-        return query_job
+        query_job = self.session._executor.dry_run(expr, ordered)
+
+        index_types = self.index.dtypes
+        df = pd.DataFrame(
+            data={
+                "dry_run_stats": [
+                    *self.dtypes,
+                    tuple(index_types) if len(index_types) > 1 else index_types[0],
+                    query_job.total_bytes_processed,
+                ]
+            },
+            index=[*self.column_labels, "[index]", "total_bytes_processed"],
+        )
+
+        return df, query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):
         expr = self._expr

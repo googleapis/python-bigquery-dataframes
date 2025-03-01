@@ -1597,6 +1597,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        dry_run: bool = False,
         allow_large_results: Optional[bool] = None,
     ) -> pandas.DataFrame:
         """Write DataFrame to pandas DataFrame.
@@ -1620,6 +1621,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordered (bool, default True):
                 Determines whether the resulting pandas dataframe will be ordered.
                 In some cases, unordered may result in a faster-executing query.
+            dry_run (bool, default False):
+                If this argument is true, this method will not process the data. Instead, it returns
+                a Pandas dataframe containing dry run statistics
             allow_large_results (bool, default None):
                 If not None, overrides the global setting to allow or disallow large query results
                 over the default size limit of 10 GB.
@@ -1627,17 +1631,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Returns:
             pandas.DataFrame: A pandas DataFrame with all rows and columns of this DataFrame if the
                 data_sampling_threshold_mb is not exceeded; otherwise, a pandas DataFrame with
-                downsampled rows and all columns of this DataFrame.
+                downsampled rows and all columns of this DataFrame. If dry_run is set, a pandas
+                DataFrame containing dry run statistics will be returned.
         """
+
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
             ordered=ordered,
+            dry_run=dry_run,
             allow_large_results=allow_large_results,
         )
         self._set_internal_query_job(query_job)
+        if dry_run:
+            return df
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
     def to_pandas_batches(
@@ -1674,7 +1683,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
-        return self._block._compute_dry_run()
+        _, query_job = self._block._compute_dry_run()
+        return query_job
 
     def copy(self) -> DataFrame:
         return DataFrame(self._block)
