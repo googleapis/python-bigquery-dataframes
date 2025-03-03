@@ -15,5 +15,5 @@
 __version__ = "1.38.0"
 
 # {x-release-please-start-date}
-__release_date__ = "2025-03-03"
+__release_date__ = "2025-02-24"
 # {x-release-please-end}
