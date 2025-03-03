@@ -1,4 +1,2 @@
 releaseType: python
 handleGHRelease: true
-extraFiles:
-  - bigframes/version.py
