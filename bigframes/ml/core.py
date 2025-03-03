@@ -134,6 +134,17 @@ class BqmlModel(BaseBqml):
             ),
         )
 
+    def global_explain(
+        self, input_data: bpd.DataFrame, options: Mapping[str, bool]
+    ) -> bpd.DataFrame:
+        return self._apply_ml_tvf(
+            input_data,
+            lambda source_sql: self._model_manipulation_sql_generator.ml_global_explain(
+                source_sql=source_sql,
+                struct_options=options,
+            ),
+        )
+
     def transform(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         return self._apply_ml_tvf(
             input_data,
