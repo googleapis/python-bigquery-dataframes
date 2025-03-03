@@ -219,6 +219,11 @@ def test_decomposition_mf_default_fit(bqml_model_factory, mock_session, mock_X, 
         l2_reg=9.83,
     )
     model._bqml_model_factory = bqml_model_factory
+    mock_start_query_ml_ddl = mock.Mock(
+        return_value="CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='matrix_factorization',\n  feedback_type='explicit',\n  user_col='user_id',\n  item_col='item_col',\n  rating_col='rating_col',\n  l2_reg=9.83,\n  num_factors=34)\nAS input_X_y_no_index_sql"
+    )
+    mock_create_model = mock.PropertyMock(return_value=mock_start_query_ml_ddl)
+    type(model)._start_query_ml_ddl = mock_create_model
     model.fit(mock_X, mock_y)
 
     mock_session._start_query_ml_ddl.assert_called_once_with(
