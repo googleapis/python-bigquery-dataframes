@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import dataclasses
-from typing import Mapping, Optional, Union
+from typing import Optional, Union
 import weakref
 
 import polars
@@ -39,8 +39,7 @@ class TestExecutor(bigframes.session.executor.Executor):
         array_value: bigframes.core.ArrayValue,
         *,
         ordered: bool = True,
-        col_id_overrides: Mapping[str, str] = {},
-        use_explicit_destination: bool = False,
+        use_explicit_destination: Optional[bool] = False,
         get_size_bytes: bool = False,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
