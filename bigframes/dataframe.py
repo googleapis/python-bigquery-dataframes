@@ -3733,24 +3733,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 default_project=default_project,
             )
         )
-        # We need to mark all timedelta columns with a special tag in BigQuery because
-        # they are represented as integers. Without this tag, we cannot tell a timedelta
-        # column from an integer column
-        timedelta_col_labels = set()
-        for label in self.columns:
-            col = self[label]
-            if not isinstance(col, bigframes.series.Series):
-                # Column name is duplicated, so ignore
-                continue
-            if col.dtype == bigframes.dtypes.TIMEDELTA_DTYPE:
-                timedelta_col_labels.add(label)
 
         query_job = self._session._executor.export_gbq(
             export_array.rename_columns(id_overrides),
             destination=destination,
             cluster_cols=clustering_fields,
             if_exists=if_exists,
-            timedelta_col_labels=timedelta_col_labels,
         )
         self._set_internal_query_job(query_job)
 

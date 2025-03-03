@@ -121,7 +121,6 @@ class Executor(abc.ABC):
         destination: bigquery.TableReference,
         if_exists: Literal["fail", "replace", "append"] = "fail",
         cluster_cols: Sequence[str] = [],
-        timedelta_col_labels: Set[str] | None = None,
     ) -> bigquery.QueryJob:
         """
         Export the ArrayValue to an existing BigQuery table.
@@ -299,7 +298,6 @@ class BigQueryCachingExecutor(Executor):
         destination: bigquery.TableReference,
         if_exists: Literal["fail", "replace", "append"] = "fail",
         cluster_cols: Sequence[str] = [],
-        timedelta_col_labels: Set[str] | None = None,
     ):
         """
         Export the ArrayValue to an existing BigQuery table.
@@ -324,15 +322,13 @@ class BigQueryCachingExecutor(Executor):
             sql=sql,
             job_config=job_config,
         )
-        self._attach_timedelta_metadata(
-            query_job.destination, timedelta_col_labels or set()
-        )
+        self._attach_timedelta_metadata(query_job.destination, array_value)
         return query_job
 
     def _attach_timedelta_metadata(
         self,
         table_ref: bigquery.TableReference | None,
-        timedelta_cols: Set[str],
+        array_value: bigframes.core.ArrayValue,
     ):
         """Updates the descriptions of columns that are holding timedeltas values with a special tag."""
         assert table_ref is not None
@@ -340,7 +336,7 @@ class BigQueryCachingExecutor(Executor):
         table = self.bqclient.get_table(table_ref)
         table_def = table.to_api_repr()
         for field in table_def["schema"]["fields"]:
-            if field["name"] not in timedelta_cols:
+            if array_value.get_column_type(field["name"]) != dtypes.TIMEDELTA_DTYPE:
                 continue
 
             if "description" not in field:
