@@ -47,6 +47,7 @@ import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
 import bigframes.core.schema
 import bigframes.core.tree_properties as tree_properties
+import bigframes.dtypes
 import bigframes.features
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
@@ -321,8 +322,13 @@ class BigQueryCachingExecutor(Executor):
             job_config=job_config,
         )
 
-        if if_exists != "append":
-            # Only update schema if this is not modifying an existing table.
+        has_timedelta_col = any(
+            [t == bigframes.dtypes.TIMEDELTA_DTYPE for t in array_value.schema.dtypes]
+        )
+
+        if if_exists != "append" and has_timedelta_col:
+            # Only update schema if this is not modifying an existing table, and the
+            # new table contains timedelta columns.
             assert query_job.destination is not None
             table = self.bqclient.get_table(query_job.destination)
             table.schema = array_value.schema.to_bigquery()
