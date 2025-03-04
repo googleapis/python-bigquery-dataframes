@@ -33,7 +33,7 @@ import warnings
 import weakref
 
 import google.api_core.exceptions
-import google.cloud.bigquery as bigquery
+from google.cloud import bigquery
 import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
@@ -663,10 +663,18 @@ class BigQueryCachingExecutor(Executor):
             raise ValueError(
                 f"This error should only occur while testing. BigFrames internal schema: {internal_schema.to_bigquery()} does not match actual schema: {actual_schema}"
             )
-        if ibis_schema.to_bigquery() != actual_schema:
+
+        if ibis_schema.to_bigquery() != _sanitize_for_ibis(actual_schema):
             raise ValueError(
                 f"This error should only occur while testing. Ibis schema: {ibis_schema.to_bigquery()} does not match actual schema: {actual_schema}"
             )
+
+
+def _sanitize_for_ibis(
+    schema: Tuple[bigquery.SchemaField, ...]
+) -> Tuple[bigquery.SchemaField, ...]:
+    # Schema inferred from Ibis does not contain description field. We only need to compare the names, types and modes.
+    return tuple(bigquery.SchemaField(f.name, f.field_type, f.mode) for f in schema)  # type: ignore
 
 
 def generate_head_plan(node: nodes.BigFrameNode, n: int):
