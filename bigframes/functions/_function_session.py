@@ -46,12 +46,12 @@ from google.cloud import (
     resourcemanager_v3,
 )
 
-import bigframes.core.compile.ibis_types
-import bigframes.exceptions as bfe
-import bigframes.series as bf_series
 from bigframes import clients
 from bigframes import version as bigframes_version
+import bigframes.core.compile.ibis_types
+import bigframes.exceptions as bfe
 from bigframes.functions._utils import get_python_version
+import bigframes.series as bf_series
 
 if TYPE_CHECKING:
     from bigframes.session import Session
