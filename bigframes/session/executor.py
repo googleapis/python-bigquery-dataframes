@@ -323,7 +323,7 @@ class BigQueryCachingExecutor(Executor):
         )
 
         has_timedelta_col = any(
-            [t == bigframes.dtypes.TIMEDELTA_DTYPE for t in array_value.schema.dtypes]
+            t == bigframes.dtypes.TIMEDELTA_DTYPE for t in array_value.schema.dtypes
         )
 
         if if_exists != "append" and has_timedelta_col:
