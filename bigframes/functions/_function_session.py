@@ -47,7 +47,6 @@ from google.cloud import (
 )
 
 from bigframes import clients
-from bigframes import version as bigframes_version
 import bigframes.core.compile.ibis_types
 import bigframes.exceptions as bfe
 from bigframes.functions._utils import get_python_version
