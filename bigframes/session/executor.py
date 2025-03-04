@@ -503,7 +503,7 @@ class BigQueryCachingExecutor(Executor):
         # as `add_and_trim_labels` ensures the label count does not exceed 64.
         bq_io.add_and_trim_labels(job_config, api_name=api_name)
         try:
-            return bq_io.start_query_with_client(
+            iterator, query_job = bq_io.start_query_with_client(
                 self.bqclient,
                 sql,
                 job_config=job_config,
@@ -513,6 +513,8 @@ class BigQueryCachingExecutor(Executor):
                 metrics=self.metrics,
                 query_with_job=query_with_job,
             )
+            assert query_job is not None
+            return iterator, query_job
 
         except google.api_core.exceptions.BadRequest as e:
             # Unfortunately, this error type does not have a separate error code or exception type

@@ -230,7 +230,7 @@ def start_query_with_client(
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
     *,
     query_with_job: bool = True,
-) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     """
     Starts query job and waits for results.
     """
@@ -246,7 +246,7 @@ def start_query_with_client(
                 project=project,
                 api_timeout=timeout,
             )
-            return results_iterator, None  # type: ignore
+            return results_iterator, None
 
         query_job = bq_client.query(
             sql,
@@ -350,6 +350,7 @@ def create_bq_dataset_reference(
     # to the dataset, no BigQuery Session required. Note: there is a
     # different anonymous dataset per location. See:
     # https://cloud.google.com/bigquery/docs/cached-results#how_cached_results_are_stored
+    assert query_job is not None
     query_destination = query_job.destination
     return bigquery.DatasetReference(
         query_destination.project,

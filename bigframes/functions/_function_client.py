@@ -167,7 +167,7 @@ class FunctionClient:
             create_function_ddl,
             job_config=bigquery.QueryJobConfig(),
         )
-
+        assert query_job is not None
         logger.info(f"Created remote function {query_job.ddl_target_routine}")
 
     def get_cloud_function_fully_qualified_parent(self):
