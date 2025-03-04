@@ -232,7 +232,7 @@ class BigQueryCachingExecutor(Executor):
         array_value: bigframes.core.ArrayValue,
         *,
         ordered: bool = True,
-        use_explicit_destination: Optional[bool] = False,
+        use_explicit_destination: Optional[bool] = None,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
     ):
@@ -363,7 +363,7 @@ class BigQueryCachingExecutor(Executor):
         self,
         array_value: bigframes.core.ArrayValue,
         n_rows: int,
-        use_explicit_destination: Optional[bool] = False,
+        use_explicit_destination: Optional[bool] = None,
     ) -> ExecuteResult:
         """
         A 'peek' efficiently accesses a small number of rows in the dataframe.
