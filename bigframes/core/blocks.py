@@ -617,8 +617,7 @@ class Block:
             ordered=materialize_options.ordered,
             use_explicit_destination=materialize_options.allow_large_results,
         )
-        if materialize_options.allow_large_results:
-            assert execute_result.total_bytes is not None
+        if execute_result.total_bytes is not None:
             table_mb = execute_result.total_bytes / _BYTES_TO_MEGABYTES
             sample_config = materialize_options.downsampling
             max_download_size = sample_config.max_download_size
