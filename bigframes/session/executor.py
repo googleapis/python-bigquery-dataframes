@@ -264,7 +264,7 @@ class BigQueryCachingExecutor(Executor):
         def iterator_supplier():
             return iterator.to_arrow_iterable(bqstorage_client=self.bqstoragereadclient)
 
-        if use_explicit_destination:
+        if query_job:
             size_bytes = self.bqclient.get_table(query_job.destination).num_bytes
         else:
             size_bytes = None
@@ -485,7 +485,7 @@ class BigQueryCachingExecutor(Executor):
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
         query_with_job: bool = True,
-    ) -> Tuple[bq_table.RowIterator, bigquery.QueryJob]:
+    ) -> Tuple[bq_table.RowIterator, Optional[bigquery.QueryJob]]:
         """
         Starts BigQuery query job and waits for results.
         """
@@ -513,7 +513,6 @@ class BigQueryCachingExecutor(Executor):
                 metrics=self.metrics,
                 query_with_job=query_with_job,
             )
-            assert query_job is not None
             return iterator, query_job
 
         except google.api_core.exceptions.BadRequest as e:
@@ -645,7 +644,7 @@ class BigQueryCachingExecutor(Executor):
             job_config=job_config,
             api_name="cached",
         )
-        query_job.destination
+        assert query_job is not None
         query_job.result()
         return query_job.destination
 
