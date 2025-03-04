@@ -681,7 +681,7 @@ def convert_schema_field(
     elif (
         field.field_type == "INTEGER"
         and field.description is not None
-        and TIMEDELTA_DESCRIPTION_TAG in field.description
+        and field.description.endswith(TIMEDELTA_DESCRIPTION_TAG)
     ):
         return field.name, TIMEDELTA_DTYPE
     elif field.field_type in _TK_TO_BIGFRAMES:
@@ -725,7 +725,9 @@ def convert_to_schema_field(
             )
         if bigframes_dtype.pyarrow_dtype == pa.duration("us"):
             # Timedeltas are represented as integers in microseconds.
-            return google.cloud.bigquery.SchemaField(name, "INTEGER")
+            return google.cloud.bigquery.SchemaField(
+                name, "INTEGER", description=TIMEDELTA_DESCRIPTION_TAG
+            )
     raise TypeError(
         f"No arrow conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
     )

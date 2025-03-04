@@ -321,29 +321,13 @@ class BigQueryCachingExecutor(Executor):
             sql=sql,
             job_config=job_config,
         )
-        self._attach_timedelta_metadata(query_job.destination, array_value)
+
+        assert query_job.destination is not None
+        table = self.bqclient.get_table(query_job.destination)
+        table.schema = array_value.schema.to_bigquery()
+        self.bqclient.update_table(table, ["schema"])
+
         return query_job
-
-    def _attach_timedelta_metadata(
-        self,
-        table_ref: bigquery.TableReference | None,
-        array_value: bigframes.core.ArrayValue,
-    ):
-        """Updates the descriptions of columns that are holding timedeltas values with a special tag."""
-        assert table_ref is not None
-
-        table = self.bqclient.get_table(table_ref)
-        table_def = table.to_api_repr()
-        for field in table_def["schema"]["fields"]:
-            if array_value.get_column_type(field["name"]) != dtypes.TIMEDELTA_DTYPE:
-                continue
-
-            if "description" not in field:
-                field["description"] = dtypes.TIMEDELTA_DESCRIPTION_TAG
-            elif dtypes.TIMEDELTA_DESCRIPTION_TAG not in field["description"]:
-                field["description"] += f" {dtypes.TIMEDELTA_DESCRIPTION_TAG}"
-
-        self.bqclient.update_table(table.from_api_repr(table_def), ["schema"])
 
     def export_gcs(
         self,
