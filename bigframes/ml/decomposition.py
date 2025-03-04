@@ -272,6 +272,11 @@ class MatrixFactorization(
         y=None,
         transforms: Optional[List[str]] = None,
     ) -> MatrixFactorization:
+        if y is not None:
+            raise ValueError(
+                "Label column not supported for Matrix Factorization model but y was not `None`"
+            )
+
         (X,) = utils.batch_convert_to_dataframe(X)
 
         self._bqml_model = self._bqml_model_factory.create_model(
