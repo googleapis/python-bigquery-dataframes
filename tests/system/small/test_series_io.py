@@ -13,14 +13,12 @@
 # limitations under the License.
 
 
-def test_to_pandas_override_global_option(scalars_df_index):
+def test_to_pandas_override_global_option(scalars_df_index, session):
     bf_series = scalars_df_index["int64_col"]
-    # Direct call to_pandas uses global default setting (allow_large_results=True),
-    # table has 'bqdf' prefix.
-    bf_series.to_pandas()
-    assert bf_series._query_job.destination.table_id.startswith("bqdf")
 
-    # When allow_large_results=False, a destination table is implicitly created,
-    # table has 'anon' prefix.
+    session = bf_series._block.session
+    execution_count = session._metrics.execution_count
     bf_series.to_pandas(allow_large_results=False)
-    assert bf_series._query_job.destination.table_id.startswith("anon")
+
+    # The metrics won't be updated when we call query_and_wait.
+    assert session._metrics.execution_count == execution_count

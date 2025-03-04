@@ -228,6 +228,8 @@ def start_query_with_client(
     timeout: Optional[float] = None,
     api_name: Optional[str] = None,
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
+    *,
+    query_with_job: bool = True,
 ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
     """
     Starts query job and waits for results.
@@ -236,6 +238,16 @@ def start_query_with_client(
         # Note: Ensure no additional labels are added to job_config after this point,
         # as `add_and_trim_labels` ensures the label count does not exceed 64.
         add_and_trim_labels(job_config, api_name=api_name)
+        if not query_with_job:
+            results_iterator = bq_client.query_and_wait(
+                sql,
+                job_config=job_config,
+                location=location,
+                project=project,
+                api_timeout=timeout,
+            )
+            return results_iterator, None
+
         query_job = bq_client.query(
             sql,
             job_config=job_config,

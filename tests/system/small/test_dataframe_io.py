@@ -250,27 +250,21 @@ def test_to_pandas_array_struct_correct_result(session):
 
 
 def test_to_pandas_override_global_option(scalars_df_index):
-    # Direct call to_pandas uses global default setting (allow_large_results=True),
-    # table has 'bqdf' prefix.
-    scalars_df_index.to_pandas()
-    assert scalars_df_index._query_job.destination.table_id.startswith("bqdf")
-
-    # When allow_large_results=False, a destination table is implicitly created,
-    # table has 'anon' prefix.
+    session = scalars_df_index._block.session
+    execution_count = session._metrics.execution_count
     scalars_df_index.to_pandas(allow_large_results=False)
-    assert scalars_df_index._query_job.destination.table_id.startswith("anon")
+
+    # The metrics won't be updated when we call query_and_wait.
+    assert session._metrics.execution_count == execution_count
 
 
 def test_to_arrow_override_global_option(scalars_df_index):
-    # Direct call to_pandas uses global default setting (allow_large_results=True),
-    # table has 'bqdf' prefix.
-    scalars_df_index.to_arrow()
-    assert scalars_df_index._query_job.destination.table_id.startswith("bqdf")
-
-    # When allow_large_results=False, a destination table is implicitly created,
-    # table has 'anon' prefix.
+    session = scalars_df_index._block.session
+    execution_count = session._metrics.execution_count
     scalars_df_index.to_arrow(allow_large_results=False)
-    assert scalars_df_index._query_job.destination.table_id.startswith("anon")
+
+    # The metrics won't be updated when we call query_and_wait.
+    assert session._metrics.execution_count == execution_count
 
 
 def test_load_json_w_unboxed_py_value(session):

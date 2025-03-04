@@ -344,11 +344,25 @@ class Session(
     @property
     def bytes_processed_sum(self):
         """The sum of all bytes processed by bigquery jobs using this session."""
+        warnings.warn(
+            "Queries executed with `allow_large_results` within the session will not "
+            "have their bytes processed counted in this sum. If you need precise "
+            "bytes processed information, query the `INFORMATION_SCHEMA` tables "
+            "to get relevant metrics.",
+            UserWarning,
+        )
         return self._metrics.bytes_processed
 
     @property
     def slot_millis_sum(self):
         """The sum of all slot time used by bigquery jobs in this session."""
+        warnings.warn(
+            "Queries executed with `allow_large_results` within the session will not "
+            "have their slot milliseconds counted in this sum.  If you need precise slot "
+            "milliseconds information, query the `INFORMATION_SCHEMA` tables "
+            "to get relevant metrics.",
+            UserWarning,
+        )
         return self._metrics.slot_millis
 
     @property

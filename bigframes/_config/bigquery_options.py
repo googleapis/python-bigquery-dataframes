@@ -35,6 +35,12 @@ SESSION_STARTED_MESSAGE = (
 
 UNKNOWN_LOCATION_MESSAGE = "The location '{location}' is set to an unknown value. Did you mean '{possibility}'?"
 
+LARGE_RESULTS_WARNING_MESSAGE = (
+    "Sampling is disabled because 'allow_large_results' is set to False. "
+    "To prevent downloading excessive data, it is recommended to limit the data "
+    "fetched with methods like .head() or .sample() before proceeding with downloads."
+)
+
 
 def _get_validated_location(value: Optional[str]) -> Optional[str]:
 
@@ -99,6 +105,9 @@ class BigQueryOptions:
         self._application_name = application_name
         self._kms_key_name = kms_key_name
         self._skip_bq_connection_check = skip_bq_connection_check
+
+        if not allow_large_results:
+            warnings.warn(LARGE_RESULTS_WARNING_MESSAGE, UserWarning)
         self._allow_large_results = allow_large_results
         self._session_started = False
         # Determines the ordering strictness for the session.
@@ -252,6 +261,8 @@ class BigQueryOptions:
 
     @allow_large_results.setter
     def allow_large_results(self, value: bool):
+        if not value:
+            warnings.warn(LARGE_RESULTS_WARNING_MESSAGE, UserWarning)
         self._allow_large_results = value
 
     @property

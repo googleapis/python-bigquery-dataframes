@@ -2269,7 +2269,29 @@ def test_head_then_series_operation(scalars_dfs):
 
 def test_series_peek(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
+
+    session = scalars_df._block.session
+    execution_count = session._metrics.execution_count
     peek_result = scalars_df["float64_col"].peek(n=3, force=False)
+
+    assert session._metrics.execution_count > execution_count
+    pd.testing.assert_series_equal(
+        peek_result,
+        scalars_pandas_df["float64_col"].reindex_like(peek_result),
+    )
+
+
+def test_series_peek_with_large_results_not_allowed(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    session = scalars_df._block.session
+    execution_count = session._metrics.execution_count
+    peek_result = scalars_df["float64_col"].peek(
+        n=3, force=False, allow_large_results=False
+    )
+
+    # The metrics won't be updated when we call query_and_wait.
+    assert session._metrics.execution_count == execution_count
     pd.testing.assert_series_equal(
         peek_result,
         scalars_pandas_df["float64_col"].reindex_like(peek_result),
