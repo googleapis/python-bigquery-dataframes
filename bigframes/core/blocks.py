@@ -629,7 +629,7 @@ class Block:
         else:
             # Since we cannot acquire the table size without a query_job,
             # we skip the sampling.
-            fraction = 1
+            fraction = 2
 
         # TODO: Maybe materialize before downsampling
         # Some downsampling methods
