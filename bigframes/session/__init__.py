@@ -1404,7 +1404,7 @@ class Session(
             cloud_function_max_instances=cloud_function_max_instances,
             cloud_function_vpc_connector=cloud_function_vpc_connector,
             cloud_function_memory_mib=cloud_function_memory_mib,
-            cloud_function_ingress_settings=cloud_function_ingress_settings,
+            cloud_function_ingress_settings=cloud_function_ingress_settings,  # type: ignore
         )
 
     def udf(
