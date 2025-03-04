@@ -663,10 +663,10 @@ class BigQueryCachingExecutor(Executor):
             raise ValueError(
                 f"This error should only occur while testing. BigFrames internal schema: {internal_schema.to_bigquery()} does not match actual schema: {actual_schema}"
             )
-
-        if ibis_schema.to_bigquery() != _sanitize_for_ibis(actual_schema):
+        sanitized_schema = _sanitize_for_ibis(actual_schema)
+        if ibis_schema.to_bigquery() != sanitized_schema:
             raise ValueError(
-                f"This error should only occur while testing. Ibis schema: {ibis_schema.to_bigquery()} does not match actual schema: {actual_schema}"
+                f"This error should only occur while testing. Ibis schema: {ibis_schema.to_bigquery()} does not match sanitized schema: {sanitized_schema}"
             )
 
 
@@ -674,7 +674,15 @@ def _sanitize_for_ibis(
     schema: Tuple[bigquery.SchemaField, ...]
 ) -> Tuple[bigquery.SchemaField, ...]:
     # Schema inferred from Ibis does not contain description field. We only need to compare the names, types and modes.
-    return tuple(bigquery.SchemaField(f.name, f.field_type, f.mode) for f in schema)  # type: ignore
+    return tuple(
+        bigquery.SchemaField(
+            f.name,
+            f.field_type,
+            f.mode,  # type:ignore
+            fields=_sanitize_for_ibis(f.fields),
+        )
+        for f in schema
+    )
 
 
 def generate_head_plan(node: nodes.BigFrameNode, n: int):
