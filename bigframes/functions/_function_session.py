@@ -46,11 +46,12 @@ from google.cloud import (
     resourcemanager_v3,
 )
 
-from bigframes import clients
 import bigframes.core.compile.ibis_types
 import bigframes.exceptions as bfe
-from bigframes.functions._utils import get_python_version
 import bigframes.series as bf_series
+from bigframes import clients
+from bigframes import version as bigframes_version
+from bigframes.functions._utils import get_python_version
 
 if TYPE_CHECKING:
     from bigframes.session import Session
@@ -487,6 +488,16 @@ class FunctionSession:
                 "cloud_function_docker_repository must be specified with cloud_function_kms_key_name."
                 " For more details see https://cloud.google.com/functions/docs/securing/cmek#before_you_begin"
             )
+
+        if cloud_function_ingress_settings is None:
+            cloud_function_ingress_settings = "all"
+            msg = (
+                "The `cloud_function_ingress_settings` are set to 'all' by default, "
+                "which will change to 'internal-only' for enhanced security in future version 2.0 onwards. "
+                "However, you will be able to explicitly pass cloud_function_ingress_settings='all' if you need. "
+                "See https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings for details."
+            )
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
 
         bq_connection_manager = session.bqconnectionmanager
 

@@ -1199,9 +1199,9 @@ class Session(
         cloud_function_max_instances: Optional[int] = None,
         cloud_function_vpc_connector: Optional[str] = None,
         cloud_function_memory_mib: Optional[int] = 1024,
-        cloud_function_ingress_settings: Literal[
-            "all", "internal-only", "internal-and-gclb"
-        ] = "all",
+        cloud_function_ingress_settings: Optional[
+            Literal["all", "internal-only", "internal-and-gclb"]
+        ] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1210,6 +1210,14 @@ class Session(
             ``input_types=Series`` scenario is in preview. It currently only
             supports dataframe with column types ``Int64``/``Float64``/``boolean``/
             ``string``/``binary[pyarrow]``.
+
+        .. warning::
+            To use remote functions with Bigframes 2.0 and onwards, please (preferred)
+            set an explicit user-managed ``cloud_function_service_account`` or (discouraged)
+            set ``cloud_function_service_account`` to use the Compute Engine service account
+            by setting it to `"default"`.
+
+            See, https://cloud.google.com/functions/docs/securing/function-identity.
 
         .. note::
             Please make sure following is setup before using this API:
@@ -1365,8 +1373,9 @@ class Session(
                 https://cloud.google.com/functions/docs/configuring/memory.
             cloud_function_ingress_settings (str, Optional):
                 Ingress settings controls dictating what traffic can reach the
-                function. By default `all` will be used. It must be one of:
-                `all`, `internal-only`, `internal-and-gclb`. See for more details
+                function. Options are: `all`, `internal-only`, or `internal-and-gclb`.
+                If no setting is provided, `all` will be used by default and a warning
+                will be issued. See for more details
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
         Returns:
             collections.abc.Callable:
