@@ -39,7 +39,6 @@ import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
 import pyarrow
 
-from bigframes import dtypes
 import bigframes.core
 import bigframes.core.compile
 import bigframes.core.guid
