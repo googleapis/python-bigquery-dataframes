@@ -21,7 +21,6 @@ import os
 import random
 import shutil
 import string
-import sys
 import tempfile
 import textwrap
 import types
@@ -30,6 +29,7 @@ from typing import cast, Tuple, TYPE_CHECKING
 from bigframes_vendored import constants
 import requests
 
+from bigframes.functions._utils import get_python_version
 import bigframes.functions.function_template as bff_template
 
 if TYPE_CHECKING:
@@ -209,7 +209,7 @@ class FunctionClient:
             bq_function_args.append(f"{name_} {type_}")
 
         managed_function_options = {
-            "runtime_version": f"python-{sys.version_info.major}.{sys.version_info.minor}",
+            "runtime_version": get_python_version(),
             "entry_point": "bigframes_handler",
         }
 
@@ -347,9 +347,7 @@ class FunctionClient:
             # TODO(shobs): Figure out how to achieve version compatibility, specially
             # when pickle (internally used by cloudpickle) guarantees that:
             # https://docs.python.org/3/library/pickle.html#:~:text=The%20pickle%20serialization%20format%20is,unique%20breaking%20change%20language%20boundary.
-            python_version = "python{}{}".format(
-                sys.version_info.major, sys.version_info.minor
-            )
+            python_version = get_python_version(is_compat=True)
 
             # Determine an upload URL for user code
             upload_url_request = functions_v2.GenerateUploadUrlRequest(

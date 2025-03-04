@@ -1400,6 +1400,7 @@ class Session(
 
     def udf(
         self,
+        *,
         input_types: Union[None, type, Sequence[type]] = None,
         output_type: Optional[type] = None,
         dataset: Optional[str] = None,

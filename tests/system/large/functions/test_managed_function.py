@@ -16,8 +16,9 @@ import pandas
 import pytest
 
 from bigframes.functions import _function_session as bff_session
+from bigframes.functions._utils import get_python_version
 import bigframes.pandas as bpd
-from tests.system.utils import cleanup_function_assets, get_python_version
+from tests.system.utils import cleanup_function_assets
 
 bpd.options.experiments.udf = True
 
@@ -37,9 +38,9 @@ def test_managed_function_multiply_with_ibis(
     try:
 
         @session.udf(
-            [int, int],
-            int,
-            dataset_id,
+            input_types=[int, int],
+            output_type=int,
+            dataset=dataset_id,
         )
         def multiply(x, y):
             return x * y
@@ -91,9 +92,9 @@ def test_managed_function_stringify_with_ibis(
     try:
 
         @session.udf(
-            [int],
-            str,
-            dataset_id,
+            input_types=[int],
+            output_type=str,
+            dataset=dataset_id,
         )
         def stringify(x):
             return f"I got {x}"
@@ -140,9 +141,9 @@ def test_managed_function_binop(session, scalars_dfs, dataset_id):
             return x * abs(y % 4)
 
         managed_func = session.udf(
-            [str, int],
-            str,
-            dataset_id,
+            input_types=[str, int],
+            output_type=str,
+            dataset=dataset_id,
         )(func)
 
         scalars_df, scalars_pandas_df = scalars_dfs

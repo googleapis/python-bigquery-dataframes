@@ -49,6 +49,7 @@ from google.cloud import (
 from bigframes import clients
 import bigframes.core.compile.ibis_types
 import bigframes.exceptions as bfe
+from bigframes.functions._utils import get_python_version
 import bigframes.series as bf_series
 
 if TYPE_CHECKING:
@@ -59,7 +60,7 @@ import pandas
 from . import _function_client, _utils
 
 # BQ managed functions (@udf) currently only support Python 3.11.
-_MANAGED_FUNC_PYTHON_VERSIONS = ("3.11",)
+_MANAGED_FUNC_PYTHON_VERSIONS = ("python-3.11",)
 
 
 class FunctionSession:
@@ -758,7 +759,7 @@ class FunctionSession:
             raise NotImplementedError()
 
         # Check the Python version.
-        python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+        python_version = get_python_version()
         if python_version not in _MANAGED_FUNC_PYTHON_VERSIONS:
             raise RuntimeError(
                 f"Python version {python_version} is not supported yet for "

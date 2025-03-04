@@ -16,6 +16,7 @@
 import hashlib
 import inspect
 import json
+import sys
 import typing
 from typing import cast, List, NamedTuple, Optional, Sequence, Set
 
@@ -280,3 +281,11 @@ def get_bigframes_metadata(*, python_output_type: Optional[type] = None) -> str:
         )
 
     return metadata_ser
+
+
+def get_python_version(is_compat: bool = False) -> str:
+    # Cloud Run functions use the 'compat' format (e.g., python311), while
+    # managed functions use the standard format (e.g., python-3.11).
+    major = sys.version_info.major
+    minor = sys.version_info.minor
+    return f"python{major}{minor}" if is_compat else f"python-{major}.{minor}"

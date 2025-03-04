@@ -15,7 +15,6 @@
 import base64
 import decimal
 import functools
-import sys
 from typing import Iterable, Optional, Set, Union
 
 import geopandas as gpd  # type: ignore
@@ -384,10 +383,6 @@ def delete_cloud_function(
 
 def get_first_file_from_wildcard(path):
     return path.replace("*", "000000000000")
-
-
-def get_python_version():
-    return f"{sys.version_info.major}.{sys.version_info.minor}"
 
 
 def cleanup_function_assets(

@@ -18,14 +18,11 @@ import pytest
 
 import bigframes.exceptions
 from bigframes.functions import _function_session as bff_session
+from bigframes.functions._utils import get_python_version
 from bigframes.pandas import udf
 import bigframes.pandas as bpd
 import bigframes.series
-from tests.system.utils import (
-    assert_pandas_df_equal,
-    get_function_name,
-    get_python_version,
-)
+from tests.system.utils import assert_pandas_df_equal, get_function_name
 
 bpd.options.experiments.udf = True
 
@@ -54,8 +51,8 @@ def test_managed_function_series_apply(
         return typ(abs(x))
 
     foo = udf(
-        int,
-        typ,
+        input_types=int,
+        output_type=typ,
         dataset=dataset_id_permanent,
         name=get_function_name(foo),
     )(foo)
@@ -136,8 +133,8 @@ def test_managed_function_dataframe_map(scalars_dfs, dataset_id_permanent):
         return x + 1
 
     mf_add_one = udf(
-        [int],
-        int,
+        input_types=[int],
+        output_type=int,
         dataset=dataset_id_permanent,
         name=get_function_name(add_one),
     )(add_one)
@@ -177,9 +174,9 @@ def test_managed_function_dataframe_apply_axis_1(
         return x + y
 
     add_ints_mf = session.udf(
-        [int, int],
-        int,
-        dataset_id_permanent,
+        input_types=[int, int],
+        output_type=int,
+        dataset=dataset_id_permanent,
         name=get_function_name(add_ints, is_row_processor=True),
     )(add_ints)
     assert add_ints_mf.bigframes_bigquery_function  # type: ignore

@@ -109,6 +109,7 @@ remote_function.__doc__ = inspect.getdoc(bigframes.session.Session.remote_functi
 
 
 def udf(
+    *,
     input_types: Union[None, type, Sequence[type]] = None,
     output_type: Optional[type] = None,
     dataset: Optional[str] = None,
