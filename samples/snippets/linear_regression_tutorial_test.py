@@ -93,7 +93,7 @@ def test_linear_regression(random_model_id: str) -> None:
     # 4	 4637.165037	        [{'feature': 'island', 'attribution': 7348.877...	-5320.222128	          4637.165037	            0.0	         Gentoo penguin (Pygoscelis papua)	Biscoe	    46.1	              13.2	        211.0	           4500.0	   FEMALE
     # [END bigquery_dataframes_bqml_linear_predict_explain]
     # [START bigquery_dataframes_bqml_linear_global_explain]
-    explain_model = model.global_explain(biscoe_data, class_level_explain=True)
+    explain_model = model.global_explain(label_columns["body_mass_g"])
     # [END bigquery_dataframes_bqml_linear_global_explain]
     assert explain_model is not None
     assert feature_columns is not None

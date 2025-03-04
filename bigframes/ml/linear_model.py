@@ -203,12 +203,7 @@ class LinearRegression(
             X, options={"top_k_features": top_k_features}
         )
 
-    def global_explain(
-        self,
-        X: utils.ArrayType,
-        *,
-        class_level_explain: bool = False,
-    ) -> bpd.DataFrame:
+    def global_explain(self, X: utils.ArrayType) -> bpd.DataFrame:
         """
         Provide explanations for an entire linear regression model.
 
@@ -220,33 +215,18 @@ class LinearRegression(
             X (bigframes.dataframe.DataFrame or bigframes.series.Series or
             pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Series or a DataFrame to explain its predictions.
-            class_level_explain (bool, default False):
-                a BOOL value that specifies whether global feature importances
-                are returned for each class. Applies only to non-AutoML Tables
-                classification models. When set to FALSE, the global feature
-                importance of the entire model is returned rather than that of
-                each class. The default value is FALSE.
-
-                Regression models and AutoML Tables classification models only
-                have model-level global feature importance.
 
         Returns:
             bigframes.pandas.DataFrame:
                 The predicted DataFrames with feature and attribution columns.
         """
-        if class_level_explain is not True or False:
-            raise ValueError(
-                f"`class_level_explain` must be set to `True` or `False` but is currently {class_level_explain}"
-            )
 
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
-        return self._bqml_model.global_explain(
-            X, options={"class_level_explain": class_level_explain}
-        )
+        return self._bqml_model.global_explain(X)
 
     def score(
         self,
