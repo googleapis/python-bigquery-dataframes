@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import db_dtypes
+import db_dtypes  # type: ignore
 import pandas as pd
 
 import bigframes
