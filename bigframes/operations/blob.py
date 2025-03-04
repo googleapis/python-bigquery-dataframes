@@ -353,6 +353,8 @@ class BlobAccessor(base.SeriesMethods):
         df["ksize_x"], df["ksize_y"] = ksize
         df["ext"] = ext  # type: ignore
 
+        df = df.cache()
+
         res = df.apply(image_blur_udf, axis=1)
         res.cache()  # to execute the udf
 
