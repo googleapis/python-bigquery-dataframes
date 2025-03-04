@@ -617,9 +617,9 @@ class Block:
             ordered=materialize_options.ordered,
             use_explicit_destination=materialize_options.allow_large_results,
         )
+        sample_config = materialize_options.downsampling
         if execute_result.total_bytes is not None:
             table_mb = execute_result.total_bytes / _BYTES_TO_MEGABYTES
-            sample_config = materialize_options.downsampling
             max_download_size = sample_config.max_download_size
             fraction = (
                 max_download_size / table_mb
@@ -629,6 +629,13 @@ class Block:
         else:
             # Since we cannot acquire the table size without a query_job,
             # we skip the sampling.
+            if sample_config.enable_downsampling:
+                warnings.warn(
+                    "Sampling is disabled and there is no download size limit when 'allow_large_results' is set to "
+                    "False. To prevent downloading excessive data, it is recommended to use the peek() method, or "
+                    "limit the data with methods like .head() or .sample() before proceeding with downloads.",
+                    UserWarning,
+                )
             fraction = 2
 
         # TODO: Maybe materialize before downsampling

@@ -2271,31 +2271,34 @@ def test_series_peek(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
     session = scalars_df._block.session
-    execution_count = session._metrics.execution_count
+    slot_millis_sum = session.slot_millis_sum
     peek_result = scalars_df["float64_col"].peek(n=3, force=False)
 
-    assert session._metrics.execution_count > execution_count
+    assert session.slot_millis_sum - slot_millis_sum > 1000
     pd.testing.assert_series_equal(
         peek_result,
         scalars_pandas_df["float64_col"].reindex_like(peek_result),
     )
+    assert len(peek_result) == 3
 
 
 def test_series_peek_with_large_results_not_allowed(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
     session = scalars_df._block.session
-    execution_count = session._metrics.execution_count
+    slot_millis_sum = session.slot_millis_sum
     peek_result = scalars_df["float64_col"].peek(
         n=3, force=False, allow_large_results=False
     )
 
-    # The metrics won't be updated when we call query_and_wait.
-    assert session._metrics.execution_count == execution_count
+    # The metrics won't be fully updated when we call query_and_wait.
+    print(session.slot_millis_sum - slot_millis_sum)
+    assert session.slot_millis_sum - slot_millis_sum < 500
     pd.testing.assert_series_equal(
         peek_result,
         scalars_pandas_df["float64_col"].reindex_like(peek_result),
     )
+    assert len(peek_result) == 3
 
 
 def test_series_peek_multi_index(scalars_dfs):

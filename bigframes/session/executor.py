@@ -329,8 +329,7 @@ class BigQueryCachingExecutor(Executor):
         if if_exists != "append" and has_timedelta_col:
             # Only update schema if this is not modifying an existing table, and the
             # new table contains timedelta columns.
-            assert query_job is not None and query_job.destination is not None
-            table = self.bqclient.get_table(query_job.destination)
+            table = self.bqclient.get_table(destination)
             table.schema = array_value.schema.to_bigquery()
             self.bqclient.update_table(table, ["schema"])
 
