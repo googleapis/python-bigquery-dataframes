@@ -246,7 +246,7 @@ def start_query_with_client(
                 project=project,
                 api_timeout=timeout,
             )
-            return results_iterator, None
+            return results_iterator, None  # type: ignore
 
         query_job = bq_client.query(
             sql,

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-def test_to_pandas_override_global_option(scalars_df_index, session):
+def test_to_pandas_override_global_option(scalars_df_index):
     bf_series = scalars_df_index["int64_col"]
 
     session = bf_series._block.session
