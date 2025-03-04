@@ -32,6 +32,8 @@ except ImportError:  # pragma: NO COVER
 
 import typing
 
+from google.cloud import bigquery
+
 import bigframes
 from bigframes import dtypes
 import bigframes.dataframe
@@ -728,6 +730,26 @@ def test_gbq_round_trip_with_timedelta(session, dataset_id):
     assert result["col_1"].dtype == dtypes.INT_DTYPE
     assert result["col_2"].dtype == dtypes.TIMEDELTA_DTYPE
     assert result["col_3"].dtype == dtypes.FLOAT_DTYPE
+
+
+def test_to_gbq_timedelta_tag_ignored_when_appending(bigquery_client, dataset_id):
+    # First, create a table
+    destination_table = f"{dataset_id}.test_to_gbq_timedelta_tag_ignored_when_appending"
+    schema = [bigquery.SchemaField("my_col", "INTEGER")]
+    bigquery_client.create_table(bigquery.Table(destination_table, schema))
+
+    # Then, append to that table with timedelta values
+    df = pd.DataFrame(
+        {
+            "my_col": [pd.Timedelta(1, "s")],
+        }
+    )
+    bpd.DataFrame(df).to_gbq(destination_table, if_exists="append")
+
+    table = bigquery_client.get_table(destination_table)
+    assert table.schema[0].name == "my_col"
+    assert table.schema[0].field_type == "INTEGER"
+    assert table.schema[0].description is None
 
 
 @pytest.mark.parametrize(

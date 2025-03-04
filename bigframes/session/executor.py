@@ -321,10 +321,12 @@ class BigQueryCachingExecutor(Executor):
             job_config=job_config,
         )
 
-        assert query_job.destination is not None
-        table = self.bqclient.get_table(query_job.destination)
-        table.schema = array_value.schema.to_bigquery()
-        self.bqclient.update_table(table, ["schema"])
+        if if_exists != "append":
+            # Only update schema if this is not modifying an existing table.
+            assert query_job.destination is not None
+            table = self.bqclient.get_table(query_job.destination)
+            table.schema = array_value.schema.to_bigquery()
+            self.bqclient.update_table(table, ["schema"])
 
         return query_job
 
