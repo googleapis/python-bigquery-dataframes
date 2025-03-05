@@ -18,7 +18,7 @@ import dataclasses
 import functools
 import io
 import itertools
-from typing import cast, Sequence, Tuple, TYPE_CHECKING
+import typing
 
 import pandas as pd
 import pyarrow as pa
@@ -27,11 +27,14 @@ import sqlglot as sg
 import sqlglot.expressions as sge
 
 import bigframes.core
+import bigframes.core.compile.sqlglot.scalar_op_compiler as scalar_op_compiler
 import bigframes.core.compile.sqlglot.sqlglot_types as sgt
 import bigframes.core.expression as ex
 import bigframes.core.guid as guid
+import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
 import bigframes.core.rewrite
+import bigframes.core.rewrite as rewrites
 import bigframes.dtypes as dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -43,15 +46,51 @@ class SQLGlotCompiler:
     Compiles BigFrameNode to SQLGlot expression tree recursively.
     """
 
+    # In strict mode, ordering will always be deterministic
+    # In unstrict mode, ordering from ReadTable or after joins may be ambiguous to improve query performance.
+    strict: bool = True
     # Whether to always quote identifiers.
     quoted: bool = True
+    # TODO: the way how the scalar operation compiles stop the non-recursive compiler.
+    # Define scalar compiler for converting bigframes expressions to sqlglot expressions.
+    scalar_op_compiler = scalar_op_compiler.SQLGlotScalarOpCompiler()
 
     # TODO: add BigQuery Dialect
+    def compile_sql(
+        self,
+        node: nodes.BigFrameNode,
+        ordered: bool,
+        limit: typing.Optional[int] = None,
+    ) -> sg.Expression:
+        # later steps might add ids, so snapshot before those steps.
+        output_ids = node.schema.names
+        if ordered:
+            # Need to do this before replacing unsupported ops, as that will rewrite slice ops
+            node, pulled_up_limit = rewrites.pullup_limit_from_slice(node)
+            if (pulled_up_limit is not None) and (
+                (limit is None) or limit > pulled_up_limit
+            ):
+                limit = pulled_up_limit
 
-    def compile(self, array_value: bigframes.core.ArrayValue) -> sg.Expression:
-        # TODO: do we need rewrite here?
-        # node = nodes.bottom_up(array_value.node, bigframes.core.rewrite.rewrite_slice)
-        return self.compile_node(array_value.node)
+        node = self._replace_unsupported_ops(node)
+        # prune before pulling up order to avoid unnnecessary row_number() ops
+        node = rewrites.column_pruning(node)
+        node, ordering = rewrites.pull_up_order(node, order_root=ordered)
+        # final pruning to cleanup up any leftovers unused values
+        node = rewrites.column_pruning(node)
+        # return self.compile_node(node).to_sql(
+        #     order_by=ordering.all_ordering_columns if ordered else (),
+        #     limit=limit,
+        #     selections=output_ids,
+        # )
+
+        return self.compile_node(node)
+
+    def _replace_unsupported_ops(self, node: nodes.BigFrameNode):
+        # TODO: Run all replacement rules as single bottom-up pass
+        node = nodes.bottom_up(node, rewrites.rewrite_slice)
+        node = nodes.bottom_up(node, rewrites.rewrite_timedelta_expressions)
+        return node
 
     @functools.singledispatchmethod
     def compile_node(self, node: nodes.BigFrameNode):
@@ -60,7 +99,16 @@ class SQLGlotCompiler:
 
     @compile_node.register
     def compile_selection(self, node: nodes.SelectionNode):
-        return self.compile_node(node.child)
+        # return self.compile_node(node.child)
+        child = self.compile_node(node.child)
+        selected_cols = [
+            sge.Alias(
+                this=self.scalar_op_compiler.compile_expression(expr),
+                alias=sge.Identifier(this=id),
+            )
+            for expr, id in node.input_output_pairs
+        ]
+        return child.select(*selected_cols, append=False)
 
     @compile_node.register
     def compile_readlocal(self, node: nodes.ReadLocalNode):
