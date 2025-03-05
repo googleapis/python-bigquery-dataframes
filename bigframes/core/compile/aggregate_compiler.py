@@ -610,10 +610,7 @@ def _(
     result = _apply_window_if_present(_is_true(column).all(), window)
     literal = ibis_types.literal(True)
 
-    return cast(
-        ibis_types.BooleanScalar,
-        result.fill_null(literal)
-    )
+    return cast(ibis_types.BooleanScalar, result.fill_null(literal))
 
 
 @compile_unary_agg.register
@@ -626,10 +623,7 @@ def _(
     result = _apply_window_if_present(_is_true(column).any(), window)
     literal = ibis_types.literal(False)
 
-    return cast(
-        ibis_types.BooleanScalar,
-        result.fill_null(literal)
-    )
+    return cast(ibis_types.BooleanScalar, result.fill_null(literal))
 
 
 @compile_ordered_unary_agg.register
