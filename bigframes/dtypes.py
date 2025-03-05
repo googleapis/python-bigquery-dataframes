@@ -301,7 +301,6 @@ def is_object_like(type_: Union[ExpressionType, str]) -> bool:
     return type_ in ("object", "O") or (
         getattr(type_, "kind", None) == "O"
         and getattr(type_, "storage", None) != "pyarrow"
-        and getattr(type_, "name", None) != "dbjson"
     )
 
 
