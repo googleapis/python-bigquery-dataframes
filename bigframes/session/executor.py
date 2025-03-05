@@ -33,7 +33,7 @@ import warnings
 import weakref
 
 import google.api_core.exceptions
-import google.cloud.bigquery as bigquery
+from google.cloud import bigquery
 import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
@@ -47,6 +47,7 @@ import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
 import bigframes.core.schema
 import bigframes.core.tree_properties as tree_properties
+import bigframes.dtypes
 import bigframes.features
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
@@ -104,7 +105,6 @@ class Executor(abc.ABC):
         *,
         ordered: bool = True,
         use_explicit_destination: Optional[bool] = False,
-        get_size_bytes: bool = False,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
     ):
@@ -151,6 +151,7 @@ class Executor(abc.ABC):
         self,
         array_value: bigframes.core.ArrayValue,
         n_rows: int,
+        use_explicit_destination: Optional[bool] = False,
     ) -> ExecuteResult:
         """
         A 'peek' efficiently accesses a small number of rows in the dataframe.
@@ -232,8 +233,7 @@ class BigQueryCachingExecutor(Executor):
         array_value: bigframes.core.ArrayValue,
         *,
         ordered: bool = True,
-        use_explicit_destination: Optional[bool] = False,
-        get_size_bytes: bool = False,
+        use_explicit_destination: Optional[bool] = None,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
     ):
@@ -258,13 +258,14 @@ class BigQueryCachingExecutor(Executor):
             job_config=job_config,
             page_size=page_size,
             max_results=max_results,
+            query_with_job=use_explicit_destination,
         )
 
         # Though we provide the read client, iterator may or may not use it based on what is efficient for the result
         def iterator_supplier():
             return iterator.to_arrow_iterable(bqstorage_client=self.bqstoragereadclient)
 
-        if get_size_bytes is True or use_explicit_destination:
+        if query_job:
             size_bytes = self.bqclient.get_table(query_job.destination).num_bytes
         else:
             size_bytes = None
@@ -320,6 +321,18 @@ class BigQueryCachingExecutor(Executor):
             sql=sql,
             job_config=job_config,
         )
+
+        has_timedelta_col = any(
+            t == bigframes.dtypes.TIMEDELTA_DTYPE for t in array_value.schema.dtypes
+        )
+
+        if if_exists != "append" and has_timedelta_col:
+            # Only update schema if this is not modifying an existing table, and the
+            # new table contains timedelta columns.
+            table = self.bqclient.get_table(destination)
+            table.schema = array_value.schema.to_bigquery()
+            self.bqclient.update_table(table, ["schema"])
+
         return query_job
 
     def export_gcs(
@@ -363,6 +376,7 @@ class BigQueryCachingExecutor(Executor):
         self,
         array_value: bigframes.core.ArrayValue,
         n_rows: int,
+        use_explicit_destination: Optional[bool] = None,
     ) -> ExecuteResult:
         """
         A 'peek' efficiently accesses a small number of rows in the dataframe.
@@ -371,12 +385,24 @@ class BigQueryCachingExecutor(Executor):
         if not tree_properties.can_fast_peek(plan):
             msg = "Peeking this value cannot be done efficiently."
             warnings.warn(msg)
+        if use_explicit_destination is None:
+            use_explicit_destination = bigframes.options.bigquery.allow_large_results
+
+        job_config = bigquery.QueryJobConfig()
+        # Use explicit destination to avoid 10GB limit of temporary table
+        if use_explicit_destination:
+            destination_table = self.storage_manager.create_temp_table(
+                array_value.schema.to_bigquery(), cluster_cols=[]
+            )
+            job_config.destination = destination_table
 
         sql = self.compiler.compile(plan, ordered=False, limit=n_rows)
 
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
-        iterator, query_job = self._run_execute_query(sql=sql)
+        iterator, query_job = self._run_execute_query(
+            sql=sql, job_config=job_config, query_with_job=use_explicit_destination
+        )
         return ExecuteResult(
             # Probably don't need read client for small peek results, but let client decide
             arrow_batches=lambda: iterator.to_arrow_iterable(
@@ -471,7 +497,8 @@ class BigQueryCachingExecutor(Executor):
         api_name: Optional[str] = None,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
-    ) -> Tuple[bq_table.RowIterator, bigquery.QueryJob]:
+        query_with_job: bool = True,
+    ) -> Tuple[bq_table.RowIterator, Optional[bigquery.QueryJob]]:
         """
         Starts BigQuery query job and waits for results.
         """
@@ -489,7 +516,7 @@ class BigQueryCachingExecutor(Executor):
         # as `add_and_trim_labels` ensures the label count does not exceed 64.
         bq_io.add_and_trim_labels(job_config, api_name=api_name)
         try:
-            return bq_io.start_query_with_client(
+            iterator, query_job = bq_io.start_query_with_client(
                 self.bqclient,
                 sql,
                 job_config=job_config,
@@ -497,7 +524,9 @@ class BigQueryCachingExecutor(Executor):
                 max_results=max_results,
                 page_size=page_size,
                 metrics=self.metrics,
+                query_with_job=query_with_job,
             )
+            return iterator, query_job
 
         except google.api_core.exceptions.BadRequest as e:
             # Unfortunately, this error type does not have a separate error code or exception type
@@ -628,7 +657,7 @@ class BigQueryCachingExecutor(Executor):
             job_config=job_config,
             api_name="cached",
         )
-        query_job.destination
+        assert query_job is not None
         query_job.result()
         return query_job.destination
 
@@ -637,22 +666,39 @@ class BigQueryCachingExecutor(Executor):
         array_value: bigframes.core.ArrayValue,
         bq_schema: list[bigquery.SchemaField],
     ):
-        actual_schema = tuple(bq_schema)
+        actual_schema = _sanitize(tuple(bq_schema))
         ibis_schema = bigframes.core.compile.test_only_ibis_inferred_schema(
             self.replace_cached_subtrees(array_value.node)
-        )
-        internal_schema = array_value.schema
+        ).to_bigquery()
+        internal_schema = _sanitize(array_value.schema.to_bigquery())
         if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
             return
 
-        if internal_schema.to_bigquery() != actual_schema:
+        if internal_schema != actual_schema:
             raise ValueError(
-                f"This error should only occur while testing. BigFrames internal schema: {internal_schema.to_bigquery()} does not match actual schema: {actual_schema}"
+                f"This error should only occur while testing. BigFrames internal schema: {internal_schema} does not match actual schema: {actual_schema}"
             )
-        if ibis_schema.to_bigquery() != actual_schema:
+
+        if ibis_schema != actual_schema:
             raise ValueError(
-                f"This error should only occur while testing. Ibis schema: {ibis_schema.to_bigquery()} does not match actual schema: {actual_schema}"
+                f"This error should only occur while testing. Ibis schema: {ibis_schema} does not match actual schema: {actual_schema}"
             )
+
+
+def _sanitize(
+    schema: Tuple[bigquery.SchemaField, ...]
+) -> Tuple[bigquery.SchemaField, ...]:
+    # Schema inferred from SQL strings and Ibis expressions contain only names, types and modes,
+    # so we disregard other fields (e.g timedelta description for timedelta columns) for validations.
+    return tuple(
+        bigquery.SchemaField(
+            f.name,
+            f.field_type,
+            f.mode,  # type:ignore
+            fields=_sanitize(f.fields),
+        )
+        for f in schema
+    )
 
 
 def generate_head_plan(node: nodes.BigFrameNode, n: int):
