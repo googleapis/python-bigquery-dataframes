@@ -15,10 +15,10 @@
 import datetime
 import warnings
 
-__version__ = "1.38.0"
+__version__ = "1.39.0"
 
 # {x-release-please-start-date}
-__release_date__ = "2025-02-24"
+__release_date__ = "2025-03-05"
 # {x-release-please-end}
 
 if datetime.datetime.today() - datetime.datetime.strptime(
