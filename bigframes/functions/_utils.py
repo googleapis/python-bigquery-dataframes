@@ -284,8 +284,9 @@ def get_bigframes_metadata(*, python_output_type: Optional[type] = None) -> str:
 
 
 def get_python_version(is_compat: bool = False) -> str:
-    # Cloud Run functions use the 'compat' format (e.g., python311), while
-    # managed functions use the standard format (e.g., python-3.11).
+    # Cloud Run functions use the 'compat' format (e.g., python311, see more
+    # from https://cloud.google.com/functions/docs/runtime-support#python),
+    # while managed functions use the standard format (e.g., python-3.11).
     major = sys.version_info.major
     minor = sys.version_info.minor
     return f"python{major}{minor}" if is_compat else f"python-{major}.{minor}"

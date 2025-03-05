@@ -49,7 +49,6 @@ from google.cloud import (
 from bigframes import clients
 import bigframes.core.compile.ibis_types
 import bigframes.exceptions as bfe
-from bigframes.functions._utils import get_python_version
 import bigframes.series as bf_series
 
 if TYPE_CHECKING:
@@ -257,9 +256,9 @@ class FunctionSession:
         cloud_function_max_instances: Optional[int] = None,
         cloud_function_vpc_connector: Optional[str] = None,
         cloud_function_memory_mib: Optional[int] = 1024,
-        cloud_function_ingress_settings: Literal[
-            "all", "internal-only", "internal-and-gclb"
-        ] = "all",
+        cloud_function_ingress_settings: Optional[
+            Literal["all", "internal-only", "internal-and-gclb"]
+        ] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function.
 
@@ -769,7 +768,7 @@ class FunctionSession:
             raise NotImplementedError()
 
         # Check the Python version.
-        python_version = get_python_version()
+        python_version = _utils.get_python_version()
         if python_version not in _MANAGED_FUNC_PYTHON_VERSIONS:
             raise RuntimeError(
                 f"Python version {python_version} is not supported yet for "
