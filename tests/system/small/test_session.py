@@ -22,7 +22,6 @@ from typing import List, Optional, Sequence
 import warnings
 
 import bigframes_vendored.pandas.io.gbq as vendored_pandas_gbq
-import db_dtypes  # type: ignore
 import google
 import google.cloud.bigquery as bigquery
 import numpy as np
