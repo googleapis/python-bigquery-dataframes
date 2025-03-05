@@ -23,3 +23,6 @@ jobs:
     - name: Run lint_setup_py
       run: |
         nox -s lint_setup_py
+    - name: Run mypy
+      run: |
+        nox -s mypy

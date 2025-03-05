@@ -114,14 +114,9 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 # ahead to fail fast at presubmit running.
 # 'docfx' is excluded since it only needs to run in 'docs-presubmit'
 nox.options.sessions = [
-    "lint",
-    "lint_setup_py",
-    "mypy",
     "format",
-    "docs",
-    "docfx",
-    "unit",
-    "unit_noextras",
+    # only for the purposes of coverage, already covered by github action
+    "unit-3.12",
     "system-3.9",
     "system-3.12",
     "cover",
