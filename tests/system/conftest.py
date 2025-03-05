@@ -144,7 +144,7 @@ def session() -> Generator[bigframes.Session, None, None]:
     )
     session = bigframes.Session(context=context)
     yield session
-    session.close()  # close generated session at cleanup time
+    # session.close()  # close generated session at cleanup time
 
 
 @pytest.fixture(scope="session")
