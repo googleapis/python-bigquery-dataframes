@@ -25,5 +25,5 @@ def test_compile_local(
     inline_pd_df: pd.DataFrame, sql_compiler_session: bigframes.Session
 ):
     bf_df = bpd.DataFrame(inline_pd_df, session=sql_compiler_session)
-    expected_sql = "SELECT * FROM UNNEST(ARRAY<STRUCT<`level_0` INT64, `column_0` INT64, `column_1` INT64, `column_2` BOOLEAN, `column_3` STRING>>[(0, 1, -10, TRUE, 'b'), (1, 2, 20, CAST(NULL AS BOOLEAN), 'aa'), (2, 3, 30, FALSE, 'ccc')]) AS `table_alias`"
+    expected_sql = "SELECT `column_0` AS `int1`, `column_1` AS `int2`, `column_2` AS `bools`, `column_3` AS `strings`, `bfuid_col_1` AS `bfuid_col_2` FROM UNNEST(ARRAY<STRUCT<`column_0` INT64, `column_1` INT64, `column_2` BOOLEAN, `column_3` STRING, `bfuid_col_1` INT64>>[(1, -10, TRUE, 'b', 0), (2, 20, CAST(NULL AS BOOLEAN), 'aa', 1), (3, 30, FALSE, 'ccc', 2)])"
     assert bf_df.sql == expected_sql

@@ -25,6 +25,7 @@ import bigframes.clients
 import bigframes.core.blocks
 import bigframes.core.compile.polars
 import bigframes.core.compile.sqlglot as sqlglot
+import bigframes.core.nodes as nodes
 import bigframes.core.ordering
 import bigframes.dataframe
 import bigframes.session.clients
@@ -41,11 +42,17 @@ class SQLCompiler(bigframes.session.executor.Executor):
         self,
         array_value: bigframes.core.ArrayValue,
         offset_column: Optional[str] = None,
-        col_id_overrides: Mapping[str, str] = {},
         ordered: bool = False,
-        enable_cache: bool = True,
+        enable_cache: bool = False,
     ) -> str:
-        exp = self.compiler.compile(array_value)
+        if offset_column:
+            array_value, internal_offset_col = array_value.promote_offsets()
+        # node = (
+        #     self.replace_cached_subtrees(array_value.node)
+        #     if enable_cache
+        #     else array_value.node
+        # )
+        exp = self.compiler.compile_sql(array_value.node, ordered=ordered)
         return exp.sql(dialect="bigquery", pretty=False)
 
 
