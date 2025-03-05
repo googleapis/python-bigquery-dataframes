@@ -322,7 +322,7 @@ def run_system(
     print_duration=False,
     extra_pytest_options=(),
     timeout_seconds=900,
-    num_workers=20,
+    num_workers=100,
 ):
     """Run the system test suite."""
     constraints_path = str(
@@ -413,7 +413,7 @@ def doctest(session: nox.sessions.Session):
         ),
         test_folder="bigframes",
         check_cov=True,
-        num_workers=5,
+        num_workers=20,
     )
 
 
