@@ -27,3 +27,11 @@ def test_compile_local(
     bf_df = bpd.DataFrame(inline_pd_df, session=sql_compiler_session)
     expected_sql = "SELECT `column_0`, `column_1`, `column_2`, `column_3` FROM UNNEST(ARRAY<STRUCT<`level_0` INT64, `column_0` INT64, `column_1` INT64, `column_2` BOOLEAN, `column_3` STRING>>[(0, 1, -10, TRUE, 'b'), (1, 2, 20, CAST(NULL AS BOOLEAN), 'aa'), (2, 3, 30, FALSE, 'ccc')]) AS `table_alias`"
     assert bf_df.sql == expected_sql
+
+def test_compile_add(
+    inline_pd_df: pd.DataFrame, sql_compiler_session: bigframes.Session
+):
+    bf_df = bpd.DataFrame(inline_pd_df, session=sql_compiler_session)
+    bf_add = bf_df["int1"] + bf_df["int2"]
+    expected_sql = "SELECT * FROM a"
+    assert bf_add.sql == expected_sql
