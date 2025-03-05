@@ -237,7 +237,7 @@ def test_series_construct_geodata():
         pytest.param(pd.StringDtype(storage="pyarrow"), id="string"),
     ],
 )
-def test_series_construct_w_dtype_for_int(dtype):
+def test_series_construct_w_dtype(dtype):
     data = [1, 2, 3]
     expected = pd.Series(data, dtype=dtype)
     expected.index = expected.index.astype("Int64")
@@ -300,6 +300,26 @@ def test_series_construct_w_dtype_for_array_struct():
     pd.testing.assert_series_equal(
         series.to_pandas(), expected, check_dtype=check_dtype
     )
+
+
+def test_series_construct_w_dtype_for_json():
+    data = [
+        1,
+        "str",
+        False,
+        ["a", {"b": 1}, None],
+        None,
+        {"a": {"b": [1, 2, 3], "c": True}},
+    ]
+    s = bigframes.pandas.Series(data, dtype=db_dtypes.JSONDtype())
+
+    assert s[0] == 1
+    assert s[1] == "str"
+    assert s[2] is False
+    assert s[3][0] == "a"
+    assert s[3][1]["b"] == 1
+    assert pd.isna(s[4])
+    assert s[5]["a"] == {"b": [1, 2, 3], "c": True}
 
 
 def test_series_keys(scalars_dfs):
@@ -621,6 +641,8 @@ def test_series_replace_dict(scalars_dfs, replacement_dict):
     ),
 )
 def test_series_interpolate(method):
+    pytest.importorskip("scipy")
+
     values = [None, 1, 2, None, None, 16, None]
     index = [-3.2, 11.4, 3.56, 4, 4.32, 5.55, 76.8]
     pd_series = pd.Series(values, index)
@@ -1629,6 +1651,27 @@ def test_series_binop_w_other_types(scalars_dfs, other):
 
     bf_result = (scalars_df["int64_col"].head(3) + other).to_pandas()
     pd_result = scalars_pandas_df["int64_col"].head(3) + other
+
+    assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("other",),
+    [
+        ([-1.4, 2.3, None],),
+        (pd.Index([-1.4, 2.3, None]),),
+        (pd.Series([-1.4, 2.3, None], index=[44, 2, 1]),),
+    ],
+)
+@skip_legacy_pandas
+def test_series_reverse_binop_w_other_types(scalars_dfs, other):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = (other + scalars_df["int64_col"].head(3)).to_pandas()
+    pd_result = other + scalars_pandas_df["int64_col"].head(3)
 
     assert_series_equal(
         bf_result,

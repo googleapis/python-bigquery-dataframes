@@ -107,3 +107,90 @@ def test_geo_from_xy():
         check_series_type=False,
         check_index=False,
     )
+
+
+def test_geo_from_wkt():
+    wkts = [
+        "Point(0 1)",
+        "Point(2 4)",
+        "Point(5 3)",
+        "Point(6 8)",
+    ]
+
+    bf_result = bigframes.geopandas.GeoSeries.from_wkt(wkts).to_pandas()
+
+    pd_result = geopandas.GeoSeries.from_wkt(wkts)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+        check_series_type=False,
+        check_index=False,
+    )
+
+
+def test_geo_to_wkt():
+    bf_geo = bigframes.geopandas.GeoSeries(
+        [
+            Point(0, 1),
+            Point(2, 4),
+            Point(5, 3),
+            Point(6, 8),
+        ]
+    )
+
+    pd_geo = geopandas.GeoSeries(
+        [
+            Point(0, 1),
+            Point(2, 4),
+            Point(5, 3),
+            Point(6, 8),
+        ]
+    )
+
+    # Test was failing before using str.replace because the pd_result had extra
+    # whitespace "POINT (0 1)" while bf_result had none "POINT(0 1)".
+    # str.replace replaces any encountered whitespaces with none.
+    bf_result = (
+        bf_geo.to_wkt().astype("string[pyarrow]").to_pandas().str.replace(" ", "")
+    )
+
+    pd_result = pd_geo.to_wkt().astype("string[pyarrow]").str.replace(" ", "")
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+        check_index=False,
+    )
+
+
+def test_geo_boundary():
+    bf_s = bigframes.pandas.Series(
+        [
+            Polygon([(0, 0), (1, 1), (0, 1)]),
+            Polygon([(10, 0), (10, 5), (0, 0)]),
+            Polygon([(0, 0), (2, 2), (2, 0)]),
+            LineString([(0, 0), (1, 1), (0, 1)]),
+            Point(0, 1),
+        ],
+    )
+
+    pd_s = geopandas.GeoSeries(
+        [
+            Polygon([(0, 0), (1, 1), (0, 1)]),
+            Polygon([(10, 0), (10, 5), (0, 0)]),
+            Polygon([(0, 0), (2, 2), (2, 0)]),
+            LineString([(0, 0), (1, 1), (0, 1)]),
+            Point(0, 1),
+        ],
+    )
+
+    bf_result = bf_s.geo.boundary.to_pandas()
+    pd_result = pd_s.boundary
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+        check_series_type=False,
+        check_index=False,
+    )

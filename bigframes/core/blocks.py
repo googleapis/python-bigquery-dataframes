@@ -48,6 +48,7 @@ import numpy
 import pandas as pd
 import pyarrow as pa
 
+from bigframes import session
 import bigframes._config.sampling_options as sampling_options
 import bigframes.constants
 import bigframes.core as core
@@ -63,7 +64,6 @@ import bigframes.core.sql as sql
 import bigframes.core.utils as utils
 import bigframes.core.window_spec as windows
 import bigframes.dtypes
-import bigframes.exceptions as bfe
 import bigframes.features
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -112,6 +112,7 @@ class MaterializationOptions:
     downsampling: sampling_options.SamplingOptions = dataclasses.field(
         default_factory=sampling_options.SamplingOptions
     )
+    allow_large_results: Optional[bool] = None
     ordered: bool = True
 
 
@@ -136,9 +137,6 @@ class Block:
                     f"'index_columns' (size {len(index_columns)}) and 'index_labels' (size {len(index_labels)}) must have equal length"
                 )
 
-        if len(index_columns) == 0:
-            msg = "Creating object with Null Index. Null Index is a preview feature."
-            warnings.warn(msg, category=bfe.NullIndexPreviewWarning)
         self._index_columns = tuple(index_columns)
         # Index labels don't need complicated hierarchical access so can store as tuple
         self._index_labels = (
@@ -212,14 +210,10 @@ class Block:
     @functools.cached_property
     def shape(self) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
-
-        row_count_expr = self.expr.row_count()
-
-        # Support in-memory engines for hermetic unit tests.
-        if self.expr.session is None:
+        # Support zero-query for hermetic unit tests.
+        if self.expr.session is None and self.expr.node.row_count:
             try:
-                row_count = row_count_expr._try_evaluate_local().squeeze()
-                return (row_count, len(self.value_columns))
+                return self.expr.node.row_count
             except Exception:
                 pass
 
@@ -257,7 +251,7 @@ class Block:
         return [self.expr.get_column_type(col) for col in self.value_columns]
 
     @property
-    def session(self) -> core.Session:
+    def session(self) -> session.Session:
         return self._expr.session
 
     @functools.cached_property
@@ -275,6 +269,26 @@ class Block:
         for id, label in self.col_id_to_label.items():
             mapping[label] = (*mapping.get(label, ()), id)
         return mapping
+
+    def resolve_label_exact(self, label: Label) -> Optional[str]:
+        """Returns the column id matching the label if there is exactly
+        one such column. If there are multiple columns with the same name,
+        raises an error. If there is no such a column, returns None."""
+        matches = self.label_to_col_id.get(label, [])
+        if len(matches) > 1:
+            raise ValueError(
+                f"Multiple columns matching id {label} were found. {constants.FEEDBACK_LINK}"
+            )
+        return matches[0] if len(matches) != 0 else None
+
+    def resolve_label_exact_or_error(self, label: Label) -> str:
+        """Returns the column id matching the label if there is exactly
+        one such column. If there are multiple columns with the same name,
+        raises an error. If there is no such a column, raises an error too."""
+        col_id = self.resolve_label_exact(label)
+        if col_id is None:
+            raise ValueError(f"Label {label} not found. {constants.FEEDBACK_LINK}")
+        return col_id
 
     @functools.cached_property
     def col_id_to_index_name(self) -> typing.Mapping[str, Label]:
@@ -466,9 +480,12 @@ class Block:
         self,
         *,
         ordered: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Tuple[pa.Table, bigquery.QueryJob]:
         """Run query and download results as a pyarrow Table."""
-        execute_result = self.session._executor.execute(self.expr, ordered=ordered)
+        execute_result = self.session._executor.execute(
+            self.expr, ordered=ordered, use_explicit_destination=allow_large_results
+        )
         pa_table = execute_result.to_arrow_table()
 
         pa_index_labels = []
@@ -490,6 +507,7 @@ class Block:
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Tuple[pd.DataFrame, Optional[bigquery.QueryJob]]:
         """Run query and download results as a pandas DataFrame.
 
@@ -532,7 +550,9 @@ class Block:
 
         df, query_job = self._materialize_local(
             materialize_options=MaterializationOptions(
-                downsampling=sampling, ordered=ordered
+                downsampling=sampling,
+                allow_large_results=allow_large_results,
+                ordered=ordered,
             )
         )
         df.set_axis(self.column_labels, axis=1, copy=False)
@@ -550,7 +570,10 @@ class Block:
             return None
 
     def to_pandas_batches(
-        self, page_size: Optional[int] = None, max_results: Optional[int] = None
+        self,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+        allow_large_results: Optional[bool] = None,
     ):
         """Download results one message at a time.
 
@@ -559,7 +582,7 @@ class Block:
         execute_result = self.session._executor.execute(
             self.expr,
             ordered=True,
-            use_explicit_destination=True,
+            use_explicit_destination=allow_large_results,
             page_size=page_size,
             max_results=max_results,
         )
@@ -588,7 +611,10 @@ class Block:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
         execute_result = self.session._executor.execute(
-            self.expr, ordered=materialize_options.ordered, get_size_bytes=True
+            self.expr,
+            ordered=materialize_options.ordered,
+            use_explicit_destination=materialize_options.allow_large_results,
+            get_size_bytes=True,
         )
         assert execute_result.total_bytes is not None
         table_mb = execute_result.total_bytes / _BYTES_TO_MEGABYTES
@@ -1685,7 +1711,7 @@ class Block:
         original_row_index = (
             original_row_index
             if original_row_index is not None
-            else self.index.to_pandas(ordered=True)
+            else self.index.to_pandas(ordered=True)[0]
         )
         original_row_count = len(original_row_index)
         if original_row_count > bigframes.constants.MAX_COLUMNS:
@@ -2028,7 +2054,6 @@ class Block:
 
     def isin(self, other: Block):
         # TODO: Support multiple other columns and match on label
-        # TODO: Model as explicit "IN" subquery/join to better allow db to optimize
         assert len(other.value_columns) == 1
         unique_other_values = other.expr.select_columns(
             [other.value_columns[0]]
@@ -2406,7 +2431,7 @@ class Block:
         # implementaton. It will reference cached tables instead of original data sources.
         # Maybe should just compile raw BFET? Depends on user intent.
         sql = self.session._executor.to_sql(
-            array_value, col_id_overrides=substitutions, enable_cache=enable_cache
+            array_value.rename_columns(substitutions), enable_cache=enable_cache
         )
         return (
             sql,
@@ -2633,7 +2658,7 @@ class BlockIndexProperties:
         ]
 
     @property
-    def session(self) -> core.Session:
+    def session(self) -> session.Session:
         return self._expr.session
 
     @property
@@ -2645,14 +2670,22 @@ class BlockIndexProperties:
     def is_null(self) -> bool:
         return len(self._block._index_columns) == 0
 
-    def to_pandas(self, *, ordered: Optional[bool] = None) -> pd.Index:
+    def to_pandas(
+        self,
+        *,
+        ordered: Optional[bool] = None,
+        allow_large_results: Optional[bool] = None,
+    ) -> Tuple[pd.Index, Optional[bigquery.QueryJob]]:
         """Executes deferred operations and downloads the results."""
         if len(self.column_ids) == 0:
             raise bigframes.exceptions.NullIndexError(
                 "Cannot materialize index, as this object does not have an index. Set index column(s) using set_index."
             )
         ordered = ordered if ordered is not None else True
-        return self._block.select_columns([]).to_pandas(ordered=ordered)[0].index
+        df, query_job = self._block.select_columns([]).to_pandas(
+            ordered=ordered, allow_large_results=allow_large_results
+        )
+        return df.index, query_job
 
     def resolve_level(self, level: LevelsType) -> typing.Sequence[str]:
         if utils.is_list_like(level):
@@ -3151,7 +3184,7 @@ def unpivot(
 
 
 def _pd_index_to_array_value(
-    session: core.Session,
+    session: session.Session,
     index: pd.Index,
 ) -> core.ArrayValue:
     """

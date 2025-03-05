@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import functools
 import re
 import typing
@@ -18,10 +19,12 @@ from typing import Hashable, Iterable, List
 import warnings
 
 import bigframes_vendored.pandas.io.common as vendored_pandas_io_common
+import numpy as np
 import pandas as pd
 import pandas.api.types as pdtypes
 import typing_extensions
 
+import bigframes.dtypes as dtypes
 import bigframes.exceptions as bfe
 
 UNNAMED_COLUMN_ID = "bigframes_unnamed_column"
@@ -49,9 +52,23 @@ def is_dict_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Mapping]
 
 
 def combine_indices(index1: pd.Index, index2: pd.Index) -> pd.MultiIndex:
-    """Combines indices into multi-index while preserving dtypes, names."""
+    """Combines indices into multi-index while preserving dtypes, names merging by rows 1:1"""
     multi_index = pd.MultiIndex.from_frame(
         pd.concat([index1.to_frame(index=False), index2.to_frame(index=False)], axis=1)
+    )
+    # to_frame will produce numbered default names, we don't want these
+    multi_index.names = [*index1.names, *index2.names]
+    return multi_index
+
+
+def cross_indices(index1: pd.Index, index2: pd.Index) -> pd.MultiIndex:
+    """Combines indices into multi-index while preserving dtypes, names using cross product"""
+    multi_index = pd.MultiIndex.from_frame(
+        pd.merge(
+            left=index1.to_frame(index=False),
+            right=index2.to_frame(index=False),
+            how="cross",
+        )
     )
     # to_frame will produce numbered default names, we don't want these
     multi_index.names = [*index1.names, *index2.names]
@@ -187,9 +204,22 @@ def preview(*, name: str):
     return decorator
 
 
-def timedelta_to_micros(td: pd.Timedelta) -> int:
-    # td.value returns total nanoseconds.
-    return td.value // 1000
+def timedelta_to_micros(
+    timedelta: typing.Union[pd.Timedelta, datetime.timedelta, np.timedelta64]
+) -> int:
+    if isinstance(timedelta, pd.Timedelta):
+        # pd.Timedelta.value returns total nanoseconds.
+        return timedelta.value // 1000
+
+    if isinstance(timedelta, np.timedelta64):
+        return timedelta.astype("timedelta64[us]").astype(np.int64)
+
+    if isinstance(timedelta, datetime.timedelta):
+        return (
+            (timedelta.days * 3600 * 24) + timedelta.seconds
+        ) * 1_000_000 + timedelta.microseconds
+
+    raise TypeError(f"Unrecognized input type: {type(timedelta)}")
 
 
 def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:
@@ -208,6 +238,27 @@ def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:
 
     if pdtypes.is_timedelta64_dtype(dataframe.index.dtype):
         dataframe.index = dataframe.index.map(timedelta_to_micros)
+        updated_columns.append(dataframe.index.name)
+
+    return updated_columns
+
+
+def replace_json_with_string(dataframe: pd.DataFrame) -> List[str]:
+    """
+    Due to a BigQuery IO limitation with loading JSON from Parquet files (b/374784249),
+    we're using a workaround: storing JSON as strings and then parsing them into JSON
+    objects.
+    TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
+    """
+    updated_columns = []
+
+    for col in dataframe.columns:
+        if dataframe[col].dtype == dtypes.JSON_DTYPE:
+            dataframe[col] = dataframe[col].astype(dtypes.STRING_DTYPE)
+            updated_columns.append(col)
+
+    if dataframe.index.dtype == dtypes.JSON_DTYPE:
+        dataframe.index = dataframe.index.astype(dtypes.STRING_DTYPE)
         updated_columns.append(dataframe.index.name)
 
     return updated_columns

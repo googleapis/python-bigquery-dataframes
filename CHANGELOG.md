@@ -4,11 +4,94 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.38.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.37.0...v1.38.0) (2025-02-24)
+
+
+### Features
+
+* (Preview) Support diff aggregation for timestamp series. ([#1405](https://github.com/googleapis/python-bigquery-dataframes/issues/1405)) ([abe48d6](https://github.com/googleapis/python-bigquery-dataframes/commit/abe48d6f13a954534460fa14c9337e1085d9fbb3))
+* Add `GeoSeries.from_wkt() `and `GeoSeries.to_wkt()` ([#1401](https://github.com/googleapis/python-bigquery-dataframes/issues/1401)) ([2993b28](https://github.com/googleapis/python-bigquery-dataframes/commit/2993b283966960430ad8482f40f177e276db2d64))
+* Support DF.__array__(copy=True) ([#1403](https://github.com/googleapis/python-bigquery-dataframes/issues/1403)) ([693ed8c](https://github.com/googleapis/python-bigquery-dataframes/commit/693ed8cfb1ecc3af161801225d3e9cda489c29dd))
+* Support routines with ARRAY return type in `read_gbq_function` ([#1412](https://github.com/googleapis/python-bigquery-dataframes/issues/1412)) ([4b60049](https://github.com/googleapis/python-bigquery-dataframes/commit/4b60049e8362bfb07c136d8b2eb02b984d71f084))
+
+
+### Bug Fixes
+
+* Calling to_timdelta() over timedeltas no longer changes their values ([#1411](https://github.com/googleapis/python-bigquery-dataframes/issues/1411)) ([650a190](https://github.com/googleapis/python-bigquery-dataframes/commit/650a1907fdf84897eb7aa288863ee27d938e0879))
+* Replace empty dict with None to avoid mutable default arguments ([#1416](https://github.com/googleapis/python-bigquery-dataframes/issues/1416)) ([fa4e3ad](https://github.com/googleapis/python-bigquery-dataframes/commit/fa4e3ad8bcd5db56fa26b26609cc7e58b1edf498))
+
+
+### Performance Improvements
+
+* Avoid redundant SQL casts ([#1399](https://github.com/googleapis/python-bigquery-dataframes/issues/1399)) ([6ee48d5](https://github.com/googleapis/python-bigquery-dataframes/commit/6ee48d5c16870f1caa99c3f658c2c1a0e14be749))
+
+
+### Dependencies
+
+* Remove scikit-learn and sqlalchemy as required dependencies ([#1296](https://github.com/googleapis/python-bigquery-dataframes/issues/1296)) ([fd8bc89](https://github.com/googleapis/python-bigquery-dataframes/commit/fd8bc894bdbdf551ebbec1fb93832588371ae6af))
+
+
+### Documentation
+
+* Add samples using SQL methods via the `bigframes.bigquery` module ([#1358](https://github.com/googleapis/python-bigquery-dataframes/issues/1358)) ([f54e768](https://github.com/googleapis/python-bigquery-dataframes/commit/f54e7688fda6372c6decc9b61796b0272d803c79))
+* Add snippets for visualizing a time series and creating a time series model for the Limit forecasted values in time series model tutorial ([#1310](https://github.com/googleapis/python-bigquery-dataframes/issues/1310)) ([c6c9120](https://github.com/googleapis/python-bigquery-dataframes/commit/c6c9120e839647e5b3cb97f04a8d90cc8690b8a3))
+
+## [1.37.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.36.0...v1.37.0) (2025-02-19)
+
+
+### Features
+
+* (Preview) Support add, sub, mult, div, and more between timedeltas ([#1396](https://github.com/googleapis/python-bigquery-dataframes/issues/1396)) ([ffa63d4](https://github.com/googleapis/python-bigquery-dataframes/commit/ffa63d47ca1dd1a18617f44d9b3bc33419656a20))
+* (Preview) Support comparison, ordering, and filtering for timedeltas ([#1387](https://github.com/googleapis/python-bigquery-dataframes/issues/1387)) ([34d01b2](https://github.com/googleapis/python-bigquery-dataframes/commit/34d01b27f867abf10bddffdf4f88fa7052cd237c))
+* (Preview) Support subtraction in DATETIME/TIMESTAMP columns with timedelta columns ([#1390](https://github.com/googleapis/python-bigquery-dataframes/issues/1390)) ([50ad3a5](https://github.com/googleapis/python-bigquery-dataframes/commit/50ad3a56e9bd77bb77d60d7d5ec497e3335a7177))
+* JSON dtype support for read_pandas and Series constructor ([#1391](https://github.com/googleapis/python-bigquery-dataframes/issues/1391)) ([44f4137](https://github.com/googleapis/python-bigquery-dataframes/commit/44f4137adb02790e07c696f0641bc58390857210))
+
+
+### Bug Fixes
+
+* Ensure binops with pandas objects returns bigquery dataframes ([#1404](https://github.com/googleapis/python-bigquery-dataframes/issues/1404)) ([3cee24b](https://github.com/googleapis/python-bigquery-dataframes/commit/3cee24bae1d352015a5b6a8c18d5c394293d08fd))
+
+
+### Performance Improvements
+
+* Prune projections more aggressively ([#1398](https://github.com/googleapis/python-bigquery-dataframes/issues/1398)) ([7990262](https://github.com/googleapis/python-bigquery-dataframes/commit/7990262cf09e97c0739be922ede151d616655726))
+* Simplify sum aggregate SQL text ([#1395](https://github.com/googleapis/python-bigquery-dataframes/issues/1395)) ([0145656](https://github.com/googleapis/python-bigquery-dataframes/commit/0145656e5e378442f2f38f9f04e87e33ddf345f5))
+* Use simple null constraints to simplify queries ([#1381](https://github.com/googleapis/python-bigquery-dataframes/issues/1381)) ([00611d4](https://github.com/googleapis/python-bigquery-dataframes/commit/00611d4d697a8b74451375f5a7700b92a4410295))
+
+
+### Documentation
+
+* Add DataFrame.struct docs ([#1348](https://github.com/googleapis/python-bigquery-dataframes/issues/1348)) ([7e9e93a](https://github.com/googleapis/python-bigquery-dataframes/commit/7e9e93aafd26cbfec9a1710caaf97937bcb6ee05))
+
+## [1.36.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.35.0...v1.36.0) (2025-02-11)
+
+
+### Features
+
+* (Preview) Support addition between a timestamp and a timedelta ([#1369](https://github.com/googleapis/python-bigquery-dataframes/issues/1369)) ([b598aa8](https://github.com/googleapis/python-bigquery-dataframes/commit/b598aa8ef4f6dd0cbca7629d290c5e511cdc86fc))
+* (Preview) Support casting floats and list-likes to timedelta series ([#1362](https://github.com/googleapis/python-bigquery-dataframes/issues/1362)) ([65933b6](https://github.com/googleapis/python-bigquery-dataframes/commit/65933b6b7608ec52717e818d8ec1732fb756b67b))
+* (Preview) Support timestamp subtractions ([#1346](https://github.com/googleapis/python-bigquery-dataframes/issues/1346)) ([86b7e72](https://github.com/googleapis/python-bigquery-dataframes/commit/86b7e72097ce67d88b72cfe031080d5af22f65cd))
+* Add `bigframes.bigquery.st_area` and suggest it from `GeoSeries.area` ([#1318](https://github.com/googleapis/python-bigquery-dataframes/issues/1318)) ([8b5ffa8](https://github.com/googleapis/python-bigquery-dataframes/commit/8b5ffa8893b51016c51794865c40def74ea6716b))
+* Add `GeoSeries.from_xy()` ([#1364](https://github.com/googleapis/python-bigquery-dataframes/issues/1364)) ([3c3e14c](https://github.com/googleapis/python-bigquery-dataframes/commit/3c3e14c715f476ca44f254c0d53d639ea5988a8d))
+
+
+### Bug Fixes
+
+* Dtype parameter ineffective in Series/DataFrame construction ([#1354](https://github.com/googleapis/python-bigquery-dataframes/issues/1354)) ([b9bdca8](https://github.com/googleapis/python-bigquery-dataframes/commit/b9bdca8285ee54fecf3795fbf3cbea6f878ee8ca))
+* Translate labels to col ids when copying dataframes ([#1372](https://github.com/googleapis/python-bigquery-dataframes/issues/1372)) ([0c55b07](https://github.com/googleapis/python-bigquery-dataframes/commit/0c55b07dc001b568875f06d578ca7d59409f2a11))
+
+
+### Performance Improvements
+
+* Prune unused operations from sql ([#1365](https://github.com/googleapis/python-bigquery-dataframes/issues/1365)) ([923da03](https://github.com/googleapis/python-bigquery-dataframes/commit/923da037ef6e4e7f8b54924ea5644c2c5ceb2234))
+* Simplify merge join key coalescing ([#1361](https://github.com/googleapis/python-bigquery-dataframes/issues/1361)) ([7ae565d](https://github.com/googleapis/python-bigquery-dataframes/commit/7ae565d9e0e59fdf75c7659c0263562688ccc1e8))
+
 ## [1.35.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.34.0...v1.35.0) (2025-02-04)
 
 
 ### Features
 
+* (Preview) Support timedeltas for read_pandas() ([#1349](https://github.com/googleapis/python-bigquery-dataframes/issues/1349)) ([866ba9e](https://github.com/googleapis/python-bigquery-dataframes/commit/866ba9efb54f11c1fc2ced0d7995fff86277b049))
 * Add Series.keys() ([#1342](https://github.com/googleapis/python-bigquery-dataframes/issues/1342)) ([deb015d](https://github.com/googleapis/python-bigquery-dataframes/commit/deb015dc1276549519d51363501355272f8976d8))
 * Allow `case_when` to change dtypes if case list contains the condition `(True, some_default_value)` ([#1311](https://github.com/googleapis/python-bigquery-dataframes/issues/1311)) ([5c2a2c6](https://github.com/googleapis/python-bigquery-dataframes/commit/5c2a2c6086be20cba7da08ecd37899699aab518f))
 * Support python type as astype arg ([#1316](https://github.com/googleapis/python-bigquery-dataframes/issues/1316)) ([b26e135](https://github.com/googleapis/python-bigquery-dataframes/commit/b26e13570f198ec4d252590a8c07253624db667a))
@@ -49,6 +132,7 @@
 ### Features
 
 * (df|s).hist(), (df|s).line(), (df|s).area(), (df|s).bar(), df.scatter() ([#1320](https://github.com/googleapis/python-bigquery-dataframes/issues/1320)) ([bd3f584](https://github.com/googleapis/python-bigquery-dataframes/commit/bd3f584a7eab5d01dedebb7ca2485942ef5b5ebe))
+* (Preview) Define timedelta type and to_timedelta function ([#1317](https://github.com/googleapis/python-bigquery-dataframes/issues/1317)) ([3901951](https://github.com/googleapis/python-bigquery-dataframes/commit/39019510d0c2758096589ecd0d83175f313a8cf5))
 * Add DataFrame.corrwith method ([#1315](https://github.com/googleapis/python-bigquery-dataframes/issues/1315)) ([b503355](https://github.com/googleapis/python-bigquery-dataframes/commit/b5033559a77a9bc5ffb7dc1e44e02aaaaf1e051e))
 * Add DataFrame.mask method ([#1302](https://github.com/googleapis/python-bigquery-dataframes/issues/1302)) ([8b8155f](https://github.com/googleapis/python-bigquery-dataframes/commit/8b8155fef9c5cd36cfabf728ccebf6a14a1cbbda))
 * Enable reading JSON data with `dbjson` extension dtype ([#1139](https://github.com/googleapis/python-bigquery-dataframes/issues/1139)) ([f672262](https://github.com/googleapis/python-bigquery-dataframes/commit/f6722629fb47eed5befb0ecae2e6b5ec9042d669))

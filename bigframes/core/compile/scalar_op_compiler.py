@@ -26,6 +26,7 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 
+from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
 import bigframes.core.compile.default_ordering
 import bigframes.core.compile.ibis_types
 import bigframes.core.expression as ex
@@ -49,19 +50,6 @@ _OBJ_REF_STRUCT_SCHEMA = (
     ("details", ibis_dtypes.JSON),
 )
 _OBJ_REF_IBIS_DTYPE = ibis_dtypes.Struct.from_tuples(_OBJ_REF_STRUCT_SCHEMA)  # type: ignore
-
-# Datetime constants
-UNIT_TO_US_CONVERSION_FACTORS = {
-    "W": 7 * 24 * 60 * 60 * 1000 * 1000,
-    "d": 24 * 60 * 60 * 1000 * 1000,
-    "D": 24 * 60 * 60 * 1000 * 1000,
-    "h": 60 * 60 * 1000 * 1000,
-    "m": 60 * 1000 * 1000,
-    "s": 1000 * 1000,
-    "ms": 1000,
-    "us": 1,
-    "ns": 1e-3,
-}
 
 
 class ScalarOpCompiler:
@@ -742,6 +730,31 @@ def timestamp_diff_op_impl(x: ibis_types.TimestampValue, y: ibis_types.Timestamp
     return x.delta(y, "microsecond")
 
 
+@scalar_op_compiler.register_binary_op(ops.timestamp_add_op)
+def timestamp_add_op_impl(x: ibis_types.TimestampValue, y: ibis_types.IntegerValue):
+    return x + y.to_interval("us")
+
+
+@scalar_op_compiler.register_binary_op(ops.timestamp_sub_op)
+def timestamp_sub_op_impl(x: ibis_types.TimestampValue, y: ibis_types.IntegerValue):
+    return x - y.to_interval("us")
+
+
+@scalar_op_compiler.register_binary_op(ops.date_diff_op)
+def date_diff_op_impl(x: ibis_types.DateValue, y: ibis_types.DateValue):
+    return x.delta(y, "day") * int(UNIT_TO_US_CONVERSION_FACTORS["d"])  # type: ignore
+
+
+@scalar_op_compiler.register_binary_op(ops.date_add_op)
+def date_add_op_impl(x: ibis_types.DateValue, y: ibis_types.IntegerValue):
+    return x.cast("timestamp") + y.to_interval("us")  # type: ignore
+
+
+@scalar_op_compiler.register_binary_op(ops.date_sub_op)
+def date_sub_op_impl(x: ibis_types.DateValue, y: ibis_types.IntegerValue):
+    return x.cast("timestamp") - y.to_interval("us")  # type: ignore
+
+
 @scalar_op_compiler.register_unary_op(ops.FloorDtOp, pass_op=True)
 def floor_dt_op_impl(x: ibis_types.Value, op: ops.FloorDtOp):
     supported_freqs = ["Y", "Q", "M", "W", "D", "h", "min", "s", "ms", "us", "ns"]
@@ -988,6 +1001,35 @@ def normalize_op_impl(x: ibis_types.Value):
 
 
 # Geo Ops
+@scalar_op_compiler.register_unary_op(ops.geo_st_boundary_op, pass_op=False)
+def geo_st_boundary_op_impl(x: ibis_types.Value):
+    return st_boundary(x)
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_area_op)
+def geo_area_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).area()
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_st_astext_op)
+def geo_st_astext_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).as_text()
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_st_geogfromtext_op)
+def geo_st_geogfromtext_op_impl(x: ibis_types.Value):
+    # Ibis doesn't seem to provide a dedicated method to cast from string to geography,
+    # so we use a BigQuery scalar function, st_geogfromtext(), directly.
+    return st_geogfromtext(x)
+
+
+@scalar_op_compiler.register_binary_op(ops.geo_st_geogpoint_op, pass_op=False)
+def geo_st_geogpoint_op_impl(x: ibis_types.Value, y: ibis_types.Value):
+    return typing.cast(ibis_types.NumericValue, x).point(
+        typing.cast(ibis_types.NumericValue, y)
+    )
+
+
 @scalar_op_compiler.register_unary_op(ops.geo_x_op)
 def geo_x_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).x()
@@ -996,18 +1038,6 @@ def geo_x_op_impl(x: ibis_types.Value):
 @scalar_op_compiler.register_unary_op(ops.geo_y_op)
 def geo_y_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).y()
-
-
-@scalar_op_compiler.register_unary_op(ops.geo_area_op)
-def geo_area_op_impl(x: ibis_types.Value):
-    return typing.cast(ibis_types.GeoSpatialValue, x).area()
-
-
-@scalar_op_compiler.register_binary_op(ops.geo_st_geogpoint_op, pass_op=False)
-def geo_st_geogpoint_op_impl(x: ibis_types.Value, y: ibis_types.Value):
-    return typing.cast(ibis_types.NumericValue, x).point(
-        typing.cast(ibis_types.NumericValue, y)
-    )
 
 
 # Parameterized ops
@@ -1162,6 +1192,11 @@ def to_timedelta_op_impl(x: ibis_types.Value, op: ops.ToTimedeltaOp):
     return (
         typing.cast(ibis_types.NumericValue, x) * UNIT_TO_US_CONVERSION_FACTORS[op.unit]  # type: ignore
     ).floor()
+
+
+@scalar_op_compiler.register_unary_op(ops.timedelta_floor_op)
+def timedelta_floor_op_impl(x: ibis_types.NumericValue):
+    return x.floor()
 
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
@@ -1921,6 +1956,11 @@ def _ibis_num(number: float):
 
 
 @ibis_udf.scalar.builtin
+def st_geogfromtext(a: str) -> ibis_dtypes.geography:  # type: ignore
+    """Convert string to geography."""
+
+
+@ibis_udf.scalar.builtin
 def timestamp(a: str) -> ibis_dtypes.timestamp:  # type: ignore
     """Convert string to timestamp."""
 
@@ -1928,6 +1968,11 @@ def timestamp(a: str) -> ibis_dtypes.timestamp:  # type: ignore
 @ibis_udf.scalar.builtin
 def unix_millis(a: ibis_dtypes.timestamp) -> int:  # type: ignore
     """Convert a timestamp to milliseconds"""
+
+
+@ibis_udf.scalar.builtin
+def st_boundary(a: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ignore
+    """Find the boundary of a geography."""
 
 
 @ibis_udf.scalar.builtin

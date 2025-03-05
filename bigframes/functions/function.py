@@ -56,8 +56,10 @@ class ReturnTypeMissingError(ValueError):
 # TODO: Move this to compile folder
 def ibis_signature_from_routine(routine: bigquery.Routine) -> _utils.IbisSignature:
     if routine.return_type:
-        ibis_output_type = bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
-            routine.return_type.type_kind
+        ibis_output_type = (
+            bigframes.core.compile.ibis_types.ibis_type_from_bigquery_type(
+                routine.return_type
+            )
         )
     else:
         raise ReturnTypeMissingError
@@ -82,8 +84,8 @@ def ibis_signature_from_routine(routine: bigquery.Routine) -> _utils.IbisSignatu
     return _utils.IbisSignature(
         parameter_names=[arg.name for arg in routine.arguments],
         input_types=[
-            bigframes.core.compile.ibis_types.ibis_type_from_type_kind(
-                arg.data_type.type_kind
+            bigframes.core.compile.ibis_types.ibis_type_from_bigquery_type(
+                arg.data_type
             )
             if arg.data_type
             else None
@@ -120,13 +122,22 @@ def get_routine_reference(
 
 
 def remote_function(*args, **kwargs):
-    remote_function_session = bff_session.FunctionSession()
-    return remote_function_session.remote_function(*args, **kwargs)
+    function_session = bff_session.FunctionSession()
+    return function_session.remote_function(*args, **kwargs)
 
 
 remote_function.__doc__ = bff_session.FunctionSession.remote_function.__doc__
 
 
+def udf(*args, **kwargs):
+    function_session = bff_session.FunctionSession()
+    return function_session.udf(*args, **kwargs)
+
+
+udf.__doc__ = bff_session.FunctionSession.udf.__doc__
+
+
+# TODO(b/399894805): Support managed function.
 def read_gbq_function(
     function_name: str,
     *,
@@ -232,6 +243,8 @@ def read_gbq_function(
         if ibis_signature.output_type_override
         else ibis_signature.output_type
     )
+
+    func.bigframes_bigquery_function_output_dtype = bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(ibis_signature.output_type)  # type: ignore
 
     func.is_row_processor = is_row_processor  # type: ignore
     func.ibis_node = node  # type: ignore

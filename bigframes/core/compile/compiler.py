@@ -20,22 +20,19 @@ import typing
 
 import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery
 import bigframes_vendored.ibis.expr.api as ibis_api
+import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.types as ibis_types
 import google.cloud.bigquery
 import pandas as pd
 
+from bigframes import dtypes, operations
 from bigframes.core import utils
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
 import bigframes.core.compile.explode
 import bigframes.core.compile.ibis_types
-import bigframes.core.compile.isin
-import bigframes.core.compile.scalar_op_compiler
 import bigframes.core.compile.scalar_op_compiler as compile_scalar
 import bigframes.core.compile.schema_translator
-import bigframes.core.compile.single_column
-import bigframes.core.expression as ex
-import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as bf_ordering
 import bigframes.core.rewrite as rewrites
@@ -53,60 +50,50 @@ class Compiler:
     scalar_op_compiler = compile_scalar.ScalarOpCompiler()
 
     def compile_sql(
-        self, node: nodes.BigFrameNode, ordered: bool, output_ids: typing.Sequence[str]
+        self,
+        node: nodes.BigFrameNode,
+        ordered: bool,
+        limit: typing.Optional[int] = None,
     ) -> str:
-        # TODO: get rid of output_ids arg
-        assert len(output_ids) == len(list(node.fields))
-        node = set_output_names(node, output_ids)
-        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
+        # later steps might add ids, so snapshot before those steps.
+        output_ids = node.schema.names
         if ordered:
-            node, limit = rewrites.pullup_limit_from_slice(node)
-            node = nodes.bottom_up(node, rewrites.rewrite_slice)
-            node, ordering = rewrites.pull_up_order(
-                node, order_root=True, ordered_joins=self.strict
-            )
-            ir = self.compile_node(node)
-            return ir.to_sql(
-                order_by=ordering.all_ordering_columns,
-                limit=limit,
-                selections=output_ids,
-            )
-        else:
-            node = nodes.bottom_up(node, rewrites.rewrite_slice)
-            node, _ = rewrites.pull_up_order(
-                node, order_root=False, ordered_joins=self.strict
-            )
-            ir = self.compile_node(node)
-            return ir.to_sql(selections=output_ids)
+            # Need to do this before replacing unsupported ops, as that will rewrite slice ops
+            node, pulled_up_limit = rewrites.pullup_limit_from_slice(node)
+            if (pulled_up_limit is not None) and (
+                (limit is None) or limit > pulled_up_limit
+            ):
+                limit = pulled_up_limit
 
-    def compile_peek_sql(self, node: nodes.BigFrameNode, n_rows: int) -> str:
-        ids = [id.sql for id in node.ids]
-        node = nodes.bottom_up(node, rewrites.rewrite_slice)
-        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
-        node, _ = rewrites.pull_up_order(
-            node, order_root=False, ordered_joins=self.strict
+        node = self._replace_unsupported_ops(node)
+        # prune before pulling up order to avoid unnnecessary row_number() ops
+        node = rewrites.column_pruning(node)
+        node, ordering = rewrites.pull_up_order(node, order_root=ordered)
+        # final pruning to cleanup up any leftovers unused values
+        node = rewrites.column_pruning(node)
+        return self.compile_node(node).to_sql(
+            order_by=ordering.all_ordering_columns if ordered else (),
+            limit=limit,
+            selections=output_ids,
         )
-        return self.compile_node(node).to_sql(limit=n_rows, selections=ids)
 
     def compile_raw(
         self,
-        node: bigframes.core.nodes.BigFrameNode,
+        node: nodes.BigFrameNode,
     ) -> typing.Tuple[
         str, typing.Sequence[google.cloud.bigquery.SchemaField], bf_ordering.RowOrdering
     ]:
-        node = nodes.bottom_up(node, rewrites.rewrite_slice)
-        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
-        node, ordering = rewrites.pull_up_order(node, ordered_joins=self.strict)
-        ir = self.compile_node(node)
-        sql = ir.to_sql()
+        node = self._replace_unsupported_ops(node)
+        node = rewrites.column_pruning(node)
+        node, ordering = rewrites.pull_up_order(node, order_root=True)
+        node = rewrites.column_pruning(node)
+        sql = self.compile_node(node).to_sql()
         return sql, node.schema.to_bigquery(), ordering
 
-    def _preprocess(self, node: nodes.BigFrameNode):
+    def _replace_unsupported_ops(self, node: nodes.BigFrameNode):
+        # TODO: Run all replacement rules as single bottom-up pass
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
-        node = nodes.top_down(node, rewrites.rewrite_timedelta_ops)
-        node, _ = rewrites.pull_up_order(
-            node, order_root=False, ordered_joins=self.strict
-        )
+        node = nodes.bottom_up(node, rewrites.rewrite_timedelta_expressions)
         return node
 
     # TODO: Remove cache when schema no longer requires compilation to derive schema (and therefor only compiles for execution)
@@ -125,24 +112,25 @@ class Compiler:
         condition_pairs = tuple(
             (left.id.sql, right.id.sql) for left, right in node.conditions
         )
+
         left_unordered = self.compile_node(node.left_child)
         right_unordered = self.compile_node(node.right_child)
-        return bigframes.core.compile.single_column.join_by_column_unordered(
-            left=left_unordered,
+        return left_unordered.join(
             right=right_unordered,
             type=node.type,
             conditions=condition_pairs,
+            join_nulls=node.joins_nulls,
         )
 
     @_compile_node.register
     def compile_isin(self, node: nodes.InNode):
         left_unordered = self.compile_node(node.left_child)
         right_unordered = self.compile_node(node.right_child)
-        return bigframes.core.compile.isin.isin_unordered(
-            left=left_unordered,
+        return left_unordered.isin_join(
             right=right_unordered,
             indicator_col=node.indicator_col.sql,
             conditions=(node.left_col.id.sql, node.right_col.id.sql),
+            join_nulls=node.joins_nulls,
         )
 
     @_compile_node.register
@@ -192,37 +180,50 @@ class Compiler:
         return self.compile_read_table_unordered(node.source, node.scan_list)
 
     def read_table_as_unordered_ibis(
-        self, source: nodes.BigqueryDataSource
+        self,
+        source: nodes.BigqueryDataSource,
+        scan_cols: typing.Sequence[str],
     ) -> ibis_types.Table:
         full_table_name = f"{source.table.project_id}.{source.table.dataset_id}.{source.table.table_id}"
-        used_columns = tuple(col.name for col in source.table.physical_schema)
         # Physical schema might include unused columns, unsupported datatypes like JSON
         physical_schema = ibis_bigquery.BigQuerySchema.to_ibis(
-            list(i for i in source.table.physical_schema if i.name in used_columns)
+            list(source.table.physical_schema)
         )
         if source.at_time is not None or source.sql_predicate is not None:
             import bigframes.session._io.bigquery
 
             sql = bigframes.session._io.bigquery.to_query(
                 full_table_name,
-                columns=used_columns,
+                columns=scan_cols,
                 sql_predicate=source.sql_predicate,
                 time_travel_timestamp=source.at_time,
             )
             return ibis_bigquery.Backend().sql(schema=physical_schema, query=sql)
         else:
-            return ibis_api.table(physical_schema, full_table_name)
+            return ibis_api.table(physical_schema, full_table_name).select(scan_cols)
 
     def compile_read_table_unordered(
         self, source: nodes.BigqueryDataSource, scan: nodes.ScanList
     ):
-        ibis_table = self.read_table_as_unordered_ibis(source)
+        ibis_table = self.read_table_as_unordered_ibis(
+            source, scan_cols=[col.source_id for col in scan.items]
+        )
+
+        # TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
+        for scan_item in scan.items:
+            if (
+                scan_item.dtype == dtypes.JSON_DTYPE
+                and ibis_table[scan_item.source_id].type() == ibis_dtypes.string
+            ):
+                json_column = compile_scalar.parse_json(
+                    ibis_table[scan_item.source_id]
+                ).name(scan_item.source_id)
+                ibis_table = ibis_table.mutate(json_column)
+
         return compiled.UnorderedIR(
             ibis_table,
             tuple(
-                bigframes.core.compile.ibis_types.ibis_value_to_canonical_type(
-                    ibis_table[scan_item.source_id].name(scan_item.id.sql)
-                )
+                ibis_table[scan_item.source_id].name(scan_item.id.sql)
                 for scan_item in scan.items
             ),
         )
@@ -258,8 +259,13 @@ class Compiler:
     def compile_aggregate(self, node: nodes.AggregateNode):
         aggs = tuple((agg, id.sql) for agg, id in node.aggregations)
         result = self.compile_node(node.child).aggregate(
-            aggs, node.by_column_ids, node.dropna, order_by=node.order_by
+            aggs, node.by_column_ids, order_by=node.order_by
         )
+        # TODO: Remove dropna field and use filter node instead
+        if node.dropna:
+            for key in node.by_column_ids:
+                if node.child.field_by_id[key.id].nullable:
+                    result = result.filter(operations.notnull_op.as_expr(key))
         return result
 
     @_compile_node.register
@@ -282,16 +288,3 @@ class Compiler:
     @_compile_node.register
     def compile_random_sample(self, node: nodes.RandomSampleNode):
         return self.compile_node(node.child)._uniform_sampling(node.fraction)
-
-
-def set_output_names(
-    node: bigframes.core.nodes.BigFrameNode, output_ids: typing.Sequence[str]
-):
-    # TODO: Create specialized output operators that will handle final names
-    return nodes.SelectionNode(
-        node,
-        tuple(
-            (ex.DerefOp(old_id), ids.ColumnId(out_id))
-            for old_id, out_id in zip(node.ids, output_ids)
-        ),
-    )
