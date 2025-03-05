@@ -1587,7 +1587,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         pa_table, query_job = self._block.to_arrow(
             ordered=ordered, allow_large_results=allow_large_results
         )
-        self._set_internal_query_job(query_job)
+        if query_job:
+            self._set_internal_query_job(query_job)
         return pa_table
 
     def to_pandas(
@@ -1644,7 +1645,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             dry_run=dry_run,
             allow_large_results=allow_large_results,
         )
-        self._set_internal_query_job(query_job)
+        if query_job:
+            self._set_internal_query_job(query_job)
+
         if dry_run:
             return df
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
@@ -1697,7 +1700,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def tail(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[-n:])
 
-    def peek(self, n: int = 5, *, force: bool = True) -> pandas.DataFrame:
+    def peek(
+        self, n: int = 5, *, force: bool = True, allow_large_results=None
+    ) -> pandas.DataFrame:
         """
         Preview n arbitrary rows from the dataframe. No guarantees about row selection or ordering.
         ``DataFrame.peek(force=False)`` will always be very fast, but will not succeed if data requires
@@ -1710,17 +1715,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             force (bool, default True):
                 If the data cannot be peeked efficiently, the dataframe will instead be fully materialized as part
                 of the operation if ``force=True``. If ``force=False``, the operation will throw a ValueError.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
         Returns:
             pandas.DataFrame: A pandas DataFrame with n rows.
 
         Raises:
             ValueError: If force=False and data cannot be efficiently peeked.
         """
-        maybe_result = self._block.try_peek(n)
+        maybe_result = self._block.try_peek(n, allow_large_results=allow_large_results)
         if maybe_result is None:
             if force:
                 self._cached()
-                maybe_result = self._block.try_peek(n, force=True)
+                maybe_result = self._block.try_peek(
+                    n, force=True, allow_large_results=allow_large_results
+                )
                 assert maybe_result is not None
             else:
                 raise ValueError(
@@ -4108,9 +4118,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             msg = "axis=1 scenario is in preview."
             warnings.warn(msg, category=bfe.PreviewWarning)
 
-            # Check if the function is a remote function
-            if not hasattr(func, "bigframes_remote_function"):
-                raise ValueError("For axis=1 a remote function must be used.")
+            # TODO(jialuo): Deprecate the "bigframes_remote_function" attribute.
+            # We have some tests using pre-defined remote_function that were
+            # defined based on "bigframes_remote_function" instead of
+            # "bigframes_bigquery_function". So we need to fix those pre-defined
+            # remote functions before deprecating the "bigframes_remote_function"
+            # attribute. Check if the function is a remote function.
+            if not hasattr(func, "bigframes_remote_function") and not hasattr(
+                func, "bigframes_bigquery_function"
+            ):
+                raise ValueError("For axis=1 a bigframes function must be used.")
 
             is_row_processor = getattr(func, "is_row_processor")
             if is_row_processor:

@@ -426,7 +426,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             dry_run=dry_run,
             allow_large_results=allow_large_results,
         )
-        self._set_internal_query_job(query_job)
+        if query_job:
+            self._set_internal_query_job(query_job)
         series = df.squeeze(axis=1)
         series.name = self._name
         return series
@@ -697,7 +698,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def tail(self, n: int = 5) -> Series:
         return typing.cast(Series, self.iloc[-n:])
 
-    def peek(self, n: int = 5, *, force: bool = True) -> pandas.Series:
+    def peek(
+        self, n: int = 5, *, force: bool = True, allow_large_results=None
+    ) -> pandas.Series:
         """
         Preview n arbitrary elements from the series without guarantees about row selection or ordering.
 
@@ -711,17 +714,22 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             force (bool, default True):
                 If the data cannot be peeked efficiently, the series will instead be fully materialized as part
                 of the operation if ``force=True``. If ``force=False``, the operation will throw a ValueError.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
         Returns:
             pandas.Series: A pandas Series with n rows.
 
         Raises:
             ValueError: If force=False and data cannot be efficiently peeked.
         """
-        maybe_result = self._block.try_peek(n)
+        maybe_result = self._block.try_peek(n, allow_large_results=allow_large_results)
         if maybe_result is None:
             if force:
                 self._cached()
-                maybe_result = self._block.try_peek(n, force=True)
+                maybe_result = self._block.try_peek(
+                    n, force=True, allow_large_results=allow_large_results
+                )
                 assert maybe_result is not None
             else:
                 raise ValueError(
@@ -1532,10 +1540,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 "Only a ufunc (a function that applies to the entire Series) or a remote function that only works on single values are supported."
             )
 
-        if not hasattr(func, "bigframes_remote_function"):
-            # It is not a remote function
+        # TODO(jialuo): Deprecate the "bigframes_remote_function" attribute.
+        # We have some tests using pre-defined remote_function that were defined
+        # based on "bigframes_remote_function" instead of
+        # "bigframes_bigquery_function". So we need to fix those pre-defined
+        # remote functions before deprecating the "bigframes_remote_function"
+        # attribute.
+        if not hasattr(func, "bigframes_remote_function") and not hasattr(
+            func, "bigframes_bigquery_function"
+        ):
+            # It is neither a remote function nor a managed function.
             # Then it must be a vectorized function that applies to the Series
-            # as a whole
+            # as a whole.
             if by_row:
                 raise ValueError(
                     "A vectorized non-remote function can be provided only with by_row=False."
@@ -1584,7 +1600,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 "Only a ufunc (a function that applies to the entire Series) or a remote function that only works on single values are supported."
             )
 
-        if not hasattr(func, "bigframes_remote_function"):
+        if not hasattr(func, "bigframes_remote_function") and not hasattr(
+            func, "bigframes_bigquery_function"
+        ):
             # Keep this in sync with .apply
             try:
                 return func(self, other)
