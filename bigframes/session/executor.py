@@ -33,7 +33,7 @@ import warnings
 import weakref
 
 import google.api_core.exceptions
-import google.cloud.bigquery as bigquery
+from google.cloud import bigquery
 import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
@@ -47,6 +47,7 @@ import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
 import bigframes.core.schema
 import bigframes.core.tree_properties as tree_properties
+import bigframes.dtypes
 import bigframes.features
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
@@ -320,6 +321,19 @@ class BigQueryCachingExecutor(Executor):
             sql=sql,
             job_config=job_config,
         )
+
+        has_timedelta_col = any(
+            t == bigframes.dtypes.TIMEDELTA_DTYPE for t in array_value.schema.dtypes
+        )
+
+        if if_exists != "append" and has_timedelta_col:
+            # Only update schema if this is not modifying an existing table, and the
+            # new table contains timedelta columns.
+            assert query_job.destination is not None
+            table = self.bqclient.get_table(query_job.destination)
+            table.schema = array_value.schema.to_bigquery()
+            self.bqclient.update_table(table, ["schema"])
+
         return query_job
 
     def export_gcs(
@@ -637,22 +651,39 @@ class BigQueryCachingExecutor(Executor):
         array_value: bigframes.core.ArrayValue,
         bq_schema: list[bigquery.SchemaField],
     ):
-        actual_schema = tuple(bq_schema)
+        actual_schema = _sanitize(tuple(bq_schema))
         ibis_schema = bigframes.core.compile.test_only_ibis_inferred_schema(
             self.replace_cached_subtrees(array_value.node)
-        )
-        internal_schema = array_value.schema
+        ).to_bigquery()
+        internal_schema = _sanitize(array_value.schema.to_bigquery())
         if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
             return
 
-        if internal_schema.to_bigquery() != actual_schema:
+        if internal_schema != actual_schema:
             raise ValueError(
-                f"This error should only occur while testing. BigFrames internal schema: {internal_schema.to_bigquery()} does not match actual schema: {actual_schema}"
+                f"This error should only occur while testing. BigFrames internal schema: {internal_schema} does not match actual schema: {actual_schema}"
             )
-        if ibis_schema.to_bigquery() != actual_schema:
+
+        if ibis_schema != actual_schema:
             raise ValueError(
-                f"This error should only occur while testing. Ibis schema: {ibis_schema.to_bigquery()} does not match actual schema: {actual_schema}"
+                f"This error should only occur while testing. Ibis schema: {ibis_schema} does not match actual schema: {actual_schema}"
             )
+
+
+def _sanitize(
+    schema: Tuple[bigquery.SchemaField, ...]
+) -> Tuple[bigquery.SchemaField, ...]:
+    # Schema inferred from SQL strings and Ibis expressions contain only names, types and modes,
+    # so we disregard other fields (e.g timedelta description for timedelta columns) for validations.
+    return tuple(
+        bigquery.SchemaField(
+            f.name,
+            f.field_type,
+            f.mode,  # type:ignore
+            fields=_sanitize(f.fields),
+        )
+        for f in schema
+    )
 
 
 def generate_head_plan(node: nodes.BigFrameNode, n: int):

@@ -3733,6 +3733,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 default_project=default_project,
             )
         )
+
         query_job = self._session._executor.export_gbq(
             export_array.rename_columns(id_overrides),
             destination=destination,
@@ -4097,9 +4098,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             msg = "axis=1 scenario is in preview."
             warnings.warn(msg, category=bfe.PreviewWarning)
 
-            # Check if the function is a remote function
-            if not hasattr(func, "bigframes_remote_function"):
-                raise ValueError("For axis=1 a remote function must be used.")
+            # TODO(jialuo): Deprecate the "bigframes_remote_function" attribute.
+            # We have some tests using pre-defined remote_function that were
+            # defined based on "bigframes_remote_function" instead of
+            # "bigframes_bigquery_function". So we need to fix those pre-defined
+            # remote functions before deprecating the "bigframes_remote_function"
+            # attribute. Check if the function is a remote function.
+            if not hasattr(func, "bigframes_remote_function") and not hasattr(
+                func, "bigframes_bigquery_function"
+            ):
+                raise ValueError("For axis=1 a bigframes function must be used.")
 
             is_row_processor = getattr(func, "is_row_processor")
             if is_row_processor:
