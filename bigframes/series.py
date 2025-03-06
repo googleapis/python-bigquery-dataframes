@@ -30,7 +30,6 @@ from typing import (
     Literal,
     Mapping,
     Optional,
-    overload,
     Sequence,
     Tuple,
     Union,
