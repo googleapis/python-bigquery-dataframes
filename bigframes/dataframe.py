@@ -32,6 +32,7 @@ from typing import (
     Literal,
     Mapping,
     Optional,
+    overload,
     Sequence,
     Tuple,
     Union,
@@ -1594,6 +1595,32 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._set_internal_query_job(query_job)
         return pa_table
 
+    @overload
+    def to_pandas(
+        self,
+        max_download_size: Optional[int] = ...,
+        sampling_method: Optional[str] = ...,
+        random_state: Optional[int] = ...,
+        *,
+        ordered: bool = ...,
+        dry_run: Literal[False] = ...,
+        allow_large_results: Optional[bool] = ...,
+    ) -> pandas.DataFrame:
+        ...
+
+    @overload
+    def to_pandas(
+        self,
+        max_download_size: Optional[int] = ...,
+        sampling_method: Optional[str] = ...,
+        random_state: Optional[int] = ...,
+        *,
+        ordered: bool = ...,
+        dry_run: Literal[True] = ...,
+        allow_large_results: Optional[bool] = ...,
+    ) -> pandas.Series:
+        ...
+
     def to_pandas(
         self,
         max_download_size: Optional[int] = None,
@@ -1603,7 +1630,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ordered: bool = True,
         dry_run: bool = False,
         allow_large_results: Optional[bool] = None,
-    ) -> pandas.DataFrame:
+    ) -> pandas.DataFrame | pandas.Series:
         """Write DataFrame to pandas DataFrame.
 
         Args:
@@ -1627,7 +1654,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 In some cases, unordered may result in a faster-executing query.
             dry_run (bool, default False):
                 If this argument is true, this method will not process the data. Instead, it returns
-                a Pandas dataframe containing dry run statistics
+                a Pandas Series containing dry run statistics
             allow_large_results (bool, default None):
                 If not None, overrides the global setting to allow or disallow large query results
                 over the default size limit of 10 GB.
@@ -1636,10 +1663,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             pandas.DataFrame: A pandas DataFrame with all rows and columns of this DataFrame if the
                 data_sampling_threshold_mb is not exceeded; otherwise, a pandas DataFrame with
                 downsampled rows and all columns of this DataFrame. If dry_run is set, a pandas
-                DataFrame containing dry run statistics will be returned.
+                Series containing dry run statistics will be returned.
         """
 
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
+
+        if dry_run:
+            series, query_job = self._block.to_pandas(
+                max_download_size=max_download_size,
+                sampling_method=sampling_method,
+                random_state=random_state,
+                ordered=ordered,
+                dry_run=dry_run,
+                allow_large_results=allow_large_results,
+            )
+            if query_job:
+                self._set_internal_query_job(query_job)
+            return series
+
+        # Repeat the to_pandas() call to make mypy deduce type correctly, because mypy cannot resolve
+        # Literal[True/False] to bool
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
@@ -1650,9 +1693,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         if query_job:
             self._set_internal_query_job(query_job)
-
-        if dry_run:
-            return df
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
     def to_pandas_batches(

@@ -22,6 +22,7 @@ circular dependencies.
 from __future__ import annotations
 
 import ast
+import copy
 import dataclasses
 import datetime
 import functools
@@ -30,11 +31,13 @@ import random
 import textwrap
 import typing
 from typing import (
+    Any,
     Iterable,
     List,
     Literal,
     Mapping,
     Optional,
+    overload,
     Sequence,
     Tuple,
     TYPE_CHECKING,
@@ -501,6 +504,32 @@ class Block:
         pa_table = pa_table.rename_columns(list(self.column_labels) + pa_index_labels)
         return pa_table, execute_result.query_job
 
+    @overload
+    def to_pandas(
+        self,
+        max_download_size: Optional[int] = ...,
+        sampling_method: Optional[str] = ...,
+        random_state: Optional[int] = ...,
+        *,
+        ordered: bool = ...,
+        dry_run: Literal[False] = ...,
+        allow_large_results: Optional[bool] = ...,
+    ) -> Tuple[pd.DataFrame, Optional[bigquery.QueryJob]]:
+        ...
+
+    @overload
+    def to_pandas(
+        self,
+        max_download_size: Optional[int] = ...,
+        sampling_method: Optional[str] = ...,
+        random_state: Optional[int] = ...,
+        *,
+        ordered: bool = ...,
+        dry_run: Literal[True] = ...,
+        allow_large_results: Optional[bool] = ...,
+    ) -> Tuple[pd.Series, Optional[bigquery.QueryJob]]:
+        ...
+
     def to_pandas(
         self,
         max_download_size: Optional[int] = None,
@@ -510,7 +539,7 @@ class Block:
         ordered: bool = True,
         dry_run: bool = False,
         allow_large_results: Optional[bool] = None,
-    ) -> Tuple[pd.DataFrame, Optional[bigquery.QueryJob]]:
+    ) -> Tuple[pd.DataFrame | pd.Series, Optional[bigquery.QueryJob]]:
         """Run query and download results as a pandas DataFrame.
 
         Args:
@@ -533,11 +562,11 @@ class Block:
                 Determines whether the resulting pandas dataframe will be ordered.
                 Whether the row ordering is deterministics depends on whether session ordering is strict.
             dry_run (bool, default False):
-                Whether to perfrom a dry run. If true, the method will return a dataframe containing dry run
-                stats instead.
+                Whether to perfrom a dry run. If true, the method will return a pandas Series containing
+                dry run statistics.
 
         Returns:
-            pandas.DataFrame, QueryJob
+            pandas.DataFrame | pandas.Series, QueryJob
         """
         if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
             raise NotImplementedError(
@@ -808,26 +837,60 @@ class Block:
 
     def _compute_dry_run(
         self, value_keys: Optional[Iterable[str]] = None, ordered: bool = True
-    ) -> typing.Tuple[pd.DataFrame, bigquery.QueryJob]:
-        column_dtypes = pd.Series(
-            [*self.dtypes], index=[*self.column_labels], name="column_dtypes"
+    ) -> typing.Tuple[pd.Series, bigquery.QueryJob]:
+        index: List[Any] = []
+        values: List[Any] = []
+
+        index.append("columnCount")
+        values.append(len(self.value_columns))
+        index.append("columnDtypes")
+        values.append(
+            {
+                col: self.expr.get_column_type(self.resolve_label_exact_or_error(col))
+                for col in self.column_labels
+            }
         )
 
-        index_names = [self.index.names[n] or str(n) for n in range(self.index.nlevels)]
-        index_dtypes = pd.Series(
-            [*self.index.dtypes], index=index_names, name="index_dtypes"
-        )
+        index.append("indexLevel")
+        values.append(self.index.nlevels)
+        index.append("indexDtypes")
+        values.append(self.index.dtypes)
 
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
         query_job = self.session._executor.dry_run(expr, ordered)
+        job_api_repr = copy.deepcopy(query_job._properties)
 
-        job_stats = pd.Series(
-            [query_job.total_bytes_processed],
-            index=["total_bytes_processed"],
-            name="job_statistics",
+        job_ref = job_api_repr["jobReference"]
+        for key, val in job_ref.items():
+            index.append(key)
+            values.append(val)
+
+        index.append("jobType")
+        values.append(job_api_repr["configuration"]["jobType"])
+
+        query_config = job_api_repr["configuration"]["query"]
+        for key in ("destinationTable", "useLegacySql"):
+            index.append(key)
+            values.append(query_config.get(key))
+
+        query_stats = job_api_repr["statistics"]["query"]
+        for key in (
+            "referencedTables",
+            "totalBytesProcessed",
+            "cacheHit",
+            "statementType",
+        ):
+            index.append(key)
+            values.append(query_stats.get(key))
+
+        index.append("creationTime")
+        values.append(
+            pd.Timestamp(
+                job_api_repr["statistics"]["creationTime"], unit="ms", tz="UTC"
+            )
         )
 
-        return pd.concat([column_dtypes, index_dtypes, job_stats], axis=1), query_job
+        return pd.Series(values, index=index), query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):
         expr = self._expr
@@ -2716,20 +2779,49 @@ class BlockIndexProperties:
     def is_null(self) -> bool:
         return len(self._block._index_columns) == 0
 
+    @overload
+    def to_pandas(
+        self,
+        *,
+        ordered: Optional[bool] = ...,
+        dry_run: Literal[False] = ...,
+        allow_large_results: Optional[bool] = ...,
+    ) -> Tuple[pd.Index, Optional[bigquery.QueryJob]]:
+        ...
+
+    @overload
+    def to_pandas(
+        self,
+        *,
+        ordered: Optional[bool] = ...,
+        dry_run: Literal[True] = ...,
+        allow_large_results: Optional[bool] = ...,
+    ) -> Tuple[pd.Series, Optional[bigquery.QueryJob]]:
+        ...
+
     def to_pandas(
         self,
         *,
         ordered: Optional[bool] = None,
+        dry_run: bool = False,
         allow_large_results: Optional[bool] = None,
-    ) -> Tuple[pd.Index, Optional[bigquery.QueryJob]]:
+    ) -> Tuple[pd.Index | pd.Series, Optional[bigquery.QueryJob]]:
         """Executes deferred operations and downloads the results."""
         if len(self.column_ids) == 0:
             raise bigframes.exceptions.NullIndexError(
                 "Cannot materialize index, as this object does not have an index. Set index column(s) using set_index."
             )
         ordered = ordered if ordered is not None else True
+        if dry_run:
+            series, query_job = self._block.select_columns([]).to_pandas(
+                ordered=ordered,
+                allow_large_results=allow_large_results,
+                dry_run=dry_run,
+            )
+            return series, query_job
+
         df, query_job = self._block.select_columns([]).to_pandas(
-            ordered=ordered, allow_large_results=allow_large_results
+            ordered=ordered, allow_large_results=allow_large_results, dry_run=dry_run
         )
         return df.index, query_job
 

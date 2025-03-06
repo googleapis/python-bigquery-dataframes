@@ -504,12 +504,12 @@ class Index(vendored_pandas_index.Index):
     @overload
     def to_pandas(
         self, *, allow_large_results: Optional[bool] = ..., dry_run: Literal[True] = ...
-    ) -> pandas.DataFrame:
+    ) -> pandas.Series:
         ...
 
     def to_pandas(
         self, *, allow_large_results: Optional[bool] = None, dry_run: bool = False
-    ) -> pandas.Index | pandas.DataFrame:
+    ) -> pandas.Index | pandas.Series:
         """Gets the Index as a pandas Index.
 
         Args:
@@ -521,19 +521,22 @@ class Index(vendored_pandas_index.Index):
                 a Pandas series containing dtype and the amount of bytes to be processed.
 
         Returns:
-            pandas.Index | pandas.Dataframe:
+            pandas.Index | pandas.Series:
                 A pandas Index with all of the labels from this Index. If dry run is set to True,
-                returns a DataFrame containing dry run statistics.
+                returns a Series containing dry run statistics.
         """
-
         if dry_run:
-            dry_run_df, query_job = self._block.to_pandas(ordered=True, dry_run=True)
-            self._query_job = query_job
+            series, query_job = self._block.index.to_pandas(
+                ordered=True, allow_large_results=allow_large_results, dry_run=dry_run
+            )
+            if query_job:
+                self._query_job = query_job
+            return series
 
-            return dry_run_df
-
+        # Repeat the to_pandas() call to make mypy deduce type correctly, because mypy cannot resolve
+        # Literal[True/False] to bool
         df, query_job = self._block.index.to_pandas(
-            ordered=True, allow_large_results=allow_large_results
+            ordered=True, allow_large_results=allow_large_results, dry_run=dry_run
         )
         if query_job:
             self._query_job = query_job

@@ -385,32 +385,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             bigframes.operations.AsTypeOp(to_type=dtype, safe=(errors == "null"))
         )
 
-    @overload
-    def to_pandas(
-        self,
-        max_download_size: Optional[int] = ...,
-        sampling_method: Optional[str] = ...,
-        random_state: Optional[int] = ...,
-        *,
-        ordered: bool = ...,
-        dry_run: Literal[False] = ...,
-        allow_large_results: Optional[bool] = ...,
-    ) -> pandas.Series:
-        ...
-
-    @overload
-    def to_pandas(
-        self,
-        max_download_size: Optional[int] = ...,
-        sampling_method: Optional[str] = ...,
-        random_state: Optional[int] = ...,
-        *,
-        ordered: bool = ...,
-        dry_run: Literal[True] = ...,
-        allow_large_results: Optional[bool] = ...,
-    ) -> pandas.DataFrame:
-        ...
-
     def to_pandas(
         self,
         max_download_size: Optional[int] = None,
@@ -420,7 +394,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         ordered: bool = True,
         dry_run: bool = False,
         allow_large_results: Optional[bool] = None,
-    ) -> pandas.Series | pandas.DataFrame:
+    ) -> pandas.Series:
         """Writes Series to pandas Series.
 
         Args:
@@ -444,7 +418,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 In some cases, unordered may result in a faster-executing query.
             dry_run (bool, default False):
                 If this argument is true, this method will not process the data. Instead, it returns
-                a Pandas DataFrame containing dtype and the amount of bytes to be processed.
+                a Pandas Series containing dry run job statistics
             allow_large_results (bool, default None):
                 If not None, overrides the global setting to allow or disallow large query results
                 over the default size limit of 10 GB.
@@ -455,6 +429,22 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 is set to True, a pandas Series containing dry run statistics will be returned.
         """
 
+        if dry_run:
+            series, query_job = self._block.to_pandas(
+                max_download_size=max_download_size,
+                sampling_method=sampling_method,
+                random_state=random_state,
+                ordered=ordered,
+                dry_run=dry_run,
+                allow_large_results=allow_large_results,
+            )
+
+            if query_job:
+                self._set_internal_query_job(query_job)
+            return series
+
+        # Repeat the to_pandas() call to make mypy deduce type correctly, because mypy cannot resolve
+        # Literal[True/False] to bool
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
@@ -463,12 +453,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             dry_run=dry_run,
             allow_large_results=allow_large_results,
         )
-        if query_job:
-            self._set_internal_query_job(query_job)
-
-        if dry_run:
-            return df
-            # return self._convert_dry_run_df_to_series(df)
 
         series = df.squeeze(axis=1)
         series.name = self._name
@@ -477,24 +461,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def _compute_dry_run(self) -> bigquery.QueryJob:
         _, query_job = self._block._compute_dry_run((self._value_column,))
         return query_job
-
-    def _convert_dry_run_df_to_series(self, df: pandas.DataFrame) -> pandas.Series:
-        column_dtypes = df["column_dtypes"].dropna()
-        column_dtypes.index = pandas.MultiIndex.from_tuples(
-            [("column_dtypes", col) for col in column_dtypes.index.name]
-        )
-
-        index_dtypes = df["index_dtypes"].dropna()
-        index_dtypes.index = pandas.MultiIndex.from_tuples(
-            [("index_dtypes", col) for col in index_dtypes.index.name]
-        )
-
-        job_statistics = df["job_statistics"].dropna()
-        job_statistics.index = pandas.MultiIndex.from_tuples(
-            [("job_statistics", col) for col in job_statistics.index.name]
-        )
-
-        return pandas.concat([column_dtypes, index_dtypes, job_statistics])
 
     def drop(
         self,

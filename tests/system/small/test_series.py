@@ -4389,6 +4389,4 @@ def test_series_to_pandas_dry_run(scalars_df_index):
 
     result = bf_series.to_pandas(dry_run=True)
 
-    assert result["column_dtypes"][bf_series.name] == bf_series.dtype
-    assert result["index_dtypes"][bf_series.index.name] == bf_series.index.dtype
-    assert result["job_statistics"]["total_bytes_processed"] >= 0
+    assert len(result) == 14
