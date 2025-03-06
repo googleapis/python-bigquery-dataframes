@@ -37,4 +37,4 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
 
     result = result.sort_values(by="CNTRYCODE")
 
-    next(result.to_pandas_batches(max_results=1500))
+    next(result.to_pandas_batches(max_results=1500, allow_large_results=False))

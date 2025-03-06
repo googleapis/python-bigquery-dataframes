@@ -69,4 +69,4 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
         ["NATION", "O_YEAR"], ascending=[True, False]
     )
 
-    next(q_final.to_pandas_batches(max_results=1500))
+    next(q_final.to_pandas_batches(max_results=1500, allow_large_results=False))

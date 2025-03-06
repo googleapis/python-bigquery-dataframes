@@ -59,4 +59,4 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
     final_result = q3[q3["S_SUPPKEY"].isin(final_filtered)]
     final_result = final_result[["S_NAME", "S_ADDRESS"]].sort_values(by="S_NAME")
 
-    next(final_result.to_pandas_batches(max_results=1500))
+    next(final_result.to_pandas_batches(max_results=1500, allow_large_results=False))
