@@ -455,7 +455,7 @@ class FunctionSession:
 
         # raise a UserWarning if user does not explicitly set cloud_function_service_account to a
         # user-managed cloud_function_service_account of to default
-        msg = (
+        msg = bfe.format_message(
             "You have not explicitly set a user-managed `cloud_function_service_account`. "
             "Using the default Compute Engine service account. "
             "To use Bigframes 2.0, please explicitly set `cloud_function_service_account` "
