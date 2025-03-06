@@ -108,7 +108,7 @@ class ArrayValue:
             raise ValueError("must set at most one of 'offests', 'primary_key'")
         if any(i.field_type == "JSON" for i in table.schema if i.name in schema.names):
             msg = bfe.format_message(
-                "JSON column interpretation as a custom PyArrow extention in `db_dtypes`  "
+                "JSON column interpretation as a custom PyArrow extention in `db_dtypes` "
                 "is a preview feature and subject to change."
             )
             warnings.warn(msg, bfe.PreviewWarning)
