@@ -409,7 +409,7 @@ def pdf_extract_func(src_obj_ref_rt: str) -> str:
     src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
     src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
 
-    response = session.get(src_url, timeout=30)
+    response = session.get(src_url, timeout=30, stream=True)
     response.raise_for_status()
     pdf_bytes = response.content
 
@@ -442,7 +442,7 @@ def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> s
     src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
     src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
 
-    response = session.get(src_url, timeout=30)
+    response = session.get(src_url, timeout=30, stream=True)
     response.raise_for_status()
     pdf_bytes = response.content
 
