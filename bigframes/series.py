@@ -23,17 +23,7 @@ import itertools
 import numbers
 import textwrap
 import typing
-from typing import (
-    Any,
-    cast,
-    List,
-    Literal,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Any, cast, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.series as vendored_pandas_series
