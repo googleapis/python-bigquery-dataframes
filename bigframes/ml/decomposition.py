@@ -227,8 +227,20 @@ class MatrixFactorization(
         l2_reg: float = 1.0,
     ):
         self.feedback_type = feedback_type
+
+        if type(num_factors) is not int:
+            raise (TypeError)
+
         self.num_factors = num_factors
+
+        if type(user_col) is not str:
+            raise (TypeError)
+
         self.user_col = user_col
+
+        if type(item_col) is not str:
+            raise (TypeError)
+
         self.item_col = item_col
         self.rating_col = rating_col
         self.l2_reg = l2_reg

@@ -12,40 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# import re
 
 # import pytest
 
 from bigframes.ml import decomposition
 
 
-def test_decomposition_mf_num_factors():
-    model = decomposition.MatrixFactorization(
-        num_factors=16,
-        feedback_type="explicit",
-        user_col="user_id",
-        item_col="item_col",
-        rating_col="rating_col",
-        l2_reg=9.83,
-    )
-    assert model.num_factors == 16
-
-
-# def test_decomposition_mf_num_factors_invalid_raises():
-#     # with pytest.raises(TypeError):
-#     model = decomposition.MatrixFactorization(
-#         num_factors=0.5,
-#         feedback_type="explicit",
-#         user_col="user_id",
-#         item_col="item_col",
-#         rating_col="rating_col",
-#         l2_reg=9.83,
-#     )
-#     # passing test -> should raise error?
-#     assert model.num_factors == 0.5
-
-
-def test_decomposition_mf_feedback_type():
+def test_decomposition_mf_model():
     model = decomposition.MatrixFactorization(
         num_factors=16,
         feedback_type="implicit",
@@ -54,17 +27,74 @@ def test_decomposition_mf_feedback_type():
         rating_col="rating_col",
         l2_reg=9.83,
     )
+    assert model.num_factors == 16
     assert model.feedback_type == "implicit"
+    assert model.user_col == "user_id"
+    assert model.item_col == "item_col"
+    assert model.rating_col == "rating_col"
 
 
-# def test_decomposition_mf_feedback_type_raises():
-#     model = decomposition.MatrixFactorization(
-#         num_factors=16,
-#         feedback_type="implexpl",
-#         user_col="user_id",
-#         item_col="item_col",
-#         rating_col="rating_col",
-#         l2_reg=9.83,
-#     )
-#     # passing test -> should raise error?
-#     assert model.feedback_type == "implexpl"
+def test_decomposition_mf_feedback_type_explicit():
+    model = decomposition.MatrixFactorization(
+        num_factors=16,
+        feedback_type="explicit",
+        user_col="user_id",
+        item_col="item_col",
+        rating_col="rating_col",
+        l2_reg=9.83,
+    )
+    assert model.feedback_type == "explicit"
+
+
+# test_decomposition_mf_invalid_feedback_type_raises
+
+
+def test_decomposition_mf_num_factors_low():
+    model = decomposition.MatrixFactorization(
+        num_factors=0,
+        feedback_type="explicit",
+        user_col="user_id",
+        item_col="item_col",
+        rating_col="rating_col",
+        l2_reg=9.83,
+    )
+    assert model.num_factors == 0
+
+
+#   test_decomposition_mf_negative_num_factors_raises
+
+# def test_decomposition_mf_invalid_num_factors_raises():
+#     num_factors = 0.5
+#     with pytest.raises(TypeError):
+#         decomposition.MatrixFactorization(
+#             num_factors=num_factors,
+#             feedback_type="explicit",
+#             user_col="user_id",
+#             item_col="item_col",
+#             rating_col="rating_col",
+#             l2_reg=9.83,
+#         )
+
+
+# def test_decomposition_mf_invalid_user_col_raises():
+#     with pytest.raises(TypeError):
+#         decomposition.MatrixFactorization(
+#             num_factors=16,
+#             feedback_type="explicit",
+#             user_col=123,
+#             item_col="item_col",
+#             rating_col="rating_col",
+#             l2_reg=9.83,
+#         )
+
+
+# def test_decomposition_mf_invalid_item_col_raises():
+#     with pytest.raises(TypeError):
+#         decomposition.MatrixFactorization(
+#             num_factors=16,
+#             feedback_type="explicit",
+#             user_col="user_col",
+#             item_col=123,
+#             rating_col="rating_col",
+#             l2_reg=9.83,
+#         )
