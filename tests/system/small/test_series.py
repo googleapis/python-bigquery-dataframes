@@ -317,7 +317,6 @@ def test_series_construct_w_dtype_for_json():
     assert s[0] == "1"
     assert s[1] == '"str"'
     assert s[2] == "false"
-    # TODO: check old branch results for null.
     assert s[3] == '["a",{"b":1},null]'
     assert pd.isna(s[4])
     assert s[5] == '{"a":{"b":[1,2,3],"c":true}}'

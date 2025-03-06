@@ -316,7 +316,7 @@ def test_load_json_w_json_string_items(session):
 
     # Verifies JSON strings preserve array order, regardless of dictionary key order.
     assert df["json_col"][6] == '{"a":1,"b":2}'
-    assert df["json_col"][7] == '{"dict":{"array":[{"bar":"hello"},{"foo":1}],"int":1}}'
+    assert df["json_col"][7] == '{"dict":{"array":[{"foo":1},{"bar":"hello"}],"int":1}}'
 
 
 def test_load_json_to_pandas_has_correct_result(session):
@@ -355,7 +355,7 @@ def test_load_json_in_struct(session):
                 'dict',
                 JSON_OBJECT(
                     'int', 1,
-                    'array', [JSON_OBJECT('bar', 'hello'), JSON_OBJECT('foo', 1)]
+                    'array', [JSON_OBJECT('foo', 1), JSON_OBJECT('bar', 'hello')]
                 )
             ), 7),
     """
@@ -373,7 +373,7 @@ def test_load_json_in_struct(session):
     assert data[3] == '{"string":"hello world"}'
     assert data[4] == '{"array":[8,9,10]}'
     assert data[5] == '{"null":null}'
-    assert data[6] == '{"dict":{"array":[{"bar":"hello"},{"foo":1}],"int":1}}'
+    assert data[6] == '{"dict":{"array":[{"foo":1},{"bar":"hello"}],"int":1}}'
 
 
 def test_load_json_in_array(session):
