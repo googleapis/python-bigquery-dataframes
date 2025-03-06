@@ -930,10 +930,15 @@ def test_to_sql_query_named_index_excluded(
     )
 
 
-def test_to_pandas_dry_run(scalars_df_index):
-    result = scalars_df_index.to_pandas(dry_run=True)
+def test_to_pandas_dry_run(session, scalars_pandas_df_multi_index):
+    bf_df = session.read_pandas(scalars_pandas_df_multi_index)
+    result = bf_df.to_pandas(dry_run=True)
 
-    for col in scalars_df_index.columns:
-        assert result["dry_run_stats"][col] == scalars_df_index[col].dtype
-    assert result["dry_run_stats"]["[index]"] == scalars_df_index.index.dtype
-    assert result["dry_run_stats"]["total_bytes_processed"] >= 0
+    for col in bf_df.columns:
+        assert result["column_dtypes"][col] == bf_df[col].dtype
+    for idx_name in bf_df.index.names:
+        assert (
+            result["index_dtypes"][idx_name]
+            == bf_df.index.get_level_values(idx_name).dtype
+        )
+    assert result["job_statistics"]["total_bytes_processed"] >= 0

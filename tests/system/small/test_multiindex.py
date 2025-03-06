@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
-
 import numpy as np
 import pandas
 import pytest
@@ -44,9 +42,7 @@ def test_multi_index_from_arrays():
         names=[" 1index 1", "_1index 2"],
     )
     assert bf_idx.names == pd_idx.names
-    pandas.testing.assert_index_equal(
-        typing.cast(pandas.Index, bf_idx.to_pandas()), pd_idx
-    )
+    pandas.testing.assert_index_equal(bf_idx.to_pandas(), pd_idx)
 
 
 @skip_legacy_pandas

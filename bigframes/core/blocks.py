@@ -808,22 +808,25 @@ class Block:
     def _compute_dry_run(
         self, value_keys: Optional[Iterable[str]] = None, ordered: bool = True
     ) -> typing.Tuple[pd.DataFrame, bigquery.QueryJob]:
+        column_dtypes = pd.Series(
+            [*self.dtypes], index=[*self.column_labels], name="column_dtypes"
+        )
+
+        index_names = [self.index.names[n] or str(n) for n in range(self.index.nlevels)]
+        index_dtypes = pd.Series(
+            [*self.index.dtypes], index=index_names, name="index_dtypes"
+        )
+
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
         query_job = self.session._executor.dry_run(expr, ordered)
 
-        index_types = self.index.dtypes
-        df = pd.DataFrame(
-            data={
-                "dry_run_stats": [
-                    *self.dtypes,
-                    tuple(index_types) if len(index_types) > 1 else index_types[0],
-                    query_job.total_bytes_processed,
-                ]
-            },
-            index=[*self.column_labels, "[index]", "total_bytes_processed"],
+        job_stats = pd.Series(
+            [query_job.total_bytes_processed],
+            index=["total_bytes_processed"],
+            name="job_statistics",
         )
 
-        return df, query_job
+        return pd.concat([column_dtypes, index_dtypes, job_stats], axis=1), query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):
         expr = self._expr

@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Hashable, Literal, Optional, Sequence, Union
+from typing import Hashable, Literal, Optional, overload, Sequence, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
@@ -492,9 +492,24 @@ class Index(vendored_pandas_index.Index):
         else:
             raise NotImplementedError(f"Index key not supported {key}")
 
+    @overload
+    def to_pandas(
+        self,
+        *,
+        allow_large_results: Optional[bool] = ...,
+        dry_run: Literal[False] = ...,
+    ) -> pandas.Index:
+        ...
+
+    @overload
+    def to_pandas(
+        self, *, allow_large_results: Optional[bool] = ..., dry_run: Literal[True] = ...
+    ) -> pandas.DataFrame:
+        ...
+
     def to_pandas(
         self, *, allow_large_results: Optional[bool] = None, dry_run: bool = False
-    ) -> pandas.Index | pandas.Series:
+    ) -> pandas.Index | pandas.DataFrame:
         """Gets the Index as a pandas Index.
 
         Args:
@@ -506,16 +521,16 @@ class Index(vendored_pandas_index.Index):
                 a Pandas series containing dtype and the amount of bytes to be processed.
 
         Returns:
-            pandas.Index | pandas.Series:
+            pandas.Index | pandas.Dataframe:
                 A pandas Index with all of the labels from this Index. If dry run is set to True,
-                returns a series containing dry run statistics.
+                returns a DataFrame containing dry run statistics.
         """
 
         if dry_run:
             dry_run_df, query_job = self._block.to_pandas(ordered=True, dry_run=True)
             self._query_job = query_job
 
-            return dry_run_df.squeeze(axis=1)
+            return dry_run_df
 
         df, query_job = self._block.index.to_pandas(
             ordered=True, allow_large_results=allow_large_results
