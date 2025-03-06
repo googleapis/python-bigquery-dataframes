@@ -27,6 +27,6 @@ def test_blob_read_url(images_mm_df: bpd.DataFrame):
 def test_blob_write_url(images_mm_df: bpd.DataFrame):
     bigframes.options.experiments.blob = True
 
-    urls = images_mm_df["blob_col"].blob.read_url()
+    urls = images_mm_df["blob_col"].blob.write_url()
 
     assert urls.str.startswith("https://storage.googleapis.com/").all()
