@@ -246,6 +246,9 @@ class MatrixFactorization(
         if type(item_col) is not str:
             raise TypeError(f"Expected item_col to be STR but got {type(item_col)}")
 
+        # if item_col is not "item_col":
+        #     raise ValueError(match=f"item_col")
+
         self.item_col = item_col
         self.rating_col = rating_col
         self.l2_reg = l2_reg
