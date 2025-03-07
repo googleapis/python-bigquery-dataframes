@@ -23,10 +23,6 @@ from tests.system.utils import cleanup_function_assets
 bpd.options.experiments.udf = True
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_managed_function_multiply_with_ibis(
     session,
     scalars_table_id,
@@ -78,10 +74,6 @@ def test_managed_function_multiply_with_ibis(
         cleanup_function_assets(multiply, bigquery_client)
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_managed_function_stringify_with_ibis(
     session,
     scalars_table_id,
