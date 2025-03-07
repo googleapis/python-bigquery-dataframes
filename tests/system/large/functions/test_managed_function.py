@@ -279,23 +279,27 @@ def test_manage_function_df_apply_axis_1_array_output(session):
                 )
             )
         )
+        assert getattr(foo, "output_dtype") == getattr(
+            foo, "bigframes_bigquery_function_output_dtype"
+        )
 
         # Fails to apply on dataframe with incompatible number of columns.
         with pytest.raises(
             ValueError,
-            match="^Bigframes bigquery function takes 3 arguments but DataFrame has 2 columns\\.$",
+            match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 2 columns\\.$",
         ):
             bf_df[["Id", "Age"]].apply(foo, axis=1)
+
         with pytest.raises(
             ValueError,
-            match="^Bigframes bigquery function takes 3 arguments but DataFrame has 4 columns\\.$",
+            match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 4 columns\\.$",
         ):
             bf_df.assign(Country="lalaland").apply(foo, axis=1)
 
         # Fails to apply on dataframe with incompatible column datatypes.
         with pytest.raises(
             ValueError,
-            match="^Bigframes bigquery function takes arguments of types .* but DataFrame dtypes are .*",
+            match="^BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
         ):
             bf_df.assign(Age=bf_df["Age"].astype("Int64")).apply(foo, axis=1)
 
@@ -308,7 +312,7 @@ def test_manage_function_df_apply_axis_1_array_output(session):
         expected_result = pandas.Series(
             [
                 ["1", "22.5", "alpha"],
-                ["2", "23", "beta"],
+                ["2", "23.0", "beta"],
                 ["3", "23.5", "gamma"],
             ]
         )

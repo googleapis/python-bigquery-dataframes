@@ -62,6 +62,9 @@ def test_managed_function_series_apply(
 
     assert hasattr(foo, "bigframes_bigquery_function")
     assert hasattr(foo, "ibis_node")
+    assert hasattr(foo, "input_dtypes")
+    assert hasattr(foo, "output_dtype")
+    assert hasattr(foo, "bigframes_bigquery_function_output_dtype")
 
     scalars_df, scalars_pandas_df = scalars_dfs
 
