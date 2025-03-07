@@ -40,8 +40,6 @@ if typing.TYPE_CHECKING:
     import bigframes.core
     import bigframes.session
 
-scalar_op_compiler = compile_scalar.ScalarOpCompiler()
-
 
 def compile_sql(
     node: nodes.BigFrameNode,
@@ -179,7 +177,28 @@ def compile_readlocal(node: nodes.ReadLocalNode, *args):
 
 @_compile_node.register
 def compile_readtable(node: nodes.ReadTableNode, *args):
-    return compile_read_table_unordered(node.source, node.scan_list)
+    ibis_table = read_table_as_unordered_ibis(
+        node.source, scan_cols=[col.source_id for col in node.scan_list.items]
+    )
+
+    # TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
+    for scan_item in node.scan_list.items:
+        if (
+            scan_item.dtype == dtypes.JSON_DTYPE
+            and ibis_table[scan_item.source_id].type() == ibis_dtypes.string
+        ):
+            json_column = compile_scalar.parse_json(
+                ibis_table[scan_item.source_id]
+            ).name(scan_item.source_id)
+            ibis_table = ibis_table.mutate(json_column)
+
+    return compiled.UnorderedIR(
+        ibis_table,
+        tuple(
+            ibis_table[scan_item.source_id].name(scan_item.id.sql)
+            for scan_item in node.scan_list.items
+        ),
+    )
 
 
 def read_table_as_unordered_ibis(
@@ -205,33 +224,6 @@ def read_table_as_unordered_ibis(
         return ibis_bigquery.Backend().sql(schema=physical_schema, query=sql)
     else:
         return ibis_api.table(physical_schema, full_table_name).select(scan_cols)
-
-
-def compile_read_table_unordered(
-    source: nodes.BigqueryDataSource, scan: nodes.ScanList
-):
-    ibis_table = read_table_as_unordered_ibis(
-        source, scan_cols=[col.source_id for col in scan.items]
-    )
-
-    # TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
-    for scan_item in scan.items:
-        if (
-            scan_item.dtype == dtypes.JSON_DTYPE
-            and ibis_table[scan_item.source_id].type() == ibis_dtypes.string
-        ):
-            json_column = compile_scalar.parse_json(
-                ibis_table[scan_item.source_id]
-            ).name(scan_item.source_id)
-            ibis_table = ibis_table.mutate(json_column)
-
-    return compiled.UnorderedIR(
-        ibis_table,
-        tuple(
-            ibis_table[scan_item.source_id].name(scan_item.id.sql)
-            for scan_item in scan.items
-        ),
-    )
 
 
 @_compile_node.register

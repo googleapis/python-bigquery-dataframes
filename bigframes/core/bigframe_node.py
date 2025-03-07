@@ -386,6 +386,7 @@ class BigFrameNode:
         return results[self]
 
     def reduce_up(self, reduction: Callable[[BigFrameNode, Tuple[T, ...]], T]) -> T:
+        """Apply a bottom-up reduction to the tree."""
         results: dict[BigFrameNode, T] = {}
         for node in list(self.iter_nodes_topo()):
             # child nodes have already been transformed

@@ -27,10 +27,6 @@ if TYPE_CHECKING:
 
 
 class SQLCompiler:
-    def __init__(self, strict: bool = True):
-        # Not used, should maybe remove, if strictness is no longer compile-time
-        self._strict = strict
-
     def compile(
         self,
         node: bigframes.core.nodes.BigFrameNode,
