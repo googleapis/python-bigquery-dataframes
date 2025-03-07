@@ -82,20 +82,19 @@ def test_decomposition_mf_invalid_num_factors_raises():
         )
 
 
-# def test_decomposition_mf_invalid_user_col_raises():
-#     user_col = 123
-#     with pytest.raises(TypeError, match="user_col"):
-#         decomposition.MatrixFactorization(
-#             num_factors=16,
-#             # Intentionally pass in the wrong type. This will fail if the user is using
-#             # a type checker, but we can't assume that everyone is doing so, especially
-#             # not in notebook environments.
-#             feedback_type="explicit",  # type: ignore
-#             user_col=user_col,
-#             item_col="item_col",
-#             rating_col="rating_col",
-#             l2_reg=9.83,
-#         )
+def test_decomposition_mf_invalid_user_col_raises():
+    user_col = 123
+    with pytest.raises(
+        TypeError, match=f"Expected item_col to be STR but got {type(user_col)}"
+    ):
+        decomposition.MatrixFactorization(
+            num_factors=16,
+            feedback_type="explicit",
+            user_col=user_col,  # type: ignore
+            item_col="item_col",
+            rating_col="rating_col",
+            l2_reg=9.83,
+        )
 
 
 def test_decomposition_mf_invalid_item_col_raises():

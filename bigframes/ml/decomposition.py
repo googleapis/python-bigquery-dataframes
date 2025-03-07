@@ -236,7 +236,7 @@ class MatrixFactorization(
         self.num_factors = num_factors
 
         if type(user_col) is not str:
-            raise (TypeError)
+            raise TypeError(f"Expected item_col to be STR but got {type(user_col)}")
 
         # if user_col is not "user_id":
         #     raise ValueError(match="")
@@ -247,7 +247,7 @@ class MatrixFactorization(
             raise TypeError(f"Expected item_col to be STR but got {type(item_col)}")
 
         # if item_col is not "item_col":
-        #     raise ValueError(match=f"item_col")
+        #     raise ValueError(match=f"")
 
         self.item_col = item_col
         self.rating_col = rating_col
