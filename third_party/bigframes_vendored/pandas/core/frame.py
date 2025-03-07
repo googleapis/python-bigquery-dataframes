@@ -491,7 +491,7 @@ class DataFrame(generic.NDFrame):
                 specified in `clustering_columns`.
 
             labels (dict[str, str], default None):
-                Specifies table labels within BigQuery
+                Specifies table labels within BigQuery.
 
         Returns:
             str:
