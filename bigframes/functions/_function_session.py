@@ -32,7 +32,6 @@ from typing import (
 )
 import warnings
 
-import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
@@ -46,6 +45,7 @@ from google.cloud import (
 )
 
 from bigframes import clients
+import bigframes.formatting_helpers as bf_formatting
 
 if TYPE_CHECKING:
     from bigframes.session import Session
@@ -318,36 +318,36 @@ class FunctionSession:
         if not bigquery_client:
             bigquery_client = session.bqclient
         if not bigquery_client:
-            raise ValueError(
-                "A bigquery client must be provided, either directly or via session. "
-                f"{constants.FEEDBACK_LINK}"
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
+                "A bigquery client must be provided, either directly or via session.",
             )
 
         # A BigQuery connection client is required to perform BQ connection operations
         if not bigquery_connection_client:
             bigquery_connection_client = session.bqconnectionclient
         if not bigquery_connection_client:
-            raise ValueError(
-                "A bigquery connection client must be provided, either directly or via session. "
-                f"{constants.FEEDBACK_LINK}"
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
+                "A bigquery connection client must be provided, either directly or via session.",
             )
 
         # A cloud functions client is required to perform cloud functions operations
         if not cloud_functions_client:
             cloud_functions_client = session.cloudfunctionsclient
         if not cloud_functions_client:
-            raise ValueError(
-                "A cloud functions client must be provided, either directly or via session. "
-                f"{constants.FEEDBACK_LINK}"
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
+                "A cloud functions client must be provided, either directly or via session.",
             )
 
         # A resource manager client is required to get/set IAM operations
         if not resource_manager_client:
             resource_manager_client = session.resourcemanagerclient
         if not resource_manager_client:
-            raise ValueError(
-                "A resource manager client must be provided, either directly or via session. "
-                f"{constants.FEEDBACK_LINK}"
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
+                "A resource manager client must be provided, either directly or via session.",
             )
 
         # BQ remote function must be persisted, for which we need a dataset
@@ -380,14 +380,13 @@ class FunctionSession:
             bq_connection_id,
         ) = bigquery_connection.split(".")
         if gcp_project_id.casefold() != dataset_ref.project.casefold():
-            raise ValueError(
-                "The project_id does not match BigQuery connection gcp_project_id: "
-                f"{dataset_ref.project}."
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
+                "The project_id does not match BigQuery connection gcp_project_id.",
             )
         if bq_connection_location.casefold() != bq_location.casefold():
-            raise ValueError(
-                "The location does not match BigQuery connection location: "
-                f"{bq_location}."
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError, "The location does not match BigQuery connection location."
             )
 
         # If any CMEK is intended then check that a docker repository is also specified
@@ -395,9 +394,10 @@ class FunctionSession:
             cloud_function_kms_key_name is not None
             and cloud_function_docker_repository is None
         ):
-            raise ValueError(
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
                 "cloud_function_docker_repository must be specified with cloud_function_kms_key_name."
-                " For more details see https://cloud.google.com/functions/docs/securing/cmek#before_you_begin"
+                " For more details see https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.",
             )
 
         bq_connection_manager = session.bqconnectionmanager
@@ -406,7 +406,9 @@ class FunctionSession:
             nonlocal input_types, output_type
 
             if not callable(func):
-                raise TypeError("f must be callable, got {}".format(func))
+                raise bf_formatting.create_exception_with_feedback_link(
+                    TypeError, "f must be callable, got {}".format(func)
+                )
 
             if sys.version_info >= (3, 10):
                 # Add `eval_str = True` so that deferred annotations are turned into their
@@ -426,10 +428,11 @@ class FunctionSession:
                 input_types = []
                 for parameter in signature.parameters.values():
                     if (param_type := parameter.annotation) is inspect.Signature.empty:
-                        raise ValueError(
+                        raise bf_formatting.create_exception_with_feedback_link(
+                            ValueError,
                             "'input_types' was not set and parameter "
                             f"'{parameter.name}' is missing a type annotation. "
-                            "Types are required to use @remote_function."
+                            "Types are required to use @remote_function.",
                         )
                     input_types.append(param_type)
             elif not isinstance(input_types, collections.abc.Sequence):
@@ -439,10 +442,11 @@ class FunctionSession:
                 if (
                     output_type := signature.return_annotation
                 ) is inspect.Signature.empty:
-                    raise ValueError(
+                    raise bf_formatting.create_exception_with_feedback_link(
+                        ValueError,
                         "'output_type' was not set and function is missing a "
                         "return type annotation. Types are required to use "
-                        "@remote_function."
+                        "@remote_function.",
                     )
 
             # The function will actually be receiving a pandas Series, but allow both

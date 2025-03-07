@@ -25,7 +25,7 @@ import bigframes_vendored.version
 FEEDBACK_LINK = (
     "Share your usecase with the BigQuery DataFrames team at the "
     "https://bit.ly/bigframes-feedback survey."
-    f"You are currently running BigFrames version {bigframes_vendored.version.__version__}"
+    f"You are currently running BigFrames version {bigframes_vendored.version.__version__}."
 )
 
 ABSTRACT_METHOD_ERROR_MESSAGE = (
