@@ -177,7 +177,7 @@ def compile_readlocal(node: nodes.ReadLocalNode, *args):
 
 @_compile_node.register
 def compile_readtable(node: nodes.ReadTableNode, *args):
-    ibis_table = read_table_as_unordered_ibis(
+    ibis_table = _table_to_ibis(
         node.source, scan_cols=[col.source_id for col in node.scan_list.items]
     )
 
@@ -201,7 +201,7 @@ def compile_readtable(node: nodes.ReadTableNode, *args):
     )
 
 
-def read_table_as_unordered_ibis(
+def _table_to_ibis(
     source: nodes.BigqueryDataSource,
     scan_cols: typing.Sequence[str],
 ) -> ibis_types.Table:
