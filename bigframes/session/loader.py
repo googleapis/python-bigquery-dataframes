@@ -176,15 +176,11 @@ class GbqDataLoader:
         self._start_generic_job(load_job)
 
         destination_table = self._bqclient.get_table(load_table_destination)
-        col_type_overrides: typing.Dict[str, bigframes.dtypes.Dtype] = {
-            col: bigframes.dtypes.TIMEDELTA_DTYPE
-            for col in df_and_labels.timedelta_cols
-        }
         array_value = core.ArrayValue.from_table(
             table=destination_table,
             # TODO (b/394156190): Generate this directly from original pandas df.
             schema=schemata.ArraySchema.from_bq_table(
-                destination_table, col_type_overrides
+                destination_table, df_and_labels.col_type_overrides
             ),
             session=self._session,
             offsets_col=ordering_col,
@@ -234,16 +230,11 @@ class GbqDataLoader:
                 raise ValueError(
                     f"Problem loading at least one row from DataFrame: {errors}. {constants.FEEDBACK_LINK}"
                 )
-
-        col_type_overrides: typing.Dict[str, bigframes.dtypes.Dtype] = {
-            col: bigframes.dtypes.TIMEDELTA_DTYPE
-            for col in df_and_labels.timedelta_cols
-        }
         array_value = (
             core.ArrayValue.from_table(
                 table=destination_table,
                 schema=schemata.ArraySchema.from_bq_table(
-                    destination_table, col_type_overrides
+                    destination_table, df_and_labels.col_type_overrides
                 ),
                 session=self._session,
                 # Don't set the offsets column because we want to group by it.
@@ -735,7 +726,7 @@ class GbqDataLoader:
             job_config.maximum_bytes_billed = (
                 bigframes.options.compute.maximum_bytes_billed
             )
-        return bf_io_bigquery.start_query_with_client(
+        iterator, query_job = bf_io_bigquery.start_query_with_client(
             self._bqclient,
             sql,
             job_config=job_config,
@@ -743,6 +734,8 @@ class GbqDataLoader:
             timeout=timeout,
             api_name=api_name,
         )
+        assert query_job is not None
+        return iterator, query_job
 
 
 def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:

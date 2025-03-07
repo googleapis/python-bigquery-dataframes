@@ -48,6 +48,7 @@ import numpy
 import pandas as pd
 import pyarrow as pa
 
+from bigframes import session
 import bigframes._config.sampling_options as sampling_options
 import bigframes.constants
 import bigframes.core as core
@@ -112,6 +113,7 @@ class MaterializationOptions:
     downsampling: sampling_options.SamplingOptions = dataclasses.field(
         default_factory=sampling_options.SamplingOptions
     )
+    allow_large_results: Optional[bool] = None
     ordered: bool = True
 
 
@@ -136,9 +138,6 @@ class Block:
                     f"'index_columns' (size {len(index_columns)}) and 'index_labels' (size {len(index_labels)}) must have equal length"
                 )
 
-        if len(index_columns) == 0:
-            msg = "Creating object with Null Index. Null Index is a preview feature."
-            warnings.warn(msg, category=bfe.NullIndexPreviewWarning)
         self._index_columns = tuple(index_columns)
         # Index labels don't need complicated hierarchical access so can store as tuple
         self._index_labels = (
@@ -212,14 +211,10 @@ class Block:
     @functools.cached_property
     def shape(self) -> typing.Tuple[int, int]:
         """Returns dimensions as (length, width) tuple."""
-
-        row_count_expr = self.expr.row_count()
-
-        # Support in-memory engines for hermetic unit tests.
-        if self.expr.session is None:
+        # Support zero-query for hermetic unit tests.
+        if self.expr.session is None and self.expr.node.row_count:
             try:
-                row_count = row_count_expr._try_evaluate_local().squeeze()
-                return (row_count, len(self.value_columns))
+                return self.expr.node.row_count
             except Exception:
                 pass
 
@@ -257,7 +252,7 @@ class Block:
         return [self.expr.get_column_type(col) for col in self.value_columns]
 
     @property
-    def session(self) -> core.Session:
+    def session(self) -> session.Session:
         return self._expr.session
 
     @functools.cached_property
@@ -486,9 +481,12 @@ class Block:
         self,
         *,
         ordered: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Tuple[pa.Table, bigquery.QueryJob]:
         """Run query and download results as a pyarrow Table."""
-        execute_result = self.session._executor.execute(self.expr, ordered=ordered)
+        execute_result = self.session._executor.execute(
+            self.expr, ordered=ordered, use_explicit_destination=allow_large_results
+        )
         pa_table = execute_result.to_arrow_table()
 
         pa_index_labels = []
@@ -510,6 +508,7 @@ class Block:
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Tuple[pd.DataFrame, Optional[bigquery.QueryJob]]:
         """Run query and download results as a pandas DataFrame.
 
@@ -552,17 +551,21 @@ class Block:
 
         df, query_job = self._materialize_local(
             materialize_options=MaterializationOptions(
-                downsampling=sampling, ordered=ordered
+                downsampling=sampling,
+                allow_large_results=allow_large_results,
+                ordered=ordered,
             )
         )
         df.set_axis(self.column_labels, axis=1, copy=False)
         return df, query_job
 
     def try_peek(
-        self, n: int = 20, force: bool = False
+        self, n: int = 20, force: bool = False, allow_large_results=None
     ) -> typing.Optional[pd.DataFrame]:
         if force or self.expr.supports_fast_peek:
-            result = self.session._executor.peek(self.expr, n)
+            result = self.session._executor.peek(
+                self.expr, n, use_explicit_destination=allow_large_results
+            )
             df = io_pandas.arrow_to_pandas(result.to_arrow_table(), self.expr.schema)
             self._copy_index_to_pandas(df)
             return df
@@ -570,7 +573,10 @@ class Block:
             return None
 
     def to_pandas_batches(
-        self, page_size: Optional[int] = None, max_results: Optional[int] = None
+        self,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+        allow_large_results: Optional[bool] = None,
     ):
         """Download results one message at a time.
 
@@ -579,7 +585,7 @@ class Block:
         execute_result = self.session._executor.execute(
             self.expr,
             ordered=True,
-            use_explicit_destination=True,
+            use_explicit_destination=allow_large_results,
             page_size=page_size,
             max_results=max_results,
         )
@@ -608,17 +614,30 @@ class Block:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
         execute_result = self.session._executor.execute(
-            self.expr, ordered=materialize_options.ordered, get_size_bytes=True
+            self.expr,
+            ordered=materialize_options.ordered,
+            use_explicit_destination=materialize_options.allow_large_results,
         )
-        assert execute_result.total_bytes is not None
-        table_mb = execute_result.total_bytes / _BYTES_TO_MEGABYTES
         sample_config = materialize_options.downsampling
-        max_download_size = sample_config.max_download_size
-        fraction = (
-            max_download_size / table_mb
-            if (max_download_size is not None) and (table_mb != 0)
-            else 2
-        )
+        if execute_result.total_bytes is not None:
+            table_mb = execute_result.total_bytes / _BYTES_TO_MEGABYTES
+            max_download_size = sample_config.max_download_size
+            fraction = (
+                max_download_size / table_mb
+                if (max_download_size is not None) and (table_mb != 0)
+                else 2
+            )
+        else:
+            # Since we cannot acquire the table size without a query_job,
+            # we skip the sampling.
+            if sample_config.enable_downsampling:
+                msg = bfe.format_message(
+                    "Sampling is disabled and there is no download size limit when 'allow_large_results' is set to "
+                    "False. To prevent downloading excessive data, it is recommended to use the peek() method, or "
+                    "limit the data with methods like .head() or .sample() before proceeding with downloads."
+                )
+                warnings.warn(msg, category=UserWarning)
+            fraction = 2
 
         # TODO: Maybe materialize before downsampling
         # Some downsampling methods
@@ -634,7 +653,7 @@ class Block:
                     " # Setting it to None will download all the data\n"
                     f"{constants.FEEDBACK_LINK}"
                 )
-            msg = (
+            msg = bfe.format_message(
                 f"The data size ({table_mb:.2f} MB) exceeds the maximum download limit of"
                 f"({max_download_size} MB). It will be downsampled to {max_download_size} "
                 "MB for download.\nPlease refer to the documentation for configuring "
@@ -1705,7 +1724,7 @@ class Block:
         original_row_index = (
             original_row_index
             if original_row_index is not None
-            else self.index.to_pandas(ordered=True)
+            else self.index.to_pandas(ordered=True)[0]
         )
         original_row_count = len(original_row_index)
         if original_row_count > bigframes.constants.MAX_COLUMNS:
@@ -2048,7 +2067,6 @@ class Block:
 
     def isin(self, other: Block):
         # TODO: Support multiple other columns and match on label
-        # TODO: Model as explicit "IN" subquery/join to better allow db to optimize
         assert len(other.value_columns) == 1
         unique_other_values = other.expr.select_columns(
             [other.value_columns[0]]
@@ -2307,6 +2325,7 @@ class Block:
 
         return self.project_exprs(exprs, labels=labels, drop=True)
 
+    # TODO: Re-implement join in terms of merge (requires also adding remaining merge args)
     def join(
         self,
         other: Block,
@@ -2314,6 +2333,7 @@ class Block:
         how="left",
         sort: bool = False,
         block_identity_join: bool = False,
+        always_order: bool = False,
     ) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
         """
         Join two blocks objects together, and provide mappings between source columns and output columns.
@@ -2327,6 +2347,8 @@ class Block:
                 if true will sort result by index
             block_identity_join (bool):
                 If true, will not convert join to a projection (implicitly assuming unique indices)
+            always_order (bool):
+                If true, will always preserve input ordering, even if ordering mode is partial
 
         Returns:
             Block, (left_mapping, right_mapping): Result block and mappers from input column ids to result column ids.
@@ -2372,10 +2394,14 @@ class Block:
         self._throw_if_null_index("join")
         other._throw_if_null_index("join")
         if self.index.nlevels == other.index.nlevels == 1:
-            return join_mono_indexed(self, other, how=how, sort=sort)
+            return join_mono_indexed(
+                self, other, how=how, sort=sort, propogate_order=always_order
+            )
         else:  # Handles cases where one or both sides are multi-indexed
             # Always sort mult-index join
-            return join_multi_indexed(self, other, how=how, sort=sort)
+            return join_multi_indexed(
+                self, other, how=how, sort=sort, propogate_order=always_order
+            )
 
     def is_monotonic_increasing(
         self, column_id: typing.Union[str, Sequence[str]]
@@ -2426,7 +2452,7 @@ class Block:
         # implementaton. It will reference cached tables instead of original data sources.
         # Maybe should just compile raw BFET? Depends on user intent.
         sql = self.session._executor.to_sql(
-            array_value, col_id_overrides=substitutions, enable_cache=enable_cache
+            array_value.rename_columns(substitutions), enable_cache=enable_cache
         )
         return (
             sql,
@@ -2653,7 +2679,7 @@ class BlockIndexProperties:
         ]
 
     @property
-    def session(self) -> core.Session:
+    def session(self) -> session.Session:
         return self._expr.session
 
     @property
@@ -2665,14 +2691,22 @@ class BlockIndexProperties:
     def is_null(self) -> bool:
         return len(self._block._index_columns) == 0
 
-    def to_pandas(self, *, ordered: Optional[bool] = None) -> pd.Index:
+    def to_pandas(
+        self,
+        *,
+        ordered: Optional[bool] = None,
+        allow_large_results: Optional[bool] = None,
+    ) -> Tuple[pd.Index, Optional[bigquery.QueryJob]]:
         """Executes deferred operations and downloads the results."""
         if len(self.column_ids) == 0:
             raise bigframes.exceptions.NullIndexError(
                 "Cannot materialize index, as this object does not have an index. Set index column(s) using set_index."
             )
         ordered = ordered if ordered is not None else True
-        return self._block.select_columns([]).to_pandas(ordered=ordered)[0].index
+        df, query_job = self._block.select_columns([]).to_pandas(
+            ordered=ordered, allow_large_results=allow_large_results
+        )
+        return df.index, query_job
 
     def resolve_level(self, level: LevelsType) -> typing.Sequence[str]:
         if utils.is_list_like(level):
@@ -2824,7 +2858,8 @@ def join_mono_indexed(
     right: Block,
     *,
     how="left",
-    sort=False,
+    sort: bool = False,
+    propogate_order: bool = False,
 ) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
     left_expr = left.expr
     right_expr = right.expr
@@ -2835,6 +2870,7 @@ def join_mono_indexed(
         conditions=(
             join_defs.JoinCondition(left.index_columns[0], right.index_columns[0]),
         ),
+        propogate_order=propogate_order,
     )
 
     left_index = get_column_left[left.index_columns[0]]
@@ -2869,7 +2905,8 @@ def join_multi_indexed(
     right: Block,
     *,
     how="left",
-    sort=False,
+    sort: bool = False,
+    propogate_order: bool = False,
 ) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
     if not (left.index.is_uniquely_named() and right.index.is_uniquely_named()):
         raise ValueError("Joins not supported on indices with non-unique level names")
@@ -2898,6 +2935,7 @@ def join_multi_indexed(
             join_defs.JoinCondition(left, right)
             for left, right in zip(left_join_ids, right_join_ids)
         ),
+        propogate_order=propogate_order,
     )
 
     left_ids_post_join = [get_column_left[id] for id in left_join_ids]
@@ -3171,7 +3209,7 @@ def unpivot(
 
 
 def _pd_index_to_array_value(
-    session: core.Session,
+    session: session.Session,
     index: pd.Index,
 ) -> core.ArrayValue:
     """

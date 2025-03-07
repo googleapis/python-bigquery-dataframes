@@ -50,9 +50,12 @@ def add_feedback_link(
 
 def create_exception_with_feedback_link(
     exception: Type[Exception],
-    arg: str,
+    arg: str = "",
 ):
-    return exception(arg + f" {constants.FEEDBACK_LINK}")
+    if arg:
+        return exception(arg + f" {constants.FEEDBACK_LINK}")
+
+    return exception(constants.FEEDBACK_LINK)
 
 
 def repr_query_job_html(query_job: Optional[bigquery.QueryJob]):
