@@ -138,13 +138,8 @@ def resourcemanager_client(
 
 
 @pytest.fixture(scope="session")
-def session() -> Generator[bigframes.Session, None, None]:
-    context = bigframes.BigQueryOptions(
-        location="US",
-    )
-    session = bigframes.Session(context=context)
-    yield session
-    session.close()  # close generated session at cleanup time
+def session(unordered_session) -> Generator[bigframes.Session, None, None]:
+    return unordered_session
 
 
 @pytest.fixture(scope="session")
@@ -158,6 +153,14 @@ def session_load() -> Generator[bigframes.Session, None, None]:
 @pytest.fixture(scope="session", params=["strict", "partial"])
 def maybe_ordered_session(request) -> Generator[bigframes.Session, None, None]:
     context = bigframes.BigQueryOptions(location="US", ordering_mode=request.param)
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()  # close generated session at cleanup type
+
+
+@pytest.fixture(scope="session")
+def ordered_session() -> Generator[bigframes.Session, None, None]:
+    context = bigframes.BigQueryOptions(location="US", ordering_mode="strict")
     session = bigframes.Session(context=context)
     yield session
     session.close()  # close generated session at cleanup type
@@ -431,7 +434,7 @@ def nested_df(
     nested_table_id: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
-    return session.read_gbq(nested_table_id, index_col="rowindex")
+    return session.read_gbq(nested_table_id, index_col="rowindex").sort_index()
 
 
 @pytest.fixture(scope="session")
@@ -451,7 +454,7 @@ def nested_structs_df(
     nested_structs_table_id: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
-    return session.read_gbq(nested_structs_table_id, index_col="id")
+    return session.read_gbq(nested_structs_table_id, index_col="id").sort_index()
 
 
 @pytest.fixture(scope="session")
@@ -508,7 +511,7 @@ def json_df(
     json_table_id: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
     """Returns a DataFrame containing columns of JSON type."""
-    return session.read_gbq(json_table_id, index_col="rowindex")
+    return session.read_gbq(json_table_id, index_col="rowindex").sort_index()
 
 
 @pytest.fixture(scope="session")
@@ -541,7 +544,7 @@ def scalars_df_index(
     scalars_table_id: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
-    return session.read_gbq(scalars_table_id, index_col="rowindex")
+    return session.read_gbq(scalars_table_id, index_col="rowindex").sort_index()
 
 
 @pytest.fixture(scope="session")
@@ -577,7 +580,7 @@ def scalars_df_2_index(
     scalars_table_id_2: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
-    return session.read_gbq(scalars_table_id_2, index_col="rowindex")
+    return session.read_gbq(scalars_table_id_2, index_col="rowindex").sort_index()
 
 
 @pytest.fixture(scope="session")
@@ -763,7 +766,7 @@ def time_series_df_default_index(
     time_series_table_id: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
-    return session.read_gbq(time_series_table_id)
+    return session.read_gbq(time_series_table_id).sort_values("parsed_date")
 
 
 @pytest.fixture(scope="session")
