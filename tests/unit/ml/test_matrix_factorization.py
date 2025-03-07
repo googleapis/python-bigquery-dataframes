@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-# import pytest
+import pytest
 
 from bigframes.ml import decomposition
 
@@ -63,20 +63,21 @@ def test_decomposition_mf_num_factors_low():
 
 #   test_decomposition_mf_negative_num_factors_raises
 
-# def test_decomposition_mf_invalid_num_factors_raises():
-#     num_factors = 0.5
-#     with pytest.raises(TypeError, match="num_factors"):
-#         decomposition.MatrixFactorization(
-#             # Intentionally pass in the wrong type. This will fail if the user is using
-#             # a type checker, but we can't assume that everyone is doing so, especially
-#             # not in notebook environments.
-#             num_factors=num_factors,  # type: ignore
-#             feedback_type="explicit",
-#             user_col="user_id",
-#             item_col="item_col",
-#             rating_col="rating_col",
-#             l2_reg=9.83,
-#         )
+
+def test_decomposition_mf_invalid_num_factors_raises():
+    num_factors = 0.5
+    with pytest.raises(TypeError, match="num_factors"):
+        decomposition.MatrixFactorization(
+            # Intentionally pass in the wrong type. This will fail if the user is using
+            # a type checker, but we can't assume that everyone is doing so, especially
+            # not in notebook environments.
+            num_factors=num_factors,  # type: ignore
+            feedback_type="explicit",
+            user_col="user_id",
+            item_col="item_col",
+            rating_col="rating_col",
+            l2_reg=9.83,
+        )
 
 
 # def test_decomposition_mf_invalid_user_col_raises():
