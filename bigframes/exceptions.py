@@ -87,3 +87,7 @@ class ApiDeprecationWarning(FutureWarning):
 
 class BadIndexerKeyWarning(Warning):
     """The indexer key is not used correctly."""
+
+
+class ObsoleteVersionWarning(Warning):
+    """The BigFrames version is too old."""

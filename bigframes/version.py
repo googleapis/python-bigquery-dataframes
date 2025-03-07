@@ -12,17 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
-import warnings
-
 __version__ = "1.39.0"
 
 # {x-release-please-start-date}
 __release_date__ = "2025-03-05"
 # {x-release-please-end}
-
-if datetime.datetime.today() - datetime.datetime.strptime(
-    __release_date__, "%Y-%m-%d"
-) > datetime.timedelta(days=365):
-    msg = f"Your BigFrames version {__version__} is beyond the support period. Please update to the lastest version."
-    warnings.warn(msg)
