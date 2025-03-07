@@ -229,17 +229,22 @@ class MatrixFactorization(
         self.feedback_type = feedback_type
 
         if type(num_factors) is not int:
-            raise (TypeError)
+            raise TypeError(
+                f"Expected num_factors to be INT64 but got {type(num_factors)}"
+            )
 
         self.num_factors = num_factors
 
         if type(user_col) is not str:
             raise (TypeError)
 
+        # if user_col is not "user_id":
+        #     raise ValueError(match="")
+
         self.user_col = user_col
 
         if type(item_col) is not str:
-            raise (TypeError)
+            raise TypeError(f"Expected item_col to be STR but got {type(item_col)}")
 
         self.item_col = item_col
         self.rating_col = rating_col

@@ -66,7 +66,9 @@ def test_decomposition_mf_num_factors_low():
 
 def test_decomposition_mf_invalid_num_factors_raises():
     num_factors = 0.5
-    with pytest.raises(TypeError, match="num_factors"):
+    with pytest.raises(
+        TypeError, match=f"Expected num_factors to be INT64 but got {type(num_factors)}"
+    ):
         decomposition.MatrixFactorization(
             # Intentionally pass in the wrong type. This will fail if the user is using
             # a type checker, but we can't assume that everyone is doing so, especially
@@ -81,24 +83,31 @@ def test_decomposition_mf_invalid_num_factors_raises():
 
 
 # def test_decomposition_mf_invalid_user_col_raises():
-#     with pytest.raises(TypeError):
+#     user_col = 123
+#     with pytest.raises(TypeError, match="user_col"):
 #         decomposition.MatrixFactorization(
 #             num_factors=16,
-#             feedback_type="explicit",
-#             user_col=123,
+#             # Intentionally pass in the wrong type. This will fail if the user is using
+#             # a type checker, but we can't assume that everyone is doing so, especially
+#             # not in notebook environments.
+#             feedback_type="explicit",  # type: ignore
+#             user_col=user_col,
 #             item_col="item_col",
 #             rating_col="rating_col",
 #             l2_reg=9.83,
 #         )
 
 
-# def test_decomposition_mf_invalid_item_col_raises():
-#     with pytest.raises(TypeError):
-#         decomposition.MatrixFactorization(
-#             num_factors=16,
-#             feedback_type="explicit",
-#             user_col="user_col",
-#             item_col=123,
-#             rating_col="rating_col",
-#             l2_reg=9.83,
-#         )
+def test_decomposition_mf_invalid_item_col_raises():
+    item_col = 123
+    with pytest.raises(
+        TypeError, match=f"Expected item_col to be STR but got {type(item_col)}"
+    ):
+        decomposition.MatrixFactorization(
+            num_factors=16,
+            feedback_type="explicit",
+            user_col="user_col",
+            item_col=item_col,  # type: ignore
+            rating_col="rating_col",
+            l2_reg=9.83,
+        )
