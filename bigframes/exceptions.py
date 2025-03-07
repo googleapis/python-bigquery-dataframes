@@ -91,7 +91,6 @@ class BadIndexerKeyWarning(Warning):
     """The indexer key is not used correctly."""
 
 
-
 class ObsoleteVersionWarning(Warning):
     """The BigFrames version is too old."""
 
@@ -118,4 +117,3 @@ def format_message(message: str, fill: bool = True):
     if fill:
         message = textwrap.fill(message)
     return ColorFormatter.WARNING + message + ColorFormatter.ENDC
-
