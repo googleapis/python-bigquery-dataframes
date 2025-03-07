@@ -13,7 +13,6 @@
 # limitations under the License.
 from __future__ import annotations
 
-import typing
 from typing import Optional
 
 import pandas as pd
@@ -88,7 +87,7 @@ def to_pd_series(obj, default_index: pd.Index) -> pd.Series:
         pandas.Series
     """
     if isinstance(obj, series.Series):
-        return typing.cast(pd.Series, obj.to_pandas())
+        return obj.to_pandas()
     if isinstance(obj, pd.Series):
         return obj
     if isinstance(obj, indexes.Index):

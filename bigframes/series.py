@@ -443,6 +443,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             allow_large_results=allow_large_results,
         )
 
+        if query_job:
+            self._set_internal_query_job(query_job)
+
         series = df.squeeze(axis=1)
         series.name = self._name
         return series
