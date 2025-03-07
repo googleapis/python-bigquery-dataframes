@@ -65,7 +65,7 @@ def test_decomposition_mf_num_factors_low():
 
 # def test_decomposition_mf_invalid_num_factors_raises():
 #     num_factors = 0.5
-#     with pytest.raises(TypeError):
+#     with pytest.raises(TypeError, match="num_factors"):
 #         decomposition.MatrixFactorization(
 #             # Intentionally pass in the wrong type. This will fail if the user is using
 #             # a type checker, but we can't assume that everyone is doing so, especially
