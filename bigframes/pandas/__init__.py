@@ -267,7 +267,9 @@ DataFrame = bigframes.dataframe.DataFrame
 Index = bigframes.core.indexes.Index
 MultiIndex = bigframes.core.indexes.MultiIndex
 Series = bigframes.series.Series
+
 __version__ = bigframes.version.__version__
+"""The version number of the bigframes package as a string, (e.g. '1.2.3')"""
 
 # Other public pandas attributes
 NamedAgg = namedtuple("NamedAgg", ["column", "aggfunc"])

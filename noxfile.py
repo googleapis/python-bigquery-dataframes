@@ -495,6 +495,11 @@ def docs(session):
 
     session.run(
         "python",
+        "scripts/generate_docs_toc.py",
+        "docs",
+    )
+    session.run(
+        "python",
         "scripts/publish_api_coverage.py",
         "docs",
     )
@@ -535,6 +540,11 @@ def docfx(session):
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
 
+    session.run(
+        "python",
+        "scripts/generate_docs_toc.py",
+        "docs",
+    )
     session.run(
         "python",
         "scripts/publish_api_coverage.py",
