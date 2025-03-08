@@ -13,6 +13,8 @@
 # limitations under the License.
 from __future__ import annotations
 
+from typing import Literal
+
 import bigframes_vendored.constants as constants
 import bigframes_vendored.geopandas.geoseries as vendored_geoseries
 import geopandas.array  # type: ignore
@@ -93,3 +95,10 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         series = self._apply_unary_op(ops.geo_st_astext_op)
         series.name = None
         return series
+
+    def difference(
+        self: GeoSeries, other: GeoSeries, alignment: Literal["outer", "left"] = "outer"
+    ) -> GeoSeries:
+        return self._apply_binary_op(
+            other, ops.geo_st_difference_op, alignment=alignment
+        )
