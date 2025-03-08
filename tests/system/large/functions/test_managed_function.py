@@ -13,10 +13,7 @@
 # limitations under the License.
 
 import pandas
-import pytest
 
-from bigframes.functions import _function_session as bff_session
-from bigframes.functions._utils import get_python_version
 import bigframes.pandas as bpd
 from tests.system.utils import cleanup_function_assets
 
@@ -122,10 +119,6 @@ def test_managed_function_stringify_with_ibis(
         )
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_managed_function_binop(session, scalars_dfs, dataset_id):
     try:
 
