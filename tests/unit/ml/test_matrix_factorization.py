@@ -46,7 +46,23 @@ def test_decomposition_mf_feedback_type_explicit():
     assert model.feedback_type == "explicit"
 
 
-# test_decomposition_mf_invalid_feedback_type_raises
+def test_decomposition_mf_invalid_feedback_type_raises():
+    feedback_type = "explimp"
+    with pytest.raises(
+        ValueError,
+        match=f"Expected feedback_type to be `explicit` or `implicit`, but got {feedback_type}",
+    ):
+        decomposition.MatrixFactorization(
+            # Intentionally pass in the wrong type. This will fail if the user is using
+            # a type checker, but we can't assume that everyone is doing so, especially
+            # not in notebook environments.
+            num_factors=16,
+            feedback_type=feedback_type,  # type: ignore
+            user_col="user_id",
+            item_col="item_col",
+            rating_col="rating_col",
+            l2_reg=9.83,
+        )
 
 
 def test_decomposition_mf_num_factors_low():
@@ -68,9 +84,6 @@ def test_decomposition_mf_negative_num_factors_raises():
         match=f"Expected num_factors to be a positive integer, but got {num_factors}.",
     ):
         decomposition.MatrixFactorization(
-            # Intentionally pass in the wrong type. This will fail if the user is using
-            # a type checker, but we can't assume that everyone is doing so, especially
-            # not in notebook environments.
             num_factors=num_factors,  # type: ignore
             feedback_type="explicit",
             user_col="user_id",

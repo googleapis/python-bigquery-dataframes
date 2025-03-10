@@ -226,6 +226,12 @@ class MatrixFactorization(
         # TODO: Add support for hyperparameter tuning.
         l2_reg: float = 1.0,
     ):
+
+        if feedback_type not in ("explicit", "implicit"):
+            raise ValueError(
+                f"Expected feedback_type to be `explicit` or `implicit`, but got {feedback_type}"
+            )
+
         self.feedback_type = feedback_type
 
         if type(num_factors) is not int:
