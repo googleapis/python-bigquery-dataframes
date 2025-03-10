@@ -1581,7 +1581,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Returns:
             pyarrow.Table: A pyarrow Table with all rows and columns of this DataFrame.
         """
-        msg = "to_arrow is in preview. Types and unnamed / duplicate name columns may change in future."
+        msg = bfe.format_message(
+            "to_arrow is in preview. Types and unnamed or duplicate name columns may "
+            "change in future."
+        )
         warnings.warn(msg, category=bfe.PreviewWarning)
 
         pa_table, query_job = self._block.to_arrow(
@@ -3235,9 +3238,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return left._perform_join_by_index(right, how=how)
 
     def _perform_join_by_index(
-        self, other: Union[DataFrame, indexes.Index], *, how: str = "left"
+        self,
+        other: Union[DataFrame, indexes.Index],
+        *,
+        how: str = "left",
+        always_order: bool = False,
     ):
-        block, _ = self._block.join(other._block, how=how, block_identity_join=True)
+        block, _ = self._block.join(
+            other._block, how=how, block_identity_join=True, always_order=always_order
+        )
         return DataFrame(block)
 
     @validations.requires_ordering()
@@ -4104,7 +4113,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # to the applied function should be a Series, not a scalar.
 
         if utils.get_axis_number(axis) == 1:
-            msg = "axis=1 scenario is in preview."
+            msg = bfe.format_message("axis=1 scenario is in preview.")
             warnings.warn(msg, category=bfe.PreviewWarning)
 
             # TODO(jialuo): Deprecate the "bigframes_remote_function" attribute.
@@ -4190,11 +4199,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 udf_input_dtypes = getattr(func, "input_dtypes")
                 if len(udf_input_dtypes) != len(self.columns):
                     raise ValueError(
-                        f"Remote function takes {len(udf_input_dtypes)} arguments but DataFrame has {len(self.columns)} columns."
+                        f"BigFrames BigQuery function takes {len(udf_input_dtypes)}"
+                        f" arguments but DataFrame has {len(self.columns)} columns."
                     )
                 if udf_input_dtypes != tuple(self.dtypes.to_list()):
                     raise ValueError(
-                        f"Remote function takes arguments of types {udf_input_dtypes} but DataFrame dtypes are {tuple(self.dtypes)}."
+                        f"BigFrames BigQuery function takes arguments of types "
+                        f"{udf_input_dtypes} but DataFrame dtypes are {tuple(self.dtypes)}."
                     )
 
                 series_list = [self[col] for col in self.columns]
