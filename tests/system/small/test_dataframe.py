@@ -164,9 +164,10 @@ def test_df_construct_from_dict():
 
 def test_df_construct_inline_respects_location():
     # Note: This starts a thread-local session.
+    bpd.close_session()
     with bpd.option_context("bigquery.location", "europe-west1"):
         df = bpd.DataFrame([[1, 2, 3], [4, 5, 6]])
-        repr(df)
+        df.to_gbq()
         assert df.query_job is not None
         table = bpd.get_global_session().bqclient.get_table(df.query_job.destination)
 
@@ -665,7 +666,8 @@ def test_df_peek(scalars_dfs_maybe_ordered):
 
     session = scalars_df._block.session
     slot_millis_sum = session.slot_millis_sum
-    peek_result = scalars_df.peek(n=3, force=False)
+    # allow_large_results=False needed to get slot_millis_sum statistics only
+    peek_result = scalars_df.peek(n=3, force=False, allow_large_results=True)
 
     assert session.slot_millis_sum - slot_millis_sum > 1000
     pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
@@ -4583,8 +4585,9 @@ def test_df_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, sub
     ],
 )
 def test_df_drop_duplicates_w_json(json_df, keep):
-    bf_df = json_df.drop_duplicates(keep=keep).to_pandas()
-    pd_df = json_df.to_pandas().drop_duplicates(keep=keep)
+    # allow_large_results=True for b/401630655
+    bf_df = json_df.drop_duplicates(keep=keep).to_pandas(allow_large_results=True)
+    pd_df = json_df.to_pandas(allow_large_results=True).drop_duplicates(keep=keep)
     pd.testing.assert_frame_equal(
         pd_df,
         bf_df,
@@ -4940,14 +4943,16 @@ def test_df_bool_interpretation_error(scalars_df_index):
 
 
 def test_query_job_setters(scalars_df_default_index: dataframe.DataFrame):
-    job_ids = set()
-    repr(scalars_df_default_index)
-    assert scalars_df_default_index.query_job is not None
-    job_ids.add(scalars_df_default_index.query_job.job_id)
-    scalars_df_default_index.to_pandas()
-    job_ids.add(scalars_df_default_index.query_job.job_id)
+    # if allow_large_results=False, might not create query job
+    with bigframes.option_context("bigquery.allow_large_results", True):
+        job_ids = set()
+        repr(scalars_df_default_index)
+        assert scalars_df_default_index.query_job is not None
+        job_ids.add(scalars_df_default_index.query_job.job_id)
+        scalars_df_default_index.to_pandas(allow_large_results=True)
+        job_ids.add(scalars_df_default_index.query_job.job_id)
 
-    assert len(job_ids) == 2
+        assert len(job_ids) == 2
 
 
 def test_df_cached(scalars_df_index):
@@ -5185,7 +5190,12 @@ def test_to_pandas_downsampling_option_override(session):
     df = session.read_gbq("bigframes-dev.bigframes_tests_sys.batting")
     download_size = 1
 
-    df = df.to_pandas(max_download_size=download_size, sampling_method="head")
+    # limits only apply for allow_large_result=True
+    df = df.to_pandas(
+        max_download_size=download_size,
+        sampling_method="head",
+        allow_large_results=True,
+    )
 
     total_memory_bytes = df.memory_usage(deep=True).sum()
     total_memory_mb = total_memory_bytes / (1024 * 1024)

@@ -59,6 +59,8 @@ def test_read_gbq_start_sets_session_location(
     read_method,
     query_prefix,
 ):
+    bpd.close_session()
+
     # Form query as a table name or a SQL depending on the test scenario
     query_tokyo = test_data_tables_tokyo["scalars"]
     query = test_data_tables["scalars"]

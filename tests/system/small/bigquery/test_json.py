@@ -23,6 +23,13 @@ import bigframes.dtypes
 import bigframes.pandas as bpd
 
 
+@pytest.fixture(scope="session", autouse=True)
+def use_large_query_path():
+    # b/401630655
+    with bpd.option_context("bigquery.allow_large_results", True):
+        yield
+
+
 @pytest.mark.parametrize(
     ("json_path", "expected_json"),
     [
