@@ -230,27 +230,46 @@ class MatrixFactorization(
 
         if type(num_factors) is not int:
             raise TypeError(
-                f"Expected num_factors to be INT64 but got {type(num_factors)}"
+                f"Expected num_factors to be INT64, but got {type(num_factors)}."
+            )
+
+        if num_factors < 0:
+            raise ValueError(
+                f"Expected num_factors to be a positive integer, but got {num_factors}."
             )
 
         self.num_factors = num_factors
 
         if type(user_col) is not str:
-            raise TypeError(f"Expected item_col to be STR but got {type(user_col)}")
+            raise TypeError(f"Expected user_col to be STR, but got {type(user_col)}.")
 
-        # if user_col is not "user_id":
-        #     raise ValueError(match="")
+        if user_col != "user_id":
+            raise ValueError(
+                f"Expected user_col column to be `user_id`, but got {user_col}."
+            )
 
         self.user_col = user_col
 
         if type(item_col) is not str:
-            raise TypeError(f"Expected item_col to be STR but got {type(item_col)}")
+            raise TypeError(f"Expected item_col to be STR, but got {type(item_col)}.")
 
-        # if item_col is not "item_col":
-        #     raise ValueError(match=f"")
+        if item_col != "item_col":
+            raise ValueError(
+                f"Expected item_col column to be `item_col`, but got {item_col}."
+            )
 
         self.item_col = item_col
+
+        if type(rating_col) is not str:
+            raise TypeError(
+                f"Expected rating_col to be STR, but got {type(rating_col)}."
+            )
+
         self.rating_col = rating_col
+
+        if type(l2_reg) is not float:
+            raise TypeError(f"Expected l2_reg to be FLOAT, but got {type(l2_reg)}.")
+
         self.l2_reg = l2_reg
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
