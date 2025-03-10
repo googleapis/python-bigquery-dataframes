@@ -111,6 +111,20 @@ class SQLGlotCompiler:
         return child.select(*selected_cols, append=False)
 
     @compile_node.register
+    def compile_projection(self, node: nodes.ProjectionNode):
+        child = self.compile_node(node.child)
+
+        new_cols = [
+            sge.Alias(
+                this=self.scalar_op_compiler.compile_expression(expr),
+                alias=sge.to_identifier(id.name, quoted=self.quoted),
+            )
+            for expr, id in node.assignments
+        ]
+
+        return child.select(*new_cols, append=True)
+
+    @compile_node.register
     def compile_readlocal(self, node: nodes.ReadLocalNode):
         array_as_pd = pd.read_feather(
             io.BytesIO(node.feather_bytes),

@@ -2069,6 +2069,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return NotImplemented
 
     @property
+    def sql(self) -> str:
+        """Compiles this Series's expression tree to SQL.
+        Returns:
+            str:
+                string representing the compiled SQL.
+        """
+        sql, _, _ = self._block.to_sql_query(include_index=False)
+        return sql
+
+    @property
     def plot(self):
         return plotting.PlotAccessor(self)
 

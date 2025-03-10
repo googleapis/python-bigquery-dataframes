@@ -54,3 +54,30 @@ class SQLGlotScalarOpCompiler:
     @compile_expression.register
     def compile_deref_op(self, expr: ex.DerefOp):
         return sge.ColumnDef(this=sge.to_identifier(expr.id.sql, quoted=self.quoted))
+
+    @compile_expression.register
+    def compile_op_expression(self, expr: ex.OpExpression):
+        op = expr.op
+        # TODO: This can block non-recursively compiler.
+        args = tuple(map(self.compile_expression, expr.inputs))
+
+        op_name = expr.op.__class__.__name__
+        method_name = f"compile_{op_name}"
+        method = getattr(self, method_name, None)
+        if method is None:
+            raise NotImplementedError(f"Cannot compile operator {method_name}")
+
+        if isinstance(op, ops.UnaryOp):
+            return method(op, args[0])
+        elif isinstance(op, ops.BinaryOp):
+            return method(op, args[0], args[1])
+        elif isinstance(op, ops.TernaryOp):
+            return method(op, args[0], args[1], args[2])
+        elif isinstance(op, ops.NaryOp):
+            return method(op, *args)
+        else:
+            raise NotImplementedError(f"Cannot compile operator {method_name}")
+
+    # TODO: add parenthesize for operators
+    def compile_AddOp(self, op: ops.AddOp, left: sge.Expression, right: sge.Expression):
+        return sge.Add(this=left, expression=right)
