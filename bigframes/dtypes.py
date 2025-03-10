@@ -62,7 +62,9 @@ BIGNUMERIC_DTYPE = pd.ArrowDtype(pa.decimal256(76, 38))
 # No arrow equivalent
 GEO_DTYPE = gpd.array.GeometryDtype()
 # JSON
-JSON_DTYPE = pd.ArrowDtype(db_dtypes.JSONArrowType())
+# TODO: switch to pyarrow.json_(pyarrow.string()) when available.
+JSON_ARROW_TYPE = db_dtypes.JSONArrowType()
+JSON_DTYPE = pd.ArrowDtype(JSON_ARROW_TYPE)
 OBJ_REF_DTYPE = pd.ArrowDtype(
     pa.struct(
         (
@@ -80,7 +82,7 @@ OBJ_REF_DTYPE = pd.ArrowDtype(
             ),
             pa.field(
                 "details",
-                db_dtypes.JSONArrowType(),
+                JSON_ARROW_TYPE,
             ),
         )
     )
