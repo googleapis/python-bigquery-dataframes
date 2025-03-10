@@ -182,6 +182,31 @@ def test_timestamp_add__ts_series_plus_td_series(temporal_dfs, column, pd_dtype)
 
 
 @pytest.mark.parametrize(
+    ("column", "pd_dtype"),
+    [
+        ("datetime_col", "timestamp[ns][pyarrow]"),
+        ("timestamp_col", "timestamp[ns, tz=UTC][pyarrow]"),
+    ],
+)
+def test_timestamp_add__ts_series_plus_td_series__explicit_cast(
+    temporal_dfs, column, pd_dtype
+):
+    bf_df, pd_df = temporal_dfs
+    dtype = pd.ArrowDtype(pa.duration("us"))
+
+    actual_result = (
+        (bf_df[column] + bf_df["numeric_col"].astype(dtype))
+        .to_pandas()
+        .astype(pd_dtype)
+    )
+
+    expected_result = pd_df[column] + pd_df["numeric_col"].astype(dtype)
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
     "literal",
     [
         pytest.param(pd.Timedelta(1, unit="s"), id="pandas"),
