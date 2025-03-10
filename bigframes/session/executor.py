@@ -48,6 +48,7 @@ import bigframes.core.ordering as order
 import bigframes.core.schema
 import bigframes.core.tree_properties as tree_properties
 import bigframes.dtypes
+import bigframes.exceptions as bfe
 import bigframes.features
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
@@ -105,7 +106,6 @@ class Executor(abc.ABC):
         *,
         ordered: bool = True,
         use_explicit_destination: Optional[bool] = False,
-        get_size_bytes: bool = False,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
     ):
@@ -152,6 +152,7 @@ class Executor(abc.ABC):
         self,
         array_value: bigframes.core.ArrayValue,
         n_rows: int,
+        use_explicit_destination: Optional[bool] = False,
     ) -> ExecuteResult:
         """
         A 'peek' efficiently accesses a small number of rows in the dataframe.
@@ -203,7 +204,7 @@ class BigQueryCachingExecutor(Executor):
         self.bqclient = bqclient
         self.storage_manager = storage_manager
         self.compiler: bigframes.core.compile.SQLCompiler = (
-            bigframes.core.compile.SQLCompiler(strict=strictly_ordered)
+            bigframes.core.compile.SQLCompiler()
         )
         self.strictly_ordered: bool = strictly_ordered
         self._cached_executions: weakref.WeakKeyDictionary[
@@ -233,8 +234,7 @@ class BigQueryCachingExecutor(Executor):
         array_value: bigframes.core.ArrayValue,
         *,
         ordered: bool = True,
-        use_explicit_destination: Optional[bool] = False,
-        get_size_bytes: bool = False,
+        use_explicit_destination: Optional[bool] = None,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
     ):
@@ -259,25 +259,26 @@ class BigQueryCachingExecutor(Executor):
             job_config=job_config,
             page_size=page_size,
             max_results=max_results,
+            query_with_job=use_explicit_destination,
         )
 
         # Though we provide the read client, iterator may or may not use it based on what is efficient for the result
         def iterator_supplier():
             return iterator.to_arrow_iterable(bqstorage_client=self.bqstoragereadclient)
 
-        if get_size_bytes is True or use_explicit_destination:
+        if query_job:
             size_bytes = self.bqclient.get_table(query_job.destination).num_bytes
         else:
             size_bytes = None
 
         if size_bytes is not None and size_bytes >= MAX_SMALL_RESULT_BYTES:
-            warnings.warn(
+            msg = bfe.format_message(
                 "The query result size has exceeded 10 GB. In BigFrames 2.0 and "
                 "later, you might need to manually set `allow_large_results=True` in "
                 "the IO method or adjust the BigFrames option: "
-                "`bigframes.options.bigquery.allow_large_results=True`.",
-                FutureWarning,
+                "`bigframes.options.bigquery.allow_large_results=True`."
             )
+            warnings.warn(msg, FutureWarning)
         # Runs strict validations to ensure internal type predictions and ibis are completely in sync
         # Do not execute these validations outside of testing suite.
         if "PYTEST_CURRENT_TEST" in os.environ:
@@ -329,8 +330,7 @@ class BigQueryCachingExecutor(Executor):
         if if_exists != "append" and has_timedelta_col:
             # Only update schema if this is not modifying an existing table, and the
             # new table contains timedelta columns.
-            assert query_job.destination is not None
-            table = self.bqclient.get_table(query_job.destination)
+            table = self.bqclient.get_table(destination)
             table.schema = array_value.schema.to_bigquery()
             self.bqclient.update_table(table, ["schema"])
 
@@ -377,20 +377,33 @@ class BigQueryCachingExecutor(Executor):
         self,
         array_value: bigframes.core.ArrayValue,
         n_rows: int,
+        use_explicit_destination: Optional[bool] = None,
     ) -> ExecuteResult:
         """
         A 'peek' efficiently accesses a small number of rows in the dataframe.
         """
         plan = self.replace_cached_subtrees(array_value.node)
         if not tree_properties.can_fast_peek(plan):
-            msg = "Peeking this value cannot be done efficiently."
+            msg = bfe.format_message("Peeking this value cannot be done efficiently.")
             warnings.warn(msg)
+        if use_explicit_destination is None:
+            use_explicit_destination = bigframes.options.bigquery.allow_large_results
+
+        job_config = bigquery.QueryJobConfig()
+        # Use explicit destination to avoid 10GB limit of temporary table
+        if use_explicit_destination:
+            destination_table = self.storage_manager.create_temp_table(
+                array_value.schema.to_bigquery(), cluster_cols=[]
+            )
+            job_config.destination = destination_table
 
         sql = self.compiler.compile(plan, ordered=False, limit=n_rows)
 
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
-        iterator, query_job = self._run_execute_query(sql=sql)
+        iterator, query_job = self._run_execute_query(
+            sql=sql, job_config=job_config, query_with_job=use_explicit_destination
+        )
         return ExecuteResult(
             # Probably don't need read client for small peek results, but let client decide
             arrow_batches=lambda: iterator.to_arrow_iterable(
@@ -485,7 +498,8 @@ class BigQueryCachingExecutor(Executor):
         api_name: Optional[str] = None,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
-    ) -> Tuple[bq_table.RowIterator, bigquery.QueryJob]:
+        query_with_job: bool = True,
+    ) -> Tuple[bq_table.RowIterator, Optional[bigquery.QueryJob]]:
         """
         Starts BigQuery query job and waits for results.
         """
@@ -503,7 +517,7 @@ class BigQueryCachingExecutor(Executor):
         # as `add_and_trim_labels` ensures the label count does not exceed 64.
         bq_io.add_and_trim_labels(job_config, api_name=api_name)
         try:
-            return bq_io.start_query_with_client(
+            iterator, query_job = bq_io.start_query_with_client(
                 self.bqclient,
                 sql,
                 job_config=job_config,
@@ -511,7 +525,9 @@ class BigQueryCachingExecutor(Executor):
                 max_results=max_results,
                 page_size=page_size,
                 metrics=self.metrics,
+                query_with_job=query_with_job,
             )
+            return iterator, query_job
 
         except google.api_core.exceptions.BadRequest as e:
             # Unfortunately, this error type does not have a separate error code or exception type
@@ -642,7 +658,7 @@ class BigQueryCachingExecutor(Executor):
             job_config=job_config,
             api_name="cached",
         )
-        query_job.destination
+        assert query_job is not None
         query_job.result()
         return query_job.destination
 
