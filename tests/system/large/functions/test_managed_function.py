@@ -161,6 +161,18 @@ def test_managed_function_binop(session, scalars_dfs, dataset_id):
             .to_pandas()
         )
         pandas.testing.assert_series_equal(bf_result, pd_result)
+
+        # Make sure the read_gbq_function path works for this function.
+        managed_func_ref = session.read_gbq_function(
+            managed_func.bigframes_bigquery_function
+        )
+        bf_result_gbq = (
+            scalars_df["string_col"]
+            .combine(scalars_df["int64_col"], managed_func_ref)
+            .to_pandas()
+        )
+        pandas.testing.assert_series_equal(bf_result_gbq, pd_result)
+
     finally:
         # clean up the gcp assets created for the managed function.
         cleanup_function_assets(
@@ -198,6 +210,16 @@ def test_managed_function_array_output(session, scalars_dfs, dataset_id, array_d
 
         # Ignore any dtype disparity.
         pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+        # Make sure the read_gbq_function path works for this function.
+        featurize_ref = session.read_gbq_function(featurize.bigframes_bigquery_function)
+
+        # Test on the function from read_gbq_function.
+        got = featurize_ref(10)
+        assert got == [array_dtype(i) for i in [10, 11, 12]]
+
+        bf_result_gbq = bf_int64_col.apply(featurize_ref).to_pandas()
+        pandas.testing.assert_series_equal(bf_result_gbq, pd_result, check_dtype=False)
 
     finally:
         # Clean up the gcp assets created for the managed function.
@@ -246,7 +268,7 @@ def test_managed_function_binop_array_output(session, scalars_dfs, dataset_id):
     get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
     reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
 )
-def test_manage_function_df_apply_axis_1_array_output(session):
+def test_managed_function_df_apply_axis_1_array_output(session):
     bf_df = bigframes.dataframe.DataFrame(
         {
             "Id": [1, 2, 3],
@@ -319,6 +341,18 @@ def test_manage_function_df_apply_axis_1_array_output(session):
 
         pandas.testing.assert_series_equal(
             expected_result, bf_result, check_dtype=False, check_index_type=False
+        )
+
+        # Make sure the read_gbq_function path works for this function.
+        foo_ref = session.read_gbq_function(foo.bigframes_bigquery_function)
+
+        # Test on the function from read_gbq_function.
+        got = foo_ref(10, 38, "hello")
+        assert got == ["10", "38.0", "hello"]
+
+        bf_result_gbq = bf_df.apply(foo_ref, axis=1).to_pandas()
+        pandas.testing.assert_series_equal(
+            bf_result_gbq, expected_result, check_dtype=False, check_index_type=False
         )
 
     finally:
