@@ -257,7 +257,7 @@ def mypy(session):
             [
                 "mypy",
                 # TODO: update to latest pandas-stubs once we resolve bigframes issues.
-                "pandas-stubs<=pandas-stubs 2.2.3.241126",
+                "pandas-stubs<=2.2.3.241126",
                 "types-protobuf",
                 "types-python-dateutil",
                 "types-requests",
