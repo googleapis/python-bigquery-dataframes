@@ -613,6 +613,7 @@ class FunctionSession:
             func = cloudpickle.loads(cloudpickle.dumps(func))
 
             self._try_delattr(func, "bigframes_cloud_function")
+            self._try_delattr(func, "bigframes_remote_function")
             self._try_delattr(func, "bigframes_bigquery_function")
             self._try_delattr(func, "bigframes_bigquery_function_output_dtype")
             self._try_delattr(func, "input_dtypes")
@@ -691,6 +692,7 @@ class FunctionSession:
                     rf_name
                 )
             )
+            func.bigframes_remote_function = func.bigframes_bigquery_function
             func.input_dtypes = tuple(
                 [
                     bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(
