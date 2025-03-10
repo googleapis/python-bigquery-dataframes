@@ -34,6 +34,7 @@ import bigframes.core.expression as ex
 import bigframes.core.guid as guid
 import bigframes.core.identifiers as ids
 import bigframes.core.nodes as nodes
+import bigframes.core.ordering
 import bigframes.core.rewrite
 import bigframes.core.rewrite as rewrites
 import bigframes.dtypes as dtypes
@@ -85,13 +86,37 @@ class SQLGlotCompiler:
         #     selections=output_ids,
         # )
 
-        return self.compile_node(node)
+        select_node = self.compile_node(node)
+
+        order_expr = self.compile_row_ordering(ordering)
+        if order_expr:
+            select_node = select_node.order_by(order_expr)
+
+        return select_node
 
     def _replace_unsupported_ops(self, node: nodes.BigFrameNode):
         # TODO: Run all replacement rules as single bottom-up pass
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
         node = nodes.bottom_up(node, rewrites.rewrite_timedelta_expressions)
         return node
+
+    def compile_row_ordering(self, node: bigframes.core.ordering.RowOrdering):
+        if len(node.all_ordering_columns) == 0:
+            return None
+
+        ordering_expr = [
+            sge.Ordered(
+                this=sge.Column(
+                    this=sge.to_identifier(
+                        col_ref.scalar_expression.id.sql, quoted=self.quoted
+                    )
+                ),
+                nulls_first=not col_ref.na_last,
+                desc=not col_ref.direction.is_ascending,
+            )
+            for col_ref in node.all_ordering_columns
+        ]
+        return sge.Order(expressions=ordering_expr)
 
     @functools.singledispatchmethod
     def compile_node(self, node: nodes.BigFrameNode):

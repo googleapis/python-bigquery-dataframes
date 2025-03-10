@@ -42,7 +42,7 @@ class SQLCompiler(bigframes.session.executor.Executor):
         self,
         array_value: bigframes.core.ArrayValue,
         offset_column: Optional[str] = None,
-        ordered: bool = False,
+        ordered: bool = True,
         enable_cache: bool = False,
     ) -> str:
         if offset_column:
