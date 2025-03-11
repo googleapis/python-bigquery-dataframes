@@ -243,7 +243,7 @@ def test_managed_function_series_combine_list_output(
         .to_pandas()
     )
 
-    assert_pandas_df_equal(bf_result_gbq, pd_result, check_dtype=False)
+    pd.testing.assert_series_equal(bf_result_gbq, pd_result, check_dtype=False)
 
 
 @pytest.mark.skipif(
@@ -418,4 +418,4 @@ def test_managed_function_dataframe_apply_axis_1_list_output(
             .to_pandas()
         )
 
-    assert_pandas_df_equal(bf_result_gbq, pd_result, check_dtype=False)
+    pd.testing.assert_series_equal(bf_result_gbq, pd_result, check_dtype=False)
