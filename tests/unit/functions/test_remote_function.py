@@ -107,3 +107,13 @@ def test_missing_output_type():
         match="'output_type' was not set .* missing a return type annotation",
     ):
         remote_function_decorator(function_without_return_annotation)
+
+
+def test_remote_function_warns_default_cloud_function_service_account():
+    project = "bigframes-dev-perf"
+    rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
+
+    with pytest.warns(FutureWarning, match="You have not explicitly set a"):
+        rf_session.remote_function(
+            cloud_function_service_account=None,  # Explicitly omit service account.
+        )
