@@ -222,9 +222,6 @@ def test_decomposition_mf_default_fit(bqml_model_factory, mock_session, mock_X):
         l2_reg=9.83,
     )
     model._bqml_model_factory = bqml_model_factory
-    mock_start_query_ml_ddl = mock.Mock()
-    mock_create_model = mock.PropertyMock(return_value=mock_start_query_ml_ddl)
-    type(model)._start_query_ml_ddl = mock_create_model
     model.fit(mock_X)
 
     mock_session._start_query_ml_ddl.assert_called_once_with(
