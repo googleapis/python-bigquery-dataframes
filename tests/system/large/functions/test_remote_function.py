@@ -12,86 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
-import importlib.util
 import inspect
-import math  # must keep this at top level to test udf referring global import
-import os.path
-import shutil
-import sys
-import tempfile
+import re
 import textwrap
-import warnings
 
 import google.api_core.exceptions
-from google.cloud import bigquery, functions_v2, storage
-import pandas
+from google.cloud import bigquery
+import pandas as pd
 import pyarrow
 import pytest
 import test_utils.prefixer
 
 import bigframes
-import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.exceptions
-import bigframes.functions._utils as bff_utils
-import bigframes.pandas as bpd
-import bigframes.series
-from tests.system.utils import (
-    assert_pandas_df_equal,
-    cleanup_function_assets,
-    delete_cloud_function,
-    get_cloud_functions,
-)
+from bigframes.functions import _utils as bff_utils
+from bigframes.functions import function as bff
+import bigframes.session._io.bigquery
+from tests.system.utils import assert_pandas_df_equal, get_function_name
 
-# NOTE: Keep this import at the top level to test global var behavior with
-# remote functions
-_team_pi = "Team Pi"
-_team_euler = "Team Euler"
-
-
-pytestmark = pytest.mark.skipif(
-    sys.version_info >= (3, 13),
-    reason="Runtime 'python313' is not supported yet. Skip for now.",
-)
-
-
-def make_uniq_udf(udf):
-    """Transform a udf to another with same behavior but a unique name.
-    Use this to test remote functions with reuse=True, in which case parallel
-    instances of the same tests may evaluate same named cloud functions and BQ
-    remote functions, therefore interacting with each other and causing unwanted
-    failures. With this method one can transform a udf into another with the
-    same behavior but a different name which will remain unique for the
-    lifetime of one test instance.
-    """
-
-    prefixer = test_utils.prefixer.Prefixer(udf.__name__, "")
-    udf_uniq_name = prefixer.create_prefix()
-    udf_file_name = f"{udf_uniq_name}.py"
-
-    # We are not using `tempfile.TemporaryDirectory()` because we want to keep
-    # the temp code around, otherwise `inspect.getsource()` complains.
-    tmpdir = tempfile.mkdtemp()
-    udf_file_path = os.path.join(tmpdir, udf_file_name)
-    with open(udf_file_path, "w") as f:
-        # TODO(shobs): Find a better way of modifying the udf, maybe regex?
-        source_key = f"def {udf.__name__}"
-        target_key = f"def {udf_uniq_name}"
-        source_code = textwrap.dedent(inspect.getsource(udf))
-        target_code = source_code.replace(source_key, target_key, 1)
-        f.write(target_code)
-    spec = importlib.util.spec_from_file_location(udf_file_name, udf_file_path)
-
-    assert (spec is not None) and (spec.loader is not None)
-    module = importlib.util.module_from_spec(spec)
-
-    # exec_module fills the module object with all the functions, classes, and
-    # variables defined in the module file.
-    spec.loader.exec_module(module)
-    udf_uniq = getattr(module, udf_uniq_name)
-
-    return udf_uniq, tmpdir
+_prefixer = test_utils.prefixer.Prefixer("bigframes", "")
 
 
 @pytest.fixture(scope="module")
@@ -104,2569 +44,1522 @@ def bq_cf_connection() -> str:
     return "bigframes-rf-conn"
 
 
+@pytest.fixture(scope="module")
+def bq_cf_connection_location() -> str:
+    """Pre-created BQ connection in the test project in US location, in format
+    PROJECT_ID.LOCATION.CONNECTION_NAME, used to invoke cloud function.
+
+    $ bq show --connection --location=us --project_id=PROJECT_ID bigframes-rf-conn
+    """
+    return "us.bigframes-rf-conn"
+
+
+@pytest.fixture(scope="module")
+def bq_cf_connection_location_mismatched() -> str:
+    """Pre-created BQ connection in the test project in EU location, in format
+    LOCATION.CONNECTION_NAME, used to invoke cloud function.
+
+    $ bq show --connection --location=us --project_id=PROJECT_ID bigframes-rf-conn
+    """
+    return "eu.bigframes-rf-conn"
+
+
+@pytest.fixture(scope="module")
+def bq_cf_connection_location_project(bigquery_client) -> str:
+    """Pre-created BQ connection in the test project in US location, in format
+    PROJECT_ID.LOCATION.CONNECTION_NAME, used to invoke cloud function.
+
+    $ bq show --connection --location=us --project_id=PROJECT_ID bigframes-rf-conn
+    """
+    return f"{bigquery_client.project}.us.bigframes-rf-conn"
+
+
+@pytest.fixture(scope="module")
+def bq_cf_connection_location_project_mismatched() -> str:
+    """Pre-created BQ connection in the bigframes-metrics project in US location,
+    in format PROJECT_ID.LOCATION.CONNECTION_NAME, used to invoke cloud function.
+
+    $ bq show --connection --location=us --project_id=PROJECT_ID bigframes-rf-conn
+    """
+    return "bigframes-metrics.eu.bigframes-rf-conn"
+
+
+@pytest.fixture(scope="module")
+def session_with_bq_connection(bq_cf_connection) -> bigframes.Session:
+    session = bigframes.Session(
+        bigframes.BigQueryOptions(bq_connection=bq_cf_connection, location="US")
+    )
+    return session
+
+
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_multiply_with_ibis(
-    session,
-    scalars_table_id,
+def test_remote_function_direct_no_session_param(
     bigquery_client,
-    ibis_client,
-    dataset_id,
+    bigqueryconnection_client,
+    cloudfunctions_client,
+    resourcemanager_client,
+    scalars_dfs,
+    dataset_id_permanent,
     bq_cf_connection,
 ):
-    try:
+    def square(x):
+        return x * x
 
-        @session.remote_function(
-            [int, int],
-            int,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-        )
-        def multiply(x, y):
-            return x * y
+    square = bff.remote_function(
+        int,
+        int,
+        bigquery_client=bigquery_client,
+        bigquery_connection_client=bigqueryconnection_client,
+        cloud_functions_client=cloudfunctions_client,
+        resource_manager_client=resourcemanager_client,
+        dataset=dataset_id_permanent,
+        bigquery_connection=bq_cf_connection,
+        # See e2e tests for tests that actually deploy the Cloud Function.
+        reuse=True,
+        name=get_function_name(square),
+    )(square)
 
-        _, dataset_name, table_name = scalars_table_id.split(".")
-        if not ibis_client.dataset:
-            ibis_client.dataset = dataset_name
+    # Function should still work normally.
+    assert square(2) == 4
 
-        col_name = "int64_col"
-        table = ibis_client.tables[table_name]
-        table = table.filter(table[col_name].notnull()).order_by("rowindex").head(10)
-        sql = table.compile()
-        pandas_df_orig = bigquery_client.query(sql).to_dataframe()
+    # Function should have extra metadata attached for remote execution.
+    assert hasattr(square, "bigframes_remote_function")
+    assert hasattr(square, "bigframes_cloud_function")
+    assert hasattr(square, "ibis_node")
 
-        col = table[col_name]
-        col_2x = multiply(col, 2).name("int64_col_2x")
-        col_square = multiply(col, col).name("int64_col_square")
-        table = table.mutate([col_2x, col_square])
-        sql = table.compile()
-        pandas_df_new = bigquery_client.query(sql).to_dataframe()
+    scalars_df, scalars_pandas_df = scalars_dfs
 
-        pandas.testing.assert_series_equal(
-            pandas_df_orig[col_name] * 2,
-            pandas_df_new["int64_col_2x"],
-            check_names=False,
-        )
+    bf_int64_col = scalars_df["int64_col"]
+    bf_int64_col_filter = bf_int64_col.notnull()
+    bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
+    bf_result_col = bf_int64_col_filtered.apply(square)
+    bf_result = (
+        bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
+    )
 
-        pandas.testing.assert_series_equal(
-            pandas_df_orig[col_name] * pandas_df_orig[col_name],
-            pandas_df_new["int64_col_square"],
-            check_names=False,
-        )
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(multiply, bigquery_client, session.cloudfunctionsclient)
+    pd_int64_col = scalars_pandas_df["int64_col"]
+    pd_int64_col_filter = pd_int64_col.notnull()
+    pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
+    pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
+    # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
+    # pd_int64_col_filtered.dtype is Int64Dtype()
+    # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pd.Int64Dtype())
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_stringify_with_ibis(
-    session,
-    scalars_table_id,
+def test_remote_function_direct_no_session_param_location_specified(
     bigquery_client,
-    ibis_client,
-    dataset_id,
-    bq_cf_connection,
+    bigqueryconnection_client,
+    cloudfunctions_client,
+    resourcemanager_client,
+    scalars_dfs,
+    dataset_id_permanent,
+    bq_cf_connection_location,
 ):
-    try:
+    def square(x):
+        return x * x
 
-        @session.remote_function(
-            [int],
-            str,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-        )
-        def stringify(x):
-            return f"I got {x}"
+    square = bff.remote_function(
+        int,
+        int,
+        bigquery_client=bigquery_client,
+        bigquery_connection_client=bigqueryconnection_client,
+        cloud_functions_client=cloudfunctions_client,
+        resource_manager_client=resourcemanager_client,
+        dataset=dataset_id_permanent,
+        bigquery_connection=bq_cf_connection_location,
+        # See e2e tests for tests that actually deploy the Cloud Function.
+        reuse=True,
+        name=get_function_name(square),
+    )(square)
 
-        # Function should work locally.
-        assert stringify(42) == "I got 42"
+    # Function should still work normally.
+    assert square(2) == 4
 
-        _, dataset_name, table_name = scalars_table_id.split(".")
-        if not ibis_client.dataset:
-            ibis_client.dataset = dataset_name
+    scalars_df, scalars_pandas_df = scalars_dfs
 
-        col_name = "int64_col"
-        table = ibis_client.tables[table_name]
-        table = table.filter(table[col_name].notnull()).order_by("rowindex").head(10)
-        sql = table.compile()
-        pandas_df_orig = bigquery_client.query(sql).to_dataframe()
+    bf_int64_col = scalars_df["int64_col"]
+    bf_int64_col_filter = bf_int64_col.notnull()
+    bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
+    bf_result_col = bf_int64_col_filtered.apply(square)
+    bf_result = (
+        bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
+    )
 
-        col = table[col_name]
-        col_2x = stringify.ibis_node(col).name("int64_str_col")
-        table = table.mutate([col_2x])
-        sql = table.compile()
-        pandas_df_new = bigquery_client.query(sql).to_dataframe()
+    pd_int64_col = scalars_pandas_df["int64_col"]
+    pd_int64_col_filter = pd_int64_col.notnull()
+    pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
+    pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
+    # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
+    # pd_int64_col_filtered.dtype is Int64Dtype()
+    # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pd.Int64Dtype())
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
 
-        pandas.testing.assert_series_equal(
-            pandas_df_orig[col_name].apply(lambda x: f"I got {x}"),
-            pandas_df_new["int64_str_col"],
-            check_names=False,
-        )
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            stringify, bigquery_client, session.cloudfunctionsclient
-        )
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_binop(session, scalars_dfs, dataset_id, bq_cf_connection):
-    try:
-
-        def func(x, y):
-            return x * abs(y % 4)
-
-        remote_func = session.remote_function(
-            [str, int],
-            str,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-        )(func)
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        scalars_df = scalars_df.dropna()
-        scalars_pandas_df = scalars_pandas_df.dropna()
-        bf_result = (
-            scalars_df["string_col"]
-            .combine(scalars_df["int64_col"], remote_func)
-            .to_pandas()
-        )
-        pd_result = scalars_pandas_df["string_col"].combine(
-            scalars_pandas_df["int64_col"], func
-        )
-        pandas.testing.assert_series_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            remote_func, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_binop_array_output(
-    session, scalars_dfs, dataset_id, bq_cf_connection
+def test_remote_function_direct_no_session_param_location_mismatched(
+    bigquery_client,
+    bigqueryconnection_client,
+    cloudfunctions_client,
+    resourcemanager_client,
+    dataset_id_permanent,
+    bq_cf_connection_location_mismatched,
 ):
-    try:
+    def square(x):
+        # Not expected to reach this code, as the location of the
+        # connection doesn't match the location of the dataset.
+        return x * x  # pragma: NO COVER
 
-        def func(x, y):
-            return [len(x), abs(y % 4)]
-
-        remote_func = session.remote_function(
-            [str, int],
-            list[int],
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-        )(func)
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        scalars_df = scalars_df.dropna()
-        scalars_pandas_df = scalars_pandas_df.dropna()
-        bf_result = (
-            scalars_df["string_col"]
-            .combine(scalars_df["int64_col"], remote_func)
-            .to_pandas()
-        )
-        pd_result = scalars_pandas_df["string_col"].combine(
-            scalars_pandas_df["int64_col"], func
-        )
-        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            remote_func, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_decorator_with_bigframes_series(
-    session, scalars_dfs, dataset_id, bq_cf_connection
-):
-    try:
-
-        @session.remote_function(
-            [int],
+    with pytest.raises(
+        ValueError,
+        match=re.escape("The location does not match BigQuery connection location:"),
+    ):
+        bff.remote_function(
             int,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-        )
-        def square(x):
-            return x * x
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_col"]
-        bf_int64_col_filter = bf_int64_col.notnull()
-        bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-        bf_result_col = bf_int64_col_filtered.apply(square)
-        bf_result = (
-            bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
-        )
-
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_int64_col_filter = pd_int64_col.notnull()
-        pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-        pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
-        # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-        # pd_int64_col_filtered.dtype is Int64Dtype()
-        # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
-        # For this test let's force the pandas dtype to be same as bigframes' dtype.
-        pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
-        pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(square, session.bqclient, session.cloudfunctionsclient)
+            int,
+            bigquery_client=bigquery_client,
+            bigquery_connection_client=bigqueryconnection_client,
+            cloud_functions_client=cloudfunctions_client,
+            resource_manager_client=resourcemanager_client,
+            dataset=dataset_id_permanent,
+            bigquery_connection=bq_cf_connection_location_mismatched,
+            # See e2e tests for tests that actually deploy the Cloud Function.
+            reuse=True,
+            name=get_function_name(square),
+        )(square)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_explicit_with_bigframes_series(
-    session, scalars_dfs, dataset_id, bq_cf_connection
+def test_remote_function_direct_no_session_param_location_project_specified(
+    bigquery_client,
+    bigqueryconnection_client,
+    cloudfunctions_client,
+    resourcemanager_client,
+    scalars_dfs,
+    dataset_id_permanent,
+    bq_cf_connection_location_project,
 ):
-    try:
+    def square(x):
+        return x * x
+
+    square = bff.remote_function(
+        int,
+        int,
+        bigquery_client=bigquery_client,
+        bigquery_connection_client=bigqueryconnection_client,
+        cloud_functions_client=cloudfunctions_client,
+        resource_manager_client=resourcemanager_client,
+        dataset=dataset_id_permanent,
+        bigquery_connection=bq_cf_connection_location_project,
+        # See e2e tests for tests that actually deploy the Cloud Function.
+        reuse=True,
+        name=get_function_name(square),
+    )(square)
+
+    # Function should still work normally.
+    assert square(2) == 4
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_int64_col = scalars_df["int64_col"]
+    bf_int64_col_filter = bf_int64_col.notnull()
+    bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
+    bf_result_col = bf_int64_col_filtered.apply(square)
+    bf_result = (
+        bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
+    )
+
+    pd_int64_col = scalars_pandas_df["int64_col"]
+    pd_int64_col_filter = pd_int64_col.notnull()
+    pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
+    pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
+    # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
+    # pd_int64_col_filtered.dtype is Int64Dtype()
+    # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pd.Int64Dtype())
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_direct_no_session_param_project_mismatched(
+    bigquery_client,
+    bigqueryconnection_client,
+    cloudfunctions_client,
+    resourcemanager_client,
+    dataset_id_permanent,
+    bq_cf_connection_location_project_mismatched,
+):
+    def square(x):
+        # Not expected to reach this code, as the project of the
+        # connection doesn't match the project of the dataset.
+        return x * x  # pragma: NO COVER
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "The project_id does not match BigQuery connection gcp_project_id:"
+        ),
+    ):
+        bff.remote_function(
+            int,
+            int,
+            bigquery_client=bigquery_client,
+            bigquery_connection_client=bigqueryconnection_client,
+            cloud_functions_client=cloudfunctions_client,
+            resource_manager_client=resourcemanager_client,
+            dataset=dataset_id_permanent,
+            bigquery_connection=bq_cf_connection_location_project_mismatched,
+            # See e2e tests for tests that actually deploy the Cloud Function.
+            reuse=True,
+            name=get_function_name(square),
+        )(square)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_direct_session_param(
+    session_with_bq_connection, scalars_dfs, dataset_id_permanent
+):
+    def square(x):
+        return x * x
+
+    square = bff.remote_function(
+        int,
+        int,
+        session=session_with_bq_connection,
+        dataset=dataset_id_permanent,
+        name=get_function_name(square),
+    )(square)
+
+    # Function should still work normally.
+    assert square(2) == 4
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_int64_col = scalars_df["int64_col"]
+    bf_int64_col_filter = bf_int64_col.notnull()
+    bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
+    bf_result_col = bf_int64_col_filtered.apply(square)
+    bf_result = (
+        bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
+    )
+
+    pd_int64_col = scalars_pandas_df["int64_col"]
+    pd_int64_col_filter = pd_int64_col.notnull()
+    pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
+    pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
+    # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
+    # pd_int64_col_filtered.dtype is Int64Dtype()
+    # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pd.Int64Dtype())
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_via_session_default(
+    session_with_bq_connection, scalars_dfs, dataset_id_permanent
+):
+    def square(x):
+        return x * x
+
+    # Session has bigquery connection initialized via context. Without an
+    # explicit dataset the default dataset from the session would be used.
+    # Without an explicit bigquery connection, the one present in Session set
+    # through the explicit BigQueryOptions would be used. Without an explicit `reuse`
+    # the default behavior of reuse=True will take effect. Please note that the
+    # udf is same as the one used in other tests in this file so the underlying
+    # cloud function would be common and quickly reused.
+    square = session_with_bq_connection.remote_function(
+        int, int, dataset_id_permanent, name=get_function_name(square)
+    )(square)
+
+    # Function should still work normally.
+    assert square(2) == 4
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_int64_col = scalars_df["int64_col"]
+    bf_int64_col_filter = bf_int64_col.notnull()
+    bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
+    bf_result_col = bf_int64_col_filtered.apply(square)
+    bf_result = (
+        bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
+    )
+
+    pd_int64_col = scalars_pandas_df["int64_col"]
+    pd_int64_col_filter = pd_int64_col.notnull()
+    pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
+    pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
+    # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
+    # pd_int64_col_filtered.dtype is Int64Dtype()
+    # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pd.Int64Dtype())
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_via_session_with_overrides(
+    session, scalars_dfs, dataset_id_permanent, bq_cf_connection
+):
+    def square(x):
+        return x * x
+
+    square = session.remote_function(
+        int,
+        int,
+        dataset_id_permanent,
+        bq_cf_connection,
+        # See e2e tests for tests that actually deploy the Cloud Function.
+        reuse=True,
+        name=get_function_name(square),
+    )(square)
+
+    # Function should still work normally.
+    assert square(2) == 4
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_int64_col = scalars_df["int64_col"]
+    bf_int64_col_filter = bf_int64_col.notnull()
+    bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
+    bf_result_col = bf_int64_col_filtered.apply(square)
+    bf_result = (
+        bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
+    )
+
+    pd_int64_col = scalars_pandas_df["int64_col"]
+    pd_int64_col_filter = pd_int64_col.notnull()
+    pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
+    pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
+    # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
+    # pd_int64_col_filtered.dtype is Int64Dtype()
+    # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as bigframes' dtype.
+    pd_result_col = pd_result_col.astype(pd.Int64Dtype())
+    pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_dataframe_applymap(
+    session_with_bq_connection, scalars_dfs, dataset_id_permanent
+):
+    def add_one(x):
+        return x + 1
+
+    remote_add_one = session_with_bq_connection.remote_function(
+        [int], int, dataset_id_permanent, name=get_function_name(add_one)
+    )(add_one)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_cols = ["int64_col", "int64_too"]
+
+    bf_int64_df = scalars_df[int64_cols]
+    bf_int64_df_filtered = bf_int64_df.dropna()
+    bf_result = bf_int64_df_filtered.applymap(remote_add_one).to_pandas()
+
+    pd_int64_df = scalars_pandas_df[int64_cols]
+    pd_int64_df_filtered = pd_int64_df.dropna()
+    pd_result = pd_int64_df_filtered.applymap(add_one)
+    # TODO(shobs): Figure why pandas .applymap() changes the dtype, i.e.
+    # pd_int64_df_filtered.dtype is Int64Dtype()
+    # pd_int64_df_filtered.applymap(lambda x: x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as input.
+    for col in pd_result:
+        pd_result[col] = pd_result[col].astype(pd_int64_df_filtered[col].dtype)
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_dataframe_applymap_explicit_filter(
+    session_with_bq_connection, scalars_dfs, dataset_id_permanent
+):
+    def add_one(x):
+        return x + 1
+
+    remote_add_one = session_with_bq_connection.remote_function(
+        [int], int, dataset_id_permanent, name=get_function_name(add_one)
+    )(add_one)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_cols = ["int64_col", "int64_too"]
+
+    bf_int64_df = scalars_df[int64_cols]
+    bf_int64_df_filtered = bf_int64_df[bf_int64_df["int64_col"].notnull()]
+    bf_result = bf_int64_df_filtered.applymap(remote_add_one).to_pandas()
+
+    pd_int64_df = scalars_pandas_df[int64_cols]
+    pd_int64_df_filtered = pd_int64_df[pd_int64_df["int64_col"].notnull()]
+    pd_result = pd_int64_df_filtered.applymap(add_one)
+    # TODO(shobs): Figure why pandas .applymap() changes the dtype, i.e.
+    # pd_int64_df_filtered.dtype is Int64Dtype()
+    # pd_int64_df_filtered.applymap(lambda x: x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as input.
+    for col in pd_result:
+        pd_result[col] = pd_result[col].astype(pd_int64_df_filtered[col].dtype)
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_dataframe_applymap_na_ignore(
+    session_with_bq_connection, scalars_dfs, dataset_id_permanent
+):
+    def add_one(x):
+        return x + 1
+
+    remote_add_one = session_with_bq_connection.remote_function(
+        [int], int, dataset_id_permanent, name=get_function_name(add_one)
+    )(add_one)
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int64_cols = ["int64_col", "int64_too"]
+
+    bf_int64_df = scalars_df[int64_cols]
+    bf_result = bf_int64_df.applymap(remote_add_one, na_action="ignore").to_pandas()
+
+    pd_int64_df = scalars_pandas_df[int64_cols]
+    pd_result = pd_int64_df.applymap(add_one, na_action="ignore")
+    # TODO(shobs): Figure why pandas .applymap() changes the dtype, i.e.
+    # pd_int64_df_filtered.dtype is Int64Dtype()
+    # pd_int64_df_filtered.applymap(lambda x: x).dtype is int64.
+    # For this test let's force the pandas dtype to be same as input.
+    for col in pd_result:
+        pd_result[col] = pd_result[col].astype(pd_int64_df[col].dtype)
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_series_map_bytes(
+    session_with_bq_connection, scalars_dfs, dataset_id_permanent
+):
+    """Check that bytes is support as input and output."""
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    def bytes_to_hex(mybytes: bytes) -> bytes:
+        import pandas
+
+        return mybytes.hex().encode("utf-8") if pandas.notna(mybytes) else None  # type: ignore
+
+    # TODO(b/345516010): the type: ignore is because "Optional" not yet
+    # supported as a type annotation in @remote_function().
+    assert bytes_to_hex(None) is None  # type: ignore
+    assert bytes_to_hex(b"\x00\xdd\xba\x11") == b"00ddba11"
+    pd_result = scalars_pandas_df.bytes_col.map(bytes_to_hex).astype(
+        pd.ArrowDtype(pyarrow.binary())
+    )
+
+    packages = ["pandas"]
+    remote_bytes_to_hex = session_with_bq_connection.remote_function(
+        dataset=dataset_id_permanent,
+        name=get_function_name(bytes_to_hex, package_requirements=packages),
+        packages=packages,
+    )(bytes_to_hex)
+    bf_result = scalars_df.bytes_col.map(remote_bytes_to_hex).to_pandas()
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_skip_bq_connection_check(dataset_id_permanent):
+    connection_name = "connection_does_not_exist"
+    session = bigframes.Session(
+        context=bigframes.BigQueryOptions(
+            bq_connection=connection_name, skip_bq_connection_check=True
+        )
+    )
+
+    # Make sure that the connection does not exist
+    with pytest.raises(google.api_core.exceptions.NotFound):
+        session.bqconnectionclient.get_connection(
+            name=session.bqconnectionclient.connection_path(
+                session._project, session._location, connection_name
+            )
+        )
+
+    # Make sure that an attempt to create a remote function routine with
+    # non-existent connection would result in an exception thrown by the BQ
+    # service.
+    # This is different from the exception throw by the BQ Connection service
+    # if it was not able to create the connection because of lack of permission
+    # when skip_bq_connection_check was not set to True:
+    # google.api_core.exceptions.PermissionDenied: 403 Permission 'resourcemanager.projects.setIamPolicy' denied on resource
+    with pytest.raises(
+        google.api_core.exceptions.NotFound,
+        match=f"Not found: Connection {connection_name}",
+    ):
 
         def add_one(x):
-            return x + 1
+            # Not expected to reach this code, as the connection doesn't exist.
+            return x + 1  # pragma: NO COVER
 
-        remote_add_one = session.remote_function(
+        session.remote_function(
             [int],
             int,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
+            dataset=dataset_id_permanent,
+            name=get_function_name(add_one),
         )(add_one)
 
-        scalars_df, scalars_pandas_df = scalars_dfs
 
-        bf_int64_col = scalars_df["int64_col"]
-        bf_int64_col_filter = bf_int64_col.notnull()
-        bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-        bf_result_col = bf_int64_col_filtered.apply(remote_add_one)
-        bf_result = (
-            bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
+def test_read_gbq_function_detects_invalid_function(session, dataset_id):
+    dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
+    with pytest.raises(ValueError) as e:
+        bff.read_gbq_function(
+            str(dataset_ref.routine("not_a_function")),
+            session=session,
         )
 
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_int64_col_filter = pd_int64_col.notnull()
-        pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-        pd_result_col = pd_int64_col_filtered.apply(add_one)
-        # TODO(shobs): Figure why pandas .apply() changes the dtype, e.g.
-        # pd_int64_col_filtered.dtype is Int64Dtype()
-        # pd_int64_col_filtered.apply(lambda x: x).dtype is int64.
-        # For this test let's force the pandas dtype to be same as bigframes' dtype.
-        pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
-        pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            remote_add_one, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.parametrize(
-    ("input_types"),
-    [
-        pytest.param([int], id="list-of-int"),
-        pytest.param(int, id="int"),
-    ],
-)
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_input_types(session, scalars_dfs, input_types):
-    try:
-
-        def add_one(x):
-            return x + 1
-
-        remote_add_one = session.remote_function(input_types, int, reuse=False)(add_one)
-        assert remote_add_one.input_dtypes == (bigframes.dtypes.INT_DTYPE,)
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_result = scalars_df.int64_too.map(remote_add_one).to_pandas()
-        pd_result = scalars_pandas_df.int64_too.map(add_one)
-
-        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            remote_add_one, session.bqclient, session.cloudfunctionsclient
-        )
+    assert "Unknown function" in str(e.value)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_explicit_dataset_not_created(
+def test_read_gbq_function_like_original(
     session,
-    scalars_dfs,
-    dataset_id_not_created,
+    bigquery_client,
+    bigqueryconnection_client,
+    cloudfunctions_client,
+    resourcemanager_client,
+    scalars_df_index,
+    dataset_id_permanent,
     bq_cf_connection,
 ):
-    try:
-
-        @session.remote_function(
-            [int],
-            int,
-            dataset_id_not_created,
-            bq_cf_connection,
-            reuse=False,
-        )
-        def square(x):
-            return x * x
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_col"]
-        bf_int64_col_filter = bf_int64_col.notnull()
-        bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-        bf_result_col = bf_int64_col_filtered.apply(square)
-        bf_result = (
-            bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
-        )
-
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_int64_col_filter = pd_int64_col.notnull()
-        pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-        pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
-        # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-        # pd_int64_col_filtered.dtype is Int64Dtype()
-        # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
-        # For this test let's force the pandas dtype to be same as bigframes' dtype.
-        pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
-        pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(square, session.bqclient, session.cloudfunctionsclient)
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_udf_referring_outside_var(
-    session, scalars_dfs, dataset_id, bq_cf_connection
-):
-    try:
-        POSITIVE_SIGN = 1
-        NEGATIVE_SIGN = -1
-        NO_SIGN = 0
-
-        def sign(num):
-            if num > 0:
-                return POSITIVE_SIGN
-            elif num < 0:
-                return NEGATIVE_SIGN
-            return NO_SIGN
-
-        remote_sign = session.remote_function(
-            [int],
-            int,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-        )(sign)
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_col"]
-        bf_int64_col_filter = bf_int64_col.notnull()
-        bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-        bf_result_col = bf_int64_col_filtered.apply(remote_sign)
-        bf_result = (
-            bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
-        )
-
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_int64_col_filter = pd_int64_col.notnull()
-        pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-        pd_result_col = pd_int64_col_filtered.apply(sign)
-        # TODO(shobs): Figure why pandas .apply() changes the dtype, e.g.
-        # pd_int64_col_filtered.dtype is Int64Dtype()
-        # pd_int64_col_filtered.apply(lambda x: x).dtype is int64.
-        # For this test let's force the pandas dtype to be same as bigframes' dtype.
-        pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
-        pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            remote_sign, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_udf_referring_outside_import(
-    session, scalars_dfs, dataset_id, bq_cf_connection
-):
-    try:
-        import math as mymath
-
-        def circumference(radius):
-            return 2 * mymath.pi * radius
-
-        remote_circumference = session.remote_function(
-            [float],
-            float,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-        )(circumference)
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_float64_col = scalars_df["float64_col"]
-        bf_float64_col_filter = bf_float64_col.notnull()
-        bf_float64_col_filtered = bf_float64_col[bf_float64_col_filter]
-        bf_result_col = bf_float64_col_filtered.apply(remote_circumference)
-        bf_result = (
-            bf_float64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
-        )
-
-        pd_float64_col = scalars_pandas_df["float64_col"]
-        pd_float64_col_filter = pd_float64_col.notnull()
-        pd_float64_col_filtered = pd_float64_col[pd_float64_col_filter]
-        pd_result_col = pd_float64_col_filtered.apply(circumference)
-        # TODO(shobs): Figure why pandas .apply() changes the dtype, e.g.
-        # pd_float64_col_filtered.dtype is Float64Dtype()
-        # pd_float64_col_filtered.apply(lambda x: x).dtype is float64.
-        # For this test let's force the pandas dtype to be same as bigframes' dtype.
-        pd_result_col = pd_result_col.astype(pandas.Float64Dtype())
-        pd_result = pd_float64_col_filtered.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            remote_circumference, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_udf_referring_global_var_and_import(
-    session, scalars_dfs, dataset_id, bq_cf_connection
-):
-    try:
-
-        def find_team(num):
-            boundary = (math.pi + math.e) / 2
-            if num >= boundary:
-                return _team_euler
-            return _team_pi
-
-        remote_find_team = session.remote_function(
-            [float],
-            str,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-        )(find_team)
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_float64_col = scalars_df["float64_col"]
-        bf_float64_col_filter = bf_float64_col.notnull()
-        bf_float64_col_filtered = bf_float64_col[bf_float64_col_filter]
-        bf_result_col = bf_float64_col_filtered.apply(remote_find_team)
-        bf_result = (
-            bf_float64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
-        )
-
-        pd_float64_col = scalars_pandas_df["float64_col"]
-        pd_float64_col_filter = pd_float64_col.notnull()
-        pd_float64_col_filtered = pd_float64_col[pd_float64_col_filter]
-        pd_result_col = pd_float64_col_filtered.apply(find_team)
-        # TODO(shobs): Figure if the dtype mismatch is by design:
-        # bf_result.dtype: string[pyarrow]
-        # pd_result.dtype: dtype('O').
-        # For this test let's force the pandas dtype to be same as bigframes' dtype.
-        pd_result_col = pd_result_col.astype(pandas.StringDtype(storage="pyarrow"))
-        pd_result = pd_float64_col_filtered.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            remote_find_team, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_restore_with_bigframes_series(
-    session,
-    scalars_dfs,
-    dataset_id,
-    bq_cf_connection,
-):
-    try:
-
-        def add_one(x):
-            return x + 1
-
-        # Make a unique udf
-        add_one_uniq, add_one_uniq_dir = make_uniq_udf(add_one)
-
-        # Expected cloud function name for the unique udf
-        package_requirements = bff_utils._get_updated_package_requirements()
-        add_one_uniq_hash = bff_utils._get_hash(add_one_uniq, package_requirements)
-        add_one_uniq_cf_name = bff_utils.get_cloud_function_name(
-            add_one_uniq_hash, session.session_id
-        )
-
-        # There should be no cloud function yet for the unique udf
-        cloud_functions = list(
-            get_cloud_functions(
-                session.cloudfunctionsclient,
-                session.bqclient.project,
-                session.bqclient.location,
-                name=add_one_uniq_cf_name,
-            )
-        )
-        assert len(cloud_functions) == 0
-
-        # The first time both the cloud function and the bq remote function don't
-        # exist and would be created
-        remote_add_one = session.remote_function(
-            [int],
-            int,
-            dataset_id,
-            bq_cf_connection,
-            reuse=True,
-        )(add_one_uniq)
-
-        # There should have been excactly one cloud function created at this point
-        cloud_functions = list(
-            get_cloud_functions(
-                session.cloudfunctionsclient,
-                session.bqclient.project,
-                session.bqclient.location,
-                name=add_one_uniq_cf_name,
-            )
-        )
-        assert len(cloud_functions) == 1
-
-        # We will test this twice
-        def inner_test():
-            scalars_df, scalars_pandas_df = scalars_dfs
-
-            bf_int64_col = scalars_df["int64_col"]
-            bf_int64_col_filter = bf_int64_col.notnull()
-            bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-            bf_result_col = bf_int64_col_filtered.apply(remote_add_one)
-            bf_result = (
-                bf_int64_col_filtered.to_frame()
-                .assign(result=bf_result_col)
-                .to_pandas()
-            )
-
-            pd_int64_col = scalars_pandas_df["int64_col"]
-            pd_int64_col_filter = pd_int64_col.notnull()
-            pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-            pd_result_col = pd_int64_col_filtered.apply(add_one_uniq)
-            # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-            # pd_int64_col_filtered.dtype is Int64Dtype()
-            # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
-            # For this test let's force the pandas dtype to be same as bigframes' dtype.
-            pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
-            pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
-
-            assert_pandas_df_equal(bf_result, pd_result)
-
-        # Test that the remote function works as expected
-        inner_test()
-
-        # Let's delete the cloud function while not touching the bq remote function
-        delete_operation = delete_cloud_function(
-            session.cloudfunctionsclient, cloud_functions[0].name
-        )
-        delete_operation.result()
-        assert delete_operation.done()
-
-        # There should be no cloud functions at this point for the uniq udf
-        cloud_functions = list(
-            get_cloud_functions(
-                session.cloudfunctionsclient,
-                session.bqclient.project,
-                session.bqclient.location,
-                name=add_one_uniq_cf_name,
-            )
-        )
-        assert len(cloud_functions) == 0
-
-        # The second time bigframes detects that the required cloud function doesn't
-        # exist even though the remote function exists, and goes ahead and recreates
-        # the cloud function
-        remote_add_one = session.remote_function(
-            [int],
-            int,
-            dataset_id,
-            bq_cf_connection,
-            reuse=True,
-        )(add_one_uniq)
-
-        # There should be excactly one cloud function again
-        cloud_functions = list(
-            get_cloud_functions(
-                session.cloudfunctionsclient,
-                session.bqclient.project,
-                session.bqclient.location,
-                name=add_one_uniq_cf_name,
-            )
-        )
-        assert len(cloud_functions) == 1
-
-        # Test again after the cloud function is restored that the remote function
-        # works as expected
-        inner_test()
-
-        # clean up the temp code
-        shutil.rmtree(add_one_uniq_dir)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            remote_add_one, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_udf_mask_default_value(
-    session, scalars_dfs, dataset_id, bq_cf_connection
-):
-    try:
-
-        def is_odd(num):
-            flag = False
-            try:
-                flag = num % 2 == 1
-            except TypeError:
-                pass
-            return flag
-
-        is_odd_remote = session.remote_function(
-            [int],
-            bool,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-        )(is_odd)
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_col"]
-        bf_result_col = bf_int64_col.mask(is_odd_remote)
-        bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
-
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_result_col = pd_int64_col.mask(is_odd)
-        pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            is_odd_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_udf_mask_custom_value(
-    session, scalars_dfs, dataset_id, bq_cf_connection
-):
-    try:
-
-        def is_odd(num):
-            flag = False
-            try:
-                flag = num % 2 == 1
-            except TypeError:
-                pass
-            return flag
-
-        is_odd_remote = session.remote_function(
-            [int],
-            bool,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-        )(is_odd)
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        # TODO(shobs): Revisit this test when NA handling of pandas' Series.mask is
-        # fixed https://github.com/pandas-dev/pandas/issues/52955,
-        # for now filter out the nulls and test the rest
-        bf_int64_col = scalars_df["int64_col"]
-        bf_result_col = bf_int64_col[bf_int64_col.notnull()].mask(is_odd_remote, -1)
-        bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
-
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_result_col = pd_int64_col[pd_int64_col.notnull()].mask(is_odd, -1)
-        pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            is_odd_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_udf_lambda(session, scalars_dfs, dataset_id, bq_cf_connection):
-    try:
-        add_one_lambda = lambda x: x + 1  # noqa: E731
-
-        add_one_lambda_remote = session.remote_function(
-            [int],
-            int,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-        )(add_one_lambda)
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_col"]
-        bf_int64_col_filter = bf_int64_col.notnull()
-        bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-        bf_result_col = bf_int64_col_filtered.apply(add_one_lambda_remote)
-        bf_result = (
-            bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
-        )
-
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_int64_col_filter = pd_int64_col.notnull()
-        pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-        pd_result_col = pd_int64_col_filtered.apply(add_one_lambda)
-        # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-        # pd_int64_col_filtered.dtype is Int64Dtype()
-        # pd_int64_col_filtered.apply(lambda x: x).dtype is int64.
-        # For this test let's force the pandas dtype to be same as bigframes' dtype.
-        pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
-        pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            add_one_lambda_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_with_explicit_name(
-    session, scalars_dfs, dataset_id, bq_cf_connection
-):
-    try:
-
-        def square(x):
-            return x * x
-
-        prefixer = test_utils.prefixer.Prefixer(square.__name__, "")
-        rf_name = prefixer.create_prefix()
-        expected_remote_function = f"{dataset_id}.{rf_name}"
-
-        # Initially the expected BQ remote function should not exist
-        with pytest.raises(google.api_core.exceptions.NotFound):
-            session.bqclient.get_routine(expected_remote_function)
-
-        # Create the remote function with the name provided explicitly
-        square_remote = session.remote_function(
-            [int],
-            int,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-            name=rf_name,
-        )(square)
-
-        # The remote function should reflect the explicitly provided name
-        assert square_remote.bigframes_remote_function == expected_remote_function
-
-        # Now the expected BQ remote function should exist
-        session.bqclient.get_routine(expected_remote_function)
-
-        # The behavior of the created remote function should be as expected
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_too"]
-        bf_result_col = bf_int64_col.apply(square_remote)
-        bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
-
-        pd_int64_col = scalars_pandas_df["int64_too"]
-        pd_result_col = pd_int64_col.apply(square)
-        # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-        # pd_int64_col.dtype is Int64Dtype()
-        # pd_int64_col.apply(square).dtype is int64.
-        # For this test let's force the pandas dtype to be same as bigframes' dtype.
-        pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
-        pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            square_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_with_external_package_dependencies(
-    session, scalars_dfs, dataset_id, bq_cf_connection
-):
-    try:
-
-        def pd_np_foo(x):
-            import numpy as mynp
-            import pandas as mypd
-
-            return mypd.Series([x, mynp.sqrt(mynp.abs(x))]).sum()
-
-        # Create the remote function with the name provided explicitly
-        pd_np_foo_remote = session.remote_function(
-            [int],
-            float,
-            dataset_id,
-            bq_cf_connection,
-            reuse=False,
-            packages=["numpy", "pandas >= 2.0.0"],
-        )(pd_np_foo)
-
-        # The behavior of the created remote function should be as expected
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_too"]
-        bf_result_col = bf_int64_col.apply(pd_np_foo_remote)
-        bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
-
-        pd_int64_col = scalars_pandas_df["int64_too"]
-        pd_result_col = pd_int64_col.apply(pd_np_foo)
-        pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
-
-        # pandas result is non-nullable type float64, make it Float64 before
-        # comparing for the purpose of this test
-        pd_result.result = pd_result.result.astype(pandas.Float64Dtype())
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            pd_np_foo_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_with_explicit_name_reuse(
-    session, scalars_dfs, dataset_id, bq_cf_connection
-):
-    try:
-
-        dirs_to_cleanup = []
-
-        # Define a user code
-        def square(x):
-            return x * x
-
-        # Make it a unique udf
-        square_uniq, square_uniq_dir = make_uniq_udf(square)
-        dirs_to_cleanup.append(square_uniq_dir)
-
-        # Define a common routine which accepts a remote function and the
-        # corresponding user defined function and tests that bigframes bahavior
-        # on the former is in parity with the pandas behaviour on the latter
-        def test_internal(rf, udf):
-            # The behavior of the created remote function should be as expected
-            scalars_df, scalars_pandas_df = scalars_dfs
-
-            bf_int64_col = scalars_df["int64_too"]
-            bf_result_col = bf_int64_col.apply(rf)
-            bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
-
-            pd_int64_col = scalars_pandas_df["int64_too"]
-            pd_result_col = pd_int64_col.apply(udf)
-            # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-            # pd_int64_col.dtype is Int64Dtype()
-            # pd_int64_col.apply(square).dtype is int64.
-            # For this test let's force the pandas dtype to be same as bigframes' dtype.
-            pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
-            pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
-
-            assert_pandas_df_equal(bf_result, pd_result)
-
-        # Create an explicit name for the remote function
-        prefixer = test_utils.prefixer.Prefixer("foo", "")
-        rf_name = prefixer.create_prefix()
-        expected_remote_function = f"{dataset_id}.{rf_name}"
-
-        # Initially the expected BQ remote function should not exist
-        with pytest.raises(google.api_core.exceptions.NotFound):
-            session.bqclient.get_routine(expected_remote_function)
-
-        # Create a new remote function with the name provided explicitly
-        square_remote1 = session.remote_function(
-            [int],
-            int,
-            dataset_id,
-            bq_cf_connection,
-            name=rf_name,
-        )(square_uniq)
-
-        # The remote function should reflect the explicitly provided name
-        assert square_remote1.bigframes_remote_function == expected_remote_function
-
-        # Now the expected BQ remote function should exist
-        routine = session.bqclient.get_routine(expected_remote_function)
-        square_remote1_created = routine.created
-        square_remote1_cf_updated = session.cloudfunctionsclient.get_function(
-            name=square_remote1.bigframes_cloud_function
-        ).update_time
-
-        # Test pandas parity with square udf
-        test_internal(square_remote1, square)
-
-        # Now Create another remote function with the same name provided
-        # explicitly. Since reuse is True by default, the previously created
-        # remote function with the same name will be reused.
-        square_remote2 = session.remote_function(
-            [int],
-            int,
-            dataset_id,
-            bq_cf_connection,
-            name=rf_name,
-        )(square_uniq)
-
-        # The new remote function should still reflect the explicitly provided name
-        assert square_remote2.bigframes_remote_function == expected_remote_function
-
-        # The expected BQ remote function should still exist
-        routine = session.bqclient.get_routine(expected_remote_function)
-        square_remote2_created = routine.created
-        square_remote2_cf_updated = session.cloudfunctionsclient.get_function(
-            name=square_remote2.bigframes_cloud_function
-        ).update_time
-
-        # The new remote function should reflect that the previous BQ remote
-        # function and the cloud function were reused instead of creating anew
-        assert square_remote2_created == square_remote1_created
-        assert (
-            square_remote2.bigframes_cloud_function
-            == square_remote1.bigframes_cloud_function
-        )
-        assert square_remote2_cf_updated == square_remote1_cf_updated
-
-        # Test again that the new remote function is actually same as the
-        # previous remote function
-        test_internal(square_remote2, square)
-
-        # Now define a different user code
-        def plusone(x):
-            return x + 1
-
-        # Make it a unique udf
-        plusone_uniq, plusone_uniq_dir = make_uniq_udf(plusone)
-        dirs_to_cleanup.append(plusone_uniq_dir)
-
-        # Now Create a third remote function with the same name provided
-        # explicitly. Even though reuse is True by default, the previously
-        # created remote function with the same name should not be reused since
-        # this time it is a different user code.
-        plusone_remote = session.remote_function(
-            [int],
-            int,
-            dataset_id,
-            bq_cf_connection,
-            name=rf_name,
-        )(plusone_uniq)
-
-        # The new remote function should still reflect the explicitly provided name
-        assert plusone_remote.bigframes_remote_function == expected_remote_function
-
-        # The expected BQ remote function should still exist
-        routine = session.bqclient.get_routine(expected_remote_function)
-        plusone_remote_created = routine.created
-        plusone_remote_cf_updated = session.cloudfunctionsclient.get_function(
-            name=plusone_remote.bigframes_cloud_function
-        ).update_time
-
-        # The new remote function should reflect that the previous BQ remote
-        # function and the cloud function were NOT reused, instead were created
-        # anew
-        assert plusone_remote_created > square_remote2_created
-        assert (
-            plusone_remote.bigframes_cloud_function
-            != square_remote2.bigframes_cloud_function
-        )
-        assert plusone_remote_cf_updated > square_remote2_cf_updated
-
-        # Test again that the new remote function is equivalent to the new user
-        # defined function
-        test_internal(plusone_remote, plusone)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            square_remote1, session.bqclient, session.cloudfunctionsclient
-        )
-        cleanup_function_assets(
-            square_remote2, session.bqclient, session.cloudfunctionsclient
-        )
-        cleanup_function_assets(
-            plusone_remote, session.bqclient, session.cloudfunctionsclient
-        )
-        for dir_ in dirs_to_cleanup:
-            shutil.rmtree(dir_)
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_via_session_context_connection_setter(
-    scalars_dfs, dataset_id, bq_cf_connection
-):
-    # Creating a session scoped only to this test as we would be setting a
-    # property in it
-    context = bigframes.BigQueryOptions()
-    context.bq_connection = bq_cf_connection
-    session = bigframes.connect(context)
-
-    try:
-        # Without an explicit bigquery connection, the one present in Session,
-        # set via context setter would be used. Without an explicit `reuse` the
-        # default behavior of reuse=True will take effect. Please note that the
-        # udf is same as the one used in other tests in this file so the underlying
-        # cloud function would be common with reuse=True. Since we are using a
-        # unique dataset_id, even though the cloud function would be reused, the bq
-        # remote function would still be created, making use of the bq connection
-        # set in the BigQueryOptions above.
-        @session.remote_function([int], int, dataset=dataset_id, reuse=False)
-        def square(x):
-            return x * x
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_col"]
-        bf_int64_col_filter = bf_int64_col.notnull()
-        bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-        bf_result_col = bf_int64_col_filtered.apply(square)
-        bf_result = (
-            bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
-        )
-
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_int64_col_filter = pd_int64_col.notnull()
-        pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-        pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
-        # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-        # pd_int64_col_filtered.dtype is Int64Dtype()
-        # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
-        # For this test let's force the pandas dtype to be same as bigframes' dtype.
-        pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
-        pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(square, session.bqclient, session.cloudfunctionsclient)
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_default_connection(session, scalars_dfs, dataset_id):
-    try:
-
-        @session.remote_function([int], int, dataset=dataset_id, reuse=False)
-        def square(x):
-            return x * x
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_col"]
-        bf_int64_col_filter = bf_int64_col.notnull()
-        bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-        bf_result_col = bf_int64_col_filtered.apply(square)
-        bf_result = (
-            bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
-        )
-
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_int64_col_filter = pd_int64_col.notnull()
-        pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-        pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
-        # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-        # pd_int64_col_filtered.dtype is Int64Dtype()
-        # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
-        # For this test let's force the pandas dtype to be same as bigframes' dtype.
-        pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
-        pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(square, session.bqclient, session.cloudfunctionsclient)
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_runtime_error(session, scalars_dfs, dataset_id):
-    try:
-
-        @session.remote_function([int], int, dataset=dataset_id, reuse=False)
-        def square(x):
-            return x * x
-
-        scalars_df, _ = scalars_dfs
-
-        with pytest.raises(
-            google.api_core.exceptions.BadRequest,
-            match="400.*errorMessage.*unsupported operand type",
-        ):
-            # int64_col has nulls which should cause error in square
-            scalars_df["int64_col"].apply(square).to_pandas()
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(square, session.bqclient, session.cloudfunctionsclient)
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_anonymous_dataset(session, scalars_dfs):
-    try:
-        # This usage of remote_function is expected to create the remote
-        # function in the bigframes session's anonymous dataset. Use reuse=False
-        # param to make sure parallel instances of the test don't step over each
-        # other due to the common anonymous dataset.
-        @session.remote_function([int], int, reuse=False)
-        def square(x):
-            return x * x
-
-        assert (
-            bigquery.Routine(square.bigframes_remote_function).dataset_id
-            == session._anonymous_dataset.dataset_id
-        )
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_col"]
-        bf_int64_col_filter = bf_int64_col.notnull()
-        bf_int64_col_filtered = bf_int64_col[bf_int64_col_filter]
-        bf_result_col = bf_int64_col_filtered.apply(square)
-        bf_result = (
-            bf_int64_col_filtered.to_frame().assign(result=bf_result_col).to_pandas()
-        )
-
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_int64_col_filter = pd_int64_col.notnull()
-        pd_int64_col_filtered = pd_int64_col[pd_int64_col_filter]
-        pd_result_col = pd_int64_col_filtered.apply(lambda x: x * x)
-        # TODO(shobs): Figure why pandas .apply() changes the dtype, i.e.
-        # pd_int64_col_filtered.dtype is Int64Dtype()
-        # pd_int64_col_filtered.apply(lambda x: x * x).dtype is int64.
-        # For this test let's force the pandas dtype to be same as bigframes' dtype.
-        pd_result_col = pd_result_col.astype(pandas.Int64Dtype())
-        pd_result = pd_int64_col_filtered.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(square, session.bqclient, session.cloudfunctionsclient)
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_via_session_custom_sa(scalars_dfs):
-    # TODO(shobs): Automate the following set-up during testing in the test project.
-    #
-    # For upfront convenience, the following set up has been statically created
-    # in the project bigfrmames-dev-perf via cloud console:
-    #
-    # 1. Create a service account as per
-    #    https://cloud.google.com/iam/docs/service-accounts-create#iam-service-accounts-create-console
-    # 2. Give necessary roles as per
-    #    https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration
-    #
-    project = "bigframes-dev-perf"
-    gcf_service_account = (
-        "bigframes-dev-perf-1@bigframes-dev-perf.iam.gserviceaccount.com"
+    def square1(x):
+        return x * x
+
+    square1 = bff.remote_function(
+        [int],
+        int,
+        bigquery_client=bigquery_client,
+        bigquery_connection_client=bigqueryconnection_client,
+        dataset=dataset_id_permanent,
+        cloud_functions_client=cloudfunctions_client,
+        resource_manager_client=resourcemanager_client,
+        bigquery_connection=bq_cf_connection,
+        reuse=True,
+        name=get_function_name(square1),
+    )(square1)
+
+    # Function should still work normally.
+    assert square1(2) == 4
+
+    square2 = bff.read_gbq_function(
+        function_name=square1.bigframes_remote_function,  # type: ignore
+        session=session,
     )
 
-    rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
+    # The newly-created function (square1) should have a remote function AND a
+    # cloud function associated with it, while the read-back version (square2)
+    # should only have a remote function.
+    assert square1.bigframes_remote_function  # type: ignore
+    assert square1.bigframes_cloud_function  # type: ignore
 
-    try:
+    assert square2.bigframes_remote_function
+    assert not hasattr(square2, "bigframes_cloud_function")
 
-        @rf_session.remote_function(
-            [int], int, reuse=False, cloud_function_service_account=gcf_service_account
-        )
-        def square_num(x):
-            if x is None:
-                return x
-            return x * x
+    # They should point to the same function.
+    assert square1.bigframes_remote_function == square2.bigframes_remote_function  # type: ignore
 
-        scalars_df, scalars_pandas_df = scalars_dfs
+    # The result of applying them should be the same.
+    int64_col = scalars_df_index["int64_col"]
+    int64_col_filter = int64_col.notnull()
+    int64_col_filtered = int64_col[int64_col_filter]
 
-        bf_int64_col = scalars_df["int64_col"]
-        bf_result_col = bf_int64_col.apply(square_num)
-        bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
+    s1_result_col = int64_col_filtered.apply(square1)
+    s1_result = int64_col_filtered.to_frame().assign(result=s1_result_col)
 
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_result_col = pd_int64_col.apply(lambda x: x if x is None else x * x)
-        pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
+    s2_result_col = int64_col_filtered.apply(square2)
+    s2_result = int64_col_filtered.to_frame().assign(result=s2_result_col)
 
-        assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
-
-        # Assert that the GCF is created with the intended SA
-        gcf = rf_session.cloudfunctionsclient.get_function(
-            name=square_num.bigframes_cloud_function
-        )
-        assert gcf.service_config.service_account_email == gcf_service_account
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            square_num, rf_session.bqclient, rf_session.cloudfunctionsclient
-        )
+    assert_pandas_df_equal(s1_result.to_pandas(), s2_result.to_pandas())
 
 
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_with_gcf_cmek():
-    # TODO(shobs): Automate the following set-up during testing in the test project.
-    #
-    # For upfront convenience, the following set up has been statically created
-    # in the project bigfrmames-dev-perf via cloud console:
-    #
-    # 1. Created an encryption key and granting the necessary service accounts
-    #    the required IAM permissions as per https://cloud.google.com/kms/docs/create-key
-    # 2. Created a docker repository with CMEK (created in step 1) enabled as per
-    #    https://cloud.google.com/artifact-registry/docs/repositories/create-repos#overview
-    #
-    project = "bigframes-dev-perf"
-    cmek = "projects/bigframes-dev-perf/locations/us-central1/keyRings/bigframesKeyRing/cryptoKeys/bigframesKey"
-    docker_repository = (
-        "projects/bigframes-dev-perf/locations/us-central1/repositories/rf-artifacts"
+def test_read_gbq_function_runs_existing_udf(session):
+    func = session.read_gbq_function("bqutil.fn.cw_lower_case_ascii_only")
+    got = func("AURÉLIE")
+    assert got == "aurÉlie"
+
+
+def test_read_gbq_function_runs_existing_udf_4_params(session):
+    func = session.read_gbq_function("bqutil.fn.cw_instr4")
+    got = func("TestStr123456Str", "Str", 1, 2)
+    assert got == 14
+
+
+def test_read_gbq_function_runs_existing_udf_array_output(session, routine_id_unique):
+    bigframes.session._io.bigquery.start_query_with_client(
+        session.bqclient,
+        textwrap.dedent(
+            f"""
+                CREATE OR REPLACE FUNCTION `{routine_id_unique}`(x STRING)
+                RETURNS ARRAY<STRING>
+                AS (
+                    [x, x]
+                )
+            """
+        ),
+        job_config=bigquery.QueryJobConfig(),
+    )
+    func = session.read_gbq_function(routine_id_unique)
+
+    # Test on scalar value
+    got = func("hello")
+    assert got == ["hello", "hello"]
+
+    # Test on a series, assert pandas parity
+    pd_s = pd.Series(["alpha", "beta", "gamma"])
+    bf_s = session.read_pandas(pd_s)
+    pd_result = pd_s.apply(func)
+    bf_result = bf_s.apply(func)
+    assert bigframes.dtypes.is_array_string_like(bf_result.dtype)
+    pd.testing.assert_series_equal(
+        pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
     )
 
-    session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
-    try:
 
-        @session.remote_function(
-            [int],
-            int,
-            reuse=False,
-            cloud_function_kms_key_name=cmek,
-            cloud_function_docker_repository=docker_repository,
+def test_read_gbq_function_runs_existing_udf_2_params_array_output(
+    session, routine_id_unique
+):
+    bigframes.session._io.bigquery.start_query_with_client(
+        session.bqclient,
+        textwrap.dedent(
+            f"""
+                CREATE OR REPLACE FUNCTION `{routine_id_unique}`(x STRING, y STRING)
+                RETURNS ARRAY<STRING>
+                AS (
+                    [x, y]
+                )
+            """
+        ),
+        job_config=bigquery.QueryJobConfig(),
+    )
+    func = session.read_gbq_function(routine_id_unique)
+
+    # Test on scalar value
+    got = func("hello", "world")
+    assert got == ["hello", "world"]
+
+    # Test on series, assert pandas parity
+    pd_df = pd.DataFrame(
+        {"col0": ["alpha", "beta", "gamma"], "col1": ["delta", "theta", "phi"]}
+    )
+    bf_df = session.read_pandas(pd_df)
+    pd_result = pd_df["col0"].combine(pd_df["col1"], func)
+    bf_result = bf_df["col0"].combine(bf_df["col1"], func)
+    assert bigframes.dtypes.is_array_string_like(bf_result.dtype)
+    pd.testing.assert_series_equal(
+        pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
+    )
+
+
+def test_read_gbq_function_runs_existing_udf_4_params_array_output(
+    session, routine_id_unique
+):
+    bigframes.session._io.bigquery.start_query_with_client(
+        session.bqclient,
+        textwrap.dedent(
+            f"""
+                CREATE OR REPLACE FUNCTION `{routine_id_unique}`(x STRING, y BOOL, z INT64, w FLOAT64)
+                RETURNS ARRAY<STRING>
+                AS (
+                    [x, CAST(y AS STRING), CAST(z AS STRING), CAST(w AS STRING)]
+                )
+            """
+        ),
+        job_config=bigquery.QueryJobConfig(),
+    )
+    func = session.read_gbq_function(routine_id_unique)
+
+    # Test on scalar value
+    got = func("hello", True, 1, 2.3)
+    assert got == ["hello", "true", "1", "2.3"]
+
+    # Test on a dataframe, assert pandas parity
+    pd_df = pd.DataFrame(
+        {
+            "col0": ["alpha", "beta", "gamma"],
+            "col1": [True, False, True],
+            "col2": [1, 2, 3],
+            "col3": [4.5, 6, 7.75],
+        }
+    )
+    bf_df = session.read_pandas(pd_df)
+    # Simulate the result directly, since the function cannot be applied
+    # directly on a pandas dataframe with axis=1, as this is a special type of
+    # function with multiple params supported only on bigframes dataframe.
+    pd_result = pd.Series(
+        [
+            ["alpha", "true", "1", "4.5"],
+            ["beta", "false", "2", "6"],
+            ["gamma", "true", "3", "7.75"],
+        ]
+    )
+    bf_result = bf_df.apply(func, axis=1)
+    assert bigframes.dtypes.is_array_string_like(bf_result.dtype)
+    pd.testing.assert_series_equal(
+        pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
+    )
+
+
+def test_read_gbq_function_reads_udfs(session, bigquery_client, dataset_id):
+    dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
+    arg = bigquery.RoutineArgument(
+        name="x",
+        data_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
+    )
+    sql_routine = bigquery.Routine(
+        dataset_ref.routine("square_sql"),
+        body="x * x",
+        arguments=[arg],
+        return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
+        type_=bigquery.RoutineType.SCALAR_FUNCTION,
+    )
+    js_routine = bigquery.Routine(
+        dataset_ref.routine("square_js"),
+        body="return x * x",
+        language="JAVASCRIPT",
+        arguments=[arg],
+        return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
+        type_=bigquery.RoutineType.SCALAR_FUNCTION,
+    )
+
+    for routine in (sql_routine, js_routine):
+        # Create the routine in BigQuery and read it back using read_gbq_function.
+        bigquery_client.create_routine(routine, exists_ok=True)
+        square = bff.read_gbq_function(
+            str(routine.reference),
+            session=session,
         )
-        def square_num(x):
-            if x is None:
-                return x
-            return x * x
 
-        df = pandas.DataFrame({"num": [-1, 0, None, 1]}, dtype="Int64")
-        bf = session.read_pandas(df)
+        # It should point to the named routine and yield the expected results.
+        assert square.bigframes_remote_function == str(routine.reference)
+        assert square.input_dtypes == (bigframes.dtypes.INT_DTYPE,)
+        assert square.output_dtype == bigframes.dtypes.INT_DTYPE
+        assert (
+            square.bigframes_bigquery_function_output_dtype
+            == bigframes.dtypes.INT_DTYPE
+        )
 
-        bf_result_col = bf["num"].apply(square_num)
-        bf_result = bf.assign(result=bf_result_col).to_pandas()
+        src = {"x": [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]}
 
-        pd_result_col = df["num"].apply(lambda x: x if x is None else x * x)
-        pd_result = df.assign(result=pd_result_col)
+        routine_ref_str = bff_utils.routine_ref_to_string_for_query(routine.reference)
+        direct_sql = " UNION ALL ".join(
+            [f"SELECT {x} AS x, {routine_ref_str}({x}) AS y" for x in src["x"]]
+        )
+        direct_df = bigquery_client.query(direct_sql).to_dataframe()
+
+        indirect_df = bigframes.dataframe.DataFrame(src)
+        indirect_df = indirect_df.assign(y=indirect_df.x.apply(square))
+        converted_indirect_df = indirect_df.to_pandas()
 
         assert_pandas_df_equal(
-            bf_result, pd_result, check_dtype=False, check_index_type=False
-        )
-
-        # Assert that the GCF is created with the intended SA
-        gcf = session.cloudfunctionsclient.get_function(
-            name=square_num.bigframes_cloud_function
-        )
-        assert gcf.kms_key_name == cmek
-
-        # Assert that GCS artifact has CMEK applied
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(gcf.build_config.source.storage_source.bucket)
-        blob = bucket.get_blob(gcf.build_config.source.storage_source.object_)
-        assert blob.kms_key_name.startswith(cmek)
-
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            square_num, session.bqclient, session.cloudfunctionsclient
+            direct_df, converted_indirect_df, ignore_order=True, check_index_type=False
         )
 
 
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_via_session_vpc(scalars_dfs):
-    # TODO(shobs): Automate the following set-up during testing in the test project.
-    #
-    # For upfront convenience, the following set up has been statically created
-    # in the project bigfrmames-dev-perf via cloud console:
-    #
-    # 1. Create a vpc connector as per
-    #    https://cloud.google.com/vpc/docs/configure-serverless-vpc-access#gcloud
-    #
-    #    $ gcloud compute networks vpc-access connectors create bigframes-vpc --project=bigframes-dev-perf --region=us-central1 --range 10.8.0.0/28
-    #    Create request issued for: [bigframes-vpc]
-    #    Waiting for operation [projects/bigframes-dev-perf/locations/us-central1/operations/f9f90df6-7cf4-4420-8c2f-b3952775dcfb] to complete...done.
-    #    Created connector [bigframes-vpc].
-    #
-    #    $ gcloud compute networks vpc-access connectors list --project=bigframes-dev-perf --region=us-central1
-    #    CONNECTOR_ID   REGION       NETWORK  IP_CIDR_RANGE  SUBNET  SUBNET_PROJECT  MACHINE_TYPE  MIN_INSTANCES  MAX_INSTANCES  MIN_THROUGHPUT  MAX_THROUGHPUT  STATE
-    #    bigframes-vpc  us-central1  default  10.8.0.0/28                            e2-micro      2              10             200             1000            READY
-
-    project = "bigframes-dev-perf"
-    gcf_vpc_connector = "bigframes-vpc"
-
-    rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
-
-    try:
-
-        def square_num(x):
-            if x is None:
-                return x
-            return x * x
-
-        square_num_remote = rf_session.remote_function(
-            [int], int, reuse=False, cloud_function_vpc_connector=gcf_vpc_connector
-        )(square_num)
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_col"]
-        bf_result_col = bf_int64_col.apply(square_num_remote)
-        bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
-
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_result_col = pd_int64_col.apply(square_num)
-        pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
-
-        assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
-
-        # Assert that the GCF is created with the intended vpc connector
-        gcf = rf_session.cloudfunctionsclient.get_function(
-            name=square_num_remote.bigframes_cloud_function
-        )
-        assert gcf.service_config.vpc_connector == gcf_vpc_connector
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            square_num_remote, rf_session.bqclient, rf_session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.parametrize(
-    ("max_batching_rows"),
-    [
-        10_000,
-        None,
-    ],
-)
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_max_batching_rows(session, scalars_dfs, max_batching_rows):
-    try:
-
-        def square(x):
-            return x * x
-
-        square_remote = session.remote_function(
-            [int], int, reuse=False, max_batching_rows=max_batching_rows
-        )(square)
-
-        bq_routine = session.bqclient.get_routine(
-            square_remote.bigframes_remote_function
-        )
-        assert bq_routine.remote_function_options.max_batching_rows == max_batching_rows
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_result = scalars_df["int64_too"].apply(square_remote).to_pandas()
-        pd_result = scalars_pandas_df["int64_too"].apply(square)
-
-        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            square_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.parametrize(
-    ("timeout_args", "effective_gcf_timeout"),
-    [
-        pytest.param({}, 600, id="no-set"),
-        pytest.param({"cloud_function_timeout": None}, 60, id="set-None"),
-        pytest.param({"cloud_function_timeout": 1200}, 1200, id="set-max-allowed"),
-    ],
-)
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_gcf_timeout(
-    session, scalars_dfs, timeout_args, effective_gcf_timeout
+def test_read_gbq_function_requires_explicit_types(
+    session, bigquery_client, dataset_id
 ):
-    try:
-
-        def square(x):
-            return x * x
-
-        square_remote = session.remote_function(
-            [int], int, reuse=False, **timeout_args
-        )(square)
-
-        # Assert that the GCF is created with the intended maximum timeout
-        gcf = session.cloudfunctionsclient.get_function(
-            name=square_remote.bigframes_cloud_function
-        )
-        assert gcf.service_config.timeout_seconds == effective_gcf_timeout
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_result = scalars_df["int64_too"].apply(square_remote).to_pandas()
-        pd_result = scalars_pandas_df["int64_too"].apply(square)
-
-        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            square_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_gcf_timeout_max_supported_exceeded(session):
-    with pytest.raises(ValueError):
-
-        @session.remote_function([int], int, reuse=False, cloud_function_timeout=1201)
-        def square(x):
-            return x * x
-
-
-@pytest.mark.parametrize(
-    ("max_instances_args", "expected_max_instances"),
-    [
-        pytest.param({}, 100, id="no-set"),
-        pytest.param({"cloud_function_max_instances": None}, 100, id="set-None"),
-        pytest.param({"cloud_function_max_instances": 1000}, 1000, id="set-explicit"),
-    ],
-)
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_max_instances(
-    session, scalars_dfs, max_instances_args, expected_max_instances
-):
-    try:
-
-        def square(x):
-            return x * x
-
-        square_remote = session.remote_function(
-            [int], int, reuse=False, **max_instances_args
-        )(square)
-
-        # Assert that the GCF is created with the intended max instance count
-        gcf = session.cloudfunctionsclient.get_function(
-            name=square_remote.bigframes_cloud_function
-        )
-        assert gcf.service_config.max_instance_count == expected_max_instances
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_result = scalars_df["int64_too"].apply(square_remote).to_pandas()
-        pd_result = scalars_pandas_df["int64_too"].apply(square)
-
-        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            square_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_df_apply_axis_1(session, scalars_dfs):
-    columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
-    scalars_df, scalars_pandas_df = scalars_dfs
-    try:
-
-        def serialize_row(row):
-            custom = {
-                "name": row.name,
-                "index": [idx for idx in row.index],
-                "values": [
-                    val.item() if hasattr(val, "item") else val for val in row.values
-                ],
-            }
-
-            return str(
-                {
-                    "default": row.to_json(),
-                    "split": row.to_json(orient="split"),
-                    "records": row.to_json(orient="records"),
-                    "index": row.to_json(orient="index"),
-                    "table": row.to_json(orient="table"),
-                    "custom": custom,
-                }
-            )
-
-        serialize_row_remote = session.remote_function(
-            bigframes.series.Series, str, reuse=False
-        )(serialize_row)
-
-        assert getattr(serialize_row_remote, "is_row_processor")
-
-        bf_result = scalars_df[columns].apply(serialize_row_remote, axis=1).to_pandas()
-        pd_result = scalars_pandas_df[columns].apply(serialize_row, axis=1)
-
-        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
-        # , ignore this mismatch by using check_dtype=False.
-        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
-
-        # Let's make sure the read_gbq_function path works for this function
-        serialize_row_reuse = session.read_gbq_function(
-            serialize_row_remote.bigframes_remote_function, is_row_processor=True
-        )
-        bf_result = scalars_df[columns].apply(serialize_row_reuse, axis=1).to_pandas()
-        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            serialize_row_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_df_apply_axis_1_aggregates(session, scalars_dfs):
-    columns = ["int64_col", "int64_too", "float64_col"]
-    scalars_df, scalars_pandas_df = scalars_dfs
-
-    try:
-
-        def analyze(row):
-            return str(
-                {
-                    "dtype": row.dtype,
-                    "count": row.count(),
-                    "min": row.max(),
-                    "max": row.max(),
-                    "mean": row.mean(),
-                    "std": row.std(),
-                    "var": row.var(),
-                }
-            )
-
-        analyze_remote = session.remote_function(
-            bigframes.series.Series, str, reuse=False
-        )(analyze)
-
-        assert getattr(analyze_remote, "is_row_processor")
-
-        bf_result = (
-            scalars_df[columns].dropna().apply(analyze_remote, axis=1).to_pandas()
-        )
-        pd_result = scalars_pandas_df[columns].dropna().apply(analyze, axis=1)
-
-        # bf_result.dtype is 'string[pyarrow]' while pd_result.dtype is 'object'
-        # , ignore this mismatch by using check_dtype=False.
-        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            analyze_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.parametrize(
-    ("pd_df"),
-    [
-        pytest.param(
-            pandas.DataFrame(
-                {
-                    "2": [1, 2, 3],
-                    2: [1.5, 3.75, 5],
-                    "name, [with. special'- chars\")/\\": [10, 20, 30],
-                    (3, 4): ["pq", "rs", "tu"],
-                    (5.0, "six", 7): [8, 9, 10],
-                    'raise Exception("hacked!")': [11, 12, 13],
-                },
-                # Default pandas index has non-numpy type, whereas bigframes is
-                # always numpy-based type, so let's use the index compatible
-                # with bigframes. See more details in b/369689696.
-                index=pandas.Index([0, 1, 2], dtype=pandas.Int64Dtype()),
-            ),
-            id="all-kinds-of-column-names",
-        ),
-        pytest.param(
-            pandas.DataFrame(
-                {
-                    "x": [1, 2, 3],
-                    "y": [1.5, 3.75, 5],
-                    "z": ["pq", "rs", "tu"],
-                },
-                index=pandas.MultiIndex.from_frame(
-                    pandas.DataFrame(
-                        {
-                            "idx0": pandas.Series(
-                                ["a", "a", "b"], dtype=pandas.StringDtype()
-                            ),
-                            "idx1": pandas.Series(
-                                [100, 200, 300], dtype=pandas.Int64Dtype()
-                            ),
-                        }
-                    )
-                ),
-            ),
-            id="multiindex",
-            marks=pytest.mark.skip(
-                reason="TODO: revert this skip after this pandas bug is fixed: https://github.com/pandas-dev/pandas/issues/59908"
-            ),
-        ),
-        pytest.param(
-            pandas.DataFrame(
-                [
-                    [10, 1.5, "pq"],
-                    [20, 3.75, "rs"],
-                    [30, 8.0, "tu"],
-                ],
-                # Default pandas index has non-numpy type, whereas bigframes is
-                # always numpy-based type, so let's use the index compatible
-                # with bigframes. See more details in b/369689696.
-                index=pandas.Index([0, 1, 2], dtype=pandas.Int64Dtype()),
-                columns=pandas.MultiIndex.from_arrays(
-                    [
-                        ["first", "last_two", "last_two"],
-                        [1, 2, 3],
-                    ]
-                ),
-            ),
-            id="column-multiindex",
-        ),
-        pytest.param(
-            pandas.DataFrame(
-                {
-                    datetime.now(): [1, 2, 3],
-                }
-            ),
-            id="column-name-not-supported",
-            marks=pytest.mark.xfail(raises=NameError),
-        ),
-    ],
-)
-@pytest.mark.flaky(retries=2, delay=120)
-def test_df_apply_axis_1_complex(session, pd_df):
-    bf_df = session.read_pandas(pd_df)
-
-    try:
-
-        def serialize_row(row):
-            custom = {
-                "name": row.name,
-                "index": [idx for idx in row.index],
-                "values": [
-                    val.item() if hasattr(val, "item") else val for val in row.values
-                ],
-            }
-            return str(
-                {
-                    "default": row.to_json(),
-                    "split": row.to_json(orient="split"),
-                    "records": row.to_json(orient="records"),
-                    "index": row.to_json(orient="index"),
-                    "custom": custom,
-                }
-            )
-
-        serialize_row_remote = session.remote_function(
-            bigframes.series.Series, str, reuse=False
-        )(serialize_row)
-
-        assert getattr(serialize_row_remote, "is_row_processor")
-
-        bf_result = bf_df.apply(serialize_row_remote, axis=1).to_pandas()
-        pd_result = pd_df.apply(serialize_row, axis=1)
-
-        # ignore known dtype difference between pandas and bigframes
-        pandas.testing.assert_series_equal(
-            pd_result, bf_result, check_dtype=False, check_index_type=False
-        )
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            serialize_row_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_df_apply_axis_1_na_nan_inf(session):
-    """This test is for special cases of float values, to make sure any (nan,
-    inf, -inf) produced by user code is honored.
-    """
-    bf_df = session.read_gbq(
-        """\
-SELECT "1" AS text, 1 AS num
-UNION ALL
-SELECT "2.5" AS text, 2.5 AS num
-UNION ALL
-SELECT "nan" AS text, IEEE_DIVIDE(0, 0) AS num
-UNION ALL
-SELECT "inf" AS text, IEEE_DIVIDE(1, 0) AS num
-UNION ALL
-SELECT "-inf" AS text, IEEE_DIVIDE(-1, 0) AS num
-UNION ALL
-SELECT "numpy nan" AS text, IEEE_DIVIDE(0, 0) AS num
-UNION ALL
-SELECT "pandas na" AS text, NULL AS num
-                             """
+    dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
+    typed_arg = bigquery.RoutineArgument(
+        name="x",
+        data_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
+    )
+    untyped_arg = bigquery.RoutineArgument(
+        name="x",
+        kind="ANY_TYPE",  # With this kind, data_type not required for SQL functions.
     )
 
-    pd_df = bf_df.to_pandas()
+    both_types_specified = bigquery.Routine(
+        dataset_ref.routine("both_types_specified"),
+        body="x * x",
+        arguments=[typed_arg],
+        return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
+        type_=bigquery.RoutineType.SCALAR_FUNCTION,
+    )
+    only_return_type_specified = bigquery.Routine(
+        dataset_ref.routine("only_return_type_specified"),
+        body="x * x",
+        arguments=[untyped_arg],
+        return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
+        type_=bigquery.RoutineType.SCALAR_FUNCTION,
+    )
+    only_arg_type_specified = bigquery.Routine(
+        dataset_ref.routine("only_arg_type_specified"),
+        body="x * x",
+        arguments=[typed_arg],
+        type_=bigquery.RoutineType.SCALAR_FUNCTION,
+    )
+    neither_type_specified = bigquery.Routine(
+        dataset_ref.routine("neither_type_specified"),
+        body="x * x",
+        arguments=[untyped_arg],
+        type_=bigquery.RoutineType.SCALAR_FUNCTION,
+    )
 
-    try:
+    bigquery_client.create_routine(both_types_specified, exists_ok=True)
+    bigquery_client.create_routine(only_return_type_specified, exists_ok=True)
+    bigquery_client.create_routine(only_arg_type_specified, exists_ok=True)
+    bigquery_client.create_routine(neither_type_specified, exists_ok=True)
 
-        def float_parser(row):
-            import numpy as mynp
-            import pandas as mypd
-
-            if row["text"] == "pandas na":
-                return mypd.NA
-            if row["text"] == "numpy nan":
-                return mynp.nan
-            return float(row["text"])
-
-        float_parser_remote = session.remote_function(
-            bigframes.series.Series, float, reuse=False
-        )(float_parser)
-
-        assert getattr(float_parser_remote, "is_row_processor")
-
-        pd_result = pd_df.apply(float_parser, axis=1)
-        bf_result = bf_df.apply(float_parser_remote, axis=1).to_pandas()
-
-        # bf_result.dtype is 'Float64' while pd_result.dtype is 'object'
-        # , ignore this mismatch by using check_dtype=False.
-        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
-
-        # Let's also assert that the data is consistent in this round trip
-        # (BQ -> BigFrames -> BQ -> GCF -> BQ -> BigFrames) w.r.t. their
-        # expected values in BQ
-        bq_result = bf_df["num"].to_pandas()
-        bq_result.name = None
-        pandas.testing.assert_series_equal(bq_result, bf_result)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            float_parser_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.parametrize(
-    ("memory_mib_args", "expected_memory"),
-    [
-        pytest.param({}, "1024Mi", id="no-set"),
-        pytest.param({"cloud_function_memory_mib": None}, "256M", id="set-None"),
-        pytest.param({"cloud_function_memory_mib": 128}, "128Mi", id="set-128"),
-        pytest.param({"cloud_function_memory_mib": 1024}, "1024Mi", id="set-1024"),
-        pytest.param({"cloud_function_memory_mib": 4096}, "4096Mi", id="set-4096"),
-        pytest.param({"cloud_function_memory_mib": 32768}, "32768Mi", id="set-32768"),
-    ],
-)
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_gcf_memory(
-    session, scalars_dfs, memory_mib_args, expected_memory
-):
-    try:
-
-        def square(x: int) -> int:
-            return x * x
-
-        square_remote = session.remote_function(reuse=False, **memory_mib_args)(square)
-
-        # Assert that the GCF is created with the intended memory
-        gcf = session.cloudfunctionsclient.get_function(
-            name=square_remote.bigframes_cloud_function
-        )
-        assert gcf.service_config.available_memory == expected_memory
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_result = scalars_df["int64_too"].apply(square_remote).to_pandas()
-        pd_result = scalars_pandas_df["int64_too"].apply(square)
-
-        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            square_remote, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.parametrize(
-    ("memory_mib",),
-    [
-        pytest.param(127, id="127-too-low"),
-        pytest.param(32769, id="set-32769-too-high"),
-    ],
-)
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_gcf_memory_unsupported(session, memory_mib):
-    with pytest.raises(
-        google.api_core.exceptions.InvalidArgument,
-        match="Invalid value specified for container memory",
+    bff.read_gbq_function(
+        str(both_types_specified.reference),
+        session=session,
+    )
+    with pytest.warns(
+        bigframes.exceptions.UnknownDataTypeWarning,
+        match=r"missing input data types[\s\S]*assume default data type",
     ):
+        bff.read_gbq_function(
+            str(only_return_type_specified.reference),
+            session=session,
+        )
+    with pytest.raises(ValueError):
+        bff.read_gbq_function(
+            str(only_arg_type_specified.reference),
+            session=session,
+        )
+    with pytest.raises(ValueError):
+        bff.read_gbq_function(
+            str(neither_type_specified.reference),
+            session=session,
+        )
 
-        @session.remote_function(reuse=False, cloud_function_memory_mib=memory_mib)
-        def square(x: int) -> int:
-            return x * x
+
+@pytest.mark.parametrize(
+    ("session_fixture",),
+    [
+        pytest.param("session"),
+        pytest.param("unordered_session"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("array_type", "expected_data"),
+    [
+        pytest.param(None, ["[1,2,3]", "[10,11,12]", "[100,101,102]"], id="None"),
+        pytest.param(
+            list[str],
+            [["1", "2", "3"], ["10", "11", "12"], ["100", "101", "102"]],
+            id="list-str",
+        ),
+        pytest.param(
+            list[int], [[1, 2, 3], [10, 11, 12], [100, 101, 102]], id="list-int"
+        ),
+    ],
+)
+def test_read_gbq_function_respects_python_output_type(
+    request, session_fixture, bigquery_client, dataset_id, array_type, expected_data
+):
+    session = request.getfixturevalue(session_fixture)
+    dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
+    arg = bigquery.RoutineArgument(
+        name="x",
+        data_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
+    )
+    sql_routine = bigquery.Routine(
+        dataset_ref.routine(_prefixer.create_prefix()),
+        body="TO_JSON_STRING([x, x+1, x+2])",
+        arguments=[arg],
+        return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.STRING),
+        description=bff_utils.get_bigframes_metadata(python_output_type=array_type),
+        type_=bigquery.RoutineType.SCALAR_FUNCTION,
+    )
+
+    # Create the routine in BigQuery and read it back using read_gbq_function.
+    bigquery_client.create_routine(sql_routine, exists_ok=True)
+    func = bff.read_gbq_function(str(sql_routine.reference), session=session)
+
+    # test that the function works as expected
+    s = bigframes.series.Series([1, 10, 100])
+    expected = pd.Series(expected_data)
+    actual = s.apply(func).to_pandas()
+
+    # ignore type disparities, e.g. "int64" in pandas v/s "Int64" in bigframes
+    pd.testing.assert_series_equal(
+        expected, actual, check_dtype=False, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("array_type",),
+    [
+        pytest.param(list[bool], id="list-bool"),
+        pytest.param(list[float], id="list-float"),
+        pytest.param(list[int], id="list-int"),
+        pytest.param(list[str], id="list-str"),
+    ],
+)
+def test_read_gbq_function_supports_python_output_type_only_for_string_outputs(
+    session, bigquery_client, dataset_id, array_type
+):
+    dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
+    arg = bigquery.RoutineArgument(
+        name="x",
+        data_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
+    )
+    sql_routine = bigquery.Routine(
+        dataset_ref.routine(_prefixer.create_prefix()),
+        body="x+1",
+        arguments=[arg],
+        return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
+        description=bff_utils.get_bigframes_metadata(python_output_type=array_type),
+        type_=bigquery.RoutineType.SCALAR_FUNCTION,
+    )
+
+    # Create the routine in BigQuery and read it back using read_gbq_function.
+    bigquery_client.create_routine(sql_routine, exists_ok=True)
+
+    # reading back will fail because we currently allow specifying an explicit
+    # output_type for BQ functions with STRING output
+    with pytest.raises(
+        TypeError,
+        match="An explicit output_type should be provided only for a BigQuery function with STRING output.",
+    ):
+        bff.read_gbq_function(str(sql_routine.reference), session=session)
+
+
+@pytest.mark.parametrize(
+    ("array_type",),
+    [
+        pytest.param(list[bool], id="list-bool"),
+        pytest.param(list[float], id="list-float"),
+        pytest.param(list[int], id="list-int"),
+        pytest.param(list[str], id="list-str"),
+    ],
+)
+def test_read_gbq_function_supported_python_output_type(
+    session, bigquery_client, dataset_id, array_type
+):
+    dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
+    arg = bigquery.RoutineArgument(
+        name="x",
+        data_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.INT64),
+    )
+    sql_routine = bigquery.Routine(
+        dataset_ref.routine(_prefixer.create_prefix()),
+        body="CAST(x AS STRING)",
+        arguments=[arg],
+        return_type=bigquery.StandardSqlDataType(bigquery.StandardSqlTypeNames.STRING),
+        description=bff_utils.get_bigframes_metadata(python_output_type=array_type),
+        type_=bigquery.RoutineType.SCALAR_FUNCTION,
+    )
+
+    # Create the routine in BigQuery and read it back using read_gbq_function.
+    bigquery_client.create_routine(sql_routine, exists_ok=True)
+    bff.read_gbq_function(str(sql_routine.reference), session=session)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_unnamed_removed_w_session_cleanup():
-    # create a clean session
-    session = bigframes.connect()
-
-    # create an unnamed remote function in the session
-    @session.remote_function(reuse=False)
-    def foo(x: int) -> int:
-        return x + 1
-
-    # ensure that remote function artifacts are created
-    assert foo.bigframes_remote_function is not None
-    session.bqclient.get_routine(foo.bigframes_remote_function) is not None
-    assert foo.bigframes_cloud_function is not None
-    session.cloudfunctionsclient.get_function(
-        name=foo.bigframes_cloud_function
-    ) is not None
-
-    # explicitly close the session
-    session.close()
-
-    # ensure that the bq remote function is deleted
-    with pytest.raises(google.cloud.exceptions.NotFound):
-        session.bqclient.get_routine(foo.bigframes_remote_function)
-
-    # the deletion of cloud function happens in a non-blocking way, ensure that
-    # it either exists in a being-deleted state, or is already deleted
-    try:
-        gcf = session.cloudfunctionsclient.get_function(
-            name=foo.bigframes_cloud_function
-        )
-        assert gcf.state is functions_v2.Function.State.DELETING
-    except google.cloud.exceptions.NotFound:
-        pass
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_named_perists_w_session_cleanup():
-    try:
-        # create a clean session
-        session = bigframes.connect()
-
-        # create a name for the remote function
-        name = test_utils.prefixer.Prefixer("bigframes", "").create_prefix()
-
-        # create an unnamed remote function in the session
-        @session.remote_function(reuse=False, name=name)
-        def foo(x: int) -> int:
-            return x + 1
-
-        # ensure that remote function artifacts are created
-        assert foo.bigframes_remote_function is not None
-        session.bqclient.get_routine(foo.bigframes_remote_function) is not None
-        assert foo.bigframes_cloud_function is not None
-        session.cloudfunctionsclient.get_function(
-            name=foo.bigframes_cloud_function
-        ) is not None
-
-        # explicitly close the session
-        session.close()
-
-        # ensure that the bq remote function still exists
-        session.bqclient.get_routine(foo.bigframes_remote_function) is not None
-
-        # the deletion of cloud function happens in a non-blocking way, ensure
-        # that it was not deleted and still exists in active state
-        gcf = session.cloudfunctionsclient.get_function(
-            name=foo.bigframes_cloud_function
-        )
-        assert gcf.state is functions_v2.Function.State.ACTIVE
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(foo, session.bqclient, session.cloudfunctionsclient)
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_clean_up_by_session_id():
-    # Use a brand new session to avoid conflict with other tests
-    session = bigframes.Session()
-    session_id = session.session_id
-    try:
-        # we will create remote functions, one with explicit name and another
-        # without it, and later confirm that the former is deleted when the session
-        # is cleaned up by session id, but the latter remains
-        ## unnamed
-        @session.remote_function(reuse=False)
-        def foo_unnamed(x: int) -> int:
-            return x + 1
-
-        ## named
-        rf_name = test_utils.prefixer.Prefixer("bigframes", "").create_prefix()
-
-        @session.remote_function(reuse=False, name=rf_name)
-        def foo_named(x: int) -> int:
-            return x + 2
-
-        # check that BQ remote functiosn were created with corresponding cloud
-        # functions
-        for foo in [foo_unnamed, foo_named]:
-            assert foo.bigframes_remote_function is not None
-            session.bqclient.get_routine(foo.bigframes_remote_function) is not None
-            assert foo.bigframes_cloud_function is not None
-            session.cloudfunctionsclient.get_function(
-                name=foo.bigframes_cloud_function
-            ) is not None
-
-        # clean up using explicit session id
-        bpd.clean_up_by_session_id(
-            session_id, location=session._location, project=session._project
-        )
-
-        # ensure that the unnamed bq remote function is deleted along with its
-        # corresponding cloud function
-        with pytest.raises(google.cloud.exceptions.NotFound):
-            session.bqclient.get_routine(foo_unnamed.bigframes_remote_function)
-        try:
-            gcf = session.cloudfunctionsclient.get_function(
-                name=foo_unnamed.bigframes_cloud_function
-            )
-            assert gcf.state is functions_v2.Function.State.DELETING
-        except google.cloud.exceptions.NotFound:
-            pass
-
-        # ensure that the named bq remote function still exists along with its
-        # corresponding cloud function
-        session.bqclient.get_routine(foo_named.bigframes_remote_function) is not None
-        gcf = session.cloudfunctionsclient.get_function(
-            name=foo_named.bigframes_cloud_function
-        )
-        assert gcf.state is functions_v2.Function.State.ACTIVE
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            foo_named, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-def test_df_apply_axis_1_multiple_params(session):
-    bf_df = bigframes.dataframe.DataFrame(
+def test_df_apply_scalar_func(session, scalars_dfs):
+    scalars_df, _ = scalars_dfs
+    bdf = bigframes.pandas.DataFrame(
         {
-            "Id": [1, 2, 3],
-            "Age": [22.5, 23, 23.5],
-            "Name": ["alpha", "beta", "gamma"],
+            "Column1": scalars_df["string_col"],
+            "Column2": scalars_df["string_col"],
         }
     )
 
-    expected_dtypes = (
-        bigframes.dtypes.INT_DTYPE,
-        bigframes.dtypes.FLOAT_DTYPE,
-        bigframes.dtypes.STRING_DTYPE,
+    # The "cw_lower_case_ascii_only" is a scalar function.
+    func_ref = session.read_gbq_function("bqutil.fn.cw_lower_case_ascii_only")
+
+    # DataFrame '.apply()' only supports series level application.
+    with pytest.raises(NotImplementedError) as context:
+        bdf.apply(func_ref)
+    assert str(context.value) == (
+        "BigFrames DataFrame '.apply()' does not support remote function for "
+        "column-wise (i.e. with axis=0) operations, please use a regular python "
+        "function instead. For element-wise operations of the remote function, "
+        "please use '.map()'."
     )
 
-    # Assert the dataframe dtypes
-    assert tuple(bf_df.dtypes) == expected_dtypes
 
-    try:
-
-        @session.remote_function([int, float, str], str, reuse=False)
-        def foo(x, y, z):
-            return f"I got {x}, {y} and {z}"
-
-        assert getattr(foo, "is_row_processor") is False
-        assert getattr(foo, "input_dtypes") == expected_dtypes
-
-        # Fails to apply on dataframe with incompatible number of columns
-        with pytest.raises(
-            ValueError,
-            match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 2 columns\\.$",
-        ):
-            bf_df[["Id", "Age"]].apply(foo, axis=1)
-        with pytest.raises(
-            ValueError,
-            match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 4 columns\\.$",
-        ):
-            bf_df.assign(Country="lalaland").apply(foo, axis=1)
-
-        # Fails to apply on dataframe with incompatible column datatypes
-        with pytest.raises(
-            ValueError,
-            match="^BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
-        ):
-            bf_df.assign(Age=bf_df["Age"].astype("Int64")).apply(foo, axis=1)
-
-        # Successfully applies to dataframe with matching number of columns
-        # and their datatypes
-        bf_result = bf_df.apply(foo, axis=1).to_pandas()
-
-        # Since this scenario is not pandas-like, let's handcraft the
-        # expected result
-        expected_result = pandas.Series(
-            [
-                "I got 1, 22.5 and alpha",
-                "I got 2, 23 and beta",
-                "I got 3, 23.5 and gamma",
-            ]
-        )
-
-        pandas.testing.assert_series_equal(
-            expected_result, bf_result, check_dtype=False, check_index_type=False
-        )
-
-        # Let's make sure the read_gbq_function path works for this function
-        foo_reuse = session.read_gbq_function(foo.bigframes_remote_function)
-        bf_result = bf_df.apply(foo_reuse, axis=1).to_pandas()
-        pandas.testing.assert_series_equal(
-            expected_result, bf_result, check_dtype=False, check_index_type=False
-        )
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(foo, session.bqclient, session.cloudfunctionsclient)
-
-
-def test_df_apply_axis_1_multiple_params_array_output(session):
-    bf_df = bigframes.dataframe.DataFrame(
-        {
-            "Id": [1, 2, 3],
-            "Age": [22.5, 23, 23.5],
-            "Name": ["alpha", "beta", "gamma"],
-        }
-    )
-
-    expected_dtypes = (
-        bigframes.dtypes.INT_DTYPE,
-        bigframes.dtypes.FLOAT_DTYPE,
-        bigframes.dtypes.STRING_DTYPE,
-    )
-
-    # Assert the dataframe dtypes
-    assert tuple(bf_df.dtypes) == expected_dtypes
-
-    try:
-
-        @session.remote_function([int, float, str], list[str], reuse=False)
-        def foo(x, y, z):
-            return [str(x), str(y), z]
-
-        assert getattr(foo, "is_row_processor") is False
-        assert getattr(foo, "input_dtypes") == expected_dtypes
-        assert getattr(foo, "output_dtype") == pandas.ArrowDtype(
-            pyarrow.list_(
-                bigframes.dtypes.bigframes_dtype_to_arrow_dtype(
-                    bigframes.dtypes.STRING_DTYPE
-                )
-            )
-        )
-        assert (
-            getattr(foo, "bigframes_bigquery_function_output_dtype")
-            == bigframes.dtypes.STRING_DTYPE
-        )
-
-        # Fails to apply on dataframe with incompatible number of columns
-        with pytest.raises(
-            ValueError,
-            match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 2 columns\\.$",
-        ):
-            bf_df[["Id", "Age"]].apply(foo, axis=1)
-        with pytest.raises(
-            ValueError,
-            match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 4 columns\\.$",
-        ):
-            bf_df.assign(Country="lalaland").apply(foo, axis=1)
-
-        # Fails to apply on dataframe with incompatible column datatypes
-        with pytest.raises(
-            ValueError,
-            match="^BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
-        ):
-            bf_df.assign(Age=bf_df["Age"].astype("Int64")).apply(foo, axis=1)
-
-        # Successfully applies to dataframe with matching number of columns
-        # and their datatypes
-        bf_result = bf_df.apply(foo, axis=1).to_pandas()
-
-        # Since this scenario is not pandas-like, let's handcraft the
-        # expected result
-        expected_result = pandas.Series(
-            [
-                ["1", "22.5", "alpha"],
-                ["2", "23", "beta"],
-                ["3", "23.5", "gamma"],
-            ]
-        )
-
-        pandas.testing.assert_series_equal(
-            expected_result, bf_result, check_dtype=False, check_index_type=False
-        )
-
-        # Let's make sure the read_gbq_function path works for this function
-        foo_reuse = session.read_gbq_function(foo.bigframes_remote_function)
-        bf_result = bf_df.apply(foo_reuse, axis=1).to_pandas()
-        pandas.testing.assert_series_equal(
-            expected_result, bf_result, check_dtype=False, check_index_type=False
-        )
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(foo, session.bqclient, session.cloudfunctionsclient)
-
-
-def test_df_apply_axis_1_single_param_non_series(session):
-    bf_df = bigframes.dataframe.DataFrame(
-        {
-            "Id": [1, 2, 3],
-        }
-    )
-
-    expected_dtypes = (bigframes.dtypes.INT_DTYPE,)
-
-    # Assert the dataframe dtypes
-    assert tuple(bf_df.dtypes) == expected_dtypes
-
-    try:
-
-        @session.remote_function([int], str, reuse=False)
-        def foo(x):
-            return f"I got {x}"
-
-        assert getattr(foo, "is_row_processor") is False
-        assert getattr(foo, "input_dtypes") == expected_dtypes
-
-        # Fails to apply on dataframe with incompatible number of columns
-        with pytest.raises(
-            ValueError,
-            match="^BigFrames BigQuery function takes 1 arguments but DataFrame has 0 columns\\.$",
-        ):
-            bf_df[[]].apply(foo, axis=1)
-        with pytest.raises(
-            ValueError,
-            match="^BigFrames BigQuery function takes 1 arguments but DataFrame has 2 columns\\.$",
-        ):
-            bf_df.assign(Country="lalaland").apply(foo, axis=1)
-
-        # Fails to apply on dataframe with incompatible column datatypes
-        with pytest.raises(
-            ValueError,
-            match="^BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
-        ):
-            bf_df.assign(Id=bf_df["Id"].astype("Float64")).apply(foo, axis=1)
-
-        # Successfully applies to dataframe with matching number of columns
-        # and their datatypes
-        bf_result = bf_df.apply(foo, axis=1).to_pandas()
-
-        # Since this scenario is not pandas-like, let's handcraft the
-        # expected result
-        expected_result = pandas.Series(
-            [
-                "I got 1",
-                "I got 2",
-                "I got 3",
-            ]
-        )
-
-        pandas.testing.assert_series_equal(
-            expected_result, bf_result, check_dtype=False, check_index_type=False
-        )
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(foo, session.bqclient, session.cloudfunctionsclient)
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_df_apply_axis_1_array_output(session, scalars_dfs):
-    columns = ["int64_col", "int64_too"]
-    scalars_df, scalars_pandas_df = scalars_dfs
-    try:
-
-        @session.remote_function(reuse=False)
-        def generate_stats(row: pandas.Series) -> list[int]:
-            import pandas as pd
-
-            sum = row["int64_too"]
-            avg = row["int64_too"]
-            if pd.notna(row["int64_col"]):
-                sum += row["int64_col"]
-                avg = round((avg + row["int64_col"]) / 2)
-            return [sum, avg]
-
-        assert getattr(generate_stats, "is_row_processor")
-
-        bf_result = scalars_df[columns].apply(generate_stats, axis=1).to_pandas()
-        pd_result = scalars_pandas_df[columns].apply(generate_stats, axis=1)
-
-        # bf_result.dtype is 'list<item: int64>[pyarrow]' while pd_result.dtype
-        # is 'object', ignore this mismatch by using check_dtype=False.
-        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
-
-        # Let's make sure the read_gbq_function path works for this function
-        generate_stats_reuse = session.read_gbq_function(
-            generate_stats.bigframes_remote_function,
+def test_read_gbq_function_multiple_inputs_not_a_row_processor(session):
+    with pytest.raises(ValueError) as context:
+        # The remote function has two args, which cannot be row processed. Throw
+        # a ValueError for it.
+        session.read_gbq_function(
+            function_name="bqutil.fn.cw_regexp_instr_2",
             is_row_processor=True,
         )
-        bf_result = scalars_df[columns].apply(generate_stats_reuse, axis=1).to_pandas()
-        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            generate_stats, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.parametrize(
-    ("ingress_settings_args", "effective_ingress_settings", "expected_warning"),
-    [
-        pytest.param(
-            {},
-            functions_v2.ServiceConfig.IngressSettings.ALLOW_ALL,
-            FutureWarning,
-            id="no-set",
-        ),
-        pytest.param(
-            {"cloud_function_ingress_settings": None},
-            functions_v2.ServiceConfig.IngressSettings.ALLOW_ALL,
-            FutureWarning,
-            id="set-none",
-        ),
-        pytest.param(
-            {"cloud_function_ingress_settings": "all"},
-            functions_v2.ServiceConfig.IngressSettings.ALLOW_ALL,
-            None,
-            id="set-all",
-        ),
-        pytest.param(
-            {"cloud_function_ingress_settings": "internal-only"},
-            functions_v2.ServiceConfig.IngressSettings.ALLOW_INTERNAL_ONLY,
-            None,
-            id="set-internal-only",
-        ),
-        pytest.param(
-            {"cloud_function_ingress_settings": "internal-and-gclb"},
-            functions_v2.ServiceConfig.IngressSettings.ALLOW_INTERNAL_AND_GCLB,
-            None,
-            id="set-internal-and-gclb",
-        ),
-    ],
-)
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_ingress_settings(
-    session,
-    scalars_dfs,
-    ingress_settings_args,
-    effective_ingress_settings,
-    expected_warning,
-):
-    try:
-        # Verify the function raises the expected security warning message.
-        with warnings.catch_warnings(record=True) as w:
-
-            def square(x: int) -> int:
-                return x * x
-
-            square_remote = session.remote_function(
-                reuse=False, **ingress_settings_args
-            )(square)
-
-            if expected_warning is not None:
-                assert issubclass(w[0].category, FutureWarning)
-                assert "Consider using 'internal-only' for enhanced security." in str(
-                    w[0].message
-                )
-
-        # Assert that the GCF is created with the intended maximum timeout
-        gcf = session.cloudfunctionsclient.get_function(
-            name=square_remote.bigframes_cloud_function
-        )
-        assert gcf.service_config.ingress_settings == effective_ingress_settings
-
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_result = scalars_df["int64_too"].apply(square_remote).to_pandas()
-        pd_result = scalars_pandas_df["int64_too"].apply(square)
-
-        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            square_remote, session.bqclient, session.cloudfunctionsclient
-        )
+    assert str(context.value) == (
+        "A multi-input function cannot be a row processor. A row processor function "
+        "takes in a single input representing the row."
+    )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_ingress_settings_unsupported(session):
-    with pytest.raises(
-        ValueError, match="'unknown' not one of the supported ingress settings values"
+def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
+    columns = [
+        "bool_col",
+        "int64_col",
+        "int64_too",
+        "float64_col",
+        "string_col",
+        "bytes_col",
+    ]
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    def add_ints(row):
+        return row["int64_col"] + row["int64_too"]
+
+    with pytest.warns(
+        bigframes.exceptions.PreviewWarning,
+        match="input_types=Series is in preview.",
     ):
+        add_ints_remote = session.remote_function(
+            bigframes.series.Series,
+            int,
+            dataset_id_permanent,
+            name=get_function_name(add_ints, is_row_processor=True),
+        )(add_ints)
+        assert add_ints_remote.bigframes_remote_function  # type: ignore
+        assert add_ints_remote.bigframes_cloud_function  # type: ignore
 
-        @session.remote_function(reuse=False, cloud_function_ingress_settings="unknown")
-        def square(x: int) -> int:
-            return x * x
+    with pytest.warns(
+        bigframes.exceptions.PreviewWarning, match="axis=1 scenario is in preview."
+    ):
+        bf_result = scalars_df[columns].apply(add_ints_remote, axis=1).to_pandas()
+
+    pd_result = scalars_pandas_df[columns].apply(add_ints, axis=1)
+
+    # bf_result.dtype is 'Int64' while pd_result.dtype is 'object', ignore this
+    # mismatch by using check_dtype=False.
+    #
+    # bf_result.to_numpy() produces an array of numpy.float64's
+    # (in system_prerelease tests), while pd_result.to_numpy() produces an
+    # array of ints, ignore this mismatch by using check_exact=False.
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_exact=False
+    )
+
+    # Read back the deployed BQ remote function using read_gbq_function.
+    func_ref = session.read_gbq_function(
+        function_name=add_ints_remote.bigframes_remote_function,  # type: ignore
+        is_row_processor=True,
+    )
+
+    assert func_ref.bigframes_remote_function == add_ints_remote.bigframes_remote_function  # type: ignore
+
+    bf_result_gbq = scalars_df[columns].apply(func_ref, axis=1).to_pandas()
+    pd.testing.assert_series_equal(
+        pd_result, bf_result_gbq, check_dtype=False, check_exact=False
+    )
 
 
-@pytest.mark.parametrize(
-    ("session_creator"),
-    [
-        pytest.param(bigframes.Session, id="session-constructor"),
-        pytest.param(bigframes.connect, id="connect-method"),
-    ],
-)
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_w_context_manager_unnamed(
-    scalars_dfs, dataset_id, bq_cf_connection, session_creator
-):
-    def add_one(x: int) -> int:
-        return x + 1
-
+def test_df_apply_axis_1_ordering(session, scalars_dfs, dataset_id_permanent):
+    columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
+    ordering_columns = ["bool_col", "int64_col"]
     scalars_df, scalars_pandas_df = scalars_dfs
-    pd_result = scalars_pandas_df["int64_too"].apply(add_one)
 
-    temporary_bigquery_remote_function = None
-    temporary_cloud_run_function = None
+    def add_ints(row):
+        return row["int64_col"] + row["int64_too"]
 
-    try:
-        with session_creator() as session:
-            # create a temporary remote function
-            add_one_remote_temp = session.remote_function(
-                dataset=dataset_id,
-                bigquery_connection=bq_cf_connection,
-                reuse=False,
-            )(add_one)
-
-            temporary_bigquery_remote_function = (
-                add_one_remote_temp.bigframes_remote_function
-            )
-            assert temporary_bigquery_remote_function is not None
-            assert (
-                session.bqclient.get_routine(temporary_bigquery_remote_function)
-                is not None
-            )
-
-            temporary_cloud_run_function = add_one_remote_temp.bigframes_cloud_function
-            assert temporary_cloud_run_function is not None
-            assert (
-                session.cloudfunctionsclient.get_function(
-                    name=temporary_cloud_run_function
-                )
-                is not None
-            )
-
-            bf_result = scalars_df["int64_too"].apply(add_one_remote_temp).to_pandas()
-            pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
-
-        # outside the with statement context manager the temporary BQ remote
-        # function and the underlying cloud run function should have been
-        # cleaned up
-        assert temporary_bigquery_remote_function is not None
-        with pytest.raises(google.api_core.exceptions.NotFound):
-            session.bqclient.get_routine(temporary_bigquery_remote_function)
-        # the deletion of cloud function happens in a non-blocking way, ensure that
-        # it either exists in a being-deleted state, or is already deleted
-        assert temporary_cloud_run_function is not None
-        try:
-            gcf = session.cloudfunctionsclient.get_function(
-                name=temporary_cloud_run_function
-            )
-            assert gcf.state is functions_v2.Function.State.DELETING
-        except google.cloud.exceptions.NotFound:
-            pass
-    finally:
-        # clean up the gcp assets created for the temporary remote function,
-        # just in case it was not explicitly cleaned up in the try clause due
-        # to assertion failure or exception earlier than that
-        cleanup_function_assets(
-            add_one_remote_temp, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.parametrize(
-    ("session_creator"),
-    [
-        pytest.param(bigframes.Session, id="session-constructor"),
-        pytest.param(bigframes.connect, id="connect-method"),
-    ],
-)
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_w_context_manager_named(
-    scalars_dfs, dataset_id, bq_cf_connection, session_creator
-):
-    def add_one(x: int) -> int:
-        return x + 1
-
-    scalars_df, scalars_pandas_df = scalars_dfs
-    pd_result = scalars_pandas_df["int64_too"].apply(add_one)
-
-    persistent_bigquery_remote_function = None
-    persistent_cloud_run_function = None
-
-    try:
-        with session_creator() as session:
-            # create a persistent remote function
-            name = test_utils.prefixer.Prefixer("bigframes", "").create_prefix()
-            add_one_remote_persist = session.remote_function(
-                dataset=dataset_id,
-                bigquery_connection=bq_cf_connection,
-                reuse=False,
-                name=name,
-            )(add_one)
-
-            persistent_bigquery_remote_function = (
-                add_one_remote_persist.bigframes_remote_function
-            )
-            assert persistent_bigquery_remote_function is not None
-            assert (
-                session.bqclient.get_routine(persistent_bigquery_remote_function)
-                is not None
-            )
-
-            persistent_cloud_run_function = (
-                add_one_remote_persist.bigframes_cloud_function
-            )
-            assert persistent_cloud_run_function is not None
-            assert (
-                session.cloudfunctionsclient.get_function(
-                    name=persistent_cloud_run_function
-                )
-                is not None
-            )
-
-            bf_result = (
-                scalars_df["int64_too"].apply(add_one_remote_persist).to_pandas()
-            )
-            pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
-
-        # outside the with statement context manager the persistent BQ remote
-        # function and the underlying cloud run function should still exist
-        assert persistent_bigquery_remote_function is not None
-        assert (
-            session.bqclient.get_routine(persistent_bigquery_remote_function)
-            is not None
-        )
-        assert persistent_cloud_run_function is not None
-        assert (
-            session.cloudfunctionsclient.get_function(
-                name=persistent_cloud_run_function
-            )
-            is not None
-        )
-    finally:
-        # clean up the gcp assets created for the persistent remote function
-        cleanup_function_assets(
-            add_one_remote_persist, session.bqclient, session.cloudfunctionsclient
-        )
-
-
-@pytest.mark.parametrize(
-    "array_dtype",
-    [
-        bool,
+    add_ints_remote = session.remote_function(
+        bigframes.series.Series,
         int,
+        dataset_id_permanent,
+        name=get_function_name(add_ints, is_row_processor=True),
+    )(add_ints)
+
+    bf_result = (
+        scalars_df[columns]
+        .sort_values(ordering_columns)
+        .apply(add_ints_remote, axis=1)
+        .to_pandas()
+    )
+    pd_result = (
+        scalars_pandas_df[columns].sort_values(ordering_columns).apply(add_ints, axis=1)
+    )
+
+    # bf_result.dtype is 'Int64' while pd_result.dtype is 'object', ignore this
+    # mismatch by using check_dtype=False.
+    #
+    # bf_result.to_numpy() produces an array of numpy.float64's
+    # (in system_prerelease tests), while pd_result.to_numpy() produces an
+    # array of ints, ignore this mismatch by using check_exact=False.
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_exact=False
+    )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_multiindex(session, dataset_id_permanent):
+    pd_df = pd.DataFrame(
+        {"x": [1, 2, 3], "y": [1.5, 3.75, 5], "z": ["pq", "rs", "tu"]},
+        index=pd.MultiIndex.from_tuples([("a", 100), ("a", 200), ("b", 300)]),
+    )
+    bf_df = session.read_pandas(pd_df)
+
+    def add_numbers(row):
+        return row["x"] + row["y"]
+
+    add_numbers_remote = session.remote_function(
+        bigframes.series.Series,
         float,
-        str,
+        dataset_id_permanent,
+        name=get_function_name(add_numbers, is_row_processor=True),
+    )(add_numbers)
+
+    bf_result = bf_df.apply(add_numbers_remote, axis=1).to_pandas()
+    pd_result = pd_df.apply(add_numbers, axis=1)
+
+    # bf_result.dtype is 'Float64' while pd_result.dtype is 'float64', ignore this
+    # mismatch by using check_dtype=False.
+    #
+    # bf_result.index[0].dtype is 'string[pyarrow]' while
+    # pd_result.index[0].dtype is 'object', ignore this mismatch by using
+    # check_index_type=False.
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_apply_axis_1_unsupported_callable(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    columns = ["bool_col", "int64_col", "int64_too", "float64_col", "string_col"]
+
+    def add_ints(row):
+        return row["int64_col"] + row["int64_too"]
+
+    # pandas works
+    scalars_pandas_df.apply(add_ints, axis=1)
+
+    with pytest.raises(
+        ValueError, match="For axis=1 a bigframes function must be used."
+    ):
+        scalars_df[columns].apply(add_ints, axis=1)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_unsupported_dtype(session, scalars_dfs, dataset_id_permanent):
+    columns_with_not_supported_dtypes = [
+        "date_col",
+        "datetime_col",
+        "geography_col",
+        "numeric_col",
+        "time_col",
+        "timestamp_col",
+    ]
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    def echo_len(row):
+        return len(row)
+
+    echo_len_remote = session.remote_function(
+        bigframes.series.Series,
+        float,
+        dataset_id_permanent,
+        name=get_function_name(echo_len, is_row_processor=True),
+    )(echo_len)
+
+    for column in columns_with_not_supported_dtypes:
+        # pandas works
+        scalars_pandas_df[[column]].apply(echo_len, axis=1)
+
+        dtype = scalars_df[column].dtype
+
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(
+                f"DataFrame has a column of dtype '{dtype}' which is not supported with axis=1. Supported dtypes are ("
+            ),
+        ), pytest.warns(
+            bigframes.exceptions.PreviewWarning, match="axis=1 scenario is in preview."
+        ):
+            scalars_df[[column]].apply(echo_len_remote, axis=1)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_application_repr(session, dataset_id_permanent):
+    # This function deliberately has a param with name "name", this is to test
+    # a specific ibis' internal handling of object names
+    def should_mask(name: str) -> bool:
+        hash = 0
+        for char_ in name:
+            hash += ord(char_)
+        return hash % 2 == 0
+
+    assert "name" in inspect.signature(should_mask).parameters
+
+    should_mask = session.remote_function(
+        dataset=dataset_id_permanent, name=get_function_name(should_mask)
+    )(should_mask)
+
+    s = bigframes.series.Series(["Alice", "Bob", "Caroline"])
+
+    repr(s.apply(should_mask))
+    repr(s.where(s.apply(should_mask)))
+    repr(s.where(~s.apply(should_mask)))
+    repr(s.mask(should_mask))
+    repr(s.mask(should_mask, "REDACTED"))
+
+
+def test_read_gbq_function_application_repr(
+    session, routine_id_unique, scalars_df_index
+):
+    # This function deliberately has a param with name "name", this is to test
+    # a specific ibis' internal handling of object names
+    session.bqclient.query_and_wait(
+        f"CREATE OR REPLACE FUNCTION `{routine_id_unique}`(name STRING) RETURNS BOOL AS (MOD(LENGTH(name), 2) = 1)"
+    )
+    routine = session.bqclient.get_routine(routine_id_unique)
+    assert "name" in [arg.name for arg in routine.arguments]
+
+    # read the function and apply to dataframe
+    should_mask = session.read_gbq_function(routine_id_unique)
+
+    s = scalars_df_index["string_col"]
+
+    repr(s.apply(should_mask))
+    repr(s.where(s.apply(should_mask)))
+    repr(s.where(~s.apply(should_mask)))
+    repr(s.mask(should_mask))
+    repr(s.mask(should_mask, "REDACTED"))
+
+
+@pytest.mark.parametrize(
+    ("method",),
+    [
+        pytest.param("apply"),
+        pytest.param("map"),
+        pytest.param("mask"),
     ],
 )
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_array_output(
-    session, scalars_dfs, dataset_id, bq_cf_connection, array_dtype
+def test_remote_function_unary_applied_after_filter(
+    session, dataset_id_permanent, scalars_dfs, method
 ):
-    try:
+    # This function is deliberately written to not work with NA input
+    def is_odd(x: int) -> bool:
+        return x % 2 == 1
 
-        @session.remote_function(
-            dataset=dataset_id,
-            bigquery_connection=bq_cf_connection,
-            reuse=False,
-        )
-        def featurize(x: int) -> list[array_dtype]:  # type: ignore
-            return [array_dtype(i) for i in [x, x + 1, x + 2]]
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int_col_name_with_nulls = "int64_col"
 
-        scalars_df, scalars_pandas_df = scalars_dfs
+    # make sure there are NA values in the test column
+    assert any([pd.isna(val) for val in scalars_df[int_col_name_with_nulls]])
 
-        bf_int64_col = scalars_df["int64_too"]
-        bf_result = bf_int64_col.apply(featurize).to_pandas()
+    # create a remote function
+    is_odd_remote = session.remote_function(
+        dataset=dataset_id_permanent, name=get_function_name(is_odd)
+    )(is_odd)
 
-        pd_int64_col = scalars_pandas_df["int64_too"]
-        pd_result = pd_int64_col.apply(featurize)
+    # with nulls in the series the remote function application would fail
+    with pytest.raises(
+        google.api_core.exceptions.BadRequest, match="unsupported operand"
+    ):
+        bf_method = getattr(scalars_df[int_col_name_with_nulls], method)
+        bf_method(is_odd_remote).to_pandas()
 
-        # ignore any dtype disparity
-        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    # after filtering out nulls the remote function application should work
+    # similar to pandas
+    pd_method = getattr(
+        scalars_pandas_df[scalars_pandas_df[int_col_name_with_nulls].notnull()][
+            int_col_name_with_nulls
+        ],
+        method,
+    )
+    pd_result = pd_method(is_odd)
+    bf_method = getattr(
+        scalars_df[scalars_df[int_col_name_with_nulls].notnull()][
+            int_col_name_with_nulls
+        ],
+        method,
+    )
+    bf_result = bf_method(is_odd_remote).to_pandas()
 
-        # Let's make sure the read_gbq_function path works for this function
-        featurize_reuse = session.read_gbq_function(
-            featurize.bigframes_remote_function  # type: ignore
-        )
-        bf_result = scalars_df["int64_too"].apply(featurize_reuse).to_pandas()
-        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            featurize, session.bqclient, session.cloudfunctionsclient
-        )
+    # ignore any dtype difference
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_array_output_partial_ordering_mode(
-    unordered_session, scalars_dfs, dataset_id, bq_cf_connection
+def test_remote_function_binary_applied_after_filter(
+    session, dataset_id_permanent, scalars_dfs
 ):
-    try:
+    # This function is deliberately written to not work with NA input
+    def add(x: int, y: int) -> int:
+        return x + y
 
-        @unordered_session.remote_function(
-            dataset=dataset_id,
-            bigquery_connection=bq_cf_connection,
-            reuse=False,
-        )
-        def featurize(x: float) -> list[float]:  # type: ignore
-            return [x, x + 1, x + 2]
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int_col_name_with_nulls = "int64_col"
+    int_col_name_no_nulls = "int64_too"
+    bf_df = scalars_df[[int_col_name_with_nulls, int_col_name_no_nulls]]
+    pd_df = scalars_pandas_df[[int_col_name_with_nulls, int_col_name_no_nulls]]
 
-        scalars_df, scalars_pandas_df = scalars_dfs
+    # make sure there are NA values in the test column
+    assert any([pd.isna(val) for val in bf_df[int_col_name_with_nulls]])
 
-        bf_int64_col = scalars_df["float64_col"].dropna()
-        bf_result = bf_int64_col.apply(featurize).to_pandas()
+    # create a remote function
+    add_remote = session.remote_function(
+        dataset=dataset_id_permanent, name=get_function_name(add)
+    )(add)
 
-        pd_int64_col = scalars_pandas_df["float64_col"].dropna()
-        pd_result = pd_int64_col.apply(featurize)
+    # with nulls in the series the remote function application would fail
+    with pytest.raises(
+        google.api_core.exceptions.BadRequest, match="unsupported operand"
+    ):
+        bf_df[int_col_name_with_nulls].combine(
+            bf_df[int_col_name_no_nulls], add_remote
+        ).to_pandas()
 
-        # ignore any dtype disparity
-        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    # after filtering out nulls the remote function application should work
+    # similar to pandas
+    pd_filter = pd_df[int_col_name_with_nulls].notnull()
+    pd_result = pd_df[pd_filter][int_col_name_with_nulls].combine(
+        pd_df[pd_filter][int_col_name_no_nulls], add
+    )
+    bf_filter = bf_df[int_col_name_with_nulls].notnull()
+    bf_result = (
+        bf_df[bf_filter][int_col_name_with_nulls]
+        .combine(bf_df[bf_filter][int_col_name_no_nulls], add_remote)
+        .to_pandas()
+    )
 
-        # Let's make sure the read_gbq_function path works for this function
-        featurize_reuse = unordered_session.read_gbq_function(
-            featurize.bigframes_remote_function  # type: ignore
-        )
-        bf_int64_col = scalars_df["float64_col"].dropna()
-        bf_result = bf_int64_col.apply(featurize_reuse).to_pandas()
-        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            featurize,
-            unordered_session.bqclient,
-            unordered_session.cloudfunctionsclient,
-        )
+    # ignore any dtype difference
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_array_output_multiindex(
-    session, scalars_dfs, dataset_id, bq_cf_connection
+def test_remote_function_nary_applied_after_filter(
+    session, dataset_id_permanent, scalars_dfs
 ):
-    try:
+    # This function is deliberately written to not work with NA input
+    def add(x: int, y: int, z: float) -> float:
+        return x + y + z
 
-        @session.remote_function(
-            dataset=dataset_id,
-            bigquery_connection=bq_cf_connection,
-            reuse=False,
+    scalars_df, scalars_pandas_df = scalars_dfs
+    int_col_name_with_nulls = "int64_col"
+    int_col_name_no_nulls = "int64_too"
+    float_col_name_with_nulls = "float64_col"
+    bf_df = scalars_df[
+        [int_col_name_with_nulls, int_col_name_no_nulls, float_col_name_with_nulls]
+    ]
+    pd_df = scalars_pandas_df[
+        [int_col_name_with_nulls, int_col_name_no_nulls, float_col_name_with_nulls]
+    ]
+
+    # make sure there are NA values in the test columns
+    assert any([pd.isna(val) for val in bf_df[int_col_name_with_nulls]])
+    assert any([pd.isna(val) for val in bf_df[float_col_name_with_nulls]])
+
+    # create a remote function
+    add_remote = session.remote_function(
+        dataset=dataset_id_permanent, name=get_function_name(add)
+    )(add)
+
+    # pandas does not support nary functions, so let's create a proxy function
+    # for testing purpose that takes a series and in turn calls the naray function
+    def add_pandas(s: pd.Series) -> float:
+        return add(
+            s[int_col_name_with_nulls],
+            s[int_col_name_no_nulls],
+            s[float_col_name_with_nulls],
         )
-        def featurize(x: int) -> list[float]:
-            return [x, x + 0.5, x + 0.33]
 
-        scalars_df, scalars_pandas_df = scalars_dfs
-        multiindex_cols = ["rowindex", "string_col"]
-        scalars_df = scalars_df.reset_index().set_index(multiindex_cols)
-        scalars_pandas_df = scalars_pandas_df.reset_index().set_index(multiindex_cols)
+    # with nulls in the series the remote function application would fail
+    with pytest.raises(
+        google.api_core.exceptions.BadRequest, match="unsupported operand"
+    ):
+        bf_df.apply(add_remote, axis=1).to_pandas()
 
-        bf_int64_col = scalars_df["int64_too"]
-        bf_result = bf_int64_col.apply(featurize).to_pandas()
+    # after filtering out nulls the remote function application should work
+    # similar to pandas
+    pd_filter = (
+        pd_df[int_col_name_with_nulls].notnull()
+        & pd_df[float_col_name_with_nulls].notnull()
+    )
+    pd_result = pd_df[pd_filter].apply(add_pandas, axis=1)
+    bf_filter = (
+        bf_df[int_col_name_with_nulls].notnull()
+        & bf_df[float_col_name_with_nulls].notnull()
+    )
+    bf_result = bf_df[bf_filter].apply(add_remote, axis=1).to_pandas()
 
-        pd_int64_col = scalars_pandas_df["int64_too"]
-        pd_result = pd_int64_col.apply(featurize)
+    # ignore any dtype difference
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
 
-        # ignore any dtype disparity
-        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            featurize, session.bqclient, session.cloudfunctionsclient
-        )
+
+@pytest.mark.parametrize(
+    ("method",),
+    [
+        pytest.param("apply"),
+        pytest.param("map"),
+        pytest.param("mask"),
+    ],
+)
+def test_remote_function_unary_partial_ordering_mode_assign(
+    unordered_session, dataset_id_permanent, method
+):
+    df = unordered_session.read_gbq("bigquery-public-data.baseball.schedules")[
+        ["duration_minutes"]
+    ]
+
+    def is_long_duration(minutes: int) -> bool:
+        return minutes >= 120
+
+    is_long_duration = unordered_session.remote_function(
+        dataset=dataset_id_permanent,
+        name=get_function_name(is_long_duration),
+    )(is_long_duration)
+
+    method = getattr(df["duration_minutes"], method)
+
+    df1 = df.assign(duration_meta=method(is_long_duration))
+    repr(df1)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_binary_partial_ordering_mode_assign(
+    unordered_session, dataset_id_permanent, scalars_df_index
+):
+    def combiner(x: int, y: int) -> int:
+        if x is None:
+            return y
+        return x
+
+    combiner = unordered_session.remote_function(
+        dataset=dataset_id_permanent, name=get_function_name(combiner)
+    )(combiner)
+
+    df = scalars_df_index[["int64_col", "int64_too", "float64_col", "string_col"]]
+    df1 = df.assign(int64_combined=df["int64_col"].combine(df["int64_too"], combiner))
+    repr(df1)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_nary_partial_ordering_mode_assign(
+    unordered_session, dataset_id_permanent, scalars_df_index
+):
+    def processor(x: int, y: int, z: float, w: str) -> str:
+        return f"I got x={x}, y={y}, z={z} and w={w}"
+
+    processor = unordered_session.remote_function(
+        dataset=dataset_id_permanent, name=get_function_name(processor)
+    )(processor)
+
+    df = scalars_df_index[["int64_col", "int64_too", "float64_col", "string_col"]]
+    df1 = df.assign(combined=df.apply(processor, axis=1))
+    repr(df1)
