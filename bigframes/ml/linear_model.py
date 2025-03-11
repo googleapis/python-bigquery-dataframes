@@ -203,7 +203,9 @@ class LinearRegression(
             X, options={"top_k_features": top_k_features}
         )
 
-    def global_explain(self, X: utils.ArrayType) -> bpd.DataFrame:
+    def global_explain(
+        self,
+    ) -> bpd.DataFrame:
         """
         Provide explanations for an entire linear regression model.
 
@@ -224,9 +226,7 @@ class LinearRegression(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
-        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
-
-        return self._bqml_model.global_explain(X)
+        return self._bqml_model.global_explain({})
 
     def score(
         self,
