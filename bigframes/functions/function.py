@@ -122,13 +122,22 @@ def get_routine_reference(
 
 
 def remote_function(*args, **kwargs):
-    remote_function_session = bff_session.FunctionSession()
-    return remote_function_session.remote_function(*args, **kwargs)
+    function_session = bff_session.FunctionSession()
+    return function_session.remote_function(*args, **kwargs)
 
 
 remote_function.__doc__ = bff_session.FunctionSession.remote_function.__doc__
 
 
+def udf(*args, **kwargs):
+    function_session = bff_session.FunctionSession()
+    return function_session.udf(*args, **kwargs)
+
+
+udf.__doc__ = bff_session.FunctionSession.udf.__doc__
+
+
+# TODO(b/399894805): Support managed function.
 def read_gbq_function(
     function_name: str,
     *,
@@ -222,7 +231,7 @@ def read_gbq_function(
             )
         function_input_dtypes.append(input_dtype)
     if has_unknown_dtypes:
-        msg = (
+        msg = bfe.format_message(
             "The function has one or more missing input data types. BigQuery DataFrames "
             f"will assume default data type {bigframes.dtypes.DEFAULT_DTYPE} for them."
         )

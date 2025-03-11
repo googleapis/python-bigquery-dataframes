@@ -662,7 +662,25 @@ def test_rename(scalars_dfs):
 
 def test_df_peek(scalars_dfs_maybe_ordered):
     scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+
+    session = scalars_df._block.session
+    slot_millis_sum = session.slot_millis_sum
     peek_result = scalars_df.peek(n=3, force=False)
+
+    assert session.slot_millis_sum - slot_millis_sum > 1000
+    pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
+    assert len(peek_result) == 3
+
+
+def test_df_peek_with_large_results_not_allowed(scalars_dfs_maybe_ordered):
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+
+    session = scalars_df._block.session
+    slot_millis_sum = session.slot_millis_sum
+    peek_result = scalars_df.peek(n=3, force=False, allow_large_results=False)
+
+    # The metrics won't be fully updated when we call query_and_wait.
+    assert session.slot_millis_sum - slot_millis_sum < 500
     pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
     assert len(peek_result) == 3
 
@@ -4400,6 +4418,20 @@ def test_iloc_list(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_iloc_list_partial_ordering(
+    scalars_df_partial_ordering, scalars_pandas_df_index
+):
+    index_list = [0, 0, 0, 5, 4, 7]
+
+    bf_result = scalars_df_partial_ordering.iloc[index_list]
+    pd_result = scalars_pandas_df_index.iloc[index_list]
+
+    pd.testing.assert_frame_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
 def test_iloc_list_multiindex(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     scalars_df = scalars_df.copy()
@@ -4534,11 +4566,28 @@ def test_loc_bf_index_integer_index_renamed_col(
 )
 def test_df_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, subset):
     columns = ["bool_col", "int64_too", "int64_col"]
-    bf_series = scalars_df_index[columns].drop_duplicates(subset, keep=keep).to_pandas()
-    pd_series = scalars_pandas_df_index[columns].drop_duplicates(subset, keep=keep)
+    bf_df = scalars_df_index[columns].drop_duplicates(subset, keep=keep).to_pandas()
+    pd_df = scalars_pandas_df_index[columns].drop_duplicates(subset, keep=keep)
     pd.testing.assert_frame_equal(
-        pd_series,
-        bf_series,
+        pd_df,
+        bf_df,
+    )
+
+
+@pytest.mark.parametrize(
+    ("keep",),
+    [
+        ("first",),
+        ("last",),
+        (False,),
+    ],
+)
+def test_df_drop_duplicates_w_json(json_df, keep):
+    bf_df = json_df.drop_duplicates(keep=keep).to_pandas()
+    pd_df = json_df.to_pandas().drop_duplicates(keep=keep)
+    pd.testing.assert_frame_equal(
+        pd_df,
+        bf_df,
     )
 
 

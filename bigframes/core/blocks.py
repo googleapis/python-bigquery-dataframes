@@ -64,6 +64,7 @@ import bigframes.core.sql as sql
 import bigframes.core.utils as utils
 import bigframes.core.window_spec as windows
 import bigframes.dtypes
+import bigframes.exceptions as bfe
 import bigframes.features
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -559,10 +560,12 @@ class Block:
         return df, query_job
 
     def try_peek(
-        self, n: int = 20, force: bool = False
+        self, n: int = 20, force: bool = False, allow_large_results=None
     ) -> typing.Optional[pd.DataFrame]:
         if force or self.expr.supports_fast_peek:
-            result = self.session._executor.peek(self.expr, n)
+            result = self.session._executor.peek(
+                self.expr, n, use_explicit_destination=allow_large_results
+            )
             df = io_pandas.arrow_to_pandas(result.to_arrow_table(), self.expr.schema)
             self._copy_index_to_pandas(df)
             return df
@@ -614,17 +617,27 @@ class Block:
             self.expr,
             ordered=materialize_options.ordered,
             use_explicit_destination=materialize_options.allow_large_results,
-            get_size_bytes=True,
         )
-        assert execute_result.total_bytes is not None
-        table_mb = execute_result.total_bytes / _BYTES_TO_MEGABYTES
         sample_config = materialize_options.downsampling
-        max_download_size = sample_config.max_download_size
-        fraction = (
-            max_download_size / table_mb
-            if (max_download_size is not None) and (table_mb != 0)
-            else 2
-        )
+        if execute_result.total_bytes is not None:
+            table_mb = execute_result.total_bytes / _BYTES_TO_MEGABYTES
+            max_download_size = sample_config.max_download_size
+            fraction = (
+                max_download_size / table_mb
+                if (max_download_size is not None) and (table_mb != 0)
+                else 2
+            )
+        else:
+            # Since we cannot acquire the table size without a query_job,
+            # we skip the sampling.
+            if sample_config.enable_downsampling:
+                msg = bfe.format_message(
+                    "Sampling is disabled and there is no download size limit when 'allow_large_results' is set to "
+                    "False. To prevent downloading excessive data, it is recommended to use the peek() method, or "
+                    "limit the data with methods like .head() or .sample() before proceeding with downloads."
+                )
+                warnings.warn(msg, category=UserWarning)
+            fraction = 2
 
         # TODO: Maybe materialize before downsampling
         # Some downsampling methods
@@ -640,7 +653,7 @@ class Block:
                     " # Setting it to None will download all the data\n"
                     f"{constants.FEEDBACK_LINK}"
                 )
-            msg = (
+            msg = bfe.format_message(
                 f"The data size ({table_mb:.2f} MB) exceeds the maximum download limit of"
                 f"({max_download_size} MB). It will be downsampled to {max_download_size} "
                 "MB for download.\nPlease refer to the documentation for configuring "
@@ -2312,6 +2325,7 @@ class Block:
 
         return self.project_exprs(exprs, labels=labels, drop=True)
 
+    # TODO: Re-implement join in terms of merge (requires also adding remaining merge args)
     def join(
         self,
         other: Block,
@@ -2319,6 +2333,7 @@ class Block:
         how="left",
         sort: bool = False,
         block_identity_join: bool = False,
+        always_order: bool = False,
     ) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
         """
         Join two blocks objects together, and provide mappings between source columns and output columns.
@@ -2332,6 +2347,8 @@ class Block:
                 if true will sort result by index
             block_identity_join (bool):
                 If true, will not convert join to a projection (implicitly assuming unique indices)
+            always_order (bool):
+                If true, will always preserve input ordering, even if ordering mode is partial
 
         Returns:
             Block, (left_mapping, right_mapping): Result block and mappers from input column ids to result column ids.
@@ -2377,10 +2394,14 @@ class Block:
         self._throw_if_null_index("join")
         other._throw_if_null_index("join")
         if self.index.nlevels == other.index.nlevels == 1:
-            return join_mono_indexed(self, other, how=how, sort=sort)
+            return join_mono_indexed(
+                self, other, how=how, sort=sort, propogate_order=always_order
+            )
         else:  # Handles cases where one or both sides are multi-indexed
             # Always sort mult-index join
-            return join_multi_indexed(self, other, how=how, sort=sort)
+            return join_multi_indexed(
+                self, other, how=how, sort=sort, propogate_order=always_order
+            )
 
     def is_monotonic_increasing(
         self, column_id: typing.Union[str, Sequence[str]]
@@ -2837,7 +2858,8 @@ def join_mono_indexed(
     right: Block,
     *,
     how="left",
-    sort=False,
+    sort: bool = False,
+    propogate_order: bool = False,
 ) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
     left_expr = left.expr
     right_expr = right.expr
@@ -2848,6 +2870,7 @@ def join_mono_indexed(
         conditions=(
             join_defs.JoinCondition(left.index_columns[0], right.index_columns[0]),
         ),
+        propogate_order=propogate_order,
     )
 
     left_index = get_column_left[left.index_columns[0]]
@@ -2882,7 +2905,8 @@ def join_multi_indexed(
     right: Block,
     *,
     how="left",
-    sort=False,
+    sort: bool = False,
+    propogate_order: bool = False,
 ) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
     if not (left.index.is_uniquely_named() and right.index.is_uniquely_named()):
         raise ValueError("Joins not supported on indices with non-unique level names")
@@ -2911,6 +2935,7 @@ def join_multi_indexed(
             join_defs.JoinCondition(left, right)
             for left, right in zip(left_join_ids, right_join_ids)
         ),
+        propogate_order=propogate_order,
     )
 
     left_ids_post_join = [get_column_left[id] for id in left_join_ids]
