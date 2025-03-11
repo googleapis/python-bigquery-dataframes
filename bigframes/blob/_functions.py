@@ -430,7 +430,9 @@ pdf_extract_def = FunctionDef(pdf_extract_func, ["pypdf", "requests", "pypdf[cry
 
 
 # Extracts text from a PDF url and chunks it simultaneously
-def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> str:
+def pdf_chunk_func(
+    src_obj_ref_rt: str, chunk_size: int, overlap_size: int
+) -> dict[str | None, str | None]:
     import io
     import json
 
