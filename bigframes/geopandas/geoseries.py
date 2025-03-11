@@ -13,8 +13,6 @@
 # limitations under the License.
 from __future__ import annotations
 
-from typing import Literal
-
 import bigframes_vendored.constants as constants
 import bigframes_vendored.geopandas.geoseries as vendored_geoseries
 import geopandas.array  # type: ignore
@@ -64,7 +62,7 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
 
         Raises:
             NotImplementedError:
-                GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series), insetead.
+                GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series), instead.
         """
         raise NotImplementedError(
             f"GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series), instead. {constants.FEEDBACK_LINK}"
@@ -96,9 +94,26 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         series.name = None
         return series
 
-    def difference(
-        self: GeoSeries, other: GeoSeries, alignment: Literal["outer", "left"] = "outer"
-    ) -> GeoSeries:
-        return self._apply_binary_op(
-            other, ops.geo_st_difference_op, alignment=alignment
+    def difference(self: GeoSeries, other: GeoSeries) -> GeoSeries:  # type: ignore
+        """
+        Returns a GeoSeries of the points in each aligned geometry that are not
+        in other.
+
+        The operation works on a 1-to-1 row-wise manner
+
+        Args:
+            other (Geoseries or geometric object):
+                The Geoseries (elementwise) or geometric object to find the difference to.
+
+        Returns:
+            bigframes.geopandas.GeoSeries:
+                A GeoSeries of the points in each aligned geometry that are not
+                in other.
+
+        Raises:
+            NotImplementedError:
+                GeoSeries.difference is not supported. Use bigframes.bigquery.st_difference(series), instead.
+        """
+        raise NotImplementedError(
+            f"GeoSeries.difference() is not supported. Use bigframes.bigquery.st_difference(series), instead. {constants.FEEDBACK_LINK}"
         )

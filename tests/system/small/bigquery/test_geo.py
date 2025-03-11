@@ -51,3 +51,26 @@ def test_geo_st_area():
         check_exact=False,
         rtol=1,
     )
+
+
+def test_geo_st_difference():
+    data1 = [Polygon([(0, 0), (10, 0), (10, 10), (0, 0)])]
+
+    data2 = [Polygon([(4, 2), (6, 2), (8, 6), (4, 2)])]
+
+    geopd_s1 = geopandas.GeoSeries(data=data1)
+    geopd_s2 = geopandas.GeoSeries(data=data2)
+    geobf_s1 = bigframes.geopandas.GeoSeries(data=data1)
+    geobf_s2 = bigframes.geopandas.GeoSeries(data=data2)
+
+    geopd_s_result = geopd_s1.difference(geopd_s2).round(-3)
+    geobf_s_result = bbq.st_difference(geobf_s1, geobf_s2).to_pandas().round(-3)
+
+    pd.testing.assert_series_equal(
+        geopd_s_result,
+        geobf_s_result,
+        check_series_type=False,
+        check_dtype=False,
+        check_index_type=False,
+        check_exact=False,
+    )

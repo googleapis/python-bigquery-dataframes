@@ -247,7 +247,6 @@ class GeoSeries:
 
         The operation works on a 1-to-1 row-wise manner
 
-
         **Examples:**
 
             >>> import bigframes as bpd
@@ -289,7 +288,6 @@ class GeoSeries:
             4                       POINT (1 1)
             5                       POINT (0 1)
             dtype: geometry
-
 
         We can do difference of each geometry and a single shapely geometry:
 
