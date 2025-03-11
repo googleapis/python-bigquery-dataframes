@@ -1383,7 +1383,6 @@ def floats_product_bf(session, floats_product_pd):
 @pytest.fixture(scope="session", autouse=True)
 def use_fast_query_path():
     with bpd.option_context("bigquery.allow_large_results", False):
-        bpd.options.bigquery.allow_large_results = False
         yield
 
 
