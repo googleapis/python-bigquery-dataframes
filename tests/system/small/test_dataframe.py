@@ -30,6 +30,7 @@ import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.core.indexes as bf_indexes
 import bigframes.dataframe as dataframe
+import bigframes.dtypes as dtypes
 import bigframes.pandas as bpd
 import bigframes.series as series
 from tests.system.utils import (
@@ -4585,9 +4586,19 @@ def test_df_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, sub
     ],
 )
 def test_df_drop_duplicates_w_json(json_df, keep):
-    # allow_large_results=True for b/401630655
     bf_df = json_df.drop_duplicates(keep=keep).to_pandas(allow_large_results=True)
-    pd_df = json_df.to_pandas(allow_large_results=True).drop_duplicates(keep=keep)
+
+    # drop_duplicates relies on pa.compute.dictionary_encode, which is incompatible
+    # with Arrow string extension types. Temporary conversion to standard Pandas
+    # strings is required.
+    # allow_large_results=True for b/401630655
+    json_pandas_df = json_df.to_pandas(allow_large_results=True)
+    json_pandas_df["json_col"] = json_pandas_df["json_col"].astype(
+        pd.StringDtype(storage="pyarrow")
+    )
+
+    pd_df = json_pandas_df.drop_duplicates(keep=keep)
+    pd_df["json_col"] = pd_df["json_col"].astype(dtypes.JSON_DTYPE)
     pd.testing.assert_frame_equal(
         pd_df,
         bf_df,
