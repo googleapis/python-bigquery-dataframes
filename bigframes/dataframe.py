@@ -778,15 +778,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
                 def obj_ref_rt_to_html(obj_ref_rt) -> str:
                     obj_ref_rt_json = json.loads(obj_ref_rt)
-                    gcs_metadata = obj_ref_rt_json["objectref"]["details"][
-                        "gcs_metadata"
-                    ]
-                    content_type = typing.cast(
-                        str, gcs_metadata.get("content_type", "")
-                    )
-                    if content_type.startswith("image"):
-                        url = obj_ref_rt_json["access_urls"]["read_url"]
-                        return f'<img src="{url}">'
+                    obj_ref_details = obj_ref_rt_json["objectref"]["details"]
+                    if "gcs_metadata" in obj_ref_details:
+                        gcs_metadata = obj_ref_details["gcs_metadata"]
+                        content_type = typing.cast(
+                            str, gcs_metadata.get("content_type", "")
+                        )
+                        if content_type.startswith("image"):
+                            url = obj_ref_rt_json["access_urls"]["read_url"]
+                            return f'<img src="{url}">'
 
                     return f'uri: {obj_ref_rt_json["objectref"]["uri"]}, authorizer: {obj_ref_rt_json["objectref"]["authorizer"]}'
 
@@ -1581,13 +1581,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Returns:
             pyarrow.Table: A pyarrow Table with all rows and columns of this DataFrame.
         """
-        msg = "to_arrow is in preview. Types and unnamed / duplicate name columns may change in future."
+        msg = bfe.format_message(
+            "to_arrow is in preview. Types and unnamed or duplicate name columns may "
+            "change in future."
+        )
         warnings.warn(msg, category=bfe.PreviewWarning)
 
         pa_table, query_job = self._block.to_arrow(
             ordered=ordered, allow_large_results=allow_large_results
         )
-        self._set_internal_query_job(query_job)
+        if query_job:
+            self._set_internal_query_job(query_job)
         return pa_table
 
     def to_pandas(
@@ -1637,7 +1641,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             ordered=ordered,
             allow_large_results=allow_large_results,
         )
-        self._set_internal_query_job(query_job)
+        if query_job:
+            self._set_internal_query_job(query_job)
         return df.set_axis(self._block.column_labels, axis=1, copy=False)
 
     def to_pandas_batches(
@@ -1687,7 +1692,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def tail(self, n: int = 5) -> DataFrame:
         return typing.cast(DataFrame, self.iloc[-n:])
 
-    def peek(self, n: int = 5, *, force: bool = True) -> pandas.DataFrame:
+    def peek(
+        self, n: int = 5, *, force: bool = True, allow_large_results=None
+    ) -> pandas.DataFrame:
         """
         Preview n arbitrary rows from the dataframe. No guarantees about row selection or ordering.
         ``DataFrame.peek(force=False)`` will always be very fast, but will not succeed if data requires
@@ -1700,17 +1707,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             force (bool, default True):
                 If the data cannot be peeked efficiently, the dataframe will instead be fully materialized as part
                 of the operation if ``force=True``. If ``force=False``, the operation will throw a ValueError.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
         Returns:
             pandas.DataFrame: A pandas DataFrame with n rows.
 
         Raises:
             ValueError: If force=False and data cannot be efficiently peeked.
         """
-        maybe_result = self._block.try_peek(n)
+        maybe_result = self._block.try_peek(n, allow_large_results=allow_large_results)
         if maybe_result is None:
             if force:
                 self._cached()
-                maybe_result = self._block.try_peek(n, force=True)
+                maybe_result = self._block.try_peek(
+                    n, force=True, allow_large_results=allow_large_results
+                )
                 assert maybe_result is not None
             else:
                 raise ValueError(
@@ -3226,9 +3238,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return left._perform_join_by_index(right, how=how)
 
     def _perform_join_by_index(
-        self, other: Union[DataFrame, indexes.Index], *, how: str = "left"
+        self,
+        other: Union[DataFrame, indexes.Index],
+        *,
+        how: str = "left",
+        always_order: bool = False,
     ):
-        block, _ = self._block.join(other._block, how=how, block_identity_join=True)
+        block, _ = self._block.join(
+            other._block, how=how, block_identity_join=True, always_order=always_order
+        )
         return DataFrame(block)
 
     @validations.requires_ordering()
@@ -4095,12 +4113,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # to the applied function should be a Series, not a scalar.
 
         if utils.get_axis_number(axis) == 1:
-            msg = "axis=1 scenario is in preview."
+            msg = bfe.format_message("axis=1 scenario is in preview.")
             warnings.warn(msg, category=bfe.PreviewWarning)
 
-            # Check if the function is a remote function
-            if not hasattr(func, "bigframes_remote_function"):
-                raise ValueError("For axis=1 a remote function must be used.")
+            # TODO(jialuo): Deprecate the "bigframes_remote_function" attribute.
+            # We have some tests using pre-defined remote_function that were
+            # defined based on "bigframes_remote_function" instead of
+            # "bigframes_bigquery_function". So we need to fix those pre-defined
+            # remote functions before deprecating the "bigframes_remote_function"
+            # attribute. Check if the function is a remote function.
+            if not hasattr(func, "bigframes_remote_function") and not hasattr(
+                func, "bigframes_bigquery_function"
+            ):
+                raise ValueError("For axis=1 a bigframes function must be used.")
 
             is_row_processor = getattr(func, "is_row_processor")
             if is_row_processor:
@@ -4174,11 +4199,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 udf_input_dtypes = getattr(func, "input_dtypes")
                 if len(udf_input_dtypes) != len(self.columns):
                     raise ValueError(
-                        f"Remote function takes {len(udf_input_dtypes)} arguments but DataFrame has {len(self.columns)} columns."
+                        f"BigFrames BigQuery function takes {len(udf_input_dtypes)}"
+                        f" arguments but DataFrame has {len(self.columns)} columns."
                     )
                 if udf_input_dtypes != tuple(self.dtypes.to_list()):
                     raise ValueError(
-                        f"Remote function takes arguments of types {udf_input_dtypes} but DataFrame dtypes are {tuple(self.dtypes)}."
+                        f"BigFrames BigQuery function takes arguments of types "
+                        f"{udf_input_dtypes} but DataFrame dtypes are {tuple(self.dtypes)}."
                     )
 
                 series_list = [self[col] for col in self.columns]

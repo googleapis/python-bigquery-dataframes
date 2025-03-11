@@ -26,6 +26,7 @@ import pyarrow as pa  # type: ignore
 import pytest
 import shapely  # type: ignore
 
+import bigframes.dtypes as dtypes
 import bigframes.features
 import bigframes.pandas
 import bigframes.series as series
@@ -304,22 +305,21 @@ def test_series_construct_w_dtype_for_array_struct():
 
 def test_series_construct_w_dtype_for_json():
     data = [
-        1,
-        "str",
-        False,
-        ["a", {"b": 1}, None],
+        "1",
+        '"str"',
+        "false",
+        '["a", {"b": 1}, null]',
         None,
-        {"a": {"b": [1, 2, 3], "c": True}},
+        '{"a": {"b": [1, 2, 3], "c": true}}',
     ]
-    s = bigframes.pandas.Series(data, dtype=db_dtypes.JSONDtype())
+    s = bigframes.pandas.Series(data, dtype=dtypes.JSON_DTYPE)
 
-    assert s[0] == 1
-    assert s[1] == "str"
-    assert s[2] is False
-    assert s[3][0] == "a"
-    assert s[3][1]["b"] == 1
+    assert s[0] == "1"
+    assert s[1] == '"str"'
+    assert s[2] == "false"
+    assert s[3] == '["a",{"b":1},null]'
     assert pd.isna(s[4])
-    assert s[5]["a"] == {"b": [1, 2, 3], "c": True}
+    assert s[5] == '{"a":{"b":[1,2,3],"c":true}}'
 
 
 def test_series_keys(scalars_dfs):
@@ -383,7 +383,7 @@ def test_get_column(scalars_dfs, col_name, expected_dtype):
 def test_get_column_w_json(json_df, json_pandas_df):
     series = json_df["json_col"]
     series_pandas = series.to_pandas()
-    assert series.dtype == db_dtypes.JSONDtype()
+    assert series.dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
     assert series_pandas.shape[0] == json_pandas_df.shape[0]
 
 
@@ -2269,11 +2269,36 @@ def test_head_then_series_operation(scalars_dfs):
 
 def test_series_peek(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
+
+    session = scalars_df._block.session
+    slot_millis_sum = session.slot_millis_sum
     peek_result = scalars_df["float64_col"].peek(n=3, force=False)
+
+    assert session.slot_millis_sum - slot_millis_sum > 1000
     pd.testing.assert_series_equal(
         peek_result,
         scalars_pandas_df["float64_col"].reindex_like(peek_result),
     )
+    assert len(peek_result) == 3
+
+
+def test_series_peek_with_large_results_not_allowed(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    session = scalars_df._block.session
+    slot_millis_sum = session.slot_millis_sum
+    peek_result = scalars_df["float64_col"].peek(
+        n=3, force=False, allow_large_results=False
+    )
+
+    # The metrics won't be fully updated when we call query_and_wait.
+    print(session.slot_millis_sum - slot_millis_sum)
+    assert session.slot_millis_sum - slot_millis_sum < 500
+    pd.testing.assert_series_equal(
+        peek_result,
+        scalars_pandas_df["float64_col"].reindex_like(peek_result),
+    )
+    assert len(peek_result) == 3
 
 
 def test_series_peek_multi_index(scalars_dfs):
