@@ -21,6 +21,7 @@ import re
 import shutil
 import tempfile
 import textwrap
+import typing
 import warnings
 
 import google.api_core.exceptions
@@ -1344,7 +1345,7 @@ def test_remote_function_warns_default_cloud_function_service_account(
                 (
                     "You have not explicitly set a user-managed.*Using the default Compute Engine.*service account"
                 ),
-                warn.message.args[0],
+                typing.cast(FutureWarning, warn.message).args[0],
                 re.DOTALL,
             )
         ]
