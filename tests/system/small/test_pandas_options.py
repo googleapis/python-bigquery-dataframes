@@ -141,6 +141,7 @@ def test_read_gbq_after_session_start_must_comply_with_default_location(
     read_method,
     query_prefix,
 ):
+    bpd.close_session()
     # Form query as a table name or a SQL depending on the test scenario
     query_tokyo = test_data_tables_tokyo["scalars"]
     query = test_data_tables["scalars"]
@@ -194,6 +195,7 @@ def test_read_gbq_must_comply_with_set_location_US(
     read_method,
     query_prefix,
 ):
+    bpd.close_session()
     # Form query as a table name or a SQL depending on the test scenario
     query_tokyo = test_data_tables_tokyo["scalars"]
     query = test_data_tables["scalars"]
@@ -244,6 +246,7 @@ def test_read_gbq_must_comply_with_set_location_non_US(
     read_method,
     query_prefix,
 ):
+    bpd.close_session()
     # Form query as a table name or a SQL depending on the test scenario
     query_tokyo = test_data_tables_tokyo["scalars"]
     query = test_data_tables["scalars"]
@@ -272,6 +275,7 @@ def test_read_gbq_must_comply_with_set_location_non_US(
 
 
 def test_credentials_need_reauthentication(monkeypatch):
+    bpd.close_session()
     # Use a simple test query to verify that default session works to interact
     # with BQ.
     test_query = "SELECT 1"

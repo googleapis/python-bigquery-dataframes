@@ -641,7 +641,7 @@ def test_read_pandas_inline_respects_location():
     session = bigframes.Session(options)
 
     df = session.read_pandas(pd.DataFrame([[1, 2, 3], [4, 5, 6]]))
-    repr(df)
+    df.to_gbq()
 
     assert df.query_job is not None
 
