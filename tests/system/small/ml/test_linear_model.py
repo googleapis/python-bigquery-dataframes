@@ -228,6 +228,27 @@ def test_to_gbq_saved_linear_reg_model_scores(
     )
 
 
+def test_linear_reg_model_global_explain(global_penguins_linear_model, new_penguins_df):
+    training_data = new_penguins_df.dropna(subset=["body_mass_g"])
+    X = training_data.drop(columns=["body_mass_g"])
+    y = training_data[["body_mass_g"]]
+    global_penguins_linear_model.fit(X, y)
+    global_ex = global_penguins_linear_model.global_explain()
+    assert global_ex.shape == (6, 3)
+    # result = predictions[["predicted_body_mass_g"]]
+    # expected = pandas.DataFrame(
+    #     {"predicted_body_mass_g": [4030.1, 3280.8, 3177.9]},
+    #     dtype="Float64",
+    #     index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    # )
+    # pandas.testing.assert_frame_equal(
+    #     result.sort_index(),
+    #     expected,
+    #     check_exact=False,
+    #     rtol=0.1,
+    # )
+
+
 def test_to_gbq_replace(penguins_linear_model, table_id_unique):
     penguins_linear_model.to_gbq(table_id_unique, replace=True)
     with pytest.raises(google.api_core.exceptions.Conflict):
