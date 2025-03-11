@@ -123,6 +123,7 @@ def test_remote_function_direct_no_session_param(
     assert square(2) == 4
 
     # Function should have extra metadata attached for remote execution.
+    assert hasattr(square, "bigframes_remote_function")
     assert hasattr(square, "bigframes_bigquery_function")
     assert hasattr(square, "bigframes_cloud_function")
     assert hasattr(square, "ibis_node")
@@ -672,14 +673,18 @@ def test_read_gbq_function_like_original(
     # The newly-created function (square1) should have a remote function AND a
     # cloud function associated with it, while the read-back version (square2)
     # should only have a remote function.
+    assert square1.bigframes_remote_function  # type: ignore
     assert square1.bigframes_bigquery_function  # type: ignore
     assert square1.bigframes_cloud_function  # type: ignore
 
+    assert square2.bigframes_remote_function
     assert square2.bigframes_bigquery_function
     assert not hasattr(square2, "bigframes_cloud_function")
 
     # They should point to the same function.
+    assert square1.bigframes_remote_function == square2.bigframes_remote_function  # type: ignore
     assert square1.bigframes_bigquery_function == square2.bigframes_bigquery_function  # type: ignore
+    assert square2.bigframes_remote_function == square2.bigframes_bigquery_function  # type: ignore
 
     # The result of applying them should be the same.
     int64_col = scalars_df_index["int64_col"]
@@ -1133,6 +1138,7 @@ def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
             dataset_id_permanent,
             name=get_function_name(add_ints, is_row_processor=True),
         )(add_ints)
+        assert add_ints_remote.bigframes_remote_function  # type: ignore
         assert add_ints_remote.bigframes_bigquery_function  # type: ignore
         assert add_ints_remote.bigframes_cloud_function  # type: ignore
 
@@ -1159,7 +1165,9 @@ def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
         is_row_processor=True,
     )
 
+    assert func_ref.bigframes_remote_function == add_ints_remote.bigframes_remote_function  # type: ignore
     assert func_ref.bigframes_bigquery_function == add_ints_remote.bigframes_bigquery_function  # type: ignore
+    assert func_ref.bigframes_remote_function == func_ref.bigframes_bigquery_function  # type: ignore
 
     bf_result_gbq = scalars_df[columns].apply(func_ref, axis=1).to_pandas()
     pd.testing.assert_series_equal(

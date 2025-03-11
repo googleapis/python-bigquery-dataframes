@@ -881,6 +881,7 @@ def test_remote_function_with_explicit_name(
         )(square)
 
         # The remote function should reflect the explicitly provided name
+        assert square_remote.bigframes_remote_function == expected_remote_function
         assert square_remote.bigframes_bigquery_function == expected_remote_function
 
         # Now the expected BQ remote function should exist
@@ -1012,6 +1013,7 @@ def test_remote_function_with_explicit_name_reuse(
         )(square_uniq)
 
         # The remote function should reflect the explicitly provided name
+        assert square_remote1.bigframes_remote_function == expected_remote_function
         assert square_remote1.bigframes_bigquery_function == expected_remote_function
 
         # Now the expected BQ remote function should exist
@@ -1036,6 +1038,7 @@ def test_remote_function_with_explicit_name_reuse(
         )(square_uniq)
 
         # The new remote function should still reflect the explicitly provided name
+        assert square_remote2.bigframes_remote_function == expected_remote_function
         assert square_remote2.bigframes_bigquery_function == expected_remote_function
 
         # The expected BQ remote function should still exist
@@ -1079,6 +1082,7 @@ def test_remote_function_with_explicit_name_reuse(
         )(plusone_uniq)
 
         # The new remote function should still reflect the explicitly provided name
+        assert plusone_remote.bigframes_remote_function == expected_remote_function
         assert plusone_remote.bigframes_bigquery_function == expected_remote_function
 
         # The expected BQ remote function should still exist
@@ -1948,6 +1952,8 @@ def test_remote_function_unnamed_removed_w_session_cleanup():
         return x + 1
 
     # ensure that remote function artifacts are created
+    assert foo.bigframes_remote_function is not None
+    session.bqclient.get_routine(foo.bigframes_remote_function) is not None
     assert foo.bigframes_bigquery_function is not None
     session.bqclient.get_routine(foo.bigframes_bigquery_function) is not None
     assert foo.bigframes_cloud_function is not None
@@ -1988,6 +1994,8 @@ def test_remote_function_named_perists_w_session_cleanup():
             return x + 1
 
         # ensure that remote function artifacts are created
+        assert foo.bigframes_remote_function is not None
+        session.bqclient.get_routine(foo.bigframes_remote_function) is not None
         assert foo.bigframes_bigquery_function is not None
         session.bqclient.get_routine(foo.bigframes_bigquery_function) is not None
         assert foo.bigframes_cloud_function is not None
@@ -2036,6 +2044,8 @@ def test_remote_function_clean_up_by_session_id():
         # check that BQ remote functiosn were created with corresponding cloud
         # functions
         for foo in [foo_unnamed, foo_named]:
+            assert foo.bigframes_remote_function is not None
+            session.bqclient.get_routine(foo.bigframes_remote_function) is not None
             assert foo.bigframes_bigquery_function is not None
             session.bqclient.get_routine(foo.bigframes_bigquery_function) is not None
             assert foo.bigframes_cloud_function is not None

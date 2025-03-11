@@ -86,6 +86,7 @@ def test_managed_function_series_apply(
         session=session,
     )
     assert hasattr(foo_ref, "bigframes_bigquery_function")
+    assert not hasattr(foo_ref, "bigframes_remote_function")
     assert foo.bigframes_bigquery_function == foo_ref.bigframes_bigquery_function  # type: ignore
 
     bf_result_col_gbq = scalars_df["int64_too"].apply(foo_ref)
@@ -231,6 +232,13 @@ def test_managed_function_series_combine_list_output(
     add_list_managed_func_ref = bff.read_gbq_function(
         function_name=add_list_managed_func.bigframes_bigquery_function,  # type: ignore
         session=session,
+    )
+
+    assert hasattr(add_list_managed_func_ref, "bigframes_bigquery_function")
+    assert not hasattr(add_list_managed_func_ref, "bigframes_remote_function")
+    assert (
+        add_list_managed_func_ref.bigframes_bigquery_function
+        == add_list_managed_func.bigframes_bigquery_function
     )
 
     # Test on the function from read_gbq_function.
@@ -407,6 +415,11 @@ def test_managed_function_dataframe_apply_axis_1_list_output(
         session=session,
     )
     assert hasattr(add_ints_list_mf_ref, "bigframes_bigquery_function")
+    assert not hasattr(add_ints_list_mf_ref, "bigframes_remote_function")
+    assert (
+        add_ints_list_mf_ref.bigframes_bigquery_function
+        == add_ints_list_mf.bigframes_bigquery_function
+    )
 
     with pytest.warns(
         bigframes.exceptions.PreviewWarning,

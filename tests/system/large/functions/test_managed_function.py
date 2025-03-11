@@ -202,6 +202,13 @@ def test_managed_function_array_output(session, scalars_dfs, dataset_id, array_d
         # Make sure the read_gbq_function path works for this function.
         featurize_ref = session.read_gbq_function(featurize.bigframes_bigquery_function)
 
+        assert hasattr(featurize_ref, "bigframes_bigquery_function")
+        assert not hasattr(featurize_ref, "bigframes_remote_function")
+        assert (
+            featurize_ref.bigframes_bigquery_function
+            == featurize.bigframes_bigquery_function
+        )
+
         # Test on the function from read_gbq_function.
         got = featurize_ref(10)
         assert got == [array_dtype(i) for i in [10, 11, 12]]
@@ -333,6 +340,10 @@ def test_managed_function_df_apply_axis_1_array_output(session):
 
         # Make sure the read_gbq_function path works for this function.
         foo_ref = session.read_gbq_function(foo.bigframes_bigquery_function)
+
+        assert hasattr(foo_ref, "bigframes_bigquery_function")
+        assert not hasattr(foo_ref, "bigframes_remote_function")
+        assert foo_ref.bigframes_bigquery_function == foo.bigframes_bigquery_function
 
         # Test on the function from read_gbq_function.
         got = foo_ref(10, 38, "hello")
