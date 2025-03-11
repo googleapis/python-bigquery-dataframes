@@ -4199,13 +4199,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 udf_input_dtypes = getattr(func, "input_dtypes")
                 if len(udf_input_dtypes) != len(self.columns):
                     raise ValueError(
-                        f"BigFrames BigQuery function takes {len(udf_input_dtypes)}"
-                        f" arguments but DataFrame has {len(self.columns)} columns."
+                        f"Remote function takes {len(udf_input_dtypes)} arguments but DataFrame has {len(self.columns)} columns."
                     )
                 if udf_input_dtypes != tuple(self.dtypes.to_list()):
                     raise ValueError(
-                        f"BigFrames BigQuery function takes arguments of types "
-                        f"{udf_input_dtypes} but DataFrame dtypes are {tuple(self.dtypes)}."
+                        f"Remote function takes arguments of types {udf_input_dtypes} but DataFrame dtypes are {tuple(self.dtypes)}."
                     )
 
                 series_list = [self[col] for col in self.columns]
