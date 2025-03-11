@@ -213,7 +213,7 @@ def test_logistic_regression_score(mock_session, bqml_model, mock_X, mock_y):
 
 
 def test_decomposition_mf_default_fit(bqml_model_factory, mock_session, mock_X):
-    model = decomposition.MatrixFactorization(  # revise
+    model = decomposition.MatrixFactorization(
         num_factors=34,
         feedback_type="explicit",
         user_col="user_id",
