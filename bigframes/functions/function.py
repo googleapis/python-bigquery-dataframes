@@ -215,6 +215,7 @@ def read_gbq_function(
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )  # type: ignore
     func.bigframes_bigquery_function = str(routine_ref)  # type: ignore
+
     # We will keep the "bigframes_remote_function" attr for remote function.
     if hasattr(routine, "remote_function_options") and routine.remote_function_options:
         func.bigframes_remote_function = func.bigframes_bigquery_function  # type: ignore
