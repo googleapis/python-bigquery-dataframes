@@ -86,7 +86,7 @@ def test_geo_st_difference_with_single_geometry_object():
     geobf_s1 = bigframes.geopandas.GeoSeries(data=data1)
     geobf_s_result = bbq.st_difference(
         geobf_s1,
-        bigframes.series.Series(
+        bigframes.geopandas.GeoSeries(
             [Polygon([(0.001, 0.001), (0.002, 0.001), (0.002, 0.002)])]
         ),
     ).to_pandas()
