@@ -382,6 +382,10 @@ class Semantics:
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         for column in columns:
+            if df[column].dtype == dtypes.OBJ_REF_DTYPE:
+                # Don't cast blob columns to string
+                continue
+
             if df[column].dtype != dtypes.STRING_DTYPE:
                 df[column] = df[column].astype(dtypes.STRING_DTYPE)
 
@@ -391,7 +395,10 @@ class Semantics:
         results = typing.cast(
             bigframes.dataframe.DataFrame,
             model.predict(
-                self._make_prompt(df, columns, user_instruction, output_instruction),
+                df,
+                prompt=self._make_prompt(
+                    df, columns, user_instruction, output_instruction
+                ),
                 temperature=0.0,
                 ground_with_google_search=ground_with_google_search,
             ),
@@ -481,6 +488,10 @@ class Semantics:
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
         for column in columns:
+            if df[column].dtype == dtypes.OBJ_REF_DTYPE:
+                # Don't cast blob columns to string
+                continue
+
             if df[column].dtype != dtypes.STRING_DTYPE:
                 df[column] = df[column].astype(dtypes.STRING_DTYPE)
 
@@ -492,7 +503,10 @@ class Semantics:
         results = typing.cast(
             bigframes.series.Series,
             model.predict(
-                self._make_prompt(df, columns, user_instruction, output_instruction),
+                df,
+                prompt=self._make_prompt(
+                    df, columns, user_instruction, output_instruction
+                ),
                 temperature=0.0,
                 ground_with_google_search=ground_with_google_search,
             )["ml_generate_text_llm_result"],
@@ -1063,13 +1077,19 @@ class Semantics:
     def _make_prompt(
         self, prompt_df, columns, user_instruction: str, output_instruction: str
     ):
-        prompt_df["prompt"] = f"{output_instruction}\n{user_instruction}\nContext: "
-
-        # Combine context from multiple columns.
+        prompt = [f"{output_instruction}\n{user_instruction}\nContext: "]
         for col in columns:
-            prompt_df["prompt"] += f"{col} is `" + prompt_df[col] + "`\n"
+            prompt.extend([f"{col} is `", prompt_df[col]])
 
-        return prompt_df["prompt"]
+        return prompt
+
+        # prompt_df["prompt"] = f"{output_instruction}\n{user_instruction}\nContext: "
+
+        # # Combine context from multiple columns.
+        # for col in columns:
+        #     prompt_df["prompt"] += f"{col} is `" + prompt_df[col] + "`\n"
+
+        # return prompt_df["prompt"]
 
     def _parse_columns(self, instruction: str) -> List[str]:
         """Extracts column names enclosed in curly braces from the user instruction.
