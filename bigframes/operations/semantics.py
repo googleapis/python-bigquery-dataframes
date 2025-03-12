@@ -1079,7 +1079,7 @@ class Semantics:
     ):
         prompt = [f"{output_instruction}\n{user_instruction}\nContext: "]
         for col in columns:
-            prompt.extend([f"{col} is `", prompt_df[col]])
+            prompt.extend([f"{col} is ", prompt_df[col]])
 
         return prompt
 
