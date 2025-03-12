@@ -227,7 +227,7 @@ class MatrixFactorization(
         l2_reg: float = 1.0,
     ):
 
-        if feedback_type not in ("explicit", "implicit"):
+        if feedback_type not in ("explicit", "implicit", "EXPLICIT", "IMPLICIT"):
             raise ValueError(
                 f"Expected feedback_type to be `explicit` or `implicit`, but got {feedback_type}"
             )

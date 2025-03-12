@@ -172,11 +172,15 @@ def test_decomposition_mf_configure_fit_load(
         num_factors=6,
         feedback_type="explicit",
         user_col="user_id",
-        item_col="item_id",
+        item_col="item_col",
         rating_col="ratings",
         l2_reg=9.83,
     )
-    model.fit(ratings_df_default_index)
+    model.fit(
+        ratings_df_default_index.rename(
+            columns={"rating": "rating_col", "item_id": "item_col"}
+        )
+    )
 
     reloaded_model = model.to_gbq(
         f"{dataset_id}.temp_configured_mf_model", replace=True
@@ -207,6 +211,6 @@ def test_decomposition_mf_configure_fit_load(
     assert reloaded_model.feedback_type == "EXPLICIT"
     assert reloaded_model.num_factors == 6
     assert reloaded_model.user_col == "user_id"
-    assert reloaded_model.item_col == "item_id"
+    assert reloaded_model.item_col == "item_col"
     assert reloaded_model.rating_col == "rating"
     assert reloaded_model.l2_reg == 9.83
