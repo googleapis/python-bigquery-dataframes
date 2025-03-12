@@ -403,7 +403,7 @@ def test_filter_multi_model(session, gemini_flash_model):
             "The object in {image} is an elephant",
             gemini_flash_model,
         ).to_pandas()
-    
+
     assert len(result) == 1
 
 
@@ -562,7 +562,7 @@ def test_map_multimodel(session, gemini_flash_model):
             "object",
             gemini_flash_model,
         ).to_pandas()
-    
+
     assert len(result) == len(df)
 
 
