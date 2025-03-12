@@ -4511,6 +4511,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def struct(self):
+        """Struct methods that apply to a DataFrame.
+
+        Returns:
+            bigframes.pandas.accessors.StructFrameAccessor:
+                An accessor that provides DataFrame methods.
+        """
         return bigframes.operations.structs.StructFrameAccessor(self)
 
     def _throw_if_null_index(self, opname: str):
