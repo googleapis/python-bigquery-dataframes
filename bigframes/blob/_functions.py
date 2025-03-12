@@ -430,13 +430,11 @@ pdf_extract_def = FunctionDef(pdf_extract_func, ["pypdf", "requests", "pypdf[cry
 
 
 # Extracts text from a PDF url and chunks it simultaneously
-def pdf_chunk_func(
-    src_obj_ref_rt: str, chunk_size: int, overlap_size: int
-) -> dict[str | None, str | None]:
+def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> str:
     import io
     import json
 
-    from pypdf import errors, PdfReader  # type: ignore
+    from pypdf import PdfReader  # type: ignore
     import requests
     from requests import adapters
 
@@ -453,7 +451,6 @@ def pdf_chunk_func(
 
         pdf_file = io.BytesIO(pdf_bytes)
         reader = PdfReader(pdf_file, strict=False)
-
         # extract and chunk text simultaneously
         all_text_chunks = []
         curr_chunk = ""
@@ -474,19 +471,12 @@ def pdf_chunk_func(
         if curr_chunk:
             all_text_chunks.append(curr_chunk)
 
-        all_text_json_string = json.dumps(all_text_chunks)
-        return {"status": None, "content": all_text_json_string}
+        result_dict = {"status": None, "content": all_text_chunks}
+        return json.dumps(result_dict)
 
-    except requests.exceptions.RequestException as e:
-        return {"status": f"Request error: {str(e)}", "content": None}
-    except json.JSONDecodeError as e:
-        return {"status": f"JSON decode error: {str(e)}", "content": None}
-    except KeyError as e:
-        return {"status": f"Key error: {str(e)}", "content": None}
-    except errors.PyPdfReadError as e:
-        return {"status": f"PDF read error: {str(e)}", "content": None}
     except Exception as e:
-        return {"status": f"An unexpected error occurred: {str(e)}", "content": None}
+        result_dict = {"status": [str(e)], "content": None}
+        return json.dumps(result_dict)
 
 
 pdf_chunk_def = FunctionDef(pdf_chunk_func, ["pypdf", "requests", "pypdf[crypto]"])

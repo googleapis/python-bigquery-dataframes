@@ -692,6 +692,7 @@ class BlobAccessor(base.SeriesMethods):
 
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
+        import bigframes.pandas as bpd
 
         connection = self._resolve_connection(connection)
 
