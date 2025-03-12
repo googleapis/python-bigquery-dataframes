@@ -208,7 +208,7 @@ def test_decomposition_mf_configure_fit_load(
         in reloaded_model._bqml_model.model_name
     )
     assert result is not None
-    assert reloaded_model.feedback_type == "EXPLICIT"
+    assert reloaded_model.feedback_type == "explicit"
     assert reloaded_model.num_factors == 6
     assert reloaded_model.user_col == "user_id"
     assert reloaded_model.item_col == "item_col"
