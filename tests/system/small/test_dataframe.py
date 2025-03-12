@@ -30,6 +30,7 @@ import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.core.indexes as bf_indexes
 import bigframes.dataframe as dataframe
+import bigframes.dtypes as dtypes
 import bigframes.pandas as bpd
 import bigframes.series as series
 from tests.system.utils import (
@@ -4418,6 +4419,20 @@ def test_iloc_list(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_iloc_list_partial_ordering(
+    scalars_df_partial_ordering, scalars_pandas_df_index
+):
+    index_list = [0, 0, 0, 5, 4, 7]
+
+    bf_result = scalars_df_partial_ordering.iloc[index_list]
+    pd_result = scalars_pandas_df_index.iloc[index_list]
+
+    pd.testing.assert_frame_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
 def test_iloc_list_multiindex(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     scalars_df = scalars_df.copy()
@@ -4570,7 +4585,17 @@ def test_df_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, sub
 )
 def test_df_drop_duplicates_w_json(json_df, keep):
     bf_df = json_df.drop_duplicates(keep=keep).to_pandas()
-    pd_df = json_df.to_pandas().drop_duplicates(keep=keep)
+
+    # drop_duplicates relies on pa.compute.dictionary_encode, which is incompatible
+    # with Arrow string extension types. Temporary conversion to standard Pandas
+    # strings is required.
+    json_pandas_df = json_df.to_pandas()
+    json_pandas_df["json_col"] = json_pandas_df["json_col"].astype(
+        pd.StringDtype(storage="pyarrow")
+    )
+
+    pd_df = json_pandas_df.drop_duplicates(keep=keep)
+    pd_df["json_col"] = pd_df["json_col"].astype(dtypes.JSON_DTYPE)
     pd.testing.assert_frame_equal(
         pd_df,
         bf_df,

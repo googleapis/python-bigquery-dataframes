@@ -265,6 +265,13 @@ class FunctionSession:
         .. deprecated:: 0.0.1
         This is an internal method. Please use :func:`bigframes.pandas.remote_function` instead.
 
+        .. warning::
+            To use remote functions with Bigframes 2.0 and onwards, please (preferred)
+            set an explicit user-managed ``cloud_function_service_account`` or (discouraged)
+            set ``cloud_function_service_account`` to use the Compute Engine service account
+            by setting it to `"default"`.
+            See, https://cloud.google.com/functions/docs/securing/function-identity.
+
         .. note::
             Please make sure following is setup before using this API:
 
@@ -445,6 +452,23 @@ class FunctionSession:
         # Some defaults may be used from the session if not provided otherwise.
         session = self._resolve_session(session)
 
+        # raise a UserWarning if user does not explicitly set cloud_function_service_account to a
+        # user-managed cloud_function_service_account of to default
+        msg = bfe.format_message(
+            "You have not explicitly set a user-managed `cloud_function_service_account`. "
+            "Using the default Compute Engine service account. "
+            "In BigFrames 2.0 onwards, you would have to explicitly set `cloud_function_service_account` "
+            'either to a user-managed service account (preferred) or to `"default"` '
+            "to use the default Compute Engine service account (discouraged). "
+            "See, https://cloud.google.com/functions/docs/securing/function-identity."
+        )
+
+        if cloud_function_service_account is None:
+            warnings.warn(msg, stacklevel=2, category=FutureWarning)
+
+        if cloud_function_service_account == "default":
+            cloud_function_service_account = None
+
         # A BigQuery client is required to perform BQ operations.
         bigquery_client = self._resolve_bigquery_client(session, bigquery_client)
 
@@ -489,7 +513,7 @@ class FunctionSession:
 
         if cloud_function_ingress_settings is None:
             cloud_function_ingress_settings = "all"
-            msg = (
+            msg = bfe.format_message(
                 "The `cloud_function_ingress_settings` are set to 'all' by default, "
                 "which will change to 'internal-only' for enhanced security in future version 2.0 onwards. "
                 "However, you will be able to explicitly pass cloud_function_ingress_settings='all' if you need. "
@@ -549,7 +573,7 @@ class FunctionSession:
                 (input_type := input_types[0]) == bf_series.Series
                 or input_type == pandas.Series
             ):
-                msg = "input_types=Series is in preview."
+                msg = bfe.format_message("input_types=Series is in preview.")
                 warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
 
                 # we will model the row as a json serialized string containing the data
@@ -836,7 +860,7 @@ class FunctionSession:
                 (input_type := input_types[0]) == bf_series.Series
                 or input_type == pandas.Series
             ):
-                msg = "input_types=Series is in preview."
+                msg = bfe.format_message("input_types=Series is in preview.")
                 warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
 
                 # we will model the row as a json serialized string containing
@@ -864,6 +888,7 @@ class FunctionSession:
             func = cloudpickle.loads(cloudpickle.dumps(func))
 
             self._try_delattr(func, "bigframes_bigquery_function")
+            self._try_delattr(func, "bigframes_bigquery_function_output_dtype")
             self._try_delattr(func, "input_dtypes")
             self._try_delattr(func, "output_dtype")
             self._try_delattr(func, "is_row_processor")
@@ -923,6 +948,10 @@ class FunctionSession:
                     ibis_signature.output_type
                 )
             )
+            # Managed function directly supports certain output types which are
+            # not supported in remote function (e.g. list output). Thus no more
+            # processing for 'bigframes_bigquery_function_output_dtype'.
+            func.bigframes_bigquery_function_output_dtype = func.output_dtype
             func.is_row_processor = is_row_processor
             func.ibis_node = node
 
