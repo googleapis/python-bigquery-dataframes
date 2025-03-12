@@ -25,11 +25,13 @@ class MatrixFactorization(BaseEstimator, metaclass=ABCMeta):
         >>> import bigframes.pandas as bpd
         >>> from bigframes.ml.decomposition import MatrixFactorization
         >>> X = bpd.DataFrame([[1, 1], [2, 1], [3, 1.2], [4, 1], [5, 0.8], [6, 1]])
-        >>> model = MatrixFactorization(n_components=2, init='random', random_state=0)
-        >>> W = model.fit_transform(X)
-        >>> H = model.components_
+        >>> model = MatrixFactorization(feedback_type='explicit', num_factors=6, user_col='user_id', item_col='item_col', l2_reg=2.06)
+        >>> W = model.fit(X)
+        >>> result = model.global_explain()
 
     Args:
+        feedback_type ('explicit' | 'implicit'):
+            Specifies the feedback type for the model. The feedback type determines the algorithm that is used during training.
         num_factors (int or auto, default auto):
             Specifies the number of latent factors to use.
         user_col (str):
