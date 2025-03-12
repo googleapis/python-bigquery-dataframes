@@ -17,18 +17,12 @@ import pyarrow
 import pytest
 
 import bigframes
-from bigframes.functions import _function_session as bff_session
-from bigframes.functions._utils import get_python_version
 import bigframes.pandas as bpd
 from tests.system.utils import cleanup_function_assets
 
 bpd.options.experiments.udf = True
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_managed_function_multiply_with_ibis(
     session,
     scalars_table_id,
@@ -80,10 +74,6 @@ def test_managed_function_multiply_with_ibis(
         cleanup_function_assets(multiply, bigquery_client)
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_managed_function_stringify_with_ibis(
     session,
     scalars_table_id,
@@ -132,10 +122,6 @@ def test_managed_function_stringify_with_ibis(
         )
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_managed_function_binop(session, scalars_dfs, dataset_id):
     try:
 
@@ -177,10 +163,6 @@ def test_managed_function_binop(session, scalars_dfs, dataset_id):
         str,
     ],
 )
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_managed_function_array_output(session, scalars_dfs, dataset_id, array_dtype):
     try:
 
@@ -206,10 +188,6 @@ def test_managed_function_array_output(session, scalars_dfs, dataset_id, array_d
         )
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_managed_function_binop_array_output(session, scalars_dfs, dataset_id):
     try:
 
@@ -242,10 +220,6 @@ def test_managed_function_binop_array_output(session, scalars_dfs, dataset_id):
         )
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_manage_function_df_apply_axis_1_array_output(session):
     bf_df = bigframes.dataframe.DataFrame(
         {
