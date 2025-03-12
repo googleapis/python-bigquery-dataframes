@@ -235,18 +235,28 @@ def test_linear_reg_model_global_explain(global_penguins_linear_model, new_pengu
     global_penguins_linear_model.fit(X, y)
     global_ex = global_penguins_linear_model.global_explain()
     assert global_ex.shape == (6, 3)
-    # result = predictions[["predicted_body_mass_g"]]
-    # expected = pandas.DataFrame(
-    #     {"predicted_body_mass_g": [4030.1, 3280.8, 3177.9]},
-    #     dtype="Float64",
-    #     index=pandas.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
-    # )
-    # pandas.testing.assert_frame_equal(
-    #     result.sort_index(),
-    #     expected,
-    #     check_exact=False,
-    #     rtol=0.1,
-    # )
+    global_columns = set(global_ex.columns)
+    expected_columns = {"index", "feature", "attribution"}
+    assert expected_columns <= global_columns
+    result = global_ex["attribution"].to_pandas()
+    expected = pandas.DataFrame(
+        {
+            "attribution": [
+                193.612051,
+                5139.35423,
+                117.084944,
+                4259.554372,
+                7330.53279,
+                94.366793,
+            ]
+        },
+        dtype="Float64",
+    )
+    pandas.testing.assert_frame_equal(
+        result,
+        expected,
+        check_exact=False,
+    )
 
 
 def test_to_gbq_replace(penguins_linear_model, table_id_unique):
