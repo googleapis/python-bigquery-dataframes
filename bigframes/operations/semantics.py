@@ -1083,14 +1083,6 @@ class Semantics:
 
         return prompt
 
-        # prompt_df["prompt"] = f"{output_instruction}\n{user_instruction}\nContext: "
-
-        # # Combine context from multiple columns.
-        # for col in columns:
-        #     prompt_df["prompt"] += f"{col} is `" + prompt_df[col] + "`\n"
-
-        # return prompt_df["prompt"]
-
     def _parse_columns(self, instruction: str) -> List[str]:
         """Extracts column names enclosed in curly braces from the user instruction.
         For example, _parse_columns("{city} is in {continent}") == ["city", "continent"]
