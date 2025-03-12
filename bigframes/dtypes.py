@@ -62,7 +62,9 @@ BIGNUMERIC_DTYPE = pd.ArrowDtype(pa.decimal256(76, 38))
 # No arrow equivalent
 GEO_DTYPE = gpd.array.GeometryDtype()
 # JSON
-JSON_DTYPE = db_dtypes.JSONDtype()
+# TODO: switch to pyarrow.json_(pyarrow.string()) when available.
+JSON_ARROW_TYPE = db_dtypes.JSONArrowType()
+JSON_DTYPE = pd.ArrowDtype(JSON_ARROW_TYPE)
 OBJ_REF_DTYPE = pd.ArrowDtype(
     pa.struct(
         (
@@ -80,7 +82,7 @@ OBJ_REF_DTYPE = pd.ArrowDtype(
             ),
             pa.field(
                 "details",
-                db_dtypes.JSONArrowType(),
+                JSON_ARROW_TYPE,
             ),
         )
     )
@@ -105,6 +107,9 @@ LOCAL_SCALAR_TYPE = Union[
     pd.Timestamp,
     datetime.date,
     datetime.time,
+    pd.Timedelta,
+    datetime.timedelta,
+    np.timedelta64,
 ]
 LOCAL_SCALAR_TYPES = typing.get_args(LOCAL_SCALAR_TYPE)
 
@@ -354,7 +359,7 @@ _ORDERABLE_SIMPLE_TYPES = set(
 
 def is_orderable(type_: ExpressionType) -> bool:
     # On BQ side, ARRAY, STRUCT, GEOGRAPHY, JSON are not orderable
-    return type_ in _ORDERABLE_SIMPLE_TYPES
+    return type_ in _ORDERABLE_SIMPLE_TYPES or type_ is TIMEDELTA_DTYPE
 
 
 _CLUSTERABLE_SIMPLE_TYPES = set(
@@ -420,7 +425,7 @@ def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
         return pd.ArrowDtype(arrow_dtype)
 
     if pa.types.is_duration(arrow_dtype):
-        return pd.ArrowDtype(arrow_dtype)
+        return TIMEDELTA_DTYPE
 
     # BigFrames doesn't distinguish between string and large_string because the
     # largest string (2 GB) is already larger than the largest BigQuery row.
@@ -562,6 +567,10 @@ def _is_bigframes_dtype(dtype) -> bool:
 
 
 def _infer_dtype_from_python_type(type: type) -> Dtype:
+    if type in (datetime.timedelta, pd.Timedelta, np.timedelta64):
+        # Must check timedelta type first. Otherwise other branchs will be evaluated to true
+        # E.g. np.timedelta64 is a sublcass as np.integer
+        return TIMEDELTA_DTYPE
     if issubclass(type, (bool, np.bool_)):
         return BOOL_DTYPE
     if issubclass(type, (int, np.integer)):
@@ -670,6 +679,12 @@ def convert_schema_field(
         pa_struct = pa.struct(fields)
         pa_type = pa.list_(pa_struct) if is_repeated else pa_struct
         return field.name, pd.ArrowDtype(pa_type)
+    elif (
+        field.field_type == "INTEGER"
+        and field.description is not None
+        and field.description.endswith(TIMEDELTA_DESCRIPTION_TAG)
+    ):
+        return field.name, TIMEDELTA_DTYPE
     elif field.field_type in _TK_TO_BIGFRAMES:
         if is_repeated:
             pa_type = pa.list_(
@@ -711,7 +726,9 @@ def convert_to_schema_field(
             )
         if bigframes_dtype.pyarrow_dtype == pa.duration("us"):
             # Timedeltas are represented as integers in microseconds.
-            return google.cloud.bigquery.SchemaField(name, "INTEGER")
+            return google.cloud.bigquery.SchemaField(
+                name, "INTEGER", description=TIMEDELTA_DESCRIPTION_TAG
+            )
     raise TypeError(
         f"No arrow conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
     )
@@ -866,4 +883,8 @@ RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS = {
     "INT64",
     "INTEGER",
     "STRING",
+    "ARRAY",
 }
+
+
+TIMEDELTA_DESCRIPTION_TAG = "#microseconds"

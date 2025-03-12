@@ -26,6 +26,7 @@ import pyarrow as pa  # type: ignore
 import pytest
 import shapely  # type: ignore
 
+import bigframes.dtypes as dtypes
 import bigframes.features
 import bigframes.pandas
 import bigframes.series as series
@@ -237,7 +238,7 @@ def test_series_construct_geodata():
         pytest.param(pd.StringDtype(storage="pyarrow"), id="string"),
     ],
 )
-def test_series_construct_w_dtype_for_int(dtype):
+def test_series_construct_w_dtype(dtype):
     data = [1, 2, 3]
     expected = pd.Series(data, dtype=dtype)
     expected.index = expected.index.astype("Int64")
@@ -302,6 +303,25 @@ def test_series_construct_w_dtype_for_array_struct():
     )
 
 
+def test_series_construct_w_dtype_for_json():
+    data = [
+        "1",
+        '"str"',
+        "false",
+        '["a", {"b": 1}, null]',
+        None,
+        '{"a": {"b": [1, 2, 3], "c": true}}',
+    ]
+    s = bigframes.pandas.Series(data, dtype=dtypes.JSON_DTYPE)
+
+    assert s[0] == "1"
+    assert s[1] == '"str"'
+    assert s[2] == "false"
+    assert s[3] == '["a",{"b":1},null]'
+    assert pd.isna(s[4])
+    assert s[5] == '{"a":{"b":[1,2,3],"c":true}}'
+
+
 def test_series_keys(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df["int64_col"].keys().to_pandas()
@@ -363,7 +383,7 @@ def test_get_column(scalars_dfs, col_name, expected_dtype):
 def test_get_column_w_json(json_df, json_pandas_df):
     series = json_df["json_col"]
     series_pandas = series.to_pandas()
-    assert series.dtype == db_dtypes.JSONDtype()
+    assert series.dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
     assert series_pandas.shape[0] == json_pandas_df.shape[0]
 
 
@@ -621,6 +641,8 @@ def test_series_replace_dict(scalars_dfs, replacement_dict):
     ),
 )
 def test_series_interpolate(method):
+    pytest.importorskip("scipy")
+
     values = [None, 1, 2, None, None, 16, None]
     index = [-3.2, 11.4, 3.56, 4, 4.32, 5.55, 76.8]
     pd_series = pd.Series(values, index)
@@ -1636,6 +1658,27 @@ def test_series_binop_w_other_types(scalars_dfs, other):
     )
 
 
+@pytest.mark.parametrize(
+    ("other",),
+    [
+        ([-1.4, 2.3, None],),
+        (pd.Index([-1.4, 2.3, None]),),
+        (pd.Series([-1.4, 2.3, None], index=[44, 2, 1]),),
+    ],
+)
+@skip_legacy_pandas
+def test_series_reverse_binop_w_other_types(scalars_dfs, other):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = (other + scalars_df["int64_col"].head(3)).to_pandas()
+    pd_result = other + scalars_pandas_df["int64_col"].head(3)
+
+    assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 @skip_legacy_pandas
 def test_series_combine_first(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -2226,11 +2269,36 @@ def test_head_then_series_operation(scalars_dfs):
 
 def test_series_peek(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
+
+    session = scalars_df._block.session
+    slot_millis_sum = session.slot_millis_sum
     peek_result = scalars_df["float64_col"].peek(n=3, force=False)
+
+    assert session.slot_millis_sum - slot_millis_sum > 1000
     pd.testing.assert_series_equal(
         peek_result,
         scalars_pandas_df["float64_col"].reindex_like(peek_result),
     )
+    assert len(peek_result) == 3
+
+
+def test_series_peek_with_large_results_not_allowed(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    session = scalars_df._block.session
+    slot_millis_sum = session.slot_millis_sum
+    peek_result = scalars_df["float64_col"].peek(
+        n=3, force=False, allow_large_results=False
+    )
+
+    # The metrics won't be fully updated when we call query_and_wait.
+    print(session.slot_millis_sum - slot_millis_sum)
+    assert session.slot_millis_sum - slot_millis_sum < 500
+    pd.testing.assert_series_equal(
+        peek_result,
+        scalars_pandas_df["float64_col"].reindex_like(peek_result),
+    )
+    assert len(peek_result) == 3
 
 
 def test_series_peek_multi_index(scalars_dfs):

@@ -14,6 +14,8 @@
 
 """Public exceptions and warnings used across BigQuery DataFrames."""
 
+import textwrap
+
 # NOTE: This module should not depend on any others in the package.
 
 
@@ -40,7 +42,10 @@ class PreviewWarning(Warning):
 
 
 class NullIndexPreviewWarning(PreviewWarning):
-    """Null index feature is in preview."""
+    """Unused. Kept for backwards compatibility.
+
+    Was used when null index feature was in preview.
+    """
 
 
 class NullIndexError(ValueError):
@@ -48,7 +53,10 @@ class NullIndexError(ValueError):
 
 
 class OrderingModePartialPreviewWarning(PreviewWarning):
-    """Ordering mode 'partial' is in preview."""
+    """Unused. Kept for backwards compatibility.
+
+    Was used when ordering mode 'partial' was in preview.
+    """
 
 
 class OrderRequiredError(ValueError):
@@ -81,3 +89,27 @@ class ApiDeprecationWarning(FutureWarning):
 
 class BadIndexerKeyWarning(Warning):
     """The indexer key is not used correctly."""
+
+
+class ColorFormatter:
+    WARNING = "\033[93m"
+    ENDC = "\033[0m"
+
+
+def format_message(message: str, fill: bool = True):
+    """Formats a warning message with ANSI color codes for the warning color.
+
+    Args:
+        message: The warning message string.
+        fill: Whether to wrap the message text using `textwrap.fill`.
+            Defaults to True.  Set to False to prevent wrapping,
+            especially if the message already contains newlines.
+
+    Returns:
+        The formatted message string, with ANSI color codes for warning color
+        if color is supported, otherwise the original message.  If `fill` is
+        True, the message will be wrapped to fit the terminal width.
+    """
+    if fill:
+        message = textwrap.fill(message)
+    return ColorFormatter.WARNING + message + ColorFormatter.ENDC

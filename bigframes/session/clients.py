@@ -17,6 +17,7 @@
 import os
 import typing
 from typing import Optional
+import warnings
 
 import google.api_core.client_info
 import google.api_core.client_options
@@ -31,6 +32,7 @@ import google.cloud.resourcemanager_v3
 import pydata_google_auth
 
 import bigframes.constants
+import bigframes.exceptions as bfe
 import bigframes.version
 
 _ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
@@ -94,8 +96,23 @@ class ClientsProvider:
             else _APPLICATION_NAME
         )
         self._project = project
+
+        if (
+            use_regional_endpoints
+            and location is not None
+            and location.lower()
+            not in bigframes.constants.REP_ENABLED_BIGQUERY_LOCATIONS
+        ):
+            msg = bfe.format_message(
+                bigframes.constants.LEP_DEPRECATION_WARNING_MESSAGE.format(
+                    location=location
+                ),
+                fill=False,
+            )
+            warnings.warn(msg, category=FutureWarning)
         self._location = location
         self._use_regional_endpoints = use_regional_endpoints
+
         self._credentials = credentials
         self._bq_kms_key_name = bq_kms_key_name
         self._client_endpoints_override = client_endpoints_override
@@ -117,19 +134,21 @@ class ClientsProvider:
 
     def _create_bigquery_client(self):
         bq_options = None
-        if self._use_regional_endpoints:
-            bq_options = google.api_core.client_options.ClientOptions(
-                api_endpoint=(
-                    _BIGQUERY_REGIONAL_ENDPOINT
-                    if self._location is not None
-                    and self._location.lower()
-                    in bigframes.constants.REP_ENABLED_BIGQUERY_LOCATIONS
-                    else _BIGQUERY_LOCATIONAL_ENDPOINT
-                ).format(location=self._location),
-            )
         if "bqclient" in self._client_endpoints_override:
             bq_options = google.api_core.client_options.ClientOptions(
                 api_endpoint=self._client_endpoints_override["bqclient"]
+            )
+        elif self._use_regional_endpoints:
+            endpoint_template = _BIGQUERY_REGIONAL_ENDPOINT
+            if (
+                self._location is not None
+                and self._location.lower()
+                not in bigframes.constants.REP_ENABLED_BIGQUERY_LOCATIONS
+            ):
+                endpoint_template = _BIGQUERY_LOCATIONAL_ENDPOINT
+
+            bq_options = google.api_core.client_options.ClientOptions(
+                api_endpoint=endpoint_template.format(location=self._location)
             )
 
         bq_info = google.api_core.client_info.ClientInfo(
@@ -172,15 +191,15 @@ class ClientsProvider:
     def bqconnectionclient(self):
         if not self._bqconnectionclient:
             bqconnection_options = None
-            if self._use_regional_endpoints:
+            if "bqconnectionclient" in self._client_endpoints_override:
+                bqconnection_options = google.api_core.client_options.ClientOptions(
+                    api_endpoint=self._client_endpoints_override["bqconnectionclient"]
+                )
+            elif self._use_regional_endpoints:
                 bqconnection_options = google.api_core.client_options.ClientOptions(
                     api_endpoint=_BIGQUERYCONNECTION_LOCATIONAL_ENDPOINT.format(
                         location=self._location
                     )
-                )
-            if "bqconnectionclient" in self._client_endpoints_override:
-                bqconnection_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=self._client_endpoints_override["bqconnectionclient"]
                 )
 
             bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
@@ -200,21 +219,23 @@ class ClientsProvider:
     def bqstoragereadclient(self):
         if not self._bqstoragereadclient:
             bqstorage_options = None
-            if self._use_regional_endpoints:
-                bqstorage_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=(
-                        _BIGQUERYSTORAGE_REGIONAL_ENDPOINT
-                        if self._location is not None
-                        and self._location.lower()
-                        in bigframes.constants.REP_ENABLED_BIGQUERY_LOCATIONS
-                        else _BIGQUERYSTORAGE_LOCATIONAL_ENDPOINT
-                    ).format(location=self._location),
-                )
-
             if "bqstoragereadclient" in self._client_endpoints_override:
                 bqstorage_options = google.api_core.client_options.ClientOptions(
                     api_endpoint=self._client_endpoints_override["bqstoragereadclient"]
                 )
+            elif self._use_regional_endpoints:
+                endpoint_template = _BIGQUERYSTORAGE_REGIONAL_ENDPOINT
+                if (
+                    self._location is not None
+                    and self._location.lower()
+                    not in bigframes.constants.REP_ENABLED_BIGQUERY_LOCATIONS
+                ):
+                    endpoint_template = _BIGQUERYSTORAGE_LOCATIONAL_ENDPOINT
+
+                bqstorage_options = google.api_core.client_options.ClientOptions(
+                    api_endpoint=endpoint_template.format(location=self._location)
+                )
+
             bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
                 user_agent=self._application_name
             )

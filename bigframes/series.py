@@ -78,6 +78,9 @@ _list = list  # Type alias to escape Series.list property
 
 @log_adapter.class_logger
 class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Series):
+    # Must be above 5000 for pandas to delegate to bigframes for binops
+    __pandas_priority__ = 13000
+
     def __init__(self, *args, **kwargs):
         self._query_job: Optional[bigquery.QueryJob] = None
         super().__init__(*args, **kwargs)
@@ -378,6 +381,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> pandas.Series:
         """Writes Series to pandas Series.
 
@@ -400,6 +404,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ordered (bool, default True):
                 Determines whether the resulting pandas series will be  ordered.
                 In some cases, unordered may result in a faster-executing query.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
 
 
         Returns:
@@ -411,8 +418,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             sampling_method=sampling_method,
             random_state=random_state,
             ordered=ordered,
+            allow_large_results=allow_large_results,
         )
-        self._set_internal_query_job(query_job)
+        if query_job:
+            self._set_internal_query_job(query_job)
         series = df.squeeze(axis=1)
         series.name = self._name
         return series
@@ -682,7 +691,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def tail(self, n: int = 5) -> Series:
         return typing.cast(Series, self.iloc[-n:])
 
-    def peek(self, n: int = 5, *, force: bool = True) -> pandas.Series:
+    def peek(
+        self, n: int = 5, *, force: bool = True, allow_large_results=None
+    ) -> pandas.Series:
         """
         Preview n arbitrary elements from the series without guarantees about row selection or ordering.
 
@@ -696,17 +707,22 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             force (bool, default True):
                 If the data cannot be peeked efficiently, the series will instead be fully materialized as part
                 of the operation if ``force=True``. If ``force=False``, the operation will throw a ValueError.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
         Returns:
             pandas.Series: A pandas Series with n rows.
 
         Raises:
             ValueError: If force=False and data cannot be efficiently peeked.
         """
-        maybe_result = self._block.try_peek(n)
+        maybe_result = self._block.try_peek(n, allow_large_results=allow_large_results)
         if maybe_result is None:
             if force:
                 self._cached()
-                maybe_result = self._block.try_peek(n, force=True)
+                maybe_result = self._block.try_peek(
+                    n, force=True, allow_large_results=allow_large_results
+                )
                 assert maybe_result is not None
             else:
                 raise ValueError(
@@ -960,6 +976,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             other, ops.coalesce_op, reverse=True, alignment="left"
         )
         self._set_block(result._get_block())
+
+    def __abs__(self) -> Series:
+        return self.abs()
 
     def abs(self) -> Series:
         return self._apply_unary_op(ops.abs_op)
@@ -1514,10 +1533,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 "Only a ufunc (a function that applies to the entire Series) or a remote function that only works on single values are supported."
             )
 
-        if not hasattr(func, "bigframes_remote_function"):
-            # It is not a remote function
+        # TODO(jialuo): Deprecate the "bigframes_remote_function" attribute.
+        # We have some tests using pre-defined remote_function that were defined
+        # based on "bigframes_remote_function" instead of
+        # "bigframes_bigquery_function". So we need to fix those pre-defined
+        # remote functions before deprecating the "bigframes_remote_function"
+        # attribute.
+        if not hasattr(func, "bigframes_remote_function") and not hasattr(
+            func, "bigframes_bigquery_function"
+        ):
+            # It is neither a remote function nor a managed function.
             # Then it must be a vectorized function that applies to the Series
-            # as a whole
+            # as a whole.
             if by_row:
                 raise ValueError(
                     "A vectorized non-remote function can be provided only with by_row=False."
@@ -1539,9 +1566,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ops.RemoteFunctionOp(func=func, apply_on_null=True)
         )
 
-        # if the output is an array, reconstruct it from the json serialized
-        # string form
-        if bigframes.dtypes.is_array_like(func.output_dtype):
+        # If the result type is string but the function output is intended to
+        # be an array, reconstruct the array from the string assuming it is a
+        # json serialized form of the array.
+        if bigframes.dtypes.is_string_like(
+            result_series.dtype
+        ) and bigframes.dtypes.is_array_like(func.output_dtype):
             import bigframes.bigquery as bbq
 
             result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
@@ -1563,7 +1593,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 "Only a ufunc (a function that applies to the entire Series) or a remote function that only works on single values are supported."
             )
 
-        if not hasattr(func, "bigframes_remote_function"):
+        if not hasattr(func, "bigframes_remote_function") and not hasattr(
+            func, "bigframes_bigquery_function"
+        ):
             # Keep this in sync with .apply
             try:
                 return func(self, other)
@@ -1579,9 +1611,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             other, ops.BinaryRemoteFunctionOp(func=func)
         )
 
-        # if the output is an array, reconstruct it from the json serialized
-        # string form
-        if bigframes.dtypes.is_array_like(func.output_dtype):
+        # If the result type is string but the function output is intended to
+        # be an array, reconstruct the array from the string assuming it is a
+        # json serialized form of the array.
+        if bigframes.dtypes.is_string_like(
+            result_series.dtype
+        ) and bigframes.dtypes.is_array_like(func.output_dtype):
             import bigframes.bigquery as bbq
 
             result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
@@ -1742,22 +1777,36 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         *,
         header: bool = True,
         index: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[str]:
         if utils.is_gcs_path(path_or_buf):
             return self.to_frame().to_csv(
-                path_or_buf, sep=sep, header=header, index=index
+                path_or_buf,
+                sep=sep,
+                header=header,
+                index=index,
+                allow_large_results=allow_large_results,
             )
         else:
-            pd_series = self.to_pandas()
+            pd_series = self.to_pandas(allow_large_results=allow_large_results)
             return pd_series.to_csv(
                 path_or_buf=path_or_buf, sep=sep, header=header, index=index
             )
 
-    def to_dict(self, into: type[dict] = dict) -> typing.Mapping:
-        return typing.cast(dict, self.to_pandas().to_dict(into))  # type: ignore
+    def to_dict(
+        self,
+        into: type[dict] = dict,
+        *,
+        allow_large_results: Optional[bool] = None,
+    ) -> typing.Mapping:
+        return typing.cast(dict, self.to_pandas(allow_large_results=allow_large_results).to_dict(into))  # type: ignore
 
-    def to_excel(self, excel_writer, sheet_name="Sheet1", **kwargs) -> None:
-        return self.to_pandas().to_excel(excel_writer, sheet_name, **kwargs)
+    def to_excel(
+        self, excel_writer, sheet_name="Sheet1", *, allow_large_results=None, **kwargs
+    ) -> None:
+        return self.to_pandas(allow_large_results=allow_large_results).to_excel(
+            excel_writer, sheet_name, **kwargs
+        )
 
     def to_json(
         self,
@@ -1768,26 +1817,42 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         *,
         lines: bool = False,
         index: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[str]:
         if utils.is_gcs_path(path_or_buf):
             return self.to_frame().to_json(
-                path_or_buf=path_or_buf, orient=orient, lines=lines, index=index
+                path_or_buf=path_or_buf,
+                orient=orient,
+                lines=lines,
+                index=index,
+                allow_large_results=allow_large_results,
             )
         else:
-            pd_series = self.to_pandas()
+            pd_series = self.to_pandas(allow_large_results=allow_large_results)
             return pd_series.to_json(
                 path_or_buf=path_or_buf, orient=orient, lines=lines, index=index  # type: ignore
             )
 
     def to_latex(
-        self, buf=None, columns=None, header=True, index=True, **kwargs
+        self,
+        buf=None,
+        columns=None,
+        header=True,
+        index=True,
+        *,
+        allow_large_results=None,
+        **kwargs,
     ) -> typing.Optional[str]:
-        return self.to_pandas().to_latex(
+        return self.to_pandas(allow_large_results=allow_large_results).to_latex(
             buf, columns=columns, header=header, index=index, **kwargs
         )
 
-    def tolist(self) -> _list:
-        return self.to_pandas().to_list()
+    def tolist(
+        self,
+        *,
+        allow_large_results: Optional[bool] = None,
+    ) -> _list:
+        return self.to_pandas(allow_large_results=allow_large_results).to_list()
 
     to_list = tolist
     to_list.__doc__ = inspect.getdoc(vendored_pandas_series.Series.tolist)
@@ -1797,22 +1862,36 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         buf: typing.IO[str] | None = None,
         mode: str = "wt",
         index: bool = True,
+        *,
+        allow_large_results: Optional[bool] = None,
         **kwargs,
     ) -> typing.Optional[str]:
-        return self.to_pandas().to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
+        return self.to_pandas(allow_large_results=allow_large_results).to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
 
     def to_numpy(
-        self, dtype=None, copy=False, na_value=None, **kwargs
+        self,
+        dtype=None,
+        copy=False,
+        na_value=None,
+        *,
+        allow_large_results=None,
+        **kwargs,
     ) -> numpy.ndarray:
-        return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
+        return self.to_pandas(allow_large_results=allow_large_results).to_numpy(
+            dtype, copy, na_value, **kwargs
+        )
 
-    def __array__(self, dtype=None) -> numpy.ndarray:
+    def __array__(self, dtype=None, copy: Optional[bool] = None) -> numpy.ndarray:
+        if copy is False:
+            raise ValueError("Cannot convert to array without copy.")
         return self.to_numpy(dtype=dtype)
 
     __array__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__array__)
 
-    def to_pickle(self, path, **kwargs) -> None:
-        return self.to_pandas().to_pickle(path, **kwargs)
+    def to_pickle(self, path, *, allow_large_results=None, **kwargs) -> None:
+        return self.to_pandas(allow_large_results=allow_large_results).to_pickle(
+            path, **kwargs
+        )
 
     def to_string(
         self,
@@ -1826,8 +1905,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         name=False,
         max_rows=None,
         min_rows=None,
+        *,
+        allow_large_results=None,
     ) -> typing.Optional[str]:
-        return self.to_pandas().to_string(
+        return self.to_pandas(allow_large_results=allow_large_results).to_string(
             buf,
             na_rep,
             float_format,
@@ -1840,8 +1921,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             min_rows,
         )
 
-    def to_xarray(self):
-        return self.to_pandas().to_xarray()
+    def to_xarray(
+        self,
+        *,
+        allow_large_results: Optional[bool] = None,
+    ):
+        return self.to_pandas(allow_large_results=allow_large_results).to_xarray()
 
     def _throw_if_index_contains_duplicates(
         self, error_message: typing.Optional[str] = None
