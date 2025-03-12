@@ -22,7 +22,7 @@ import bigframes.dtypes as dtypes
 import bigframes.pandas as bpd
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def use_large_query_path():
     # b/401630655
     with bpd.option_context("bigquery.allow_large_results", True):
