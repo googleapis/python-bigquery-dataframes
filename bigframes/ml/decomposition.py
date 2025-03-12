@@ -259,10 +259,10 @@ class MatrixFactorization(
         if type(item_col) is not str:
             raise TypeError(f"Expected item_col to be STR, but got {type(item_col)}.")
 
-        # if item_col != "item_col":
-        #     raise ValueError(
-        #         f"Expected item_col column to be `item_col`, but got {item_col}."
-        #     )
+        if item_col != "item_col":
+            raise ValueError(
+                f"Expected item_col column to be `item_col`, but got {item_col}."
+            )
 
         self.item_col = item_col
 
