@@ -54,23 +54,42 @@ def test_geo_st_area():
 
 
 def test_geo_st_difference():
-    data1 = [Polygon([(0, 0), (10, 0), (10, 10), (0, 0)])]
+    data1 = [
+        Polygon([(0, 0), (10, 0), (10, 10), (0, 0)]),
+        Polygon([(0.001, 0.001), (0.002, 0.001), (0.002, 0.002)]),
+        Point(0, 1),
+    ]
 
-    data2 = [Polygon([(4, 2), (6, 2), (8, 6), (4, 2)])]
+    data2 = [
+        Polygon([(0.001, 0.001), (0.002, 0.001), (0.002, 0.002)]),
+        Polygon([(4, 2), (6, 2), (8, 6), (4, 2)]),
+        LineString([(2, 0), (0, 2)]),
+    ]
 
-    geopd_s1 = geopandas.GeoSeries(data=data1)
-    geopd_s2 = geopandas.GeoSeries(data=data2)
     geobf_s1 = bigframes.geopandas.GeoSeries(data=data1)
     geobf_s2 = bigframes.geopandas.GeoSeries(data=data2)
+    geobf_s_result = bbq.st_difference(geobf_s1, geobf_s2).to_pandas()
 
-    geopd_s_result = geopd_s1.difference(geopd_s2).round(-3)
-    geobf_s_result = bbq.st_difference(geobf_s1, geobf_s2).to_pandas().round(-3)
-
-    pd.testing.assert_series_equal(
-        geopd_s_result,
-        geobf_s_result,
-        check_series_type=False,
-        check_dtype=False,
-        check_index_type=False,
-        check_exact=False,
+    assert geobf_s_result.dtype == "geometry"
+    assert geobf_s_result.iloc[1] == Polygon(
+        [(0.001, 0.001), (0.002, 0.001), (0.002, 0.002), (0.001, 0.001)]
     )
+
+
+def test_geo_st_difference_with_single_geometry_object():
+    data1 = [
+        Polygon([(0, 0), (10, 0), (10, 10), (0, 0)]),
+        Polygon([(0.001, 0.001), (0.002, 0.001), (0.002, 0.002)]),
+        Point(0, 1),
+    ]
+
+    geobf_s1 = bigframes.geopandas.GeoSeries(data=data1)
+    geobf_s_result = bbq.st_difference(
+        geobf_s1,
+        bigframes.series.Series(
+            [Polygon([(0.001, 0.001), (0.002, 0.001), (0.002, 0.002)])]
+        ),
+    ).to_pandas()
+
+    assert geobf_s_result.dtype == "geometry"
+    assert geobf_s_result.iloc[1] is None

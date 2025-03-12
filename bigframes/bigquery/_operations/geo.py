@@ -174,15 +174,16 @@ def st_difference(
         ...         Polygon([(0, 0), (10, 0), (10, 10), (0, 0)])
         ...     ]
         ... )
-        >>> sbq1
-        0    POLYGON ((0 0, 10 0, 10 10, 0 0))
-        dtype: geometry
-
         >>> sbq2 = bigframes.geopandas.GeoSeries(
         ...     [
         ...         Polygon([(4, 2), (6, 2), (8, 6), (4, 2)])
         ...     ]
         ... )
+
+        >>> sbq1
+        0    POLYGON ((0 0, 10 0, 10 10, 0 0))
+        dtype: geometry
+
         >>> sbq2
         0    POLYGON ((4 2, 6 2, 8 6, 4 2))
         dtype: geometry
@@ -193,7 +194,7 @@ def st_difference(
 
     Additionally, qe can do difference of a GeoSeries against a single shapely geometry:
 
-        >>> bbq.st_difference(s, sbq2)
+        >>> bbq.st_difference(s1, sbq2)
         0    POLYGON ((0 0, 2 2, 0 2, 0 0))
         1                              None
         2                              None
@@ -210,9 +211,4 @@ def st_difference(
             A GeoSeries of the points in each aligned geometry that are not
             in other.
     """
-    series.name = None
-
-    if isinstance(other, bigframes.series.Series):
-        other.name = None
-
     return series._apply_binary_op(other, ops.geo_st_difference_op)
