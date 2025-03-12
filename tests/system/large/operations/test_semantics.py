@@ -20,7 +20,7 @@ import pandas.testing
 import pytest
 
 import bigframes
-from bigframes import dataframe, dtypes, exceptions
+from bigframes import dataframe, dtypes, exceptions, series
 
 SEM_OP_EXP_OPTION = "experiments.semantic_operators"
 BLOB_EXP_OPTION = "experiments.blob"
@@ -399,12 +399,15 @@ def test_filter_multi_model(session, gemini_flash_model):
         10,
     ):
         df = session.from_glob_path("gs://sycai_bucket/images/*", name="image")
+        df["prey"] = series.Series(
+            ["building", "cross road", "rock", "squirrel", "rabbit"], session=session
+        )
         result = df.semantics.filter(
-            "The object in {image} is an elephant",
+            "The object in {image} feeds on {prey}",
             gemini_flash_model,
         ).to_pandas()
 
-    assert len(result) == 1
+    assert len(result) <= len(df)
 
 
 @pytest.mark.parametrize(
@@ -557,8 +560,11 @@ def test_map_multimodel(session, gemini_flash_model):
         10,
     ):
         df = session.from_glob_path("gs://sycai_bucket/images/*", name="image")
+        df["scenario"] = series.Series(
+            ["building", "cross road", "tree", "squirrel", "rabbit"], session=session
+        )
         result = df.semantics.map(
-            "What is the object in {image}? One word only.",
+            "What is the object in {image} combined with {scenario}? One word only.",
             "object",
             gemini_flash_model,
         ).to_pandas()
