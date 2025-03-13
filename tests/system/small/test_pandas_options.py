@@ -30,7 +30,6 @@ import bigframes.pandas as bpd
 def reset_default_session_and_location():
     bpd.close_session()
     with bpd.option_context("bigquery.location", None):
-        bpd.options.bigquery.location = None
         yield
     bpd.close_session()
 
