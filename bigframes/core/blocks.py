@@ -2787,7 +2787,7 @@ class BlockIndexProperties:
 
     def _compute_dry_run(
         self, *, ordered: bool = True
-    ) -> Tuple[pd.Series, Optional[bigquery.QueryJob]]:
+    ) -> Tuple[pd.Series, bigquery.QueryJob]:
         return self._block.select_columns([])._compute_dry_run(ordered=ordered)
 
     def resolve_level(self, level: LevelsType) -> typing.Sequence[str]:

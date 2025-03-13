@@ -526,9 +526,10 @@ class Index(vendored_pandas_index.Index):
                 returns a Series containing dry run statistics.
         """
         if dry_run:
-            dry_run_stats, query_job = self._block.index._compute_dry_run(ordered=True)
-            if query_job:
-                self._query_job = query_job
+            dry_run_stats, dry_run_job = self._block.index._compute_dry_run(
+                ordered=True
+            )
+            self._query_job = dry_run_job
             return dry_run_stats
 
         df, query_job = self._block.index.to_pandas(
