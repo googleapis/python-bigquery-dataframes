@@ -123,9 +123,9 @@ def test_geo_st_difference_with_single_geometry_object():
     ).to_pandas()
 
     assert geobf_s_result.dtype == "geometry"
+    assert expected.iloc[0].equals(geobf_s_result.iloc[0])
     assert expected.iloc[1] == geobf_s_result.iloc[1]
     assert expected.iloc[2] == geobf_s_result.iloc[2]
-    assert expected.iloc[0].equals(geobf_s_result.iloc[0])
 
 
 def test_geo_st_difference_with_similar_geometry_objects():
