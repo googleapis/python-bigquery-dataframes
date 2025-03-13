@@ -1093,7 +1093,7 @@ def test_df_apply_scalar_func(session, scalars_dfs):
     with pytest.raises(NotImplementedError) as context:
         bdf.apply(func_ref)
     assert str(context.value) == (
-        "BigFrames DataFrame '.apply()' does not support BigFrames Bigquery "
+        "BigFrames DataFrame '.apply()' does not support BigFrames BigQuery "
         "function for column-wise (i.e. with axis=0) operations, please use a "
         "regular python function instead. For element-wise operations of the "
         "BigFrames BigQuery function, please use '.map()'. "
