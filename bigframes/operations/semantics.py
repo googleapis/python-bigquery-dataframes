@@ -1102,8 +1102,9 @@ class Semantics:
         result_df[embedding_column] = embeddings
         return result_df
 
+    @staticmethod
     def _make_multimodel_prompt(
-        self, prompt_df, columns, user_instruction: str, output_instruction: str
+        prompt_df, columns, user_instruction: str, output_instruction: str
     ):
         prompt = [f"{output_instruction}\n{user_instruction}\nContext: "]
         for col in columns:
@@ -1111,8 +1112,9 @@ class Semantics:
 
         return prompt
 
+    @staticmethod
     def _make_text_prompt(
-        self, prompt_df, columns, user_instruction: str, output_instruction: str
+        prompt_df, columns, user_instruction: str, output_instruction: str
     ):
         prompt_df["prompt"] = f"{output_instruction}\n{user_instruction}\nContext: "
 
@@ -1122,7 +1124,8 @@ class Semantics:
 
         return prompt_df["prompt"]
 
-    def _parse_columns(self, instruction: str) -> List[str]:
+    @staticmethod
+    def _parse_columns(instruction: str) -> List[str]:
         """Extracts column names enclosed in curly braces from the user instruction.
         For example, _parse_columns("{city} is in {continent}") == ["city", "continent"]
         """
