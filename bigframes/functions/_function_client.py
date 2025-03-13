@@ -368,9 +368,7 @@ class FunctionClient:
                 if response.status_code != 200:
                     raise bf_formatting.create_exception_with_feedback_link(
                         RuntimeError,
-                        "Failed to upload user code. code={}, reason={}, text={}".format(
-                            response.status_code, response.reason, response.text
-                        ),
+                        f"Failed to upload user code. code={response.status_code}, reason={response.reason}, text={response.text}",
                     )
 
             # Deploy Cloud Function
@@ -417,9 +415,7 @@ class FunctionClient:
             if ingress_settings not in _INGRESS_SETTINGS_MAP:
                 raise bf_formatting.create_exception_with_feedback_link(
                     ValueError,
-                    "'{}' not one of the supported ingress settings values: {}".format(
-                        ingress_settings, list(_INGRESS_SETTINGS_MAP)
-                    ),
+                    f"'{ingress_settings}' not one of the supported ingress settings values: {list(_INGRESS_SETTINGS_MAP)}",
                 )
             function.service_config.ingress_settings = cast(
                 functions_v2.ServiceConfig.IngressSettings,

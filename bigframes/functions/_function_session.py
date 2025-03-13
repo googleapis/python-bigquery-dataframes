@@ -545,7 +545,7 @@ class FunctionSession:
 
             if not callable(func):
                 raise bf_formatting.create_exception_with_feedback_link(
-                    TypeError, "f must be callable, got {}".format(func)
+                    TypeError, f"func must be a callable, got {func}"
                 )
 
             if sys.version_info >= (3, 10):
@@ -846,7 +846,7 @@ class FunctionSession:
 
             if not callable(func):
                 raise bf_formatting.create_exception_with_feedback_link(
-                    TypeError, "f must be callable, got {}".format(func)
+                    TypeError, f"func must be a callable, got {func}"
                 )
 
             # Managed function supports version >= 3.11.
