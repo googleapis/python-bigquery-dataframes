@@ -4226,15 +4226,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
             return result_series
 
-        # At this point column-wise or element-wise bigquery function operation
-        # will be performed (not supported).
-        if hasattr(func, "bigframes_bigquery_function"):
-            raise NotImplementedError(
-                "BigFrames DataFrame '.apply()' does not support BigFrames "
-                "BigQuery function for column-wise (i.e. with axis=0) "
-                "operations, please use a regular python function instead. For "
-                "element-wise operations of the BigFrames BigQuery function, "
-                "please use '.map()'."
+        # At this point column-wise or element-wise remote function operation will
+        # be performed (not supported).
+        if hasattr(func, "bigframes_remote_function"):
+            raise formatter.create_exception_with_feedback_link(
+                NotImplementedError,
+                "BigFrames DataFrame '.apply()' does not support remote function "
+                "for column-wise (i.e. with axis=0) operations, please use a "
+                "regular python function instead. For element-wise operations of "
+                "the remote function, please use '.map()'.",
             )
 
         # Per-column apply

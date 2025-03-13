@@ -16,6 +16,7 @@ import inspect
 import re
 import textwrap
 
+import bigframes_vendored.constants as constants
 import google.api_core.exceptions
 from google.cloud import bigquery
 import pandas as pd
@@ -1092,10 +1093,11 @@ def test_df_apply_scalar_func(session, scalars_dfs):
     with pytest.raises(NotImplementedError) as context:
         bdf.apply(func_ref)
     assert str(context.value) == (
-        "BigFrames DataFrame '.apply()' does not support BigFrames BigQuery "
+        "BigFrames DataFrame '.apply()' does not support BigFrames Bigquery "
         "function for column-wise (i.e. with axis=0) operations, please use a "
         "regular python function instead. For element-wise operations of the "
-        "BigFrames BigQuery function, please use '.map()'."
+        "BigFrames BigQuery function, please use '.map()'. "
+        f"{constants.FEEDBACK_LINK}"
     )
 
 
@@ -1109,7 +1111,7 @@ def test_read_gbq_function_multiple_inputs_not_a_row_processor(session):
         )
     assert str(context.value) == (
         "A multi-input function cannot be a row processor. A row processor function "
-        "takes in a single input representing the row."
+        f"takes in a single input representing the row. {constants.FEEDBACK_LINK}"
     )
 
 
