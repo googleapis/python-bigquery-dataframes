@@ -46,7 +46,10 @@ def test_read_gbq_tokyo(
     result = df.sort_index().to_pandas()
     expected = scalars_pandas_df_index
 
-    result = session_tokyo._executor.execute(df._block.expr)
+    # use_explicit_destination=True, otherwise might use path with no query_job
+    result = session_tokyo._executor.execute(
+        df._block.expr, use_explicit_destination=True
+    )
     assert result.query_job.location == tokyo_location
 
     assert len(expected) == result.total_rows
