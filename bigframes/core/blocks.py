@@ -37,7 +37,6 @@ from typing import (
     Literal,
     Mapping,
     Optional,
-    overload,
     Sequence,
     Tuple,
     TYPE_CHECKING,
@@ -52,7 +51,7 @@ import pandas as pd
 import pyarrow as pa
 
 from bigframes import session
-import bigframes._config.sampling_options as sampling_options
+from bigframes._config import sampling_options
 import bigframes.constants
 import bigframes.core as core
 import bigframes.core.compile.googlesql as googlesql
@@ -504,32 +503,6 @@ class Block:
         pa_table = pa_table.rename_columns(list(self.column_labels) + pa_index_labels)
         return pa_table, execute_result.query_job
 
-    @overload
-    def to_pandas(
-        self,
-        max_download_size: Optional[int] = ...,
-        sampling_method: Optional[str] = ...,
-        random_state: Optional[int] = ...,
-        *,
-        ordered: bool = ...,
-        dry_run: Literal[False] = ...,
-        allow_large_results: Optional[bool] = ...,
-    ) -> Tuple[pd.DataFrame, Optional[bigquery.QueryJob]]:
-        ...
-
-    @overload
-    def to_pandas(
-        self,
-        max_download_size: Optional[int] = ...,
-        sampling_method: Optional[str] = ...,
-        random_state: Optional[int] = ...,
-        *,
-        ordered: bool = ...,
-        dry_run: Literal[True] = ...,
-        allow_large_results: Optional[bool] = ...,
-    ) -> Tuple[pd.Series, Optional[bigquery.QueryJob]]:
-        ...
-
     def to_pandas(
         self,
         max_download_size: Optional[int] = None,
@@ -537,9 +510,8 @@ class Block:
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
-        dry_run: bool = False,
         allow_large_results: Optional[bool] = None,
-    ) -> Tuple[pd.DataFrame | pd.Series, Optional[bigquery.QueryJob]]:
+    ) -> Tuple[pd.DataFrame, Optional[bigquery.QueryJob]]:
         """Run query and download results as a pandas DataFrame.
 
         Args:
@@ -561,31 +533,13 @@ class Block:
             ordered (bool, default True):
                 Determines whether the resulting pandas dataframe will be ordered.
                 Whether the row ordering is deterministics depends on whether session ordering is strict.
-            dry_run (bool, default False):
-                Whether to perfrom a dry run. If true, the method will return a pandas Series containing
-                dry run statistics.
 
         Returns:
-            pandas.DataFrame | pandas.Series, QueryJob
+            pandas.DataFrame, QueryJob
         """
-        if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
-            raise NotImplementedError(
-                f"The downsampling method {sampling_method} is not implemented, "
-                f"please choose from {','.join(_SAMPLING_METHODS)}."
-            )
-
-        sampling = bigframes.options.sampling.with_max_download_size(max_download_size)
-        if sampling_method is not None:
-            sampling = sampling.with_method(sampling_method).with_random_state(  # type: ignore
-                random_state
-            )
-        else:
-            sampling = sampling.with_disabled()
-
-        if dry_run:
-            if sampling.enable_downsampling:
-                raise NotImplementedError("Dry run with sampling is not supproted")
-            return self._compute_dry_run(ordered=ordered)
+        sampling = self._get_sampling_option(
+            max_download_size, sampling_method, random_state
+        )
 
         df, query_job = self._materialize_local(
             materialize_options=MaterializationOptions(
@@ -596,6 +550,27 @@ class Block:
         )
         df.set_axis(self.column_labels, axis=1, copy=False)
         return df, query_job
+
+    def _get_sampling_option(
+        self,
+        max_download_size: Optional[int] = None,
+        sampling_method: Optional[str] = None,
+        random_state: Optional[int] = None,
+    ) -> sampling_options.SamplingOptions:
+
+        if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
+            raise NotImplementedError(
+                f"The downsampling method {sampling_method} is not implemented, "
+                f"please choose from {','.join(_SAMPLING_METHODS)}."
+            )
+
+        sampling = bigframes.options.sampling.with_max_download_size(max_download_size)
+        if sampling_method is None:
+            return sampling.with_disabled()
+
+        return sampling.with_method(sampling_method).with_random_state(  # type: ignore
+            random_state
+        )
 
     def try_peek(
         self, n: int = 20, force: bool = False, allow_large_results=None
@@ -836,8 +811,20 @@ class Block:
         return [sliced_block.drop_columns(drop_cols) for sliced_block in sliced_blocks]
 
     def _compute_dry_run(
-        self, value_keys: Optional[Iterable[str]] = None, ordered: bool = True
+        self,
+        value_keys: Optional[Iterable[str]] = None,
+        *,
+        ordered: bool = True,
+        max_download_size: Optional[int] = None,
+        sampling_method: Optional[str] = None,
+        random_state: Optional[int] = None,
     ) -> typing.Tuple[pd.Series, bigquery.QueryJob]:
+        sampling = self._get_sampling_option(
+            max_download_size, sampling_method, random_state
+        )
+        if sampling.enable_downsampling:
+            raise NotImplementedError("Dry run with sampling is not supported")
+
         index: List[Any] = []
         values: List[Any] = []
 
@@ -2779,51 +2766,29 @@ class BlockIndexProperties:
     def is_null(self) -> bool:
         return len(self._block._index_columns) == 0
 
-    @overload
-    def to_pandas(
-        self,
-        *,
-        ordered: Optional[bool] = ...,
-        dry_run: Literal[False] = ...,
-        allow_large_results: Optional[bool] = ...,
-    ) -> Tuple[pd.Index, Optional[bigquery.QueryJob]]:
-        ...
-
-    @overload
-    def to_pandas(
-        self,
-        *,
-        ordered: Optional[bool] = ...,
-        dry_run: Literal[True] = ...,
-        allow_large_results: Optional[bool] = ...,
-    ) -> Tuple[pd.Series, Optional[bigquery.QueryJob]]:
-        ...
-
     def to_pandas(
         self,
         *,
         ordered: Optional[bool] = None,
-        dry_run: bool = False,
         allow_large_results: Optional[bool] = None,
-    ) -> Tuple[pd.Index | pd.Series, Optional[bigquery.QueryJob]]:
+    ) -> Tuple[pd.Index, Optional[bigquery.QueryJob]]:
         """Executes deferred operations and downloads the results."""
         if len(self.column_ids) == 0:
             raise bigframes.exceptions.NullIndexError(
                 "Cannot materialize index, as this object does not have an index. Set index column(s) using set_index."
             )
         ordered = ordered if ordered is not None else True
-        if dry_run:
-            series, query_job = self._block.select_columns([]).to_pandas(
-                ordered=ordered,
-                allow_large_results=allow_large_results,
-                dry_run=dry_run,
-            )
-            return series, query_job
 
         df, query_job = self._block.select_columns([]).to_pandas(
-            ordered=ordered, allow_large_results=allow_large_results, dry_run=dry_run
+            ordered=ordered,
+            allow_large_results=allow_large_results,
         )
         return df.index, query_job
+
+    def _compute_dry_run(
+        self, *, ordered: bool = True
+    ) -> Tuple[pd.Series, Optional[bigquery.QueryJob]]:
+        return self._block.select_columns([])._compute_dry_run(ordered=ordered)
 
     def resolve_level(self, level: LevelsType) -> typing.Sequence[str]:
         if utils.is_list_like(level):

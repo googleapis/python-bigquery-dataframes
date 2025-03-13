@@ -94,9 +94,9 @@ def test_block_from_local(data):
     assert block.shape == expected.shape
 
 
-def test_block_to_pandas_dry_run__raises_error_when_sampling_is_enabled():
+def test_block_compute_dry_run__raises_error_when_sampling_is_enabled():
     mock_session = mock.create_autospec(spec=bigframes.Session)
     block = blocks.Block.from_local(pandas.DataFrame(), mock_session)
 
     with pytest.raises(NotImplementedError):
-        block.to_pandas(sampling_method="UNIFORM", dry_run=True)
+        block._compute_dry_run(sampling_method="UNIFORM")

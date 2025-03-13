@@ -526,17 +526,13 @@ class Index(vendored_pandas_index.Index):
                 returns a Series containing dry run statistics.
         """
         if dry_run:
-            series, query_job = self._block.index.to_pandas(
-                ordered=True, allow_large_results=allow_large_results, dry_run=dry_run
-            )
+            dry_run_stats, query_job = self._block.index._compute_dry_run(ordered=True)
             if query_job:
                 self._query_job = query_job
-            return series
+            return dry_run_stats
 
-        # Repeat the to_pandas() call to make mypy deduce type correctly, because mypy cannot resolve
-        # Literal[True/False] to bool
         df, query_job = self._block.index.to_pandas(
-            ordered=True, allow_large_results=allow_large_results, dry_run=dry_run
+            ordered=True, allow_large_results=allow_large_results
         )
         if query_job:
             self._query_job = query_job

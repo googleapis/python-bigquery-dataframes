@@ -1669,26 +1669,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
 
         if dry_run:
-            series, query_job = self._block.to_pandas(
+            dry_run_stats, dry_run_job = self._block._compute_dry_run(
                 max_download_size=max_download_size,
                 sampling_method=sampling_method,
                 random_state=random_state,
                 ordered=ordered,
-                dry_run=dry_run,
-                allow_large_results=allow_large_results,
             )
-            if query_job:
-                self._set_internal_query_job(query_job)
-            return series
+            self._set_internal_query_job(dry_run_job)
+            return dry_run_stats
 
-        # Repeat the to_pandas() call to make mypy deduce type correctly, because mypy cannot resolve
-        # Literal[True/False] to bool
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
             ordered=ordered,
-            dry_run=dry_run,
             allow_large_results=allow_large_results,
         )
         if query_job:
