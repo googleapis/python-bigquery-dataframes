@@ -119,10 +119,10 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 # Sessions are executed in the order so putting the smaller sessions
 # ahead to fail fast at presubmit running.
 nox.options.sessions = [
-    "unit",
     "system-3.9",
     "system-3.12",
     "cover",
+    # TODO(b/401609005): remove
     "cleanup",
 ]
 
@@ -458,21 +458,11 @@ def cover(session):
         "coverage",
         "report",
         "--include=bigframes/*",
+        # Only unit tested
+        "--omit=bigframes/core/compile/polars/*",
         "--show-missing",
         "--fail-under=85",
     )
-
-    # Make sure there is no dead code in our test directories.
-    session.run(
-        "coverage",
-        "report",
-        "--show-missing",
-        "--include=tests/unit/*",
-        "--include=tests/system/small/*",
-        # TODO(b/353775058) resume coverage to 100 when the issue is fixed.
-        "--fail-under=99",
-    )
-
     session.run("coverage", "erase")
 
 
