@@ -26,15 +26,6 @@ import bigframes.core.global_session
 import bigframes.pandas as bpd
 
 
-@pytest.fixture()
-def reset_default_session_and_location():
-    bpd.close_session()
-    with bpd.option_context("bigquery.location", None):
-        yield
-    bpd.close_session()
-    bpd.options.bigquery.location = None
-
-
 @pytest.mark.parametrize(
     ("read_method", "query_prefix"),
     [
