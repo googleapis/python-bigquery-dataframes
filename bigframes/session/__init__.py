@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import datetime
 import logging
 import os
 import secrets
@@ -54,6 +55,8 @@ from pandas._typing import (
 )
 import pyarrow as pa
 
+from bigframes import exceptions as bfe
+from bigframes import version
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
 import bigframes.core.blocks as blocks
@@ -65,8 +68,6 @@ import bigframes.core.pruning
 # to register new and replacement ops with the Ibis BigQuery backend.
 import bigframes.dataframe
 import bigframes.dtypes
-import bigframes.exceptions
-import bigframes.exceptions as bfe
 import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
 import bigframes.session._io.bigquery as bf_io_bigquery
@@ -77,7 +78,6 @@ import bigframes.session.metrics
 import bigframes.session.planner
 import bigframes.session.temp_storage
 import bigframes.session.validation
-import bigframes.version
 
 # Avoid circular imports.
 if typing.TYPE_CHECKING:
@@ -147,12 +147,16 @@ class Session(
         context: Optional[bigquery_options.BigQueryOptions] = None,
         clients_provider: Optional[bigframes.session.clients.ClientsProvider] = None,
     ):
+        _warn_if_bf_version_is_obsolete()
+
         if context is None:
             context = bigquery_options.BigQueryOptions()
 
         if context.location is None:
             self._location = "US"
-            msg = f"No explicit location is set, so using location {self._location} for the session."
+            msg = bfe.format_message(
+                f"No explicit location is set, so using location {self._location} for the session."
+            )
             # User's code
             # -> get_global_session()
             # -> connect()
@@ -234,10 +238,6 @@ class Session(
         # Whether this session treats objects as totally ordered.
         # Will expose as feature later, only False for internal testing
         self._strictly_ordered: bool = context.ordering_mode != "partial"
-        if not self._strictly_ordered:
-            msg = "Partial ordering mode is a preview feature and is subject to change."
-            warnings.warn(msg, bfe.OrderingModePartialPreviewWarning)
-
         self._allow_ambiguity = not self._strictly_ordered
         self._default_index_type = (
             bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
@@ -348,11 +348,25 @@ class Session(
     @property
     def bytes_processed_sum(self):
         """The sum of all bytes processed by bigquery jobs using this session."""
+        msg = bfe.format_message(
+            "Queries executed with `allow_large_results=False` within the session will not "
+            "have their bytes processed counted in this sum. If you need precise "
+            "bytes processed information, query the `INFORMATION_SCHEMA` tables "
+            "to get relevant metrics.",
+        )
+        warnings.warn(msg, UserWarning)
         return self._metrics.bytes_processed
 
     @property
     def slot_millis_sum(self):
         """The sum of all slot time used by bigquery jobs in this session."""
+        msg = bfe.format_message(
+            "Queries executed with `allow_large_results=False` within the session will not "
+            "have their slot milliseconds counted in this sum.  If you need precise slot "
+            "milliseconds information, query the `INFORMATION_SCHEMA` tables "
+            "to get relevant metrics.",
+        )
+        warnings.warn(msg, UserWarning)
         return self._metrics.slot_millis
 
     @property
@@ -602,7 +616,9 @@ class Session(
             bigframes.streaming.dataframe.StreamingDataFrame:
                A StreamingDataFrame representing results of the table.
         """
-        msg = "The bigframes.streaming module is a preview feature, and subject to change."
+        msg = bfe.format_message(
+            "The bigframes.streaming module is a preview feature, and subject to change."
+        )
         warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
 
         import bigframes.streaming.dataframe as streaming_dataframe
@@ -1203,9 +1219,9 @@ class Session(
         cloud_function_max_instances: Optional[int] = None,
         cloud_function_vpc_connector: Optional[str] = None,
         cloud_function_memory_mib: Optional[int] = 1024,
-        cloud_function_ingress_settings: Literal[
-            "all", "internal-only", "internal-and-gclb"
-        ] = "all",
+        cloud_function_ingress_settings: Optional[
+            Literal["all", "internal-only", "internal-and-gclb"]
+        ] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1214,6 +1230,14 @@ class Session(
             ``input_types=Series`` scenario is in preview. It currently only
             supports dataframe with column types ``Int64``/``Float64``/``boolean``/
             ``string``/``binary[pyarrow]``.
+
+        .. warning::
+            To use remote functions with Bigframes 2.0 and onwards, please (preferred)
+            set an explicit user-managed ``cloud_function_service_account`` or (discouraged)
+            set ``cloud_function_service_account`` to use the Compute Engine service account
+            by setting it to `"default"`.
+
+            See, https://cloud.google.com/functions/docs/securing/function-identity.
 
         .. note::
             Please make sure following is setup before using this API:
@@ -1369,8 +1393,9 @@ class Session(
                 https://cloud.google.com/functions/docs/configuring/memory.
             cloud_function_ingress_settings (str, Optional):
                 Ingress settings controls dictating what traffic can reach the
-                function. By default `all` will be used. It must be one of:
-                `all`, `internal-only`, `internal-and-gclb`. See for more details
+                function. Options are: `all`, `internal-only`, or `internal-and-gclb`.
+                If no setting is provided, `all` will be used by default and a warning
+                will be issued. See for more details
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
         Returns:
             collections.abc.Callable:
@@ -1400,6 +1425,83 @@ class Session(
             cloud_function_vpc_connector=cloud_function_vpc_connector,
             cloud_function_memory_mib=cloud_function_memory_mib,
             cloud_function_ingress_settings=cloud_function_ingress_settings,
+        )
+
+    def udf(
+        self,
+        *,
+        input_types: Union[None, type, Sequence[type]] = None,
+        output_type: Optional[type] = None,
+        dataset: Optional[str] = None,
+        bigquery_connection: Optional[str] = None,
+        name: Optional[str] = None,
+        packages: Optional[Sequence[str]] = None,
+    ):
+        """Decorator to turn a Python udf into a BigQuery managed function.
+
+        .. note::
+            Please have following IAM roles enabled for you:
+
+            * BigQuery Data Editor (roles/bigquery.dataEditor)
+
+        Args:
+            input_types (type or sequence(type), Optional):
+                For scalar user defined function it should be the input type or
+                sequence of input types. The supported scalar input types are
+                `bool`, `bytes`, `float`, `int`, `str`.
+            output_type (type, Optional):
+                Data type of the output in the user defined function. If the
+                user defined function returns an array, then `list[type]` should
+                be specified. The supported output types are `bool`, `bytes`,
+                `float`, `int`, `str`, `list[bool]`, `list[float]`, `list[int]`
+                and `list[str]`.
+            dataset (str, Optional):
+                Dataset in which to create a BigQuery managed function. It
+                should be in `<project_id>.<dataset_name>` or `<dataset_name>`
+                format. If this parameter is not provided then session dataset
+                id is used.
+            bigquery_connection (str, Optional):
+                Name of the BigQuery connection. You should either have the
+                connection already created in the `location` you have chosen, or
+                you should have the Project IAM Admin role to enable the service
+                to create the connection for you if you need it. If this
+                parameter is not provided then the BigQuery connection from the
+                session is used.
+            name (str, Optional):
+                Explicit name of the persisted BigQuery managed function. Use it
+                with caution, because more than one users working in the same
+                project and dataset could overwrite each other's managed
+                functions if they use the same persistent name. When an explicit
+                name is provided, any session specific clean up (
+                ``bigframes.session.Session.close``/
+                ``bigframes.pandas.close_session``/
+                ``bigframes.pandas.reset_session``/
+                ``bigframes.pandas.clean_up_by_session_id``) does not clean up
+                the function, and leaves it for the user to manage the function
+                and the associated cloud function directly.
+            packages (str[], Optional):
+                Explicit name of the external package dependencies. Each
+                dependency is added to the `requirements.txt` as is, and can be
+                of the form supported in
+                https://pip.pypa.io/en/stable/reference/requirements-file-format/.
+        Returns:
+            collections.abc.Callable:
+                A managed function object pointing to the cloud assets created
+                in the background to support the remote execution. The cloud
+                ssets can be located through the following properties set in the
+                object:
+
+                `bigframes_bigquery_function` - The bigquery managed function
+                deployed for the user defined code.
+        """
+        return self._function_session.udf(
+            input_types,
+            output_type,
+            session=self,
+            dataset=dataset,
+            bigquery_connection=bigquery_connection,
+            name=name,
+            packages=packages,
         )
 
     def read_gbq_function(
@@ -1593,10 +1695,12 @@ class Session(
         # so we must reset any encryption set in the job config
         # https://cloud.google.com/bigquery/docs/customer-managed-encryption#encrypt-model
         job_config.destination_encryption_configuration = None
-
-        return bf_io_bigquery.start_query_with_client(
+        iterator, query_job = bf_io_bigquery.start_query_with_client(
             self.bqclient, sql, job_config=job_config, metrics=self._metrics
         )
+
+        assert query_job is not None
+        return iterator, query_job
 
     def _create_object_table(self, path: str, connection: str) -> str:
         """Create a random id Object Table from the input path and connection."""
@@ -1711,3 +1815,11 @@ class Session(
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
     return Session(context)
+
+
+def _warn_if_bf_version_is_obsolete():
+    today = datetime.datetime.today()
+    release_date = datetime.datetime.strptime(version.__release_date__, "%Y-%m-%d")
+    if today - release_date > datetime.timedelta(days=365):
+        msg = f"Your BigFrames version {version.__version__} is more than 1 year old. Please update to the lastest version."
+        warnings.warn(msg, bfe.ObsoleteVersionWarning)

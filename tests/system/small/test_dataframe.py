@@ -30,6 +30,7 @@ import bigframes
 import bigframes._config.display_options as display_options
 import bigframes.core.indexes as bf_indexes
 import bigframes.dataframe as dataframe
+import bigframes.dtypes as dtypes
 import bigframes.pandas as bpd
 import bigframes.series as series
 from tests.system.utils import (
@@ -662,7 +663,25 @@ def test_rename(scalars_dfs):
 
 def test_df_peek(scalars_dfs_maybe_ordered):
     scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+
+    session = scalars_df._block.session
+    slot_millis_sum = session.slot_millis_sum
     peek_result = scalars_df.peek(n=3, force=False)
+
+    assert session.slot_millis_sum - slot_millis_sum > 1000
+    pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
+    assert len(peek_result) == 3
+
+
+def test_df_peek_with_large_results_not_allowed(scalars_dfs_maybe_ordered):
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+
+    session = scalars_df._block.session
+    slot_millis_sum = session.slot_millis_sum
+    peek_result = scalars_df.peek(n=3, force=False, allow_large_results=False)
+
+    # The metrics won't be fully updated when we call query_and_wait.
+    assert session.slot_millis_sum - slot_millis_sum < 500
     pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
     assert len(peek_result) == 3
 
@@ -2214,7 +2233,7 @@ def test_combine_first(
         ),
     ],
 )
-def test_corr_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
+def test_df_corr_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
     scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
 
     bf_result = scalars_df[columns].corr(numeric_only=numeric_only).to_pandas()
@@ -2223,12 +2242,18 @@ def test_corr_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
     # BigFrames and Pandas differ in their data type handling:
     # - Column types: BigFrames uses Float64, Pandas uses float64.
     # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_index_equal(bf_result.columns, pd_result.columns)
+    # Only check row order in ordered mode.
     pd.testing.assert_frame_equal(
-        bf_result, pd_result, check_dtype=False, check_index_type=False
+        bf_result,
+        pd_result,
+        check_dtype=False,
+        check_index_type=False,
+        check_like=~scalars_df._block.session._strictly_ordered,
     )
 
 
-def test_corr_w_invalid_parameters(scalars_dfs):
+def test_df_corr_w_invalid_parameters(scalars_dfs):
     columns = ["int64_too", "int64_col", "float64_col"]
     scalars_df, _ = scalars_dfs
 
@@ -2261,8 +2286,14 @@ def test_cov_w_numeric_only(scalars_dfs_maybe_ordered, columns, numeric_only):
     # BigFrames and Pandas differ in their data type handling:
     # - Column types: BigFrames uses Float64, Pandas uses float64.
     # - Index types: BigFrames uses strign, Pandas uses object.
+    pd.testing.assert_index_equal(bf_result.columns, pd_result.columns)
+    # Only check row order in ordered mode.
     pd.testing.assert_frame_equal(
-        bf_result, pd_result, check_dtype=False, check_index_type=False
+        bf_result,
+        pd_result,
+        check_dtype=False,
+        check_index_type=False,
+        check_like=~scalars_df._block.session._strictly_ordered,
     )
 
 
@@ -2467,6 +2498,20 @@ def test_listlike_binop_axis_1_in_memory_data(scalars_dfs, input):
     if hasattr(input, "to_pandas"):
         input = input.to_pandas()
     pd_result = scalars_pandas_df[df_columns].add(input, axis=1)
+
+    assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
+
+
+@skip_legacy_pandas
+def test_df_reverse_binop_pandas(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_series = pd.Series([100, 200, 300])
+
+    df_columns = ["int64_col", "float64_col", "int64_too"]
+
+    bf_result = pd_series + scalars_df[df_columns].to_pandas()
+    pd_result = pd_series + scalars_pandas_df[df_columns]
 
     assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
 
@@ -3398,6 +3443,24 @@ def test_iloc_tuple(scalars_df_index, scalars_pandas_df_index, index):
     pd_result = scalars_pandas_df_index.iloc[index]
 
     assert bf_result == pd_result
+
+
+@pytest.mark.parametrize(
+    "index",
+    [(slice(None), [1, 2, 3]), (slice(1, 7, 2), [2, 5, 3])],
+)
+def test_iloc_tuple_multi_columns(scalars_df_index, scalars_pandas_df_index, index):
+    bf_result = scalars_df_index.iloc[index].to_pandas()
+    pd_result = scalars_pandas_df_index.iloc[index]
+
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_iloc_tuple_multi_columns_single_row(scalars_df_index, scalars_pandas_df_index):
+    index = (2, [2, 1, 3, -4])
+    bf_result = scalars_df_index.iloc[index]
+    pd_result = scalars_pandas_df_index.iloc[index]
+    pd.testing.assert_series_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -4356,6 +4419,20 @@ def test_iloc_list(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_iloc_list_partial_ordering(
+    scalars_df_partial_ordering, scalars_pandas_df_index
+):
+    index_list = [0, 0, 0, 5, 4, 7]
+
+    bf_result = scalars_df_partial_ordering.iloc[index_list]
+    pd_result = scalars_pandas_df_index.iloc[index_list]
+
+    pd.testing.assert_frame_equal(
+        bf_result.to_pandas(),
+        pd_result,
+    )
+
+
 def test_iloc_list_multiindex(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     scalars_df = scalars_df.copy()
@@ -4490,11 +4567,38 @@ def test_loc_bf_index_integer_index_renamed_col(
 )
 def test_df_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, subset):
     columns = ["bool_col", "int64_too", "int64_col"]
-    bf_series = scalars_df_index[columns].drop_duplicates(subset, keep=keep).to_pandas()
-    pd_series = scalars_pandas_df_index[columns].drop_duplicates(subset, keep=keep)
+    bf_df = scalars_df_index[columns].drop_duplicates(subset, keep=keep).to_pandas()
+    pd_df = scalars_pandas_df_index[columns].drop_duplicates(subset, keep=keep)
     pd.testing.assert_frame_equal(
-        pd_series,
-        bf_series,
+        pd_df,
+        bf_df,
+    )
+
+
+@pytest.mark.parametrize(
+    ("keep",),
+    [
+        ("first",),
+        ("last",),
+        (False,),
+    ],
+)
+def test_df_drop_duplicates_w_json(json_df, keep):
+    bf_df = json_df.drop_duplicates(keep=keep).to_pandas()
+
+    # drop_duplicates relies on pa.compute.dictionary_encode, which is incompatible
+    # with Arrow string extension types. Temporary conversion to standard Pandas
+    # strings is required.
+    json_pandas_df = json_df.to_pandas()
+    json_pandas_df["json_col"] = json_pandas_df["json_col"].astype(
+        pd.StringDtype(storage="pyarrow")
+    )
+
+    pd_df = json_pandas_df.drop_duplicates(keep=keep)
+    pd_df["json_col"] = pd_df["json_col"].astype(dtypes.JSON_DTYPE)
+    pd.testing.assert_frame_equal(
+        pd_df,
+        bf_df,
     )
 
 

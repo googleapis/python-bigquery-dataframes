@@ -59,6 +59,12 @@ LINT_PATHS = [
 
 DEFAULT_PYTHON_VERSION = "3.10"
 
+# Cloud Run Functions supports Python versions up to 3.12
+# https://cloud.google.com/run/docs/runtimes/python
+# Managed Python UDF is supported only in Python 3.11
+# Let's set the E2E tests version to 3.11 to cover most code paths.
+E2E_TEST_PYTHON_VERSION = "3.11"
+
 UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
@@ -72,7 +78,9 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = []
-UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {"3.12": ["polars"]}
+UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
+    "3.12": ["polars", "scikit-learn"],
+}
 
 # 3.10 is needed for Windows tests as it is the only version installed in the
 # bigframes-windows container image. For more information, search
@@ -96,8 +104,13 @@ SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
 ]
 SYSTEM_TEST_LOCAL_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_DEPENDENCIES: List[str] = []
-SYSTEM_TEST_EXTRAS: List[str] = ["tests"]
-SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
+SYSTEM_TEST_EXTRAS: List[str] = []
+SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
+    "3.9": ["tests"],
+    "3.10": ["tests"],
+    "3.12": ["tests", "scikit-learn"],
+    "3.13": ["tests"],
+}
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 
@@ -105,16 +118,8 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 
 # Sessions are executed in the order so putting the smaller sessions
 # ahead to fail fast at presubmit running.
-# 'docfx' is excluded since it only needs to run in 'docs-presubmit'
 nox.options.sessions = [
-    "lint",
-    "lint_setup_py",
-    "mypy",
-    "format",
-    "docs",
-    "docfx",
     "unit",
-    "unit_noextras",
     "system-3.9",
     "system-3.12",
     "cover",
@@ -132,7 +137,12 @@ def lint(session):
     Returns a failure if the linters find linting errors or sufficiently
     serious code quality issues.
     """
-    session.install("flake8", BLACK_VERSION)
+    session.install("flake8", BLACK_VERSION, ISORT_VERSION)
+    session.run(
+        "isort",
+        "--check",
+        *LINT_PATHS,
+    )
     session.run(
         "black",
         "--check",
@@ -249,7 +259,8 @@ def mypy(session):
         set(
             [
                 "mypy",
-                "pandas-stubs",
+                # TODO: update to latest pandas-stubs once we resolve bigframes issues.
+                "pandas-stubs<=2.2.3.241126",
                 "types-protobuf",
                 "types-python-dateutil",
                 "types-requests",
@@ -410,7 +421,7 @@ def doctest(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+@nox.session(python=E2E_TEST_PYTHON_VERSION)
 def e2e(session: nox.sessions.Session):
     """Run the large tests in system test suite."""
     run_system(
@@ -468,8 +479,7 @@ def cover(session):
 @nox.session(python=DEFAULT_PYTHON_VERSION)
 def docs(session):
     """Build the docs for this library."""
-
-    session.install("-e", ".")
+    session.install("-e", ".[scikit-learn]")
     session.install(
         # We need to pin to specific versions of the `sphinxcontrib-*` packages
         # which still support sphinx 4.x.
@@ -510,7 +520,7 @@ def docs(session):
 def docfx(session):
     """Build the docfx yaml files for this library."""
 
-    session.install("-e", ".")
+    session.install("-e", ".[scikit-learn]")
     session.install(
         # We need to pin to specific versions of the `sphinxcontrib-*` packages
         # which still support sphinx 4.x.
@@ -651,6 +661,8 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
         )
         if match.group(1) not in already_installed
     ]
+
+    print(already_installed)
 
     # We use --no-deps to ensure that pre-release versions aren't overwritten
     # by the version ranges in setup.py.
@@ -982,7 +994,7 @@ def cleanup(session):
     # project within the "Number of functions" quota
     # https://cloud.google.com/functions/quotas#resource_limits
     recency_cutoff_hours = 12
-    cleanup_count_per_location = 20
+    cleanup_count_per_location = 40
     cleanup_options.extend(
         [
             f"--recency-cutoff={recency_cutoff_hours}",

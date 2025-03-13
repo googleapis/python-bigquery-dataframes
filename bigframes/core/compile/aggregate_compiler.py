@@ -26,6 +26,7 @@ import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import bigframes_vendored.ibis.expr.types as ibis_types
 import pandas as pd
 
+from bigframes.core.compile import constants as compiler_constants
 import bigframes.core.compile.ibis_types as compile_ibis_types
 import bigframes.core.compile.scalar_op_compiler as scalar_compilers
 import bigframes.core.expression as ex
@@ -164,9 +165,7 @@ def _(
 ) -> ibis_types.NumericValue:
     # Will be null if all inputs are null. Pandas defaults to zero sum though.
     bq_sum = _apply_window_if_present(column.sum(), window)
-    return (
-        ibis_api.case().when(bq_sum.isnull(), ibis_types.literal(0)).else_(bq_sum).end()  # type: ignore
-    )
+    return bq_sum.fill_null(ibis_types.literal(0))
 
 
 @compile_unary_agg.register
@@ -233,7 +232,11 @@ def _(
     column: ibis_types.NumericColumn,
     window=None,
 ) -> ibis_types.NumericValue:
-    return _apply_window_if_present(column.quantile(op.q), window)
+    result = column.quantile(op.q)
+    if op.should_floor_result:
+        result = result.floor()  # type:ignore
+
+    return _apply_window_if_present(result, window)
 
 
 @compile_unary_agg.register
@@ -244,7 +247,8 @@ def _(
     window=None,
     # order_by: typing.Sequence[ibis_types.Value] = [],
 ) -> ibis_types.NumericValue:
-    return _apply_window_if_present(column.mean(), window)
+    result = column.mean().floor() if op.should_floor_result else column.mean()
+    return _apply_window_if_present(result, window)
 
 
 @compile_unary_agg.register
@@ -308,10 +312,11 @@ def _(
 @numeric_op
 def _(
     op: agg_ops.StdOp,
-    x: ibis_types.Column,
+    x: ibis_types.NumericColumn,
     window=None,
 ) -> ibis_types.Value:
-    return _apply_window_if_present(cast(ibis_types.NumericColumn, x).std(), window)
+    result = x.std().floor() if op.should_floor_result else x.std()
+    return _apply_window_if_present(result, window)
 
 
 @compile_unary_agg.register
@@ -555,6 +560,48 @@ def _(
 
 @compile_unary_agg.register
 def _(
+    op: agg_ops.TimeSeriesDiffOp,
+    column: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
+    if not column.type().is_timestamp():
+        raise TypeError(f"Cannot perform time series diff on type{column.type()}")
+
+    original_column = cast(ibis_types.TimestampColumn, column)
+    shifted_column = cast(
+        ibis_types.TimestampColumn,
+        compile_unary_agg(agg_ops.ShiftOp(op.periods), column, window),
+    )
+
+    return original_column.delta(shifted_column, part="microsecond")
+
+
+@compile_unary_agg.register
+def _(
+    op: agg_ops.DateSeriesDiffOp,
+    column: ibis_types.Column,
+    window=None,
+) -> ibis_types.Value:
+    if not column.type().is_date():
+        raise TypeError(f"Cannot perform date series diff on type{column.type()}")
+
+    original_column = cast(ibis_types.DateColumn, column)
+    shifted_column = cast(
+        ibis_types.DateColumn,
+        compile_unary_agg(agg_ops.ShiftOp(op.periods), column, window),
+    )
+
+    conversion_factor = typing.cast(
+        ibis_types.IntegerValue, compiler_constants.UNIT_TO_US_CONVERSION_FACTORS["D"]
+    )
+
+    return (
+        original_column.delta(shifted_column, part="day") * conversion_factor
+    ).floor()
+
+
+@compile_unary_agg.register
+def _(
     op: agg_ops.AllOp,
     column: ibis_types.Column,
     window=None,
@@ -563,12 +610,7 @@ def _(
     result = _apply_window_if_present(_is_true(column).all(), window)
     literal = ibis_types.literal(True)
 
-    return cast(
-        ibis_types.BooleanScalar,
-        result.fill_null(literal)
-        if hasattr(result, "fill_null")
-        else result.fillna(literal),
-    )
+    return cast(ibis_types.BooleanScalar, result.fill_null(literal))
 
 
 @compile_unary_agg.register
@@ -581,12 +623,7 @@ def _(
     result = _apply_window_if_present(_is_true(column).any(), window)
     literal = ibis_types.literal(False)
 
-    return cast(
-        ibis_types.BooleanScalar,
-        result.fill_null(literal)
-        if hasattr(result, "fill_null")
-        else result.fillna(literal),
-    )
+    return cast(ibis_types.BooleanScalar, result.fill_null(literal))
 
 
 @compile_ordered_unary_agg.register
