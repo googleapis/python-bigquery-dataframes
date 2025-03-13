@@ -1468,3 +1468,12 @@ def images_mm_df(
     return session.from_glob_path(
         images_gcs_path, name="blob_col", connection=bq_connection
     )
+
+
+@pytest.fixture()
+def reset_default_session_and_location():
+    bpd.close_session()
+    with bpd.option_context("bigquery.location", None):
+        yield
+    bpd.close_session()
+    bpd.options.bigquery.location = None

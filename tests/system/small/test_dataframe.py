@@ -163,9 +163,8 @@ def test_df_construct_from_dict():
     )
 
 
-def test_df_construct_inline_respects_location():
+def test_df_construct_inline_respects_location(reset_default_session_and_location):
     # Note: This starts a thread-local session.
-    bpd.close_session()
     with bpd.option_context("bigquery.location", "europe-west1"):
         df = bpd.DataFrame([[1, 2, 3], [4, 5, 6]])
         df.to_gbq()
