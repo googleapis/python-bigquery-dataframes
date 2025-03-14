@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Sequence, Tuple, Union
+from typing import Iterable, Sequence, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
@@ -142,6 +142,31 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 n=n,
             )
         )
+
+    def __iter__(self) -> Iterable[Tuple[blocks.Label, pd.DataFrame]]:
+        # Cache original block, clustered by column ids.
+        # To force block.cached() to cluster by our by_col_ids,
+        # we set those columns as the index. This also makes filtering
+        # by our groupby key a bit easier with respect to fewer
+        # cases to worry about (e.g. MultiIndex).
+        original_index_labels = self._block._index_labels
+        by_col_labels = self._block._get_labels_for_columns(self._by_col_ids).to_list()
+        block = self._block.set_index(
+            self._by_col_ids,
+            drop=False,
+            index_labels=by_col_labels,
+        )
+        block.cached(force=True)
+
+        keys_block, _ = block.aggregate(
+            by_column_ids=self._by_col_ids,
+            dropna=self._dropna,
+        )
+        for batch in keys_block.to_pandas_batches():
+            for key in batch.index:
+                yield key, df.DataFrame(block).loc[key].set_index(
+                    original_index_labels, drop=False
+                )
 
     def size(self) -> typing.Union[df.DataFrame, series.Series]:
         agg_block, _ = self._block.aggregate_size(
