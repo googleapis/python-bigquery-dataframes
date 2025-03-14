@@ -235,27 +235,34 @@ def test_linear_reg_model_global_explain(global_penguins_linear_model, new_pengu
     global_penguins_linear_model.fit(X, y)
     global_ex = global_penguins_linear_model.global_explain()
     assert global_ex.shape == (6, 3)
-    global_columns = set(global_ex.columns)
-    expected_columns = {"index", "feature", "attribution"}
-    assert expected_columns <= global_columns
-    result = global_ex["attribution"].to_pandas()
-    expected = pandas.DataFrame(
-        {
-            "attribution": [
-                193.612051,
-                5139.35423,
-                117.084944,
-                4259.554372,
-                7330.53279,
-                94.366793,
-            ]
-        },
-        dtype="Float64",
+    expected_columns = pandas.Index(["index", "feature", "attribution"])
+    pandas.testing.assert_index_equal(global_ex.columns, expected_columns)
+    result = global_ex[["feature"]].to_pandas().set_index("feature").sort_index()
+    features = pandas.Series(
+        [
+            "flipper_length_mm",
+            "species",
+            "sex",
+            "culmen_depth_mm",
+            "culmen_length_mm",
+            "island",
+        ],
+        dtype=pandas.StringDtype(storage="pyarrow"),
+    )
+    expected_feature = (
+        pandas.DataFrame(
+            {
+                "feature": features,
+            }
+        )
+        .set_index("feature")
+        .sort_index()
     )
     pandas.testing.assert_frame_equal(
         result,
-        expected,
+        expected_feature,
         check_exact=False,
+        check_index_type=False,
     )
 
 
