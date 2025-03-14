@@ -29,14 +29,14 @@ import bigframes.pandas as bpd
 @pytest.fixture(scope="function")
 def images_output_folder() -> Generator[str, None, None]:
     id = uuid.uuid4().hex
-    folder = os.path.join("gs://bigframes_blob_test/", id)
+    folder = os.path.join("gs://bigframes_blob_test/output/", id)
     yield folder
 
     # clean up
     try:
         cloud_storage_client = storage.Client()
         bucket = cloud_storage_client.bucket("bigframes_blob_test")
-        blobs = bucket.list_blobs(prefix=id)
+        blobs = bucket.list_blobs(prefix="output/" + id)
         for blob in blobs:
             blob.delete()
     except Exception as exc:
