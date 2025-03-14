@@ -194,3 +194,27 @@ def test_geo_boundary():
         check_series_type=False,
         check_index=False,
     )
+
+
+def test_geo_difference_not_supported():
+    s1 = bigframes.geopandas.GeoSeries(
+        [
+            Polygon([(0.000, 0.0), (0.001, 0.001), (0.000, 0.001)]),
+            Polygon([(0.0010, 0.004), (0.009, 0.005), (0.0010, 0.005)]),
+            Polygon([(0.001, 0.001), (0.002, 0.001), (0.002, 0.002)]),
+            LineString([(0, 0), (1, 1), (0, 1)]),
+            Point(0, 1),
+        ]
+    )
+
+    s2 = bigframes.geopandas.GeoSeries([Polygon([(0, 0), (10, 0), (10, 10), (0, 0)])])
+
+    bf_series1: bigframes.geopandas.GeoSeries = s1.geo
+    bf_series2: bigframes.geopandas.GeoSeries = s2.geo
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            f"GeoSeries.difference() is not supported. Use bigframes.bigquery.st_difference(series), instead. {constants.FEEDBACK_LINK}"
+        ),
+    ):
+        bf_series1.difference(bf_series2)
