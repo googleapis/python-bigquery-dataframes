@@ -4,6 +4,18 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.41.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.40.0...v1.41.0) (2025-03-14)
+
+
+### Features
+
+* Warn when the BigFrames version is more than a year old ([#1455](https://github.com/googleapis/python-bigquery-dataframes/issues/1455)) ([00e0750](https://github.com/googleapis/python-bigquery-dataframes/commit/00e07508cfb0d8798e079b86a14834b3b593aa54))
+
+
+### Performance Improvements
+
+* Eliminate count queries in llm retry ([#1489](https://github.com/googleapis/python-bigquery-dataframes/issues/1489)) ([1c934c2](https://github.com/googleapis/python-bigquery-dataframes/commit/1c934c2fe2374c9abaaa79696f5e5f349248f3b7))
+
 ## [1.40.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.39.0...v1.40.0) (2025-03-11)
 
 
