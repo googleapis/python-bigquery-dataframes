@@ -203,6 +203,31 @@ class LinearRegression(
             X, options={"top_k_features": top_k_features}
         )
 
+    def global_explain(
+        self,
+    ) -> bpd.DataFrame:
+        """
+        Provide explanations for an entire linear regression model.
+
+        .. note::
+            Output matches that of the BigQuery ML.GLOBAL_PREDICT function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-global-explain
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or
+            pandas.core.frame.DataFrame or pandas.core.series.Series):
+                Series or a DataFrame to explain its predictions.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                The predicted DataFrames with feature and attribution columns.
+        """
+
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before predict")
+
+        return self._bqml_model.global_explain({})
+
     def score(
         self,
         X: utils.ArrayType,

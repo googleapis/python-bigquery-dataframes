@@ -134,6 +134,14 @@ class BqmlModel(BaseBqml):
             ),
         )
 
+    def global_explain(self, options: Mapping[str, bool]) -> bpd.DataFrame:
+        sql = self._model_manipulation_sql_generator.ml_global_explain(
+            struct_options=options
+        )
+        return self._session.read_gbq(
+            sql,
+        ).reset_index()
+
     def transform(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         return self._apply_ml_tvf(
             input_data,

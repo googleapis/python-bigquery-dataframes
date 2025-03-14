@@ -228,6 +228,44 @@ def test_to_gbq_saved_linear_reg_model_scores(
     )
 
 
+def test_linear_reg_model_global_explain(global_penguins_linear_model, new_penguins_df):
+    training_data = new_penguins_df.dropna(subset=["body_mass_g"])
+    X = training_data.drop(columns=["body_mass_g"])
+    y = training_data[["body_mass_g"]]
+    global_penguins_linear_model.fit(X, y)
+    global_ex = global_penguins_linear_model.global_explain()
+    assert global_ex.shape == (6, 3)
+    expected_columns = pandas.Index(["index", "feature", "attribution"])
+    pandas.testing.assert_index_equal(global_ex.columns, expected_columns)
+    result = global_ex[["feature"]].to_pandas().set_index("feature").sort_index()
+    features = pandas.Series(
+        [
+            "flipper_length_mm",
+            "species",
+            "sex",
+            "culmen_depth_mm",
+            "culmen_length_mm",
+            "island",
+        ],
+        dtype=pandas.StringDtype(storage="pyarrow"),
+    )
+    expected_feature = (
+        pandas.DataFrame(
+            {
+                "feature": features,
+            }
+        )
+        .set_index("feature")
+        .sort_index()
+    )
+    pandas.testing.assert_frame_equal(
+        result,
+        expected_feature,
+        check_exact=False,
+        check_index_type=False,
+    )
+
+
 def test_to_gbq_replace(penguins_linear_model, table_id_unique):
     penguins_linear_model.to_gbq(table_id_unique, replace=True)
     with pytest.raises(google.api_core.exceptions.Conflict):
