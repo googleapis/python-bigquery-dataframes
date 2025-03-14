@@ -25,13 +25,15 @@ import bigframes.pandas as bpd
 import bigframes.series
 from tests.system.utils import assert_pandas_df_equal, get_function_name
 
-bpd.options.experiments.udf = True
-
-
-@pytest.mark.skipif(
+pytestmark = pytest.mark.skipif(
     get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
     reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
 )
+
+
+bpd.options.experiments.udf = True
+
+
 @pytest.mark.parametrize(
     ("typ",),
     [
@@ -97,10 +99,6 @@ def test_managed_function_series_apply(
     assert_pandas_df_equal(bf_result_gbq, pd_result, check_dtype=False)
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_managed_function_series_combine(dataset_id_permanent, scalars_dfs):
     # This function is deliberately written to not work with NA input.
     def add(x: int, y: int) -> int:
@@ -145,10 +143,6 @@ def test_managed_function_series_combine(dataset_id_permanent, scalars_dfs):
     pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 @pytest.mark.parametrize(
     ("typ",),
     [
@@ -188,13 +182,7 @@ def test_managed_function_series_apply_list_output(
     assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
-def test_managed_function_series_combine_list_output(
-    session, dataset_id_permanent, scalars_dfs
-):
+def test_managed_function_series_combine_list_output(dataset_id_permanent, scalars_dfs):
     def add_list(x: int, y: int) -> list[int]:
         return [x, y]
 
@@ -254,10 +242,6 @@ def test_managed_function_series_combine_list_output(
     pd.testing.assert_series_equal(bf_result_gbq, pd_result, check_dtype=False)
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_managed_function_dataframe_map(scalars_dfs, dataset_id_permanent):
     def add_one(x):
         return x + 1
@@ -289,10 +273,6 @@ def test_managed_function_dataframe_map(scalars_dfs, dataset_id_permanent):
     assert_pandas_df_equal(bf_result, pd_result)
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_managed_function_dataframe_apply_axis_1(
     session, scalars_dfs, dataset_id_permanent
 ):
@@ -329,13 +309,7 @@ def test_managed_function_dataframe_apply_axis_1(
     )
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
-def test_managed_function_dataframe_map_list_output(
-    session, scalars_dfs, dataset_id_permanent
-):
+def test_managed_function_dataframe_map_list_output(scalars_dfs, dataset_id_permanent):
     def add_one_list(x):
         return [x + 1] * 3
 
@@ -370,10 +344,6 @@ def test_managed_function_dataframe_map_list_output(
     assert_pandas_df_equal(bf_result_gbq, pd_result, check_dtype=False)
 
 
-@pytest.mark.skipif(
-    get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
-    reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
-)
 def test_managed_function_dataframe_apply_axis_1_list_output(
     session, scalars_dfs, dataset_id_permanent
 ):
