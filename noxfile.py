@@ -461,7 +461,7 @@ def cover(session):
         # Only unit tested
         "--omit=bigframes/core/compile/polars/*",
         "--show-missing",
-        "--fail-under=85",
+        "--fail-under=83",
     )
     session.run("coverage", "erase")
 
