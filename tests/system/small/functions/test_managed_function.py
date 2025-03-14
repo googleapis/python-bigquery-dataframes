@@ -24,7 +24,7 @@ import bigframes.pandas as bpd
 import bigframes.series
 from tests.system.utils import assert_pandas_df_equal, get_function_name
 
-pytest.mark.skipif(
+pytestmarkskip = pytest.mark.skipif(
     get_python_version() not in bff_session._MANAGED_FUNC_PYTHON_VERSIONS,
     reason=f"Supported version: {bff_session._MANAGED_FUNC_PYTHON_VERSIONS}",
 )
