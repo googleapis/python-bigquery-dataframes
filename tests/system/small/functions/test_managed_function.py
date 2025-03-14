@@ -182,7 +182,9 @@ def test_managed_function_series_apply_list_output(
     assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
 
 
-def test_managed_function_series_combine_list_output(dataset_id_permanent, scalars_dfs):
+def test_managed_function_series_combine_list_output(
+    session, dataset_id_permanent, scalars_dfs
+):
     def add_list(x: int, y: int) -> list[int]:
         return [x, y]
 
@@ -309,7 +311,9 @@ def test_managed_function_dataframe_apply_axis_1(
     )
 
 
-def test_managed_function_dataframe_map_list_output(scalars_dfs, dataset_id_permanent):
+def test_managed_function_dataframe_map_list_output(
+    session, scalars_dfs, dataset_id_permanent
+):
     def add_one_list(x):
         return [x + 1] * 3
 
