@@ -505,10 +505,8 @@ def _iloc_getitem_series_or_dataframe(
                 max_agg_id,
             ),
         ]
-        plus_one_expr = ops.add_op.as_expr(ex.deref(max_agg_id), ex.const(1))
-        max_agg_expr, _ = block.expr.aggregate(max_agg_specs).project_to_id(
-            plus_one_expr
-        )
+        plus_one_op = ops.add_op.as_expr(ex.deref(max_agg_id), ex.const(1))
+        max_agg_expr, _ = block.expr.aggregate(max_agg_specs).project_to_id(plus_one_op)
 
         max_index_block = bigframes.core.blocks.Block(
             max_agg_expr.drop_columns(max_agg_id),
