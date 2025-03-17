@@ -18,6 +18,7 @@ import os
 from typing import cast, Optional, Union
 
 import IPython.display as ipy_display
+import pandas as pd
 import requests
 
 from bigframes import clients
@@ -200,7 +201,7 @@ class BlobAccessor(base.SeriesMethods):
             content_type (str, default ""): content type of the blob. If unset, use the blob metadata of the storage. Possible values are "image", "audio" and "video".
         """
         # col name doesn't matter here. Rename to avoid column name conflicts
-        df = bigframes.series.Series(self._block).rename("blob_col").head(n).to_frame()
+        df = bigframes.series.Series(self._block).rename("blob_col").to_frame()
 
         df["read_url"] = df["blob_col"].blob.read_url()
 
@@ -209,8 +210,18 @@ class BlobAccessor(base.SeriesMethods):
         else:
             df["content_type"] = df["blob_col"].blob.content_type()
 
-        def display_single_url(read_url: str, content_type: str):
-            content_type = content_type.casefold()
+        pandas_df, _, query_job = df._block.retrieve_repr_request_results(n)
+        df._set_internal_query_job(query_job)
+
+        def display_single_url(
+            read_url: str, content_type: Union[str, pd._libs.missing.NAType]
+        ):
+            if content_type is pd.NA:  # display as raw data or error
+                response = requests.get(read_url)
+                ipy_display.display(response.content)
+                return
+
+            content_type = cast(str, content_type).casefold()
 
             if content_type.startswith("image"):
                 ipy_display.display(ipy_display.Image(url=read_url))
@@ -224,7 +235,7 @@ class BlobAccessor(base.SeriesMethods):
                 response = requests.get(read_url)
                 ipy_display.display(response.content)
 
-        for _, row in df.iterrows():
+        for _, row in pandas_df.iterrows():
             display_single_url(row["read_url"], row["content_type"])
 
     def _resolve_connection(self, connection: Optional[str] = None) -> str:
