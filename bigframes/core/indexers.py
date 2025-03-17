@@ -497,7 +497,36 @@ def _iloc_getitem_series_or_dataframe(
         block = df._block
         # explicitly set index to offsets, reset_index may not generate offsets in some modes
         block, offsets_id = block.promote_offsets("temp_iloc_offsets_")
-        block = block.set_index([offsets_id])
+        pos_block = block.set_index([offsets_id])
+        max_agg_id = guid.generate_guid()
+        max_agg_specs = [
+            (
+                ex.UnaryAggregation(ops.aggregations.max_op, ex.deref(offsets_id)),
+                max_agg_id,
+            ),
+        ]
+        plus_one_expr = ops.add_op.as_expr(ex.deref(max_agg_id), ex.const(1))
+        max_agg_expr, _ = block.expr.aggregate(max_agg_specs).project_to_id(
+            plus_one_expr
+        )
+
+        max_index_block = bigframes.core.blocks.Block(
+            max_agg_expr.drop_columns(max_agg_id),
+            column_labels=["row_count"],
+            index_columns=[],
+        )
+        block = block.reset_index(drop=False).merge(
+            max_index_block, how="cross", left_join_ids=[], right_join_ids=[], sort=True
+        )
+
+        block, _ = block.apply_binary_op(
+            block.value_columns[-2], block.value_columns[-1], ops.sub_op
+        )
+
+        block = block.set_index([block.value_columns[-1]])
+
+        block = pos_block.concat([block], how="inner")
+
         df = bigframes.dataframe.DataFrame(block)
 
         result = df.loc[key]
