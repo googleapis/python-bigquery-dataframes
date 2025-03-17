@@ -4423,7 +4423,7 @@ def test_iloc_list(scalars_df_index, scalars_pandas_df_index):
 def test_iloc_list_partial_ordering(
     scalars_df_partial_ordering, scalars_pandas_df_index
 ):
-    index_list = [0, 0, 0, 5, 4, 7]
+    index_list = [0, 0, 0, 5, 4, 7, -2, -5, 3]
 
     bf_result = scalars_df_partial_ordering.iloc[index_list]
     pd_result = scalars_pandas_df_index.iloc[index_list]
