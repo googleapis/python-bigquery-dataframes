@@ -249,12 +249,10 @@ def test_linear_reg_model_global_explain(global_penguins_linear_model, new_pengu
         ],
         dtype=pandas.StringDtype(storage="pyarrow"),
     )
-    expected_feature = (
-        pandas.DataFrame(
-            {
-                "feature": features,
-            }
-        )
+    expected_feature = pandas.DataFrame(
+        {
+            "feature": features,
+        }
     )
     pandas.testing.assert_frame_equal(
         result,
