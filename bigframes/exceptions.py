@@ -95,7 +95,6 @@ class ObsoleteVersionWarning(Warning):
     """The BigFrames version is too old."""
 
 
-
 def format_message(message: str, fill: bool = True):
     """Formats a warning message with ANSI color codes for the warning color.
 
