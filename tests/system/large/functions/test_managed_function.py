@@ -164,60 +164,45 @@ def test_managed_function_binop(session, scalars_dfs, dataset_id):
     ],
 )
 def test_managed_function_array_output(session, scalars_dfs, dataset_id, array_dtype):
-    try:
+    @session.udf(dataset=dataset_id)
+    def featurize(x: int) -> list[array_dtype]:  # type: ignore
+        return [array_dtype(i) for i in [x, x + 1, x + 2]]
 
-        @session.udf(dataset=dataset_id)
-        def featurize(x: int) -> list[array_dtype]:  # type: ignore
-            return [array_dtype(i) for i in [x, x + 1, x + 2]]
+    scalars_df, scalars_pandas_df = scalars_dfs
 
-        scalars_df, scalars_pandas_df = scalars_dfs
+    bf_int64_col = scalars_df["int64_too"]
+    bf_result = bf_int64_col.apply(featurize).to_pandas()
 
-        bf_int64_col = scalars_df["int64_too"]
-        bf_result = bf_int64_col.apply(featurize).to_pandas()
+    pd_int64_col = scalars_pandas_df["int64_too"]
+    pd_result = pd_int64_col.apply(featurize)
 
-        pd_int64_col = scalars_pandas_df["int64_too"]
-        pd_result = pd_int64_col.apply(featurize)
-
-        # Ignore any dtype disparity.
-        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
-
-    finally:
-        # Clean up the gcp assets created for the managed function.
-        cleanup_function_assets(
-            featurize, session.bqclient, session.cloudfunctionsclient
-        )
+    # Ignore any dtype disparity.
+    pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
 
 
 def test_managed_function_binop_array_output(session, scalars_dfs, dataset_id):
-    try:
+    def func(x, y):
+        return [len(x), abs(y % 4)]
 
-        def func(x, y):
-            return [len(x), abs(y % 4)]
+    managed_func = session.udf(
+        input_types=[str, int],
+        output_type=list[int],
+        dataset=dataset_id,
+    )(func)
 
-        managed_func = session.udf(
-            input_types=[str, int],
-            output_type=list[int],
-            dataset=dataset_id,
-        )(func)
+    scalars_df, scalars_pandas_df = scalars_dfs
 
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        scalars_df = scalars_df.dropna()
-        scalars_pandas_df = scalars_pandas_df.dropna()
-        bf_result = (
-            scalars_df["string_col"]
-            .combine(scalars_df["int64_col"], managed_func)
-            .to_pandas()
-        )
-        pd_result = scalars_pandas_df["string_col"].combine(
-            scalars_pandas_df["int64_col"], func
-        )
-        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
-    finally:
-        # Clean up the gcp assets created for the managed function.
-        cleanup_function_assets(
-            managed_func, session.bqclient, session.cloudfunctionsclient
-        )
+    scalars_df = scalars_df.dropna()
+    scalars_pandas_df = scalars_pandas_df.dropna()
+    bf_result = (
+        scalars_df["string_col"]
+        .combine(scalars_df["int64_col"], managed_func)
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df["string_col"].combine(
+        scalars_pandas_df["int64_col"], func
+    )
+    pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
 
 
 def test_manage_function_df_apply_axis_1_array_output(session):
@@ -238,63 +223,57 @@ def test_manage_function_df_apply_axis_1_array_output(session):
     # Assert the dataframe dtypes.
     assert tuple(bf_df.dtypes) == expected_dtypes
 
-    try:
+    @session.udf(input_types=[int, float, str], output_type=list[str])
+    def foo(x, y, z):
+        return [str(x), str(y), z]
 
-        @session.udf(input_types=[int, float, str], output_type=list[str])
-        def foo(x, y, z):
-            return [str(x), str(y), z]
-
-        assert getattr(foo, "is_row_processor") is False
-        assert getattr(foo, "input_dtypes") == expected_dtypes
-        assert getattr(foo, "output_dtype") == pandas.ArrowDtype(
-            pyarrow.list_(
-                bigframes.dtypes.bigframes_dtype_to_arrow_dtype(
-                    bigframes.dtypes.STRING_DTYPE
-                )
+    assert getattr(foo, "is_row_processor") is False
+    assert getattr(foo, "input_dtypes") == expected_dtypes
+    assert getattr(foo, "output_dtype") == pandas.ArrowDtype(
+        pyarrow.list_(
+            bigframes.dtypes.bigframes_dtype_to_arrow_dtype(
+                bigframes.dtypes.STRING_DTYPE
             )
         )
-        assert getattr(foo, "output_dtype") == getattr(
-            foo, "bigframes_bigquery_function_output_dtype"
-        )
+    )
+    assert getattr(foo, "output_dtype") == getattr(
+        foo, "bigframes_bigquery_function_output_dtype"
+    )
 
-        # Fails to apply on dataframe with incompatible number of columns.
-        with pytest.raises(
-            ValueError,
-            match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 2 columns\\.$",
-        ):
-            bf_df[["Id", "Age"]].apply(foo, axis=1)
+    # Fails to apply on dataframe with incompatible number of columns.
+    with pytest.raises(
+        ValueError,
+        match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 2 columns\\.$",
+    ):
+        bf_df[["Id", "Age"]].apply(foo, axis=1)
 
-        with pytest.raises(
-            ValueError,
-            match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 4 columns\\.$",
-        ):
-            bf_df.assign(Country="lalaland").apply(foo, axis=1)
+    with pytest.raises(
+        ValueError,
+        match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 4 columns\\.$",
+    ):
+        bf_df.assign(Country="lalaland").apply(foo, axis=1)
 
-        # Fails to apply on dataframe with incompatible column datatypes.
-        with pytest.raises(
-            ValueError,
-            match="^BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
-        ):
-            bf_df.assign(Age=bf_df["Age"].astype("Int64")).apply(foo, axis=1)
+    # Fails to apply on dataframe with incompatible column datatypes.
+    with pytest.raises(
+        ValueError,
+        match="^BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
+    ):
+        bf_df.assign(Age=bf_df["Age"].astype("Int64")).apply(foo, axis=1)
 
-        # Successfully applies to dataframe with matching number of columns.
-        # and their datatypes.
-        bf_result = bf_df.apply(foo, axis=1).to_pandas()
+    # Successfully applies to dataframe with matching number of columns.
+    # and their datatypes.
+    bf_result = bf_df.apply(foo, axis=1).to_pandas()
 
-        # Since this scenario is not pandas-like, let's handcraft the
-        # expected result.
-        expected_result = pandas.Series(
-            [
-                ["1", "22.5", "alpha"],
-                ["2", "23.0", "beta"],
-                ["3", "23.5", "gamma"],
-            ]
-        )
+    # Since this scenario is not pandas-like, let's handcraft the
+    # expected result.
+    expected_result = pandas.Series(
+        [
+            ["1", "22.5", "alpha"],
+            ["2", "23.0", "beta"],
+            ["3", "23.5", "gamma"],
+        ]
+    )
 
-        pandas.testing.assert_series_equal(
-            expected_result, bf_result, check_dtype=False, check_index_type=False
-        )
-
-    finally:
-        # Clean up the gcp assets created for the managed function.
-        cleanup_function_assets(foo, session.bqclient, session.cloudfunctionsclient)
+    pandas.testing.assert_series_equal(
+        expected_result, bf_result, check_dtype=False, check_index_type=False
+    )
