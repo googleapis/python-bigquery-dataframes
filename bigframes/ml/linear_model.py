@@ -215,7 +215,7 @@ class LinearRegression(
 
         Returns:
             bigframes.pandas.DataFrame:
-                The predicted DataFrames with feature and attribution columns.
+                Dataframes containing feature importance values and corresponding attributions, designed to provide a global explanation of feature influence.
         """
 
         if not self._bqml_model:
