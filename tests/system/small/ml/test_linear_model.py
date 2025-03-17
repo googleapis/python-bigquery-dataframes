@@ -237,7 +237,7 @@ def test_linear_reg_model_global_explain(global_penguins_linear_model, new_pengu
     assert global_ex.shape == (6, 3)
     expected_columns = pandas.Index(["index", "feature", "attribution"])
     pandas.testing.assert_index_equal(global_ex.columns, expected_columns)
-    result = global_ex[["feature"]].to_pandas().set_index("feature").sort_index()
+    result = global_ex[["feature"]].to_pandas()
     features = pandas.Series(
         [
             "flipper_length_mm",
@@ -255,8 +255,6 @@ def test_linear_reg_model_global_explain(global_penguins_linear_model, new_pengu
                 "feature": features,
             }
         )
-        .set_index("feature")
-        .sort_index()
     )
     pandas.testing.assert_frame_equal(
         result,
