@@ -210,13 +210,8 @@ class LinearRegression(
         Provide explanations for an entire linear regression model.
 
         .. note::
-            Output matches that of the BigQuery ML.GLOBAL_PREDICT function.
+            Output matches that of the BigQuery ML.GLOBAL_EXPLAIN function.
             See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-global-explain
-
-        Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series or
-            pandas.core.frame.DataFrame or pandas.core.series.Series):
-                Series or a DataFrame to explain its predictions.
 
         Returns:
             bigframes.pandas.DataFrame:
