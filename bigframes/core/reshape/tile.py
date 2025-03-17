@@ -54,7 +54,8 @@ def cut(
             # To maintain consistency with pandas' behavior
             right = True
         elif len(list(bins)) == 0:
-            raise ValueError("`bins` iterable should have at least one item")
+            as_index = pd.IntervalIndex.from_tuples(list(bins))
+            bins = tuple()
         elif isinstance(list(bins)[0], tuple):
             as_index = pd.IntervalIndex.from_tuples(list(bins))
             bins = tuple(bins)
@@ -62,11 +63,6 @@ def cut(
             right = True
         elif pd.api.types.is_number(list(bins)[0]):
             bins_list = list(bins)
-            if len(bins_list) < 2:
-                raise ValueError(
-                    "`bins` iterable of numeric breaks should have"
-                    " at least two items"
-                )
             as_index = pd.IntervalIndex.from_breaks(bins_list)
             single_type = all([isinstance(n, type(bins_list[0])) for n in bins_list])
             numeric_type = type(bins_list[0]) if single_type else float
@@ -88,10 +84,13 @@ def cut(
             "Please provide a valid value for 'labels'."
         )
 
-    return x._apply_window_op(
-        agg_ops.CutOp(bins, right=right, labels=labels),
-        window_spec=window_specs.unbound(),
-    )
+    op = agg_ops.CutOp(bins, right=right, labels=labels)
+    if isinstance(bins, typing.Iterable) and len(as_index) == 0:
+        return bigframes.series.Series(
+            [pd.NA] * len(x), dtype=op.output_type(), name=x.name
+        )
+    else:
+        return x._apply_window_op(op, window_spec=window_specs.unbound())
 
 
 cut.__doc__ = vendored_pandas_tile.cut.__doc__
