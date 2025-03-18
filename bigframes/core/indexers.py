@@ -27,6 +27,7 @@ import bigframes.core.expression as ex
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
 import bigframes.core.scalar
+import bigframes.core.window_spec as windows
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.exceptions as bfe
@@ -477,6 +478,24 @@ def _iloc_getitem_series_or_dataframe(
                 Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
                 series_or_dataframe.iloc[0:0],
             )
+
+        # Check if both positive row numbers and negative row numbers are necessary
+        if isinstance(key, bigframes.series.Series):
+            # Avoid data download
+            is_key_unisigned = False
+        elif "shape" in series_or_dataframe._block.__dict__:
+            # If there is a cache, we convert all indices to positive.
+            row_count = series_or_dataframe._block.shape[0]
+            key = [k if k >= 0 else row_count + k for k in key]
+            is_key_unisigned = True
+        else:
+            first_sign = key[0] >= 0
+            is_key_unisigned = True
+            for k in key:
+                if (k >= 0) != first_sign:
+                    is_key_unisigned = False
+                    break
+
         if isinstance(series_or_dataframe, bigframes.series.Series):
             original_series_name = series_or_dataframe.name
             series_name = (
@@ -498,32 +517,21 @@ def _iloc_getitem_series_or_dataframe(
         # explicitly set index to offsets, reset_index may not generate offsets in some modes
         block, offsets_id = block.promote_offsets("temp_iloc_offsets_")
         pos_block = block.set_index([offsets_id])
-        max_agg_id = guid.generate_guid()
-        max_agg_specs = [
-            (
-                ex.UnaryAggregation(ops.aggregations.max_op, ex.deref(offsets_id)),
-                max_agg_id,
-            ),
-        ]
-        plus_one_op = ops.add_op.as_expr(ex.deref(max_agg_id), ex.const(1))
-        max_agg_expr, _ = block.expr.aggregate(max_agg_specs).project_to_id(plus_one_op)
 
-        max_index_block = bigframes.core.blocks.Block(
-            max_agg_expr.drop_columns(max_agg_id),
-            column_labels=["row_count"],
-            index_columns=[],
-        )
-        block = block.reset_index(drop=False).merge(
-            max_index_block, how="cross", left_join_ids=[], right_join_ids=[], sort=True
-        )
+        if not is_key_unisigned or key[0] < 0:
+            neg_block, _ = block.apply_window_op(
+                offsets_id,
+                ops.aggregations.ReverseRowNumberOp(),
+                window_spec=windows.rows(),
+                result_label="Reversed_Index",
+            )
 
-        block, _ = block.apply_binary_op(
-            block.value_columns[-2], block.value_columns[-1], ops.sub_op
-        )
+            neg_block = neg_block.set_index([neg_block.value_columns[-1]])
 
-        block = block.set_index([block.value_columns[-1]])
-
-        block = pos_block.concat([block], how="inner")
+        if is_key_unisigned:
+            block = pos_block if key[0] >= 0 else neg_block
+        else:
+            block = pos_block.concat([neg_block], how="inner")
 
         df = bigframes.dataframe.DataFrame(block)
 

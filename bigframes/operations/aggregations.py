@@ -336,6 +336,14 @@ class ArrayAggOp(UnaryAggregateOp):
 
 
 @dataclasses.dataclass(frozen=True)
+class ReverseRowNumberOp(UnaryWindowOp):
+    name: ClassVar[str] = "size"
+
+    def output_type(self, *input_types):
+        return dtypes.INT_DTYPE
+
+
+@dataclasses.dataclass(frozen=True)
 class CutOp(UnaryWindowOp):
     # TODO: Unintuitive, refactor into multiple ops?
     bins: typing.Union[int, Iterable]
