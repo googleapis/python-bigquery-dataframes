@@ -107,14 +107,14 @@ def test_linear_regression(random_model_id: str) -> None:
     explain_model = model.global_explain()
 
     # Expected results:
-    #    index	feature	            attribution
-    # 0	   0	flipper_length_mm	193.612051
-    # 1	   1	sex	                5139.35423
-    # 2	   2	culmen_depth_mm	    117.084944
-    # 3	   3	species	            4259.554372
-    # 4	   4	island	            7330.53279
-    # 5	   5	culmen_length_mm	94.366793
-
+    #                       attribution
+    # feature
+    # island	            5737.315921
+    # species	            4073.280549
+    # sex	                622.070896
+    # flipper_length_mm	    193.612051
+    # culmen_depth_mm	    117.084944
+    # culmen_length_mm	    94.366793
     # [END bigquery_dataframes_bqml_linear_global_explain]
     assert explain_model is not None
     assert feature_columns is not None

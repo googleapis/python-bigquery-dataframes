@@ -228,31 +228,33 @@ def test_to_gbq_saved_linear_reg_model_scores(
     )
 
 
-def test_linear_reg_model_global_explain(global_penguins_linear_model, new_penguins_df):
+def test_linear_reg_model_global_explain(
+    penguins_linear_model_w_global_explain, new_penguins_df
+):
     training_data = new_penguins_df.dropna(subset=["body_mass_g"])
     X = training_data.drop(columns=["body_mass_g"])
     y = training_data[["body_mass_g"]]
-    global_penguins_linear_model.fit(X, y)
-    global_ex = global_penguins_linear_model.global_explain()
-    assert global_ex.shape == (6, 3)
-    expected_columns = pandas.Index(["index", "feature", "attribution"])
+    penguins_linear_model_w_global_explain.fit(X, y)
+    global_ex = penguins_linear_model_w_global_explain.global_explain()
+    assert global_ex.shape == (6, 1)
+    expected_columns = pandas.Index(["attribution"])
     pandas.testing.assert_index_equal(global_ex.columns, expected_columns)
-    result = global_ex[["feature"]].to_pandas()
-    features = pandas.Series(
-        [
-            "flipper_length_mm",
-            "species",
-            "sex",
-            "culmen_depth_mm",
-            "culmen_length_mm",
-            "island",
-        ],
-        dtype=pandas.StringDtype(storage="pyarrow"),
-    )
-    expected_feature = pandas.DataFrame(
-        {
-            "feature": features,
-        }
+    result = global_ex.to_pandas().drop(["attribution"], axis=1).sort_index()
+    expected_feature = (
+        pandas.DataFrame(
+            {
+                "feature": [
+                    "island",
+                    "species",
+                    "sex",
+                    "flipper_length_mm",
+                    "culmen_depth_mm",
+                    "culmen_length_mm",
+                ]
+            },
+        )
+        .set_index("feature")
+        .sort_index()
     )
     pandas.testing.assert_frame_equal(
         result,
