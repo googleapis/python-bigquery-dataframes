@@ -22,7 +22,7 @@ import re
 import textwrap
 import types
 import typing
-from typing import Dict, Iterable, Mapping, Optional, Tuple, Union
+from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
 
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
@@ -118,30 +118,38 @@ def table_ref_to_sql(table: bigquery.TableReference) -> str:
 def create_temp_table(
     bqclient: bigquery.Client,
     table_ref: bigquery.TableReference,
-    expiration: datetime.datetime,
+    bq_session_id: str,
+    schema: Sequence[bigquery.SchemaField] = None,
     *,
-    schema: Optional[Iterable[bigquery.SchemaField]] = None,
     cluster_columns: Optional[list[str]] = None,
     kms_key: Optional[str] = None,
-) -> str:
+) -> bigquery.TableReference:
     """Create an empty table with an expiration in the desired session.
 
     The table will be deleted when the session is closed or the expiration
     is reached.
     """
-    destination = bigquery.Table(table_ref)
-    destination.expires = expiration
-    destination.schema = schema
-    if cluster_columns:
-        destination.clustering_fields = cluster_columns
+
+    job_config = bigquery.QueryJobConfig(connection_properties=[bigquery.ConnectionProperty("session_id", bq_session_id)])
     if kms_key:
-        destination.encryption_configuration = bigquery.EncryptionConfiguration(
-            kms_key_name=kms_key
-        )
-    # Ok if already exists, since this will only happen from retries internal to this method
-    # as the requested table id has a random UUID4 component.
-    bqclient.create_table(destination, exists_ok=True)
-    return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
+        job_config.destination_encryption_configuration = bigquery.EncryptionConfiguration(kms_key_name=kms_key)
+
+    import bigframes_vendored.ibis.backends.bigquery.datatypes as ibis_bq
+    ibis_schema = ibis_bq.BigQuerySchema.to_ibis(schema)
+
+    fields = [f"`{name}` {ibis_bq.BigQueryType.from_ibis(ibis_type)}" for name, ibis_type in ibis_schema.fields.items()]
+    fields_string = ",".join(fields)
+
+    cluster_string = ""
+    if cluster_columns:
+        cluster_cols_sql = ", ".join(f"`{cluster_col}`" for cluster_col in cluster_columns)
+        cluster_string = f"CLUSTER BY {cluster_cols_sql}"
+
+    job = bqclient.query(f"CREATE TEMP TABLE `_SESSION`.`{table_ref.table_id}` ({fields_string}){" " + cluster_string if cluster_string else ""}", job_config=job_config)
+
+    job.result()
+    # return the fully qualified table, so it can be used outside of the session
+    return job.destination
 
 
 def set_table_expiration(

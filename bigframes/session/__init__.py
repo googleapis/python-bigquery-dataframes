@@ -76,7 +76,7 @@ import bigframes.session.executor
 import bigframes.session.loader
 import bigframes.session.metrics
 import bigframes.session.planner
-import bigframes.session.temp_storage
+import bigframes.session.session_resources
 import bigframes.session.validation
 
 # Avoid circular imports.
@@ -247,11 +247,11 @@ class Session(
 
         self._metrics = bigframes.session.metrics.ExecutionMetrics()
         self._function_session = bff_session.FunctionSession()
+
         self._temp_storage_manager = (
-            bigframes.session.temp_storage.TemporaryGbqStorageManager(
+            bigframes.session.session_resources.SessionResourceManager(
                 self._clients_provider.bqclient,
                 location=self._location,
-                session_id=self._session_id,
                 kms_key=self._bq_kms_key_name,
             )
         )
@@ -908,7 +908,6 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager._random_table()
 
         if engine is not None and engine == "bigquery":
             if any(param is not None for param in (dtype, names)):
@@ -987,7 +986,6 @@ class Session(
 
             return self._loader._read_bigquery_load_job(
                 filepath_or_buffer,
-                table,
                 job_config=job_config,
                 index_col=index_col,
                 columns=columns,
@@ -1054,7 +1052,6 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager._random_table()
 
         if engine == "bigquery":
             job_config = bigquery.LoadJobConfig()
@@ -1063,9 +1060,7 @@ class Session(
             job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.labels = {"bigframes-api": "read_parquet"}
 
-            return self._loader._read_bigquery_load_job(
-                path, table, job_config=job_config
-            )
+            return self._loader._read_bigquery_load_job(path, job_config=job_config)
         else:
             if "*" in path:
                 raise ValueError(
@@ -1108,7 +1103,6 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager._random_table()
 
         if engine == "bigquery":
 
@@ -1142,7 +1136,6 @@ class Session(
 
             return self._loader._read_bigquery_load_job(
                 path_or_buf,
-                table,
                 job_config=job_config,
             )
         else:
@@ -1704,7 +1697,9 @@ class Session(
 
     def _create_object_table(self, path: str, connection: str) -> str:
         """Create a random id Object Table from the input path and connection."""
-        table = str(self._loader._storage_manager._random_table())
+        import uuid
+
+        table = uuid.uuid4().hex
 
         import textwrap
 

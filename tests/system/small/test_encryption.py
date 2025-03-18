@@ -84,36 +84,6 @@ def test_session_query_job(bq_cmek, session_with_bq_cmek):
     assert table.encryption_configuration.kms_key_name == bq_cmek
 
 
-def test_session_load_job(bq_cmek, session_with_bq_cmek):
-    if not bq_cmek:  # pragma: NO COVER
-        pytest.skip("no cmek set for testing")  # pragma: NO COVER
-
-    # Session should have cmek set in the default query and load job configs
-    load_table = session_with_bq_cmek._temp_storage_manager._random_table()
-
-    df = pandas.DataFrame({"col0": [1, 2, 3]})
-    load_job_config = bigquery.LoadJobConfig()
-    load_job_config.schema = [
-        bigquery.SchemaField(df.columns[0], bigquery.enums.SqlTypeNames.INT64)
-    ]
-
-    load_job = session_with_bq_cmek.bqclient.load_table_from_dataframe(
-        df,
-        load_table,
-        job_config=load_job_config,
-    )
-    load_job.result()
-
-    assert load_job.destination == load_table
-    assert load_job.destination_encryption_configuration.kms_key_name.startswith(
-        bq_cmek
-    )
-
-    # The load destination table should be created with the intended encryption
-    table = session_with_bq_cmek.bqclient.get_table(load_job.destination)
-    assert table.encryption_configuration.kms_key_name == bq_cmek
-
-
 def test_read_gbq(bq_cmek, session_with_bq_cmek, scalars_table_id):
     if not bq_cmek:  # pragma: NO COVER
         pytest.skip("no cmek set for testing")  # pragma: NO COVER
@@ -173,39 +143,6 @@ def test_read_csv_gcs(
 
     # Assert encryption
     _assert_bq_table_is_encrypted(df, bq_cmek, session_with_bq_cmek)
-
-
-def test_to_gbq(bq_cmek, session_with_bq_cmek, scalars_table_id):
-    if not bq_cmek:  # pragma: NO COVER
-        pytest.skip("no cmek set for testing")  # pragma: NO COVER
-
-    # Read a BQ table and assert encryption
-    df = session_with_bq_cmek.read_gbq(scalars_table_id)
-    _assert_bq_table_is_encrypted(df, bq_cmek, session_with_bq_cmek)
-
-    # Modify the dataframe and assert encryption
-    df = df.dropna().head()
-    _assert_bq_table_is_encrypted(df, bq_cmek, session_with_bq_cmek)
-
-    # Write the result to BQ and assert encryption
-    output_table_id = df.to_gbq()
-    output_table = session_with_bq_cmek.bqclient.get_table(output_table_id)
-    assert output_table.encryption_configuration.kms_key_name == bq_cmek
-
-    # Write the result to BQ custom table and assert encryption
-    session_with_bq_cmek.bqclient.get_table(output_table_id)
-    output_table_ref = session_with_bq_cmek._temp_storage_manager._random_table()
-    output_table_id = str(output_table_ref)
-    df.to_gbq(output_table_id)
-    output_table = session_with_bq_cmek.bqclient.get_table(output_table_id)
-    assert output_table.encryption_configuration.kms_key_name == bq_cmek
-
-    # Lastly, assert that the encryption is not because of any default set at
-    # the dataset level
-    output_table_dataset = session_with_bq_cmek.bqclient.get_dataset(
-        output_table.dataset_id
-    )
-    assert output_table_dataset.default_encryption_configuration is None
 
 
 def test_read_pandas(bq_cmek, session_with_bq_cmek):

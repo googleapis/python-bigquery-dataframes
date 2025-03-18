@@ -21,6 +21,7 @@ import itertools
 import os
 import typing
 from typing import Dict, Hashable, IO, Iterable, List, Optional, Sequence, Tuple, Union
+import uuid
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
@@ -59,7 +60,7 @@ import bigframes.session.clients
 import bigframes.session.executor
 import bigframes.session.metrics
 import bigframes.session.planner
-import bigframes.session.temp_storage
+import bigframes.session.session_resources
 import bigframes.session.time as session_time
 import bigframes.version
 
@@ -115,7 +116,7 @@ class GbqDataLoader:
         self,
         session: bigframes.session.Session,
         bqclient: bigquery.Client,
-        storage_manager: bigframes.session.temp_storage.TemporaryGbqStorageManager,
+        storage_manager: bigframes.session.session_resources.SessionResourceManager,
         default_index_type: bigframes.enums.DefaultIndexKind,
         scan_index_uniqueness: bool,
         force_total_order: bool,
@@ -163,11 +164,12 @@ class GbqDataLoader:
         # clustering doesn't improve speed of queries because pandas tables are
         # small.
         cluster_cols = [ordering_col]
-        job_config.clustering_fields = cluster_cols
 
         job_config.labels = {"bigframes-api": api_name}
 
-        load_table_destination = self._storage_manager._random_table()
+        load_table_destination = self._storage_manager.create_temp_table(
+            schema=schema, cluster_cols=cluster_cols
+        )
         load_job = self._bqclient.load_table_from_dataframe(
             pandas_dataframe_copy,
             load_table_destination,
@@ -497,7 +499,6 @@ class GbqDataLoader:
     def _read_bigquery_load_job(
         self,
         filepath_or_buffer: str | IO["bytes"],
-        table: Union[bigquery.Table, bigquery.TableReference],
         *,
         job_config: bigquery.LoadJobConfig,
         index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
@@ -528,23 +529,19 @@ class GbqDataLoader:
                 filepath_or_buffer, table, job_config=job_config
             )
 
-        self._start_generic_job(load_job)
-        table_id = f"{table.project}.{table.dataset_id}.{table.table_id}"
-
-        # Update the table expiration so we aren't limited to the default 24
-        # hours of the anonymous dataset.
-        table_expiration = bigquery.Table(table_id)
-        table_expiration.expires = (
-            datetime.datetime.now(datetime.timezone.utc)
-            + bigframes.constants.DEFAULT_EXPIRATION
-        )
-        self._bqclient.update_table(table_expiration, ["expires"])
-
-        # The BigQuery REST API for tables.get doesn't take a session ID, so we
-        # can't get the schema for a temp table that way.
+        with self._storage_manager.get_next_free_session() as bq_session_id:
+            table = bigquery.TableReference(
+                bigquery.DatasetReference(self.bqclient.project, "_SESSION"),
+                uuid.uuid4().hex,
+            )
+            load_job.connection_properties = [
+                bigquery.ConnectionProperty("session_id", bq_session_id)
+            ]
+            self._start_generic_job(load_job)
+        destination = load_job.destination
 
         return self.read_gbq_table(
-            query=table_id,
+            query=f"{destination.project}.{destination.dataset_id}.{destination.table_id}",
             index_col=index_col,
             columns=columns,
             api_name="read_gbq_table",

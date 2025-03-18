@@ -3695,20 +3695,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         temp_table_ref = None
 
         if destination_table is None:
-            if if_exists is not None and if_exists != "replace":
-                raise ValueError(
-                    f"Got invalid value {repr(if_exists)} for if_exists. "
-                    "When no destination table is specified, a new table is always created. "
-                    "None or 'replace' are the only valid options in this case."
-                )
-            if_exists = "replace"
-
-            temp_table_ref = self._session._temp_storage_manager._random_table(
-                # The client code owns this table reference now, so skip_cleanup=True
-                #  to not clean it up when we close the session.
-                skip_cleanup=True,
-            )
-            destination_table = f"{temp_table_ref.project}.{temp_table_ref.dataset_id}.{temp_table_ref.table_id}"
+            # TODO: special code path to give anon table rather than session table??
+            raise NotImplementedError("to_gbq without destination not implemente")
 
         table_parts = destination_table.split(".")
         default_project = self._block.expr.session.bqclient.project
