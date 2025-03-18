@@ -479,7 +479,7 @@ def _iloc_getitem_series_or_dataframe(
                 series_or_dataframe.iloc[0:0],
             )
 
-        # Check if both positive row numbers and negative row numbers are necessary
+        # Check if both positive index and negative index are necessary
         if isinstance(key, bigframes.series.Series):
             # Avoid data download
             is_key_unisigned = False
