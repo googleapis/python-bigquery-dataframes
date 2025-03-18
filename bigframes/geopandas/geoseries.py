@@ -102,8 +102,9 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         The operation works on a 1-to-1 row-wise manner
 
         Args:
-            other (Geoseries or geometric object):
-                The Geoseries (elementwise) or geometric object to find the difference to.
+            other (GeoSeries or geometric object):
+                The GeoSeries (elementwise) or geometric object to find the
+                difference to.
 
         Returns:
             bigframes.geopandas.GeoSeries:
@@ -112,7 +113,8 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
 
         Raises:
             NotImplementedError:
-                GeoSeries.difference is not supported. Use bigframes.bigquery.st_difference(series), instead.
+                GeoSeries.difference is not supported. Use
+                bigframes.bigquery.st_difference(series), instead.
         """
         raise NotImplementedError(
             f"GeoSeries.difference() is not supported. Use bigframes.bigquery.st_difference(series), instead. {constants.FEEDBACK_LINK}"

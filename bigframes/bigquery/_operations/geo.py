@@ -166,7 +166,6 @@ def st_difference(
         5                                               None
         dtype: geometry
 
-
     We can also check difference of single shapely geometries:
 
         >>> sbq1 = bigframes.geopandas.GeoSeries(
@@ -192,7 +191,7 @@ def st_difference(
         0    POLYGON ((0 0, 10 0, 10 10, 0 0), (8 6, 6 2, 4...
         dtype: geometry
 
-    Additionally, qe can do difference of a GeoSeries against a single shapely geometry:
+    Additionally, we can check difference of a GeoSeries against a single shapely geometry:
 
         >>> bbq.st_difference(s1, sbq2)
         0    POLYGON ((0 0, 2 2, 0 2, 0 0))
@@ -204,7 +203,7 @@ def st_difference(
 
     Args:
         other (bigframes.series.Series or geometric object):
-            The Geoseries (elementwise) or geometric object to find the difference to.
+            The GeoSeries (elementwise) or geometric object to find the difference to.
 
     Returns:
         bigframes.series.Series:
