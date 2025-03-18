@@ -475,7 +475,7 @@ def test_cut_numeric_breaks(scalars_dfs, breaks, right):
 
 
 @pytest.mark.parametrize(
-    ("bins"),
+    "bins",
     [
         pytest.param([], id="empty_list"),
         pytest.param(
