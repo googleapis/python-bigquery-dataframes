@@ -41,14 +41,19 @@ def cut(
     right: typing.Optional[bool] = True,
     labels: typing.Union[typing.Iterable[str], bool, None] = None,
 ) -> bigframes.series.Series:
-    if isinstance(bins, int) and bins <= 0:
-        raise ValueError("`bins` should be a positive integer.")
+    if labels is not None and labels is not False:
+        raise NotImplementedError(
+            "The 'labels' parameter must be either False or None. "
+            "Please provide a valid value for 'labels'."
+        )
 
-    # TODO: Check `right` does not apply for IntervalIndex.
-
-    if isinstance(bins, typing.Iterable):
+    if isinstance(bins, int):
+        if bins <= 0:
+            raise ValueError("`bins` should be a positive integer.")
+        op = agg_ops.CutOp(bins, right=right, labels=labels)
+        return x._apply_window_op(op, window_spec=window_specs.unbound())
+    elif isinstance(bins, typing.Iterable):
         if isinstance(bins, pd.IntervalIndex):
-            # TODO: test an empty internval index
             as_index: pd.IntervalIndex = bins
             bins = tuple((bin.left.item(), bin.right.item()) for bin in bins)
             # To maintain consistency with pandas' behavior
@@ -73,24 +78,20 @@ def cut(
                 ]
             )
         else:
-            raise ValueError("`bins` iterable should contain tuples or numerics")
+            raise ValueError("`bins` iterable should contain tuples or numerics.")
 
         if as_index.is_overlapping:
             raise ValueError("Overlapping IntervalIndex is not accepted.")
-
-    if labels is not None and labels is not False:
-        raise NotImplementedError(
-            "The 'labels' parameter must be either False or None. "
-            "Please provide a valid value for 'labels'."
-        )
-
-    op = agg_ops.CutOp(bins, right=right, labels=labels)
-    if isinstance(bins, typing.Iterable) and len(as_index) == 0:
-        return bigframes.series.Series(
-            [pd.NA] * len(x), dtype=op.output_type(), name=x.name
-        )
+        elif len(as_index) == 0:
+            op = agg_ops.CutOp(bins, right=right, labels=labels)
+            return bigframes.series.Series(
+                [pd.NA] * len(x), dtype=op.output_type(), name=x.name
+            )
+        else:
+            op = agg_ops.CutOp(bins, right=right, labels=labels)
+            return x._apply_window_op(op, window_spec=window_specs.unbound())
     else:
-        return x._apply_window_op(op, window_spec=window_specs.unbound())
+        raise ValueError("`bins` must be an integer or interable.")
 
 
 cut.__doc__ = vendored_pandas_tile.cut.__doc__

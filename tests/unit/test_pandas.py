@@ -103,6 +103,7 @@ def test_cut_raises_with_labels():
 @pytest.mark.parametrize(
     ("bins", "error_message"),
     [
+        pytest.param(1.5, "`bins` must be an integer or interable.", id="float"),
         pytest.param(0, "`bins` should be a positive integer.", id="zero_int"),
         pytest.param(-1, "`bins` should be a positive integer.", id="neg_int"),
         pytest.param(
