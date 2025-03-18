@@ -46,7 +46,10 @@ def test_read_gbq_tokyo(
     result = df.sort_index().to_pandas()
     expected = scalars_pandas_df_index
 
-    result = session_tokyo._executor.execute(df._block.expr)
+    # use_explicit_destination=True, otherwise might use path with no query_job
+    result = session_tokyo._executor.execute(
+        df._block.expr, use_explicit_destination=True
+    )
     assert result.query_job.location == tokyo_location
 
     assert len(expected) == result.total_rows
@@ -129,9 +132,10 @@ def test_read_gbq_w_unknown_index_col(
                 CONCAT(t.string_col, "_2") AS my_strings,
                 t.int64_col > 0 AS my_bools,
             FROM `{scalars_table_id}` AS t
+            ORDER BY my_strings
             """,
             ["my_strings"],
-            id="string_index",
+            id="string_index_w_order_by",
         ),
         pytest.param(
             "SELECT GENERATE_UUID() AS uuid, 0 AS my_value FROM UNNEST(GENERATE_ARRAY(1, 20))",
@@ -640,7 +644,7 @@ def test_read_pandas_inline_respects_location():
     session = bigframes.Session(options)
 
     df = session.read_pandas(pd.DataFrame([[1, 2, 3], [4, 5, 6]]))
-    repr(df)
+    df.to_gbq()
 
     assert df.query_job is not None
 
@@ -682,10 +686,12 @@ def test_read_pandas_tokyo(
     tokyo_location: str,
 ):
     df = session_tokyo.read_pandas(scalars_pandas_df_index)
-    result = df.to_pandas()
+    df.to_gbq()
     expected = scalars_pandas_df_index
 
-    result = session_tokyo._executor.execute(df._block.expr)
+    result = session_tokyo._executor.execute(
+        df._block.expr, use_explicit_destination=True
+    )
     assert result.query_job.location == tokyo_location
 
     assert len(expected) == result.total_rows
@@ -716,6 +722,7 @@ def test_read_pandas_timedelta_dataframes(session, write_engine):
 def test_read_pandas_timedelta_series(session, write_engine):
     expected_series = pd.Series(pd.to_timedelta([1, 2, 3], unit="d"))
 
+    # Until b/401630655 is resolved, json not compatible with allow_large_results=False
     actual_result = (
         session.read_pandas(expected_series, write_engine=write_engine)
         .to_pandas()
@@ -738,9 +745,10 @@ def test_read_pandas_timedelta_index(session, write_engine):
         [1, 2, 3], unit="d"
     )  # to_timedelta returns an index
 
+    # Until b/401630655 is resolved, json not compatible with allow_large_results=False
     actual_result = (
         session.read_pandas(expected_index, write_engine=write_engine)
-        .to_pandas()
+        .to_pandas(allow_large_results=True)
         .astype("timedelta64[ns]")
     )
 
@@ -767,9 +775,10 @@ def test_read_pandas_json_dataframes(session, write_engine):
         {"my_col": pd.Series(json_data, dtype=bigframes.dtypes.JSON_DTYPE)}
     )
 
+    # Until b/401630655 is resolved, json not compatible with allow_large_results=False
     actual_result = session.read_pandas(
         expected_df, write_engine=write_engine
-    ).to_pandas()
+    ).to_pandas(allow_large_results=True)
 
     if write_engine == "bigquery_streaming":
         expected_df.index = pd.Index([pd.NA] * 4, dtype="Int64")
@@ -789,9 +798,10 @@ def test_read_pandas_json_series(session, write_engine):
     ]
     expected_series = pd.Series(json_data, dtype=bigframes.dtypes.JSON_DTYPE)
 
+    # Until b/401630655 is resolved, json not compatible with allow_large_results=False
     actual_result = session.read_pandas(
         expected_series, write_engine=write_engine
-    ).to_pandas()
+    ).to_pandas(allow_large_results=True)
     pd.testing.assert_series_equal(
         actual_result, expected_series, check_index_type=False
     )
@@ -812,9 +822,10 @@ def test_read_pandas_json_index(session, write_engine):
         '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}',
     ]
     expected_index: pd.Index = pd.Index(json_data, dtype=bigframes.dtypes.JSON_DTYPE)
+    # Until b/401630655 is resolved, json not compatible with allow_large_results=False
     actual_result = session.read_pandas(
         expected_index, write_engine=write_engine
-    ).to_pandas()
+    ).to_pandas(allow_large_results=True)
     pd.testing.assert_index_equal(actual_result, expected_index)
 
 
