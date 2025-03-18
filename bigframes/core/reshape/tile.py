@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import typing
-from typing import Iterable, Optional, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
@@ -33,33 +32,42 @@ import bigframes.series
 
 def cut(
     x: bigframes.series.Series,
-    bins: Union[
+    bins: typing.Union[
         int,
         pd.IntervalIndex,
-        Iterable,
+        typing.Iterable,
     ],
     *,
-    labels: Union[Iterable[str], bool, None] = None,
+    right: typing.Optional[bool] = True,
+    labels: typing.Union[typing.Iterable[str], bool, None] = None,
 ) -> bigframes.series.Series:
-    if isinstance(bins, int) and bins <= 0:
-        raise ValueError("`bins` should be a positive integer.")
+    if labels is not None and labels is not False:
+        raise NotImplementedError(
+            "The 'labels' parameter must be either False or None. "
+            "Please provide a valid value for 'labels'."
+        )
 
-    if isinstance(bins, Iterable):
+    if isinstance(bins, int):
+        if bins <= 0:
+            raise ValueError("`bins` should be a positive integer.")
+        op = agg_ops.CutOp(bins, right=right, labels=labels)
+        return x._apply_window_op(op, window_spec=window_specs.unbound())
+    elif isinstance(bins, typing.Iterable):
         if isinstance(bins, pd.IntervalIndex):
             as_index: pd.IntervalIndex = bins
             bins = tuple((bin.left.item(), bin.right.item()) for bin in bins)
+            # To maintain consistency with pandas' behavior
+            right = True
         elif len(list(bins)) == 0:
-            raise ValueError("`bins` iterable should have at least one item")
+            as_index = pd.IntervalIndex.from_tuples(list(bins))
+            bins = tuple()
         elif isinstance(list(bins)[0], tuple):
             as_index = pd.IntervalIndex.from_tuples(list(bins))
             bins = tuple(bins)
+            # To maintain consistency with pandas' behavior
+            right = True
         elif pd.api.types.is_number(list(bins)[0]):
             bins_list = list(bins)
-            if len(bins_list) < 2:
-                raise ValueError(
-                    "`bins` iterable of numeric breaks should have"
-                    " at least two items"
-                )
             as_index = pd.IntervalIndex.from_breaks(bins_list)
             single_type = all([isinstance(n, type(bins_list[0])) for n in bins_list])
             numeric_type = type(bins_list[0]) if single_type else float
@@ -70,20 +78,20 @@ def cut(
                 ]
             )
         else:
-            raise ValueError("`bins` iterable should contain tuples or numerics")
+            raise ValueError("`bins` iterable should contain tuples or numerics.")
 
         if as_index.is_overlapping:
             raise ValueError("Overlapping IntervalIndex is not accepted.")
-
-    if labels is not None and labels is not False:
-        raise NotImplementedError(
-            "The 'labels' parameter must be either False or None. "
-            "Please provide a valid value for 'labels'."
-        )
-
-    return x._apply_window_op(
-        agg_ops.CutOp(bins, labels=labels), window_spec=window_specs.unbound()
-    )
+        elif len(as_index) == 0:
+            op = agg_ops.CutOp(bins, right=right, labels=labels)
+            return bigframes.series.Series(
+                [pd.NA] * len(x), dtype=op.output_type(), name=x.name
+            )
+        else:
+            op = agg_ops.CutOp(bins, right=right, labels=labels)
+            return x._apply_window_op(op, window_spec=window_specs.unbound())
+    else:
+        raise ValueError("`bins` must be an integer or interable.")
 
 
 cut.__doc__ = vendored_pandas_tile.cut.__doc__
@@ -93,7 +101,7 @@ def qcut(
     x: bigframes.series.Series,
     q: typing.Union[int, typing.Sequence[float]],
     *,
-    labels: Optional[bool] = None,
+    labels: typing.Optional[bool] = None,
     duplicates: typing.Literal["drop", "error"] = "error",
 ) -> bigframes.series.Series:
     if isinstance(q, int) and q <= 0:
