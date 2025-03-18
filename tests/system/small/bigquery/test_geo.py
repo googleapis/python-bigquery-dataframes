@@ -98,7 +98,7 @@ def test_geo_st_difference():
 def test_geo_st_difference_with_single_geometry_object():
     data1 = [
         Polygon([(0, 0), (10, 0), (10, 10), (0, 0)]),
-        Polygon([(0, 0), (1, 1), (0, 1)]),
+        Polygon([(4, 2), (6, 2), (8, 6), (4, 2)]),
         Point(0, 1),
     ]
 
@@ -107,15 +107,16 @@ def test_geo_st_difference_with_single_geometry_object():
         geobf_s1,
         bigframes.geopandas.GeoSeries(
             [
-                Polygon([(0, 0), (1, 1), (0, 1)]),
+                Polygon([(0, 0), (10, 0), (10, 10), (0, 0)]),
+                Polygon([(1, 0), (0, 5), (0, 0), (1, 0)]),
             ]
         ),
     ).to_pandas()
 
     expected = bigframes.series.Series(
         [
-            Polygon([(1, 1), (0, 0), (10, 0), (10, 10), (0.98496, 1), (1, 1)]),
-            None,
+            GeometryCollection([]),
+            Polygon([(4, 2), (6, 2), (8, 6), (4, 2)]),
             None,
         ],
         index=[0, 1, 2],
@@ -123,7 +124,7 @@ def test_geo_st_difference_with_single_geometry_object():
     ).to_pandas()
 
     assert geobf_s_result.dtype == "geometry"
-    assert expected.iloc[0].equals(geobf_s_result.iloc[0])
+    assert (expected.iloc[0]).equals(geobf_s_result.iloc[0])
     assert expected.iloc[1] == geobf_s_result.iloc[1]
     assert expected.iloc[2] == geobf_s_result.iloc[2]
 
