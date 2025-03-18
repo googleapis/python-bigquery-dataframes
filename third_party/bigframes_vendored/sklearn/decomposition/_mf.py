@@ -26,7 +26,7 @@ class MatrixFactorization(BaseEstimator, metaclass=ABCMeta):
         >>> from bigframes.ml.decomposition import MatrixFactorization
         >>> X = bpd.DataFrame([[1, 1], [2, 1], [3, 1.2], [4, 1], [5, 0.8], [6, 1]])
         >>> model = MatrixFactorization(feedback_type='explicit', num_factors=6, user_col='user_id', item_col='item_col', l2_reg=2.06)
-        >>> W = model.fit(X)
+        >>> W = model.fit(model.fit(X.rename(columns={0:'user_id', 1: 'item_col', 2: 'rating_col'})))
 
     Args:
         feedback_type ('explicit' | 'implicit'):
