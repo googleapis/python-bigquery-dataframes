@@ -367,11 +367,7 @@ class PolarsCompiler:
             indexed_df = df.with_row_index(index_col_name)
             if len(window.grouping_keys) == 0:  # rolling-only window
                 # https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.rolling.html
-                finite = (
-                    window.bounds.start is not None and window.bounds.end is not None
-                )
                 offset_n = _get_offset(window.bounds)
-                # collecting height is a massive kludge
                 period_n = _get_period(window.bounds) or df.collect().height
                 results = indexed_df.rolling(
                     index_column=index_col_name,
@@ -404,6 +400,7 @@ def _get_period(
     if bounds.start is None or bounds.end is None:
         return None
 
+    # collecting height is a massive kludge
     if bounds.start.is_preceding:
         if bounds.end.is_preceding:
             result = bounds.start.value - bounds.end.value + 1
