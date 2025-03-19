@@ -910,7 +910,7 @@ class NDFrame(indexing.IndexingMixin):
 
     notnull = notna
 
-    def take(indices, axis=0, **kwargs) -> NDFrame:
+    def take(self, indices, axis=0, **kwargs) -> NDFrame:
         """Return the elements in the given positional indices along an axis.
 
         This means that we are not indexing according to actual values in the index

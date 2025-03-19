@@ -2174,7 +2174,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         axis = 1 if axis is None else axis
         return DataFrame(self._get_block().add_suffix(suffix, axis))
 
-    def take(self, indices: typing.Sequence[int], axis: int | str | None = 0, **kwargs):
+    def take(
+        self, indices: typing.Sequence[int], axis: int | str | None = 0, **kwargs
+    ) -> DataFrame:
         if not utils.is_list_like(indices):
             raise ValueError("indices should be a list-like object.")
         if axis == 0 or axis == "index":
