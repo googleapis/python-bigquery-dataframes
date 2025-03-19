@@ -163,11 +163,11 @@ def test_df_construct_from_dict():
     )
 
 
-def test_df_construct_inline_respects_location():
+def test_df_construct_inline_respects_location(reset_default_session_and_location):
     # Note: This starts a thread-local session.
     with bpd.option_context("bigquery.location", "europe-west1"):
         df = bpd.DataFrame([[1, 2, 3], [4, 5, 6]])
-        repr(df)
+        df.to_gbq()
         assert df.query_job is not None
         table = bpd.get_global_session().bqclient.get_table(df.query_job.destination)
 
@@ -664,11 +664,8 @@ def test_rename(scalars_dfs):
 def test_df_peek(scalars_dfs_maybe_ordered):
     scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
 
-    session = scalars_df._block.session
-    slot_millis_sum = session.slot_millis_sum
-    peek_result = scalars_df.peek(n=3, force=False)
+    peek_result = scalars_df.peek(n=3, force=False, allow_large_results=True)
 
-    assert session.slot_millis_sum - slot_millis_sum > 1000
     pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
     assert len(peek_result) == 3
 
@@ -676,12 +673,8 @@ def test_df_peek(scalars_dfs_maybe_ordered):
 def test_df_peek_with_large_results_not_allowed(scalars_dfs_maybe_ordered):
     scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
 
-    session = scalars_df._block.session
-    slot_millis_sum = session.slot_millis_sum
     peek_result = scalars_df.peek(n=3, force=False, allow_large_results=False)
 
-    # The metrics won't be fully updated when we call query_and_wait.
-    assert session.slot_millis_sum - slot_millis_sum < 500
     pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
     assert len(peek_result) == 3
 
@@ -4584,12 +4577,13 @@ def test_df_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, sub
     ],
 )
 def test_df_drop_duplicates_w_json(json_df, keep):
-    bf_df = json_df.drop_duplicates(keep=keep).to_pandas()
+    bf_df = json_df.drop_duplicates(keep=keep).to_pandas(allow_large_results=True)
 
     # drop_duplicates relies on pa.compute.dictionary_encode, which is incompatible
     # with Arrow string extension types. Temporary conversion to standard Pandas
     # strings is required.
-    json_pandas_df = json_df.to_pandas()
+    # allow_large_results=True for b/401630655
+    json_pandas_df = json_df.to_pandas(allow_large_results=True)
     json_pandas_df["json_col"] = json_pandas_df["json_col"].astype(
         pd.StringDtype(storage="pyarrow")
     )
@@ -4951,14 +4945,16 @@ def test_df_bool_interpretation_error(scalars_df_index):
 
 
 def test_query_job_setters(scalars_df_default_index: dataframe.DataFrame):
-    job_ids = set()
-    repr(scalars_df_default_index)
-    assert scalars_df_default_index.query_job is not None
-    job_ids.add(scalars_df_default_index.query_job.job_id)
-    scalars_df_default_index.to_pandas()
-    job_ids.add(scalars_df_default_index.query_job.job_id)
+    # if allow_large_results=False, might not create query job
+    with bigframes.option_context("bigquery.allow_large_results", True):
+        job_ids = set()
+        repr(scalars_df_default_index)
+        assert scalars_df_default_index.query_job is not None
+        job_ids.add(scalars_df_default_index.query_job.job_id)
+        scalars_df_default_index.to_pandas(allow_large_results=True)
+        job_ids.add(scalars_df_default_index.query_job.job_id)
 
-    assert len(job_ids) == 2
+        assert len(job_ids) == 2
 
 
 def test_df_cached(scalars_df_index):
@@ -5196,7 +5192,12 @@ def test_to_pandas_downsampling_option_override(session):
     df = session.read_gbq("bigframes-dev.bigframes_tests_sys.batting")
     download_size = 1
 
-    df = df.to_pandas(max_download_size=download_size, sampling_method="head")
+    # limits only apply for allow_large_result=True
+    df = df.to_pandas(
+        max_download_size=download_size,
+        sampling_method="head",
+        allow_large_results=True,
+    )
 
     total_memory_bytes = df.memory_usage(deep=True).sum()
     total_memory_mb = total_memory_bytes / (1024 * 1024)

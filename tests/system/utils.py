@@ -56,6 +56,14 @@ ML_GENERATE_EMBEDDING_OUTPUT = [
     "ml_generate_embedding_status",
     "content",
 ]
+ML_MULTIMODAL_GENERATE_EMBEDDING_OUTPUT = [
+    "ml_generate_embedding_result",
+    "ml_generate_embedding_status",
+    # start and end sec depend on input format. Images and videos input will contain these 2.
+    "ml_generate_embedding_start_sec",
+    "ml_generate_embedding_end_sec",
+    "content",
+]
 
 
 def skip_legacy_pandas(test):
@@ -401,15 +409,16 @@ def cleanup_function_assets(
         if not ignore_failures:
             raise
 
-    # Clean up cloud function
-    try:
-        delete_cloud_function(
-            cloudfunctions_client, bigframes_func.bigframes_cloud_function
-        )
-    except Exception:
-        # By default don't raise exception in cleanup.
-        if not ignore_failures:
-            raise
+    if cloudfunctions_client:
+        # Clean up cloud function
+        try:
+            delete_cloud_function(
+                cloudfunctions_client, bigframes_func.bigframes_cloud_function
+            )
+        except Exception:
+            # By default don't raise exception in cleanup.
+            if not ignore_failures:
+                raise
 
 
 def get_function_name(func, package_requirements=None, is_row_processor=False):

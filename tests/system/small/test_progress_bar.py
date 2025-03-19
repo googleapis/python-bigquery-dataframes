@@ -32,7 +32,7 @@ def test_progress_bar_dataframe(
     capsys.readouterr()  # clear output
 
     with bf.option_context("display.progress_bar", "terminal"):
-        penguins_df_default_index.to_pandas()
+        penguins_df_default_index.to_pandas(allow_large_results=True)
 
     assert_loading_msg_exist(capsys.readouterr().out)
     assert penguins_df_default_index.query_job is not None
@@ -43,7 +43,7 @@ def test_progress_bar_series(penguins_df_default_index: bf.dataframe.DataFrame, 
     capsys.readouterr()  # clear output
 
     with bf.option_context("display.progress_bar", "terminal"):
-        series.to_pandas()
+        series.to_pandas(allow_large_results=True)
 
     assert_loading_msg_exist(capsys.readouterr().out)
     assert series.query_job is not None
@@ -103,7 +103,7 @@ def assert_loading_msg_exist(capystOut: str, pattern=job_load_message_regex):
 
 def test_query_job_repr_html(penguins_df_default_index: bf.dataframe.DataFrame):
     with bf.option_context("display.progress_bar", "terminal"):
-        penguins_df_default_index.to_pandas()
+        penguins_df_default_index.to_pandas(allow_large_results=True)
         query_job_repr = formatting_helpers.repr_query_job_html(
             penguins_df_default_index.query_job
         ).value
@@ -120,7 +120,7 @@ def test_query_job_repr_html(penguins_df_default_index: bf.dataframe.DataFrame):
 
 
 def test_query_job_repr(penguins_df_default_index: bf.dataframe.DataFrame):
-    penguins_df_default_index.to_pandas()
+    penguins_df_default_index.to_pandas(allow_large_results=True)
     query_job_repr = formatting_helpers.repr_query_job(
         penguins_df_default_index.query_job
     )
