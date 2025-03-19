@@ -19,6 +19,7 @@ https://stackoverflow.com/a/62613202/101923 and
 https://github.com/sphinx-doc/sphinx/issues/7912
 """
 
+import collections
 import inspect
 import pathlib
 
@@ -117,7 +118,9 @@ excluded = frozenset(
 
 def create_toc_lines(module):
     lines = []
-    attributes = list(sorted(module.__all__, key=lambda value: value.casefold()))
+    attributes = collections.deque(
+        sorted(module.__all__, key=lambda value: value.casefold())
+    )
 
     while len(attributes) > 0:
         attribute = attributes.pop()
@@ -134,7 +137,7 @@ def create_toc_lines(module):
         value = getattr(module, attribute)
         if inspect.isclass(value):
             for class_attribute in find_class_attributes(value, attribute):
-                attributes.insert(0, class_attribute)
+                attributes.appendleft(class_attribute)
 
     return lines
 

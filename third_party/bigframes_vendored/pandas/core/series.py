@@ -30,6 +30,69 @@ if TYPE_CHECKING:
 
 
 class Series(NDFrame):  # type: ignore[misc]
+    """One-dimensional expression with optional axis labels (including time series).
+
+    Labels need not be unique but must be a hashable type. The object
+    supports both integer- and label-based indexing and provides a host of
+    methods for performing operations involving the index. Statistical
+    methods automatically exclude missing data.
+
+    Operations between Series (+, -, /, \\*, \\*\\*) align values based on their
+    associated index values-- they need not be the same length. The result
+    index will be the sorted union of the two indexes.
+
+    **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import pandas as pd
+            >>> bpd.options.display.progress_bar = None
+
+    Constructing Series from a dictionary with an Index specified
+
+        >>> d = {'a': 1, 'b': 2, 'c': 3}
+        >>> ser = bpd.Series(data=d, index=['a', 'b', 'c'])
+        >>> ser
+        a   1
+        b   2
+        c   3
+        dtype: Int64
+
+    The keys of the dictionary match with the Index values, hence the Index
+    values have no effect.
+
+        >>> d = {'a': 1, 'b': 2, 'c': 3}
+        >>> ser = bpd.Series(data=d, index=['x', 'y', 'z'])
+        >>> ser
+        x   <NA>
+        y   <NA>
+        z   <NA>
+        dtype: Int64
+
+    Note that the Index is first build with the keys from the dictionary.
+    After this the Series is reindexed with the given Index values, hence we
+    get all <NA> as a result.
+
+    Args:
+        data (Iterable):
+            Contains data stored in Series. If data is a dict, argument order
+            is maintained.
+        index (Axes | None):
+            Values must be hashable and have the same length as `data`.
+            Non-unique index values are allowed. Will default to
+            a sequential (0, 1, 2, ..., n) if not provided. If data is dict-like
+            and index is None, then the keys in the data are used as the index. If the
+            index is not None, the resulting Series is reindexed with the index values.
+        dtype (str | Dtype):
+            Data type for the output Series. If not specified, this will be
+            inferred from `data`.
+        name (str | None):
+            The name to give to the Series.
+        copy (bool | None):
+            ``copy=False`` is not supported.
+        session (bigframes.session.Session | None):
+            BigQuery DataFrames session to use for queries.
+    """
+
     @property
     def dt(self):
         """
