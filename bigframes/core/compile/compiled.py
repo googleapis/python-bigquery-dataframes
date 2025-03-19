@@ -22,6 +22,7 @@ import bigframes_vendored.ibis
 import bigframes_vendored.ibis.backends.bigquery.backend as ibis_bigquery
 import bigframes_vendored.ibis.common.deferred as ibis_deferred  # type: ignore
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
+from bigframes_vendored.ibis.expr.operations import window as ibis_expr_window
 import bigframes_vendored.ibis.expr.operations as ibis_ops
 import bigframes_vendored.ibis.expr.types as ibis_types
 import pandas
@@ -35,7 +36,12 @@ import bigframes.core.expression as ex
 import bigframes.core.guid
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.sql
-from bigframes.core.window_spec import RangeWindowBounds, RowsWindowBounds, WindowSpec
+from bigframes.core.window_spec import (
+    RangeWindowBounds,
+    RowsWindowBounds,
+    WindowBoundary,
+    WindowSpec,
+)
 import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
 
@@ -555,14 +561,16 @@ class UnorderedIR:
         window = bigframes_vendored.ibis.window(order_by=order_by, group_by=group_by)
         if bounds is not None:
             if isinstance(bounds, RangeWindowBounds):
-                window = window.preceding_following(
-                    bounds.preceding, bounds.following, how="range"
-                )
+                window = window.between(
+                    start=_to_ibis_boundary(bounds.start),
+                    end=_to_ibis_boundary(bounds.end),
+                ).copy(how="range")
             if isinstance(bounds, RowsWindowBounds):
-                if bounds.preceding is not None or bounds.following is not None:
-                    window = window.preceding_following(
-                        bounds.preceding, bounds.following, how="rows"
-                    )
+                if bounds.start is not None or bounds.end is not None:
+                    window = window.between(
+                        start=_to_ibis_boundary(bounds.start),
+                        end=_to_ibis_boundary(bounds.end),
+                    ).copy(how="rows")
             else:
                 raise ValueError(f"unrecognized window bounds {bounds}")
         return window
@@ -681,3 +689,11 @@ def _as_groupable(value: ibis_types.Value):
         return scalar_op_compiler.to_json_string(value)
     else:
         return value
+
+
+def _to_ibis_boundary(
+    boundary: Optional[WindowBoundary],
+) -> Optional[ibis_expr_window.WindowBoundary]:
+    if boundary is None:
+        return None
+    return ibis_expr_window.WindowBoundary(boundary.value, boundary.is_preceding)

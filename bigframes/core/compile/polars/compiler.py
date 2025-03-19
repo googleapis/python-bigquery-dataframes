@@ -16,9 +16,10 @@ from __future__ import annotations
 import dataclasses
 import functools
 import itertools
-from typing import cast, Sequence, Tuple, TYPE_CHECKING
+from typing import cast, Optional, Sequence, Tuple, TYPE_CHECKING, Union
 
 import bigframes.core
+from bigframes.core import window_spec
 import bigframes.core.expression as ex
 import bigframes.core.guid as guid
 import bigframes.core.nodes as nodes
@@ -367,22 +368,11 @@ class PolarsCompiler:
             if len(window.grouping_keys) == 0:  # rolling-only window
                 # https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.rolling.html
                 finite = (
-                    window.bounds.preceding is not None
-                    and window.bounds.following is not None
+                    window.bounds.start is not None and window.bounds.end is not None
                 )
-                offset_n = (
-                    None
-                    if window.bounds.preceding is None
-                    else -window.bounds.preceding
-                )
+                offset_n = _get_offset(window.bounds)
                 # collecting height is a massive kludge
-                period_n = (
-                    df.collect().height
-                    if not finite
-                    else cast(int, window.bounds.preceding)
-                    + cast(int, window.bounds.following)
-                    + 1
-                )
+                period_n = _get_period(window.bounds) or df.collect().height
                 results = indexed_df.rolling(
                     index_column=index_col_name,
                     period=f"{period_n}i",
@@ -395,3 +385,37 @@ class PolarsCompiler:
             # polars is columnar, so this is efficient
             # TODO: why can't just add columns?
             return pl.concat([df, results], how="horizontal")
+
+
+def _get_offset(
+    bounds: Union[window_spec.RowsWindowBounds, window_spec.RangeWindowBounds]
+) -> Optional[window_spec.OffsetType]:
+    if bounds.start is None:
+        return None
+    if bounds.start.is_preceding:
+        return -bounds.start.value
+    return bounds.start.value
+
+
+def _get_period(
+    bounds: Union[window_spec.RowsWindowBounds, window_spec.RangeWindowBounds]
+) -> Optional[int]:
+    """Returns None if the boundary is infinite."""
+    if bounds.start is None or bounds.end is None:
+        return None
+
+    if bounds.start.is_preceding:
+        if bounds.end.is_preceding:
+            result = bounds.start.value - bounds.end.value + 1
+        else:
+            result = bounds.start.value + bounds.end.value + 1
+
+    else:
+        if bounds.end.is_preceding:
+            raise ValueError(
+                "When boundary start is FOLLOWING, boundary end cannot be PRECEDING"
+            )
+        else:
+            result = bounds.end.value - bounds.start.value + 1
+
+    return cast(int, result)

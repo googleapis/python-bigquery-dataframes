@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 import itertools
-from typing import Mapping, Optional, Set, Tuple, Union
+from typing import Generic, Mapping, Optional, Set, Tuple, TypeVar, Union
 
 import bigframes.core.expression as ex
 import bigframes.core.identifiers as ids
@@ -74,7 +74,10 @@ def rows(
     Returns:
         WindowSpec
     """
-    bounds = RowsWindowBounds(preceding=preceding, following=following)
+    bounds = RowsWindowBounds(
+        start=WindowBoundary.preceding(preceding),
+        end=WindowBoundary.following(following),
+    )
     return WindowSpec(
         grouping_keys=tuple(map(ex.deref, grouping_keys)),
         bounds=bounds,
@@ -97,7 +100,7 @@ def cumulative_rows(
     Returns:
         WindowSpec
     """
-    bounds = RowsWindowBounds(following=0)
+    bounds = RowsWindowBounds(end=WindowBoundary.following(0))
     return WindowSpec(
         grouping_keys=tuple(map(ex.deref, grouping_keys)),
         bounds=bounds,
@@ -119,7 +122,7 @@ def inverse_cumulative_rows(
     Returns:
         WindowSpec
     """
-    bounds = RowsWindowBounds(preceding=0)
+    bounds = RowsWindowBounds(start=WindowBoundary.preceding(0))
     return WindowSpec(
         grouping_keys=tuple(map(ex.deref, grouping_keys)),
         bounds=bounds,
@@ -130,10 +133,31 @@ def inverse_cumulative_rows(
 ### Struct Classes
 
 
+T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class WindowBoundary(Generic[T]):
+    value: T
+    is_preceding: bool
+
+    @classmethod
+    def preceding(cls, value: Optional[T]):
+        if value is None:
+            return None
+        return cls(value, True)
+
+    @classmethod
+    def following(cls, value: Optional[T]):
+        if value is None:
+            return None
+        return cls(value, False)
+
+
 @dataclass(frozen=True)
 class RowsWindowBounds:
-    preceding: Optional[int] = None
-    following: Optional[int] = None
+    start: Optional[WindowBoundary[int]] = None
+    end: Optional[WindowBoundary[int]] = None
 
 
 # TODO: Expand to datetime offsets
@@ -142,8 +166,8 @@ OffsetType = Union[float, int]
 
 @dataclass(frozen=True)
 class RangeWindowBounds:
-    preceding: Optional[OffsetType] = None
-    following: Optional[OffsetType] = None
+    start: Optional[WindowBoundary[OffsetType]] = None
+    end: Optional[WindowBoundary[OffsetType]] = None
 
 
 @dataclass(frozen=True)
