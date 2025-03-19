@@ -483,11 +483,6 @@ def _iloc_getitem_series_or_dataframe(
         if isinstance(key, bigframes.series.Series):
             # Avoid data download
             is_key_unisigned = False
-        elif "shape" in series_or_dataframe._block.__dict__:
-            # If there is a cache, we convert all indices to positive.
-            row_count = series_or_dataframe._block.shape[0]
-            key = [k if k >= 0 else row_count + k for k in key]
-            is_key_unisigned = True
         else:
             first_sign = key[0] >= 0
             is_key_unisigned = True
@@ -519,14 +514,18 @@ def _iloc_getitem_series_or_dataframe(
         pos_block = block.set_index([offsets_id])
 
         if not is_key_unisigned or key[0] < 0:
-            neg_block, _ = block.apply_window_op(
+            neg_block, size_col_id = block.apply_window_op(
                 offsets_id,
-                ops.aggregations.ReverseRowNumberOp(),
+                ops.aggregations.SizeUnaryOp(),
                 window_spec=windows.rows(),
-                result_label="Reversed_Index",
+            )
+            neg_block, neg_index_id = neg_block.apply_binary_op(
+                offsets_id, size_col_id, ops.SubOp()
             )
 
-            neg_block = neg_block.set_index([neg_block.value_columns[-1]])
+            neg_block = neg_block.set_index([neg_index_id]).drop_columns(
+                [size_col_id, offsets_id]
+            )
 
         if is_key_unisigned:
             block = pos_block if key[0] >= 0 else neg_block

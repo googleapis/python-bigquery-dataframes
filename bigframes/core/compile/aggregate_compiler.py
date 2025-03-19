@@ -351,12 +351,6 @@ def _(
 
 
 @compile_unary_agg.register
-def _(op: agg_ops.ReverseRowNumberOp, column: ibis_types.NumericColumn, window=None):
-    row_count = _apply_window_if_present(ibis_ops.count(1), window)
-    return column - row_count
-
-
-@compile_unary_agg.register
 def _(
     op: agg_ops.CutOp,
     x: ibis_types.Column,
