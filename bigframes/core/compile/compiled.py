@@ -678,7 +678,7 @@ def _as_groupable(value: ibis_types.Value):
     if value.type().is_float64():
         return value.cast(ibis_dtypes.str)
     elif value.type().is_geospatial():
-        return value.as_binary()
+        return typing.cast(ibis_types.GeoSpatialColumn, value).as_binary()
     elif value.type().is_json():
         return scalar_op_compiler.to_json_string(value)
     else:
