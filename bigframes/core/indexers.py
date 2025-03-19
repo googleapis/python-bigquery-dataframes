@@ -480,7 +480,7 @@ def _iloc_getitem_series_or_dataframe(
             )
 
         # Check if both positive index and negative index are necessary
-        if isinstance(key, bigframes.series.Series):
+        if isinstance(key, (bigframes.series.Series, indexes.Index)):
             # Avoid data download
             is_key_unisigned = False
         else:
