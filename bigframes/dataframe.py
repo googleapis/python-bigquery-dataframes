@@ -73,8 +73,8 @@ import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
+import bigframes.operations.ai
 import bigframes.operations.plotting as plotting
-import bigframes.operations.semantics
 import bigframes.operations.structs
 import bigframes.series
 import bigframes.session._io.bigquery
@@ -4518,4 +4518,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def semantics(self):
-        return bigframes.operations.semantics.Semantics(self)
+        warnings.warn(
+            "The 'semantics' properties will be removed. Please use 'ai' property instead",
+            FutureWarning,
+        )
+        return self.ai
+
+    @property
+    def ai(self):
+        return bigframes.operations.ai.Ai(self)

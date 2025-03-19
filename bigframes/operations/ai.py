@@ -25,7 +25,7 @@ from bigframes.core import guid, log_adapter
 
 
 @log_adapter.class_logger
-class Semantics:
+class Ai:
     def __init__(self, df) -> None:
         import bigframes  # Import in the function body to avoid circular imports.
         import bigframes.dataframe
@@ -68,7 +68,7 @@ class Semantics:
             ...     ],
             ...     "Year": [1997, 2013, 2010],
             ... })
-            >>> df.semantics.agg(
+            >>> df.ai.agg(
             ...     "Find the first name shared by all actors in {Movies}. One word answer.",
             ...     model=model,
             ... )
@@ -257,7 +257,7 @@ class Semantics:
             >>> df = bpd.DataFrame({
             ...     "Product": ["Smartphone", "Laptop", "T-shirt", "Jeans"],
             ... })
-            >>> df.semantics.cluster_by("Product", "Cluster ID", model, n_clusters=2) # doctest: +SKIP
+            >>> df.ai.cluster_by("Product", "Cluster ID", model, n_clusters=2) # doctest: +SKIP
                     Product  Cluster ID
             0    Smartphone           2
             1        Laptop           2
@@ -329,7 +329,7 @@ class Semantics:
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
 
             >>> df = bpd.DataFrame({"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]})
-            >>> df.semantics.filter("{city} is the capital of {country}", model)
+            >>> df.ai.filter("{city} is the capital of {country}", model)
                country    city
             1  Germany  Berlin
             <BLANKLINE>
@@ -443,7 +443,7 @@ class Semantics:
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
 
             >>> df = bpd.DataFrame({"ingredient_1": ["Burger Bun", "Soy Bean"], "ingredient_2": ["Beef Patty", "Bittern"]})
-            >>> df.semantics.map("What is the food made from {ingredient_1} and {ingredient_2}? One word only.", output_column="food", model=model)
+            >>> df.ai.map("What is the food made from {ingredient_1} and {ingredient_2}? One word only.", output_column="food", model=model)
               ingredient_1 ingredient_2      food
             0   Burger Bun   Beef Patty  Burger
             <BLANKLINE>
@@ -568,7 +568,7 @@ class Semantics:
             >>> cities = bpd.DataFrame({'city': ['Seattle', 'Ottawa', 'Berlin', 'Shanghai', 'New Delhi']})
             >>> continents = bpd.DataFrame({'continent': ['North America', 'Africa', 'Asia']})
 
-            >>> cities.semantics.join(continents, "{city} is in {continent}", model)
+            >>> cities.ai.join(continents, "{city} is in {continent}", model)
                     city      continent
             0    Seattle  North America
             1     Ottawa  North America
@@ -679,7 +679,7 @@ class Semantics:
 
         joined_df = self._df.merge(other, how="cross", suffixes=("_left", "_right"))
 
-        return joined_df.semantics.filter(
+        return joined_df.ai.filter(
             instruction, model, ground_with_google_search=ground_with_google_search
         ).reset_index(drop=True)
 
@@ -707,7 +707,7 @@ class Semantics:
             >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
 
             >>> df = bpd.DataFrame({"creatures": ["salmon", "sea urchin", "frog", "chimpanzee"]})
-            >>> df.semantics.search("creatures", "monkey", top_k=1, model=model, score_column='distance')
+            >>> df.ai.search("creatures", "monkey", top_k=1, model=model, score_column='distance')
                 creatures  distance
             3  chimpanzee  0.635844
             <BLANKLINE>
@@ -808,7 +808,7 @@ class Semantics:
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
 
             >>> df = bpd.DataFrame({"Animals": ["Dog", "Bird", "Cat", "Horse"]})
-            >>> df.semantics.top_k("{Animals} are more popular as pets", model=model, k=2)
+            >>> df.ai.top_k("{Animals} are more popular as pets", model=model, k=2)
               Animals
             0     Dog
             2     Cat
@@ -1013,7 +1013,7 @@ class Semantics:
             >>> df1 = bpd.DataFrame({'animal': ['monkey', 'spider']})
             >>> df2 = bpd.DataFrame({'animal': ['scorpion', 'baboon']})
 
-            >>> df1.semantics.sim_join(df2, left_on='animal', right_on='animal', model=model, top_k=1)
+            >>> df1.ai.sim_join(df2, left_on='animal', right_on='animal', model=model, top_k=1)
             animal  animal_1
             0  monkey    baboon
             1  spider  scorpion

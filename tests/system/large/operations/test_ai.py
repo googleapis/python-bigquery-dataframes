@@ -74,7 +74,7 @@ def test_agg(session, gemini_flash_model, max_agg_rows, cluster_column):
         THRESHOLD_OPTION,
         50,
     ):
-        actual_s = df.semantics.agg(
+        actual_s = df.ai.agg(
             instruction,
             model=gemini_flash_model,
             max_agg_rows=max_agg_rows,
@@ -120,7 +120,7 @@ def test_agg_with_confirmation(session, gemini_flash_model, reply, monkeypatch):
         THRESHOLD_OPTION,
         0,
     ):
-        df.semantics.agg(
+        df.ai.agg(
             instruction,
             model=gemini_flash_model,
         )
@@ -145,7 +145,7 @@ def test_agg_w_int_column(session, gemini_flash_model):
         THRESHOLD_OPTION,
         10,
     ):
-        actual_s = df.semantics.agg(
+        actual_s = df.ai.agg(
             instruction,
             model=gemini_flash_model,
         ).to_pandas()
@@ -193,7 +193,7 @@ def test_agg_invalid_instruction_raise_error(instruction, gemini_flash_model):
         THRESHOLD_OPTION,
         10,
     ):
-        df.semantics.agg(instruction, gemini_flash_model)
+        df.ai.agg(instruction, gemini_flash_model)
 
 
 @pytest.mark.parametrize(
@@ -228,7 +228,7 @@ def test_agg_invalid_cluster_column_raise_error(gemini_flash_model, cluster_colu
         THRESHOLD_OPTION,
         10,
     ):
-        df.semantics.agg(instruction, gemini_flash_model, cluster_column=cluster_column)
+        df.ai.agg(instruction, gemini_flash_model, cluster_column=cluster_column)
 
 
 @pytest.mark.parametrize(
@@ -263,7 +263,7 @@ def test_cluster_by(session, text_embedding_generator, n_clusters):
         THRESHOLD_OPTION,
         10,
     ):
-        result = df.semantics.cluster_by(
+        result = df.ai.cluster_by(
             "Item",
             output_column,
             text_embedding_generator,
@@ -311,7 +311,7 @@ def test_cluster_by_with_confirmation(
         THRESHOLD_OPTION,
         0,
     ):
-        df.semantics.cluster_by(
+        df.ai.cluster_by(
             "Item",
             "cluster id",
             text_embedding_generator,
@@ -332,7 +332,7 @@ def test_cluster_by_invalid_column(session, text_embedding_generator):
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(ValueError):
-        df.semantics.cluster_by(
+        df.ai.cluster_by(
             "unknown_column",
             output_column,
             text_embedding_generator,
@@ -353,7 +353,7 @@ def test_cluster_by_invalid_model(session, gemini_flash_model):
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(TypeError):
-        df.semantics.cluster_by(
+        df.ai.cluster_by(
             "Product",
             output_column,
             gemini_flash_model,
@@ -377,7 +377,7 @@ def test_filter(session, gemini_flash_model):
         THRESHOLD_OPTION,
         10,
     ):
-        actual_df = df.semantics.filter(
+        actual_df = df.ai.filter(
             "{city} is the capital of {country} in {year}", gemini_flash_model
         ).to_pandas()
 
@@ -404,7 +404,7 @@ def test_filter_multi_model(session, gemini_flash_model):
         df["prey"] = series.Series(
             ["building", "cross road", "rock", "squirrel", "rabbit"], session=session
         )
-        result = df.semantics.filter(
+        result = df.ai.filter(
             "The object in {image} feeds on {prey}",
             gemini_flash_model,
         ).to_pandas()
@@ -438,9 +438,7 @@ def test_filter_with_confirmation(session, gemini_flash_model, reply, monkeypatc
         THRESHOLD_OPTION,
         0,
     ):
-        df.semantics.filter(
-            "{city} is the capital of {country} in {year}", gemini_flash_model
-        )
+        df.ai.filter("{city} is the capital of {country} in {year}", gemini_flash_model)
 
 
 def test_filter_single_column_reference(session, gemini_flash_model):
@@ -455,7 +453,7 @@ def test_filter_single_column_reference(session, gemini_flash_model):
         THRESHOLD_OPTION,
         10,
     ):
-        actual_df = df.semantics.filter(
+        actual_df = df.ai.filter(
             "{country} is in Europe", gemini_flash_model
         ).to_pandas()
 
@@ -494,7 +492,7 @@ def test_filter_invalid_instruction_raise_error(instruction, gemini_flash_model)
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(ValueError):
-        df.semantics.filter(instruction, gemini_flash_model)
+        df.ai.filter(instruction, gemini_flash_model)
 
 
 def test_filter_invalid_model_raise_error():
@@ -508,7 +506,7 @@ def test_filter_invalid_model_raise_error():
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(TypeError):
-        df.semantics.filter("{city} is the capital of {country}", None)
+        df.ai.filter("{city} is the capital of {country}", None)
 
 
 def test_map(session, gemini_flash_model):
@@ -527,7 +525,7 @@ def test_map(session, gemini_flash_model):
         THRESHOLD_OPTION,
         10,
     ):
-        actual_df = df.semantics.map(
+        actual_df = df.ai.map(
             "What is the {gluten-free} food made from {ingredient_1} and {ingredient_2}? One word only.",
             "food",
             gemini_flash_model,
@@ -567,7 +565,7 @@ def test_map_multimodel(session, gemini_flash_model):
         df["scenario"] = series.Series(
             ["building", "cross road", "tree", "squirrel", "rabbit"], session=session
         )
-        result = df.semantics.map(
+        result = df.ai.map(
             "What is the object in {image} combined with {scenario}? One word only.",
             "object",
             gemini_flash_model,
@@ -602,7 +600,7 @@ def test_map_with_confirmation(session, gemini_flash_model, reply, monkeypatch):
         THRESHOLD_OPTION,
         0,
     ):
-        df.semantics.map(
+        df.ai.map(
             "What is the {gluten-free} food made from {ingredient_1} and {ingredient_2}? One word only.",
             "food",
             gemini_flash_model,
@@ -644,7 +642,7 @@ def test_map_invalid_instruction_raise_error(instruction, gemini_flash_model):
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(ValueError):
-        df.semantics.map(instruction, "food", gemini_flash_model)
+        df.ai.map(instruction, "food", gemini_flash_model)
 
 
 def test_map_invalid_model_raise_error():
@@ -661,7 +659,7 @@ def test_map_invalid_model_raise_error():
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(TypeError):
-        df.semantics.map(
+        df.ai.map(
             "What is the food made from {ingredient_1} and {ingredient_2}? One word only.",
             "food",
             None,
@@ -700,7 +698,7 @@ def test_join(instruction, session, gemini_flash_model):
         THRESHOLD_OPTION,
         10,
     ):
-        actual_df = cities.semantics.join(
+        actual_df = cities.ai.join(
             countries,
             instruction,
             gemini_flash_model,
@@ -749,7 +747,7 @@ def test_join_with_confirmation(session, gemini_flash_model, reply, monkeypatch)
         THRESHOLD_OPTION,
         0,
     ):
-        cities.semantics.join(
+        cities.ai.join(
             countries,
             "{city} is in {country}",
             gemini_flash_model,
@@ -770,7 +768,7 @@ def test_self_join(session, gemini_flash_model):
         THRESHOLD_OPTION,
         10,
     ):
-        actual_df = animals.semantics.join(
+        actual_df = animals.ai.join(
             animals,
             "{left.animal} is heavier than {right.animal}",
             gemini_flash_model,
@@ -832,7 +830,7 @@ def test_join_invalid_instruction_raise_error(
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(ValueError, match=error_pattern):
-        df1.semantics.join(df2, instruction, gemini_flash_model)
+        df1.ai.join(df2, instruction, gemini_flash_model)
 
 
 def test_join_invalid_model_raise_error():
@@ -845,7 +843,7 @@ def test_join_invalid_model_raise_error():
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(TypeError):
-        cities.semantics.join(countries, "{city} is in {country}", None)
+        cities.ai.join(countries, "{city} is in {country}", None)
 
 
 @pytest.mark.parametrize(
@@ -867,7 +865,7 @@ def test_search(session, text_embedding_generator, score_column):
         THRESHOLD_OPTION,
         10,
     ):
-        actual_result = df.semantics.search(
+        actual_result = df.ai.search(
             "creatures",
             "monkey",
             top_k=2,
@@ -915,7 +913,7 @@ def test_search_with_confirmation(
         THRESHOLD_OPTION,
         0,
     ):
-        df.semantics.search(
+        df.ai.search(
             "creatures",
             "monkey",
             top_k=2,
@@ -935,9 +933,7 @@ def test_search_invalid_column_raises_error(session, text_embedding_generator):
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(ValueError):
-        df.semantics.search(
-            "whatever", "monkey", top_k=2, model=text_embedding_generator
-        )
+        df.ai.search("whatever", "monkey", top_k=2, model=text_embedding_generator)
 
 
 def test_search_invalid_model_raises_error(session):
@@ -952,7 +948,7 @@ def test_search_invalid_model_raises_error(session):
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(TypeError):
-        df.semantics.search("creatures", "monkey", top_k=2, model=None)
+        df.ai.search("creatures", "monkey", top_k=2, model=None)
 
 
 def test_search_invalid_top_k_raises_error(session, text_embedding_generator):
@@ -967,9 +963,7 @@ def test_search_invalid_top_k_raises_error(session, text_embedding_generator):
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(ValueError):
-        df.semantics.search(
-            "creatures", "monkey", top_k=0, model=text_embedding_generator
-        )
+        df.ai.search("creatures", "monkey", top_k=0, model=text_embedding_generator)
 
 
 @pytest.mark.parametrize(
@@ -995,7 +989,7 @@ def test_sim_join(session, text_embedding_generator, score_column):
         THRESHOLD_OPTION,
         10,
     ):
-        actual_result = df1.semantics.sim_join(
+        actual_result = df1.ai.sim_join(
             df2,
             left_on="creatures",
             right_on="creatures",
@@ -1048,7 +1042,7 @@ def test_sim_join_with_confirmation(
         THRESHOLD_OPTION,
         0,
     ):
-        df1.semantics.sim_join(
+        df1.ai.sim_join(
             df2,
             left_on="creatures",
             right_on="creatures",
@@ -1082,7 +1076,7 @@ def test_sim_join_invalid_column_raises_error(
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(ValueError):
-        df1.semantics.sim_join(
+        df1.ai.sim_join(
             df2, left_on=left_on, right_on=right_on, model=text_embedding_generator
         )
 
@@ -1103,9 +1097,7 @@ def test_sim_join_invalid_model_raises_error(session):
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(TypeError):
-        df1.semantics.sim_join(
-            df2, left_on="creatures", right_on="creatures", model=None
-        )
+        df1.ai.sim_join(df2, left_on="creatures", right_on="creatures", model=None)
 
 
 def test_sim_join_invalid_top_k_raises_error(session, text_embedding_generator):
@@ -1124,7 +1116,7 @@ def test_sim_join_invalid_top_k_raises_error(session, text_embedding_generator):
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(ValueError):
-        df1.semantics.sim_join(
+        df1.ai.sim_join(
             df2,
             left_on="creatures",
             right_on="creatures",
@@ -1149,7 +1141,7 @@ def test_sim_join_data_too_large_raises_error(session, text_embedding_generator)
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(ValueError):
-        df1.semantics.sim_join(
+        df1.ai.sim_join(
             df2,
             left_on="creatures",
             right_on="creatures",
@@ -1198,7 +1190,7 @@ def test_top_k_invalid_instruction_raise_error(instruction, gemini_flash_model):
         THRESHOLD_OPTION,
         10,
     ):
-        df.semantics.top_k(instruction, model=gemini_flash_model, k=2)
+        df.ai.top_k(instruction, model=gemini_flash_model, k=2)
 
 
 def test_top_k_invalid_k_raise_error(gemini_flash_model):
@@ -1210,7 +1202,7 @@ def test_top_k_invalid_k_raise_error(gemini_flash_model):
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(ValueError):
-        df.semantics.top_k(
+        df.ai.top_k(
             "{Animals} are more popular as pets",
             gemini_flash_model,
             k=0,
@@ -1227,7 +1219,7 @@ def test_confirm_operation__below_threshold_do_not_confirm(mock_input):
         THRESHOLD_OPTION,
         3,
     ):
-        df.semantics._confirm_operation(1)
+        df.ai._confirm_operation(1)
 
     mock_input.assert_not_called()
 
@@ -1242,7 +1234,7 @@ def test_confirm_operation__threshold_is_none_do_not_confirm(mock_input):
         THRESHOLD_OPTION,
         None,
     ):
-        df.semantics._confirm_operation(100)
+        df.ai._confirm_operation(100)
 
     mock_input.assert_not_called()
 
@@ -1259,7 +1251,7 @@ def test_confirm_operation__threshold_autofail_do_not_confirm(mock_input):
         "compute.semantic_ops_threshold_autofail",
         True,
     ), pytest.raises(exceptions.OperationAbortedError):
-        df.semantics._confirm_operation(100)
+        df.ai._confirm_operation(100)
 
     mock_input.assert_not_called()
 
@@ -1284,4 +1276,4 @@ def test_confirm_operation__above_threshold_confirm(reply, expectation, monkeypa
         THRESHOLD_OPTION,
         3,
     ), expectation as e:
-        assert df.semantics._confirm_operation(4) == e
+        assert df.ai._confirm_operation(4) == e
