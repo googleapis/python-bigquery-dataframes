@@ -637,6 +637,7 @@ class BlobAccessor(base.SeriesMethods):
 
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
+        import bigframes.pandas as bpd
 
         connection = self._resolve_connection(connection)
 
@@ -663,5 +664,16 @@ class BlobAccessor(base.SeriesMethods):
 
         res = df.apply(pdf_chunk_udf, axis=1)
 
-        res_array = bbq.json_extract_string_array(res)
-        return res_array
+        status_series = bbq.json_extract_string_array(res, "$.status")
+        content_series = bbq.json_extract_string_array(res, "$.content")
+        result_series = bpd.Series(
+            [
+                content
+                if content is not None
+                and isinstance(content, list)
+                and len(content) > 0
+                else status
+                for status, content in zip(status_series, content_series)
+            ]
+        )
+        return result_series
