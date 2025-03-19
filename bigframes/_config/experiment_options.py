@@ -24,6 +24,7 @@ class ExperimentOptions:
 
     def __init__(self):
         self._semantic_operators: bool = False
+        self._ai_operators: bool = False
         self._blob: bool = False
         self._udf: bool = False
 
@@ -40,6 +41,20 @@ class ExperimentOptions:
             )
             warnings.warn(msg, category=bfe.PreviewWarning)
         self._semantic_operators = value
+
+    @property
+    def ai_operators(self) -> bool:
+        return self._ai_operators
+
+    @ai_operators.setter
+    def ai_operators(self, value: bool):
+        if value is True:
+            msg = bfe.format_message(
+                "AI operators are still under experiments, and are subject "
+                "to change in the future."
+            )
+            warnings.warn(msg, category=bfe.PreviewWarning)
+        self._ai_operators = value
 
     @property
     def blob(self) -> bool:

@@ -24,8 +24,8 @@ import bigframes
 from bigframes import dataframe, dtypes
 from bigframes.ml import llm
 
-SEM_OP_EXP_OPTION = "experiments.semantic_operators"
-THRESHOLD_OPTION = "compute.semantic_ops_confirmation_threshold"
+AI_OP_EXP_OPTION = "experiments.ai_operators"
+THRESHOLD_OPTION = "compute.ai_ops_confirmation_threshold"
 
 
 class FakeGeminiTextGenerator(llm.GeminiTextGenerator):
@@ -41,7 +41,7 @@ def test_experiment_off_raise_error(session):
         {"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]}, session=session
     )
 
-    with bigframes.option_context(SEM_OP_EXP_OPTION, False), pytest.raises(
+    with bigframes.option_context(AI_OP_EXP_OPTION, False), pytest.raises(
         NotImplementedError
     ):
         df.ai
@@ -56,7 +56,7 @@ def test_filter(session):
     )
 
     with bigframes.option_context(
-        SEM_OP_EXP_OPTION,
+        AI_OP_EXP_OPTION,
         True,
         THRESHOLD_OPTION,
         50,
@@ -82,7 +82,7 @@ def test_map(session):
     )
 
     with bigframes.option_context(
-        SEM_OP_EXP_OPTION,
+        AI_OP_EXP_OPTION,
         True,
         THRESHOLD_OPTION,
         50,
@@ -106,7 +106,7 @@ def test_join(session):
     )
 
     with bigframes.option_context(
-        SEM_OP_EXP_OPTION,
+        AI_OP_EXP_OPTION,
         True,
         THRESHOLD_OPTION,
         50,

@@ -29,7 +29,7 @@ class Ai:
         import bigframes  # Import in the function body to avoid circular imports.
         import bigframes.dataframe
 
-        if not bigframes.options.experiments.semantic_operators:
+        if not bigframes.options.experiments.ai_operators:
             raise NotImplementedError()
 
         self._df: bigframes.dataframe.DataFrame = df
@@ -876,12 +876,12 @@ class Ai:
         """Raises OperationAbortedError when the confirmation fails"""
         import bigframes  # Import in the function body to avoid circular imports.
 
-        threshold = bigframes.options.compute.semantic_ops_confirmation_threshold
+        threshold = bigframes.options.compute.ai_ops_confirmation_threshold
 
         if threshold is None or row_count <= threshold:
             return
 
-        if bigframes.options.compute.semantic_ops_threshold_autofail:
+        if bigframes.options.compute.ai_ops_threshold_autofail:
             raise exceptions.OperationAbortedError(
                 f"Operation was cancelled because your work estimate is {row_count} rows, which exceeds the threshold {threshold} rows."
             )

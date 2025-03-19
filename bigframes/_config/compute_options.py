@@ -84,6 +84,9 @@ class ComputeOptions:
     semantic_ops_confirmation_threshold: Optional[int] = 0
     semantic_ops_threshold_autofail = False
 
+    ai_ops_confirmation_threshold: Optional[int] = 0
+    ai_ops_threshold_autofail = False
+
     def assign_extra_query_labels(self, **kwargs: Any) -> None:
         """
         Assigns additional custom labels for query configuration. The method updates the
