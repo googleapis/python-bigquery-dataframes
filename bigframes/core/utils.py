@@ -224,6 +224,15 @@ def timedelta_to_micros(
     raise TypeError(f"Unrecognized input type: {type(timedelta)}")
 
 
+def _is_timedelat64_dtype(dtype: dtypes.Dtype) -> bool:
+    try:
+        return pdtypes.is_timedelta64_dtype(dtype)
+    except NotImplementedError:
+        # Workaround the known issue in pandas:
+        # https://github.com/pandas-dev/pandas/issues/60958
+        return False
+
+
 def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:
     """
     Replaces in-place timedeltas to integer values in microseconds. Nanosecond part is ignored.
@@ -234,11 +243,11 @@ def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:
     updated_columns = []
 
     for col in dataframe.columns:
-        if pdtypes.is_timedelta64_dtype(dataframe[col].dtype):
+        if _is_timedelat64_dtype(dataframe[col].dtype):
             dataframe[col] = dataframe[col].apply(timedelta_to_micros)
             updated_columns.append(col)
 
-    if pdtypes.is_timedelta64_dtype(dataframe.index.dtype):
+    if _is_timedelat64_dtype(dataframe.index.dtype):
         dataframe.index = dataframe.index.map(timedelta_to_micros)
         updated_columns.append(dataframe.index.name)
 
@@ -249,8 +258,6 @@ def _search_for_nested_json_type(arrow_type: pa.DataType) -> bool:
     """
     Searches recursively for JSON array type within a PyArrow DataType.
     """
-    if arrow_type == dtypes.JSON_ARROW_TYPE:
-        return True
     if pa.types.is_list(arrow_type):
         return _search_for_nested_json_type(arrow_type.value_type)
     if pa.types.is_struct(arrow_type):
@@ -258,6 +265,8 @@ def _search_for_nested_json_type(arrow_type: pa.DataType) -> bool:
             if _search_for_nested_json_type(arrow_type.field(i).type):
                 return True
         return False
+    if dtypes.is_json_arrow_type(arrow_type):
+        return True
     return False
 
 
@@ -272,7 +281,7 @@ def replace_json_with_string(dataframe: pd.DataFrame) -> List[str]:
 
     for col in dataframe.columns:
         column_type = dataframe[col].dtype
-        if column_type == dtypes.JSON_DTYPE:
+        if dtypes.is_json_type(column_type):
             dataframe[col] = dataframe[col].astype(dtypes.STRING_DTYPE)
             updated_columns.append(col)
         elif isinstance(column_type, pd.ArrowDtype) and _search_for_nested_json_type(
@@ -283,7 +292,7 @@ def replace_json_with_string(dataframe: pd.DataFrame) -> List[str]:
                 f"are currently unsupported for upload. {constants.FEEDBACK_LINK}"
             )
 
-    if dataframe.index.dtype == dtypes.JSON_DTYPE:
+    if dtypes.is_json_type(dataframe.index.dtype):
         dataframe.index = dataframe.index.astype(dtypes.STRING_DTYPE)
         updated_columns.append(dataframe.index.name)
     elif isinstance(

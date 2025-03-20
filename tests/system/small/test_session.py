@@ -933,7 +933,11 @@ def test_read_pandas_json_dataframes(session, write_engine):
 
     if write_engine == "bigquery_streaming":
         expected_df.index = pd.Index([pd.NA] * 4, dtype="Int64")
-    pd.testing.assert_frame_equal(actual_result, expected_df, check_index_type=False)
+    # `check_exact=False` can workaround the known issue in pandas:
+    # https://github.com/pandas-dev/pandas/issues/60958
+    pd.testing.assert_frame_equal(
+        actual_result, expected_df, check_index_type=False, check_exact=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -953,8 +957,10 @@ def test_read_pandas_json_series(session, write_engine):
     actual_result = session.read_pandas(
         expected_series, write_engine=write_engine
     ).to_pandas(allow_large_results=True)
+    # `check_exact=False` can workaround the known issue in pandas:
+    # https://github.com/pandas-dev/pandas/issues/60958
     pd.testing.assert_series_equal(
-        actual_result, expected_series, check_index_type=False
+        actual_result, expected_series, check_index_type=False, check_exact=False
     )
 
 
