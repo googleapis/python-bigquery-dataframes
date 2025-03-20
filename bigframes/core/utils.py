@@ -254,9 +254,10 @@ def _search_for_nested_json_type(arrow_type: pa.DataType) -> bool:
     if pa.types.is_list(arrow_type):
         return _search_for_nested_json_type(arrow_type.value_type)
     if pa.types.is_struct(arrow_type):
-        return any(
-            _search_for_nested_json_type(field.type) for field in arrow_type.fields
-        )
+        for i in range(arrow_type.num_fields):
+            if _search_for_nested_json_type(arrow_type.field(i).type):
+                return True
+        return False
     return False
 
 

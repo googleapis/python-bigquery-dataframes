@@ -884,7 +884,9 @@ def test_read_pandas_w_nested_json_index(session, write_engine):
             pa.list_(pa.struct([("name", bigframes.dtypes.JSON_ARROW_TYPE)]))
         ),
     )
-    with pytest.raises(NotImplementedError, match="Nested JSON types, found in the index"):
+    with pytest.raises(
+        NotImplementedError, match="Nested JSON types, found in the index"
+    ):
         # Until b/401630655 is resolved, json not compatible with allow_large_results=False
         session.read_pandas(pd_idx, write_engine=write_engine).to_pandas(
             allow_large_results=True
