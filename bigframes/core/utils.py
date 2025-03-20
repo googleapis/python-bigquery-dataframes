@@ -245,17 +245,17 @@ def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:
     return updated_columns
 
 
-def search_for_nested_json_type(arrow_type: pa.DataType) -> bool:
+def _search_for_nested_json_type(arrow_type: pa.DataType) -> bool:
     """
-    Searches recursively for pa.JsonType within a PyArrow DataType.
+    Searches recursively for JSON array type within a PyArrow DataType.
     """
-    if isinstance(arrow_type, pa.JsonType):
+    if arrow_type == dtypes.JSON_ARROW_TYPE:
         return True
     if pa.types.is_list(arrow_type):
-        return search_for_nested_json_type(arrow_type.value_type)
+        return _search_for_nested_json_type(arrow_type.value_type)
     if pa.types.is_struct(arrow_type):
         return any(
-            search_for_nested_json_type(field.type) for field in arrow_type.fields
+            _search_for_nested_json_type(field.type) for field in arrow_type.fields
         )
     return False
 
@@ -274,7 +274,9 @@ def replace_json_with_string(dataframe: pd.DataFrame) -> List[str]:
         if column_type == dtypes.JSON_DTYPE:
             dataframe[col] = dataframe[col].astype(dtypes.STRING_DTYPE)
             updated_columns.append(col)
-        elif isinstance(column_type, pd.ArrowDtype):
+        elif isinstance(column_type, pd.ArrowDtype) and _search_for_nested_json_type(
+            column_type.pyarrow_dtype
+        ):
             raise NotImplementedError(
                 f"Nested JSON types, found in column `{col}`: `{column_type}`', "
                 f"are currently unsupported for upload. {constants.FEEDBACK_LINK}"
@@ -283,9 +285,11 @@ def replace_json_with_string(dataframe: pd.DataFrame) -> List[str]:
     if dataframe.index.dtype == dtypes.JSON_DTYPE:
         dataframe.index = dataframe.index.astype(dtypes.STRING_DTYPE)
         updated_columns.append(dataframe.index.name)
-    elif isinstance(column_type, pd.ArrowDtype):
+    elif isinstance(
+        dataframe.index.dtype, pd.ArrowDtype
+    ) and _search_for_nested_json_type(dataframe.index.dtype.pyarrow_dtype):
         raise NotImplementedError(
-            f"Nested JSON types, found in column `{col}`: `{column_type}`', "
+            f"Nested JSON types, found in the index: `{dataframe.index.dtype}`', "
             f"are currently unsupported for upload. {constants.FEEDBACK_LINK}"
         )
 
