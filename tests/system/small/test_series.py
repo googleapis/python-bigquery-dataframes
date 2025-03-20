@@ -1543,6 +1543,23 @@ def test_indexing_using_selected_series(scalars_dfs):
     )
 
 
+@pytest.mark.parametrize(
+    ("indices"),
+    [
+        ([1, 3, 5]),
+        ([5, -3, -5, -6]),
+        ([-2, -4, -6]),
+    ],
+)
+def test_take(scalars_dfs, indices):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df.take(indices).to_pandas()
+    pd_result = scalars_pandas_df.take(indices)
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
 def test_nested_filter(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     string_col = scalars_df["string_col"]
@@ -4384,3 +4401,11 @@ def test_series_struct_class_attributes_shadow_struct_fields(nested_structs_df):
     series = nested_structs_df["person"]
 
     assert series.name == "person"
+
+
+def test_series_to_pandas_dry_run(scalars_df_index):
+    bf_series = scalars_df_index["int64_col"]
+
+    result = bf_series.to_pandas(dry_run=True)
+
+    assert len(result) == 14
