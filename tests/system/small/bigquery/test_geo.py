@@ -58,11 +58,7 @@ def test_geo_st_area():
     )
 
 
-# The tests for st_difference do not check against geopandas result because
-# geopandas BigQuery's geography functions, like st_difference, interpret the
-# geometry data as a point set on the Earth's surface while geopandas interprets
-# the geometry data as a point set on planer surface
-def test_geo_st_difference():
+def test_geo_st_difference_with_geometry_objects():
     data1 = [
         Polygon([(0, 0), (10, 0), (10, 10), (0, 0)]),
         Polygon([(0, 0), (1, 1), (0, 1), (0, 0)]),

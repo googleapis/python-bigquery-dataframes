@@ -95,27 +95,4 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         return series
 
     def difference(self: GeoSeries, other: GeoSeries) -> GeoSeries:  # type: ignore
-        """
-        Returns a GeoSeries of the points in each aligned geometry that are not
-        in other.
-
-        The operation works on a 1-to-1 row-wise manner
-
-        Args:
-            other (GeoSeries or geometric object):
-                The GeoSeries (elementwise) or geometric object to find the
-                difference to.
-
-        Returns:
-            bigframes.geopandas.GeoSeries:
-                A GeoSeries of the points in each aligned geometry that are not
-                in other.
-
-        Raises:
-            NotImplementedError:
-                GeoSeries.difference is not supported. Use
-                bigframes.bigquery.st_difference(series), instead.
-        """
-        raise NotImplementedError(
-            f"GeoSeries.difference() is not supported. Use bigframes.bigquery.st_difference(series), instead. {constants.FEEDBACK_LINK}"
-        )
+        return self._apply_binary_op(other, ops.geo_st_difference_op)
