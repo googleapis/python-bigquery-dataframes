@@ -12,7 +12,7 @@ def q1(
     x = session.read_gbq(f"{project_id}.{dataset_id}.{table_id}")
 
     ans = x.sort_values("id2")
-    print(ans.shape)
+    # print(ans.shape)
 
     chk = [ans["v1"].sum()]
     print(chk)

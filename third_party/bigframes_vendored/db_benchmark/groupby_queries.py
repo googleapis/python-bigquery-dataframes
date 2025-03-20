@@ -10,7 +10,7 @@ def q1(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
     x = session.read_gbq(f"{project_id}.{dataset_id}.{table_id}")
 
     ans = x.groupby("id1", as_index=False, dropna=False).agg({"v1": "sum"})
-    print(ans.shape)
+    # print(ans.shape)
     chk = [ans["v1"].sum()]
     print(chk)
 
@@ -21,7 +21,7 @@ def q2(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
     x = session.read_gbq(f"{project_id}.{dataset_id}.{table_id}")
 
     ans = x.groupby(["id1", "id2"], as_index=False, dropna=False).agg({"v1": "sum"})
-    print(ans.shape)
+    # print(ans.shape)
     chk = [ans["v1"].sum()]
     print(chk)
 
@@ -34,7 +34,7 @@ def q3(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
     ans = x.groupby("id3", as_index=False, dropna=False).agg(
         {"v1": "sum", "v3": "mean"}
     )
-    print(ans.shape)
+    # print(ans.shape)
     chk = [ans["v1"].sum(), ans["v3"].sum()]
     print(chk)
 
@@ -47,7 +47,7 @@ def q4(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
     ans = x.groupby("id4", as_index=False, dropna=False).agg(
         {"v1": "mean", "v2": "mean", "v3": "mean"}
     )
-    print(ans.shape)
+    # print(ans.shape)
     chk = [ans["v1"].sum(), ans["v2"].sum(), ans["v3"].sum()]
     print(chk)
 
@@ -60,7 +60,7 @@ def q5(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
     ans = x.groupby("id6", as_index=False, dropna=False).agg(
         {"v1": "sum", "v2": "sum", "v3": "sum"}
     )
-    print(ans.shape)
+    # print(ans.shape)
     chk = [ans["v1"].sum(), ans["v2"].sum(), ans["v3"].sum()]
     print(chk)
 
@@ -73,7 +73,7 @@ def q6(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
     ans = x.groupby(["id4", "id5"], as_index=False, dropna=False).agg(
         {"v3": ["median", "std"]}
     )
-    print(ans.shape)
+    # print(ans.shape)
     chk = [ans["v3"]["median"].sum(), ans["v3"]["std"].sum()]
     print(chk)
 
@@ -88,7 +88,7 @@ def q7(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
         .agg({"v1": "max", "v2": "min"})
         .assign(range_v1_v2=lambda x: x["v1"] - x["v2"])[["id3", "range_v1_v2"]]
     )
-    print(ans.shape)
+    # print(ans.shape)
     chk = [ans["range_v1_v2"].sum()]
     print(chk)
 
@@ -105,7 +105,7 @@ def q8(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
         .head(2)
     )
     ans = ans.reset_index(drop=True)
-    print(ans.shape)
+    # print(ans.shape)
     chk = [ans["v3"].sum()]
     print(chk)
 
@@ -118,6 +118,6 @@ def q10(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sess
     ans = x.groupby(
         ["id1", "id2", "id3", "id4", "id5", "id6"], as_index=False, dropna=False
     ).agg({"v3": "sum", "v1": "size"})
-    print(ans.shape)
+    # print(ans.shape)
     chk = [ans["v3"].sum(), ans["v1"].sum()]
     print(chk)

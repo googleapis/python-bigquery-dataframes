@@ -13,7 +13,7 @@ def q1(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
     )
 
     ans = x.merge(small, on="id1")
-    print(ans.shape)
+    # print(ans.shape)
 
     chk = [ans["v1"].sum(), ans["v2"].sum()]
     print(chk)
@@ -28,7 +28,7 @@ def q2(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
     )
 
     ans = x.merge(medium, on="id2")
-    print(ans.shape)
+    # print(ans.shape)
 
     chk = [ans["v1"].sum(), ans["v2"].sum()]
     print(chk)
@@ -43,7 +43,7 @@ def q3(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
     )
 
     ans = x.merge(medium, how="left", on="id2")
-    print(ans.shape)
+    # print(ans.shape)
 
     chk = [ans["v1"].sum(), ans["v2"].sum()]
     print(chk)
@@ -58,7 +58,7 @@ def q4(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
     )
 
     ans = x.merge(medium, on="id5")
-    print(ans.shape)
+    # print(ans.shape)
 
     chk = [ans["v1"].sum(), ans["v2"].sum()]
     print(chk)
@@ -73,7 +73,7 @@ def q5(project_id: str, dataset_id: str, table_id: str, session: bigframes.Sessi
     )
 
     ans = x.merge(big, on="id3")
-    print(ans.shape)
+    # print(ans.shape)
 
     chk = [ans["v1"].sum(), ans["v2"].sum()]
     print(chk)
