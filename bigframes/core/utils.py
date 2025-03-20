@@ -22,6 +22,7 @@ import bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 import numpy as np
 import pandas as pd
 import pandas.api.types as pdtypes
+import pyarrow as pa
 import typing_extensions
 
 import bigframes.dtypes as dtypes
@@ -243,22 +244,63 @@ def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:
     return updated_columns
 
 
-def replace_json_with_string(dataframe: pd.DataFrame) -> List[str]:
+def _try_convert_json_to_string(arrow_type: pa.DataType) -> tuple[pa.DataType, bool]:
+    """
+    Recursively converts a JSON type to a String type within a PyArrow DataType.
+
+    Args:
+        arrow_type: The PyArrow DataType to potentially convert.
+
+    Returns:
+        A tuple containing:
+        - The potentially updated PyArrow DataType.
+        - A boolean indicating if the type or any of its children was updated.
+    """
+    if pa.types.is_list(arrow_type):
+        updated_value_type, child_updated = _try_convert_json_to_string(
+            arrow_type.value_type
+        )
+        return pa.list_(updated_value_type), child_updated
+    elif pa.types.is_struct(arrow_type):
+        updated_fields = {}
+        any_child_updated = False
+        for field in arrow_type.fields:
+            updated_field_type, field_updated = _try_convert_json_to_string(field.type)
+            updated_fields[field.name] = updated_field_type
+            any_child_updated = any_child_updated or field_updated
+        return pa.struct(updated_fields), any_child_updated
+    elif isinstance(arrow_type, pa.JsonType):
+        return pa.string(), True
+    else:
+        return arrow_type, False
+
+
+def replace_json_with_string(dataframe: pd.DataFrame) -> typing.Dict[str, dtypes.Dtype]:
     """
     Due to a BigQuery IO limitation with loading JSON from Parquet files (b/374784249),
     we're using a workaround: storing JSON as strings and then parsing them into JSON
     objects.
     TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
     """
-    updated_columns = []
+    json_type_overrides: typing.Dict[str, dtypes.Dtype] = {}
 
     for col in dataframe.columns:
-        if dataframe[col].dtype == dtypes.JSON_DTYPE:
-            dataframe[col] = dataframe[col].astype(dtypes.STRING_DTYPE)
-            updated_columns.append(col)
+        bigframes_dtype = dataframe[col].dtype
+        if isinstance(bigframes_dtype, pd.ArrowDtype):
+            target_type, updated = _try_convert_json_to_string(
+                bigframes_dtype.pyarrow_dtype
+            )
+            if updated:
+                dataframe[col] = dataframe[col].astype(pd.ArrowDtype(target_type))
+                json_type_overrides[col] = target_type
 
-    if dataframe.index.dtype == dtypes.JSON_DTYPE:
-        dataframe.index = dataframe.index.astype(dtypes.STRING_DTYPE)
-        updated_columns.append(dataframe.index.name)
+    bigframes_dtype = dataframe.index.dtype
+    if isinstance(bigframes_dtype, pd.ArrowDtype):
+        target_type, updated = _try_convert_json_to_string(
+            bigframes_dtype.pyarrow_dtype
+        )
+        if updated:
+            dataframe.index = dataframe.index.astype(pd.ArrowDtype(target_type))
+            json_type_overrides[dataframe.index.name] = target_type
 
-    return updated_columns
+    return json_type_overrides

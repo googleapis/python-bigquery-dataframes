@@ -23,6 +23,7 @@ import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.types as ibis_types
 import google.cloud.bigquery
 import pandas as pd
+import pyarrow as pa
 
 from bigframes import dtypes, operations
 from bigframes.core import utils
@@ -191,6 +192,19 @@ def compile_readtable(node: nodes.ReadTableNode, *args):
                 ibis_table[scan_item.source_id]
             ).name(scan_item.source_id)
             ibis_table = ibis_table.mutate(json_column)
+        elif pa.types.is_struct(scan_item.dtype):
+            struct_value = typing.cast(
+                ibis_types.StructValue, ibis_table[scan_item.source_id]
+            )
+            updated = False
+            for field in scan_item.dtype.pyarrow_dtype.fields:
+                if isinstance(field, pa.JsonType):
+                    struct_value.names[field.name] = compile_scalar.parse_json(
+                        struct_value.names[field.name]
+                    )
+                    updated = True
+            if updated:
+                ibis_table = ibis_table.mutate(struct_value)
 
     return compiled.UnorderedIR(
         ibis_table,
