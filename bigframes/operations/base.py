@@ -74,7 +74,7 @@ class SeriesMethods:
             block = data
         elif isinstance(data, SeriesMethods):
             block = data._get_block()
-        elif isinstance(data, indexes.Index):
+        elif isinstance(data, indexes.Index) or isinstance(index, indexes.Index):
             data = indexes.Index(data, dtype=dtype, name=name, session=session)
             # set to none as it has already been applied, avoid re-cast later
             if data.nlevels != 1:
