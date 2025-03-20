@@ -4,6 +4,55 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.41.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.40.0...v1.41.0) (2025-03-19)
+
+
+### Features
+
+* Add support for the 'right' parameter in 'pandas.cut' ([#1496](https://github.com/googleapis/python-bigquery-dataframes/issues/1496)) ([8aff128](https://github.com/googleapis/python-bigquery-dataframes/commit/8aff1285b26754118cc8ee906c4ac3076456a791))
+* Support BQ managed functions through `read_gbq_function` ([#1476](https://github.com/googleapis/python-bigquery-dataframes/issues/1476)) ([802183d](https://github.com/googleapis/python-bigquery-dataframes/commit/802183dc000ad2ce5559d14181dd3f7d036b3fed))
+* Warn when the BigFrames version is more than a year old ([#1455](https://github.com/googleapis/python-bigquery-dataframes/issues/1455)) ([00e0750](https://github.com/googleapis/python-bigquery-dataframes/commit/00e07508cfb0d8798e079b86a14834b3b593aa54))
+
+
+### Bug Fixes
+
+* Fix pandas.cut errors with empty bins ([#1499](https://github.com/googleapis/python-bigquery-dataframes/issues/1499)) ([434fb5d](https://github.com/googleapis/python-bigquery-dataframes/commit/434fb5dd60d11f09b808ea656394790aba43fdde))
+* Fix read_gbq with ORDER BY query and index_col set ([#963](https://github.com/googleapis/python-bigquery-dataframes/issues/963)) ([de46d2f](https://github.com/googleapis/python-bigquery-dataframes/commit/de46d2fdf7a1a30b2be07dbaa1cb127f10f5fe30))
+
+
+### Performance Improvements
+
+* Eliminate count queries in llm retry ([#1489](https://github.com/googleapis/python-bigquery-dataframes/issues/1489)) ([1c934c2](https://github.com/googleapis/python-bigquery-dataframes/commit/1c934c2fe2374c9abaaa79696f5e5f349248f3b7))
+
+
+### Documentation
+
+* Add a sample notebook for vector search ([#1500](https://github.com/googleapis/python-bigquery-dataframes/issues/1500)) ([f3bf139](https://github.com/googleapis/python-bigquery-dataframes/commit/f3bf139d33ed00ca3081e4e0315f409fdb2ad84d))
+
+## [1.40.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.39.0...v1.40.0) (2025-03-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* reading JSON data as a custom arrow extension type ([#1458](https://github.com/googleapis/python-bigquery-dataframes/issues/1458))
+
+### Features
+
+* Reading JSON data as a custom arrow extension type ([#1458](https://github.com/googleapis/python-bigquery-dataframes/issues/1458)) ([e720f41](https://github.com/googleapis/python-bigquery-dataframes/commit/e720f41ef643ac14ae94fa98de5ef4a3fd6dde93))
+* Support list output for managed function ([#1457](https://github.com/googleapis/python-bigquery-dataframes/issues/1457)) ([461e9e0](https://github.com/googleapis/python-bigquery-dataframes/commit/461e9e017d513376fc623a5ee47f8b9dd002b452))
+
+
+### Bug Fixes
+
+* Fix list-like indexers in partial ordering mode ([#1456](https://github.com/googleapis/python-bigquery-dataframes/issues/1456)) ([fe72ada](https://github.com/googleapis/python-bigquery-dataframes/commit/fe72ada9cebb32947560c97567d7937c8b618f0d))
+* Fix the merge issue between 1424 and 1373 ([#1461](https://github.com/googleapis/python-bigquery-dataframes/issues/1461)) ([7b6e361](https://github.com/googleapis/python-bigquery-dataframes/commit/7b6e3615f8d4531beb4b59ca1223927112e713da))
+* Use `==` instead of `is` for timedelta type equality checks ([#1480](https://github.com/googleapis/python-bigquery-dataframes/issues/1480)) ([0db248b](https://github.com/googleapis/python-bigquery-dataframes/commit/0db248b5597a3966ac3dee1cca849509e48f4648))
+
+
+### Performance Improvements
+
+* Compilation no longer bounded by recursion ([#1464](https://github.com/googleapis/python-bigquery-dataframes/issues/1464)) ([27ab028](https://github.com/googleapis/python-bigquery-dataframes/commit/27ab028cdc45296923b12446c77b344af4208a3a))
+
 ## [1.39.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.38.0...v1.39.0) (2025-03-05)
 
 

@@ -91,9 +91,8 @@ class BadIndexerKeyWarning(Warning):
     """The indexer key is not used correctly."""
 
 
-class ColorFormatter:
-    WARNING = "\033[93m"
-    ENDC = "\033[0m"
+class ObsoleteVersionWarning(Warning):
+    """The BigFrames version is too old."""
 
 
 def format_message(message: str, fill: bool = True):
@@ -106,10 +105,9 @@ def format_message(message: str, fill: bool = True):
             especially if the message already contains newlines.
 
     Returns:
-        The formatted message string, with ANSI color codes for warning color
-        if color is supported, otherwise the original message.  If `fill` is
-        True, the message will be wrapped to fit the terminal width.
+        The formatted message string. If `fill` is True, the message will be wrapped
+        to fit the terminal width.
     """
     if fill:
         message = textwrap.fill(message)
-    return ColorFormatter.WARNING + message + ColorFormatter.ENDC
+    return message

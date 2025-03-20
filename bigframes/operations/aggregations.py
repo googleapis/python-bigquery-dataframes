@@ -142,7 +142,7 @@ class SumOp(UnaryAggregateOp):
     name: ClassVar[str] = "sum"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if input_types[0] is dtypes.TIMEDELTA_DTYPE:
+        if input_types[0] == dtypes.TIMEDELTA_DTYPE:
             return dtypes.TIMEDELTA_DTYPE
 
         if dtypes.is_numeric(input_types[0]):
@@ -185,7 +185,7 @@ class QuantileOp(UnaryAggregateOp):
         return True
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if input_types[0] is dtypes.TIMEDELTA_DTYPE:
+        if input_types[0] == dtypes.TIMEDELTA_DTYPE:
             return dtypes.TIMEDELTA_DTYPE
         return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
 
@@ -233,7 +233,7 @@ class MeanOp(UnaryAggregateOp):
     should_floor_result: bool = False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if input_types[0] is dtypes.TIMEDELTA_DTYPE:
+        if input_types[0] == dtypes.TIMEDELTA_DTYPE:
             return dtypes.TIMEDELTA_DTYPE
         return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
 
@@ -275,7 +275,7 @@ class StdOp(UnaryAggregateOp):
     should_floor_result: bool = False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if input_types[0] is dtypes.TIMEDELTA_DTYPE:
+        if input_types[0] == dtypes.TIMEDELTA_DTYPE:
             return dtypes.TIMEDELTA_DTYPE
 
         return signatures.FixedOutputType(
@@ -339,6 +339,7 @@ class ArrayAggOp(UnaryAggregateOp):
 class CutOp(UnaryWindowOp):
     # TODO: Unintuitive, refactor into multiple ops?
     bins: typing.Union[int, Iterable]
+    right: Optional[bool]
     labels: Optional[bool]
 
     @property
@@ -350,17 +351,27 @@ class CutOp(UnaryWindowOp):
             return dtypes.INT_DTYPE
         else:
             # Assumption: buckets use same numeric type
-            interval_dtype = (
-                pa.float64()
-                if isinstance(self.bins, int)
-                else dtypes.infer_literal_arrow_type(list(self.bins)[0][0])
-            )
+            if isinstance(self.bins, int):
+                interval_dtype = pa.float64()
+            elif len(list(self.bins)) == 0:
+                interval_dtype = pa.int64()
+            else:
+                interval_dtype = dtypes.infer_literal_arrow_type(list(self.bins)[0][0])
             pa_type = pa.struct(
                 [
-                    pa.field("left_exclusive", interval_dtype, nullable=True),
-                    pa.field("right_inclusive", interval_dtype, nullable=True),
+                    pa.field(
+                        "left_exclusive" if self.right else "left_inclusive",
+                        interval_dtype,
+                        nullable=True,
+                    ),
+                    pa.field(
+                        "right_inclusive" if self.right else "right_exclusive",
+                        interval_dtype,
+                        nullable=True,
+                    ),
                 ]
             )
+
             return pd.ArrowDtype(pa_type)
 
     @property

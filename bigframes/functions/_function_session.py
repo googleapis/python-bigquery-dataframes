@@ -33,7 +33,6 @@ from typing import (
 )
 import warnings
 
-import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
@@ -47,9 +46,9 @@ from google.cloud import (
 )
 
 from bigframes import clients
-from bigframes import version as bigframes_version
 import bigframes.core.compile.ibis_types
 import bigframes.exceptions as bfe
+import bigframes.formatting_helpers as bf_formatting
 import bigframes.series as bf_series
 
 if TYPE_CHECKING:
@@ -88,9 +87,10 @@ class FunctionSession:
         if not bigquery_client:
             bigquery_client = session.bqclient
         if not bigquery_client:
-            raise ValueError(
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
                 "A bigquery client must be provided, either directly or via "
-                f"session. {constants.FEEDBACK_LINK}"
+                "session.",
             )
         return bigquery_client
 
@@ -105,9 +105,10 @@ class FunctionSession:
         if not bigquery_connection_client:
             bigquery_connection_client = session.bqconnectionclient
         if not bigquery_connection_client:
-            raise ValueError(
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
                 "A bigquery connection client must be provided, either "
-                f"directly or via session. {constants.FEEDBACK_LINK}"
+                "directly or via session.",
             )
         return bigquery_connection_client
 
@@ -120,9 +121,10 @@ class FunctionSession:
         if not resource_manager_client:
             resource_manager_client = session.resourcemanagerclient
         if not resource_manager_client:
-            raise ValueError(
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
                 "A resource manager client must be provided, either directly "
-                f"or via session. {constants.FEEDBACK_LINK}"
+                "or via session.",
             )
         return resource_manager_client
 
@@ -150,9 +152,10 @@ class FunctionSession:
         if not cloud_functions_client:
             cloud_functions_client = session.cloudfunctionsclient
         if not cloud_functions_client:
-            raise ValueError(
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
                 "A cloud functions client must be provided, either directly "
-                f"or via session. {constants.FEEDBACK_LINK}"
+                "or via session.",
             )
         return cloud_functions_client
 
@@ -179,14 +182,16 @@ class FunctionSession:
             bq_connection_id,
         ) = bigquery_connection.split(".")
         if gcp_project_id.casefold() != dataset_ref.project.casefold():
-            raise ValueError(
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
                 "The project_id does not match BigQuery connection "
-                f"gcp_project_id: {dataset_ref.project}."
+                f"gcp_project_id: {dataset_ref.project}.",
             )
         if bq_connection_location.casefold() != bq_location.casefold():
-            raise ValueError(
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
                 "The location does not match BigQuery connection location: "
-                f"{bq_location}."
+                f"{bq_location}.",
             )
         return bq_connection_id
 
@@ -458,16 +463,13 @@ class FunctionSession:
         msg = bfe.format_message(
             "You have not explicitly set a user-managed `cloud_function_service_account`. "
             "Using the default Compute Engine service account. "
-            "To use Bigframes 2.0, please explicitly set `cloud_function_service_account` "
+            "In BigFrames 2.0 onwards, you would have to explicitly set `cloud_function_service_account` "
             'either to a user-managed service account (preferred) or to `"default"` '
-            "to use the Compute Engine service account (discouraged). "
+            "to use the default Compute Engine service account (discouraged). "
             "See, https://cloud.google.com/functions/docs/securing/function-identity."
         )
 
-        if (
-            bigframes_version.__version__.startswith("1.")
-            and cloud_function_service_account is None
-        ):
+        if cloud_function_service_account is None:
             warnings.warn(msg, stacklevel=2, category=FutureWarning)
 
         if cloud_function_service_account == "default":
@@ -510,10 +512,21 @@ class FunctionSession:
             cloud_function_kms_key_name is not None
             and cloud_function_docker_repository is None
         ):
-            raise ValueError(
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
                 "cloud_function_docker_repository must be specified with cloud_function_kms_key_name."
-                " For more details see https://cloud.google.com/functions/docs/securing/cmek#before_you_begin"
+                " For more details see https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.",
             )
+
+        if cloud_function_ingress_settings is None:
+            cloud_function_ingress_settings = "all"
+            msg = bfe.format_message(
+                "The `cloud_function_ingress_settings` are set to 'all' by default, "
+                "which will change to 'internal-only' for enhanced security in future version 2.0 onwards. "
+                "However, you will be able to explicitly pass cloud_function_ingress_settings='all' if you need. "
+                "See https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings for details."
+            )
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
 
         if cloud_function_ingress_settings is None:
             cloud_function_ingress_settings = "all"
@@ -531,7 +544,9 @@ class FunctionSession:
             nonlocal input_types, output_type
 
             if not callable(func):
-                raise TypeError("f must be callable, got {}".format(func))
+                raise bf_formatting.create_exception_with_feedback_link(
+                    TypeError, f"func must be a callable, got {func}"
+                )
 
             if sys.version_info >= (3, 10):
                 # Add `eval_str = True` so that deferred annotations are turned into their
@@ -551,10 +566,11 @@ class FunctionSession:
                 input_types = []
                 for parameter in signature.parameters.values():
                     if (param_type := parameter.annotation) is inspect.Signature.empty:
-                        raise ValueError(
+                        raise bf_formatting.create_exception_with_feedback_link(
+                            ValueError,
                             "'input_types' was not set and parameter "
                             f"'{parameter.name}' is missing a type annotation. "
-                            "Types are required to use @remote_function."
+                            "Types are required to use @remote_function.",
                         )
                     input_types.append(param_type)
             elif not isinstance(input_types, collections.abc.Sequence):
@@ -564,10 +580,11 @@ class FunctionSession:
                 if (
                     output_type := signature.return_annotation
                 ) is inspect.Signature.empty:
-                    raise ValueError(
+                    raise bf_formatting.create_exception_with_feedback_link(
+                        ValueError,
                         "'output_type' was not set and function is missing a "
                         "return type annotation. Types are required to use "
-                        "@remote_function."
+                        "@remote_function.",
                     )
 
             # The function will actually be receiving a pandas Series, but allow both
@@ -724,7 +741,7 @@ class FunctionSession:
             # with that name and would directly manage their lifecycle.
             if created_new and (not name):
                 self._update_temp_artifacts(
-                    func.bigframes_remote_function, func.bigframes_cloud_function
+                    func.bigframes_bigquery_function, func.bigframes_cloud_function
                 )
             return func
 
@@ -793,14 +810,15 @@ class FunctionSession:
                 https://pip.pypa.io/en/stable/reference/requirements-file-format/.
         """
         if not bigframes.options.experiments.udf:
-            raise NotImplementedError()
+            raise bf_formatting.create_exception_with_feedback_link(NotImplementedError)
 
         # Check the Python version.
         python_version = _utils.get_python_version()
         if python_version not in _MANAGED_FUNC_PYTHON_VERSIONS:
-            raise RuntimeError(
+            raise bf_formatting.create_exception_with_feedback_link(
+                RuntimeError,
                 f"Python version {python_version} is not supported yet for "
-                "BigFrames managed function."
+                "BigFrames managed function.",
             )
 
         # Some defaults may be used from the session if not provided otherwise.
@@ -827,7 +845,9 @@ class FunctionSession:
             nonlocal input_types, output_type
 
             if not callable(func):
-                raise TypeError("f must be callable, got {}".format(func))
+                raise bf_formatting.create_exception_with_feedback_link(
+                    TypeError, f"func must be a callable, got {func}"
+                )
 
             # Managed function supports version >= 3.11.
             signature_kwargs: Mapping[str, Any] = {"eval_str": True}
@@ -838,10 +858,11 @@ class FunctionSession:
                 input_types = []
                 for parameter in signature.parameters.values():
                     if (param_type := parameter.annotation) is inspect.Signature.empty:
-                        raise ValueError(
+                        raise bf_formatting.create_exception_with_feedback_link(
+                            ValueError,
                             "'input_types' was not set and parameter "
                             f"'{parameter.name}' is missing a type annotation. "
-                            "Types are required to use managed function."
+                            "Types are required to use managed function.",
                         )
                     input_types.append(param_type)
             elif not isinstance(input_types, collections.abc.Sequence):
@@ -851,10 +872,11 @@ class FunctionSession:
                 if (
                     output_type := signature.return_annotation
                 ) is inspect.Signature.empty:
-                    raise ValueError(
+                    raise bf_formatting.create_exception_with_feedback_link(
+                        ValueError,
                         "'output_type' was not set and function is missing a "
                         "return type annotation. Types are required to use "
-                        "managed function."
+                        "managed function.",
                     )
 
             # The function will actually be receiving a pandas Series, but allow
@@ -892,6 +914,7 @@ class FunctionSession:
             func = cloudpickle.loads(cloudpickle.dumps(func))
 
             self._try_delattr(func, "bigframes_bigquery_function")
+            self._try_delattr(func, "bigframes_bigquery_function_output_dtype")
             self._try_delattr(func, "input_dtypes")
             self._try_delattr(func, "output_dtype")
             self._try_delattr(func, "is_row_processor")
@@ -951,6 +974,10 @@ class FunctionSession:
                     ibis_signature.output_type
                 )
             )
+            # Managed function directly supports certain output types which are
+            # not supported in remote function (e.g. list output). Thus no more
+            # processing for 'bigframes_bigquery_function_output_dtype'.
+            func.bigframes_bigquery_function_output_dtype = func.output_dtype
             func.is_row_processor = is_row_processor
             func.ibis_node = node
 

@@ -59,6 +59,12 @@ LINT_PATHS = [
 
 DEFAULT_PYTHON_VERSION = "3.10"
 
+# Cloud Run Functions supports Python versions up to 3.12
+# https://cloud.google.com/run/docs/runtimes/python
+# Managed Python UDF is supported only in Python 3.11
+# Let's set the E2E tests version to 3.11 to cover most code paths.
+E2E_TEST_PYTHON_VERSION = "3.11"
+
 UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
@@ -112,16 +118,8 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 
 # Sessions are executed in the order so putting the smaller sessions
 # ahead to fail fast at presubmit running.
-# 'docfx' is excluded since it only needs to run in 'docs-presubmit'
 nox.options.sessions = [
-    "lint",
-    "lint_setup_py",
-    "mypy",
-    "format",
-    "docs",
-    "docfx",
     "unit",
-    "unit_noextras",
     "system-3.9",
     "system-3.12",
     "cover",
@@ -139,7 +137,12 @@ def lint(session):
     Returns a failure if the linters find linting errors or sufficiently
     serious code quality issues.
     """
-    session.install("flake8", BLACK_VERSION)
+    session.install("flake8", BLACK_VERSION, ISORT_VERSION)
+    session.run(
+        "isort",
+        "--check",
+        *LINT_PATHS,
+    )
     session.run(
         "black",
         "--check",
@@ -256,7 +259,8 @@ def mypy(session):
         set(
             [
                 "mypy",
-                "pandas-stubs",
+                # TODO: update to latest pandas-stubs once we resolve bigframes issues.
+                "pandas-stubs<=2.2.3.241126",
                 "types-protobuf",
                 "types-python-dateutil",
                 "types-requests",
@@ -417,7 +421,7 @@ def doctest(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+@nox.session(python=E2E_TEST_PYTHON_VERSION)
 def e2e(session: nox.sessions.Session):
     """Run the large tests in system test suite."""
     run_system(
@@ -759,6 +763,8 @@ def notebook(session: nox.Session):
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
         "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
         "notebooks/generative_ai/bq_dataframes_llm_gemini_2.ipynb",  # Gemini 2.0 backend hasn't ready in prod.
+        "notebooks/generative_ai/bq_dataframes_llm_vector_search.ipynb",  # Needs DATASET_ID.
+        "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
         # TODO(b/366290533): to protect BQML quota
         "notebooks/generative_ai/bq_dataframes_llm_claude3_museum_art.ipynb",
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
