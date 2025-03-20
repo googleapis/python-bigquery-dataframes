@@ -18,10 +18,12 @@ import typing
 from typing import Hashable, Iterable, List
 import warnings
 
+import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 import numpy as np
 import pandas as pd
 import pandas.api.types as pdtypes
+import pyarrow as pa
 import typing_extensions
 
 import bigframes.dtypes as dtypes
@@ -243,6 +245,21 @@ def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:
     return updated_columns
 
 
+def search_for_nested_json_type(arrow_type: pa.DataType) -> bool:
+    """
+    Searches recursively for pa.JsonType within a PyArrow DataType.
+    """
+    if isinstance(arrow_type, pa.JsonType):
+        return True
+    if pa.types.is_list(arrow_type):
+        return search_for_nested_json_type(arrow_type.value_type)
+    if pa.types.is_struct(arrow_type):
+        return any(
+            search_for_nested_json_type(field.type) for field in arrow_type.fields
+        )
+    return False
+
+
 def replace_json_with_string(dataframe: pd.DataFrame) -> List[str]:
     """
     Due to a BigQuery IO limitation with loading JSON from Parquet files (b/374784249),
@@ -253,12 +270,23 @@ def replace_json_with_string(dataframe: pd.DataFrame) -> List[str]:
     updated_columns = []
 
     for col in dataframe.columns:
-        if dataframe[col].dtype == dtypes.JSON_DTYPE:
+        column_type = dataframe[col].dtype
+        if column_type == dtypes.JSON_DTYPE:
             dataframe[col] = dataframe[col].astype(dtypes.STRING_DTYPE)
             updated_columns.append(col)
+        elif isinstance(column_type, pd.ArrowDtype):
+            raise NotImplementedError(
+                f"Nested JSON types, found in column `{col}`: `{column_type}`', "
+                f"are currently unsupported for upload. {constants.FEEDBACK_LINK}"
+            )
 
     if dataframe.index.dtype == dtypes.JSON_DTYPE:
         dataframe.index = dataframe.index.astype(dtypes.STRING_DTYPE)
         updated_columns.append(dataframe.index.name)
+    elif isinstance(column_type, pd.ArrowDtype):
+        raise NotImplementedError(
+            f"Nested JSON types, found in column `{col}`: `{column_type}`', "
+            f"are currently unsupported for upload. {constants.FEEDBACK_LINK}"
+        )
 
     return updated_columns
