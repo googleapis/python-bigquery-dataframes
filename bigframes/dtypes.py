@@ -62,8 +62,9 @@ BIGNUMERIC_DTYPE = pd.ArrowDtype(pa.decimal256(76, 38))
 # No arrow equivalent
 GEO_DTYPE = gpd.array.GeometryDtype()
 # JSON
-# TODO: switch to pyarrow.json_(pyarrow.string()) when available.
-JSON_ARROW_TYPE = db_dtypes.JSONArrowType()
+JSON_ARROW_TYPE = (
+    pa.json_(pa.string()) if hasattr(pa, "JsonType") else db_dtypes.JSONArrowType()
+)
 JSON_DTYPE = pd.ArrowDtype(JSON_ARROW_TYPE)
 OBJ_REF_DTYPE = pd.ArrowDtype(
     pa.struct(
@@ -169,7 +170,7 @@ SIMPLE_TYPES = (
     ),
     SimpleDtypeInfo(
         dtype=JSON_DTYPE,
-        arrow_dtype=db_dtypes.JSONArrowType(),
+        arrow_dtype=JSON_ARROW_TYPE,
         type_kind=("JSON",),
         orderable=False,
         clusterable=False,
@@ -330,8 +331,18 @@ def is_struct_like(type_: ExpressionType) -> bool:
     )
 
 
+def is_json_arrow_type(type_: pa.DataType) -> bool:
+    return (hasattr(pa, "JsonType") and isinstance(type_, pa.JsonType)) or (
+        not hasattr(pa, "JsonType") and isinstance(type_, db_dtypes.JSONArrowType)
+    )
+
+
+def is_json_type(type_: ExpressionType) -> bool:
+    return isinstance(type_, pd.ArrowDtype) and is_json_arrow_type(type_.pyarrow_dtype)
+
+
 def is_json_like(type_: ExpressionType) -> bool:
-    return type_ == JSON_DTYPE or type_ == STRING_DTYPE  # Including JSON string
+    return is_json_type(type_) or type_ == STRING_DTYPE  # Including JSON string
 
 
 def is_json_encoding_type(type_: ExpressionType) -> bool:
