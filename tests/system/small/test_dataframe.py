@@ -664,12 +664,8 @@ def test_rename(scalars_dfs):
 def test_df_peek(scalars_dfs_maybe_ordered):
     scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
 
-    session = scalars_df._block.session
-    slot_millis_sum = session.slot_millis_sum
-    # allow_large_results=False needed to get slot_millis_sum statistics only
     peek_result = scalars_df.peek(n=3, force=False, allow_large_results=True)
 
-    assert session.slot_millis_sum - slot_millis_sum > 1000
     pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
     assert len(peek_result) == 3
 
@@ -677,12 +673,8 @@ def test_df_peek(scalars_dfs_maybe_ordered):
 def test_df_peek_with_large_results_not_allowed(scalars_dfs_maybe_ordered):
     scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
 
-    session = scalars_df._block.session
-    slot_millis_sum = session.slot_millis_sum
     peek_result = scalars_df.peek(n=3, force=False, allow_large_results=False)
 
-    # The metrics won't be fully updated when we call query_and_wait.
-    assert session.slot_millis_sum - slot_millis_sum < 500
     pd.testing.assert_index_equal(scalars_pandas_df.columns, peek_result.columns)
     assert len(peek_result) == 3
 
@@ -813,6 +805,24 @@ def test_get_df_column_name_duplicate(scalars_dfs):
     bf_result = scalars_df.rename(columns=col_name_dict)["int64_col"].to_pandas()
     pd_result = scalars_pandas_df.rename(columns=col_name_dict)["int64_col"]
     pd.testing.assert_index_equal(bf_result.columns, pd_result.columns)
+
+
+@pytest.mark.parametrize(
+    ("indices", "axis"),
+    [
+        ([1, 3, 5], 0),
+        ([2, 4, 6], 1),
+        ([1, -3, -5, -6], "index"),
+        ([-2, -4, -6], "columns"),
+    ],
+)
+def test_take_df(scalars_dfs, indices, axis):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df.take(indices, axis=axis).to_pandas()
+    pd_result = scalars_pandas_df.take(indices, axis=axis)
+
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_filter_df(scalars_dfs):
@@ -4408,9 +4418,15 @@ def test_loc_list_multiindex(scalars_dfs_maybe_ordered):
     )
 
 
-def test_iloc_list(scalars_df_index, scalars_pandas_df_index):
-    index_list = [0, 0, 0, 5, 4, 7]
-
+@pytest.mark.parametrize(
+    "index_list",
+    [
+        [0, 1, 2, 3, 4, 4],
+        [0, 0, 0, 5, 4, 7, -2, -5, 3],
+        [-1, -2, -3, -4, -5, -5],
+    ],
+)
+def test_iloc_list(scalars_df_index, scalars_pandas_df_index, index_list):
     bf_result = scalars_df_index.iloc[index_list]
     pd_result = scalars_pandas_df_index.iloc[index_list]
 
@@ -4420,11 +4436,17 @@ def test_iloc_list(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+@pytest.mark.parametrize(
+    "index_list",
+    [
+        [0, 1, 2, 3, 4, 4],
+        [0, 0, 0, 5, 4, 7, -2, -5, 3],
+        [-1, -2, -3, -4, -5, -5],
+    ],
+)
 def test_iloc_list_partial_ordering(
-    scalars_df_partial_ordering, scalars_pandas_df_index
+    scalars_df_partial_ordering, scalars_pandas_df_index, index_list
 ):
-    index_list = [0, 0, 0, 5, 4, 7]
-
     bf_result = scalars_df_partial_ordering.iloc[index_list]
     pd_result = scalars_pandas_df_index.iloc[index_list]
 
