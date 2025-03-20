@@ -140,7 +140,6 @@ def test_series_construct_reindex():
 
     # BigQuery DataFrame default indices use nullable Int64 always
     pd_result.index = pd_result.index.astype("Int64")
-
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
@@ -301,6 +300,14 @@ def test_series_construct_w_dtype_for_array_struct():
     pd.testing.assert_series_equal(
         series.to_pandas(), expected, check_dtype=check_dtype
     )
+
+
+def test_series_construct_local_unordered_has_sequential_index(unordered_session):
+    series = bigframes.pandas.Series(
+        ["Sun", "Mon", "Tues", "Wed", "Thurs", "Fri", "Sat"], session=unordered_session
+    )
+    expected: pd.Index = pd.Index([0, 1, 2, 3, 4, 5, 6], dtype=pd.Int64Dtype())
+    pd.testing.assert_index_equal(series.index.to_pandas(), expected)
 
 
 def test_series_construct_w_dtype_for_json():
