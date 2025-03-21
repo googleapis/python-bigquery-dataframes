@@ -418,15 +418,15 @@ def test_read_gbq_w_json_in_array(session):
     # TODO(b/401630655): JSON is not compatible with allow_large_results=False
     pd_data = data.to_pandas(allow_large_results=True)
 
-    assert pd_data.list[0][0] == '{"boolean":true}'
-    assert pd_data.list[1][0] == '{"int":100}'
-    assert pd_data.list[2][0] == '{"float":0.98}'
-    assert pd_data.list[3][0] == '{"string":"hello world"}'
-    assert pd_data.list[4][0] == '{"array":[8,9,10]}'
-    assert pd_data.list[5][0] == '{"null":null}'
-    assert (
-        pd_data.list[6][0] == '{"dict":{"array":[{"bar":"hello"},{"foo":1}],"int":1}}'
-    )
+    assert pd_data[0] == [
+        '{"boolean":true}',
+        '{"int":100}',
+        '{"float":0.98}',
+        '{"string":"hello world"}',
+        '{"array":[8,9,10]}',
+        '{"null":null}',
+        '{"dict":{"array":[{"bar":"hello"},{"foo":1}],"int":1}}',
+    ]
 
 
 def test_to_pandas_batches_w_correct_dtypes(scalars_df_default_index):
