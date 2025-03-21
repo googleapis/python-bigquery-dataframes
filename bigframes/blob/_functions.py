@@ -471,11 +471,11 @@ def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> s
         if curr_chunk:
             all_text_chunks.append(curr_chunk)
 
-        result_dict = {"status": None, "content": all_text_chunks}
+        result_dict = {"status": "", "content": all_text_chunks}
         return json.dumps(result_dict)
 
     except Exception as e:
-        result_dict = {"status": [str(e)], "content": None}
+        result_dict = {"status": str(e), "content": []}
         return json.dumps(result_dict)
 
 

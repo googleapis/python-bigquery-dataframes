@@ -664,6 +664,7 @@ class BlobAccessor(base.SeriesMethods):
         max_batching_rows: int = 1,
         container_cpu: Union[float, int] = 2,
         container_memory: str = "1Gi",
+        verbose: bool = False,
     ) -> bigframes.series.Series:
         """Extracts and chunks text from PDF URLs and saves the text as
            arrays of strings.
@@ -684,6 +685,10 @@ class BlobAccessor(base.SeriesMethods):
                 send to cloud run to execute the function.
             container_cpu (int or float, default 2): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "1Gi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+            verbose (bool, default "False"): ontrols the verbosity of the output.
+                When set to True, both error messages and the extracted content
+                are displayed. Conversely, when set to False, only the extracted
+                content is presented, suppressing error messages.
 
         Returns:
             bigframe.series.Series: Series of array[str], where each string is a
@@ -719,8 +724,11 @@ class BlobAccessor(base.SeriesMethods):
 
         res = self._df_apply_udf(df, pdf_chunk_udf)
 
-        res_array = bbq.json_extract_string_array(res)
-
-        self._add_to_cleanup_set(pdf_chunk_udf)
-
-        return res_array
+        content_series = bbq.json_extract_string_array(res, "$.content")
+        if verbose:
+            status_series = bbq.json_extract(res, "$.status")
+            res_df = bpd.DataFrame({"status": status_series, "content": content_series})
+            struct_series = bbq.struct(res_df)
+            return struct_series
+        else:
+            return content_series
