@@ -95,6 +95,10 @@ class ObsoleteVersionWarning(Warning):
     """The BigFrames version is too old."""
 
 
+class SyntheticTotalOrderWarning(Warning):
+    """Generating an expensive synthetic total ordering."""
+
+
 def format_message(message: str, fill: bool = True):
     """Formats a warning message with ANSI color codes for the warning color.
 
