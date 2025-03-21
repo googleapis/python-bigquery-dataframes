@@ -4,6 +4,27 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [1.42.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.41.0...v1.42.0) (2025-03-21)
+
+
+### Features
+
+* Add `GeoSeries.difference()` and `bigframes.bigquery.st_difference()` ([#1471](https://github.com/googleapis/python-bigquery-dataframes/issues/1471)) ([e9fe815](https://github.com/googleapis/python-bigquery-dataframes/commit/e9fe8154d83e2674a05d7b670e949368b175ec8b))
+* Add df.take and series.take ([#1509](https://github.com/googleapis/python-bigquery-dataframes/issues/1509)) ([7d00be6](https://github.com/googleapis/python-bigquery-dataframes/commit/7d00be67cf50fdf713c40912f207d14f0f65538f))
+* Allow iloc to support lists of negative indices ([#1497](https://github.com/googleapis/python-bigquery-dataframes/issues/1497)) ([a9cf215](https://github.com/googleapis/python-bigquery-dataframes/commit/a9cf215fb1403fda4ab2b58252f5fedc33aba3e1))
+* Support dry_run in `to_pandas()` ([#1436](https://github.com/googleapis/python-bigquery-dataframes/issues/1436)) ([75fc7e0](https://github.com/googleapis/python-bigquery-dataframes/commit/75fc7e0268dc5b10bdbc33dcf28db97dce62e41c))
+
+
+### Bug Fixes
+
+* Change the default value for pdf extract/chunk ([#1517](https://github.com/googleapis/python-bigquery-dataframes/issues/1517)) ([a70a607](https://github.com/googleapis/python-bigquery-dataframes/commit/a70a607512797463f70ed529f078fcb2d40c85a1))
+* Tolerate BQ connection service account propagation delay ([#1505](https://github.com/googleapis/python-bigquery-dataframes/issues/1505)) ([6681f1f](https://github.com/googleapis/python-bigquery-dataframes/commit/6681f1f9e30ed2325b85668de8a0b1d3d0e2858b))
+
+
+### Performance Improvements
+
+* Update shape to use quer_and_wait ([#1519](https://github.com/googleapis/python-bigquery-dataframes/issues/1519)) ([34ab9b8](https://github.com/googleapis/python-bigquery-dataframes/commit/34ab9b8abd2c632c806afe69f00d9e7dddb6a8b5))
+
 ## [1.41.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.40.0...v1.41.0) (2025-03-19)
 
 
