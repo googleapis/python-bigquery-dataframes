@@ -813,7 +813,12 @@ class Session(
     ) -> Optional[dataframe.DataFrame]:
         import bigframes.dataframe as dataframe
 
-        if pandas_dataframe.memory_usage(deep=True).sum() > MAX_INLINE_DF_BYTES:
+        try:
+            if pandas_dataframe.memory_usage(deep=True).sum() > MAX_INLINE_DF_BYTES:
+                return None
+        except NotImplementedError:
+            # Workaround the known issue in pandas:
+            # https://github.com/pandas-dev/pandas/issues/60958
             return None
 
         try:

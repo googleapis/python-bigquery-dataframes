@@ -14,7 +14,6 @@
 
 from typing import Tuple
 
-import db_dtypes  # type:ignore
 import google.api_core.exceptions
 import pandas as pd
 import pandas.testing
@@ -307,10 +306,10 @@ def test_load_json_w_json_string_items(session):
                 )
             ),
     """
-    df = session.read_gbq(sql, index_col="id")
+    # TODO(b/401630655): JSON is not compatible with allow_large_results=False
+    df = session.read_gbq(sql, index_col="id").to_pandas(allow_large_results=True)
 
-    assert df.dtypes["json_col"] == pd.ArrowDtype(db_dtypes.JSONArrowType())
-
+    assert dtypes.is_json_type(df.dtypes["json_col"])
     assert df["json_col"][0] == '{"boolean":true}'
     assert df["json_col"][1] == '{"int":100}'
     assert df["json_col"][2] == '{"float":0.98}'
@@ -325,17 +324,24 @@ def test_load_json_w_json_string_items(session):
 
 def test_load_json_to_pandas_has_correct_result(session):
     df = session.read_gbq("SELECT JSON_OBJECT('foo', 10, 'bar', TRUE) AS json_col")
-    assert df.dtypes["json_col"] == pd.ArrowDtype(db_dtypes.JSONArrowType())
-    result = df.to_pandas()
+    assert dtypes.is_json_type(df.dtypes["json_col"])
+
+    # TODO(b/401630655): JSON is not compatible with allow_large_results=False
+    result = df.to_pandas(allow_large_results=True)
 
     # These JSON strings are compatible with BigQuery's JSON storage,
     pd_df = pd.DataFrame(
         {"json_col": ['{"bar":true,"foo":10}']},
-        dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()),
+        dtype=dtypes.JSON_DTYPE,
     )
     pd_df.index = pd_df.index.astype("Int64")
-    pd.testing.assert_series_equal(result.dtypes, pd_df.dtypes)
-    pd.testing.assert_series_equal(result["json_col"], pd_df["json_col"])
+    assert dtypes.is_json_type(pd_df.dtypes["json_col"])
+
+    # `check_exact=False` can workaround the known issue in pandas:
+    # https://github.com/pandas-dev/pandas/issues/60958
+    pd.testing.assert_series_equal(
+        result["json_col"], pd_df["json_col"], check_exact=False
+    )
 
 
 def test_load_json_in_struct(session):
@@ -363,13 +369,14 @@ def test_load_json_in_struct(session):
                 )
             ), 7),
     """
-    df = session.read_gbq(sql, index_col="id")
+    # TODO(b/401630655): JSON is not compatible with allow_large_results=False
+    df = session.read_gbq(sql, index_col="id").to_pandas(allow_large_results=True)
 
     assert isinstance(df.dtypes["struct_col"], pd.ArrowDtype)
     assert isinstance(df.dtypes["struct_col"].pyarrow_dtype, pa.StructType)
 
     data = df["struct_col"].struct.field("data")
-    assert data.dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
+    assert dtypes.is_json_type(data.dtype)
 
     assert data[0] == '{"boolean":true}'
     assert data[1] == '{"int":100}'
@@ -400,14 +407,15 @@ def test_load_json_in_array(session):
                 )
             ] AS array_col,
     """
-    df = session.read_gbq(sql, index_col="id")
+    # TODO(b/401630655): JSON is not compatible with allow_large_results=False
+    df = session.read_gbq(sql, index_col="id").to_pandas(allow_large_results=True)
 
     assert isinstance(df.dtypes["array_col"], pd.ArrowDtype)
     assert isinstance(df.dtypes["array_col"].pyarrow_dtype, pa.ListType)
 
     data = df["array_col"].list
     assert data.len()[0] == 7
-    assert data[0].dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
+    assert dtypes.is_json_type(data[0].dtype)
 
     assert data[0][0] == '{"boolean":true}'
     assert data[1][0] == '{"int":100}'
