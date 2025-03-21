@@ -34,6 +34,7 @@ import bigframes
 import bigframes.core.indexes.base
 import bigframes.dataframe
 import bigframes.dtypes
+import bigframes.exceptions
 import bigframes.ml.linear_model
 from tests.system import utils
 
@@ -1557,3 +1558,25 @@ def test_read_json_gcs_default_engine(session, scalars_dfs, gcs_folder):
 
     assert df.shape[0] == scalars_df.shape[0]
     pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
+
+
+def test_read_gbq_large_table_ordering_warning(
+    session: bigframes.Session,
+):
+    with pytest.warns(
+        bigframes.exceptions.SyntheticTotalOrderWarning,
+    ):
+        # table is >10gb and has no primary key
+        session.read_gbq("bigquery-public-data.covid19_open_data.covid19_open_data")
+
+
+def test_read_gbq_large_table_no_ordering_no_warning(
+    unordered_session: bigframes.Session,
+):
+    with warnings.catch_warnings(
+        category=bigframes.exceptions.SyntheticTotalOrderWarning,
+    ):
+        # table is >10gb and has no primary key
+        unordered_session.read_gbq(
+            "bigquery-public-data.covid19_open_data.covid19_open_data"
+        )

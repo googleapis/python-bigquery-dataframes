@@ -21,6 +21,7 @@ import itertools
 import os
 import typing
 from typing import Dict, Hashable, IO, Iterable, List, Optional, Sequence, Tuple, Union
+import warnings
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
@@ -449,6 +450,20 @@ class GbqDataLoader:
         # if we don't have a unique index, we order by row hash if we are in strict mode
         if self._force_total_order:
             if not primary_key:
+                # 5gb chosen rather arbitrarily, mostly want to avoid warning for very small tables, for which the
+                # price is trivial
+                if (table.num_bytes or 0) > 5000000000:
+                    msg = bigframes.exceptions.format_message(
+                        "Large table {table} has no natural ordering. "
+                        "Will use a synthetic natural ordering, this is very expensive. "
+                        "For better performance, use bigframes.option.bigquery.ordering_mode = 'partial' "
+                        "provide unique key as index_col argument, or set a valid primary key constraints on the table"
+                        "before importing it to a bigquery dataframe. "
+                        "(see: https://cloud.google.com/bigquery/docs/reference/standard-sql/data-definition-language#primary_keys_and_foreign_keys).",
+                    )
+                warnings.warn(
+                    msg, category=bigframes.exceptions.SyntheticTotalOrderWarning
+                )
                 array_value = array_value.order_by(
                     [
                         bigframes.core.ordering.OrderingExpression(
