@@ -194,3 +194,20 @@ def test_geo_boundary():
         check_series_type=False,
         check_index=False,
     )
+
+
+def test_geo_drop_duplicates():
+    bf_series = bigframes.geopandas.GeoSeries(
+        [Point(1, 1), Point(2, 2), Point(3, 3), Point(2, 2)]
+    )
+
+    pd_series = geopandas.GeoSeries(
+        [Point(1, 1), Point(2, 2), Point(3, 3), Point(2, 2)]
+    )
+
+    bf_result = bf_series.drop_duplicates().to_pandas()
+    pd_result = pd_series.drop_duplicates()
+
+    pd.testing.assert_series_equal(
+        geopandas.GeoSeries(bf_result), pd_result, check_index=False
+    )
