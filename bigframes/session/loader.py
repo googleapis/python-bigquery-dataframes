@@ -461,9 +461,9 @@ class GbqDataLoader:
                         "before importing it to a bigquery dataframe. "
                         "(see: https://cloud.google.com/bigquery/docs/reference/standard-sql/data-definition-language#primary_keys_and_foreign_keys).",
                     )
-                warnings.warn(
-                    msg, category=bigframes.exceptions.SyntheticTotalOrderWarning
-                )
+                    warnings.warn(
+                        msg, category=bigframes.exceptions.SyntheticTotalOrderWarning
+                    )
                 array_value = array_value.order_by(
                     [
                         bigframes.core.ordering.OrderingExpression(
