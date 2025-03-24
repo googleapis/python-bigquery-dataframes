@@ -342,6 +342,9 @@ def run_system(
 
     install_systemtest_dependencies(session, install_test_extra, "-c", constraints_path)
 
+    # Print out package versions for debugging.
+    session.run("python", "-m", "pip", "freeze")
+
     # Run py.test against the system tests.
     pytest_cmd = [
         "py.test",
@@ -469,10 +472,6 @@ def cover(session):
         "--show-missing",
         "--include=tests/unit/*",
         "--include=tests/system/small/*",
-        # TODO(b/401609005): remove this omission once either the small udf
-        # tests are made to run in system tests or they are moved to large
-        # system tests (aka e2e tests)
-        "--omit=tests/system/small/functions/test_managed_function.py",
         # TODO(b/353775058) resume coverage to 100 when the issue is fixed.
         "--fail-under=99",
     )
