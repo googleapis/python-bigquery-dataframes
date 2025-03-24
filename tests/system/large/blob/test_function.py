@@ -285,3 +285,12 @@ def test_blob_image_normalize_to_bq(images_mm_df: bpd.DataFrame, bq_connection: 
     assert isinstance(actual, bpd.Series)
     assert len(actual) == 2
     assert actual.dtype == dtypes.BYTES_DTYPE
+
+
+def test_blob_pdf_extract(pdf_mm_df: bpd.DataFrame, bq_connection: str):
+    bigframes.options.experiments.blob = True
+
+    actual = pdf_mm_df["pdf"].blob.pdf_extract(connection=bq_connection)
+
+    assert isinstance(actual, bpd.Series)
+    print(actual)

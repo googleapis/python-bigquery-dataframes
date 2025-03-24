@@ -398,32 +398,39 @@ image_normalize_to_bytes_def = FunctionDef(
 
 # Extracts all text from a PDF url
 def pdf_extract_func(src_obj_ref_rt: str) -> str:
-    import io
-    import json
+    try:
+        import io
+        import json
 
-    from pypdf import PdfReader  # type: ignore
-    import requests
-    from requests import adapters
+        from pypdf import PdfReader  # type: ignore
+        import requests
+        from requests import adapters
 
-    session = requests.Session()
-    session.mount("https://", adapters.HTTPAdapter(max_retries=3))
+        session = requests.Session()
+        session.mount("https://", adapters.HTTPAdapter(max_retries=3))
 
-    src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
-    src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
+        src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
+        src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
 
-    response = session.get(src_url, timeout=30, stream=True)
-    response.raise_for_status()
-    pdf_bytes = response.content
+        response = session.get(src_url, timeout=30, stream=True)
+        response.raise_for_status()
+        pdf_bytes = response.content
 
-    pdf_file = io.BytesIO(pdf_bytes)
-    reader = PdfReader(pdf_file, strict=False)
+        pdf_file = io.BytesIO(pdf_bytes)
+        reader = PdfReader(pdf_file, strict=False)
 
-    all_text = ""
-    for page in reader.pages:
-        page_extract_text = page.extract_text()
-        if page_extract_text:
-            all_text += page_extract_text
-    return all_text
+        all_text = ""
+        for page in reader.pages:
+            page_extract_text = page.extract_text()
+            if page_extract_text:
+                all_text += page_extract_text
+
+        result_dict = {"status": "", "content": all_text}
+        return json.dumps(result_dict)
+
+    except Exception as e:
+        result_dict = {"status": str(e), "content": ""}
+        return json.dumps(result_dict)
 
 
 pdf_extract_def = FunctionDef(pdf_extract_func, ["pypdf", "requests", "pypdf[crypto]"])
@@ -431,14 +438,14 @@ pdf_extract_def = FunctionDef(pdf_extract_func, ["pypdf", "requests", "pypdf[cry
 
 # Extracts text from a PDF url and chunks it simultaneously
 def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> str:
-    import io
-    import json
-
-    from pypdf import PdfReader  # type: ignore
-    import requests
-    from requests import adapters
-
     try:
+        import io
+        import json
+
+        from pypdf import PdfReader  # type: ignore
+        import requests
+        from requests import adapters
+
         session = requests.Session()
         session.mount("https://", adapters.HTTPAdapter(max_retries=3))
 
