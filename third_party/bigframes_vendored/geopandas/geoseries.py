@@ -355,10 +355,10 @@ class GeoSeries:
 
     def intersection(self: GeoSeries, other: GeoSeries) -> GeoSeries:  # type: ignore
         """
-            Returns a GeoSeries of the intersection of points in each aligned
-            geometry with other.
+        Returns a GeoSeries of the intersection of points in each aligned
+        geometry with other.
 
-            The operation works on a 1-to-1 row-wise manner.
+        The operation works on a 1-to-1 row-wise manner.
 
         **Examples:**
 
@@ -426,14 +426,14 @@ class GeoSeries:
             dtype: geometry
 
 
-            Args:
-                other (GeoSeries or geometric object):
-                    The Geoseries (elementwise) or geometric object to find the
-                    intersection with.
+        Args:
+            other (GeoSeries or geometric object):
+                The Geoseries (elementwise) or geometric object to find the
+                intersection with.
 
-            Returns:
-                bigframes.geopandas.GeoSeries:
-                    The Geoseries (elementwise) of the intersection of points in
-                    each aligned geometry with other.
+        Returns:
+            bigframes.geopandas.GeoSeries:
+                The Geoseries (elementwise) of the intersection of points in
+                each aligned geometry with other.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
