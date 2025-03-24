@@ -238,6 +238,10 @@ class BlobAccessor(base.SeriesMethods):
         for _, row in pandas_df.iterrows():
             display_single_url(row["read_url"], row["content_type"])
 
+    @property
+    def session(self):
+        return self._block.session
+
     def _resolve_connection(self, connection: Optional[str] = None) -> str:
         """Resovle the BigQuery connection.
 
@@ -287,12 +291,11 @@ class BlobAccessor(base.SeriesMethods):
         return runtime._apply_unary_op(ops.ToJSONString())
 
     # TODO(b/404605969): remove cleanups when UDF fixes dataset deletion.
-    def _try_cleanup_udf(self, udf):
-        """Try to cleanup udf assets. Won't need this after UDF fixes dataset deletion."""
-        try:
-            self._block.session.bqclient.delete_routine(udf.bigframes_bigquery_function)
-        except Exception:
-            pass
+    def _add_to_cleanup_set(self, udf):
+        """Add udf name to session cleanup set. Won't need this after UDF fixes dataset deletion."""
+        if not hasattr(self.session, "_udf_cleanup_set"):
+            self.session._udf_cleanup_set = set()
+        self.session._udf_cleanup_set.add(udf.bigframes_bigquery_function)
 
     def image_blur(
         self,
@@ -375,7 +378,7 @@ class BlobAccessor(base.SeriesMethods):
         res = df.apply(image_blur_udf, axis=1)
         res.cache()  # to execute the udf
 
-        self._try_cleanup_udf(image_blur_udf)
+        self._add_to_cleanup_set(image_blur_udf)
 
         return dst
 
@@ -473,7 +476,7 @@ class BlobAccessor(base.SeriesMethods):
         res = df.apply(image_resize_udf, axis=1)
         res.cache()  # to execute the udf
 
-        self._try_cleanup_udf(image_resize_udf)
+        self._add_to_cleanup_set(image_resize_udf)
 
         return dst
 
@@ -566,7 +569,7 @@ class BlobAccessor(base.SeriesMethods):
         res = df.apply(image_normalize_udf, axis=1)
         res.cache()  # to execute the udf
 
-        self._try_cleanup_udf(image_normalize_udf)
+        self._add_to_cleanup_set(image_normalize_udf)
 
         return dst
 
@@ -613,8 +616,7 @@ class BlobAccessor(base.SeriesMethods):
         src_rt = self._get_runtime_json_str(mode="R")
         res = src_rt.apply(pdf_extract_udf)
 
-        res.cache()
-        self._try_cleanup_udf(pdf_extract_udf)
+        self._add_to_cleanup_set(pdf_extract_udf)
 
         return res
 
@@ -683,7 +685,6 @@ class BlobAccessor(base.SeriesMethods):
 
         res_array = bbq.json_extract_string_array(res)
 
-        res_array.cache()
-        self._try_cleanup_udf(pdf_chunk_udf)
+        self._add_to_cleanup_set(pdf_chunk_udf)
 
         return res_array

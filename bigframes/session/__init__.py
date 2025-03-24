@@ -398,6 +398,14 @@ class Session(
                 self.bqclient, self.cloudfunctionsclient, self.session_id
             )
 
+        # TODO(b/404605969): remove cleanups when UDF fixes dataset deletion.
+        if hasattr(self, "_udf_cleanup_set"):
+            for udf_name in self._udf_cleanup_set:
+                try:
+                    self.bqclient.delete_routine(udf_name)
+                except Exception:
+                    pass
+
     def read_gbq(
         self,
         query_or_table: str,
