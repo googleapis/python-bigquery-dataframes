@@ -4575,13 +4575,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def semantics(self):
-        warnings.warn(
-            "The 'semantics' property will be removed. Please use 'ai' instead.",
-            FutureWarning,
+        msg = bfe.format_message(
+            "The 'semantics' property will be removed. Please use 'ai' instead."
         )
+        warnings.warn(msg, category=bfe.PreviewWarning)
         return bigframes.operations.semantics.Semantics(self)
 
     @property
     def ai(self):
         """Returns the accessor for AI operators."""
-        return bigframes.operations.ai.AI(self)
+        return bigframes.operations.ai.AIAccessor(self)

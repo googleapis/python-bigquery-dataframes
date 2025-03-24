@@ -38,7 +38,7 @@ Struct handling
 AI operators
 ^^^^^^^^^^^^
 
-.. autoclass:: bigframes.operations.ai.AI
+.. autoclass:: bigframes.operations.ai.AIAccessor
     :members:
     :inherited-members:
     :undoc-members:

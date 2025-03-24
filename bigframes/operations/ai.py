@@ -24,7 +24,7 @@ from bigframes.core import guid, log_adapter
 
 
 @log_adapter.class_logger
-class AI:
+class AIAccessor:
     def __init__(self, df) -> None:
         import bigframes  # Import in the function body to avoid circular imports.
         import bigframes.dataframe
