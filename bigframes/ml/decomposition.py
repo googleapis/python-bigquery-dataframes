@@ -233,9 +233,9 @@ class MatrixFactorization(
 
         self.feedback_type = feedback_type
 
-        if type(num_factors) is not int:
+        if not isinstance(num_factors, int):
             raise TypeError(
-                f"Expected num_factors to be INT64, but got {type(num_factors)}."
+                f"Expected num_factors to be INT, but got {type(num_factors)}."
             )
 
         if num_factors < 0:
@@ -245,7 +245,7 @@ class MatrixFactorization(
 
         self.num_factors = num_factors
 
-        if type(user_col) is not str:
+        if not isinstance(user_col, str):
             raise TypeError(f"Expected user_col to be STR, but got {type(user_col)}.")
 
         if user_col != "user_id":
@@ -253,7 +253,7 @@ class MatrixFactorization(
 
         self.user_col = user_col
 
-        if type(item_col) is not str:
+        if not isinstance(item_col, str):
             raise TypeError(f"Expected item_col to be STR, but got {type(item_col)}.")
 
         if item_col != "item_col":
@@ -261,15 +261,17 @@ class MatrixFactorization(
 
         self.item_col = item_col
 
-        if type(rating_col) is not str:
+        if not isinstance(rating_col, str):
             raise TypeError(
                 f"Expected rating_col to be STR, but got {type(rating_col)}."
             )
 
         self.rating_col = rating_col
 
-        if type(l2_reg) is not float:
-            raise TypeError(f"Expected l2_reg to be FLOAT, but got {type(l2_reg)}.")
+        if not isinstance(l2_reg, (float, int)):
+            raise TypeError(
+                f"Expected l2_reg to be FLOAT or INT, but got {type(l2_reg)}."
+            )
 
         self.l2_reg = l2_reg
         self._bqml_model: Optional[core.BqmlModel] = None

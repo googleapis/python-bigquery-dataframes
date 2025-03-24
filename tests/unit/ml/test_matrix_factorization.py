@@ -25,7 +25,7 @@ def test_decomposition_mf_model():
         user_col="user_id",
         item_col="item_col",
         rating_col="rating_col",
-        l2_reg=9.83,
+        l2_reg=9,
     )
     assert model.num_factors == 16
     assert model.feedback_type == "implicit"
@@ -97,7 +97,7 @@ def test_decomposition_mf_invalid_num_factors_raises():
     num_factors = 0.5
     with pytest.raises(
         TypeError,
-        match=f"Expected num_factors to be INT64, but got {type(num_factors)}.",
+        match=f"Expected num_factors to be INT, but got {type(num_factors)}.",
     ):
         decomposition.MatrixFactorization(
             num_factors=num_factors,  # type: ignore
@@ -186,10 +186,22 @@ def test_decomposition_mf_invalid_rating_col_raises():
         )
 
 
+def test_decomposition_mf_l2_reg():
+    model = decomposition.MatrixFactorization(
+        num_factors=16,
+        feedback_type="explicit",
+        user_col="user_id",
+        item_col="item_col",
+        rating_col="rating_col",
+        l2_reg=6.02,  # type: ignore
+    )
+    assert model.l2_reg == 6.02
+
+
 def test_decomposition_mf_invalid_l2_reg_raises():
     l2_reg = "6.02"
     with pytest.raises(
-        TypeError, match=f"Expected l2_reg to be FLOAT, but got {type(l2_reg)}."
+        TypeError, match=f"Expected l2_reg to be FLOAT or INT, but got {type(l2_reg)}."
     ):
         decomposition.MatrixFactorization(
             num_factors=16,
