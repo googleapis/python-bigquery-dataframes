@@ -64,11 +64,11 @@ def rows(
         grouping_keys:
             Columns ids of grouping keys
         start:
-            The starting boundary of the window relative to the current row. For example, -1 means 1 row prior
-            1 means 1 row after, and 0 means the current row. If None, the window is unbounded from the start.
+            The window's starting boundary relative to the current row. For example, "-1" means one row prior
+            "1" means one row after, and "0" means the current row. If None, the window is unbounded from the start.
         following:
-            The ending boundary of the window relative to the current row. For example, -1 means 1 row prior
-            1 means 1 row after, and 0 means the current row. If None, the window is unbounded until the end.
+            The window's ending boundary relative to the current row. For example, "-1" means one row prior
+            "1" means one row after, and "0" means the current row. If None, the window is unbounded until the end.
         min_periods (int, default 0):
             Minimum number of input rows to generate output.
         ordering:
