@@ -679,7 +679,9 @@ def _to_ibis_boundary(
 ) -> Optional[ibis_expr_window.WindowBoundary]:
     if boundary is None:
         return None
-    return ibis_expr_window.WindowBoundary(abs(boundary), preceding=boundary <= 0)
+    return ibis_expr_window.WindowBoundary(
+        abs(boundary), preceding=boundary <= 0  # type:ignore
+    )
 
 
 def _add_boundary(
@@ -687,16 +689,16 @@ def _add_boundary(
     ibis_window: ibis_expr_builders.LegacyWindowBuilder,
 ) -> ibis_expr_builders.LegacyWindowBuilder:
     if isinstance(bounds, RangeWindowBounds):
-        return ibis_window.between(
+        return ibis_window.range(
             start=_to_ibis_boundary(bounds.start),
             end=_to_ibis_boundary(bounds.end),
-        ).copy(how="range")
+        )
     if isinstance(bounds, RowsWindowBounds):
         if bounds.start is not None or bounds.end is not None:
-            return ibis_window.between(
+            return ibis_window.rows(
                 start=_to_ibis_boundary(bounds.start),
                 end=_to_ibis_boundary(bounds.end),
-            ).copy(how="rows")
+            )
         return ibis_window
     else:
         raise ValueError(f"unrecognized window bounds {bounds}")
