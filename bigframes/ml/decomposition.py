@@ -229,9 +229,7 @@ class MatrixFactorization(
 
         feedback_type = feedback_type.lower()  # type: ignore
         if feedback_type not in ("explicit", "implicit"):
-            raise ValueError(
-                f"Expected feedback_type to be `explicit` or `implicit`, but got {feedback_type}"
-            )
+            raise ValueError("Expected feedback_type to be `explicit` or `implicit`.")
 
         self.feedback_type = feedback_type
 
@@ -251,9 +249,7 @@ class MatrixFactorization(
             raise TypeError(f"Expected user_col to be STR, but got {type(user_col)}.")
 
         if user_col != "user_id":
-            raise ValueError(
-                f"Expected user_col column to be `user_id`, but got {user_col}."
-            )
+            raise ValueError("Expected user_col column to be `user_id`.")
 
         self.user_col = user_col
 
@@ -261,9 +257,7 @@ class MatrixFactorization(
             raise TypeError(f"Expected item_col to be STR, but got {type(item_col)}.")
 
         if item_col != "item_col":
-            raise ValueError(
-                f"Expected item_col column to be `item_col`, but got {item_col}."
-            )
+            raise ValueError("Expected item_col column to be `item_col`.")
 
         self.item_col = item_col
 
