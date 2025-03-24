@@ -143,7 +143,7 @@ def test_decomposition_mf_label_user_col_raises():
 def test_decomposition_mf_invalid_item_col_raises():
     item_col = 123
     with pytest.raises(
-        TypeError, match="Expected item_col to be STR, but got {type(item_col)}."
+        TypeError, match=f"Expected item_col to be STR, but got {type(item_col)}."
     ):
         decomposition.MatrixFactorization(
             num_factors=16,
