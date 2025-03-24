@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 import itertools
-from typing import Generic, Mapping, Optional, Set, Tuple, TypeVar, Union
+from typing import Mapping, Optional, Set, Tuple, Union
 
 import bigframes.core.expression as ex
 import bigframes.core.identifiers as ids
