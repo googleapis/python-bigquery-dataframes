@@ -367,7 +367,7 @@ class PolarsCompiler:
             indexed_df = df.with_row_index(index_col_name)
             if len(window.grouping_keys) == 0:  # rolling-only window
                 # https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.rolling.html
-                offset_n = _get_offset(window.bounds)
+                offset_n = window.bounds.start
                 period_n = _get_period(window.bounds) or df.collect().height
                 results = indexed_df.rolling(
                     index_column=index_col_name,
@@ -383,16 +383,6 @@ class PolarsCompiler:
             return pl.concat([df, results], how="horizontal")
 
 
-def _get_offset(
-    bounds: Union[window_spec.RowsWindowBounds, window_spec.RangeWindowBounds]
-) -> Optional[window_spec.OffsetType]:
-    if bounds.start is None:
-        return None
-    if bounds.start.is_preceding:
-        return -bounds.start.value
-    return bounds.start.value
-
-
 def _get_period(
     bounds: Union[window_spec.RowsWindowBounds, window_spec.RangeWindowBounds]
 ) -> Optional[int]:
@@ -401,18 +391,4 @@ def _get_period(
         return None
 
     # collecting height is a massive kludge
-    if bounds.start.is_preceding:
-        if bounds.end.is_preceding:
-            result = bounds.start.value - bounds.end.value + 1
-        else:
-            result = bounds.start.value + bounds.end.value + 1
-
-    else:
-        if bounds.end.is_preceding:
-            raise ValueError(
-                "When boundary start is FOLLOWING, boundary end cannot be PRECEDING"
-            )
-        else:
-            result = bounds.end.value - bounds.start.value + 1
-
-    return cast(int, result)
+    return cast(int, bounds.end - bounds.start + 1)

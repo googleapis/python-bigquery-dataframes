@@ -52,8 +52,8 @@ def unbound(
 ### Rows-based Windows
 def rows(
     grouping_keys: Tuple[str, ...] = (),
-    preceding: Optional[int] = None,
-    following: Optional[int] = None,
+    start: Optional[int] = None,
+    end: Optional[int] = None,
     min_periods: int = 0,
     ordering: Tuple[orderings.OrderingExpression, ...] = (),
 ) -> WindowSpec:
@@ -63,10 +63,12 @@ def rows(
     Args:
         grouping_keys:
             Columns ids of grouping keys
-        preceding:
-            number of preceding rows to include. If None, include all preceding rows
+        start:
+            The starting boundary of the window relative to the current row. For example, -1 means 1 row prior
+            1 means 1 row after, and 0 means the current row. If None, the window is unbounded from the start.
         following:
-            number of following rows to include. If None, include all following rows
+            The ending boundary of the window relative to the current row. For example, -1 means 1 row prior
+            1 means 1 row after, and 0 means the current row. If None, the window is unbounded until the end.
         min_periods (int, default 0):
             Minimum number of input rows to generate output.
         ordering:
@@ -75,8 +77,8 @@ def rows(
         WindowSpec
     """
     bounds = RowsWindowBounds(
-        start=WindowBoundary.preceding(preceding),
-        end=WindowBoundary.following(following),
+        start=start,
+        end=end,
     )
     return WindowSpec(
         grouping_keys=tuple(map(ex.deref, grouping_keys)),
@@ -100,7 +102,7 @@ def cumulative_rows(
     Returns:
         WindowSpec
     """
-    bounds = RowsWindowBounds(end=WindowBoundary.following(0))
+    bounds = RowsWindowBounds(end=0)
     return WindowSpec(
         grouping_keys=tuple(map(ex.deref, grouping_keys)),
         bounds=bounds,
@@ -122,7 +124,7 @@ def inverse_cumulative_rows(
     Returns:
         WindowSpec
     """
-    bounds = RowsWindowBounds(start=WindowBoundary.preceding(0))
+    bounds = RowsWindowBounds(start=0)
     return WindowSpec(
         grouping_keys=tuple(map(ex.deref, grouping_keys)),
         bounds=bounds,
@@ -133,31 +135,20 @@ def inverse_cumulative_rows(
 ### Struct Classes
 
 
-T = TypeVar("T")
-
-
-@dataclass(frozen=True)
-class WindowBoundary(Generic[T]):
-    value: T
-    is_preceding: bool
-
-    @classmethod
-    def preceding(cls, value: Optional[T]):
-        if value is None:
-            return None
-        return cls(value, True)
-
-    @classmethod
-    def following(cls, value: Optional[T]):
-        if value is None:
-            return None
-        return cls(value, False)
-
-
 @dataclass(frozen=True)
 class RowsWindowBounds:
-    start: Optional[WindowBoundary[int]] = None
-    end: Optional[WindowBoundary[int]] = None
+    start: Optional[int] = None
+    end: Optional[int] = None
+
+    def __post_init__(self):
+        if self.start is None:
+            return
+        if self.end is None:
+            return
+        if self.start > self.end:
+            raise ValueError(
+                f"Invalid window: start({self.start}) is greater than end({self.end})"
+            )
 
 
 # TODO: Expand to datetime offsets
@@ -166,8 +157,18 @@ OffsetType = Union[float, int]
 
 @dataclass(frozen=True)
 class RangeWindowBounds:
-    start: Optional[WindowBoundary[OffsetType]] = None
-    end: Optional[WindowBoundary[OffsetType]] = None
+    start: Optional[OffsetType] = None
+    end: Optional[OffsetType] = None
+
+    def __post_init__(self):
+        if self.start is None:
+            return
+        if self.end is None:
+            return
+        if self.start > self.end:
+            raise ValueError(
+                f"Invalid window: start({self.start}) is greater than end({self.end})"
+            )
 
 
 @dataclass(frozen=True)

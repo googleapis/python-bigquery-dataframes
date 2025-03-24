@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from bigframes.core import window_spec
 
 
-def test_window_boundary_preceding():
-    window = window_spec.WindowBoundary.preceding(1)
+@pytest.mark.parametrize(("start", "end"), [(-1, -2), (1, -2), (2, 1)])
+def test_invalid_rows_window_boundary_raise_error(start, end):
+    with pytest.raises(ValueError):
+        window_spec.RowsWindowBounds(start, end)
 
-    assert window == window_spec.WindowBoundary(1, is_preceding=True)
 
-
-def test_window_boundary_following():
-    window = window_spec.WindowBoundary.following(1)
-
-    assert window == window_spec.WindowBoundary(1, is_preceding=False)
+@pytest.mark.parametrize(("start", "end"), [(-1, -2), (1, -2), (2, 1)])
+def test_invalid_range_window_boundary_raise_error(start, end):
+    with pytest.raises(ValueError):
+        window_spec.RangeWindowBounds(start, end)
