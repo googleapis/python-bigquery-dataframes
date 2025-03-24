@@ -4578,7 +4578,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         msg = bfe.format_message(
             "The 'semantics' property will be removed. Please use 'ai' instead."
         )
-        warnings.warn(msg, category=bfe.PreviewWarning)
+        warnings.warn(msg, category=FutureWarning)
         return bigframes.operations.semantics.Semantics(self)
 
     @property
