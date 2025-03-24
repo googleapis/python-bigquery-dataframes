@@ -391,4 +391,4 @@ def _get_period(
         return None
 
     # collecting height is a massive kludge
-    return cast(int, bounds.end - bounds.start + 1)
+    return bounds.end - bounds.start + 1

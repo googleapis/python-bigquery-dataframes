@@ -675,7 +675,7 @@ def _as_groupable(value: ibis_types.Value):
 
 
 def _to_ibis_boundary(
-    boundary: typing.Union[int, float, None],
+    boundary: Optional[int],
 ) -> Optional[ibis_expr_window.WindowBoundary]:
     if boundary is None:
         return None

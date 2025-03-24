@@ -151,14 +151,11 @@ class RowsWindowBounds:
             )
 
 
-# TODO: Expand to datetime offsets
-OffsetType = Union[float, int]
-
-
 @dataclass(frozen=True)
 class RangeWindowBounds:
-    start: Optional[OffsetType] = None
-    end: Optional[OffsetType] = None
+    # TODO(b/388916840) Support range rolling on timeseries with timedeltas.
+    start: Optional[int] = None
+    end: Optional[int] = None
 
     def __post_init__(self):
         if self.start is None:
