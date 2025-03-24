@@ -293,9 +293,9 @@ class BlobAccessor(base.SeriesMethods):
     # TODO(b/404605969): remove cleanups when UDF fixes dataset deletion.
     def _add_to_cleanup_set(self, udf):
         """Add udf name to session cleanup set. Won't need this after UDF fixes dataset deletion."""
-        if not hasattr(self.session, "_udf_cleanup_set"):
-            self.session._udf_cleanup_set = set()
-        self.session._udf_cleanup_set.add(udf.bigframes_bigquery_function)
+        self.session._function_session._update_temp_artifacts(
+            udf.bigframes_bigquery_function, ""
+        )
 
     def image_blur(
         self,
