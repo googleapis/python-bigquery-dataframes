@@ -1,7 +1,7 @@
 on:
   pull_request:
     branches:
-      - main
+      - v1
 name: mypy
 jobs:
   mypy:
