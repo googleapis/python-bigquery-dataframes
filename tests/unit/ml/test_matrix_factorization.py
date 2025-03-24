@@ -50,7 +50,7 @@ def test_decomposition_mf_invalid_feedback_type_raises():
     feedback_type = "explimp"
     with pytest.raises(
         ValueError,
-        match=f"Expected feedback_type to be `explicit` or `implicit`, but got {feedback_type}",
+        match=f"Expected feedback_type to be `explicit` or `implicit`.",
     ):
         decomposition.MatrixFactorization(
             # Intentionally pass in the wrong type. This will fail if the user is using
@@ -128,7 +128,7 @@ def test_decomposition_mf_label_user_col_raises():
     user_col = "user_col"
     with pytest.raises(
         ValueError,
-        match=f"Expected user_col column to be `user_id`, but got {user_col}.",
+        match=f"Expected user_col column to be `user_id`.",
     ):
         decomposition.MatrixFactorization(
             num_factors=16,
@@ -159,7 +159,7 @@ def test_decomposition_mf_label_item_col_raises():
     item_col = "item_id"
     with pytest.raises(
         ValueError,
-        match=f"Expected item_col column to be `item_col`, but got {item_col}.",
+        match=f"Expected item_col column to be `item_col`.",
     ):
         decomposition.MatrixFactorization(
             num_factors=16,
