@@ -66,12 +66,22 @@ class ComputeOptions:
             engine to handle. However this comes at the cost of increase cost and latency.
         extra_query_labels (Dict[str, Any], Options):
             Stores additional custom labels for query configuration.
-        semmantic_ops_confirmation_threshold (int, optional):
-            Guards against unexepcted processing of large amount of rows by semantic operators.
+        semantic_ops_confirmation_threshold (int, optional):
+            Semantics operators are deprecated. Please use AI operators instead.
+            [Deprecated] Guards against unexepcted processing of large amount of rows by semantic operators.
             If the number of rows exceeds the threshold, the user will be asked to confirm
             their operations to resume. The default value is 0. Set the value to None
             to turn off the guard.
         semantic_ops_threshold_autofail (bool):
+            Semantics operators are deprecated. Please use AI operators instead.
+            [Deprecated] Guards against unexepcted processing of large amount of rows by semantic operators.
+            When set to True, the operation automatically fails without asking for user inputs.
+        ai_ops_confirmation_threshold (int, optional):
+            Guards against unexepcted processing of large amount of rows by semantic operators.
+            If the number of rows exceeds the threshold, the user will be asked to confirm
+            their operations to resume. The default value is 0. Set the value to None
+            to turn off the guard.
+        ai_ops_threshold_autofail (bool):
             Guards against unexepcted processing of large amount of rows by semantic operators.
             When set to True, the operation automatically fails without asking for user inputs.
     """

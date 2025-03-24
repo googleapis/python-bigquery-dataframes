@@ -24,7 +24,7 @@ from bigframes.core import guid, log_adapter
 
 
 @log_adapter.class_logger
-class Ai:
+class AI:
     def __init__(self, df) -> None:
         import bigframes  # Import in the function body to avoid circular imports.
         import bigframes.dataframe
@@ -42,8 +42,8 @@ class Ai:
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
-            >>> bpd.options.experiments.semantic_operators = True
-            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
+            >>> bpd.options.experiments.ai_operators = True
+            >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -78,7 +78,7 @@ class Ai:
             bigframes.pandas.DataFrame: DataFrame filtered by the instruction.
 
         Raises:
-            NotImplementedError: when the semantic operator experiment is off.
+            NotImplementedError: when the AI operator experiment is off.
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
@@ -156,8 +156,8 @@ class Ai:
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
-            >>> bpd.options.experiments.semantic_operators = True
-            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
+            >>> bpd.options.experiments.ai_operators = True
+            >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -198,7 +198,7 @@ class Ai:
             bigframes.pandas.DataFrame: DataFrame with attached mapping results.
 
         Raises:
-            NotImplementedError: when the semantic operator experiment is off.
+            NotImplementedError: when the AI operator experiment is off.
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
@@ -279,8 +279,8 @@ class Ai:
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
-            >>> bpd.options.experiments.semantic_operators = True
-            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
+            >>> bpd.options.experiments.ai_operators = True
+            >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -412,7 +412,7 @@ class Ai:
         score_column: Optional[str] = None,
     ):
         """
-        Performs semantic search on the DataFrame.
+        Performs AI semantic search on the DataFrame.
 
         ** Examples: **
 
@@ -420,8 +420,8 @@ class Ai:
             >>> bpd.options.display.progress_bar = None
 
             >>> import bigframes
-            >>> bigframes.options.experiments.semantic_operators = True
-            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
+            >>> bigframes.options.experiments.ai_operators = True
+            >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
@@ -521,8 +521,8 @@ class Ai:
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
-            >>> bpd.options.experiments.semantic_operators = True
-            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
+            >>> bpd.options.experiments.ai_operators = True
+            >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
@@ -560,7 +560,7 @@ class Ai:
             bigframes.dataframe.DataFrame: A new DataFrame with the top k rows.
 
         Raises:
-            NotImplementedError: when the semantic operator experiment is off.
+            NotImplementedError: when the AI operator experiment is off.
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
@@ -573,9 +573,7 @@ class Ai:
             if column not in self._df.columns:
                 raise ValueError(f"Column {column} not found.")
         if len(columns) > 1:
-            raise NotImplementedError(
-                "Semantic aggregations are limited to a single column."
-            )
+            raise NotImplementedError("AI top_k are limited to a single column.")
 
         if ground_with_google_search:
             msg = exceptions.format_message(
@@ -726,8 +724,8 @@ class Ai:
 
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
-            >>> bpd.options.experiments.semantic_operators = True
-            >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
+            >>> bpd.options.experiments.ai_operators = True
+            >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
             >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
@@ -892,7 +890,7 @@ class Ai:
         # input function makes it less visible to the end user.
         print(f"This operation will process about {row_count} rows.")
         print(
-            "You can raise the confirmation threshold by setting `bigframes.options.compute.semantic_ops_confirmation_threshold` to a higher value. To completely turn off the confirmation check, set the threshold to `None`."
+            "You can raise the confirmation threshold by setting `bigframes.options.compute.ai_ops_confirmation_threshold` to a higher value. To completely turn off the confirmation check, set the threshold to `None`."
         )
         print("Proceed? [Y/n]")
         reply = input().casefold()

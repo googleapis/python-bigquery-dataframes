@@ -14,7 +14,7 @@
 
 
 # Note that the tests in this files uses fake models for deterministic results.
-# Tests that use real LLM models are under system/large/test_semantcs.py
+# Tests that use real LLM models are under system/large/test_ai.py
 
 import pandas as pd
 import pandas.testing

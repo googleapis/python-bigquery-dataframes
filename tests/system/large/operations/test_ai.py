@@ -925,7 +925,7 @@ def test_confirm_operation__threshold_autofail_do_not_confirm(mock_input):
         True,
         THRESHOLD_OPTION,
         1,
-        "compute.semantic_ops_threshold_autofail",
+        "compute.ai_ops_threshold_autofail",
         True,
     ), pytest.raises(exceptions.OperationAbortedError):
         df.ai._confirm_operation(100)

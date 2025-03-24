@@ -36,10 +36,9 @@ class ExperimentOptions:
     def semantic_operators(self, value: bool):
         if value is True:
             msg = bfe.format_message(
-                "Semantic operators are still under experiments, and are subject "
-                "to change in the future."
+                "Semantic operators are deprecated, and will be removed in the future"
             )
-            warnings.warn(msg, category=bfe.PreviewWarning)
+            warnings.warn(msg, category=FutureWarning)
         self._semantic_operators = value
 
     @property
