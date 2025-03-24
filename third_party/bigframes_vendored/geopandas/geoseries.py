@@ -303,32 +303,32 @@ class GeoSeries:
 
         We can also check difference of single shapely geometries:
 
-            >>> series1 = bigframes.geopandas.GeoSeries(
+            >>> polygon_s1 = bigframes.geopandas.GeoSeries(
             ...     [
             ...         Polygon([(0, 0), (10, 0), (10, 10), (0, 0)])
             ...     ]
             ... )
-            >>> series2 = bigframes.geopandas.GeoSeries(
+            >>> polygon_s2 = bigframes.geopandas.GeoSeries(
             ...     [
             ...         Polygon([(4, 2), (6, 2), (8, 6), (4, 2)])
             ...     ]
             ... )
 
-            >>> series1
+            >>> polygon_s1
             0    POLYGON ((0 0, 10 0, 10 10, 0 0))
             dtype: geometry
 
-            >>> series2
+            >>> polygon_s2
             0    POLYGON ((4 2, 6 2, 8 6, 4 2))
             dtype: geometry
 
-            >>> series1.difference(series2)
+            >>> polygon_s1.difference(polygon_s2)
             0    POLYGON ((0 0, 10 0, 10 10, 0 0), (8 6, 6 2, 4...
             dtype: geometry
 
         Additionally, we can check difference of a GeoSeries against a single shapely geometry:
 
-            >>> s1.difference(series2)
+            >>> s1.difference(polygon_s2)
             0    POLYGON ((0 0, 2 2, 0 2, 0 0))
             1                              None
             2                              None

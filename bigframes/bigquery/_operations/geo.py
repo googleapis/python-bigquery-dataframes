@@ -168,32 +168,32 @@ def st_difference(
 
     We can also check difference of single shapely geometries:
 
-        >>> sbq1 = bigframes.geopandas.GeoSeries(
+        >>> polygon_s1 = bigframes.geopandas.GeoSeries(
         ...     [
         ...         Polygon([(0, 0), (10, 0), (10, 10), (0, 0)])
         ...     ]
         ... )
-        >>> sbq2 = bigframes.geopandas.GeoSeries(
+        >>> polygon_s2 = bigframes.geopandas.GeoSeries(
         ...     [
         ...         Polygon([(4, 2), (6, 2), (8, 6), (4, 2)])
         ...     ]
         ... )
 
-        >>> sbq1
+        >>> polygon_s1
         0    POLYGON ((0 0, 10 0, 10 10, 0 0))
         dtype: geometry
 
-        >>> sbq2
+        >>> polygon_s2
         0    POLYGON ((4 2, 6 2, 8 6, 4 2))
         dtype: geometry
 
-        >>> bbq.st_difference(sbq1, sbq2)
+        >>> bbq.st_difference(polygon_s1, polygon_s2)
         0    POLYGON ((0 0, 10 0, 10 10, 0 0), (8 6, 6 2, 4...
         dtype: geometry
 
     Additionally, we can check difference of a GeoSeries against a single shapely geometry:
 
-        >>> bbq.st_difference(s1, sbq2)
+        >>> bbq.st_difference(s1, polygon_s2)
         0    POLYGON ((0 0, 2 2, 0 2, 0 0))
         1                              None
         2                              None
