@@ -1488,14 +1488,6 @@ def pdf_gcs_path() -> str:
 
 
 @pytest.fixture(scope="session")
-def pdf_uris() -> list[str]:
-    return [
-        "gs://bigframes_blob_test/pdfs/sample-local-pdf.pdf",
-        "gs://bigframes_blob_test/pdfs/test-protected.pdf",
-    ]
-
-
-@pytest.fixture(scope="session")
 def pdf_mm_df(
     pdf_gcs_path, session: bigframes.Session, bq_connection: str
 ) -> bpd.DataFrame:

@@ -287,10 +287,91 @@ def test_blob_image_normalize_to_bq(images_mm_df: bpd.DataFrame, bq_connection: 
     assert actual.dtype == dtypes.BYTES_DTYPE
 
 
+@pytest.fixture(scope="session")
+def pdf_uris() -> list[str]:
+    return [
+        "uri: gs://bigframes_blob_test/pdfs/test-protected.pdf",
+        "uri: gs://bigframes_blob_test/pdfs/sample-local-pdf.pdf",
+    ]
+
+
 def test_blob_pdf_extract(pdf_mm_df: bpd.DataFrame, bq_connection: str):
     bigframes.options.experiments.blob = True
 
-    actual = pdf_mm_df["pdf"].blob.pdf_extract(connection=bq_connection)
+    actual_exploded = (
+        pdf_mm_df["pdf"]
+        .blob.pdf_extract(connection=bq_connection)
+        .struct.explode()
+        .to_pandas()
+    )
+    extract_data = [
+        {"status": '"File has not been decrypted"', "content": '""'},
+        {
+            "status": '""',
+            "content": '"Sample  PDF    This  is  a  testing  file.  Some  dummy  messages  are  used  for  testing  purposes.   "',
+        },
+    ]
+    expected_df = pd.DataFrame(
+        {
+            "pdf": pdf_uris,
+            "authorizer": [bq_connection.casefold(), bq_connection.casefold()],
+            "values": extract_data,
+        }
+    )
+    actual = pd.DataFrame(
+        {
+            "pdf": pdf_uris,
+            "authorizer": [bq_connection.casefold(), bq_connection.casefold()],
+            "values": actual_exploded.to_dict("records"),
+        }
+    )
 
-    assert isinstance(actual, bpd.Series)
-    print(actual)
+    pd.testing.assert_frame_equal(
+        actual,
+        expected_df,
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
+def test_blob_pdf_chunk(pdf_mm_df: bpd.DataFrame, bq_connection: str):
+    bigframes.options.experiments.blob = True
+
+    actual_exploded = (
+        pdf_mm_df["pdf"]
+        .blob.pdf_chunk(connection=bq_connection, chunk_size=50, overlap_size=10)
+        .struct.explode()
+        .to_pandas()
+    )
+    extract_data = [
+        {"status": '"File has not been decrypted"', "content": []},
+        {
+            "status": '""',
+            "content": [
+                "Sample  PDF    This  is  a  testing  file.  Some ",
+                "dummy  messages  are  used  for  testing ",
+                "purposes.   ",
+            ],
+        },
+    ]
+    expected_df = pd.DataFrame(
+        {
+            "pdf": pdf_uris,
+            "authorizer": [bq_connection.casefold(), bq_connection.casefold()],
+            "values": extract_data,
+        }
+    )
+    actual = pd.DataFrame(
+        {
+            "pdf": pdf_uris,
+            "authorizer": [bq_connection.casefold(), bq_connection.casefold()],
+            "values": actual_exploded.to_dict("records"),
+        }
+    )
+
+    pd.testing.assert_frame_equal(
+        actual,
+        expected_df,
+        check_dtype=False,
+        check_index_type=False,
+    )
