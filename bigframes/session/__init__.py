@@ -1588,7 +1588,7 @@ class Session(
         Another use case is to define your own remote function and use it later.
         For example, define the remote function:
 
-            >>> @bpd.remote_function()
+            >>> @bpd.remote_function(cloud_function_service_account="default")
             ... def tenfold(num: int) -> float:
             ...     return num * 10
 
