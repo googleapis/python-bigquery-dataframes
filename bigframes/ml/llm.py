@@ -919,7 +919,7 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
 
 
 @typing_extensions.deprecated(
-    "gemini-1.0-X and gemini-1.5-X are going to be deprecated. Use gemini-2.0-X (https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.GeminiTextGenerator) instead. ",
+    "gemini-pro and gemini-1.5-X are going to be deprecated. Use gemini-2.0-X (https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.GeminiTextGenerator) instead. ",
     category=exceptions.ApiDeprecationWarning,
 )
 @log_adapter.class_logger
@@ -927,17 +927,19 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
     """Gemini text generator LLM model.
 
     .. note::
-        gemini-1.0-X and gemini-1.5-X are going to be deprecated. Use gemini-2.0-X (https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.GeminiTextGenerator) instead.
+        gemini-pro and gemini-1.5-X are going to be deprecated. Use gemini-2.0-X (https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.GeminiTextGenerator) instead.
 
     Args:
         model_name (str, Default to "gemini-pro"):
             The model for natural language tasks. Accepted values are "gemini-pro", "gemini-1.5-pro-preview-0514", "gemini-1.5-flash-preview-0514", "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-1.5-flash-001", "gemini-1.5-flash-002" and "gemini-2.0-flash-exp". Default to "gemini-pro".
 
         .. note::
+            "gemini-pro" is going to be deprecated. Will change to gemini-2.0-X for Bigframes 2.
             "gemini-2.0-flash-exp", "gemini-1.5-pro-preview-0514" and "gemini-1.5-flash-preview-0514" is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
             Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
             and might have limited support. For more information, see the launch stage descriptions
             (https://cloud.google.com/products#product-launch-stages).
+            "
 
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
