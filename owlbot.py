@@ -119,6 +119,11 @@ assert 1 == s.replace(  # .coveragerc
 python.py_samples(skip_readmes=True)
 
 # ----------------------------------------------------------------------------
+# Configure previous major version for release after all templates are added
+# ----------------------------------------------------------------------------
+python.configure_previous_major_version_branches()
+
+# ----------------------------------------------------------------------------
 # Final cleanup
 # ----------------------------------------------------------------------------
 
