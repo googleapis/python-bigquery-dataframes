@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from bigframes.core.groupby.dataframe_group_by import DataFrameGroupBy
-from bigframes.core.groupby.series_group_by import SeriesGroupBy
+from __future__ import annotations
 
-__all__ = ["DataFrameGroupBy", "SeriesGroupBy"]
+from bigframes.core import expression
+from bigframes.operations import aggregations as agg_ops
+
+
+def agg(input: str, op: agg_ops.AggregateOp) -> expression.Aggregation:
+    if isinstance(op, agg_ops.UnaryAggregateOp):
+        return expression.UnaryAggregation(op, expression.deref(input))
+    else:
+        assert isinstance(op, agg_ops.NullaryAggregateOp)
+        return expression.NullaryAggregation(op)
