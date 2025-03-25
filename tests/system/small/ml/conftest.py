@@ -402,7 +402,7 @@ def imported_xgboost_model(
 @pytest.fixture(scope="session")
 def bqml_gemini_text_generator(bq_connection, session) -> llm.GeminiTextGenerator:
     return llm.GeminiTextGenerator(
-        model_name="gemini-1.5-flash-002",  # Or your desired Gemini model
+        model_name="gemini-1.5-flash-002",
         connection_name=bq_connection,
         session=session,
     )

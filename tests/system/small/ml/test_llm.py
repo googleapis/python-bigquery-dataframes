@@ -486,7 +486,7 @@ class EqCmpAllDataFrame(bpd.DataFrame):
 )
 def test_text_generator_retry_success(
     session,
-    model_name,
+    model_class,
     options,
     bqml_gemini_text_generator: llm.GeminiTextGenerator,
     bqml_claude3_text_generator: llm.Claude3TextGenerator,
@@ -567,7 +567,7 @@ def test_text_generator_retry_success(
 
     text_generator_model = (
         bqml_gemini_text_generator
-        if (model_name == llm.GeminiTextGenerator)
+        if (model_class == llm.GeminiTextGenerator)
         else bqml_claude3_text_generator
     )
     text_generator_model._bqml_model = mock_bqml_model
@@ -602,7 +602,7 @@ def test_text_generator_retry_success(
 
 @pytest.mark.parametrize(
     (
-        "model_name",
+        "model_class",
         "options",
     ),
     [
@@ -630,7 +630,7 @@ def test_text_generator_retry_success(
 )
 def test_text_generator_retry_no_progress(
     session,
-    model_name,
+    model_class,
     options,
     bqml_gemini_text_generator: llm.GeminiTextGenerator,
     bqml_claude3_text_generator: llm.Claude3TextGenerator,
@@ -690,7 +690,7 @@ def test_text_generator_retry_no_progress(
 
     text_generator_model = (
         bqml_gemini_text_generator
-        if (model_name == llm.GeminiTextGenerator)
+        if (model_class == llm.GeminiTextGenerator)
         else bqml_claude3_text_generator
     )
     text_generator_model._bqml_model = mock_bqml_model
