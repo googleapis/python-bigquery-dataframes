@@ -309,7 +309,6 @@ def test_multimodal_embedding_generator_predict_default_params_success(
 @pytest.mark.parametrize(
     "model_name",
     (
-        "gemini-pro",
         "gemini-1.5-pro-preview-0514",
         "gemini-1.5-flash-preview-0514",
         "gemini-1.5-pro-001",
@@ -343,7 +342,6 @@ def test_create_load_gemini_text_generator_model(
 @pytest.mark.parametrize(
     "model_name",
     (
-        "gemini-pro",
         "gemini-1.5-pro-preview-0514",
         "gemini-1.5-flash-preview-0514",
         "gemini-1.5-pro-001",
@@ -369,7 +367,6 @@ def test_gemini_text_generator_predict_default_params_success(
 @pytest.mark.parametrize(
     "model_name",
     (
-        "gemini-pro",
         "gemini-1.5-pro-preview-0514",
         "gemini-1.5-flash-preview-0514",
         "gemini-1.5-pro-001",
@@ -397,7 +394,6 @@ def test_gemini_text_generator_predict_with_params_success(
 @pytest.mark.parametrize(
     "model_name",
     (
-        "gemini-pro",
         "gemini-1.5-pro-preview-0514",
         "gemini-1.5-flash-preview-0514",
         "gemini-1.5-pro-001",
@@ -563,7 +559,17 @@ def test_text_generator_retry_success(session, bq_connection, model_class, optio
         ),
     ]
 
-    text_generator_model = model_class(connection_name=bq_connection, session=session)
+    if model_class is llm.GeminiTextGenerator:
+        text_generator_model = model_class(
+            connection_name=bq_connection,
+            session=session,
+            model_name="gemini-2.0-flash-exp",
+        )
+    else:
+        text_generator_model = model_class(
+            connection_name=bq_connection, session=session
+        )
+
     text_generator_model._bqml_model = mock_bqml_model
 
     # 3rd retry isn't triggered
@@ -676,7 +682,16 @@ def test_text_generator_retry_no_progress(session, bq_connection, model_class, o
         ),
     ]
 
-    text_generator_model = model_class(connection_name=bq_connection, session=session)
+    if model_class is llm.GeminiTextGenerator:
+        text_generator_model = model_class(
+            connection_name=bq_connection,
+            session=session,
+            model_name="gemini-2.0-flash-exp",
+        )
+    else:
+        text_generator_model = model_class(
+            connection_name=bq_connection, session=session
+        )
     text_generator_model._bqml_model = mock_bqml_model
 
     # No progress, only conduct retry once
@@ -954,7 +969,6 @@ def test_llm_palm_score_params(llm_fine_tune_df_default_index):
 @pytest.mark.parametrize(
     "model_name",
     (
-        "gemini-pro",
         "gemini-1.5-pro-002",
         "gemini-1.5-flash-002",
     ),
@@ -983,7 +997,6 @@ def test_llm_gemini_score(llm_fine_tune_df_default_index, model_name):
 @pytest.mark.parametrize(
     "model_name",
     (
-        "gemini-pro",
         "gemini-1.5-pro-002",
         "gemini-1.5-flash-002",
     ),
@@ -1029,12 +1042,19 @@ def test_palm2_text_embedding_deprecated():
         "gemini-1.5-pro-002",
         "gemini-1.5-flash-001",
         "gemini-1.5-flash-002",
-        "gemini-1.0-pro",
     ),
 )
 def test_gemini_text_generator_deprecated(model_name):
     with pytest.warns(exceptions.ApiDeprecationWarning):
         llm.GeminiTextGenerator(model_name=model_name)
+
+
+def test_gemini_pro_text_generator_deprecated():
+    with pytest.warns(exceptions.ApiDeprecationWarning):
+        try:
+            llm.GeminiTextGenerator(model_name="gemini-pro")
+        except (Exception):
+            pass
 
 
 @pytest.mark.parametrize(

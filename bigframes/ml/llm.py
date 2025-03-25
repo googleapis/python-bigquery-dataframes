@@ -452,7 +452,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
 
 
 @typing_extensions.deprecated(
-    "PaLM2TextEmbeddingGenerator has been deprecated, textembedding-gecko are going to be deprecated. Use TextEmbeddingGenerator(https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead. ",
+    "PaLM2TextEmbeddingGenerator has been deprecated. Use TextEmbeddingGenerator(https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead. ",
     category=exceptions.ApiDeprecationWarning,
 )
 @log_adapter.class_logger
@@ -927,7 +927,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
     """Gemini text generator LLM model.
 
     .. note::
-        gemini-1.0-X and gemini-1.5-X are going to be deprecated. Use GeminiTextGenerator(https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.GeminiTextGenerator) instead.
+        gemini-1.0-X and gemini-1.5-X are going to be deprecated. Use gemini-2.0-X (https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.GeminiTextGenerator) instead.
 
     Args:
         model_name (str, Default to "gemini-pro"):
