@@ -269,12 +269,11 @@ def st_intersection(
         dtype: geometry
 
         >>> s2
-        0                                               None
-        1    POLYGON ((0.99954 1, 2 2, 0 2, 0 1, 0.99954 1))
-        2                   LINESTRING (0 0, 1 1.00046, 2 2)
-        3                           GEOMETRYCOLLECTION EMPTY
-        4                                        POINT (0 1)
-        5                                               None
+        1    POLYGON ((0 0, 1 1, 0 1, 0 0))
+        2             LINESTRING (1 0, 1 3)
+        3             LINESTRING (2 0, 0 2)
+        4                       POINT (1 1)
+        5                       POINT (0 1)
         dtype: geometry
 
         >>> bbq.st_intersection(s2)
