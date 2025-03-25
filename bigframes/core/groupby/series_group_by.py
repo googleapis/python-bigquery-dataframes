@@ -163,14 +163,11 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
     def agg(self, func=None) -> typing.Union[df.DataFrame, series.Series]:
         column_names: list[str] = []
         if isinstance(func, str):
-            aggregations = [
-                aggs.agg(self._value_column, agg_ops.lookup_agg_func(func))
-            ]
+            aggregations = [aggs.agg(self._value_column, agg_ops.lookup_agg_func(func))]
             column_names = [func]
         elif utils.is_list_like(func):
             aggregations = [
-                aggs.agg(self._value_column, agg_ops.lookup_agg_func(f))
-                for f in func
+                aggs.agg(self._value_column, agg_ops.lookup_agg_func(f)) for f in func
             ]
             column_names = list(func)
         else:

@@ -400,9 +400,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     def _agg_list(self, func: typing.Sequence) -> df.DataFrame:
         ids, labels = self._aggregated_columns()
         aggregations = [
-            aggs.agg(col_id, agg_ops.lookup_agg_func(f))
-            for col_id in ids
-            for f in func
+            aggs.agg(col_id, agg_ops.lookup_agg_func(f)) for col_id in ids for f in func
         ]
 
         if self._block.column_labels.nlevels > 1:
@@ -498,9 +496,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         self, aggregate_op: agg_ops.UnaryAggregateOp, numeric_only: bool = False
     ) -> df.DataFrame:
         aggregated_col_ids, labels = self._aggregated_columns(numeric_only=numeric_only)
-        aggregations = [
-            aggs.agg(col_id, aggregate_op) for col_id in aggregated_col_ids
-        ]
+        aggregations = [aggs.agg(col_id, aggregate_op) for col_id in aggregated_col_ids]
         result_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
