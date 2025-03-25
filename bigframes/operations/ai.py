@@ -527,13 +527,17 @@ class AIAccessor:
             >>> import bigframes.ml.llm as llm
             >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
 
-            >>> df = bpd.DataFrame({"Animals": ["Dog", "Bird", "Cat", "Horse"]})
+            >>> df = bpd.DataFrame(
+            ... {
+            ...     "Animals": ["Dog", "Bird", "Cat", "Horse"],
+            ...     "Sounds": ["Woof", "Chirp", "Meow", "Neigh"],
+            ... })
             >>> df.ai.top_k("{Animals} are more popular as pets", model=model, k=2)
-              Animals
-            0     Dog
-            2     Cat
+              Animals Sounds
+            0     Dog   Woof
+            2     Cat   Meow
             <BLANKLINE>
-            [2 rows x 1 columns]
+            [2 rows x 2 columns]
 
         Args:
             instruction (str):
@@ -573,7 +577,7 @@ class AIAccessor:
             if column not in self._df.columns:
                 raise ValueError(f"Column {column} not found.")
         if len(columns) > 1:
-            raise NotImplementedError("AI top_k are limited to a single column.")
+            raise NotImplementedError("AI top K are limited to a single column.")
 
         if ground_with_google_search:
             msg = exceptions.format_message(
@@ -631,14 +635,8 @@ class AIAccessor:
             )
             num_selected += num_new_selected
 
-        df = (
-            df[df[status_column] > 0]
-            .drop(["index", status_column], axis=1)
-            .rename(columns={"old_index": "index"})
-            .set_index("index")
-        )
-        df.index.name = None
-        return df
+        result_df: bigframes.dataframe.DataFrame = self._df.copy()
+        return result_df[df.set_index("old_index")[status_column] > 0.0]
 
     @staticmethod
     def _topk_partition(

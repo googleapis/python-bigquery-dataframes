@@ -857,9 +857,7 @@ class Semantics:
             if column not in self._df.columns:
                 raise ValueError(f"Column {column} not found.")
         if len(columns) > 1:
-            raise NotImplementedError(
-                "Semantic aggregations are limited to a single column."
-            )
+            raise NotImplementedError("Semantic top K are limited to a single column.")
 
         if ground_with_google_search:
             msg = exceptions.format_message(
