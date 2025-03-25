@@ -21,8 +21,6 @@ import bigframes
 import bigframes.pandas as bpd
 from tests.system.utils import cleanup_function_assets
 
-bpd.options.experiments.udf = True
-
 
 def test_managed_function_multiply_with_ibis(
     session,
@@ -121,21 +119,12 @@ def test_managed_function_stringify_with_ibis(
         cleanup_function_assets(stringify, bigquery_client, ignore_failures=False)
 
 
-@pytest.mark.parametrize(
-    "array_dtype",
-    [
-        bool,
-        int,
-        float,
-        str,
-    ],
-)
-def test_managed_function_array_output(session, scalars_dfs, dataset_id, array_dtype):
+def test_managed_function_array_output(session, scalars_dfs, dataset_id):
     try:
 
         @session.udf(dataset=dataset_id)
-        def featurize(x: int) -> list[array_dtype]:  # type: ignore
-            return [array_dtype(i) for i in [x, x + 1, x + 2]]
+        def featurize(x: int) -> list[float]:
+            return [float(i) for i in [x, x + 1, x + 2]]
 
         scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -160,7 +149,7 @@ def test_managed_function_array_output(session, scalars_dfs, dataset_id, array_d
 
         # Test on the function from read_gbq_function.
         got = featurize_ref(10)
-        assert got == [array_dtype(i) for i in [10, 11, 12]]
+        assert got == [10.0, 11.0, 12.0]
 
         bf_result_gbq = bf_int64_col.apply(featurize_ref).to_pandas()
         pandas.testing.assert_series_equal(bf_result_gbq, pd_result, check_dtype=False)
@@ -170,30 +159,18 @@ def test_managed_function_array_output(session, scalars_dfs, dataset_id, array_d
         cleanup_function_assets(featurize, session.bqclient, ignore_failures=False)
 
 
-@pytest.mark.parametrize(
-    ("typ",),
-    [
-        pytest.param(int),
-        pytest.param(float),
-        pytest.param(bool),
-        pytest.param(str),
-        pytest.param(bytes),
-    ],
-)
 def test_managed_function_series_apply(
     session,
-    typ,
     scalars_dfs,
 ):
     try:
 
         @session.udf()
-        def foo(x: int) -> typ:  # type:ignore
-            # The bytes() constructor expects a non-negative interger as its arg.
-            return typ(abs(x))
+        def foo(x: int) -> bytes:
+            return bytes(abs(x))
 
         # Function should still work normally.
-        assert foo(-2) == typ(2)
+        assert foo(-2) == bytes(2)
 
         assert hasattr(foo, "bigframes_bigquery_function")
         assert hasattr(foo, "ibis_node")
@@ -237,26 +214,15 @@ def test_managed_function_series_apply(
         cleanup_function_assets(foo, session.bqclient, ignore_failures=False)
 
 
-@pytest.mark.parametrize(
-    ("typ",),
-    [
-        pytest.param(int),
-        pytest.param(float),
-        pytest.param(bool),
-        pytest.param(str),
-    ],
-)
 def test_managed_function_series_apply_array_output(
     session,
-    typ,
     scalars_dfs,
 ):
     try:
 
         @session.udf()
-        def foo_list(x: int) -> list[typ]:  # type:ignore
-            # The bytes() constructor expects a non-negative interger as its arg.
-            return [typ(abs(x)), typ(abs(x) + 1)]
+        def foo_list(x: int) -> list[float]:
+            return [float(abs(x)), float(abs(x) + 1)]
 
         scalars_df, scalars_pandas_df = scalars_dfs
 

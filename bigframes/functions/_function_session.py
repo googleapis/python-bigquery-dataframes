@@ -58,9 +58,6 @@ import pandas
 
 from . import _function_client, _utils
 
-# BQ managed functions (@udf) currently only support Python 3.11.
-_MANAGED_FUNC_PYTHON_VERSIONS = ("python-3.11",)
-
 
 class FunctionSession:
     """Session to manage bigframes functions."""
@@ -809,17 +806,6 @@ class FunctionSession:
                 of the form supported in
                 https://pip.pypa.io/en/stable/reference/requirements-file-format/.
         """
-        if not bigframes.options.experiments.udf:
-            raise bf_formatting.create_exception_with_feedback_link(NotImplementedError)
-
-        # Check the Python version.
-        python_version = _utils.get_python_version()
-        if python_version not in _MANAGED_FUNC_PYTHON_VERSIONS:
-            raise bf_formatting.create_exception_with_feedback_link(
-                RuntimeError,
-                f"Python version {python_version} is not supported yet for "
-                "BigFrames managed function.",
-            )
 
         # Some defaults may be used from the session if not provided otherwise.
         session = self._resolve_session(session)

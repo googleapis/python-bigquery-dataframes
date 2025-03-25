@@ -54,17 +54,3 @@ class ExperimentOptions:
             )
             warnings.warn(msg, category=bfe.PreviewWarning)
         self._blob = value
-
-    @property
-    def udf(self) -> bool:
-        return self._udf
-
-    @udf.setter
-    def udf(self, value: bool):
-        if value is True:
-            msg = bfe.format_message(
-                "BigFrames managed function (udf) is still under experiments. "
-                "It may not work and subject to change in the future."
-            )
-            warnings.warn(msg, category=bfe.PreviewWarning)
-        self._udf = value
