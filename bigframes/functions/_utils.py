@@ -64,7 +64,7 @@ def get_remote_function_locations(bq_location):
 
 
 def _get_updated_package_requirements(
-    package_requirements=None, is_row_processor=False, capture_references=False
+    package_requirements=None, is_row_processor=False, capture_references=True
 ):
     requirements = []
     if capture_references:

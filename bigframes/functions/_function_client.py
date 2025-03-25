@@ -515,7 +515,7 @@ class FunctionClient:
         # Augment user package requirements with any internal package
         # requirements
         package_requirements = _utils._get_updated_package_requirements(
-            package_requirements, is_row_processor, True
+            package_requirements, is_row_processor
         )
 
         # Compute a unique hash representing the user code
