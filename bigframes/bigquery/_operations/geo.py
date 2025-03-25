@@ -221,10 +221,6 @@ def st_intersection(
     input `GEOGRAPHYs`. Thus, every point in the intersection appears in both
     `geography_1` and `geography_2`.
 
-    If the two input `GEOGRAPHYs` are disjoint, that is, there are no points that
-    appear in both input `geometry_1` and `geometry_2`, then an empty `GEOGRAPHY`
-    is returned.
-
     .. note::
         BigQuery's Geography functions, like `st_intersection`, interpret the geometry
         data type as a point set on the Earth's surface. A point set is a set
@@ -278,21 +274,22 @@ def st_intersection(
         dtype: geometry
 
         >>> bbq.st_intersection(s1, s2)
-        1    POLYGON ((0.99954 1, 2 2, 0 2, 0 1, 0.99954 1))
-        2                   LINESTRING (0 0, 1 1.00046, 2 2)
-        3                           GEOMETRYCOLLECTION EMPTY
-        4                                        POINT (0 1)
-        5                                               None
+        0                                    None
+        1    POLYGON ((0 0, 0.99954 1, 0 1, 0 0))
+        2                       POINT (1 1.00046)
+        3                   LINESTRING (2 0, 0 2)
+        4                GEOMETRYCOLLECTION EMPTY
+        5                                    None
         dtype: geometry
 
     We can also do intersection of each geometry and a single shapely geometry:
 
         >>> bbq.st_intersection(s1, bigframes.geopandas.GeoSeries([Polygon([(0, 0), (1, 1), (0, 1)])]))
-        0    POLYGON ((0.99954 1, 2 2, 0 2, 0 1, 0.99954 1))
-        1                                               None
-        2                                               None
-        3                                               None
-        4                                               None
+        0    POLYGON ((0 0, 0.99954 1, 0 1, 0 0))
+        1                                    None
+        2                                    None
+        3                                    None
+        4                                    None
         dtype: geometry
 
     Args:
@@ -305,4 +302,4 @@ def st_intersection(
             The Geoseries (elementwise) of the intersection of points in
             each aligned geometry with other.
     """
-    return series._apply_binary_op(other, ops.geo_st_difference_op)
+    return series._apply_binary_op(other, ops.geo_st_intersection_op)

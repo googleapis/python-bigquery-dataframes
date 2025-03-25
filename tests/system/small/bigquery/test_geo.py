@@ -166,9 +166,9 @@ def test_geo_st_intersection_with_geometry_objects():
 
     expected = bigframes.series.Series(
         [
+            Polygon([(0, 0), (10, 0), (10, 10), (0, 0)]),
+            Polygon([(0, 0), (1, 1), (0, 1), (0, 0)]),
             GeometryCollection([]),
-            GeometryCollection([]),
-            Point(0, 1),
         ],
         index=[0, 1, 2],
         dtype=geopandas.array.GeometryDtype(),
@@ -200,8 +200,8 @@ def test_geo_st_intersection_with_single_geometry_object():
 
     expected = bigframes.series.Series(
         [
+            Polygon([(0, 0), (10, 0), (10, 10), (0, 0)]),
             GeometryCollection([]),
-            Polygon([(4, 2), (6, 2), (8, 6), (4, 2)]),
             None,
         ],
         index=[0, 1, 2],
@@ -225,7 +225,11 @@ def test_geo_st_intersection_with_similar_geometry_objects():
     geobf_s_result = bbq.st_intersection(geobf_s1, geobf_s1).to_pandas()
 
     expected = bigframes.series.Series(
-        [GeometryCollection([]), GeometryCollection([]), GeometryCollection([])],
+        [
+            Polygon([(0, 0), (10, 0), (10, 10), (0, 0)]),
+            Polygon([(0, 0), (1, 1), (0, 1)]),
+            Point(0, 1),
+        ],
         index=[0, 1, 2],
         dtype=geopandas.array.GeometryDtype(),
     ).to_pandas()
