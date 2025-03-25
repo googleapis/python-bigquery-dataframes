@@ -1,9 +1,16 @@
-
 ===============================
 BigQuery DataFrames (geopandas)
 ===============================
+.. currentmodule:: bigframes.geopandas
 
-.. toctree::
-    :maxdepth: 2
+.. autosummary::
+    :toctree: generated/
 
-    geoseries
+    GeoSeries
+    GeoSeries.x
+    GeoSeries.y
+    GeoSeries.area
+    GeoSeries.boundary
+    GeoSeries.from_wkt
+    GeoSeries.from_xy
+    GeoSeries.to_wkt
