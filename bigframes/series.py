@@ -381,6 +381,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        dry_run: bool = False,
         allow_large_results: Optional[bool] = None,
     ) -> pandas.Series:
         """Writes Series to pandas Series.
@@ -404,15 +405,32 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ordered (bool, default True):
                 Determines whether the resulting pandas series will be  ordered.
                 In some cases, unordered may result in a faster-executing query.
+            dry_run (bool, default False):
+                If this argument is true, this method will not process the data. Instead, it returns
+                a Pandas Series containing dry run job statistics
             allow_large_results (bool, default None):
                 If not None, overrides the global setting to allow or disallow large query results
                 over the default size limit of 10 GB.
 
-
         Returns:
             pandas.Series: A pandas Series with all rows of this Series if the data_sampling_threshold_mb
-                is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame.
+                is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame. If dry_run
+                is set to True, a pandas Series containing dry run statistics will be returned.
         """
+
+        if dry_run:
+            dry_run_stats, dry_run_job = self._block._compute_dry_run(
+                max_download_size=max_download_size,
+                sampling_method=sampling_method,
+                random_state=random_state,
+                ordered=ordered,
+            )
+
+            self._set_internal_query_job(dry_run_job)
+            return dry_run_stats
+
+        # Repeat the to_pandas() call to make mypy deduce type correctly, because mypy cannot resolve
+        # Literal[True/False] to bool
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
@@ -420,14 +438,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             ordered=ordered,
             allow_large_results=allow_large_results,
         )
+
         if query_job:
             self._set_internal_query_job(query_job)
+
         series = df.squeeze(axis=1)
         series.name = self._name
         return series
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
-        return self._block._compute_dry_run((self._value_column,))
+        _, query_job = self._block._compute_dry_run((self._value_column,))
+        return query_job
 
     def drop(
         self,
@@ -523,7 +544,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @validations.requires_ordering()
     def ffill(self, *, limit: typing.Optional[int] = None) -> Series:
-        window = windows.rows(preceding=limit, following=0)
+        window = windows.rows(start=None if limit is None else -limit, end=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
     pad = ffill
@@ -531,7 +552,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @validations.requires_ordering()
     def bfill(self, *, limit: typing.Optional[int] = None) -> Series:
-        window = windows.rows(preceding=0, following=limit)
+        window = windows.rows(start=0, end=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
 
     @validations.requires_ordering()
@@ -1420,7 +1441,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
         # To get n size window, need current row and n-1 preceding rows.
         window_spec = windows.rows(
-            preceding=window - 1, following=0, min_periods=min_periods or window
+            start=-(window - 1), end=0, min_periods=min_periods or window
         )
         return bigframes.core.window.Window(
             self._block, window_spec, self._block.value_columns, is_series=True
@@ -1630,6 +1651,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @validations.requires_index
     def add_suffix(self, suffix: str, axis: int | str | None = None) -> Series:
         return Series(self._get_block().add_suffix(suffix))
+
+    def take(
+        self, indices: typing.Sequence[int], axis: int | str | None = 0, **kwargs
+    ) -> Series:
+        if not utils.is_list_like(indices):
+            raise ValueError("indices should be a list-like object.")
+        return typing.cast(Series, self.iloc[indices])
 
     def filter(
         self,

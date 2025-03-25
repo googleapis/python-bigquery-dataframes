@@ -401,7 +401,7 @@ def cleanup_function_assets(
 ) -> None:
     """Clean up the GCP assets behind a bigframess function."""
 
-    # Clean up bigframes function.
+    # Clean up bigframes bigquery function.
     try:
         bigquery_client.delete_routine(bigframes_func.bigframes_bigquery_function)
     except Exception:
@@ -409,15 +409,32 @@ def cleanup_function_assets(
         if not ignore_failures:
             raise
 
-    # Clean up cloud function
-    try:
-        delete_cloud_function(
-            cloudfunctions_client, bigframes_func.bigframes_cloud_function
-        )
-    except Exception:
-        # By default don't raise exception in cleanup.
+    if not ignore_failures:
+        # Make sure that the BQ routins is actually deleted
+        with pytest.raises(google.api_core.exceptions.NotFound):
+            bigquery_client.get_routine(bigframes_func.bigframes_bigquery_function)
+
+    # Clean up bigframes cloud run function
+    if cloudfunctions_client:
+        # Clean up cloud function
+        try:
+            delete_cloud_function(
+                cloudfunctions_client, bigframes_func.bigframes_cloud_function
+            )
+        except Exception:
+            # By default don't raise exception in cleanup.
+            if not ignore_failures:
+                raise
+
         if not ignore_failures:
-            raise
+            # Make sure the cloud run function is actually deleted
+            try:
+                gcf = cloudfunctions_client.get_function(
+                    name=bigframes_func.bigframes_cloud_function
+                )
+                assert gcf.state is functions_v2.Function.State.DELETING
+            except google.cloud.exceptions.NotFound:
+                pass
 
 
 def get_function_name(func, package_requirements=None, is_row_processor=False):

@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "1.41.0"
+import pytest
 
-# {x-release-please-start-date}
-__release_date__ = "2025-03-19"
-# {x-release-please-end}
+from bigframes.core import window_spec
+
+
+@pytest.mark.parametrize(("start", "end"), [(-1, -2), (1, -2), (2, 1)])
+def test_invalid_rows_window_boundary_raise_error(start, end):
+    with pytest.raises(ValueError):
+        window_spec.RowsWindowBounds(start, end)
+
+
+@pytest.mark.parametrize(("start", "end"), [(-1, -2), (1, -2), (2, 1)])
+def test_invalid_range_window_boundary_raise_error(start, end):
+    with pytest.raises(ValueError):
+        window_spec.RangeWindowBounds(start, end)
