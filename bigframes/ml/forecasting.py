@@ -192,9 +192,9 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
 
         if self.include_drift:
             options["include_drift"] = True
-        if self.forecast_limit_upper_bound:
+        if self.forecast_limit_upper_bound is not None:
             options["forecast_limit_upper_bound"] = self.forecast_limit_upper_bound
-        if self.forecast_limit_lower_bound:
+        if self.forecast_limit_lower_bound is not None:
             options["forecast_limit_lower_bound"] = self.forecast_limit_lower_bound
 
         return options
