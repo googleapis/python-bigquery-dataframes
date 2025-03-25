@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "1.41.0"
+import unittest.mock as mock
 
-# {x-release-please-start-date}
-__release_date__ = "2025-03-19"
-# {x-release-please-end}
+import pytest
+
+import bigframes.bigquery as bbq
+import bigframes.pandas as bpd
+
+
+def test_json_set_w_invalid_json_path_value_pairs():
+    mock_series = mock.create_autospec(bpd.pandas.Series, instance=True)
+    with pytest.raises(ValueError, match="Incorrect format"):
+        bbq.json_set(mock_series, json_path_value_pairs=[("$.a", 1, 100)])  # type: ignore

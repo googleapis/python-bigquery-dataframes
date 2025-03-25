@@ -115,7 +115,7 @@ class GbqDataLoader:
         self,
         session: bigframes.session.Session,
         bqclient: bigquery.Client,
-        storage_manager: bigframes.session.temp_storage.TemporaryGbqStorageManager,
+        storage_manager: bigframes.session.temp_storage.AnonymousDatasetManager,
         default_index_type: bigframes.enums.DefaultIndexKind,
         scan_index_uniqueness: bool,
         force_total_order: bool,
@@ -167,7 +167,7 @@ class GbqDataLoader:
 
         job_config.labels = {"bigframes-api": api_name}
 
-        load_table_destination = self._storage_manager._random_table()
+        load_table_destination = self._storage_manager.allocate_temp_table()
         load_job = self._bqclient.load_table_from_dataframe(
             pandas_dataframe_copy,
             load_table_destination,
@@ -216,7 +216,7 @@ class GbqDataLoader:
             index=True,
         )
 
-        destination = self._storage_manager.create_temp_table(
+        destination = self._storage_manager.allocate_and_create_temp_table(
             schema,
             [ordering_col],
         )
@@ -606,9 +606,10 @@ class GbqDataLoader:
                 time_travel_timestamp=None,
             )
 
+        # No cluster candidates as user query might not be clusterable (eg because of ORDER BY clause)
         destination, query_job = self._query_to_destination(
             query,
-            index_cols,
+            cluster_candidates=[],
             api_name=api_name,
             configuration=configuration,
         )
@@ -645,7 +646,7 @@ class GbqDataLoader:
     def _query_to_destination(
         self,
         query: str,
-        index_cols: List[str],
+        cluster_candidates: List[str],
         api_name: str,
         configuration: dict = {"query": {"useQueryCache": True}},
         do_clustering=True,
@@ -668,11 +669,13 @@ class GbqDataLoader:
         assert schema is not None
         if do_clustering:
             cluster_cols = bf_io_bigquery.select_cluster_cols(
-                schema, cluster_candidates=index_cols
+                schema, cluster_candidates=cluster_candidates
             )
         else:
             cluster_cols = []
-        temp_table = self._storage_manager.create_temp_table(schema, cluster_cols)
+        temp_table = self._storage_manager.allocate_and_create_temp_table(
+            schema, cluster_cols
+        )
 
         timeout_ms = configuration.get("jobTimeoutMs") or configuration["query"].get(
             "timeoutMs"

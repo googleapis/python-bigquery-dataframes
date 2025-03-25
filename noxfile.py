@@ -342,6 +342,9 @@ def run_system(
 
     install_systemtest_dependencies(session, install_test_extra, "-c", constraints_path)
 
+    # Print out package versions for debugging.
+    session.run("python", "-m", "pip", "freeze")
+
     # Run py.test against the system tests.
     pytest_cmd = [
         "py.test",
@@ -763,6 +766,8 @@ def notebook(session: nox.Session):
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
         "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
         "notebooks/generative_ai/bq_dataframes_llm_gemini_2.ipynb",  # Gemini 2.0 backend hasn't ready in prod.
+        "notebooks/generative_ai/bq_dataframes_llm_vector_search.ipynb",  # Needs DATASET_ID.
+        "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
         # TODO(b/366290533): to protect BQML quota
         "notebooks/generative_ai/bq_dataframes_llm_claude3_museum_art.ipynb",
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
