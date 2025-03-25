@@ -127,7 +127,7 @@ def test_bq_rep_endpoints(bigquery_location):
             )
         )
         assert (
-            len([warn for warn in record if isinstance(warn.message, FutureWarning)])
+            len([warn for warn in record if isinstance(warn.message, ResourceWarning)])
             == 0
         )
 
@@ -150,15 +150,10 @@ def test_bq_rep_endpoints(bigquery_location):
 @pytest.mark.parametrize(
     "bigquery_location",
     # Sort the set to avoid nondeterminism.
-    sorted(bigframes.constants.LEP_ENABLED_BIGQUERY_LOCATIONS),
+    sorted(bigframes.constants.REP_NOT_ENABLED_BIGQUERY_LOCATIONS),
 )
-def test_bq_lep_endpoints(bigquery_location):
-    # We are not testing BigFrames Session for LEP endpoints because it involves
-    # query execution using the endpoint, which requires the project to be
-    # allowlisted for LEP access. We could hardcode one project which is
-    # allowlisted but then not every open source developer will have access to
-    # that. Let's rely on just creating the clients for LEP.
-    with pytest.warns(FutureWarning) as record:
+def test_bq_non_rep_endpoints(bigquery_location):
+    with pytest.warns(ResourceWarning) as record:
         clients_provider = bigframes.session.clients.ClientsProvider(
             location=bigquery_location, use_regional_endpoints=True
         )
@@ -172,7 +167,5 @@ def test_bq_lep_endpoints(bigquery_location):
     assert clients_provider.bqclient.location == bigquery_location
     assert (
         clients_provider.bqclient._connection.API_BASE_URL
-        == "https://{location}-bigquery.googleapis.com".format(
-            location=bigquery_location
-        )
+        == "https://bigquery.googleapis.com"
     )

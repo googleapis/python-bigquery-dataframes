@@ -96,22 +96,19 @@ REP_ENABLED_BIGQUERY_LOCATIONS = frozenset(
     }
 )
 
-# https://cloud.google.com/storage/docs/locational-endpoints
-LEP_ENABLED_BIGQUERY_LOCATIONS = frozenset(
+REP_NOT_ENABLED_BIGQUERY_LOCATIONS = frozenset(
     ALL_BIGQUERY_LOCATIONS - REP_ENABLED_BIGQUERY_LOCATIONS
 )
 
-LEP_DEPRECATION_WARNING_MESSAGE = textwrap.dedent(
+REP_NOT_SUPPOERTED_WARNING_MESSAGE = textwrap.dedent(
     """
     Support for regional endpoints is not yet available in the location
     {location} for BigQuery and BigQuery Storage APIs. For the supported
     locations and APIs see https://cloud.google.com/bigquery/docs/regional-endpoints.
-    For other locations and APIs, currently an older, now deprecated locational
-    endpoints are being used, which requires your project to be allowlisted. In
-    future version 2.0 onwards the locational endpoints will no longer be
-    supported automatically when you enable regional endpoints. However, if you
-    still need them, you will be able to override the endpoints directly by
-    doing the following:
+    For other locations we are falling back to the global APIs. If you have the
+    previously supported (now deprecated) locational endpoints enabled in your
+    project (which requires your project to be allowlisted), you can override
+    the endpoints directly by doing the following:
         bigframes.pandas.options.bigquery.client_endpoints_override = {{
             "bqclient": "https://{location}-bigquery.googleapis.com",
             "bqconnectionclient": "{location}-bigqueryconnection.googleapis.com",

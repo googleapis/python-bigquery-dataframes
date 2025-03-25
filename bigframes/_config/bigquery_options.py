@@ -265,10 +265,6 @@ class BigQueryOptions:
             in regions "europe-west3", "europe-west8", "europe-west9",
             "me-central2", "us-central1", "us-central2", "us-east1", "us-east4",
             "us-east5", "us-east7", "us-south1", "us-west1", "us-west2", "us-west3"
-            and "us-west4".
-
-        .. deprecated:: 0.13.0
-            Use of locational endpoints is available only in selected projects.
 
         Requires that ``location`` is set. For supported regions, for example
         ``europe-west3``, you need to specify ``location='europe-west3'`` and
@@ -276,9 +272,9 @@ class BigQueryOptions:
         connect to the BigQuery endpoint ``bigquery.europe-west3.rep.googleapis.com``.
         For not supported regions, for example ``asia-northeast1``, when you
         specify ``location='asia-northeast1'`` and ``use_regional_endpoints=True``,
-        a different endpoint (called locational endpoint, now deprecated, used
-        to provide weaker promise on the request remaining within the location
-        during transit) ``europe-west3-bigquery.googleapis.com`` would be used.
+        the global endpoint ``bigquery.googleapis.com`` would be used, which
+        does not promise any guarantee on the request remaining within the
+        location during transit.
 
         Returns:
             bool:
