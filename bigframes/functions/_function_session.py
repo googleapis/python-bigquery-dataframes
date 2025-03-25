@@ -807,6 +807,8 @@ class FunctionSession:
                 https://pip.pypa.io/en/stable/reference/requirements-file-format/.
         """
 
+        warnings.warn("udf is in preview.", category=bfe.PreviewWarning)
+
         # Some defaults may be used from the session if not provided otherwise.
         session = self._resolve_session(session)
 

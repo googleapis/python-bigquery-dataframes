@@ -25,7 +25,6 @@ class ExperimentOptions:
     def __init__(self):
         self._semantic_operators: bool = False
         self._blob: bool = False
-        self._udf: bool = False
 
     @property
     def semantic_operators(self) -> bool:

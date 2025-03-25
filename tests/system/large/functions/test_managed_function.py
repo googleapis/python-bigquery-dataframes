@@ -18,6 +18,7 @@ import pyarrow
 import pytest
 
 import bigframes
+import bigframes.exceptions as bfe
 import bigframes.pandas as bpd
 from tests.system.utils import cleanup_function_assets
 
@@ -220,9 +221,11 @@ def test_managed_function_series_apply_array_output(
 ):
     try:
 
-        @session.udf()
-        def foo_list(x: int) -> list[float]:
-            return [float(abs(x)), float(abs(x) + 1)]
+        with pytest.warns(bfe.PreviewWarning, match="udf is in preview."):
+
+            @session.udf()
+            def foo_list(x: int) -> list[float]:
+                return [float(abs(x)), float(abs(x) + 1)]
 
         scalars_df, scalars_pandas_df = scalars_dfs
 
