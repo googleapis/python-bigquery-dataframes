@@ -234,6 +234,7 @@ def st_intersection(
     **Examples:**
 
         >>> import bigframes as bpd
+        >>> import bigframes.bigquery as bbq
         >>> import bigframes.geopandas
         >>> from shapely.geometry import Polygon, LineString, Point
         >>> bpd.options.display.progress_bar = None
@@ -276,22 +277,22 @@ def st_intersection(
         5                       POINT (0 1)
         dtype: geometry
 
-        >>> bbq.st_intersection(s2)
-        0    POLYGON ((0.99954 1, 2 2, 0 2, 0 1, 0.99954 1))
-        1                                               None
-        2                                               None
-        3                                               None
-        4                                               None
+        >>> bbq.st_intersection(s1, s2)
+        1    POLYGON ((0.99954 1, 2 2, 0 2, 0 1, 0.99954 1))
+        2                   LINESTRING (0 0, 1 1.00046, 2 2)
+        3                           GEOMETRYCOLLECTION EMPTY
+        4                                        POINT (0 1)
+        5                                               None
         dtype: geometry
 
     We can also do intersection of each geometry and a single shapely geometry:
 
         >>> bbq.st_intersection(s1, bigframes.geopandas.GeoSeries([Polygon([(0, 0), (1, 1), (0, 1)])]))
-        0    POLYGON ((0 0, 0.99954 1, 0 1, 0 0))
-        1                                    None
-        2                                    None
-        3                                    None
-        4                                    None
+        0    POLYGON ((0.99954 1, 2 2, 0 2, 0 1, 0.99954 1))
+        1                                               None
+        2                                               None
+        3                                               None
+        4                                               None
         dtype: geometry
 
     Args:
