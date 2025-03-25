@@ -3307,10 +3307,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     @validations.requires_ordering()
-    def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
-        # To get n size window, need current row and n-1 preceding rows.
+    def rolling(
+        self,
+        window: int,
+        min_periods=None,
+        closed: Literal["right", "left", "both", "neither"] = "right",
+    ) -> bigframes.core.window.Window:
+        start, end = windows.pandas_window_to_start_and_end(window, closed)
         window_def = windows.rows(
-            start=-(window - 1), end=0, min_periods=min_periods or window
+            start=start,
+            end=end,
+            min_periods=min_periods if min_periods is not None else window,
         )
         return bigframes.core.window.Window(
             self._block, window_def, self._block.value_columns

@@ -27,3 +27,21 @@ def test_invalid_rows_window_boundary_raise_error(start, end):
 def test_invalid_range_window_boundary_raise_error(start, end):
     with pytest.raises(ValueError):
         window_spec.RangeWindowBounds(start, end)
+
+
+@pytest.mark.parametrize(
+    ("window", "closed", "start", "end"),
+    [
+        pytest.param(3, "left", -3, -1, id="left"),
+        pytest.param(3, "right", -2, 0, id="right"),
+        pytest.param(3, "neither", -2, -1, id="neither"),
+        pytest.param(3, "both", -3, 0, id="both"),
+    ],
+)
+def test_pandas_window_to_stard_and_end(window, closed, start, end):
+    assert window_spec.pandas_window_to_start_and_end(window, closed) == (start, end)
+
+
+def test_pandas_window_to_stard_and_end_invalid_closed_raise_error():
+    with pytest.raises(ValueError):
+        window_spec.pandas_window_to_start_and_end(3, "whatever")  # type:ignore

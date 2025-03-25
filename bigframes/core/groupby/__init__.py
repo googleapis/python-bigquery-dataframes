@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Sequence, Tuple, Union
+from typing import Literal, Sequence, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
@@ -305,12 +305,17 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return self._apply_window_op(agg_ops.DiffOp(periods), window=window)
 
     @validations.requires_ordering()
-    def rolling(self, window: int, min_periods=None) -> windows.Window:
-        # To get n size window, need current row and n-1 preceding rows.
+    def rolling(
+        self,
+        window: int,
+        min_periods=None,
+        closed: Literal["right", "left", "both", "neither"] = "right",
+    ) -> windows.Window:
+        start, end = window_specs.pandas_window_to_start_and_end(window, closed)
         window_spec = window_specs.rows(
             grouping_keys=tuple(self._by_col_ids),
-            start=-(window - 1),
-            end=0,
+            start=start,
+            end=end,
             min_periods=min_periods or window,
         )
         block = self._block.order_by(
@@ -738,13 +743,18 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         return self._apply_window_op(agg_ops.DiffOp(periods), window=window)
 
     @validations.requires_ordering()
-    def rolling(self, window: int, min_periods=None) -> windows.Window:
-        # To get n size window, need current row and n-1 preceding rows.
+    def rolling(
+        self,
+        window: int,
+        min_periods=None,
+        closed: Literal["right", "left", "both", "neither"] = "right",
+    ) -> windows.Window:
+        start, end = window_specs.pandas_window_to_start_and_end(window, closed)
         window_spec = window_specs.rows(
             grouping_keys=tuple(self._by_col_ids),
-            start=-(window - 1),
-            end=0,
-            min_periods=min_periods or window,
+            start=start,
+            end=end,
+            min_periods=min_periods if min_periods is not None else window,
         )
         block = self._block.order_by(
             [order.ascending_over(col) for col in self._by_col_ids],

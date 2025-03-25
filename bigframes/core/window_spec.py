@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 import itertools
-from typing import Mapping, Optional, Set, Tuple, Union
+from typing import Literal, Mapping, Optional, Set, Tuple, Union
 
 import bigframes.core.expression as ex
 import bigframes.core.identifiers as ids
@@ -130,6 +130,21 @@ def inverse_cumulative_rows(
         bounds=bounds,
         min_periods=min_periods,
     )
+
+
+def pandas_window_to_start_and_end(
+    window: int, closed: Literal["right", "left", "both", "neither"]
+) -> Tuple[int, int]:
+    if closed == "right":
+        return -(window - 1), 0
+    elif closed == "left":
+        return -window, -1
+    elif closed == "both":
+        return -window, 0
+    elif closed == "neither":
+        return -(window - 1), -1
+    else:
+        raise ValueError(f"Unsupported value for 'closed' parameter: {closed}")
 
 
 ### Struct Classes
