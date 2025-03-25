@@ -132,21 +132,6 @@ def inverse_cumulative_rows(
     )
 
 
-def pandas_window_to_start_and_end(
-    window: int, closed: Literal["right", "left", "both", "neither"]
-) -> Tuple[int, int]:
-    if closed == "right":
-        return -(window - 1), 0
-    elif closed == "left":
-        return -window, -1
-    elif closed == "both":
-        return -window, 0
-    elif closed == "neither":
-        return -(window - 1), -1
-    else:
-        raise ValueError(f"Unsupported value for 'closed' parameter: {closed}")
-
-
 ### Struct Classes
 
 
@@ -154,6 +139,21 @@ def pandas_window_to_start_and_end(
 class RowsWindowBounds:
     start: Optional[int] = None
     end: Optional[int] = None
+
+    @classmethod
+    def from_window_size(
+        cls, window: int, closed: Literal["right", "left", "both", "neither"]
+    ) -> RowsWindowBounds:
+        if closed == "right":
+            return cls(-(window - 1), 0)
+        elif closed == "left":
+            return cls(-window, -1)
+        elif closed == "both":
+            return cls(-window, 0)
+        elif closed == "neither":
+            return cls(-(window - 1), -1)
+        else:
+            raise ValueError(f"Unsupported value for 'closed' parameter: {closed}")
 
     def __post_init__(self):
         if self.start is None:

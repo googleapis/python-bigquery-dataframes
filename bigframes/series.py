@@ -1443,10 +1443,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         min_periods=None,
         closed: Literal["right", "left", "both", "neither"] = "right",
     ) -> bigframes.core.window.Window:
-        start, end = windows.pandas_window_to_start_and_end(window, closed)
-        window_spec = windows.rows(
-            start=start,
-            end=end,
+        window_spec = windows.WindowSpec(
+            bounds=windows.RowsWindowBounds.from_window_size(window, closed),
             min_periods=min_periods if min_periods is not None else window,
         )
         return bigframes.core.window.Window(

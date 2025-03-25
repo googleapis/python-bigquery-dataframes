@@ -38,10 +38,13 @@ def test_invalid_range_window_boundary_raise_error(start, end):
         pytest.param(3, "both", -3, 0, id="both"),
     ],
 )
-def test_pandas_window_to_stard_and_end(window, closed, start, end):
-    assert window_spec.pandas_window_to_start_and_end(window, closed) == (start, end)
+def test_rows_window_bounds_from_window_size(window, closed, start, end):
+    actual_result = window_spec.RowsWindowBounds.from_window_size(window, closed)
+
+    expected_result = window_spec.RowsWindowBounds(start, end)
+    assert actual_result == expected_result
 
 
-def test_pandas_window_to_stard_and_end_invalid_closed_raise_error():
+def test_rows_window_bounds_from_window_size_invalid_closed_raise_error():
     with pytest.raises(ValueError):
-        window_spec.pandas_window_to_start_and_end(3, "whatever")  # type:ignore
+        window_spec.RowsWindowBounds.from_window_size(3, "whatever")  # type:ignore

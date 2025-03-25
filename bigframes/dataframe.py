@@ -3314,10 +3314,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         min_periods=None,
         closed: Literal["right", "left", "both", "neither"] = "right",
     ) -> bigframes.core.window.Window:
-        start, end = windows.pandas_window_to_start_and_end(window, closed)
-        window_def = windows.rows(
-            start=start,
-            end=end,
+        window_def = windows.WindowSpec(
+            bounds=windows.RowsWindowBounds.from_window_size(window, closed),
             min_periods=min_periods if min_periods is not None else window,
         )
         return bigframes.core.window.Window(
