@@ -84,6 +84,15 @@ def ephemera_penguins_linear_model(
     return bf_model
 
 
+@pytest.fixture(scope="function")
+def penguins_linear_model_w_global_explain(
+    penguins_bqml_linear_model: core.BqmlModel,
+) -> linear_model.LinearRegression:
+    bf_model = linear_model.LinearRegression(enable_global_explain=True)
+    bf_model._bqml_model = penguins_bqml_linear_model
+    return bf_model
+
+
 @pytest.fixture(scope="session")
 def penguins_logistic_model(
     session, penguins_logistic_model_name
@@ -387,4 +396,21 @@ def imported_xgboost_model(
         },
         output={"predicted_label": "float64"},
         model_path=imported_xgboost_array_model_path,
+    )
+
+
+@pytest.fixture(scope="session")
+def bqml_gemini_text_generator(bq_connection, session) -> llm.GeminiTextGenerator:
+    return llm.GeminiTextGenerator(
+        model_name="gemini-1.5-flash-002",
+        connection_name=bq_connection,
+        session=session,
+    )
+
+
+@pytest.fixture(scope="session")
+def bqml_claude3_text_generator(bq_connection, session) -> llm.Claude3TextGenerator:
+    return llm.Claude3TextGenerator(
+        connection_name=bq_connection,
+        session=session,
     )
