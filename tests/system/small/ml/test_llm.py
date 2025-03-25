@@ -458,16 +458,12 @@ class EqCmpAllDataFrame(bpd.DataFrame):
 
 @pytest.mark.parametrize(
     (
-        "text_generator_model",
+        "model_class",
         "options",
     ),
     [
         (
-            llm.GeminiTextGenerator(
-                connection_name="test_connection",
-                session=mock.Mock(),
-                model_name="gemini-1.5-flash-002",
-            ),
+            llm.GeminiTextGenerator,
             {
                 "temperature": 0.9,
                 "max_output_tokens": 8192,
@@ -478,9 +474,7 @@ class EqCmpAllDataFrame(bpd.DataFrame):
             },
         ),
         (
-            llm.Claude3TextGenerator(
-                connection_name="test_connection", session=mock.Mock()
-            ),
+            llm.Claude3TextGenerator,
             {
                 "max_output_tokens": 128,
                 "top_k": 40,
@@ -491,7 +485,11 @@ class EqCmpAllDataFrame(bpd.DataFrame):
     ],
 )
 def test_text_generator_retry_success(
-    session, bq_connection, text_generator_model, options
+    session,
+    model_name,
+    options,
+    bqml_gemini_text_generator: llm.GeminiTextGenerator,
+    bqml_claude3_text_generator: llm.Claude3TextGenerator,
 ):
     # Requests.
     df0 = EqCmpAllDataFrame(
@@ -567,6 +565,11 @@ def test_text_generator_retry_success(
         ),
     ]
 
+    text_generator_model = (
+        bqml_gemini_text_generator
+        if (model_name == llm.GeminiTextGenerator)
+        else bqml_claude3_text_generator
+    )
     text_generator_model._bqml_model = mock_bqml_model
 
     # 3rd retry isn't triggered
@@ -599,16 +602,12 @@ def test_text_generator_retry_success(
 
 @pytest.mark.parametrize(
     (
-        "text_generator_model",
+        "model_name",
         "options",
     ),
     [
         (
-            llm.GeminiTextGenerator(
-                connection_name="test_connection",
-                session=mock.Mock(),
-                model_name="gemini-1.5-flash-002",
-            ),
+            llm.GeminiTextGenerator,
             {
                 "temperature": 0.9,
                 "max_output_tokens": 8192,
@@ -619,9 +618,7 @@ def test_text_generator_retry_success(
             },
         ),
         (
-            llm.Claude3TextGenerator(
-                connection_name="test_connection", session=mock.Mock()
-            ),
+            llm.Claude3TextGenerator,
             {
                 "max_output_tokens": 128,
                 "top_k": 40,
@@ -632,7 +629,11 @@ def test_text_generator_retry_success(
     ],
 )
 def test_text_generator_retry_no_progress(
-    session, bq_connection, text_generator_model, options
+    session,
+    model_name,
+    options,
+    bqml_gemini_text_generator: llm.GeminiTextGenerator,
+    bqml_claude3_text_generator: llm.Claude3TextGenerator,
 ):
     # Requests.
     df0 = EqCmpAllDataFrame(
@@ -687,6 +688,11 @@ def test_text_generator_retry_no_progress(
         ),
     ]
 
+    text_generator_model = (
+        bqml_gemini_text_generator
+        if (model_name == llm.GeminiTextGenerator)
+        else bqml_claude3_text_generator
+    )
     text_generator_model._bqml_model = mock_bqml_model
 
     # No progress, only conduct retry once
