@@ -850,7 +850,7 @@ class FunctionSession:
                             ValueError,
                             "'input_types' was not set and parameter "
                             f"'{parameter.name}' is missing a type annotation. "
-                            "Types are required to use managed function.",
+                            "Types are required to use udf.",
                         )
                     input_types.append(param_type)
             elif not isinstance(input_types, collections.abc.Sequence):
@@ -863,8 +863,7 @@ class FunctionSession:
                     raise bf_formatting.create_exception_with_feedback_link(
                         ValueError,
                         "'output_type' was not set and function is missing a "
-                        "return type annotation. Types are required to use "
-                        "managed function.",
+                        "return type annotation. Types are required to use udf",
                     )
 
             # The function will actually be receiving a pandas Series, but allow

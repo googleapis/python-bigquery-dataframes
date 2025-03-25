@@ -201,15 +201,17 @@ class FunctionClient:
     ):
         """Create a BigQuery managed function."""
 
-        if capture_references:
-            # Check the Python version.
-            python_version = _utils.get_python_version()
-            if python_version != _MANAGED_FUNC_PYTHON_VERSION:
-                raise bf_formatting.create_exception_with_feedback_link(
-                    RuntimeError,
-                    f"Python version {python_version} is not supported yet for "
-                    "BigFrames managed function.",
-                )
+        # TODO(b/406283812): Expose the capability to pass down
+        # capture_references=True in the public udf API.
+        if (
+            capture_references
+            and (python_version := _utils.get_python_version())
+            != _MANAGED_FUNC_PYTHON_VERSION
+        ):
+            raise bf_formatting.create_exception_with_feedback_link(
+                NotImplementedError,
+                f"Capturing references for udf is currently supported only in Python version {_MANAGED_FUNC_PYTHON_VERSION}, you are running {python_version}.",
+            )
 
         # Create BQ managed function.
         bq_function_args = []
