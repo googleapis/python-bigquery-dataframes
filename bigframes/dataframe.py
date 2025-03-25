@@ -74,6 +74,7 @@ import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
+import bigframes.operations.ai
 import bigframes.operations.plotting as plotting
 import bigframes.operations.semantics
 import bigframes.operations.structs
@@ -2428,12 +2429,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @validations.requires_ordering()
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
-        window = windows.rows(preceding=limit, following=0)
+        window = windows.rows(start=None if limit is None else -limit, end=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
     @validations.requires_ordering()
     def bfill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
-        window = windows.rows(preceding=0, following=limit)
+        window = windows.rows(start=0, end=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
 
     def isin(self, values) -> DataFrame:
@@ -3310,7 +3311,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
         # To get n size window, need current row and n-1 preceding rows.
         window_def = windows.rows(
-            preceding=window - 1, following=0, min_periods=min_periods or window
+            start=-(window - 1), end=0, min_periods=min_periods or window
         )
         return bigframes.core.window.Window(
             self._block, window_def, self._block.value_columns
@@ -3760,10 +3761,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             if_exists = "replace"
 
-            temp_table_ref = self._session._temp_storage_manager._random_table(
-                # The client code owns this table reference now, so skip_cleanup=True
-                #  to not clean it up when we close the session.
-                skip_cleanup=True,
+            # The client code owns this table reference now
+            temp_table_ref = (
+                self._session._temp_storage_manager.generate_unique_resource_id()
             )
             destination_table = f"{temp_table_ref.project}.{temp_table_ref.dataset_id}.{temp_table_ref.table_id}"
 
@@ -4575,4 +4575,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def semantics(self):
+        msg = bfe.format_message(
+            "The 'semantics' property will be removed. Please use 'ai' instead."
+        )
+        warnings.warn(msg, category=FutureWarning)
         return bigframes.operations.semantics.Semantics(self)
+
+    @property
+    def ai(self):
+        """Returns the accessor for AI operators."""
+        return bigframes.operations.ai.AIAccessor(self)
