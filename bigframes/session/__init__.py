@@ -1615,7 +1615,7 @@ class Session(
         note, row processor implies that the function has only one input
         parameter.
 
-            >>> @bpd.remote_function()
+            >>> @bpd.remote_function(cloud_function_service_account="default")
             ... def row_sum(s: bpd.Series) -> float:
             ...     return s['a'] + s['b'] + s['c']
 
