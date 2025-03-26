@@ -51,9 +51,8 @@ def _is_vscode_extension_installed(extension_id: str) -> bool:
             # Iterate through the subdirectories in the extensions directory.
             for item in os.listdir(vscode_extensions_dir):
                 item_path = os.path.join(vscode_extensions_dir, item)
-                if os.path.isdir(item_path) and item.startswith(
-                    extension_id + "-"
-                ):  # check if the folder starts with the extension ID.
+                if os.path.isdir(item_path) and item.startswith(extension_id + "-"):
+                    # Check if the folder starts with the extension ID.
                     # Further check for manifest file, as a more robust check.
                     manifest_path = os.path.join(item_path, "package.json")
                     if os.path.exists(manifest_path):
