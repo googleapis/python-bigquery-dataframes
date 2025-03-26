@@ -24,8 +24,8 @@ class ExperimentOptions:
 
     def __init__(self):
         self._semantic_operators: bool = False
+        self._ai_operators: bool = False
         self._blob: bool = False
-        self._udf: bool = False
 
     @property
     def semantic_operators(self) -> bool:
@@ -35,11 +35,24 @@ class ExperimentOptions:
     def semantic_operators(self, value: bool):
         if value is True:
             msg = bfe.format_message(
-                "Semantic operators are still under experiments, and are subject "
+                "Semantic operators are deprecated, and will be removed in the future"
+            )
+            warnings.warn(msg, category=FutureWarning)
+        self._semantic_operators = value
+
+    @property
+    def ai_operators(self) -> bool:
+        return self._ai_operators
+
+    @ai_operators.setter
+    def ai_operators(self, value: bool):
+        if value is True:
+            msg = bfe.format_message(
+                "AI operators are still under experiments, and are subject "
                 "to change in the future."
             )
             warnings.warn(msg, category=bfe.PreviewWarning)
-        self._semantic_operators = value
+        self._ai_operators = value
 
     @property
     def blob(self) -> bool:
@@ -54,17 +67,3 @@ class ExperimentOptions:
             )
             warnings.warn(msg, category=bfe.PreviewWarning)
         self._blob = value
-
-    @property
-    def udf(self) -> bool:
-        return self._udf
-
-    @udf.setter
-    def udf(self, value: bool):
-        if value is True:
-            msg = bfe.format_message(
-                "BigFrames managed function (udf) is still under experiments. "
-                "It may not work and subject to change in the future."
-            )
-            warnings.warn(msg, category=bfe.PreviewWarning)
-        self._udf = value

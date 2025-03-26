@@ -794,13 +794,14 @@ class Session(
             )
 
         if write_engine == "default":
-            inline_df = self._read_pandas_inline(pandas_dataframe, should_raise=False)
-            if inline_df is not None:
+            try:
+                inline_df = self._read_pandas_inline(pandas_dataframe)
                 return inline_df
+            except ValueError:
+                pass
             return self._read_pandas_load_job(pandas_dataframe, api_name)
         elif write_engine == "bigquery_inline":
-            # Regarding the type: ignore, with should_raise=True, this should never return None.
-            return self._read_pandas_inline(pandas_dataframe, should_raise=True)  # type: ignore
+            return self._read_pandas_inline(pandas_dataframe)
         elif write_engine == "bigquery_load":
             return self._read_pandas_load_job(pandas_dataframe, api_name)
         elif write_engine == "bigquery_streaming":
@@ -809,12 +810,16 @@ class Session(
             raise ValueError(f"Got unexpected write_engine '{write_engine}'")
 
     def _read_pandas_inline(
-        self, pandas_dataframe: pandas.DataFrame, should_raise=False
-    ) -> Optional[dataframe.DataFrame]:
+        self, pandas_dataframe: pandas.DataFrame
+    ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
-        if pandas_dataframe.memory_usage(deep=True).sum() > MAX_INLINE_DF_BYTES:
-            return None
+        memory_usage = pandas_dataframe.memory_usage(deep=True).sum()
+        if memory_usage > MAX_INLINE_DF_BYTES:
+            raise ValueError(
+                f"DataFrame size ({memory_usage} bytes) exceeds the maximum allowed "
+                f"for inline data ({MAX_INLINE_DF_BYTES} bytes)."
+            )
 
         try:
             local_block = blocks.Block.from_local(pandas_dataframe, self)
@@ -825,29 +830,22 @@ class Session(
             ValueError,  # Thrown by ibis for some unhandled types
             TypeError,  # Not all types handleable by local code path
         ) as exc:
-            if should_raise:
-                raise ValueError(
-                    f"Could not convert with a BigQuery type: `{exc}`. "
-                ) from exc
-            else:
-                return None
-
-        inline_types = inline_df._block.expr.schema.dtypes
+            raise ValueError(
+                f"Could not convert with a BigQuery type: `{exc}`. "
+            ) from exc
 
         # Make sure all types are inlinable to avoid escaping errors.
+        inline_types = inline_df._block.expr.schema.dtypes
         noninlinable_types = [
             dtype for dtype in inline_types if dtype not in INLINABLE_DTYPES
         ]
-        if len(noninlinable_types) == 0:
-            return inline_df
-
-        if should_raise:
+        if len(noninlinable_types) != 0:
             raise ValueError(
                 f"Could not inline with a BigQuery type: `{noninlinable_types}`. "
                 f"{constants.FEEDBACK_LINK}"
             )
-        else:
-            return None
+
+        return inline_df
 
     def _read_pandas_load_job(
         self,
@@ -1437,7 +1435,13 @@ class Session(
         name: Optional[str] = None,
         packages: Optional[Sequence[str]] = None,
     ):
-        """Decorator to turn a Python udf into a BigQuery managed function.
+        """Decorator to turn a Python user defined function (udf) into a
+        BigQuery managed function.
+
+        .. note::
+            The udf must be self-contained, i.e. it must not contain any
+            references to an import or variable defined outside the function
+            body.
 
         .. note::
             Please have following IAM roles enabled for you:
@@ -1759,7 +1763,9 @@ class Session(
 
         table = self._create_object_table(path, connection)
 
-        s = self.read_gbq(table)["uri"].str.to_blob(connection)
+        s = self._loader.read_gbq_table(table, api_name="from_glob_path")[
+            "uri"
+        ].str.to_blob(connection)
         return s.rename(name).to_frame()
 
     def _create_bq_connection(
@@ -1809,7 +1815,9 @@ class Session(
         table = self.bqclient.get_table(object_table)
         connection = table._properties["externalDataConfiguration"]["connectionId"]
 
-        s = self.read_gbq(object_table)["uri"].str.to_blob(connection)
+        s = self._loader.read_gbq_table(object_table, api_name="read_gbq_object_table")[
+            "uri"
+        ].str.to_blob(connection)
         return s.rename(name).to_frame()
 
 
