@@ -295,58 +295,55 @@ def pdf_uris() -> list[str]:
     ]
 
 
+@pytest.mark.parametrize("verbose", (True, False))
 def test_blob_pdf_extract(
     pdf_mm_df: bpd.DataFrame,
+    verbose: bool,
     bq_connection: str,
 ):
     bigframes.options.experiments.blob = True
 
-    actual_exploded = (
+    actual = (
         pdf_mm_df["pdf"]
-        .blob.pdf_extract(connection=bq_connection, verbose=True)
-        .struct.explode()
+        .blob.pdf_extract(connection=bq_connection, verbose=verbose)
+        .explode()
         .to_pandas()
     )
-    # content = [
-    #    None,
-    #    '"Sample  PDF    This  is  a  testing  file.  Some  dummy  messages  are  used  for  testing  purposes.   "',
-    # ]
-    expected_df = pd.DataFrame(
-        [
-            {"status": '"File has not been decrypted"', "content": None},
-            {
-                "status": None,
-                "content": '"Sample  PDF    This  is  a  testing  file.  Some  dummy  messages  are  used  for  testing  purposes.   "',
-            },
-        ]
-    )
-    actual = pd.DataFrame(
+
+    extract_data = [
+        {"status": "File has not been decrypted", "content": ""},
         {
-            "values": actual_exploded.to_dict("records"),
-        }
-    )
+            "status": "",
+            "content": "Sample  PDF    This  is  a  testing  file.  Some  dummy  messages  are  used  for  testing  purposes.   ",
+        },
+    ]
+    if verbose:
+        expected = pd.Series(extract_data)
+    else:
+        content_values = [item["content"] for item in extract_data]
+        expected = pd.Series(content_values)
 
-    pd.testing.assert_frame_equal(
+    pd.testing.assert_series_equal(
         actual,
-        expected_df,
+        expected,
         check_dtype=False,
-        check_index_type=False,
+        check_index=False,
+        check_names=False,
     )
 
 
-def test_blob_pdf_chunk(pdf_mm_df: bpd.DataFrame, bq_connection: str):
+@pytest.mark.parametrize("verbose", (True, False))
+def test_blob_pdf_chunk(pdf_mm_df: bpd.DataFrame, verbose: bool, bq_connection: str):
     bigframes.options.experiments.blob = True
 
-    actual_exploded = (
-        pdf_mm_df["pdf"]
-        .blob.pdf_chunk(connection=bq_connection, chunk_size=50, overlap_size=10)
-        .struct.explode()
-        .to_pandas()
+    actual = pdf_mm_df["pdf"].blob.pdf_chunk(
+        connection=bq_connection, chunk_size=50, overlap_size=10, verbose=verbose
     )
-    extract_data = [
-        {"status": '"File has not been decrypted"', "content": []},
+
+    chunk_data = [
+        {"status": "File has not been decrypted", "content": []},
         {
-            "status": '""',
+            "status": "",
             "content": [
                 "Sample  PDF    This  is  a  testing  file.  Some ",
                 "dummy  messages  are  used  for  testing ",
@@ -354,24 +351,16 @@ def test_blob_pdf_chunk(pdf_mm_df: bpd.DataFrame, bq_connection: str):
             ],
         },
     ]
-    expected_df = pd.DataFrame(
-        {
-            "pdf": pdf_uris,
-            "authorizer": [bq_connection.casefold(), bq_connection.casefold()],
-            "values": extract_data,
-        }
-    )
-    actual = pd.DataFrame(
-        {
-            "pdf": pdf_uris,
-            "authorizer": [bq_connection.casefold(), bq_connection.casefold()],
-            "values": actual_exploded.to_dict("records"),
-        }
-    )
-
-    pd.testing.assert_frame_equal(
-        actual,
-        expected_df,
+    if verbose:
+        actual = actual.explode()
+        expected = pd.Series(chunk_data)
+    else:
+        content_values = [item["content"] for item in chunk_data]
+        expected = pd.Series(content_values)
+    pd.testing.assert_series_equal(
+        actual.to_pandas(),
+        expected,
         check_dtype=False,
-        check_index_type=False,
+        check_index=False,
+        check_names=False,
     )

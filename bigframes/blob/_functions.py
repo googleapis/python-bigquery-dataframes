@@ -425,10 +425,10 @@ def pdf_extract_func(src_obj_ref_rt: str) -> str:
             if page_extract_text:
                 all_text += page_extract_text
 
-        result_dict = {"status": None, "content": all_text}
+        result_dict = {"status": "", "content": all_text}
 
     except Exception as e:
-        result_dict = {"status": str(e), "content": None}
+        result_dict = {"status": str(e), "content": ""}
 
     result_json = json.dumps(result_dict)
     return result_json
