@@ -47,34 +47,27 @@ def _is_vscode_extension_installed(extension_id: str) -> bool:
             raise OSError("Unsupported operating system.")
 
         # Check if the extensions directory exists.
-        if not os.path.exists(vscode_extensions_dir):
-            return False
+        if os.path.exists(vscode_extensions_dir):
+            # Iterate through the subdirectories in the extensions directory.
+            for item in os.listdir(vscode_extensions_dir):
+                item_path = os.path.join(vscode_extensions_dir, item)
+                if os.path.isdir(item_path) and item.startswith(
+                    extension_id + "-"
+                ):  # check if the folder starts with the extension ID.
+                    # Further check for manifest file, as a more robust check.
+                    manifest_path = os.path.join(item_path, "package.json")
+                    if os.path.exists(manifest_path):
+                        try:
+                            with open(manifest_path, "r", encoding="utf-8") as f:
+                                json.load(f)
+                            return True
+                        except (FileNotFoundError, json.JSONDecodeError):
+                            # Corrupted or incomplete extension, or manifest missing.
+                            pass
+    except Exception:
+        pass
 
-        # Iterate through the subdirectories in the extensions directory.
-        for item in os.listdir(vscode_extensions_dir):
-            item_path = os.path.join(vscode_extensions_dir, item)
-            if os.path.isdir(item_path) and item.startswith(
-                extension_id + "-"
-            ):  # check if the folder starts with the extension ID.
-                # Further check for manifest file, as a more robust check.
-                manifest_path = os.path.join(item_path, "package.json")
-                if os.path.exists(manifest_path):
-                    try:
-                        with open(manifest_path, "r", encoding="utf-8") as f:
-                            json.load(
-                                f
-                            )  # attempt to load json, if it fails, the extension is likely corrupted.
-                        return True
-                    except (FileNotFoundError, json.JSONDecodeError):
-                        pass  # Corrupted or incomplete extension, or manifest missing.
-        return False
-
-    except OSError as e:
-        print(f"Error: {e}")
-        return False
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        return False
+    return False
 
 
 def _is_package_installed(package_name: str) -> bool:
@@ -90,7 +83,7 @@ def _is_package_installed(package_name: str) -> bool:
     try:
         importlib.import_module(package_name)
         return True
-    except ImportError:
+    except Exception:
         return False
 
 
