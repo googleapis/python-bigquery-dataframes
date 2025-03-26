@@ -60,14 +60,19 @@ def cut(
             bins = tuple((bin.left.item(), bin.right.item()) for bin in bins)
             # To maintain consistency with pandas' behavior
             right = True
+            labels = None
         elif len(list(bins)) == 0:
             as_index = pd.IntervalIndex.from_tuples(list(bins))
             bins = tuple()
+            # To maintain consistency with pandas' behavior
+            right = True
+            labels = None
         elif isinstance(list(bins)[0], tuple):
             as_index = pd.IntervalIndex.from_tuples(list(bins))
             bins = tuple(bins)
             # To maintain consistency with pandas' behavior
             right = True
+            labels = None
         elif pd.api.types.is_number(list(bins)[0]):
             bins_list = list(bins)
             as_index = pd.IntervalIndex.from_breaks(bins_list)
