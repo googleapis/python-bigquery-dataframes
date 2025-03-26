@@ -2357,7 +2357,7 @@ def test_df_apply_axis_1_array_output(session, scalars_dfs):
         pytest.param(
             {},
             functions_v2.ServiceConfig.IngressSettings.ALLOW_INTERNAL_ONLY,
-            True,
+            False,
             id="no-set",
         ),
         pytest.param(
@@ -2408,11 +2408,8 @@ def test_remote_function_ingress_settings(
         default_ingress_setting_warnings = [
             warn
             for warn in record
-            if isinstance(warn.message, FutureWarning)
-            and "`cloud_function_ingress_settings` are set to 'all' by default"
-            in warn.message.args[0]
-            and "will change to 'internal-only' for enhanced security in future"
-            in warn.message.args[0]
+            if isinstance(warn.message, UserWarning)
+            and "The `cloud_function_ingress_settings` is being set to 'internal-only' by default."
         ]
         assert len(default_ingress_setting_warnings) == (
             1 if expect_default_ingress_setting_warning else 0
