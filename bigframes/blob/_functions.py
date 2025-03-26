@@ -425,12 +425,13 @@ def pdf_extract_func(src_obj_ref_rt: str) -> str:
             if page_extract_text:
                 all_text += page_extract_text
 
-        result_dict = {"status": "", "content": all_text}
-        return json.dumps(result_dict)
+        result_dict = {"status": None, "content": all_text}
 
     except Exception as e:
-        result_dict = {"status": str(e), "content": ""}
-        return json.dumps(result_dict)
+        result_dict = {"status": str(e), "content": None}
+
+    result_json = json.dumps(result_dict)
+    return result_json
 
 
 pdf_extract_def = FunctionDef(pdf_extract_func, ["pypdf", "requests", "pypdf[crypto]"])
@@ -479,11 +480,12 @@ def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> s
             all_text_chunks.append(curr_chunk)
 
         result_dict = {"status": "", "content": all_text_chunks}
-        return json.dumps(result_dict)
 
     except Exception as e:
         result_dict = {"status": str(e), "content": []}
-        return json.dumps(result_dict)
+
+    result_json = json.dumps(result_dict)
+    return result_json
 
 
 pdf_chunk_def = FunctionDef(pdf_chunk_func, ["pypdf", "requests", "pypdf[crypto]"])

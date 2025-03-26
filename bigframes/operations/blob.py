@@ -615,7 +615,7 @@ class BlobAccessor(base.SeriesMethods):
         max_batching_rows: int = 1,
         container_cpu: Union[float, int] = 2,
         container_memory: str = "1Gi",
-        verbose: bool = True,
+        verbose: bool = False,
     ) -> bigframes.series.Series:
         """Extracts text from PDF URLs and saves the text as string.
 
@@ -631,13 +631,14 @@ class BlobAccessor(base.SeriesMethods):
                 send to cloud run to execute the function.
             container_cpu (int or float, default 2): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "1Gi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
-            verbose (bool, default "True"): controls the verbosity of the output.
+            verbose (bool, default "False"): controls the verbosity of the output.
                 When set to True, both error messages and the extracted content
                 are displayed. Conversely, when set to False, only the extracted
                 content is presented, suppressing error messages.
 
         Returns:
-            bigframes.series.Series:
+            bigframes.series.Series: str or struct[str, str],
+                depend on the "verbose" parameter.
                 Contains the extracted text from the PDF file.
                 Includes error messages if verbosity is enabled.
         """
@@ -660,9 +661,11 @@ class BlobAccessor(base.SeriesMethods):
 
         res = src_rt.apply(pdf_extract_udf)
 
-        content_series = bbq.json_extract(res, "$.content")
+        content_series = res._apply_unary_op(ops.JSONValue(json_path="$.content"))
+
+        self._add_to_cleanup_set(pdf_extract_udf)
         if verbose:
-            status_series = bbq.json_extract(res, "$.status")
+            status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
             res_df = bpd.DataFrame({"status": status_series, "content": content_series})
             struct_series = bbq.struct(res_df)
             return struct_series
@@ -678,7 +681,7 @@ class BlobAccessor(base.SeriesMethods):
         max_batching_rows: int = 1,
         container_cpu: Union[float, int] = 2,
         container_memory: str = "1Gi",
-        verbose: bool = True,
+        verbose: bool = False,
     ) -> bigframes.series.Series:
         """Extracts and chunks text from PDF URLs and saves the text as
            arrays of strings.
@@ -699,13 +702,14 @@ class BlobAccessor(base.SeriesMethods):
                 send to cloud run to execute the function.
             container_cpu (int or float, default 2): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "1Gi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
-            verbose (bool, default "True"): controls the verbosity of the output.
+            verbose (bool, default "False"): controls the verbosity of the output.
                 When set to True, both error messages and the extracted content
                 are displayed. Conversely, when set to False, only the extracted
                 content is presented, suppressing error messages.
 
         Returns:
-            bigframe.series.Series: Series of array[str] | str,
+            bigframe.series.Series: array[str] or struct[str, array[str]],
+                depend on the "verbose" parameter.
                 where each string is a chunk of text extracted from PDF.
                 Includes error messages if verbosity is enabled.
         """
@@ -740,8 +744,9 @@ class BlobAccessor(base.SeriesMethods):
         res = self._df_apply_udf(df, pdf_chunk_udf)
 
         content_series = bbq.json_extract_string_array(res, "$.content")
+        self._add_to_cleanup_set(pdf_chunk_udf)
         if verbose:
-            status_series = bbq.json_extract(res, "$.status")
+            status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
             res_df = bpd.DataFrame({"status": status_series, "content": content_series})
             struct_series = bbq.struct(res_df)
             return struct_series

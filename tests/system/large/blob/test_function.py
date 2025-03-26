@@ -295,33 +295,33 @@ def pdf_uris() -> list[str]:
     ]
 
 
-def test_blob_pdf_extract(pdf_mm_df: bpd.DataFrame, bq_connection: str):
+def test_blob_pdf_extract(
+    pdf_mm_df: bpd.DataFrame,
+    bq_connection: str,
+):
     bigframes.options.experiments.blob = True
 
     actual_exploded = (
         pdf_mm_df["pdf"]
-        .blob.pdf_extract(connection=bq_connection)
+        .blob.pdf_extract(connection=bq_connection, verbose=True)
         .struct.explode()
         .to_pandas()
     )
-    extract_data = [
-        {"status": '"File has not been decrypted"', "content": '""'},
-        {
-            "status": '""',
-            "content": '"Sample  PDF    This  is  a  testing  file.  Some  dummy  messages  are  used  for  testing  purposes.   "',
-        },
-    ]
+    # content = [
+    #    None,
+    #    '"Sample  PDF    This  is  a  testing  file.  Some  dummy  messages  are  used  for  testing  purposes.   "',
+    # ]
     expected_df = pd.DataFrame(
-        {
-            "pdf": pdf_uris,
-            "authorizer": [bq_connection.casefold(), bq_connection.casefold()],
-            "values": extract_data,
-        }
+        [
+            {"status": '"File has not been decrypted"', "content": None},
+            {
+                "status": None,
+                "content": '"Sample  PDF    This  is  a  testing  file.  Some  dummy  messages  are  used  for  testing  purposes.   "',
+            },
+        ]
     )
     actual = pd.DataFrame(
         {
-            "pdf": pdf_uris,
-            "authorizer": [bq_connection.casefold(), bq_connection.casefold()],
             "values": actual_exploded.to_dict("records"),
         }
     )
