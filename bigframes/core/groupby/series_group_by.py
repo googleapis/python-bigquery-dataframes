@@ -15,12 +15,13 @@
 from __future__ import annotations
 
 import typing
-from typing import Sequence, Union
+from typing import Literal, Sequence, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
 
 from bigframes import session
+from bigframes.core import expression as ex
 from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
@@ -243,13 +244,16 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         return self._apply_window_op(agg_ops.DiffOp(periods), window=window)
 
     @validations.requires_ordering()
-    def rolling(self, window: int, min_periods=None) -> windows.Window:
-        # To get n size window, need current row and n-1 preceding rows.
-        window_spec = window_specs.rows(
-            grouping_keys=tuple(self._by_col_ids),
-            start=-(window - 1),
-            end=0,
-            min_periods=min_periods or window,
+    def rolling(
+        self,
+        window: int,
+        min_periods=None,
+        closed: Literal["right", "left", "both", "neither"] = "right",
+    ) -> windows.Window:
+        window_spec = window_specs.WindowSpec(
+            bounds=window_specs.RowsWindowBounds.from_window_size(window, closed),
+            min_periods=min_periods if min_periods is not None else window,
+            grouping_keys=tuple(ex.deref(col) for col in self._by_col_ids),
         )
         block = self._block.order_by(
             [order.ascending_over(col) for col in self._by_col_ids],
