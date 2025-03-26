@@ -39,7 +39,8 @@ class ExecutionMetrics:
             query_char_count = len(query)
             self.execution_count += 1
             self.query_char_count += query_char_count
-            write_stats_to_disk(query_char_count)
+            if LOGGING_NAME_ENV_VAR in os.environ:
+                write_stats_to_disk(query_char_count)
             return
 
         stats = get_performance_stats(query_job)
