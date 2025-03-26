@@ -51,6 +51,15 @@ Struct handling
     :inherited-members:
     :undoc-members:
 
+Blob handling
+^^^^^^^^^^^^^
+
+.. autoclass:: bigframes.operations.blob
+    :members:
+    :inherited-members:
+    :undoc-members:
+
+
 Plotting handling
 ^^^^^^^^^^^^^^^^^
 
