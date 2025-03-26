@@ -46,6 +46,8 @@ def cut(
             "The 'labels' parameter must be either False or None. "
             "Please provide a valid value for 'labels'."
         )
+    if x.size == 0:
+        raise ValueError("Cannot cut empty array.")
 
     if isinstance(bins, int):
         if bins <= 0:
@@ -83,9 +85,13 @@ def cut(
         if as_index.is_overlapping:
             raise ValueError("Overlapping IntervalIndex is not accepted.")
         elif len(as_index) == 0:
-            op = agg_ops.CutOp(bins, right=right, labels=labels)
+            dtype = agg_ops.CutOp(bins, right=right, labels=labels).output_type()
             return bigframes.series.Series(
-                [pd.NA] * len(x), dtype=op.output_type(), name=x.name
+                [pd.NA] * len(x),
+                dtype=dtype,
+                name=x.name,
+                index=x.index,
+                session=x._session,
             )
         else:
             op = agg_ops.CutOp(bins, right=right, labels=labels)
