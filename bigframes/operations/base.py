@@ -27,6 +27,7 @@ import bigframes.core.expression as ex
 import bigframes.core.identifiers as ids
 import bigframes.core.indexes as indexes
 import bigframes.core.scalar as scalars
+import bigframes.core.utils as bf_utils
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -74,6 +75,15 @@ class SeriesMethods:
             block = data
         elif isinstance(data, SeriesMethods):
             block = data._get_block()
+        # special case where data is local scalar, but index is bigframes index (maybe very big)
+        elif (
+            not bf_utils.is_list_like(data) and not isinstance(data, indexes.Index)
+        ) and isinstance(index, indexes.Index):
+            block = index._block
+            block, _ = block.create_constant(data)
+            block = block.with_column_labels([None])
+            # prevents no-op reindex later
+            index = None
         elif isinstance(data, indexes.Index) or isinstance(index, indexes.Index):
             data = indexes.Index(data, dtype=dtype, name=name, session=session)
             # set to none as it has already been applied, avoid re-cast later

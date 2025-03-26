@@ -200,6 +200,17 @@ def test_series_construct_nan():
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
+def test_series_construct_scalar_w_bf_index():
+    bf_result = series.Series(
+        "hello", index=bigframes.pandas.Index([1, 2, 3])
+    ).to_pandas()
+    pd_result = pd.Series("hello", index=pd.Index([1, 2, 3], dtype="Int64"))
+
+    pd_result = pd_result.astype("string[pyarrow]")
+
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
 def test_series_construct_from_list_escaped_strings():
     """Check that special characters are supported."""
     strings = [
