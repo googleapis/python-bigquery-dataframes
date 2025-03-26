@@ -59,22 +59,6 @@ Blob handling
     :inherited-members:
     :undoc-members:
 
-Semantics handling
-^^^^^^^^^^^^^^^^^^
-
-.. automodule:: bigframes.operations.semantics
-    :members:
-    :inherited-members:
-    :undoc-members:
-
-Ai handling
-^^^^^^^^^^^
-
-.. automodule:: bigframes.operations.ai
-    :members:
-    :inherited-members:
-    :undoc-members:
-
 Plotting handling
 ^^^^^^^^^^^^^^^^^
 
