@@ -95,9 +95,9 @@ def collect_benchmark_result(
         if not (
             len(bytes_files)
             == len(millis_files)
-            == len(local_seconds_files)
             == len(bq_seconds_files)
             == len(query_char_count_files)
+            <= len(local_seconds_files)
         ):
             raise ValueError(
                 "Mismatch in the number of report files for bytes, millis, seconds and query char count."
