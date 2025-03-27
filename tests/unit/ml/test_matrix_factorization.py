@@ -97,7 +97,7 @@ def test_decomposition_mf_invalid_num_factors_raises():
     num_factors = 0.5
     with pytest.raises(
         TypeError,
-        match=f"Expected num_factors to be INT, but got {type(num_factors)}.",
+        match=f"Expected num_factors to be an int, but got {type(num_factors)}.",
     ):
         decomposition.MatrixFactorization(
             num_factors=num_factors,  # type: ignore
@@ -112,7 +112,7 @@ def test_decomposition_mf_invalid_num_factors_raises():
 def test_decomposition_mf_invalid_user_col_raises():
     user_col = 123
     with pytest.raises(
-        TypeError, match=f"Expected user_col to be STR, but got {type(user_col)}."
+        TypeError, match=f"Expected user_col to be a str, but got {type(user_col)}."
     ):
         decomposition.MatrixFactorization(
             num_factors=16,
@@ -174,7 +174,7 @@ def test_decomposition_mf_label_item_col_raises():
 def test_decomposition_mf_invalid_rating_col_raises():
     rating_col = 4
     with pytest.raises(
-        TypeError, match=f"Expected rating_col to be STR, but got {type(rating_col)}."
+        TypeError, match=f"Expected rating_col to be a str, but got {type(rating_col)}."
     ):
         decomposition.MatrixFactorization(
             num_factors=16,
@@ -201,7 +201,8 @@ def test_decomposition_mf_l2_reg():
 def test_decomposition_mf_invalid_l2_reg_raises():
     l2_reg = "6.02"
     with pytest.raises(
-        TypeError, match=f"Expected l2_reg to be FLOAT or INT, but got {type(l2_reg)}."
+        TypeError,
+        match=f"Expected l2_reg to be a float or int, but got {type(l2_reg)}.",
     ):
         decomposition.MatrixFactorization(
             num_factors=16,
