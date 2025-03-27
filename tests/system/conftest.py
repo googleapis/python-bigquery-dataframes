@@ -1477,18 +1477,18 @@ def images_gcs_path() -> str:
 @pytest.fixture(scope="session")
 def images_uris() -> list[str]:
     return [
-        "gs://bigframes_blob_test/images/img0.jpg",
         "gs://bigframes_blob_test/images/img1.jpg",
+        "gs://bigframes_blob_test/images/img0.jpg",
     ]
 
 
 @pytest.fixture(scope="session")
 def images_mm_df(
-    images_gcs_path, session: bigframes.Session, bq_connection: str
+    images_gcs_path, test_session: bigframes.Session, bq_connection: str
 ) -> bpd.DataFrame:
     bigframes.options.experiments.blob = True
 
-    return session.from_glob_path(
+    return test_session.from_glob_path(
         images_gcs_path, name="blob_col", connection=bq_connection
     )
 
