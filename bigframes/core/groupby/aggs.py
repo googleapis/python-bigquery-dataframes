@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "1.42.0"
+from __future__ import annotations
 
-# {x-release-please-start-date}
-__release_date__ = "2025-03-27"
-# {x-release-please-end}
+from bigframes.core import expression
+from bigframes.operations import aggregations as agg_ops
+
+
+def agg(input: str, op: agg_ops.AggregateOp) -> expression.Aggregation:
+    if isinstance(op, agg_ops.UnaryAggregateOp):
+        return expression.UnaryAggregation(op, expression.deref(input))
+    else:
+        assert isinstance(op, agg_ops.NullaryAggregateOp)
+        return expression.NullaryAggregation(op)

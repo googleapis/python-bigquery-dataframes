@@ -16,13 +16,16 @@ from __future__ import annotations
 
 import os
 from typing import cast, Optional, Union
+import warnings
 
 import IPython.display as ipy_display
 import pandas as pd
 import requests
 
 from bigframes import clients
+from bigframes.core import log_adapter
 import bigframes.dataframe
+import bigframes.exceptions as bfe
 from bigframes.operations import base
 import bigframes.operations as ops
 import bigframes.series
@@ -31,7 +34,15 @@ FILE_FOLDER_REGEX = r"^.*\/(.*)$"
 FILE_EXT_REGEX = r"(\.[0-9a-zA-Z]+$)"
 
 
+@log_adapter.class_logger
 class BlobAccessor(base.SeriesMethods):
+    """
+    Blob functions for Series and Index.
+
+    .. note::
+        BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+    """
+
     def __init__(self, *args, **kwargs):
         if not bigframes.options.experiments.blob:
             raise NotImplementedError()
@@ -166,6 +177,30 @@ class BlobAccessor(base.SeriesMethods):
 
         return s._apply_unary_op(ops.ObjGetAccessUrl(mode=mode))
 
+    def _df_apply_udf(
+        self, df: bigframes.dataframe.DataFrame, udf
+    ) -> bigframes.series.Series:
+        # Catch and rethrow function axis=1 warning to be more user-friendly.
+        with warnings.catch_warnings(record=True) as catched_warnings:
+            s = df.apply(udf, axis=1)
+        for w in catched_warnings:
+            if isinstance(w.message, bfe.FunctionAxisOnePreviewWarning):
+                warnings.warn(
+                    "Blob Functions use bigframes DataFrame Managed function with axis=1 senario, which is a preview feature.",
+                    category=w.category,
+                    stacklevel=2,
+                )
+            else:
+                warnings.warn_explicit(
+                    message=w.message,
+                    category=w.category,
+                    filename=w.filename,
+                    lineno=w.lineno,
+                    source=w.source,
+                )
+
+        return s
+
     def read_url(self) -> bigframes.series.Series:
         """Retrieve the read URL of the Blob.
 
@@ -238,6 +273,10 @@ class BlobAccessor(base.SeriesMethods):
         for _, row in pandas_df.iterrows():
             display_single_url(row["read_url"], row["content_type"])
 
+    @property
+    def session(self):
+        return self._block.session
+
     def _resolve_connection(self, connection: Optional[str] = None) -> str:
         """Resovle the BigQuery connection.
 
@@ -285,6 +324,13 @@ class BlobAccessor(base.SeriesMethods):
         """
         runtime = self._get_runtime(mode=mode, with_metadata=with_metadata)
         return runtime._apply_unary_op(ops.ToJSONString())
+
+    # TODO(b/404605969): remove cleanups when UDF fixes dataset deletion.
+    def _add_to_cleanup_set(self, udf):
+        """Add udf name to session cleanup set. Won't need this after UDF fixes dataset deletion."""
+        self.session._function_session._update_temp_artifacts(
+            udf.bigframes_bigquery_function, ""
+        )
 
     def image_blur(
         self,
@@ -335,7 +381,7 @@ class BlobAccessor(base.SeriesMethods):
 
             df["ksize_x"], df["ksize_y"] = ksize
             df["ext"] = ext  # type: ignore
-            res = df.apply(image_blur_udf, axis=1)
+            res = self._df_apply_udf(df, image_blur_udf)
 
             return res
 
@@ -364,8 +410,10 @@ class BlobAccessor(base.SeriesMethods):
         df["ksize_x"], df["ksize_y"] = ksize
         df["ext"] = ext  # type: ignore
 
-        res = df.apply(image_blur_udf, axis=1)
+        res = self._df_apply_udf(df, image_blur_udf)
         res.cache()  # to execute the udf
+
+        self._add_to_cleanup_set(image_blur_udf)
 
         return dst
 
@@ -430,7 +478,7 @@ class BlobAccessor(base.SeriesMethods):
             df["dsize_x"], df["dsizye_y"] = dsize
             df["fx"], df["fy"] = fx, fy
             df["ext"] = ext  # type: ignore
-            res = df.apply(image_resize_udf, axis=1)
+            res = self._df_apply_udf(df, image_resize_udf)
 
             return res
 
@@ -460,8 +508,10 @@ class BlobAccessor(base.SeriesMethods):
         df["fx"], df["fy"] = fx, fy
         df["ext"] = ext  # type: ignore
 
-        res = df.apply(image_resize_udf, axis=1)
+        res = self._df_apply_udf(df, image_resize_udf)
         res.cache()  # to execute the udf
+
+        self._add_to_cleanup_set(image_resize_udf)
 
         return dst
 
@@ -520,7 +570,7 @@ class BlobAccessor(base.SeriesMethods):
             df["beta"] = beta
             df["norm_type"] = norm_type
             df["ext"] = ext  # type: ignore
-            res = df.apply(image_normalize_udf, axis=1)
+            res = self._df_apply_udf(df, image_normalize_udf)
 
             return res
 
@@ -551,8 +601,10 @@ class BlobAccessor(base.SeriesMethods):
         df["norm_type"] = norm_type
         df["ext"] = ext  # type: ignore
 
-        res = df.apply(image_normalize_udf, axis=1)
+        res = self._df_apply_udf(df, image_normalize_udf)
         res.cache()  # to execute the udf
+
+        self._add_to_cleanup_set(image_normalize_udf)
 
         return dst
 
@@ -563,6 +615,7 @@ class BlobAccessor(base.SeriesMethods):
         max_batching_rows: int = 1,
         container_cpu: Union[float, int] = 2,
         container_memory: str = "1Gi",
+        verbose: bool = False,
     ) -> bigframes.series.Series:
         """Extracts text from PDF URLs and saves the text as string.
 
@@ -578,12 +631,20 @@ class BlobAccessor(base.SeriesMethods):
                 send to cloud run to execute the function.
             container_cpu (int or float, default 2): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "1Gi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+            verbose (bool, default "False"): controls the verbosity of the output.
+                When set to True, both error messages and the extracted content
+                are displayed. Conversely, when set to False, only the extracted
+                content is presented, suppressing error messages.
 
         Returns:
-            bigframes.series.Series: conatins all text from a pdf file
+            bigframes.series.Series: str or struct[str, str],
+                depend on the "verbose" parameter.
+                Contains the extracted text from the PDF file.
+                Includes error messages if verbosity is enabled.
         """
-
+        import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
+        import bigframes.pandas as bpd
 
         connection = self._resolve_connection(connection)
 
@@ -597,8 +658,19 @@ class BlobAccessor(base.SeriesMethods):
         ).udf()
 
         src_rt = self._get_runtime_json_str(mode="R")
+
         res = src_rt.apply(pdf_extract_udf)
-        return res
+
+        content_series = res._apply_unary_op(ops.JSONValue(json_path="$.content"))
+
+        self._add_to_cleanup_set(pdf_extract_udf)
+        if verbose:
+            status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
+            res_df = bpd.DataFrame({"status": status_series, "content": content_series})
+            struct_series = bbq.struct(res_df)
+            return struct_series
+        else:
+            return content_series
 
     def pdf_chunk(
         self,
@@ -609,6 +681,7 @@ class BlobAccessor(base.SeriesMethods):
         max_batching_rows: int = 1,
         container_cpu: Union[float, int] = 2,
         container_memory: str = "1Gi",
+        verbose: bool = False,
     ) -> bigframes.series.Series:
         """Extracts and chunks text from PDF URLs and saves the text as
            arrays of strings.
@@ -629,14 +702,21 @@ class BlobAccessor(base.SeriesMethods):
                 send to cloud run to execute the function.
             container_cpu (int or float, default 2): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "1Gi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+            verbose (bool, default "False"): controls the verbosity of the output.
+                When set to True, both error messages and the extracted content
+                are displayed. Conversely, when set to False, only the extracted
+                content is presented, suppressing error messages.
 
         Returns:
-            bigframe.series.Series: Series of array[str], where each string is a
-                chunk of text extracted from PDF.
+            bigframe.series.Series: array[str] or struct[str, array[str]],
+                depend on the "verbose" parameter.
+                where each string is a chunk of text extracted from PDF.
+                Includes error messages if verbosity is enabled.
         """
 
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
+        import bigframes.pandas as bpd
 
         connection = self._resolve_connection(connection)
 
@@ -661,7 +741,14 @@ class BlobAccessor(base.SeriesMethods):
         df["chunk_size"] = chunk_size
         df["overlap_size"] = overlap_size
 
-        res = df.apply(pdf_chunk_udf, axis=1)
+        res = self._df_apply_udf(df, pdf_chunk_udf)
 
-        res_array = bbq.json_extract_string_array(res)
-        return res_array
+        content_series = bbq.json_extract_string_array(res, "$.content")
+        self._add_to_cleanup_set(pdf_chunk_udf)
+        if verbose:
+            status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
+            res_df = bpd.DataFrame({"status": status_series, "content": content_series})
+            struct_series = bbq.struct(res_df)
+            return struct_series
+        else:
+            return content_series
