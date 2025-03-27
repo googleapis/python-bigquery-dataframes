@@ -10,9 +10,9 @@ BigQuery DataFrames
         <p style="margin-top: 0; font-weight: bold;">⚠️ Breaking Changes in BigQuery DataFrames v2.0</p>
         <p>Version 2.0 introduces breaking changes for improved security and performance. Key default behaviors have changed:</p>
         <ul>
-            <li><strong>Large Results (&gt;10GB):</strong> Methods like <code>to_pandas()</code> will now fail by default due to stricter limits being enforced.</li>
+            <li><strong>Large Results (&gt;10GB):</strong> The default value for <code>allow_large_results</code> has changed to False. Methods like <code>to_pandas()</code> will now fail if the query result's compressed data size exceeds 10GB, unless large results are explicitly permitted.</li>
             <li><strong>Remote Function Security:</strong> The library no longer defaults to using the Compute Engine service account, and network ingress now defaults to "internal-only".</li>
-            <li><strong>Endpoint Connections:</strong> Automatic fallback to locational endpoints in certain regions is removed. Connections that previously relied on this fallback will no longer establish successfully.</li>
+            <li><strong>Endpoint Connections:</strong> Automatic fallback to locational endpoints in certain regions is removed. </li>
         </ul>
         <p><strong>Important:</strong> If you are not ready to adapt to these changes, please pin your dependency to a version less than 2.0 (e.g., <code>bigframes==1.38.0</code>) to avoid disruption.</p>
         <p style="margin-bottom: 0;">Please review the <a href="https://cloud.google.com/bigquery/docs/bigquery-dataframes-introduction" style="color: #842029; text-decoration: underline;">updated introduction guide</a> for more details on v2.0 behavior.</p>
