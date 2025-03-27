@@ -270,7 +270,7 @@ class MatrixFactorization(
 
         if not isinstance(l2_reg, (float, int)):
             raise TypeError(
-                f"Expected l2_reg to be FLOAT or INT, but got {type(l2_reg)}."
+                f"Expected l2_reg to be a float or int, but got {type(l2_reg)}."
             )
 
         self.l2_reg = l2_reg
