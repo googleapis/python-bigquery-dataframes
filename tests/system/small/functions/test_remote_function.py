@@ -25,6 +25,7 @@ import pytest
 import test_utils.prefixer
 
 import bigframes
+import bigframes.clients
 import bigframes.dtypes
 import bigframes.exceptions
 from bigframes.functions import _utils as bff_utils
@@ -93,6 +94,11 @@ def session_with_bq_connection(bq_cf_connection) -> bigframes.Session:
     return session
 
 
+def get_bq_connection_id_path_format(connection_id_dot_format):
+    fields = connection_id_dot_format.split(".")
+    return f"projects/{fields[0]}/locations/{fields[1]}/connections/{fields[2]}"
+
+
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_direct_no_session_param(
     bigquery_client,
@@ -154,11 +160,8 @@ def test_remote_function_direct_no_session_param(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_direct_no_session_param_location_specified(
-    bigquery_client,
-    bigqueryconnection_client,
-    cloudfunctions_client,
-    resourcemanager_client,
+def test_remote_function_connection_w_location(
+    session,
     scalars_dfs,
     dataset_id_permanent,
     bq_cf_connection_location,
@@ -169,10 +172,7 @@ def test_remote_function_direct_no_session_param_location_specified(
     square = bff.remote_function(
         int,
         int,
-        bigquery_client=bigquery_client,
-        bigquery_connection_client=bigqueryconnection_client,
-        cloud_functions_client=cloudfunctions_client,
-        resource_manager_client=resourcemanager_client,
+        session=session,
         dataset=dataset_id_permanent,
         bigquery_connection=bq_cf_connection_location,
         # See e2e tests for tests that actually deploy the Cloud Function.
@@ -208,11 +208,8 @@ def test_remote_function_direct_no_session_param_location_specified(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_direct_no_session_param_location_mismatched(
-    bigquery_client,
-    bigqueryconnection_client,
-    cloudfunctions_client,
-    resourcemanager_client,
+def test_remote_function_connection_w_location_mismatched(
+    session,
     dataset_id_permanent,
     bq_cf_connection_location_mismatched,
 ):
@@ -221,31 +218,40 @@ def test_remote_function_direct_no_session_param_location_mismatched(
         # connection doesn't match the location of the dataset.
         return x * x  # pragma: NO COVER
 
-    with pytest.raises(
-        ValueError,
-        match=re.escape("The location does not match BigQuery connection location:"),
-    ):
-        bff.remote_function(
-            int,
-            int,
-            bigquery_client=bigquery_client,
-            bigquery_connection_client=bigqueryconnection_client,
-            cloud_functions_client=cloudfunctions_client,
-            resource_manager_client=resourcemanager_client,
-            dataset=dataset_id_permanent,
-            bigquery_connection=bq_cf_connection_location_mismatched,
-            # See e2e tests for tests that actually deploy the Cloud Function.
-            reuse=True,
-            name=get_function_name(square),
-        )(square)
+    bq_cf_connection_location_mismatched_path_fmt = get_bq_connection_id_path_format(
+        bigframes.clients.get_canonical_bq_connection_id(
+            bq_cf_connection_location_mismatched,
+            session.bqclient.project,
+            session._location,
+        )
+    )
+    connection_ids = [
+        bq_cf_connection_location_mismatched,
+        bq_cf_connection_location_mismatched_path_fmt,
+    ]
+
+    for connection_id in connection_ids:
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "The location does not match BigQuery connection location:"
+            ),
+        ):
+            bff.remote_function(
+                int,
+                int,
+                session=session,
+                dataset=dataset_id_permanent,
+                bigquery_connection=connection_id,
+                # See e2e tests for tests that actually deploy the Cloud Function.
+                reuse=True,
+                name=get_function_name(square),
+            )(square)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_direct_no_session_param_location_project_specified(
-    bigquery_client,
-    bigqueryconnection_client,
-    cloudfunctions_client,
-    resourcemanager_client,
+def test_remote_function_connection_w_location_project(
+    session,
     scalars_dfs,
     dataset_id_permanent,
     bq_cf_connection_location_project,
@@ -256,10 +262,7 @@ def test_remote_function_direct_no_session_param_location_project_specified(
     square = bff.remote_function(
         int,
         int,
-        bigquery_client=bigquery_client,
-        bigquery_connection_client=bigqueryconnection_client,
-        cloud_functions_client=cloudfunctions_client,
-        resource_manager_client=resourcemanager_client,
+        session=session,
         dataset=dataset_id_permanent,
         bigquery_connection=bq_cf_connection_location_project,
         # See e2e tests for tests that actually deploy the Cloud Function.
@@ -295,11 +298,8 @@ def test_remote_function_direct_no_session_param_location_project_specified(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_direct_no_session_param_project_mismatched(
-    bigquery_client,
-    bigqueryconnection_client,
-    cloudfunctions_client,
-    resourcemanager_client,
+def test_remote_function_connection_w_project_mismatched(
+    session,
     dataset_id_permanent,
     bq_cf_connection_location_project_mismatched,
 ):
@@ -308,25 +308,37 @@ def test_remote_function_direct_no_session_param_project_mismatched(
         # connection doesn't match the project of the dataset.
         return x * x  # pragma: NO COVER
 
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "The project_id does not match BigQuery connection gcp_project_id:"
-        ),
-    ):
-        bff.remote_function(
-            int,
-            int,
-            bigquery_client=bigquery_client,
-            bigquery_connection_client=bigqueryconnection_client,
-            cloud_functions_client=cloudfunctions_client,
-            resource_manager_client=resourcemanager_client,
-            dataset=dataset_id_permanent,
-            bigquery_connection=bq_cf_connection_location_project_mismatched,
-            # See e2e tests for tests that actually deploy the Cloud Function.
-            reuse=True,
-            name=get_function_name(square),
-        )(square)
+    bq_cf_connection_location_project_mismatched_path_fmt = (
+        get_bq_connection_id_path_format(
+            bigframes.clients.get_canonical_bq_connection_id(
+                bq_cf_connection_location_project_mismatched,
+                session.bqclient.project,
+                session._location,
+            )
+        )
+    )
+    connection_ids = [
+        bq_cf_connection_location_project_mismatched,
+        bq_cf_connection_location_project_mismatched_path_fmt,
+    ]
+
+    for connection_id in connection_ids:
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "The project_id does not match BigQuery connection gcp_project_id:"
+            ),
+        ):
+            bff.remote_function(
+                int,
+                int,
+                session=session,
+                dataset=dataset_id_permanent,
+                bigquery_connection=connection_id,
+                # See e2e tests for tests that actually deploy the Cloud Function.
+                reuse=True,
+                name=get_function_name(square),
+            )(square)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
