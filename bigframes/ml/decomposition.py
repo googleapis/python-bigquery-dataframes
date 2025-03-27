@@ -235,7 +235,7 @@ class MatrixFactorization(
 
         if not isinstance(num_factors, int):
             raise TypeError(
-                f"Expected num_factors to be INT, but got {type(num_factors)}."
+                f"Expected num_factors to be an int, but got {type(num_factors)}."
             )
 
         if num_factors < 0:
