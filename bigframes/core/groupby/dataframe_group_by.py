@@ -310,12 +310,14 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         self,
         window: int,
         min_periods=None,
+        on: str | None = None,
         closed: Literal["right", "left", "both", "neither"] = "right",
     ) -> windows.Window:
         window_spec = window_specs.WindowSpec(
             bounds=window_specs.RowsWindowBounds.from_window_size(window, closed),
             min_periods=min_periods if min_periods is not None else window,
             grouping_keys=tuple(ex.deref(col) for col in self._by_col_ids),
+            on=None if on is None else self._block.resolve_label_exact_or_error(on),
         )
         block = self._block.order_by(
             [order.ascending_over(col) for col in self._by_col_ids],
@@ -511,7 +513,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
 
     def _apply_window_op(
         self,
-        op: agg_ops.WindowOp,
+        op: agg_ops.UnaryWindowOp,
         window: typing.Optional[window_specs.WindowSpec] = None,
         numeric_only: bool = False,
     ):
