@@ -1509,8 +1509,10 @@ def pdf_gcs_path() -> str:
 
 @pytest.fixture(scope="session")
 def pdf_mm_df(
-    pdf_gcs_path, session: bigframes.Session, bq_connection: str
+    pdf_gcs_path, test_session: bigframes.Session, bq_connection: str
 ) -> bpd.DataFrame:
     bigframes.options.experiments.blob = True
 
-    return session.from_glob_path(pdf_gcs_path, name="pdf", connection=bq_connection)
+    return test_session.from_glob_path(
+        pdf_gcs_path, name="pdf", connection=bq_connection
+    )
