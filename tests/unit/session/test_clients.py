@@ -25,7 +25,9 @@ import google.cloud.bigquery_connection_v1
 import google.cloud.bigquery_storage_v1
 import google.cloud.functions_v2
 import google.cloud.resourcemanager_v3
+import pytest
 
+import bigframes.constants as constants
 import bigframes.session.clients as clients
 import bigframes.version
 
@@ -113,3 +115,21 @@ def test_user_agent_custom(monkeypatch):
     # We still need to include attribution to bigframes, even if there's also a
     # partner using the package.
     assert_clients_w_user_agent(provider, f"bigframes/{bigframes.version.__version__}")
+
+
+def test_clients_provider_no_location():
+    with pytest.raises(ValueError, match="Must set location to use regional endpoints"):
+        clients.ClientsProvider(use_regional_endpoints=True)
+
+
+@pytest.mark.parametrize(
+    "bigquery_location",
+    # Sort the set to avoid nondeterminism.
+    sorted(constants.REP_NOT_ENABLED_BIGQUERY_LOCATIONS),
+)
+def test_clients_provider_use_regional_endpoints_non_rep_locations(bigquery_location):
+    with pytest.raises(
+        ValueError,
+        match="Support for regional endpoints may not be available in the location",
+    ):
+        clients.ClientsProvider(location=bigquery_location, use_regional_endpoints=True)
