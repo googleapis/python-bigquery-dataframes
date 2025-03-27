@@ -907,6 +907,9 @@ class FunctionSession:
                 name=name,
                 packages=packages,
                 is_row_processor=is_row_processor,
+                # If bigquery_connection is not provided, bq_connection_id can
+                # be ignored in provision_bq_managed_function.
+                bq_connection_id=bq_connection_id if bigquery_connection else None,
             )
 
             # TODO(shobs): Find a better way to support udfs with param named

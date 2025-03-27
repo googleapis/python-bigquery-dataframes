@@ -196,6 +196,7 @@ class FunctionClient:
         name,
         packages,
         is_row_processor,
+        bq_connection_id,
         *,
         capture_references=False,
     ):
@@ -273,12 +274,20 @@ class FunctionClient:
             udf_code = textwrap.dedent(inspect.getsource(func))
             udf_code = udf_code[udf_code.index("def") :]
 
+        bq_connection_str = ""
+        if bq_connection_id:
+            bq_connection_str = (
+                f"WITH CONNECTION `{self._gcp_project_id}.{self._bq_location}."
+                f"{self._bq_connection_id}`"
+            )
+
         create_function_ddl = (
             textwrap.dedent(
                 f"""
                 CREATE OR REPLACE FUNCTION {persistent_func_id}({','.join(bq_function_args)})
                 RETURNS {bq_function_return_type}
                 LANGUAGE python
+                {bq_connection_str}
                 OPTIONS ({managed_function_options_str})
                 AS r'''
                 __UDF_PLACE_HOLDER__
