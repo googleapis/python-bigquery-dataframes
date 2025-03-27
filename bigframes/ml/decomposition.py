@@ -263,7 +263,7 @@ class MatrixFactorization(
 
         if not isinstance(rating_col, str):
             raise TypeError(
-                f"Expected rating_col to be STR, but got {type(rating_col)}."
+                f"Expected rating_col to be a str, but got {type(rating_col)}."
             )
 
         self.rating_col = rating_col
