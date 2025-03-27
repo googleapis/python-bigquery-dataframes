@@ -27,9 +27,9 @@ import bigframes.pandas as bpd
 
 # TODO(shobs): restore these tests after the managed udf cleanup issue is
 # resolved in the test project
-pytestmark = pytest.mark.skip(
-    reason="temporarily disable to debug managed udf cleanup in the test project"
-)
+# pytestmark = pytest.mark.skip(
+#    reason="temporarily disable to debug managed udf cleanup in the test project"
+# )
 
 
 @pytest.fixture(scope="function")
@@ -318,13 +318,16 @@ def test_blob_pdf_extract(
     pdf_mm_df: bpd.DataFrame,
     verbose: bool,
     bq_connection: str,
+    test_session,
     expected: pd.Series,
 ):
     bigframes.options.experiments.blob = True
 
     actual = (
         pdf_mm_df["pdf"]
-        .blob.pdf_extract(connection=bq_connection, verbose=verbose)
+        .blob.pdf_extract(
+            connection=bq_connection, verbose=verbose, session=test_session
+        )
         .explode()
         .to_pandas()
     )
