@@ -1436,7 +1436,13 @@ class Session(
         name: Optional[str] = None,
         packages: Optional[Sequence[str]] = None,
     ):
-        """Decorator to turn a Python udf into a BigQuery managed function.
+        """Decorator to turn a Python user defined function (udf) into a
+        BigQuery managed function.
+
+        .. note::
+            The udf must be self-contained, i.e. it must not contain any
+            references to an import or variable defined outside the function
+            body.
 
         .. note::
             Please have following IAM roles enabled for you:
@@ -1758,7 +1764,9 @@ class Session(
 
         table = self._create_object_table(path, connection)
 
-        s = self.read_gbq(table)["uri"].str.to_blob(connection)
+        s = self._loader.read_gbq_table(table, api_name="from_glob_path")[
+            "uri"
+        ].str.to_blob(connection)
         return s.rename(name).to_frame()
 
     def _create_bq_connection(
@@ -1808,7 +1816,9 @@ class Session(
         table = self.bqclient.get_table(object_table)
         connection = table._properties["externalDataConfiguration"]["connectionId"]
 
-        s = self.read_gbq(object_table)["uri"].str.to_blob(connection)
+        s = self._loader.read_gbq_table(object_table, api_name="read_gbq_object_table")[
+            "uri"
+        ].str.to_blob(connection)
         return s.rename(name).to_frame()
 
 
