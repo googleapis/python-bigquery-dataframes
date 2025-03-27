@@ -100,7 +100,16 @@ REP_NOT_ENABLED_BIGQUERY_LOCATIONS = frozenset(
     ALL_BIGQUERY_LOCATIONS - REP_ENABLED_BIGQUERY_LOCATIONS
 )
 
-REP_NOT_SUPPOERTED_WARNING_MESSAGE = textwrap.dedent(
+LOCATION_NEEDED_FOR_REP_MESSAGE = textwrap.dedent(
+    """
+    Must set location to use regional endpoints.
+    You can do it via bigframaes.pandas.options.bigquery.location.
+    The supported locations can be found at
+    https://cloud.google.com/bigquery/docs/regional-endpoints#supported-locations.
+    """
+).strip()
+
+REP_NOT_SUPPORTED_MESSAGE = textwrap.dedent(
     """
     Support for regional endpoints may not be available in the location
     {location} for BigQuery and BigQuery Storage APIs. For the supported

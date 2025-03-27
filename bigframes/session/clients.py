@@ -17,7 +17,6 @@
 import os
 import typing
 from typing import Optional
-import warnings
 
 import google.api_core.client_info
 import google.api_core.client_options
@@ -32,7 +31,6 @@ import google.cloud.resourcemanager_v3
 import pydata_google_auth
 
 import bigframes.constants
-import bigframes.exceptions as bfe
 import bigframes.version
 
 _ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
@@ -95,19 +93,18 @@ class ClientsProvider:
         )
         self._project = project
 
-        if (
-            use_regional_endpoints
-            and location is not None
-            and location.lower()
-            not in bigframes.constants.REP_ENABLED_BIGQUERY_LOCATIONS
-        ):
-            msg = bfe.format_message(
-                bigframes.constants.REP_NOT_SUPPOERTED_WARNING_MESSAGE.format(
-                    location=location
-                ),
-                fill=False,
-            )
-            warnings.warn(msg, category=ResourceWarning)
+        if use_regional_endpoints:
+            if location is None:
+                raise ValueError(bigframes.constants.LOCATION_NEEDED_FOR_REP_MESSAGE)
+            elif (
+                location.lower()
+                not in bigframes.constants.REP_ENABLED_BIGQUERY_LOCATIONS
+            ):
+                raise ValueError(
+                    bigframes.constants.REP_NOT_SUPPORTED_MESSAGE.format(
+                        location=location
+                    )
+                )
         self._location = location
         self._use_regional_endpoints = use_regional_endpoints
 
@@ -137,10 +134,6 @@ class ClientsProvider:
                 api_endpoint=self._client_endpoints_override["bqclient"]
             )
         elif self._use_regional_endpoints:
-            if self._location:
-                raise ValueError(
-                    "Must set bpd.options.bigquery.location to use regional endpoints. Got None."
-                )
             bq_options = google.api_core.client_options.ClientOptions(
                 api_endpoint=_BIGQUERY_REGIONAL_ENDPOINT.format(location=self._location)
             )
@@ -189,16 +182,6 @@ class ClientsProvider:
                 bqconnection_options = google.api_core.client_options.ClientOptions(
                     api_endpoint=self._client_endpoints_override["bqconnectionclient"]
                 )
-            elif self._use_regional_endpoints:
-                if self._location:
-                    raise ValueError(
-                        "Must set bpd.options.bigquery.location to use regional endpoints. Got None."
-                    )
-                bqstorage_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=_BIGQUERYCONNECTION_REGIONAL_ENDPOINT.format(
-                        location=self._location
-                    )
-                )
 
             bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
                 user_agent=self._application_name
@@ -222,10 +205,6 @@ class ClientsProvider:
                     api_endpoint=self._client_endpoints_override["bqstoragereadclient"]
                 )
             elif self._use_regional_endpoints:
-                if self._location:
-                    raise ValueError(
-                        "Must set bpd.options.bigquery.location to use regional endpoints. Got None."
-                    )
                 bqstorage_options = google.api_core.client_options.ClientOptions(
                     api_endpoint=_BIGQUERYSTORAGE_REGIONAL_ENDPOINT.format(
                         location=self._location
