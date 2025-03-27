@@ -45,9 +45,8 @@ _BIGQUERY_REGIONAL_ENDPOINT = "https://bigquery.{location}.rep.googleapis.com"
 
 # BigQuery Connection and Storage are gRPC APIs, which don't support the
 # https:// protocol in the API endpoint URL.
-_BIGQUERYSTORAGE_REGIONAL_ENDPOINT = (
-    "https://bigquerystorage.{location}.rep.googleapis.com"
-)
+_BIGQUERYCONNECTION_REGIONAL_ENDPOINT = "bigqueryconnection.{location}.rep.googleapis.com"
+_BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "bigquerystorage.{location}.rep.googleapis.com"
 
 
 def _get_default_credentials_with_project():
@@ -187,6 +186,16 @@ class ClientsProvider:
             if "bqconnectionclient" in self._client_endpoints_override:
                 bqconnection_options = google.api_core.client_options.ClientOptions(
                     api_endpoint=self._client_endpoints_override["bqconnectionclient"]
+                )
+            elif self._use_regional_endpoints:
+                if self._location:
+                    raise ValueError(
+                        "Must set bpd.options.bigquery.location to use regional endpoints. Got None."
+                    )
+                bqstorage_options = google.api_core.client_options.ClientOptions(
+                    api_endpoint=_BIGQUERYCONNECTION_REGIONAL_ENDPOINT.format(
+                        location=self._location
+                    )
                 )
 
             bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
