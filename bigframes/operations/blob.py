@@ -331,6 +331,7 @@ class BlobAccessor(base.SeriesMethods):
         *,
         dst: Optional[Union[str, bigframes.series.Series]] = None,
         connection: Optional[str] = None,
+        session: Optional[bigframes.Session] = None,
         max_batching_rows: int = 8192,
         container_cpu: Union[float, int] = 0.33,
         container_memory: str = "512Mi",
@@ -348,6 +349,9 @@ class BlobAccessor(base.SeriesMethods):
                 None: Output to BQ as bytes.
                 Encoding is determined by the extension of the output filenames (or input filenames if doesn't have output filenames). If filename doesn't have an extension, use ".jpeg" for encoding.
             connection (str or None, default None): BQ connection used for function internet transactions, and the output blob if "dst" is str. If None, uses default connection of the session.
+            session: (bigframes.Session or None, default None): the bigframes
+                session to use for this test. If None, the default session
+                will be used.
             max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
             container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
@@ -390,7 +394,7 @@ class BlobAccessor(base.SeriesMethods):
 
         image_blur_udf = blob_func.TransformFunction(
             blob_func.image_blur_def,
-            session=self._block.session,
+            session=curr_session,
             connection=connection,
             max_batching_rows=max_batching_rows,
             container_cpu=container_cpu,
@@ -416,6 +420,7 @@ class BlobAccessor(base.SeriesMethods):
         fy: float = 0.0,
         dst: Optional[Union[str, bigframes.series.Series]] = None,
         connection: Optional[str] = None,
+        session: Optional[bigframes.Session] = None,
         max_batching_rows: int = 8192,
         container_cpu: Union[float, int] = 0.33,
         container_memory: str = "512Mi",
@@ -435,6 +440,9 @@ class BlobAccessor(base.SeriesMethods):
                 None: Output to BQ as bytes.
                 Encoding is determined by the extension of the output filenames (or input filenames if doesn't have output filenames). If filename doesn't have an extension, use ".jpeg" for encoding.
             connection (str or None, default None): BQ connection used for function internet transactions, and the output blob if "dst" is str. If None, uses default connection of the session.
+            session: (bigframes.Session or None, default None): the bigframes
+                session to use for this test. If None, the default session
+                will be used.
             max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
             container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
@@ -459,7 +467,7 @@ class BlobAccessor(base.SeriesMethods):
 
             image_resize_udf = blob_func.TransformFunction(
                 blob_func.image_resize_to_bytes_def,
-                session=self._block.session,
+                session=curr_session,
                 connection=connection,
                 max_batching_rows=max_batching_rows,
                 container_cpu=container_cpu,
@@ -485,7 +493,7 @@ class BlobAccessor(base.SeriesMethods):
 
         image_resize_udf = blob_func.TransformFunction(
             blob_func.image_resize_def,
-            session=self._block.session,
+            session=curr_session,
             connection=connection,
             max_batching_rows=max_batching_rows,
             container_cpu=container_cpu,
@@ -512,6 +520,7 @@ class BlobAccessor(base.SeriesMethods):
         norm_type: str = "l2",
         dst: Optional[Union[str, bigframes.series.Series]] = None,
         connection: Optional[str] = None,
+        session: Optional[bigframes.Session] = None,
         max_batching_rows: int = 8192,
         container_cpu: Union[float, int] = 0.33,
         container_memory: str = "512Mi",
@@ -531,6 +540,9 @@ class BlobAccessor(base.SeriesMethods):
                 None: Output to BQ as bytes.
                 Encoding is determined by the extension of the output filenames (or input filenames if doesn't have output filenames). If filename doesn't have an extension, use ".jpeg" for encoding.
             connection (str or None, default None): BQ connection used for function internet transactions, and the output blob if "dst" is str. If None, uses default connection of the session.
+            session: (bigframes.Session or None, default None): the bigframes
+                session to use for this test. If None, the default session
+                will be used.
             max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
             container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
@@ -548,7 +560,7 @@ class BlobAccessor(base.SeriesMethods):
 
             image_normalize_udf = blob_func.TransformFunction(
                 blob_func.image_normalize_to_bytes_def,
-                session=self._block.session,
+                session=curr_session,
                 connection=connection,
                 max_batching_rows=max_batching_rows,
                 container_cpu=container_cpu,
@@ -599,6 +611,7 @@ class BlobAccessor(base.SeriesMethods):
         self,
         *,
         connection: Optional[str] = None,
+        session: Optional[bigframes.Session] = None,
         max_batching_rows: int = 1,
         container_cpu: Union[float, int] = 2,
         container_memory: str = "1Gi",
@@ -614,6 +627,9 @@ class BlobAccessor(base.SeriesMethods):
             connection (str or None, default None): BQ connection used for
                 function internet transactions, and the output blob if "dst"
                 is str. If None, uses default connection of the session.
+            session: (bigframes.Session or None, default None): the bigframes
+                session to use for this test. If None, the default session
+                will be used.
             max_batching_rows (int, default 1): Max number of rows per batch
                 send to cloud run to execute the function.
             container_cpu (int or float, default 2): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
@@ -634,10 +650,11 @@ class BlobAccessor(base.SeriesMethods):
         import bigframes.pandas as bpd
 
         connection = self._resolve_connection(connection)
-
+        curr_session = session if (session) else self._block.session
+            
         pdf_extract_udf = blob_func.TransformFunction(
             blob_func.pdf_extract_def,
-            session=self._block.session,
+            session=curr_session,
             connection=connection,
             max_batching_rows=max_batching_rows,
             container_cpu=container_cpu,
@@ -662,6 +679,7 @@ class BlobAccessor(base.SeriesMethods):
         self,
         *,
         connection: Optional[str] = None,
+        session: Optional[bigframes.Session] = None,
         chunk_size: int = 2000,
         overlap_size: int = 200,
         max_batching_rows: int = 1,
@@ -679,6 +697,9 @@ class BlobAccessor(base.SeriesMethods):
             connection (str or None, default None): BQ connection used for
                 function internet transactions, and the output blob if "dst"
                 is str. If None, uses default connection of the session.
+            session: (bigframes.Session or None, default None): the bigframes
+                session to use for this test. If None, the default session
+                will be used.
             chunk_size (int, default 2000): the desired size of each text chunk
                 (number of characters).
             overlap_size (int, default 200): the number of overlapping characters
@@ -705,6 +726,7 @@ class BlobAccessor(base.SeriesMethods):
         import bigframes.pandas as bpd
 
         connection = self._resolve_connection(connection)
+        curr_session = session if (session) else self._block.session
 
         if chunk_size <= 0:
             raise ValueError("chunk_size must be a positive integer.")
@@ -715,7 +737,7 @@ class BlobAccessor(base.SeriesMethods):
 
         pdf_chunk_udf = blob_func.TransformFunction(
             blob_func.pdf_chunk_def,
-            session=self._block.session,
+            session=curr_session,
             connection=connection,
             max_batching_rows=max_batching_rows,
             container_cpu=container_cpu,
