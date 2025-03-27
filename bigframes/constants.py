@@ -102,11 +102,10 @@ REP_NOT_ENABLED_BIGQUERY_LOCATIONS = frozenset(
 
 REP_NOT_SUPPOERTED_WARNING_MESSAGE = textwrap.dedent(
     """
-    Support for regional endpoints is not yet available in the location
+    Support for regional endpoints may not be available in the location
     {location} for BigQuery and BigQuery Storage APIs. For the supported
     locations and APIs see https://cloud.google.com/bigquery/docs/regional-endpoints.
-    For other locations we are falling back to the global APIs. If you have the
-    previously supported (now deprecated) locational endpoints enabled in your
+    If you have the (deprecated) locational endpoints enabled in your
     project (which requires your project to be allowlisted), you can override
     the endpoints directly by doing the following:
         bigframes.pandas.options.bigquery.client_endpoints_override = {{
