@@ -159,7 +159,7 @@ class PaLM2TextGenerator(base.BaseEstimator):
         self._bq_connection_manager = self.session.bqconnectionmanager
 
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = clients.resolve_full_bq_connection_name(
+        self.connection_name = clients.get_canonical_bq_connection_id(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,
@@ -494,7 +494,7 @@ class PaLM2TextEmbeddingGenerator(base.BaseEstimator):
         self._bq_connection_manager = self.session.bqconnectionmanager
 
         connection_name = connection_name or self.session._bq_connection
-        self.connection_name = clients.resolve_full_bq_connection_name(
+        self.connection_name = clients.get_canonical_bq_connection_id(
             connection_name,
             default_project=self.session._project,
             default_location=self.session._location,
