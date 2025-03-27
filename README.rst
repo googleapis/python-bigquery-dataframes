@@ -5,16 +5,17 @@ BigQuery DataFrames
 
 .. raw:: html
 
-    <div style="border: 1px solid #f5c6cb; background-color: #f8d7da; color: #721c24; padding: 15px; margin-bottom: 20px; border-radius: 4px; font-size: 90%;">
+    <div style="border: 1px solid #f5c6cb;
+    background-color: #f8d7da; color: #721c24; padding: 15px; margin-bottom: 20px; border-radius: 4px; font-size: 90%;">
         <p style="margin-top: 0; font-weight: bold;">⚠️ Breaking Changes in BigQuery DataFrames v2.0</p>
         <p>Version 2.0 introduces breaking changes for improved security and performance. Key default behaviors have changed:</p>
         <ul>
             <li><strong>Large Results (&gt;10GB):</strong> Methods like <code>to_pandas()</code> will now fail by default due to stricter limits being enforced.</li>
-            <li><strong>Remote Function Security:</strong> The library no longer defaults to using the Compute Engine service account, and network ingress now defaults to "internal-only", impacting default deployment permissions and connectivity.</li>
+            <li><strong>Remote Function Security:</strong> The library no longer defaults to using the Compute Engine service account, and network ingress now defaults to "internal-only".</li>
             <li><strong>Endpoint Connections:</strong> Automatic fallback to locational endpoints in certain regions is removed. Connections that previously relied on this fallback will no longer establish successfully.</li>
         </ul>
         <p><strong>Important:</strong> If you are not ready to adapt to these changes, please pin your dependency to a version less than 2.0 (e.g., <code>bigframes==1.38.0</code>) to avoid disruption.</p>
-        <p>Please review the <a href="https://cloud.google.com/bigquery/docs/bigquery-dataframes-introduction" style="color: #842029; text-decoration: underline;">updated introduction guide</a> for more details on v2.0 behavior.</p>
+        <p style="margin-bottom: 0;">Please review the <a href="https://cloud.google.com/bigquery/docs/bigquery-dataframes-introduction" style="color: #842029; text-decoration: underline;">updated introduction guide</a> for more details on v2.0 behavior.</p>
     </div>
 
 BigQuery DataFrames provides a Pythonic DataFrame and machine learning (ML) API
