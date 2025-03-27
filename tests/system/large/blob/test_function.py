@@ -312,13 +312,16 @@ def test_blob_pdf_extract(
     pdf_mm_df: bpd.DataFrame,
     verbose: bool,
     bq_connection: str,
+    test_session,
     expected: pd.Series,
 ):
     bigframes.options.experiments.blob = True
 
     actual = (
         pdf_mm_df["pdf"]
-        .blob.pdf_extract(connection=bq_connection, verbose=verbose)
+        .blob.pdf_extract(
+            connection=bq_connection, verbose=verbose, session=test_session
+        )
         .explode()
         .to_pandas()
     )
