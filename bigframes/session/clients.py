@@ -45,7 +45,9 @@ _BIGQUERY_REGIONAL_ENDPOINT = "https://bigquery.{location}.rep.googleapis.com"
 
 # BigQuery Connection and Storage are gRPC APIs, which don't support the
 # https:// protocol in the API endpoint URL.
-_BIGQUERYCONNECTION_REGIONAL_ENDPOINT = "bigqueryconnection.{location}.rep.googleapis.com"
+_BIGQUERYCONNECTION_REGIONAL_ENDPOINT = (
+    "bigqueryconnection.{location}.rep.googleapis.com"
+)
 _BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "bigquerystorage.{location}.rep.googleapis.com"
 
 
