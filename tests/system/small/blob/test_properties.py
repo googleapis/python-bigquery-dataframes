@@ -47,7 +47,7 @@ def test_blob_version(images_mm_df: bpd.DataFrame):
     bigframes.options.experiments.blob = True
 
     actual = images_mm_df["blob_col"].blob.version().to_pandas()
-    expected = pd.Series(["1739574332294150", "1739574332271343"], name="version")
+    expected = pd.Series(['1739574332271343', '1739574332294150'], name="version")
 
     pd.testing.assert_series_equal(
         actual, expected, check_dtype=False, check_index_type=False
@@ -95,7 +95,7 @@ def test_blob_md5_hash(images_mm_df: bpd.DataFrame):
 
     actual = images_mm_df["blob_col"].blob.md5_hash().to_pandas()
     expected = pd.Series(
-        ["e130ad042261a1883cd2cc06831cf748", "e2ae3191ff2b809fd0935f01a537c650"],
+        ["e2ae3191ff2b809fd0935f01a537c650", "e130ad042261a1883cd2cc06831cf748"],
         name="md5_hash",
     )
 
@@ -108,7 +108,7 @@ def test_blob_size(images_mm_df: bpd.DataFrame):
     bigframes.options.experiments.blob = True
 
     actual = images_mm_df["blob_col"].blob.size().to_pandas()
-    expected = pd.Series([338390, 43333], name="size")
+    expected = pd.Series([43333, 338390], name="size")
 
     pd.testing.assert_series_equal(
         actual, expected, check_dtype=False, check_index_type=False

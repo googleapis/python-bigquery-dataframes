@@ -55,16 +55,16 @@ def test_blob_image_blur_to_series(
     images_mm_df: bpd.DataFrame,
     bq_connection: str,
     images_output_uris: list[str],
-    session: bigframes.Session,
+    test_session: bigframes.Session,
 ):
     bigframes.options.experiments.blob = True
 
-    series = bpd.Series(images_output_uris, session=session).str.to_blob(
+    series = bpd.Series(images_output_uris, session=test_session).str.to_blob(
         connection=bq_connection
     )
 
     actual = images_mm_df["blob_col"].blob.image_blur(
-        (8, 8), dst=series, connection=bq_connection
+        (8, 8), dst=series, connection=bq_connection, session=test_session
     )
     expected_df = pd.DataFrame(
         {
@@ -88,13 +88,15 @@ def test_blob_image_blur_to_series(
 def test_blob_image_blur_to_folder(
     images_mm_df: bpd.DataFrame,
     bq_connection: str,
+    test_session: bigframes.Session,
     images_output_folder: str,
     images_output_uris: list[str],
 ):
     bigframes.options.experiments.blob = True
 
     actual = images_mm_df["blob_col"].blob.image_blur(
-        (8, 8), dst=images_output_folder, connection=bq_connection
+        (8, 8), dst=images_output_folder, connection=bq_connection,
+        session=test_session
     )
     expected_df = pd.DataFrame(
         {
@@ -115,10 +117,15 @@ def test_blob_image_blur_to_folder(
     assert not actual.blob.size().isna().any()
 
 
-def test_blob_image_blur_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str):
+def test_blob_image_blur_to_bq(
+    images_mm_df: bpd.DataFrame, bq_connection: str,
+    test_session: bigframes.Session
+):
     bigframes.options.experiments.blob = True
 
-    actual = images_mm_df["blob_col"].blob.image_blur((8, 8), connection=bq_connection)
+    actual = images_mm_df["blob_col"].blob.image_blur(
+        (8, 8), connection=bq_connection, session=test_session
+    )
 
     assert isinstance(actual, bpd.Series)
     assert len(actual) == 2
@@ -128,6 +135,7 @@ def test_blob_image_blur_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str):
 def test_blob_image_resize_to_series(
     images_mm_df: bpd.DataFrame,
     bq_connection: str,
+    test_session: bigframes.Session,
     images_output_uris: list[str],
     session: bigframes.Session,
 ):
@@ -138,7 +146,7 @@ def test_blob_image_resize_to_series(
     )
 
     actual = images_mm_df["blob_col"].blob.image_resize(
-        (200, 300), dst=series, connection=bq_connection
+        (200, 300), dst=series, connection=bq_connection, session=test_session,
     )
     expected_df = pd.DataFrame(
         {
@@ -162,13 +170,15 @@ def test_blob_image_resize_to_series(
 def test_blob_image_resize_to_folder(
     images_mm_df: bpd.DataFrame,
     bq_connection: str,
+    test_session: bigframes.Session,
     images_output_folder: str,
     images_output_uris: list[str],
 ):
     bigframes.options.experiments.blob = True
 
     actual = images_mm_df["blob_col"].blob.image_resize(
-        (200, 300), dst=images_output_folder, connection=bq_connection
+        (200, 300), dst=images_output_folder, connection=bq_connection,
+        session=test_session
     )
     expected_df = pd.DataFrame(
         {
@@ -189,11 +199,14 @@ def test_blob_image_resize_to_folder(
     assert not actual.blob.size().isna().any()
 
 
-def test_blob_image_resize_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str):
+def test_blob_image_resize_to_bq(
+    images_mm_df: bpd.DataFrame, bq_connection: str,
+    test_session: bigframes.Session
+):
     bigframes.options.experiments.blob = True
 
     actual = images_mm_df["blob_col"].blob.image_resize(
-        (200, 300), connection=bq_connection
+        (200, 300), connection=bq_connection, session=test_session
     )
 
     assert isinstance(actual, bpd.Series)
@@ -204,6 +217,7 @@ def test_blob_image_resize_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str
 def test_blob_image_normalize_to_series(
     images_mm_df: bpd.DataFrame,
     bq_connection: str,
+    test_session: bigframes.Session,
     images_output_uris: list[str],
     session: bigframes.Session,
 ):
@@ -214,7 +228,8 @@ def test_blob_image_normalize_to_series(
     )
 
     actual = images_mm_df["blob_col"].blob.image_normalize(
-        alpha=50.0, beta=150.0, norm_type="minmax", dst=series, connection=bq_connection
+        alpha=50.0, beta=150.0, norm_type="minmax", dst=series,
+        connection=bq_connection, session=test_session,
     )
     expected_df = pd.DataFrame(
         {
@@ -238,6 +253,7 @@ def test_blob_image_normalize_to_series(
 def test_blob_image_normalize_to_folder(
     images_mm_df: bpd.DataFrame,
     bq_connection: str,
+    test_session: bigframes.Session,
     images_output_folder: str,
     images_output_uris: list[str],
 ):
@@ -249,6 +265,7 @@ def test_blob_image_normalize_to_folder(
         norm_type="minmax",
         dst=images_output_folder,
         connection=bq_connection,
+        session=test_session,
     )
     expected_df = pd.DataFrame(
         {
@@ -269,11 +286,15 @@ def test_blob_image_normalize_to_folder(
     assert not actual.blob.size().isna().any()
 
 
-def test_blob_image_normalize_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str):
+def test_blob_image_normalize_to_bq(
+    images_mm_df: bpd.DataFrame, bq_connection: str,
+    test_session: bigframes.Session
+):
     bigframes.options.experiments.blob = True
 
     actual = images_mm_df["blob_col"].blob.image_normalize(
-        alpha=50.0, beta=150.0, norm_type="minmax", connection=bq_connection
+        alpha=50.0, beta=150.0, norm_type="minmax", connection=bq_connection,
+        session=test_session,
     )
 
     assert isinstance(actual, bpd.Series)
@@ -312,7 +333,7 @@ def test_blob_pdf_extract(
     pdf_mm_df: bpd.DataFrame,
     verbose: bool,
     bq_connection: str,
-    test_session,
+    test_session: bigframes.Session,
     expected: pd.Series,
 ):
     bigframes.options.experiments.blob = True
@@ -367,14 +388,16 @@ def test_blob_pdf_extract(
     ],
 )
 def test_blob_pdf_chunk(
-    pdf_mm_df: bpd.DataFrame, verbose: bool, bq_connection: str, expected: pd.Series
+    pdf_mm_df: bpd.DataFrame, verbose: bool, bq_connection: str,
+    test_session: bigframes.Session, expected: pd.Series
 ):
     bigframes.options.experiments.blob = True
 
     actual = (
         pdf_mm_df["pdf"]
         .blob.pdf_chunk(
-            connection=bq_connection, chunk_size=50, overlap_size=10, verbose=verbose
+            connection=bq_connection, chunk_size=50, overlap_size=10,
+            verbose=verbose, session=test_session,
         )
         .explode()
         .to_pandas()
