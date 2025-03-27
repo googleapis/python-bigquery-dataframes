@@ -265,6 +265,7 @@ class BigQueryOptions:
             in regions "europe-west3", "europe-west8", "europe-west9",
             "me-central2", "us-central1", "us-central2", "us-east1", "us-east4",
             "us-east5", "us-east7", "us-south1", "us-west1", "us-west2", "us-west3"
+            and "us-west4".
 
         Requires that ``location`` is set. For supported regions, for example
         ``europe-west3``, you need to specify ``location='europe-west3'`` and
