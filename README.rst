@@ -15,7 +15,7 @@ BigQuery DataFrames
             <li><strong>Endpoint Connections:</strong> Automatic fallback to locational endpoints in certain regions is removed. </li>
         </ul>
         <p><strong>Important:</strong> If you are not ready to adapt to these changes, please pin your dependency to a version less than 2.0 (e.g., <code>bigframes==1.38.0</code>) to avoid disruption.</p>
-        <p style="margin-bottom: 0;">Please review the <a href="https://cloud.google.com/bigquery/docs/bigquery-dataframes-introduction" style="color: #842029; text-decoration: underline;">updated introduction guide</a> for more details on v2.0 behavior.</p>
+        <p style="margin-bottom: 0;"> To learn about these changes and how to migrate to version 2.0, see:  <a href="https://cloud.google.com/bigquery/docs/bigquery-dataframes-introduction" style="color: #842029; text-decoration: underline;">updated introduction guide</a>.</p>
     </div>
 
 BigQuery DataFrames provides a Pythonic DataFrame and machine learning (ML) API
