@@ -1050,14 +1050,6 @@ def test_gemini_text_generator_deprecated(model_name):
         llm.GeminiTextGenerator(model_name=model_name)
 
 
-def test_gemini_pro_text_generator_deprecated():
-    with pytest.warns(exceptions.ApiDeprecationWarning):
-        try:
-            llm.GeminiTextGenerator(model_name="gemini-pro")
-        except (Exception):
-            pass
-
-
 @pytest.mark.parametrize(
     "model_name",
     (
