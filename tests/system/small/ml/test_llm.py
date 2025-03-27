@@ -63,90 +63,6 @@ def test_create_load_text_generator_32k_model(
     assert reloaded_model.connection_name == bq_connection
 
 
-@pytest.mark.flaky(retries=2)
-def test_create_text_generator_model_default_session(
-    bq_connection, llm_text_pandas_df, bigquery_client
-):
-    import bigframes.pandas as bpd
-
-    # Note: This starts a thread-local session.
-    with bpd.option_context(
-        "bigquery.bq_connection",
-        bq_connection,
-        "bigquery.location",
-        "US",
-    ):
-        model = llm.PaLM2TextGenerator()
-        assert model is not None
-        assert model._bqml_model is not None
-        assert (
-            model.connection_name.casefold()
-            == f"{bigquery_client.project}.us.bigframes-rf-conn"
-        )
-
-        llm_text_df = bpd.read_pandas(llm_text_pandas_df)
-
-        df = model.predict(llm_text_df).to_pandas()
-        utils.check_pandas_df_schema_and_index(
-            df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
-        )
-
-
-@pytest.mark.flaky(retries=2)
-def test_create_text_generator_32k_model_default_session(
-    bq_connection, llm_text_pandas_df, bigquery_client
-):
-    import bigframes.pandas as bpd
-
-    # Note: This starts a thread-local session.
-    with bpd.option_context(
-        "bigquery.bq_connection",
-        bq_connection,
-        "bigquery.location",
-        "US",
-    ):
-        model = llm.PaLM2TextGenerator(model_name="text-bison-32k")
-        assert model is not None
-        assert model._bqml_model is not None
-        assert (
-            model.connection_name.casefold()
-            == f"{bigquery_client.project}.us.bigframes-rf-conn"
-        )
-
-        llm_text_df = bpd.read_pandas(llm_text_pandas_df)
-
-        df = model.predict(llm_text_df).to_pandas()
-        utils.check_pandas_df_schema_and_index(
-            df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
-        )
-
-
-@pytest.mark.flaky(retries=2)
-def test_create_text_generator_model_default_connection(
-    llm_text_pandas_df, bigquery_client
-):
-    from bigframes import _config
-    import bigframes.pandas as bpd
-
-    bpd.close_session()
-    _config.options = _config.Options()  # reset configs
-
-    llm_text_df = bpd.read_pandas(llm_text_pandas_df)
-
-    model = llm.PaLM2TextGenerator()
-    assert model is not None
-    assert model._bqml_model is not None
-    assert (
-        model.connection_name.casefold()
-        == f"{bigquery_client.project}.us.bigframes-default-connection"
-    )
-
-    df = model.predict(llm_text_df).to_pandas()
-    utils.check_pandas_df_schema_and_index(
-        df, columns=utils.ML_GENERATE_TEXT_OUTPUT, index=3, col_exact=False
-    )
-
-
 # Marked as flaky only because BQML LLM is in preview, the service only has limited capacity, not stable enough.
 @pytest.mark.flaky(retries=2)
 def test_text_generator_predict_default_params_success(
@@ -925,50 +841,6 @@ def test_text_embedding_generator_retry_no_progress(session, bq_connection):
 
 
 @pytest.mark.flaky(retries=2)
-def test_llm_palm_score(llm_fine_tune_df_default_index):
-    model = llm.PaLM2TextGenerator(model_name="text-bison")
-
-    # Check score to ensure the model was fitted
-    score_result = model.score(
-        X=llm_fine_tune_df_default_index[["prompt"]],
-        y=llm_fine_tune_df_default_index[["label"]],
-    ).to_pandas()
-    utils.check_pandas_df_schema_and_index(
-        score_result,
-        columns=[
-            "bleu4_score",
-            "rouge-l_precision",
-            "rouge-l_recall",
-            "rouge-l_f1_score",
-            "evaluation_status",
-        ],
-        index=1,
-    )
-
-
-@pytest.mark.flaky(retries=2)
-def test_llm_palm_score_params(llm_fine_tune_df_default_index):
-    model = llm.PaLM2TextGenerator(model_name="text-bison", max_iterations=1)
-
-    # Check score to ensure the model was fitted
-    score_result = model.score(
-        X=llm_fine_tune_df_default_index["prompt"],
-        y=llm_fine_tune_df_default_index["label"],
-        task_type="classification",
-    ).to_pandas()
-    utils.check_pandas_df_schema_and_index(
-        score_result,
-        columns=[
-            "precision",
-            "recall",
-            "f1_score",
-            "label",
-            "evaluation_status",
-        ],
-    )
-
-
-@pytest.mark.flaky(retries=2)
 @pytest.mark.parametrize(
     "model_name",
     (
@@ -1023,19 +895,6 @@ def test_llm_gemini_pro_score_params(llm_fine_tune_df_default_index, model_name)
             "evaluation_status",
         ],
     )
-
-
-def test_palm2_text_generator_deprecated():
-    with pytest.warns(exceptions.ApiDeprecationWarning):
-        llm.PaLM2TextGenerator()
-
-
-def test_palm2_text_embedding_deprecated():
-    with pytest.warns(exceptions.ApiDeprecationWarning):
-        try:
-            llm.PaLM2TextEmbeddingGenerator()
-        except (Exception):
-            pass
 
 
 @pytest.mark.parametrize(

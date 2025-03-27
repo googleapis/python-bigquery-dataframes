@@ -56,10 +56,6 @@ _BQML_MODEL_TYPE_MAPPING = MappingProxyType(
 
 _BQML_ENDPOINT_TYPE_MAPPING = MappingProxyType(
     {
-        llm._TEXT_GENERATOR_BISON_ENDPOINT: llm.PaLM2TextGenerator,
-        llm._TEXT_GENERATOR_BISON_32K_ENDPOINT: llm.PaLM2TextGenerator,
-        llm._EMBEDDING_GENERATOR_GECKO_ENDPOINT: llm.PaLM2TextEmbeddingGenerator,
-        llm._EMBEDDING_GENERATOR_GECKO_MULTILINGUAL_ENDPOINT: llm.PaLM2TextEmbeddingGenerator,
         llm._GEMINI_1P5_PRO_PREVIEW_ENDPOINT: llm.GeminiTextGenerator,
         llm._GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT: llm.GeminiTextGenerator,
         llm._GEMINI_1P5_PRO_001_ENDPOINT: llm.GeminiTextGenerator,
@@ -96,8 +92,6 @@ def from_bq(
     imported.TensorFlowModel,
     imported.ONNXModel,
     imported.XGBoostModel,
-    llm.PaLM2TextGenerator,
-    llm.PaLM2TextEmbeddingGenerator,
     llm.Claude3TextGenerator,
     llm.TextEmbeddingGenerator,
     llm.MultimodalEmbeddingGenerator,
