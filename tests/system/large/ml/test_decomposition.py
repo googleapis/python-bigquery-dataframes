@@ -212,5 +212,5 @@ def test_decomposition_mf_configure_fit_load(
     assert reloaded_model.num_factors == 6
     assert reloaded_model.user_col == "user_id"
     assert reloaded_model.item_col == "item_col"
-    assert reloaded_model.rating_col == "rating"
+    assert reloaded_model.rating_col == "ratings"
     assert reloaded_model.l2_reg == 9.83
