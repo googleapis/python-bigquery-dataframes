@@ -29,7 +29,7 @@ from tests.system import utils
     ("text-embedding-005", "text-embedding-004", "text-multilingual-embedding-002"),
 )
 def test_create_load_text_embedding_generator_model(
-    dataset_id, model_name, test_session, bq_connection
+    dataset_id_test, model_name, test_session, bq_connection
 ):
     text_embedding_model = llm.TextEmbeddingGenerator(
         model_name=model_name, connection_name=bq_connection, session=test_session
@@ -39,9 +39,9 @@ def test_create_load_text_embedding_generator_model(
 
     # save, load to ensure configuration was kept
     reloaded_model = text_embedding_model.to_gbq(
-        f"{dataset_id}.temp_text_model", replace=True
+        f"{dataset_id_test}.temp_text_model", replace=True
     )
-    assert f"{dataset_id}.temp_text_model" == reloaded_model._bqml_model.model_name
+    assert f"{dataset_id_test}.temp_text_model" == reloaded_model._bqml_model.model_name
     assert reloaded_model.connection_name == bq_connection
     assert reloaded_model.model_name == model_name
 
@@ -88,7 +88,7 @@ def test_text_embedding_generator_multi_cols_predict_success(
 
 
 def test_create_load_multimodal_embedding_generator_model(
-    dataset_id, test_session, bq_connection
+    dataset_id_test, test_session, bq_connection
 ):
     bigframes.options.experiments.blob = True
 
@@ -100,9 +100,9 @@ def test_create_load_multimodal_embedding_generator_model(
 
     # save, load to ensure configuration was kept
     reloaded_model = mm_embedding_model.to_gbq(
-        f"{dataset_id}.temp_mm_model", replace=True
+        f"{dataset_id_test}.temp_mm_model", replace=True
     )
-    assert f"{dataset_id}.temp_mm_model" == reloaded_model._bqml_model.model_name
+    assert f"{dataset_id_test}.temp_mm_model" == reloaded_model._bqml_model.model_name
     assert reloaded_model.connection_name == bq_connection
 
 
