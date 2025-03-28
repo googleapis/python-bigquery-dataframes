@@ -17,9 +17,11 @@ import dataclasses
 import typing
 
 from bigframes import dtypes
+from bigframes.core import log_adapter
 from bigframes.operations import base_ops
 
 
+@log_adapter.class_logger
 @dataclasses.dataclass(frozen=True)
 class ToTimedeltaOp(base_ops.UnaryOp):
     name: typing.ClassVar[str] = "to_timedelta"
@@ -35,6 +37,7 @@ class ToTimedeltaOp(base_ops.UnaryOp):
         raise TypeError("expected integer or float input")
 
 
+@log_adapter.class_logger
 @dataclasses.dataclass(frozen=True)
 class TimedeltaFloorOp(base_ops.UnaryOp):
     """Floors the numeric value to the nearest integer and use it to represent a timedelta.
@@ -51,9 +54,7 @@ class TimedeltaFloorOp(base_ops.UnaryOp):
         raise TypeError(f"unsupported type: {input_type}")
 
 
-timedelta_floor_op = TimedeltaFloorOp()
-
-
+@log_adapter.class_logger
 @dataclasses.dataclass(frozen=True)
 class TimestampAddOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "timestamp_add"
@@ -76,9 +77,7 @@ class TimestampAddOp(base_ops.BinaryOp):
         )
 
 
-timestamp_add_op = TimestampAddOp()
-
-
+@log_adapter.class_logger
 @dataclasses.dataclass(frozen=True)
 class TimestampSubOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "timestamp_sub"
@@ -96,9 +95,7 @@ class TimestampSubOp(base_ops.BinaryOp):
         )
 
 
-timestamp_sub_op = TimestampSubOp()
-
-
+@log_adapter.class_logger
 @dataclasses.dataclass(frozen=True)
 class DateAddOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "date_add"
@@ -122,9 +119,8 @@ class DateAddOp(base_ops.BinaryOp):
         )
 
 
-date_add_op = DateAddOp()
 
-
+@log_adapter.class_logger
 @dataclasses.dataclass(frozen=True)
 class DateSubOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "date_sub"
@@ -141,5 +137,3 @@ class DateSubOp(base_ops.BinaryOp):
             f"unsupported types for date_sub. left: {input_types[0]} right: {input_types[1]}"
         )
 
-
-date_sub_op = DateSubOp()

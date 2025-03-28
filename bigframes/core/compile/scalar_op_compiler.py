@@ -26,6 +26,7 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 
+from bigframes.core import log_adapter
 from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
 import bigframes.core.compile.default_ordering
 import bigframes.core.compile.ibis_types
@@ -725,32 +726,32 @@ def unix_millis_op_impl(x: ibis_types.TimestampValue):
     return unix_millis(x)
 
 
-@scalar_op_compiler.register_binary_op(ops.timestamp_diff_op)
+@scalar_op_compiler.register_binary_op(ops.TimestampDiffOp)
 def timestamp_diff_op_impl(x: ibis_types.TimestampValue, y: ibis_types.TimestampValue):
     return x.delta(y, "microsecond")
 
 
-@scalar_op_compiler.register_binary_op(ops.timestamp_add_op)
+@scalar_op_compiler.register_binary_op(ops.TimestampAddOp)
 def timestamp_add_op_impl(x: ibis_types.TimestampValue, y: ibis_types.IntegerValue):
     return x + y.to_interval("us")
 
 
-@scalar_op_compiler.register_binary_op(ops.timestamp_sub_op)
+@scalar_op_compiler.register_binary_op(ops.TimestampSubOp)
 def timestamp_sub_op_impl(x: ibis_types.TimestampValue, y: ibis_types.IntegerValue):
     return x - y.to_interval("us")
 
 
-@scalar_op_compiler.register_binary_op(ops.date_diff_op)
+@scalar_op_compiler.register_binary_op(ops.DateDiffOp)
 def date_diff_op_impl(x: ibis_types.DateValue, y: ibis_types.DateValue):
     return x.delta(y, "day") * int(UNIT_TO_US_CONVERSION_FACTORS["d"])  # type: ignore
 
 
-@scalar_op_compiler.register_binary_op(ops.date_add_op)
+@scalar_op_compiler.register_binary_op(ops.DateAddOp)
 def date_add_op_impl(x: ibis_types.DateValue, y: ibis_types.IntegerValue):
     return x.cast("timestamp") + y.to_interval("us")  # type: ignore
 
 
-@scalar_op_compiler.register_binary_op(ops.date_sub_op)
+@scalar_op_compiler.register_binary_op(ops.DateSubOp)
 def date_sub_op_impl(x: ibis_types.DateValue, y: ibis_types.IntegerValue):
     return x.cast("timestamp") - y.to_interval("us")  # type: ignore
 
@@ -1208,7 +1209,7 @@ def to_timedelta_op_impl(x: ibis_types.Value, op: ops.ToTimedeltaOp):
     ).floor()
 
 
-@scalar_op_compiler.register_unary_op(ops.timedelta_floor_op)
+@scalar_op_compiler.register_unary_op(ops.TimedeltaFloorOp)
 def timedelta_floor_op_impl(x: ibis_types.NumericValue):
     return x.floor()
 
