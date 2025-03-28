@@ -116,6 +116,19 @@ class Index(vendored_pandas_index.Index):
         index._linked_frame = frame
         return index
 
+    def to_frame(
+        self, index: bool = True, name: blocks.Label | None = None
+    ) -> bigframes.dataframe.DataFrame:
+        provided_name = name if name else self.name
+        series = self.to_series()
+        series.name = provided_name
+        frame = series.to_frame()
+        if index:  # matching pandas behavior
+            frame.index.name = self.name
+        else:
+            frame = frame.reset_index(drop=True)
+        return frame
+
     @property
     def _session(self):
         return self._block.session
