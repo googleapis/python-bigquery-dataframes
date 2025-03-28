@@ -1202,14 +1202,19 @@ class Session(
 
     def remote_function(
         self,
+        # Make sure that the input/output types, and dataset can be used
+        # positionally. This avoids the worst of the breaking change from 1.x to
+        # 2.x while still preventing possible mixups between consecutive str
+        # parameters.
         input_types: Union[None, type, Sequence[type]] = None,
         output_type: Optional[type] = None,
         dataset: Optional[str] = None,
+        *,
         bigquery_connection: Optional[str] = None,
         reuse: bool = True,
         name: Optional[str] = None,
         packages: Optional[Sequence[str]] = None,
-        cloud_function_service_account: Optional[str] = None,
+        cloud_function_service_account: str,
         cloud_function_kms_key_name: Optional[str] = None,
         cloud_function_docker_repository: Optional[str] = None,
         max_batching_rows: Optional[int] = 1000,
@@ -1217,9 +1222,9 @@ class Session(
         cloud_function_max_instances: Optional[int] = None,
         cloud_function_vpc_connector: Optional[str] = None,
         cloud_function_memory_mib: Optional[int] = 1024,
-        cloud_function_ingress_settings: Optional[
-            Literal["all", "internal-only", "internal-and-gclb"]
-        ] = None,
+        cloud_function_ingress_settings: Literal[
+            "all", "internal-only", "internal-and-gclb"
+        ] = "internal-only",
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1327,8 +1332,8 @@ class Session(
                 Explicit name of the external package dependencies. Each dependency
                 is added to the `requirements.txt` as is, and can be of the form
                 supported in https://pip.pypa.io/en/stable/reference/requirements-file-format/.
-            cloud_function_service_account (str, Optional):
-                Service account to use for the cloud functions. If not provided
+            cloud_function_service_account (str):
+                Service account to use for the cloud functions. If "default" provided
                 then the default service account would be used. See
                 https://cloud.google.com/functions/docs/securing/function-identity
                 for more details. Please make sure the service account has the
@@ -1392,8 +1397,8 @@ class Session(
             cloud_function_ingress_settings (str, Optional):
                 Ingress settings controls dictating what traffic can reach the
                 function. Options are: `all`, `internal-only`, or `internal-and-gclb`.
-                If no setting is provided, `all` will be used by default and a warning
-                will be issued. See for more details
+                If no setting is provided, `internal-only` will be used by default.
+                See for more details
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
         Returns:
             collections.abc.Callable:
@@ -1406,8 +1411,8 @@ class Session(
                 `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
         """
         return self._function_session.remote_function(
-            input_types,
-            output_type,
+            input_types=input_types,
+            output_type=output_type,
             session=self,
             dataset=dataset,
             bigquery_connection=bigquery_connection,
@@ -1499,8 +1504,8 @@ class Session(
                 deployed for the user defined code.
         """
         return self._function_session.udf(
-            input_types,
-            output_type,
+            input_types=input_types,
+            output_type=output_type,
             session=self,
             dataset=dataset,
             bigquery_connection=bigquery_connection,
@@ -1593,7 +1598,7 @@ class Session(
         Another use case is to define your own remote function and use it later.
         For example, define the remote function:
 
-            >>> @bpd.remote_function()
+            >>> @bpd.remote_function(cloud_function_service_account="default")
             ... def tenfold(num: int) -> float:
             ...     return num * 10
 
@@ -1620,7 +1625,7 @@ class Session(
         note, row processor implies that the function has only one input
         parameter.
 
-            >>> @bpd.remote_function()
+            >>> @bpd.remote_function(cloud_function_service_account="default")
             ... def row_sum(s: bpd.Series) -> float:
             ...     return s['a'] + s['b'] + s['c']
 
@@ -1774,8 +1779,8 @@ class Session(
         """Create the connection with the session settings and try to attach iam role to the connection SA.
         If any of project, location or connection isn't specified, use the session defaults. Returns fully-qualified connection name."""
         connection = self._bq_connection if not connection else connection
-        connection = bigframes.clients.resolve_full_bq_connection_name(
-            connection_name=connection,
+        connection = bigframes.clients.get_canonical_bq_connection_id(
+            connection_id=connection,
             default_project=self._project,
             default_location=self._location,
         )

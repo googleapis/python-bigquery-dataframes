@@ -185,8 +185,13 @@ def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, Non
 
 
 @pytest.fixture(scope="session")
-def bq_connection(bigquery_client: bigquery.Client) -> str:
-    return f"{bigquery_client.project}.{bigquery_client.location}.bigframes-rf-conn"
+def bq_connection_name() -> str:
+    return "bigframes-rf-conn"
+
+
+@pytest.fixture(scope="session")
+def bq_connection(bigquery_client: bigquery.Client, bq_connection_name: str) -> str:
+    return f"{bigquery_client.project}.{bigquery_client.location}.{bq_connection_name}"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -1480,3 +1485,17 @@ def reset_default_session_and_location():
         yield
     bpd.close_session()
     bpd.options.bigquery.location = None
+
+
+@pytest.fixture(scope="session")
+def pdf_gcs_path() -> str:
+    return "gs://bigframes_blob_test/pdfs/*"
+
+
+@pytest.fixture(scope="session")
+def pdf_mm_df(
+    pdf_gcs_path, session: bigframes.Session, bq_connection: str
+) -> bpd.DataFrame:
+    bigframes.options.experiments.blob = True
+
+    return session.from_glob_path(pdf_gcs_path, name="pdf", connection=bq_connection)
