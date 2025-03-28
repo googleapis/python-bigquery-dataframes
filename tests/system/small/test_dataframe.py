@@ -4607,22 +4607,28 @@ def test_df_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, sub
     ],
 )
 def test_df_drop_duplicates_w_json(json_df, keep):
-    bf_df = json_df.drop_duplicates(keep=keep).to_pandas(allow_large_results=True)
+    bf_df = json_df.drop_duplicates(keep=keep)
+    assert dtypes.is_json_type(bf_df.dtypes["json_col"])
 
+    # TODO(b/401630655): JSON is not compatible with allow_large_results=False
+    json_pandas_df = json_df.to_pandas(allow_large_results=True)
     # drop_duplicates relies on pa.compute.dictionary_encode, which is incompatible
     # with Arrow string extension types. Temporary conversion to standard Pandas
     # strings is required.
-    # allow_large_results=True for b/401630655
-    json_pandas_df = json_df.to_pandas(allow_large_results=True)
     json_pandas_df["json_col"] = json_pandas_df["json_col"].astype(
         pd.StringDtype(storage="pyarrow")
     )
-
     pd_df = json_pandas_df.drop_duplicates(keep=keep)
     pd_df["json_col"] = pd_df["json_col"].astype(dtypes.JSON_DTYPE)
+    assert dtypes.is_json_type(pd_df.dtypes["json_col"])
+
+    # `check_exact=False` can workaround the known issue in pandas:
+    # https://github.com/pandas-dev/pandas/issues/60958
     pd.testing.assert_frame_equal(
         pd_df,
-        bf_df,
+        # TODO(b/401630655): JSON is not compatible with allow_large_results=False
+        bf_df.to_pandas(allow_large_results=True),
+        check_exact=False,
     )
 
 

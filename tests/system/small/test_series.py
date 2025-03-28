@@ -17,7 +17,6 @@ import math
 import re
 import tempfile
 
-import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
 import numpy
 from packaging.version import Version
@@ -402,9 +401,9 @@ def test_get_column(scalars_dfs, col_name, expected_dtype):
 
 def test_get_column_w_json(json_df, json_pandas_df):
     series = json_df["json_col"]
+    assert dtypes.is_json_type(series.dtype)
     # Until b/401630655 is resolved, json not compatible with allow_large_results=False
     series_pandas = series.to_pandas(allow_large_results=True)
-    assert series.dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
     assert series_pandas.shape[0] == json_pandas_df.shape[0]
 
 

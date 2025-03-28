@@ -814,7 +814,12 @@ class Session(
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
-        memory_usage = pandas_dataframe.memory_usage(deep=True).sum()
+        try:
+            memory_usage = pandas_dataframe.memory_usage(deep=True).sum()
+        except NotImplementedError:  # TODO: add unit test
+            # Workaround the known issue in pandas:
+            # https://github.com/pandas-dev/pandas/issues/60958
+            raise ValueError("Could not determine the DataFrame's memory usage.")
         if memory_usage > MAX_INLINE_DF_BYTES:
             raise ValueError(
                 f"DataFrame size ({memory_usage} bytes) exceeds the maximum allowed "

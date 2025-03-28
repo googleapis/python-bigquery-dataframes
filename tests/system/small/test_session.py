@@ -22,7 +22,6 @@ from typing import List, Optional, Sequence
 import warnings
 
 import bigframes_vendored.pandas.io.gbq as vendored_pandas_gbq
-import db_dtypes  # type:ignore
 import google
 import google.cloud.bigquery as bigquery
 import numpy as np
@@ -633,7 +632,7 @@ def test_read_gbq_w_json(session):
     # TODO(b/401630655): JSON is not compatible with allow_large_results=False
     df = session.read_gbq(sql, index_col="id").to_pandas(allow_large_results=True)
 
-    assert df.dtypes["json_col"] == pd.ArrowDtype(db_dtypes.JSONArrowType())
+    assert bigframes.dtypes.is_json_type(df.dtypes["json_col"])
 
     assert df["json_col"][0] == '{"boolean":true}'
     assert df["json_col"][1] == '{"int":100}'
@@ -649,7 +648,7 @@ def test_read_gbq_w_json(session):
 
 def test_read_gbq_w_json_and_compare_w_pandas_json(session):
     df = session.read_gbq("SELECT JSON_OBJECT('foo', 10, 'bar', TRUE) AS json_col")
-    assert df.dtypes["json_col"] == pd.ArrowDtype(db_dtypes.JSONArrowType())
+    assert bigframes.dtypes.is_json_type(df.dtypes["json_col"])
 
     # TODO(b/401630655): JSON is not compatible with allow_large_results=False
     result = df.to_pandas(allow_large_results=True)
@@ -657,11 +656,15 @@ def test_read_gbq_w_json_and_compare_w_pandas_json(session):
     # These JSON strings are compatible with BigQuery's JSON storage,
     pd_df = pd.DataFrame(
         {"json_col": ['{"bar":true,"foo":10}']},
-        dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()),
+        dtype=bigframes.dtypes.JSON_DTYPE,
     )
     pd_df.index = pd_df.index.astype("Int64")
     pd.testing.assert_series_equal(result.dtypes, pd_df.dtypes)
-    pd.testing.assert_series_equal(result["json_col"], pd_df["json_col"])
+    # `check_exact=False` can workaround the known issue in pandas:
+    # https://github.com/pandas-dev/pandas/issues/60958
+    pd.testing.assert_series_equal(
+        result["json_col"], pd_df["json_col"], check_exact=False
+    )
 
 
 def test_read_gbq_w_json_in_struct(session):
@@ -695,7 +698,7 @@ def test_read_gbq_w_json_in_struct(session):
     assert isinstance(df.dtypes["struct_col"].pyarrow_dtype, pa.StructType)
 
     data = df["struct_col"].struct.field("data")
-    assert data.dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
+    assert bigframes.dtypes.is_json_type(data.dtype)
 
     # TODO(b/401630655): JSON is not compatible with allow_large_results=False
     data = data.to_pandas(allow_large_results=True)
@@ -736,7 +739,7 @@ def test_read_gbq_w_json_in_array(session):
 
     data = df["array_col"]
     assert data.list.len()[0] == 7
-    assert data.list[0].dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
+    assert bigframes.dtypes.is_json_type(data.list[0].dtype)
 
     # TODO(b/401630655): JSON is not compatible with allow_large_results=False
     pd_data = data.to_pandas(allow_large_results=True)
@@ -933,7 +936,11 @@ def test_read_pandas_json_dataframes(session, write_engine):
 
     if write_engine == "bigquery_streaming":
         expected_df.index = pd.Index([pd.NA] * 4, dtype="Int64")
-    pd.testing.assert_frame_equal(actual_result, expected_df, check_index_type=False)
+    # `check_exact=False` can workaround the known issue in pandas:
+    # https://github.com/pandas-dev/pandas/issues/60958
+    pd.testing.assert_frame_equal(
+        actual_result, expected_df, check_index_type=False, check_exact=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -953,8 +960,10 @@ def test_read_pandas_json_series(session, write_engine):
     actual_result = session.read_pandas(
         expected_series, write_engine=write_engine
     ).to_pandas(allow_large_results=True)
+    # `check_exact=False` can workaround the known issue in pandas:
+    # https://github.com/pandas-dev/pandas/issues/60958
     pd.testing.assert_series_equal(
-        actual_result, expected_series, check_index_type=False
+        actual_result, expected_series, check_index_type=False, check_exact=False
     )
 
 
