@@ -21,6 +21,7 @@ import warnings
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
+import typing_extensions
 
 from bigframes import dtypes, exceptions
 import bigframes.bigquery as bbq
@@ -32,13 +33,6 @@ import bigframes.series
 _BQML_PARAMS_MAPPING = {
     "max_iterations": "maxIterations",
 }
-
-_TEXT_GENERATOR_BISON_ENDPOINT = "text-bison"
-_TEXT_GENERATOR_BISON_32K_ENDPOINT = "text-bison-32k"
-_TEXT_GENERATOR_ENDPOINTS = (
-    _TEXT_GENERATOR_BISON_ENDPOINT,
-    _TEXT_GENERATOR_BISON_32K_ENDPOINT,
-)
 
 _TEXT_EMBEDDING_005_ENDPOINT = "text-embedding-005"
 _TEXT_EMBEDDING_004_ENDPOINT = "text-embedding-004"
@@ -99,9 +93,7 @@ _CLAUDE_3_ENDPOINTS = (
     _CLAUDE_3_OPUS_ENDPOINT,
 )
 
-
 _ML_GENERATE_TEXT_STATUS = "ml_generate_text_status"
-_ML_EMBED_TEXT_STATUS = "ml_embed_text_status"
 _ML_GENERATE_EMBEDDING_STATUS = "ml_generate_embedding_status"
 
 _MODEL_NOT_SUPPORTED_WARNING = (
@@ -111,7 +103,13 @@ _MODEL_NOT_SUPPORTED_WARNING = (
     "You should use this model name only if you are sure that it is supported in BigQuery."
 )
 
+_REMOVE_DEFAULT_MODEL_WARNING = "Due to the frequent deprecation of LLM models, the default model will be removed in BigFrames 3.0."
 
+
+@typing_extensions.deprecated(
+    _REMOVE_DEFAULT_MODEL_WARNING,
+    category=exceptions.ApiDeprecationWarning,
+)
 @log_adapter.class_logger
 class TextEmbeddingGenerator(base.RetriableRemotePredictor):
     """Text embedding generator LLM model.
@@ -254,6 +252,10 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
         return new_model.session.read_gbq_model(model_name)
 
 
+@typing_extensions.deprecated(
+    _REMOVE_DEFAULT_MODEL_WARNING,
+    category=exceptions.ApiDeprecationWarning,
+)
 @log_adapter.class_logger
 class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
     """Multimodal embedding generator LLM model.
@@ -402,6 +404,10 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
         return new_model.session.read_gbq_model(model_name)
 
 
+@typing_extensions.deprecated(
+    _REMOVE_DEFAULT_MODEL_WARNING,
+    category=exceptions.ApiDeprecationWarning,
+)
 @log_adapter.class_logger
 class GeminiTextGenerator(base.RetriableRemotePredictor):
     """Gemini text generator LLM model.
@@ -784,6 +790,10 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         return new_model.session.read_gbq_model(model_name)
 
 
+@typing_extensions.deprecated(
+    _REMOVE_DEFAULT_MODEL_WARNING,
+    category=exceptions.ApiDeprecationWarning,
+)
 @log_adapter.class_logger
 class Claude3TextGenerator(base.RetriableRemotePredictor):
     """Claude3 text generator LLM model.
