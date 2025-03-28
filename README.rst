@@ -12,7 +12,7 @@ BigQuery DataFrames
         <ul>
             <li><strong>Large Results (&gt;10GB):</strong> The default value for <code>allow_large_results</code> has changed to False. Methods like <code>to_pandas()</code> will now fail if the query result's compressed data size exceeds 10GB, unless large results are explicitly permitted.</li>
             <li><strong>Remote Function Security:</strong>The library no longer automatically lets the Compute Engine default service account become the identity of the Cloud Run functions. If that is desired, it has to be indicated by passing cloud_function_service_account="default". And network ingress now defaults to "internal-only".</li>
-            <li><strong>@remote_function Argument Passing:</strong> Arguments to decorated functions must now be passed using keyword syntax, as positional arguments are no longer supported.</li>
+            <li><strong>@remote_function Argument Passing:</strong> Arguments to remote_function must now be passed using keyword syntax, as positional arguments are no longer supported.</li>
             <li><strong>Endpoint Connections:</strong> Automatic fallback to locational endpoints in certain regions is removed. </li>
         </ul>
         <p><strong>Important:</strong> If you are not ready to adapt to these changes, please pin your dependency to a version less than 2.0 (e.g., <code>bigframes==1.42.0</code>) to avoid disruption.</p>
