@@ -29,10 +29,10 @@ from tests.system import utils
     ("text-embedding-005", "text-embedding-004", "text-multilingual-embedding-002"),
 )
 def test_create_load_text_embedding_generator_model(
-    dataset_id, model_name, session, bq_connection
+    dataset_id, model_name, test_session, bq_connection
 ):
     text_embedding_model = llm.TextEmbeddingGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session
+        model_name=model_name, connection_name=bq_connection, session=test_session
     )
     assert text_embedding_model is not None
     assert text_embedding_model._bqml_model is not None
@@ -52,10 +52,10 @@ def test_create_load_text_embedding_generator_model(
 )
 @pytest.mark.flaky(retries=2)
 def test_text_embedding_generator_predict_default_params_success(
-    llm_text_df, model_name, session, bq_connection
+    llm_text_df, model_name, test_session, bq_connection
 ):
     text_embedding_model = llm.TextEmbeddingGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session
+        model_name=model_name, connection_name=bq_connection, session=test_session
     )
     df = text_embedding_model.predict(llm_text_df).to_pandas()
     utils.check_pandas_df_schema_and_index(
@@ -70,12 +70,12 @@ def test_text_embedding_generator_predict_default_params_success(
 )
 @pytest.mark.flaky(retries=2)
 def test_text_embedding_generator_multi_cols_predict_success(
-    llm_text_df: bpd.DataFrame, model_name, session, bq_connection
+    llm_text_df: bpd.DataFrame, model_name, test_session, bq_connection
 ):
     df = llm_text_df.assign(additional_col=1)
     df = df.rename(columns={"prompt": "content"})
     text_embedding_model = llm.TextEmbeddingGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session
+        model_name=model_name, connection_name=bq_connection, session=test_session
     )
     pd_df = text_embedding_model.predict(df).to_pandas()
     utils.check_pandas_df_schema_and_index(
@@ -88,12 +88,12 @@ def test_text_embedding_generator_multi_cols_predict_success(
 
 
 def test_create_load_multimodal_embedding_generator_model(
-    dataset_id, session, bq_connection
+    dataset_id, test_session, bq_connection
 ):
     bigframes.options.experiments.blob = True
 
     mm_embedding_model = llm.MultimodalEmbeddingGenerator(
-        connection_name=bq_connection, session=session
+        connection_name=bq_connection, session=test_session
     )
     assert mm_embedding_model is not None
     assert mm_embedding_model._bqml_model is not None
@@ -108,12 +108,12 @@ def test_create_load_multimodal_embedding_generator_model(
 
 @pytest.mark.flaky(retries=2)
 def test_multimodal_embedding_generator_predict_default_params_success(
-    images_mm_df, session, bq_connection
+    images_mm_df, test_session, bq_connection
 ):
     bigframes.options.experiments.blob = True
 
     text_embedding_model = llm.MultimodalEmbeddingGenerator(
-        connection_name=bq_connection, session=session
+        connection_name=bq_connection, session=test_session
     )
     df = text_embedding_model.predict(images_mm_df).to_pandas()
     utils.check_pandas_df_schema_and_index(
@@ -143,10 +143,10 @@ def test_multimodal_embedding_generator_predict_default_params_success(
     retries=2
 )  # usually create model shouldn't be flaky, but this one due to the limited quota of gemini-2.0-flash-exp.
 def test_create_load_gemini_text_generator_model(
-    dataset_id, model_name, session, bq_connection
+    dataset_id, model_name, test_session, bq_connection
 ):
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session
+        model_name=model_name, connection_name=bq_connection, session=test_session
     )
     assert gemini_text_generator_model is not None
     assert gemini_text_generator_model._bqml_model is not None
@@ -174,10 +174,10 @@ def test_create_load_gemini_text_generator_model(
 )
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_predict_default_params_success(
-    llm_text_df, model_name, session, bq_connection
+    llm_text_df, model_name, test_session, bq_connection
 ):
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session
+        model_name=model_name, connection_name=bq_connection, session=test_session
     )
     df = gemini_text_generator_model.predict(llm_text_df).to_pandas()
     utils.check_pandas_df_schema_and_index(
@@ -199,10 +199,10 @@ def test_gemini_text_generator_predict_default_params_success(
 )
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_predict_with_params_success(
-    llm_text_df, model_name, session, bq_connection
+    llm_text_df, model_name, test_session, bq_connection
 ):
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session
+        model_name=model_name, connection_name=bq_connection, session=test_session
     )
     df = gemini_text_generator_model.predict(
         llm_text_df, temperature=0.5, max_output_tokens=100, top_k=20, top_p=0.5
@@ -226,11 +226,11 @@ def test_gemini_text_generator_predict_with_params_success(
 )
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_multi_cols_predict_success(
-    llm_text_df: bpd.DataFrame, model_name, session, bq_connection
+    llm_text_df: bpd.DataFrame, model_name, test_session, bq_connection
 ):
     df = llm_text_df.assign(additional_col=1)
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session
+        model_name=model_name, connection_name=bq_connection, session=test_session
     )
     pd_df = gemini_text_generator_model.predict(df).to_pandas()
     utils.check_pandas_df_schema_and_index(
@@ -253,12 +253,12 @@ def test_gemini_text_generator_multi_cols_predict_success(
 )
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_multimodal_input(
-    images_mm_df: bpd.DataFrame, model_name, session, bq_connection
+    images_mm_df: bpd.DataFrame, model_name, test_session, bq_connection
 ):
     bigframes.options.experiments.blob = True
 
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session
+        model_name=model_name, connection_name=bq_connection, session=test_session
     )
     pd_df = gemini_text_generator_model.predict(
         images_mm_df, prompt=["Describe", images_mm_df["blob_col"]]
@@ -306,7 +306,7 @@ class EqCmpAllDataFrame(bpd.DataFrame):
     ],
 )
 def test_text_generator_retry_success(
-    session,
+    test_session,
     model_class,
     options,
     bqml_gemini_text_generator: llm.GeminiTextGenerator,
@@ -322,7 +322,7 @@ def test_text_generator_retry_success(
             ]
         },
         index=[0, 1, 2],
-        session=session,
+        session=test_session,
     )
     df1 = EqCmpAllDataFrame(
         {
@@ -333,7 +333,7 @@ def test_text_generator_retry_success(
             ],
         },
         index=[1, 2],
-        session=session,
+        session=test_session,
     )
     df2 = EqCmpAllDataFrame(
         {
@@ -343,11 +343,11 @@ def test_text_generator_retry_success(
             ],
         },
         index=[1],
-        session=session,
+        session=test_session,
     )
 
     mock_bqml_model = mock.create_autospec(spec=core.BqmlModel)
-    type(mock_bqml_model).session = mock.PropertyMock(return_value=session)
+    type(mock_bqml_model).session = mock.PropertyMock(return_value=test_session)
 
     # Responses. Retry twice then all succeeded.
     mock_bqml_model.generate_text.side_effect = [
@@ -361,7 +361,7 @@ def test_text_generator_retry_success(
                 ],
             },
             index=[0, 1, 2],
-            session=session,
+            session=test_session,
         ),
         EqCmpAllDataFrame(
             {
@@ -372,7 +372,7 @@ def test_text_generator_retry_success(
                 ],
             },
             index=[1, 2],
-            session=session,
+            session=test_session,
         ),
         EqCmpAllDataFrame(
             {
@@ -382,7 +382,7 @@ def test_text_generator_retry_success(
                 ],
             },
             index=[1],
-            session=session,
+            session=test_session,
         ),
     ]
 
@@ -450,7 +450,7 @@ def test_text_generator_retry_success(
     ],
 )
 def test_text_generator_retry_no_progress(
-    session,
+    test_session,
     model_class,
     options,
     bqml_gemini_text_generator: llm.GeminiTextGenerator,
@@ -466,7 +466,7 @@ def test_text_generator_retry_no_progress(
             ]
         },
         index=[0, 1, 2],
-        session=session,
+        session=test_session,
     )
     df1 = EqCmpAllDataFrame(
         {
@@ -477,11 +477,11 @@ def test_text_generator_retry_no_progress(
             ],
         },
         index=[1, 2],
-        session=session,
+        session=test_session,
     )
 
     mock_bqml_model = mock.create_autospec(spec=core.BqmlModel)
-    type(mock_bqml_model).session = mock.PropertyMock(return_value=session)
+    type(mock_bqml_model).session = mock.PropertyMock(return_value=test_session)
     # Responses. Retry once, no progress, just stop.
     mock_bqml_model.generate_text.side_effect = [
         EqCmpAllDataFrame(
@@ -494,7 +494,7 @@ def test_text_generator_retry_no_progress(
                 ],
             },
             index=[0, 1, 2],
-            session=session,
+            session=test_session,
         ),
         EqCmpAllDataFrame(
             {
@@ -505,7 +505,7 @@ def test_text_generator_retry_no_progress(
                 ],
             },
             index=[1, 2],
-            session=session,
+            session=test_session,
         ),
     ]
 
@@ -543,7 +543,7 @@ def test_text_generator_retry_no_progress(
     )
 
 
-def test_text_embedding_generator_retry_success(session, bq_connection):
+def test_text_embedding_generator_retry_success(test_session, bq_connection):
     # Requests.
     df0 = EqCmpAllDataFrame(
         {
@@ -554,7 +554,7 @@ def test_text_embedding_generator_retry_success(session, bq_connection):
             ]
         },
         index=[0, 1, 2],
-        session=session,
+        session=test_session,
     )
     df1 = EqCmpAllDataFrame(
         {
@@ -565,7 +565,7 @@ def test_text_embedding_generator_retry_success(session, bq_connection):
             ],
         },
         index=[1, 2],
-        session=session,
+        session=test_session,
     )
     df2 = EqCmpAllDataFrame(
         {
@@ -575,11 +575,11 @@ def test_text_embedding_generator_retry_success(session, bq_connection):
             ],
         },
         index=[1],
-        session=session,
+        session=test_session,
     )
 
     mock_bqml_model = mock.create_autospec(spec=core.BqmlModel)
-    type(mock_bqml_model).session = mock.PropertyMock(return_value=session)
+    type(mock_bqml_model).session = mock.PropertyMock(return_value=test_session)
 
     # Responses. Retry twice then all succeeded.
     mock_bqml_model.generate_embedding.side_effect = [
@@ -593,7 +593,7 @@ def test_text_embedding_generator_retry_success(session, bq_connection):
                 ],
             },
             index=[0, 1, 2],
-            session=session,
+            session=test_session,
         ),
         EqCmpAllDataFrame(
             {
@@ -604,7 +604,7 @@ def test_text_embedding_generator_retry_success(session, bq_connection):
                 ],
             },
             index=[1, 2],
-            session=session,
+            session=test_session,
         ),
         EqCmpAllDataFrame(
             {
@@ -614,7 +614,7 @@ def test_text_embedding_generator_retry_success(session, bq_connection):
                 ],
             },
             index=[1],
-            session=session,
+            session=test_session,
         ),
     ]
     options = {
@@ -622,7 +622,7 @@ def test_text_embedding_generator_retry_success(session, bq_connection):
     }
 
     text_embedding_model = llm.TextEmbeddingGenerator(
-        connection_name=bq_connection, session=session
+        connection_name=bq_connection, session=test_session
     )
     text_embedding_model._bqml_model = mock_bqml_model
 
@@ -654,7 +654,7 @@ def test_text_embedding_generator_retry_success(session, bq_connection):
     )
 
 
-def test_text_embedding_generator_retry_no_progress(session, bq_connection):
+def test_text_embedding_generator_retry_no_progress(test_session, bq_connection):
     # Requests.
     df0 = EqCmpAllDataFrame(
         {
@@ -665,7 +665,7 @@ def test_text_embedding_generator_retry_no_progress(session, bq_connection):
             ]
         },
         index=[0, 1, 2],
-        session=session,
+        session=test_session,
     )
     df1 = EqCmpAllDataFrame(
         {
@@ -676,11 +676,11 @@ def test_text_embedding_generator_retry_no_progress(session, bq_connection):
             ],
         },
         index=[1, 2],
-        session=session,
+        session=test_session,
     )
 
     mock_bqml_model = mock.create_autospec(spec=core.BqmlModel)
-    type(mock_bqml_model).session = mock.PropertyMock(return_value=session)
+    type(mock_bqml_model).session = mock.PropertyMock(return_value=test_session)
     # Responses. Retry once, no progress, just stop.
     mock_bqml_model.generate_embedding.side_effect = [
         EqCmpAllDataFrame(
@@ -693,7 +693,7 @@ def test_text_embedding_generator_retry_no_progress(session, bq_connection):
                 ],
             },
             index=[0, 1, 2],
-            session=session,
+            session=test_session,
         ),
         EqCmpAllDataFrame(
             {
@@ -704,7 +704,7 @@ def test_text_embedding_generator_retry_no_progress(session, bq_connection):
                 ],
             },
             index=[1, 2],
-            session=session,
+            session=test_session,
         ),
     ]
     options = {
@@ -712,7 +712,7 @@ def test_text_embedding_generator_retry_no_progress(session, bq_connection):
     }
 
     text_embedding_model = llm.TextEmbeddingGenerator(
-        connection_name=bq_connection, session=session
+        connection_name=bq_connection, session=test_session
     )
     text_embedding_model._bqml_model = mock_bqml_model
 
@@ -751,8 +751,8 @@ def test_text_embedding_generator_retry_no_progress(session, bq_connection):
         "gemini-1.5-flash-002",
     ),
 )
-def test_llm_gemini_score(llm_fine_tune_df_default_index, model_name):
-    model = llm.GeminiTextGenerator(model_name=model_name)
+def test_llm_gemini_score(llm_fine_tune_df_default_index, model_name, test_session):
+    model = llm.GeminiTextGenerator(model_name=model_name, session=test_session)
 
     # Check score to ensure the model was fitted
     score_result = model.score(
@@ -779,8 +779,10 @@ def test_llm_gemini_score(llm_fine_tune_df_default_index, model_name):
         "gemini-1.5-flash-002",
     ),
 )
-def test_llm_gemini_pro_score_params(llm_fine_tune_df_default_index, model_name):
-    model = llm.GeminiTextGenerator(model_name=model_name)
+def test_llm_gemini_pro_score_params(
+    llm_fine_tune_df_default_index, model_name, test_session
+):
+    model = llm.GeminiTextGenerator(model_name=model_name, session=test_session)
 
     # Check score to ensure the model was fitted
     score_result = model.score(
@@ -808,6 +810,6 @@ def test_llm_gemini_pro_score_params(llm_fine_tune_df_default_index, model_name)
         "gemini-2.0-flash-exp",
     ),
 )
-def test_gemini_preview_model_warnings(model_name):
+def test_gemini_preview_model_warnings(model_name, test_session):
     with pytest.warns(exceptions.PreviewWarning):
-        llm.GeminiTextGenerator(model_name=model_name)
+        llm.GeminiTextGenerator(model_name=model_name, session=test_session)
