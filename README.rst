@@ -34,7 +34,7 @@ Version 2.0 introduces breaking changes for improved security and performance. K
 (e.g., ``bigframes==1.42.0``) to avoid disruption.
 
 To learn about these changes and how to migrate to version 2.0, see the
-`updated introduction guide<https://cloud.google.com/bigquery/docs/bigquery-dataframes-introduction>_`.
+`updated introduction guide<https://cloud.google.com/bigquery/docs/bigquery-dataframes-introduction>`_.
 
 .. |GA| image:: https://img.shields.io/badge/support-GA-gold.svg
    :target: https://github.com/googleapis/google-cloud-python/blob/main/README.rst#general-availability
