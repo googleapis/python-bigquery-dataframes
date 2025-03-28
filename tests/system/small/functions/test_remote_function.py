@@ -248,6 +248,7 @@ def test_remote_function_connection_w_location_mismatched(
                 # See e2e tests for tests that actually deploy the Cloud Function.
                 reuse=True,
                 name=get_function_name(square),
+                cloud_function_service_account="default",
             )(square)
 
 
@@ -341,6 +342,7 @@ def test_remote_function_connection_w_project_mismatched(
                 # See e2e tests for tests that actually deploy the Cloud Function.
                 reuse=True,
                 name=get_function_name(square),
+                cloud_function_service_account="default",
             )(square)
 
 

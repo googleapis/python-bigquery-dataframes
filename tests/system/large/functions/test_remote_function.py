@@ -2831,6 +2831,7 @@ def test_remote_function_connection_path_format(
             dataset=dataset_id,
             bigquery_connection=f"projects/{session.bqclient.project}/locations/{session._location}/connections/{bq_cf_connection}",
             reuse=False,
+            cloud_function_service_account="default",
         )
         def foo(x: int) -> int:
             return x + 1
