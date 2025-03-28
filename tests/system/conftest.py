@@ -1477,8 +1477,8 @@ def images_gcs_path() -> str:
 @pytest.fixture(scope="session")
 def images_uris() -> list[str]:
     return [
-        "gs://bigframes_blob_test/images/img1.jpg",
         "gs://bigframes_blob_test/images/img0.jpg",
+        "gs://bigframes_blob_test/images/img1.jpg",
     ]
 
 
