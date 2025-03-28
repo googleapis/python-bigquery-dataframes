@@ -28,7 +28,7 @@ from bigframes.operations import aggregations as aggs
 @dataclasses.dataclass
 class _TypedExpr:
     expr: ex.Expression
-    dtype: dtypes.Dtype
+    dtype: dtypes.ExpressionType
 
     @classmethod
     def create_op_expr(
@@ -146,36 +146,36 @@ def _rewrite_op_expr(
 
 def _rewrite_sub_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
     if dtypes.is_datetime_like(left.dtype) and dtypes.is_datetime_like(right.dtype):
-        return _TypedExpr.create_op_expr(ops.timestamp_diff_op, left, right)
+        return _TypedExpr.create_op_expr(ops.TimestampDiffOp(), left, right)
 
     if dtypes.is_datetime_like(left.dtype) and right.dtype == dtypes.TIMEDELTA_DTYPE:
-        return _TypedExpr.create_op_expr(ops.timestamp_sub_op, left, right)
+        return _TypedExpr.create_op_expr(ops.TimestampSubOp(), left, right)
 
     if left.dtype == dtypes.DATE_DTYPE and right.dtype == dtypes.DATE_DTYPE:
-        return _TypedExpr.create_op_expr(ops.date_diff_op, left, right)
+        return _TypedExpr.create_op_expr(ops.DateDiffOp(), left, right)
 
     if left.dtype == dtypes.DATE_DTYPE and right.dtype == dtypes.TIMEDELTA_DTYPE:
-        return _TypedExpr.create_op_expr(ops.date_sub_op, left, right)
+        return _TypedExpr.create_op_expr(ops.DateSubOp(), left, right)
 
     return _TypedExpr.create_op_expr(ops.sub_op, left, right)
 
 
 def _rewrite_add_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
     if dtypes.is_datetime_like(left.dtype) and right.dtype == dtypes.TIMEDELTA_DTYPE:
-        return _TypedExpr.create_op_expr(ops.timestamp_add_op, left, right)
+        return _TypedExpr.create_op_expr(ops.TimestampAddOp(), left, right)
 
     if left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_datetime_like(right.dtype):
         # Re-arrange operands such that timestamp is always on the left and timedelta is
         # always on the right.
-        return _TypedExpr.create_op_expr(ops.timestamp_add_op, right, left)
+        return _TypedExpr.create_op_expr(ops.TimestampAddOp(), right, left)
 
     if left.dtype == dtypes.DATE_DTYPE and right.dtype == dtypes.TIMEDELTA_DTYPE:
-        return _TypedExpr.create_op_expr(ops.date_add_op, left, right)
+        return _TypedExpr.create_op_expr(ops.DateAddOp(), left, right)
 
     if left.dtype == dtypes.TIMEDELTA_DTYPE and right.dtype == dtypes.DATE_DTYPE:
         # Re-arrange operands such that date is always on the left and timedelta is
         # always on the right.
-        return _TypedExpr.create_op_expr(ops.date_add_op, right, left)
+        return _TypedExpr.create_op_expr(ops.DateAddOp(), right, left)
 
     return _TypedExpr.create_op_expr(ops.add_op, left, right)
 
@@ -184,9 +184,9 @@ def _rewrite_mul_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
     result = _TypedExpr.create_op_expr(ops.mul_op, left, right)
 
     if left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype):
-        return _TypedExpr.create_op_expr(ops.timedelta_floor_op, result)
+        return _TypedExpr.create_op_expr(ops.TimedeltaFloorOp(), result)
     if dtypes.is_numeric(left.dtype) and right.dtype == dtypes.TIMEDELTA_DTYPE:
-        return _TypedExpr.create_op_expr(ops.timedelta_floor_op, result)
+        return _TypedExpr.create_op_expr(ops.TimedeltaFloorOp(), result)
 
     return result
 
@@ -195,7 +195,7 @@ def _rewrite_div_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
     result = _TypedExpr.create_op_expr(ops.div_op, left, right)
 
     if left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype):
-        return _TypedExpr.create_op_expr(ops.timedelta_floor_op, result)
+        return _TypedExpr.create_op_expr(ops.TimedeltaFloorOp(), result)
 
     return result
 
@@ -204,7 +204,7 @@ def _rewrite_floordiv_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
     result = _TypedExpr.create_op_expr(ops.floordiv_op, left, right)
 
     if left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype):
-        return _TypedExpr.create_op_expr(ops.timedelta_floor_op, result)
+        return _TypedExpr.create_op_expr(ops.TimedeltaFloorOp(), result)
 
     return result
 

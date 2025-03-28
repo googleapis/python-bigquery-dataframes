@@ -19,6 +19,7 @@ import pandas as pd
 import pyarrow as pa
 
 from bigframes import dtypes
+from bigframes.core import log_adapter
 from bigframes.operations import base_ops
 import bigframes.operations.type as op_typing
 
@@ -109,8 +110,9 @@ class UnixMicros(base_ops.UnaryOp):
         return dtypes.INT_DTYPE
 
 
+@log_adapter.class_logger
 @dataclasses.dataclass(frozen=True)
-class TimestampDiff(base_ops.BinaryOp):
+class TimestampDiffOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "timestamp_diff"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
@@ -123,6 +125,3 @@ class TimestampDiff(base_ops.BinaryOp):
             raise TypeError("expected timestamp input")
 
         return dtypes.TIMEDELTA_DTYPE
-
-
-timestamp_diff_op = TimestampDiff()
