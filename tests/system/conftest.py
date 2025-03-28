@@ -110,6 +110,11 @@ def bigquery_client_tokyo(session_tokyo: bigframes.Session) -> bigquery.Client:
 
 
 @pytest.fixture(scope="session")
+def bigquery_client_test(test_session: bigframes.Session) -> bigquery.Client:
+    return test_session.bqclient
+
+
+@pytest.fixture(scope="session")
 def ibis_client(session: bigframes.Session) -> ibis_backends.BaseBackend:
     return session.ibis_client
 
@@ -231,6 +236,15 @@ def dataset_id(bigquery_client: bigquery.Client):
     bigquery_client.create_dataset(dataset_id)
     yield dataset_id
     bigquery_client.delete_dataset(dataset_id, delete_contents=True)
+
+
+@pytest.fixture(scope="session")
+def dataset_id_test(bigquery_client_test: bigquery.Client):
+    """Create (and cleanup) a temporary dataset."""
+    dataset_id = get_dataset_id(bigquery_client_test.project)
+    bigquery_client_test.create_dataset(dataset_id)
+    yield dataset_id
+    bigquery_client_test.delete_dataset(dataset_id, delete_contents=True)
 
 
 @pytest.fixture
