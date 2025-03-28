@@ -50,6 +50,7 @@ import bigframes.core.tree_properties as tree_properties
 import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.features
+from bigframes.session import bigquery_session
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
 import bigframes.session.planner
@@ -195,7 +196,7 @@ class BigQueryCachingExecutor(Executor):
     def __init__(
         self,
         bqclient: bigquery.Client,
-        storage_manager: bigframes.session.temp_storage.AnonymousDatasetManager,
+        storage_manager: bigquery_session.SessionResourceManager,
         bqstoragereadclient: google.cloud.bigquery_storage_v1.BigQueryReadClient,
         *,
         strictly_ordered: bool = True,
@@ -221,7 +222,7 @@ class BigQueryCachingExecutor(Executor):
         enable_cache: bool = True,
     ) -> str:
         if offset_column:
-            array_value, internal_offset_col = array_value.promote_offsets()
+            array_value, _ = array_value.promote_offsets()
         node = (
             self.replace_cached_subtrees(array_value.node)
             if enable_cache
@@ -248,7 +249,7 @@ class BigQueryCachingExecutor(Executor):
         job_config = bigquery.QueryJobConfig()
         # Use explicit destination to avoid 10GB limit of temporary table
         if use_explicit_destination:
-            destination_table = self.storage_manager.allocate_and_create_temp_table(
+            destination_table = self.storage_manager.create_temp_table(
                 array_value.schema.to_bigquery(), cluster_cols=[]
             )
             job_config.destination = destination_table
@@ -392,7 +393,7 @@ class BigQueryCachingExecutor(Executor):
         job_config = bigquery.QueryJobConfig()
         # Use explicit destination to avoid 10GB limit of temporary table
         if use_explicit_destination:
-            destination_table = self.storage_manager.allocate_and_create_temp_table(
+            destination_table = self.storage_manager.create_temp_table(
                 array_value.schema.to_bigquery(), cluster_cols=[]
             )
             job_config.destination = destination_table
@@ -645,9 +646,7 @@ class BigQueryCachingExecutor(Executor):
         cluster_cols: Sequence[str],
     ) -> bigquery.TableReference:
         assert len(cluster_cols) <= _MAX_CLUSTER_COLUMNS
-        temp_table = self.storage_manager.allocate_and_create_temp_table(
-            schema, cluster_cols
-        )
+        temp_table = self.storage_manager.create_temp_table(schema, cluster_cols)
 
         # TODO: Get default job config settings
         job_config = cast(

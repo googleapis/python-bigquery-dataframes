@@ -70,6 +70,7 @@ import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
+from bigframes.session import bigquery_session
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session.clients
 import bigframes.session.executor
@@ -247,7 +248,7 @@ class Session(
 
         self._metrics = bigframes.session.metrics.ExecutionMetrics()
         self._function_session = bff_session.FunctionSession()
-        self._temp_storage_manager = (
+        self._anon_dataset_manager = (
             bigframes.session.temp_storage.AnonymousDatasetManager(
                 self._clients_provider.bqclient,
                 location=self._location,
@@ -255,11 +256,14 @@ class Session(
                 kms_key=self._bq_kms_key_name,
             )
         )
+        self._bq_session_manager = bigquery_session.SessionResourceManager(
+            self.bqclient, self._location, kms_key=self._bq_kms_key_name
+        )
         self._executor: bigframes.session.executor.Executor = (
             bigframes.session.executor.BigQueryCachingExecutor(
                 bqclient=self._clients_provider.bqclient,
                 bqstoragereadclient=self._clients_provider.bqstoragereadclient,
-                storage_manager=self._temp_storage_manager,
+                storage_manager=self._bq_session_manager,
                 strictly_ordered=self._strictly_ordered,
                 metrics=self._metrics,
             )
@@ -267,7 +271,7 @@ class Session(
         self._loader = bigframes.session.loader.GbqDataLoader(
             session=self,
             bqclient=self._clients_provider.bqclient,
-            storage_manager=self._temp_storage_manager,
+            storage_manager=self._bq_session_manager,
             default_index_type=self._default_index_type,
             scan_index_uniqueness=self._strictly_ordered,
             force_total_order=self._strictly_ordered,
@@ -375,7 +379,7 @@ class Session(
 
     @property
     def _anonymous_dataset(self):
-        return self._temp_storage_manager.dataset
+        return self._anon_dataset_manager.dataset
 
     def __hash__(self):
         # Stable hash needed to use in expression tree
@@ -390,13 +394,14 @@ class Session(
         # failed to initialize.
         temp_storage_manager = getattr(self, "_temp_storage_manager", None)
         if temp_storage_manager:
-            self._temp_storage_manager.clean_up_tables()
+            self._anon_dataset_manager.clean_up_tables()
 
         remote_function_session = getattr(self, "_function_session", None)
         if remote_function_session:
             self._function_session.clean_up(
                 self.bqclient, self.cloudfunctionsclient, self.session_id
             )
+        self._bq_session_manager.close()
 
     def read_gbq(
         self,
@@ -906,8 +911,6 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager.allocate_temp_table()
-
         if engine is not None and engine == "bigquery":
             if any(param is not None for param in (dtype, names)):
                 not_supported = ("dtype", "names")
@@ -969,7 +972,6 @@ class Session(
             job_config = bigquery.LoadJobConfig()
             job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.CSV
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.autodetect = True
             job_config.field_delimiter = sep
             job_config.encoding = encoding
@@ -983,9 +985,8 @@ class Session(
             elif header > 0:
                 job_config.skip_leading_rows = header
 
-            return self._loader._read_bigquery_load_job(
+            return self._loader.read_bigquery_load_job(
                 filepath_or_buffer,
-                table,
                 job_config=job_config,
                 index_col=index_col,
                 columns=columns,
@@ -1052,18 +1053,13 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager.allocate_temp_table()
-
         if engine == "bigquery":
             job_config = bigquery.LoadJobConfig()
             job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.PARQUET
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.labels = {"bigframes-api": "read_parquet"}
 
-            return self._loader._read_bigquery_load_job(
-                path, table, job_config=job_config
-            )
+            return self._loader.read_bigquery_load_job(path, job_config=job_config)
         else:
             if "*" in path:
                 raise ValueError(
@@ -1106,8 +1102,6 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager.allocate_temp_table()
-
         if engine == "bigquery":
 
             if dtype is not None:
@@ -1133,14 +1127,12 @@ class Session(
             job_config = bigquery.LoadJobConfig()
             job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.autodetect = True
             job_config.encoding = encoding
             job_config.labels = {"bigframes-api": "read_json"}
 
-            return self._loader._read_bigquery_load_job(
+            return self._loader.read_bigquery_load_job(
                 path_or_buf,
-                table,
                 job_config=job_config,
             )
         else:
@@ -1713,7 +1705,7 @@ class Session(
 
     def _create_object_table(self, path: str, connection: str) -> str:
         """Create a random id Object Table from the input path and connection."""
-        table = str(self._loader._storage_manager.generate_unique_resource_id())
+        table = str(self._anon_dataset_manager.generate_unique_resource_id())
 
         import textwrap
 
