@@ -71,7 +71,7 @@ def test_property_logging(test_instance):
     assert "testclass-my_field" in api_methods
 
 
-def test_method_logging__enable_logging_internal_calls():
+def test_method_logging__include_internal_calls():
     @log_adapter.class_logger(include_internal_calls=True)
     class TestClass:
         def public_method(self):
@@ -81,12 +81,13 @@ def test_method_logging__enable_logging_internal_calls():
             pass
 
     TestClass().public_method()
+
     api_methods = log_adapter.get_and_reset_api_methods()
     assert "testclass-public_method" in api_methods
     assert "testclass-_internal_method" in api_methods
 
 
-def test_method_logging__disable_logging_internal_calls():
+def test_method_logging__exclude_internal_calls():
     @log_adapter.class_logger(include_internal_calls=False)
     class TestClass:
         def public_method(self):
@@ -96,6 +97,7 @@ def test_method_logging__disable_logging_internal_calls():
             pass
 
     TestClass().public_method()
+
     api_methods = log_adapter.get_and_reset_api_methods()
     assert "testclass-public_method" in api_methods
     assert "testclass-_internal_method" not in api_methods
