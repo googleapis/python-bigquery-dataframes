@@ -110,7 +110,7 @@ def submit_pandas_labels(
     bq_client.query(query, job_config=job_config)
 
 
-def class_logger(decorated_cls=None, /, *, log_internal_calls=False):
+def class_logger(decorated_cls=None, /, *, include_internal_calls=False):
     """Decorator that adds logging functionality to each method of the class."""
 
     def wrap(cls):
@@ -126,14 +126,14 @@ def class_logger(decorated_cls=None, /, *, log_internal_calls=False):
                         method_logger(
                             attr_value,
                             cls,
-                            log_internal_calls,
+                            include_internal_calls,
                         ),
                     )
             elif isinstance(attr_value, property):
                 setattr(
                     cls,
                     attr_name,
-                    property_logger(attr_value, cls, log_internal_calls),
+                    property_logger(attr_value, cls, include_internal_calls),
                 )
         return cls
 
@@ -145,7 +145,7 @@ def class_logger(decorated_cls=None, /, *, log_internal_calls=False):
     return wrap(decorated_cls)
 
 
-def method_logger(method, decorated_cls, log_internal_calls: bool):
+def method_logger(method, decorated_cls, include_internal_calls: bool):
     """Decorator that adds logging functionality to a method."""
 
     @functools.wraps(method)
@@ -155,7 +155,7 @@ def method_logger(method, decorated_cls, log_internal_calls: bool):
         full_method_name = f"{class_name.lower()}-{api_method_name}"
 
         # Track directly called methods
-        if len(_call_stack) == 0 or log_internal_calls:
+        if len(_call_stack) == 0 or include_internal_calls:
             add_api_method(full_method_name)
 
         _call_stack.append(full_method_name)
@@ -184,7 +184,7 @@ def method_logger(method, decorated_cls, log_internal_calls: bool):
     return wrapper
 
 
-def property_logger(prop, decorated_cls, log_internal_calls: bool):
+def property_logger(prop, decorated_cls, include_internal_calls: bool):
     """Decorator that adds logging functionality to a property."""
 
     def shared_wrapper(f):
@@ -194,7 +194,7 @@ def property_logger(prop, decorated_cls, log_internal_calls: bool):
             property_name = f.__name__
             full_property_name = f"{class_name.lower()}-{property_name.lower()}"
 
-            if len(_call_stack) == 0 or log_internal_calls:
+            if len(_call_stack) == 0 or include_internal_calls:
                 add_api_method(full_property_name)
 
             _call_stack.append(full_property_name)

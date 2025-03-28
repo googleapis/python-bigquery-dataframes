@@ -72,7 +72,7 @@ def test_property_logging(test_instance):
 
 
 def test_method_logging__enable_logging_internal_calls():
-    @log_adapter.class_logger(log_internal_calls=True)
+    @log_adapter.class_logger(include_internal_calls=True)
     class TestClass:
         def public_method(self):
             self._internal_method()
@@ -87,7 +87,7 @@ def test_method_logging__enable_logging_internal_calls():
 
 
 def test_method_logging__disable_logging_internal_calls():
-    @log_adapter.class_logger(log_internal_calls=False)
+    @log_adapter.class_logger(include_internal_calls=False)
     class TestClass:
         def public_method(self):
             self._internal_method()
