@@ -27,6 +27,7 @@ import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
 import google.auth.credentials
 import google.cloud.bigquery as bigquery
+import google.cloud.bigquery.job
 import google.cloud.bigquery.table
 import google.cloud.bigquery_connection_v1
 import google.cloud.bigquery_storage_v1
@@ -170,7 +171,9 @@ class GbqDataLoader:
         job_config.clustering_fields = cluster_cols
 
         job_config.labels = {"bigframes-api": api_name}
-        job_config.schema_update_options = {"allow_field_addition": True}
+        job_config.schema_update_options = [
+            google.cloud.bigquery.job.SchemaUpdateOption.ALLOW_FIELD_ADDITION
+        ]
 
         load_table_destination = self._storage_manager.create_temp_table(
             [google.cloud.bigquery.SchemaField(ordering_col, "INTEGER")], [ordering_col]
@@ -521,12 +524,12 @@ class GbqDataLoader:
         if isinstance(filepath_or_buffer, str):
             if filepath_or_buffer.startswith("gs://"):
                 load_job = self._bqclient.load_table_from_uri(
-                    filepath_or_buffer, job_config=job_config
+                    filepath_or_buffer, destination=table, job_config=job_config
                 )
             elif os.path.exists(filepath_or_buffer):  # local file path
                 with open(filepath_or_buffer, "rb") as source_file:
                     load_job = self._bqclient.load_table_from_file(
-                        source_file, job_config=job_config
+                        source_file, destination=table, job_config=job_config
                     )
             else:
                 raise NotImplementedError(
@@ -535,7 +538,7 @@ class GbqDataLoader:
                 )
         else:
             load_job = self._bqclient.load_table_from_file(
-                filepath_or_buffer, job_config=job_config
+                filepath_or_buffer, destination=table, job_config=job_config
             )
 
         self._start_generic_job(load_job)
