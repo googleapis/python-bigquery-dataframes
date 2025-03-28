@@ -65,9 +65,9 @@ def _assert_bq_execution_location(
 
     # Ensure BQ Storage Read client operation succceeds
     table = result.query_job.destination
-    requested_session = bqstorage_types.ReadSession(
+    requested_session = bqstorage_types.ReadSession(  # type: ignore[attr-defined]
         table=f"projects/{table.project}/datasets/{table.dataset_id}/tables/{table.table_id}",
-        data_format=bqstorage_types.DataFormat.ARROW,
+        data_format=bqstorage_types.DataFormat.ARROW,  # type: ignore[attr-defined]
     )
     read_session = session.bqstoragereadclient.create_read_session(
         parent=f"projects/{table.project}",
