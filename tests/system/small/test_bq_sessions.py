@@ -45,7 +45,7 @@ def test_bq_session_create_temp_table_clustered(bigquery_client: bigquery.Client
     session_resource_manager = bigquery_session.SessionResourceManager(
         bigquery_client, "US"
     )
-    cluster_cols = ["string_field", "bool_field"]
+    cluster_cols = ["string field", "bool field"]
 
     session_table_ref = session_resource_manager.create_temp_table(
         TEST_SCHEMA, cluster_cols=cluster_cols
