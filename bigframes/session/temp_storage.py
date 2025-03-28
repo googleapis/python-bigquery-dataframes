@@ -13,12 +13,11 @@
 # limitations under the License.
 
 import datetime
-from typing import List, Optional, Sequence
+from typing import List, Optional
 import uuid
 
 import google.cloud.bigquery as bigquery
 
-import bigframes.constants as constants
 import bigframes.session._io.bigquery as bf_io_bigquery
 
 _TEMP_TABLE_ID_FORMAT = "bqdf{date}_{session_id}_{random_id}"
@@ -49,26 +48,7 @@ class AnonymousDatasetManager:
         self._table_ids: List[bigquery.TableReference] = []
         self._kms_key = kms_key
 
-    def allocate_and_create_temp_table(
-        self, schema: Sequence[bigquery.SchemaField], cluster_cols: Sequence[str]
-    ) -> bigquery.TableReference:
-        """
-        Allocates and and creates a table in the anonymous dataset.
-        The table will be cleaned up by clean_up_tables.
-        """
-        expiration = (
-            datetime.datetime.now(datetime.timezone.utc) + constants.DEFAULT_EXPIRATION
-        )
-        table = bf_io_bigquery.create_temp_table(
-            self.bqclient,
-            self.allocate_temp_table(),
-            expiration,
-            schema=schema,
-            cluster_columns=list(cluster_cols),
-            kms_key=self._kms_key,
-        )
-        return bigquery.TableReference.from_string(table)
-
+    # just used by tests at this point
     def allocate_temp_table(self) -> bigquery.TableReference:
         """
         Allocates a unique table id, but does not create the table.

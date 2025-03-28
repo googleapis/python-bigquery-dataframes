@@ -20,7 +20,7 @@ import datetime
 import itertools
 import os
 import typing
-from typing import Dict, Hashable, IO, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Dict, Hashable, IO, Iterable, List, Optional, Sequence, Tuple
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
@@ -52,6 +52,7 @@ import bigframes.exceptions
 import bigframes.formatting_helpers as formatting_helpers
 import bigframes.operations
 import bigframes.operations.aggregations as agg_ops
+from bigframes.session import bigquery_session
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session._io.pandas as bf_io_pandas
@@ -71,6 +72,9 @@ if typing.TYPE_CHECKING:
     import bigframes.session
 
 _MAX_CLUSTER_COLUMNS = 4
+_PLACEHOLDER_SCHEMA = (
+    google.cloud.bigquery.SchemaField("bf_loader_placeholder", "INTEGER"),
+)
 
 
 def _to_index_cols(
@@ -115,7 +119,7 @@ class GbqDataLoader:
         self,
         session: bigframes.session.Session,
         bqclient: bigquery.Client,
-        storage_manager: bigframes.session.temp_storage.AnonymousDatasetManager,
+        storage_manager: bigquery_session.SessionResourceManager,
         default_index_type: bigframes.enums.DefaultIndexKind,
         scan_index_uniqueness: bool,
         force_total_order: bool,
@@ -166,8 +170,11 @@ class GbqDataLoader:
         job_config.clustering_fields = cluster_cols
 
         job_config.labels = {"bigframes-api": api_name}
+        job_config.schema_update_options = {"allow_field_addition": True}
 
-        load_table_destination = self._storage_manager.allocate_temp_table()
+        load_table_destination = self._storage_manager.create_temp_table(
+            [google.cloud.bigquery.SchemaField(ordering_col, "INTEGER")], [ordering_col]
+        )
         load_job = self._bqclient.load_table_from_dataframe(
             pandas_dataframe_copy,
             load_table_destination,
@@ -216,7 +223,7 @@ class GbqDataLoader:
             index=True,
         )
 
-        destination = self._storage_manager.allocate_and_create_temp_table(
+        destination = self._storage_manager.create_temp_table(
             schema,
             [ordering_col],
         )
@@ -494,10 +501,9 @@ class GbqDataLoader:
             df.sort_index()
         return df
 
-    def _read_bigquery_load_job(
+    def read_bigquery_load_job(
         self,
         filepath_or_buffer: str | IO["bytes"],
-        table: Union[bigquery.Table, bigquery.TableReference],
         *,
         job_config: bigquery.LoadJobConfig,
         index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
@@ -505,18 +511,22 @@ class GbqDataLoader:
     ) -> dataframe.DataFrame:
         index_cols = _to_index_cols(index_col)
 
+        # Need to create session table beforehand
+        table = self._storage_manager.create_temp_table(_PLACEHOLDER_SCHEMA)
+        # but, we just overwrite the placeholder schema immediately with the load job
+        job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
         if not job_config.clustering_fields and index_cols:
             job_config.clustering_fields = index_cols[:_MAX_CLUSTER_COLUMNS]
 
         if isinstance(filepath_or_buffer, str):
             if filepath_or_buffer.startswith("gs://"):
                 load_job = self._bqclient.load_table_from_uri(
-                    filepath_or_buffer, table, job_config=job_config
+                    filepath_or_buffer, job_config=job_config
                 )
             elif os.path.exists(filepath_or_buffer):  # local file path
                 with open(filepath_or_buffer, "rb") as source_file:
                     load_job = self._bqclient.load_table_from_file(
-                        source_file, table, job_config=job_config
+                        source_file, job_config=job_config
                     )
             else:
                 raise NotImplementedError(
@@ -525,20 +535,11 @@ class GbqDataLoader:
                 )
         else:
             load_job = self._bqclient.load_table_from_file(
-                filepath_or_buffer, table, job_config=job_config
+                filepath_or_buffer, job_config=job_config
             )
 
         self._start_generic_job(load_job)
         table_id = f"{table.project}.{table.dataset_id}.{table.table_id}"
-
-        # Update the table expiration so we aren't limited to the default 24
-        # hours of the anonymous dataset.
-        table_expiration = bigquery.Table(table_id)
-        table_expiration.expires = (
-            datetime.datetime.now(datetime.timezone.utc)
-            + bigframes.constants.DEFAULT_EXPIRATION
-        )
-        self._bqclient.update_table(table_expiration, ["expires"])
 
         # The BigQuery REST API for tables.get doesn't take a session ID, so we
         # can't get the schema for a temp table that way.
@@ -673,9 +674,7 @@ class GbqDataLoader:
             )
         else:
             cluster_cols = []
-        temp_table = self._storage_manager.allocate_and_create_temp_table(
-            schema, cluster_cols
-        )
+        temp_table = self._storage_manager.create_temp_table(schema, cluster_cols)
 
         timeout_ms = configuration.get("jobTimeoutMs") or configuration["query"].get(
             "timeoutMs"
