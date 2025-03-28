@@ -4,6 +4,45 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## 2.0.0.dev0 (2025-03-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* Locational endpoints support is not available in BigFrames 2.0.
+* change default LLM model to gemini-2.0-flash-001, drop PaLM2TextGenerator and PaLM2TextEmbeddingGenerator  ([#1558](https://github.com/googleapis/python-bigquery-dataframes/issues/1558))
+* change default ingress setting for `remote_function` to internal-only ([#1544](https://github.com/googleapis/python-bigquery-dataframes/issues/1544))
+* make `remote_function` params keyword only ([#1537](https://github.com/googleapis/python-bigquery-dataframes/issues/1537))
+* make `remote_function` default service account explicit ([#1537](https://github.com/googleapis/python-bigquery-dataframes/issues/1537))
+* set `allow_large_results=False` by default ([#1541](https://github.com/googleapis/python-bigquery-dataframes/issues/1541))
+
+### Features
+
+* Allow `input_types`, `output_type`, and `dataset` to be used positionally in `remote_function` ([#1560](https://github.com/googleapis/python-bigquery-dataframes/issues/1560)) ([bcac8c6](https://github.com/googleapis/python-bigquery-dataframes/commit/bcac8c6ed0b40902d0ccaef3f907e6acbe6a52ed))
+* Change default ingress setting for `remote_function` to internal-only ([#1544](https://github.com/googleapis/python-bigquery-dataframes/issues/1544)) ([c848a80](https://github.com/googleapis/python-bigquery-dataframes/commit/c848a80766ff68ea92c05a5dc5c26508e6755381))
+* Drop support for locational endpoints ([#1542](https://github.com/googleapis/python-bigquery-dataframes/issues/1542)) ([4bf2e43](https://github.com/googleapis/python-bigquery-dataframes/commit/4bf2e43ef4498b11f32086231fc4cc749fde966a))
+* Make `remote_function` default service account explicit ([#1537](https://github.com/googleapis/python-bigquery-dataframes/issues/1537)) ([9eb9089](https://github.com/googleapis/python-bigquery-dataframes/commit/9eb9089ce3f1dad39761ba8ebc2d6f76261bd243))
+* Set `allow_large_results=False` by default ([#1541](https://github.com/googleapis/python-bigquery-dataframes/issues/1541)) ([e9fb712](https://github.com/googleapis/python-bigquery-dataframes/commit/e9fb7129a05e8ac7c938ffe30e86902950316f20))
+* Support bigquery connection in managed function ([#1554](https://github.com/googleapis/python-bigquery-dataframes/issues/1554)) ([f6f697a](https://github.com/googleapis/python-bigquery-dataframes/commit/f6f697afc167e0fa7ea923c0aed85a9ef257d61f))
+* Support bq connection path format ([#1550](https://github.com/googleapis/python-bigquery-dataframes/issues/1550)) ([e7eb918](https://github.com/googleapis/python-bigquery-dataframes/commit/e7eb918dd9df3569febe695f57c1a5909844fd3c))
+* Support gemini-2.0-X models ([#1558](https://github.com/googleapis/python-bigquery-dataframes/issues/1558)) ([3104fab](https://github.com/googleapis/python-bigquery-dataframes/commit/3104fab019d20b0cbc06cd81d43b3f34fd1dd987))
+
+
+### Bug Fixes
+
+* Pandas.cut returns labels index for numeric breaks when labels=False ([#1548](https://github.com/googleapis/python-bigquery-dataframes/issues/1548)) ([b2375de](https://github.com/googleapis/python-bigquery-dataframes/commit/b2375decedbf1a793eedbbc9dc2efc2296f8cc6e))
+
+
+### Documentation
+
+* Add warning for bigframes 2.0 ([#1557](https://github.com/googleapis/python-bigquery-dataframes/issues/1557)) ([3f0eaa1](https://github.com/googleapis/python-bigquery-dataframes/commit/3f0eaa1c6b02d086270421f91dbb6aa2f117317d))
+
+
+### Miscellaneous Chores
+
+* Make `remote_function` params keyword only ([#1537](https://github.com/googleapis/python-bigquery-dataframes/issues/1537)) ([9eb9089](https://github.com/googleapis/python-bigquery-dataframes/commit/9eb9089ce3f1dad39761ba8ebc2d6f76261bd243))
+
+
 ## [1.42.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.41.0...v1.42.0) (2025-03-27)
 
 
