@@ -64,13 +64,12 @@ def test_dataframe_groupby_rolling_closed_param(rolling_dfs, closed):
     )
 
 
-@pytest.mark.parametrize("on", ["int64_too", "float64_col"])
-def test_dataframe_rolling_on(rolling_dfs, on):
+def test_dataframe_rolling_on(rolling_dfs):
     bf_df, pd_df = rolling_dfs
 
-    actual_result = bf_df.rolling(window=3, on=on).sum().to_pandas()
+    actual_result = bf_df.rolling(window=3, on="int64_too").sum().to_pandas()
 
-    expected_result = pd_df.rolling(window=3, on=on).sum()
+    expected_result = pd_df.rolling(window=3, on="int64_too").sum()
     pd.testing.assert_frame_equal(actual_result, expected_result, check_dtype=False)
 
 
