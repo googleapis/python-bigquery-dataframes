@@ -203,16 +203,6 @@ def xgboost_iris_df(session, xgboost_iris_pandas_df):
 
 
 @pytest.fixture(scope="session")
-def bqml_palm2_text_generator_model(session, bq_connection) -> core.BqmlModel:
-    options = {
-        "remote_service_type": "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1",
-    }
-    return globals.bqml_model_factory().create_remote_model(
-        session=session, connection_name=bq_connection, options=options
-    )
-
-
-@pytest.fixture(scope="session")
 def linear_remote_model_params() -> dict:
     # Pre-deployed endpoint of linear reg model in Vertex.
     # bigframes-test-linreg2 -> bigframes-test-linreg-endpoint2
