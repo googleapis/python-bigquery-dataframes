@@ -3,6 +3,15 @@ BigQuery DataFrames
 
 |GA| |pypi| |versions|
 
+BigQuery DataFrames provides a Pythonic DataFrame and machine learning (ML) API
+powered by the BigQuery engine.
+
+* ``bigframes.pandas`` provides a pandas-compatible API for analytics.
+* ``bigframes.ml`` provides a scikit-learn-like API for ML.
+
+BigQuery DataFrames is an open-source package. You can run
+``pip install --upgrade bigframes`` to install the latest version.
+
 .. raw:: html
 
     <div style="border: 1px solid #f5c6cb;
@@ -18,15 +27,6 @@ BigQuery DataFrames
         <p><strong>Important:</strong> If you are not ready to adapt to these changes, please pin your dependency to a version less than 2.0 (e.g., <code>bigframes==1.42.0</code>) to avoid disruption.</p>
         <p style="margin-bottom: 0;"> To learn about these changes and how to migrate to version 2.0, see:  <a href="https://cloud.google.com/bigquery/docs/bigquery-dataframes-introduction" style="color: #842029; text-decoration: underline;">updated introduction guide</a>.</p>
     </div>
-
-BigQuery DataFrames provides a Pythonic DataFrame and machine learning (ML) API
-powered by the BigQuery engine.
-
-* ``bigframes.pandas`` provides a pandas-compatible API for analytics.
-* ``bigframes.ml`` provides a scikit-learn-like API for ML.
-
-BigQuery DataFrames is an open-source package. You can run
-``pip install --upgrade bigframes`` to install the latest version.
 
 .. |GA| image:: https://img.shields.io/badge/support-GA-gold.svg
    :target: https://github.com/googleapis/google-cloud-python/blob/main/README.rst#general-availability
