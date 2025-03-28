@@ -68,7 +68,7 @@ class SessionResourceManager:
                     bigquery.EncryptionConfiguration(kms_key_name=self._kms_key)
                 )
 
-            ibis_schema = ibis_bq.BigQuerySchema.to_ibis(schema)
+            ibis_schema = ibis_bq.BigQuerySchema.to_ibis(list(schema))
 
             fields = [
                 f"{googlesql.identifier(name)} {ibis_bq.BigQueryType.from_ibis(ibis_type)}"
@@ -103,7 +103,7 @@ class SessionResourceManager:
         if self._session_id:
             return self._session_id
         with self._session_lock:
-            if not self._session_id:
+            if self._session_id is None:
                 job_config = bigquery.QueryJobConfig(create_session=True)
                 # Make sure the session is a new one, not one associated with another query.
                 job_config.use_query_cache = False
@@ -111,13 +111,16 @@ class SessionResourceManager:
                     "SELECT 1", job_config=job_config, location=self.location
                 )
                 query_job.result()  # blocks until finished
+                assert query_job.session_info is not None
+                assert query_job.session_info.session_id is not None
                 self._session_id = query_job.session_info.session_id
                 self._sessiondaemon = RecurringTaskDaemon(
                     task=self._keep_session_alive, frequency=KEEPALIVE_FREQUENCY
                 )
                 self._sessiondaemon.start()
-
-        return query_job.session_info.session_id
+                return query_job.session_info.session_id
+            else:
+                return self._session_id
 
     def _keep_session_alive(self):
         # bq sessions will default expire after 24 hours of disuse, but if queried, this is renewed to a maximum of 7 days
