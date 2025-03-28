@@ -177,3 +177,42 @@ def test_bq_rep_endpoints(bigquery_location):
 
     # assert that bigframes session honors the location
     _assert_bq_execution_location(session)
+
+
+def test_clients_provider_no_location():
+    with pytest.raises(ValueError, match="Must set location to use regional endpoints"):
+        bigframes.session.clients.ClientsProvider(use_regional_endpoints=True)
+
+
+@pytest.mark.parametrize(
+    "bigquery_location",
+    # Sort the set to avoid nondeterminism.
+    sorted(bigframes.constants.REP_NOT_ENABLED_BIGQUERY_LOCATIONS),
+)
+def test_clients_provider_use_regional_endpoints_non_rep_locations(bigquery_location):
+    with pytest.raises(
+        ValueError,
+        match=f"not .*available in the location {bigquery_location}",
+    ):
+        bigframes.session.clients.ClientsProvider(
+            location=bigquery_location, use_regional_endpoints=True
+        )
+
+
+@pytest.mark.parametrize(
+    "bigquery_location",
+    # Sort the set to avoid nondeterminism.
+    sorted(bigframes.constants.REP_NOT_ENABLED_BIGQUERY_LOCATIONS),
+)
+def test_session_init_fails_to_use_regional_endpoints_non_rep_endpoints(
+    bigquery_location,
+):
+    with pytest.raises(
+        ValueError,
+        match=f"not .*available in the location {bigquery_location}",
+    ):
+        bigframes.Session(
+            context=bigframes.BigQueryOptions(
+                location=bigquery_location, use_regional_endpoints=True
+            )
+        )

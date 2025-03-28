@@ -111,12 +111,12 @@ LOCATION_NEEDED_FOR_REP_MESSAGE = textwrap.dedent(
 
 REP_NOT_SUPPORTED_MESSAGE = textwrap.dedent(
     """
-    Support for regional endpoints may not be available in the location
-    {location} for BigQuery and BigQuery Storage APIs. For the supported
-    locations and APIs see https://cloud.google.com/bigquery/docs/regional-endpoints.
-    If you have the (deprecated) locational endpoints enabled in your
-    project (which requires your project to be allowlisted), you can override
-    the endpoints directly by doing the following:
+    Support for regional endpoints for BigQuery and BigQuery Storage APIs may
+    not be available in the location {location}. For the supported APIs and
+    locations see https://cloud.google.com/bigquery/docs/regional-endpoints.
+    If you have the (deprecated) locational endpoints enabled in your project
+    (which requires your project to be allowlisted), you can override the
+    endpoints directly by doing the following:
         bigframes.pandas.options.bigquery.client_endpoints_override = {{
             "bqclient": "https://{location}-bigquery.googleapis.com",
             "bqconnectionclient": "{location}-bigqueryconnection.googleapis.com",

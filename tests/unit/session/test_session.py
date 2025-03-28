@@ -28,7 +28,6 @@ import pytest
 
 import bigframes
 from bigframes import version
-import bigframes.constants
 import bigframes.enums
 import bigframes.exceptions
 from tests.unit import resources
@@ -461,25 +460,6 @@ def test_session_init_warns_if_bf_version_is_too_old(monkeypatch):
 
     with pytest.warns(bigframes.exceptions.ObsoleteVersionWarning):
         resources.create_bigquery_session()
-
-
-@pytest.mark.parametrize(
-    "bigquery_location",
-    # Sort the set to avoid nondeterminism.
-    sorted(bigframes.constants.REP_NOT_ENABLED_BIGQUERY_LOCATIONS),
-)
-def test_session_init_fails_to_use_regional_endpoints_non_rep_endpoints(
-    bigquery_location,
-):
-    with pytest.raises(
-        ValueError,
-        match="Support for regional endpoints may not be available in the location",
-    ):
-        bigframes.Session(
-            context=bigframes.BigQueryOptions(
-                location=bigquery_location, use_regional_endpoints=True
-            )
-        )
 
 
 @mock.patch("bigframes.session.MAX_INLINE_DF_BYTES", 1)
