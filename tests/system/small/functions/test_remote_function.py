@@ -113,8 +113,8 @@ def test_remote_function_direct_no_session_param(
         return x * x
 
     square = bff.remote_function(
-        int,
-        int,
+        input_types=int,
+        output_type=int,
         bigquery_client=bigquery_client,
         bigquery_connection_client=bigqueryconnection_client,
         cloud_functions_client=cloudfunctions_client,
@@ -124,6 +124,7 @@ def test_remote_function_direct_no_session_param(
         # See e2e tests for tests that actually deploy the Cloud Function.
         reuse=True,
         name=get_function_name(square),
+        cloud_function_service_account="default",
     )(square)
 
     # Function should still work normally.
@@ -170,14 +171,15 @@ def test_remote_function_connection_w_location(
         return x * x
 
     square = bff.remote_function(
-        int,
-        int,
+        input_types=int,
+        output_type=int,
         session=session,
         dataset=dataset_id_permanent,
         bigquery_connection=bq_cf_connection_location,
         # See e2e tests for tests that actually deploy the Cloud Function.
         reuse=True,
         name=get_function_name(square),
+        cloud_function_service_account="default",
     )(square)
 
     # Function should still work normally.
@@ -238,8 +240,8 @@ def test_remote_function_connection_w_location_mismatched(
             ),
         ):
             bff.remote_function(
-                int,
-                int,
+                input_types=int,
+                output_type=int,
                 session=session,
                 dataset=dataset_id_permanent,
                 bigquery_connection=connection_id,
@@ -260,14 +262,15 @@ def test_remote_function_connection_w_location_project(
         return x * x
 
     square = bff.remote_function(
-        int,
-        int,
+        input_types=int,
+        output_type=int,
         session=session,
         dataset=dataset_id_permanent,
         bigquery_connection=bq_cf_connection_location_project,
         # See e2e tests for tests that actually deploy the Cloud Function.
         reuse=True,
         name=get_function_name(square),
+        cloud_function_service_account="default",
     )(square)
 
     # Function should still work normally.
@@ -330,8 +333,8 @@ def test_remote_function_connection_w_project_mismatched(
             ),
         ):
             bff.remote_function(
-                int,
-                int,
+                input_types=int,
+                output_type=int,
                 session=session,
                 dataset=dataset_id_permanent,
                 bigquery_connection=connection_id,
@@ -349,11 +352,12 @@ def test_remote_function_direct_session_param(
         return x * x
 
     square = bff.remote_function(
-        int,
-        int,
+        input_types=int,
+        output_type=int,
         session=session_with_bq_connection,
         dataset=dataset_id_permanent,
         name=get_function_name(square),
+        cloud_function_service_account="default",
     )(square)
 
     # Function should still work normally.
@@ -398,7 +402,11 @@ def test_remote_function_via_session_default(
     # udf is same as the one used in other tests in this file so the underlying
     # cloud function would be common and quickly reused.
     square = session_with_bq_connection.remote_function(
-        int, int, dataset_id_permanent, name=get_function_name(square)
+        input_types=int,
+        output_type=int,
+        dataset=dataset_id_permanent,
+        name=get_function_name(square),
+        cloud_function_service_account="default",
     )(square)
 
     # Function should still work normally.
@@ -436,13 +444,14 @@ def test_remote_function_via_session_with_overrides(
         return x * x
 
     square = session.remote_function(
-        int,
-        int,
-        dataset_id_permanent,
-        bq_cf_connection,
+        input_types=int,
+        output_type=int,
+        dataset=dataset_id_permanent,
+        bigquery_connection=bq_cf_connection,
         # See e2e tests for tests that actually deploy the Cloud Function.
         reuse=True,
         name=get_function_name(square),
+        cloud_function_service_account="default",
     )(square)
 
     # Function should still work normally.
@@ -480,7 +489,11 @@ def test_dataframe_applymap(
         return x + 1
 
     remote_add_one = session_with_bq_connection.remote_function(
-        [int], int, dataset_id_permanent, name=get_function_name(add_one)
+        input_types=[int],
+        output_type=int,
+        dataset=dataset_id_permanent,
+        name=get_function_name(add_one),
+        cloud_function_service_account="default",
     )(add_one)
 
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -511,7 +524,11 @@ def test_dataframe_applymap_explicit_filter(
         return x + 1
 
     remote_add_one = session_with_bq_connection.remote_function(
-        [int], int, dataset_id_permanent, name=get_function_name(add_one)
+        input_types=[int],
+        output_type=int,
+        dataset=dataset_id_permanent,
+        name=get_function_name(add_one),
+        cloud_function_service_account="default",
     )(add_one)
 
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -542,7 +559,11 @@ def test_dataframe_applymap_na_ignore(
         return x + 1
 
     remote_add_one = session_with_bq_connection.remote_function(
-        [int], int, dataset_id_permanent, name=get_function_name(add_one)
+        input_types=[int],
+        output_type=int,
+        dataset=dataset_id_permanent,
+        name=get_function_name(add_one),
+        cloud_function_service_account="default",
     )(add_one)
 
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -588,6 +609,7 @@ def test_series_map_bytes(
         dataset=dataset_id_permanent,
         name=get_function_name(bytes_to_hex, package_requirements=packages),
         packages=packages,
+        cloud_function_service_account="default",
     )(bytes_to_hex)
     bf_result = scalars_df.bytes_col.map(remote_bytes_to_hex).to_pandas()
 
@@ -630,10 +652,11 @@ def test_skip_bq_connection_check(dataset_id_permanent):
             return x + 1  # pragma: NO COVER
 
         session.remote_function(
-            [int],
-            int,
+            input_types=[int],
+            output_type=int,
             dataset=dataset_id_permanent,
             name=get_function_name(add_one),
+            cloud_function_service_account="default",
         )(add_one)
 
 
@@ -663,8 +686,8 @@ def test_read_gbq_function_like_original(
         return x * x
 
     square1 = bff.remote_function(
-        [int],
-        int,
+        input_types=[int],
+        output_type=int,
         bigquery_client=bigquery_client,
         bigquery_connection_client=bigqueryconnection_client,
         dataset=dataset_id_permanent,
@@ -673,6 +696,7 @@ def test_read_gbq_function_like_original(
         bigquery_connection=bq_cf_connection,
         reuse=True,
         name=get_function_name(square1),
+        cloud_function_service_account="default",
     )(square1)
 
     # Function should still work normally.
@@ -1147,10 +1171,11 @@ def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
         match="input_types=Series is in preview.",
     ):
         add_ints_remote = session.remote_function(
-            bigframes.series.Series,
-            int,
-            dataset_id_permanent,
+            input_types=bigframes.series.Series,
+            output_type=int,
+            dataset=dataset_id_permanent,
             name=get_function_name(add_ints, is_row_processor=True),
+            cloud_function_service_account="default",
         )(add_ints)
         assert add_ints_remote.bigframes_remote_function  # type: ignore
         assert add_ints_remote.bigframes_bigquery_function  # type: ignore
@@ -1199,10 +1224,11 @@ def test_df_apply_axis_1_ordering(session, scalars_dfs, dataset_id_permanent):
         return row["int64_col"] + row["int64_too"]
 
     add_ints_remote = session.remote_function(
-        bigframes.series.Series,
-        int,
-        dataset_id_permanent,
+        input_types=bigframes.series.Series,
+        output_type=int,
+        dataset=dataset_id_permanent,
         name=get_function_name(add_ints, is_row_processor=True),
+        cloud_function_service_account="default",
     )(add_ints)
 
     bf_result = (
@@ -1238,10 +1264,11 @@ def test_df_apply_axis_1_multiindex(session, dataset_id_permanent):
         return row["x"] + row["y"]
 
     add_numbers_remote = session.remote_function(
-        bigframes.series.Series,
-        float,
-        dataset_id_permanent,
+        input_types=bigframes.series.Series,
+        output_type=float,
+        dataset=dataset_id_permanent,
         name=get_function_name(add_numbers, is_row_processor=True),
+        cloud_function_service_account="default",
     )(add_numbers)
 
     bf_result = bf_df.apply(add_numbers_remote, axis=1).to_pandas()
@@ -1291,10 +1318,11 @@ def test_df_apply_axis_1_unsupported_dtype(session, scalars_dfs, dataset_id_perm
         return len(row)
 
     echo_len_remote = session.remote_function(
-        bigframes.series.Series,
-        float,
-        dataset_id_permanent,
+        input_types=bigframes.series.Series,
+        output_type=float,
+        dataset=dataset_id_permanent,
         name=get_function_name(echo_len, is_row_processor=True),
+        cloud_function_service_account="default",
     )(echo_len)
 
     for column in columns_with_not_supported_dtypes:
@@ -1327,7 +1355,9 @@ def test_remote_function_application_repr(session, dataset_id_permanent):
     assert "name" in inspect.signature(should_mask).parameters
 
     should_mask = session.remote_function(
-        dataset=dataset_id_permanent, name=get_function_name(should_mask)
+        dataset=dataset_id_permanent,
+        name=get_function_name(should_mask),
+        cloud_function_service_account="default",
     )(should_mask)
 
     s = bigframes.series.Series(["Alice", "Bob", "Caroline"])
@@ -1386,7 +1416,9 @@ def test_remote_function_unary_applied_after_filter(
 
     # create a remote function
     is_odd_remote = session.remote_function(
-        dataset=dataset_id_permanent, name=get_function_name(is_odd)
+        dataset=dataset_id_permanent,
+        name=get_function_name(is_odd),
+        cloud_function_service_account="default",
     )(is_odd)
 
     # with nulls in the series the remote function application would fail
@@ -1436,7 +1468,9 @@ def test_remote_function_binary_applied_after_filter(
 
     # create a remote function
     add_remote = session.remote_function(
-        dataset=dataset_id_permanent, name=get_function_name(add)
+        dataset=dataset_id_permanent,
+        name=get_function_name(add),
+        cloud_function_service_account="default",
     )(add)
 
     # with nulls in the series the remote function application would fail
@@ -1489,7 +1523,9 @@ def test_remote_function_nary_applied_after_filter(
 
     # create a remote function
     add_remote = session.remote_function(
-        dataset=dataset_id_permanent, name=get_function_name(add)
+        dataset=dataset_id_permanent,
+        name=get_function_name(add),
+        cloud_function_service_account="default",
     )(add)
 
     # pandas does not support nary functions, so let's create a proxy function
@@ -1545,6 +1581,7 @@ def test_remote_function_unary_partial_ordering_mode_assign(
     is_long_duration = unordered_session.remote_function(
         dataset=dataset_id_permanent,
         name=get_function_name(is_long_duration),
+        cloud_function_service_account="default",
     )(is_long_duration)
 
     method = getattr(df["duration_minutes"], method)
@@ -1563,7 +1600,9 @@ def test_remote_function_binary_partial_ordering_mode_assign(
         return x
 
     combiner = unordered_session.remote_function(
-        dataset=dataset_id_permanent, name=get_function_name(combiner)
+        dataset=dataset_id_permanent,
+        name=get_function_name(combiner),
+        cloud_function_service_account="default",
     )(combiner)
 
     df = scalars_df_index[["int64_col", "int64_too", "float64_col", "string_col"]]
@@ -1579,7 +1618,9 @@ def test_remote_function_nary_partial_ordering_mode_assign(
         return f"I got x={x}, y={y}, z={z} and w={w}"
 
     processor = unordered_session.remote_function(
-        dataset=dataset_id_permanent, name=get_function_name(processor)
+        dataset=dataset_id_permanent,
+        name=get_function_name(processor),
+        cloud_function_service_account="default",
     )(processor)
 
     df = scalars_df_index[["int64_col", "int64_too", "float64_col", "string_col"]]
