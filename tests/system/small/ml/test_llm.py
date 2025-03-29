@@ -143,7 +143,7 @@ def test_multimodal_embedding_generator_predict_default_params_success(
     retries=2
 )  # usually create model shouldn't be flaky, but this one due to the limited quota of gemini-2.0-flash-exp.
 def test_create_load_gemini_text_generator_model(
-    dataset_id, model_name, test_session, bq_connection
+    dataset_id_test, model_name, test_session, bq_connection
 ):
     gemini_text_generator_model = llm.GeminiTextGenerator(
         model_name=model_name, connection_name=bq_connection, session=test_session
@@ -153,9 +153,9 @@ def test_create_load_gemini_text_generator_model(
 
     # save, load to ensure configuration was kept
     reloaded_model = gemini_text_generator_model.to_gbq(
-        f"{dataset_id}.temp_text_model", replace=True
+        f"{dataset_id_test}.temp_text_model", replace=True
     )
-    assert f"{dataset_id}.temp_text_model" == reloaded_model._bqml_model.model_name
+    assert f"{dataset_id_test}.temp_text_model" == reloaded_model._bqml_model.model_name
     assert reloaded_model.connection_name == bq_connection
     assert reloaded_model.model_name == model_name
 
