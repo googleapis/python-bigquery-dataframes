@@ -157,10 +157,11 @@ def test_clean_up_via_context_manager(session_creator):
     with session_creator() as session:
         bqclient = session.bqclient
 
-        full_id_1 = session._bq_session_manager.create_temp_table(
+        full_id_1 = session._anon_dataset_manager.create_temp_table(
             [bigquery.SchemaField("a", "INT64")], cluster_cols=[]
         )
-        full_id_2 = session._bq_session_manager.create_temp_table(
+        assert session._session_resource_manager is not None
+        full_id_2 = session._session_resource_manager.create_temp_table(
             [bigquery.SchemaField("b", "STRING")], cluster_cols=["b"]
         )
 
