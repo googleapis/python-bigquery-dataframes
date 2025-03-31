@@ -248,16 +248,10 @@ class MatrixFactorization(
         if not isinstance(user_col, str):
             raise TypeError(f"Expected user_col to be a str, but got {type(user_col)}.")
 
-        if user_col != "user_id":
-            raise ValueError("Expected user_col column to be `user_id`.")
-
         self.user_col = user_col
 
         if not isinstance(item_col, str):
             raise TypeError(f"Expected item_col to be STR, but got {type(item_col)}.")
-
-        if item_col != "item_col":
-            raise ValueError("Expected item_col column to be `item_col`.")
 
         self.item_col = item_col
 
