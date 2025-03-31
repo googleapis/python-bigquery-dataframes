@@ -50,11 +50,10 @@ import bigframes.core.tree_properties as tree_properties
 import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.features
-from bigframes.session import bigquery_session
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
 import bigframes.session.planner
-import bigframes.session.temp_storage
+import bigframes.session.temporary_storage
 
 # Max complexity that should be executed as a single query
 QUERY_COMPLEXITY_LIMIT = 1e7
@@ -196,7 +195,7 @@ class BigQueryCachingExecutor(Executor):
     def __init__(
         self,
         bqclient: bigquery.Client,
-        storage_manager: bigquery_session.SessionResourceManager,
+        storage_manager: bigframes.session.temporary_storage.TemporaryStorageManager,
         bqstoragereadclient: google.cloud.bigquery_storage_v1.BigQueryReadClient,
         *,
         strictly_ordered: bool = True,

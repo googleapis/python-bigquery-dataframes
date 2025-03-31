@@ -72,12 +72,12 @@ import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
 from bigframes.session import bigquery_session
 import bigframes.session._io.bigquery as bf_io_bigquery
+import bigframes.session.anonymous_dataset
 import bigframes.session.clients
 import bigframes.session.executor
 import bigframes.session.loader
 import bigframes.session.metrics
 import bigframes.session.planner
-import bigframes.session.temp_storage
 import bigframes.session.validation
 
 # Avoid circular imports.
@@ -249,21 +249,30 @@ class Session(
         self._metrics = bigframes.session.metrics.ExecutionMetrics()
         self._function_session = bff_session.FunctionSession()
         self._anon_dataset_manager = (
-            bigframes.session.temp_storage.AnonymousDatasetManager(
+            bigframes.session.anonymous_dataset.AnonymousDatasetManager(
                 self._clients_provider.bqclient,
                 location=self._location,
                 session_id=self._session_id,
                 kms_key=self._bq_kms_key_name,
             )
         )
-        self._bq_session_manager = bigquery_session.SessionResourceManager(
-            self.bqclient, self._location, kms_key=self._bq_kms_key_name
+        # Session temp tables don't support specifying kms key, so use anon dataset if kms key specified
+        self._session_resource_manager = (
+            bigquery_session.SessionResourceManager(
+                self.bqclient,
+                self._location,
+            )
+            if (self._bq_kms_key_name is None)
+            else None
+        )
+        self._temp_storage_manager = (
+            self._session_resource_manager or self._anon_dataset_manager
         )
         self._executor: bigframes.session.executor.Executor = (
             bigframes.session.executor.BigQueryCachingExecutor(
                 bqclient=self._clients_provider.bqclient,
                 bqstoragereadclient=self._clients_provider.bqstoragereadclient,
-                storage_manager=self._bq_session_manager,
+                storage_manager=self._temp_storage_manager,
                 strictly_ordered=self._strictly_ordered,
                 metrics=self._metrics,
             )
@@ -271,7 +280,7 @@ class Session(
         self._loader = bigframes.session.loader.GbqDataLoader(
             session=self,
             bqclient=self._clients_provider.bqclient,
-            storage_manager=self._bq_session_manager,
+            storage_manager=self._temp_storage_manager,
             default_index_type=self._default_index_type,
             scan_index_uniqueness=self._strictly_ordered,
             force_total_order=self._strictly_ordered,
@@ -392,16 +401,19 @@ class Session(
 
         # Protect against failure when the Session is a fake for testing or
         # failed to initialize.
-        temp_storage_manager = getattr(self, "_temp_storage_manager", None)
-        if temp_storage_manager:
-            self._anon_dataset_manager.clean_up_tables()
+        anon_dataset_manager = getattr(self, "_anon_dataset_manager", None)
+        if anon_dataset_manager:
+            self._anon_dataset_manager.close()
+
+        if getattr(self, "_session_resource_manager", None):
+            if self._session_resource_manager is not None:
+                self._session_resource_manager.close()
 
         remote_function_session = getattr(self, "_function_session", None)
         if remote_function_session:
             self._function_session.clean_up(
                 self.bqclient, self.cloudfunctionsclient, self.session_id
             )
-        self._bq_session_manager.close()
 
     def read_gbq(
         self,
@@ -970,7 +982,6 @@ class Session(
                 )
 
             job_config = bigquery.LoadJobConfig()
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.CSV
             job_config.autodetect = True
             job_config.field_delimiter = sep
@@ -1055,7 +1066,6 @@ class Session(
         )
         if engine == "bigquery":
             job_config = bigquery.LoadJobConfig()
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.PARQUET
             job_config.labels = {"bigframes-api": "read_parquet"}
 
@@ -1125,7 +1135,6 @@ class Session(
                 )
 
             job_config = bigquery.LoadJobConfig()
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
             job_config.autodetect = True
             job_config.encoding = encoding

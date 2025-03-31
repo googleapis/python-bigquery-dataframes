@@ -53,15 +53,15 @@ import bigframes.exceptions
 import bigframes.formatting_helpers as formatting_helpers
 import bigframes.operations
 import bigframes.operations.aggregations as agg_ops
-from bigframes.session import bigquery_session
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session._io.pandas as bf_io_pandas
+import bigframes.session.anonymous_dataset
 import bigframes.session.clients
 import bigframes.session.executor
 import bigframes.session.metrics
 import bigframes.session.planner
-import bigframes.session.temp_storage
+import bigframes.session.temporary_storage
 import bigframes.session.time as session_time
 import bigframes.version
 
@@ -120,7 +120,7 @@ class GbqDataLoader:
         self,
         session: bigframes.session.Session,
         bqclient: bigquery.Client,
-        storage_manager: bigquery_session.SessionResourceManager,
+        storage_manager: bigframes.session.temporary_storage.TemporaryStorageManager,
         default_index_type: bigframes.enums.DefaultIndexKind,
         scan_index_uniqueness: bool,
         force_total_order: bool,
@@ -517,7 +517,7 @@ class GbqDataLoader:
         # Need to create session table beforehand
         table = self._storage_manager.create_temp_table(_PLACEHOLDER_SCHEMA)
         # but, we just overwrite the placeholder schema immediately with the load job
-        job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
+        job_config.write_disposition = bigquery.WriteDisposition.WRITE_TRUNCATE
         if not job_config.clustering_fields and index_cols:
             job_config.clustering_fields = index_cols[:_MAX_CLUSTER_COLUMNS]
 

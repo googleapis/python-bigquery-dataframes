@@ -202,7 +202,7 @@ def test_read_pandas_large(bq_cmek, session_with_bq_cmek):
     _assert_bq_table_is_encrypted(df, bq_cmek, session_with_bq_cmek)
 
 
-def test_bqml(bq_cmek, session_with_bq_cmek, penguins_table_id):
+def test_kms_encryption_bqml(bq_cmek, session_with_bq_cmek, penguins_table_id):
     if not bq_cmek:  # pragma: NO COVER
         pytest.skip("no cmek set for testing")  # pragma: NO COVER
 
