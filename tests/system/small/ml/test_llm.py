@@ -24,13 +24,6 @@ import bigframes.pandas as bpd
 from tests.system import utils
 
 
-# Until b/401630655 is resolved, ML apis return json, not compatible with allow_large_results=False
-@pytest.fixture(scope="module", autouse=True)
-def always_create_table():
-    with bigframes.option_context("bigquery.allow_large_results", True):
-        yield
-
-
 @pytest.mark.parametrize(
     "model_name",
     ("text-embedding-005", "text-embedding-004", "text-multilingual-embedding-002"),
@@ -805,20 +798,6 @@ def test_llm_gemini_pro_score_params(llm_fine_tune_df_default_index, model_name)
             "evaluation_status",
         ],
     )
-
-
-@pytest.mark.parametrize(
-    "model_name",
-    (
-        "gemini-1.5-pro-001",
-        "gemini-1.5-pro-002",
-        "gemini-1.5-flash-001",
-        "gemini-1.5-flash-002",
-    ),
-)
-def test_gemini_text_generator_deprecated(model_name):
-    with pytest.warns(exceptions.ApiDeprecationWarning):
-        llm.GeminiTextGenerator(model_name=model_name)
 
 
 @pytest.mark.parametrize(

@@ -322,24 +322,22 @@ def test_series_construct_local_unordered_has_sequential_index(unordered_session
 
 
 def test_series_construct_w_dtype_for_json():
-    # Until b/401630655 is resolved, json, not compatible with allow_large_results=False
-    with bigframes.option_context("bigquery.allow_large_results", True):
-        data = [
-            "1",
-            '"str"',
-            "false",
-            '["a", {"b": 1}, null]',
-            None,
-            '{"a": {"b": [1, 2, 3], "c": true}}',
-        ]
-        s = bigframes.pandas.Series(data, dtype=dtypes.JSON_DTYPE)
+    data = [
+        "1",
+        '"str"',
+        "false",
+        '["a", {"b": 1}, null]',
+        None,
+        '{"a": {"b": [1, 2, 3], "c": true}}',
+    ]
+    s = bigframes.pandas.Series(data, dtype=dtypes.JSON_DTYPE)
 
-        assert s[0] == "1"
-        assert s[1] == '"str"'
-        assert s[2] == "false"
-        assert s[3] == '["a",{"b":1},null]'
-        assert pd.isna(s[4])
-        assert s[5] == '{"a":{"b":[1,2,3],"c":true}}'
+    assert s[0] == "1"
+    assert s[1] == '"str"'
+    assert s[2] == "false"
+    assert s[3] == '["a",{"b":1},null]'
+    assert pd.isna(s[4])
+    assert s[5] == '{"a":{"b":[1,2,3],"c":true}}'
 
 
 def test_series_keys(scalars_dfs):
@@ -402,8 +400,7 @@ def test_get_column(scalars_dfs, col_name, expected_dtype):
 
 def test_get_column_w_json(json_df, json_pandas_df):
     series = json_df["json_col"]
-    # Until b/401630655 is resolved, json not compatible with allow_large_results=False
-    series_pandas = series.to_pandas(allow_large_results=True)
+    series_pandas = series.to_pandas()
     assert series.dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
     assert series_pandas.shape[0] == json_pandas_df.shape[0]
 
@@ -4384,13 +4381,13 @@ def test__resample(scalars_df_index, scalars_pandas_df_index, append, level, col
 
 
 def test_series_struct_get_field_by_attribute(
-    nested_structs_df, nested_structs_pandas_df, nested_structs_pandas_type
+    nested_structs_df, nested_structs_pandas_df
 ):
     if Version(pd.__version__) < Version("2.2.0"):
         pytest.skip("struct accessor is not supported before pandas 2.2")
 
     bf_series = nested_structs_df["person"]
-    df_series = nested_structs_pandas_df["person"].astype(nested_structs_pandas_type)
+    df_series = nested_structs_pandas_df["person"]
 
     pd.testing.assert_series_equal(
         bf_series.address.city.to_pandas(),

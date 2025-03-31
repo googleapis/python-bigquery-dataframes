@@ -29,7 +29,9 @@ import nox
 import nox.sessions
 
 BLACK_VERSION = "black==22.3.0"
+FLAKE8_VERSION = "flake8==7.1.2"
 ISORT_VERSION = "isort==5.12.0"
+MYPY_VERSION = "mypy==1.15.0"
 
 # TODO: switch to 3.13 once remote functions / cloud run adds a runtime for it (internal issue 333742751)
 LATEST_FULLY_SUPPORTED_PYTHON = "3.12"
@@ -135,7 +137,7 @@ def lint(session):
     Returns a failure if the linters find linting errors or sufficiently
     serious code quality issues.
     """
-    session.install("flake8", BLACK_VERSION, ISORT_VERSION)
+    session.install(FLAKE8_VERSION, BLACK_VERSION, ISORT_VERSION)
     session.run(
         "isort",
         "--check",
@@ -183,6 +185,14 @@ def lint_setup_py(session):
     """Verify that setup.py is valid (including RST check)."""
     session.install("docutils", "pygments")
     session.run("python", "setup.py", "check", "--restructuredtext", "--strict")
+
+    session.install("twine", "wheel")
+    shutil.rmtree("build", ignore_errors=True)
+    shutil.rmtree("dist", ignore_errors=True)
+    session.run("python", "setup.py", "sdist")
+    session.run(
+        "python", "-m", "twine", "check", *pathlib.Path("dist").glob("*.tar.gz")
+    )
 
 
 def install_unittest_dependencies(session, install_test_extra, *constraints):
@@ -256,7 +266,7 @@ def mypy(session):
     deps = (
         set(
             [
-                "mypy",
+                MYPY_VERSION,
                 # TODO: update to latest pandas-stubs once we resolve bigframes issues.
                 "pandas-stubs<=2.2.3.241126",
                 "types-protobuf",
