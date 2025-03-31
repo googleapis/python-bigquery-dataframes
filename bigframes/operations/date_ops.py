@@ -46,7 +46,7 @@ quarter_op = base_ops.create_unary_op(
 )
 
 
-@log_adapter.class_logger
+@log_adapter.class_logger(include_internal_calls=True)
 @dataclasses.dataclass(frozen=True)
 class DateDiffOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "date_diff"

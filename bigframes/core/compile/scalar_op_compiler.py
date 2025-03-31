@@ -26,7 +26,6 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import numpy as np
 import pandas as pd
 
-from bigframes.core import log_adapter
 from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
 import bigframes.core.compile.default_ordering
 import bigframes.core.compile.ibis_types

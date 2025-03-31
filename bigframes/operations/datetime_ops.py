@@ -110,7 +110,7 @@ class UnixMicros(base_ops.UnaryOp):
         return dtypes.INT_DTYPE
 
 
-@log_adapter.class_logger
+@log_adapter.class_logger(include_internal_calls=True)
 @dataclasses.dataclass(frozen=True)
 class TimestampDiffOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "timestamp_diff"
