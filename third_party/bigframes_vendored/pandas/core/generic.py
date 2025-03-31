@@ -1052,6 +1052,8 @@ class NDFrame(indexing.IndexingMixin):
         self,
         window,
         min_periods: int | None = None,
+        on: str | None = None,
+        closed: Literal["right", "left", "both", "neither"] = "right",
     ):
         """
         Provide rolling window calculations.
@@ -1082,6 +1084,16 @@ class NDFrame(indexing.IndexingMixin):
 
                 For a window that is specified by an integer, ``min_periods`` will default
                 to the size of the window.
+
+            on (str, optional):
+                For a DataFrame, a column label or Index level on which to calculate the rolling window,
+                rather than the DataFrame’s index.
+
+            closed (str, default 'right'):
+                If 'right', the first point in the window is excluded from calculations.
+                If 'left', the last point in the window is excluded from calculations.
+                If 'both', the no points in the window are excluded from calculations.
+                If 'neither', the first and last points in the window are excluded from calculations.
 
         Returns:
             bigframes.core.window.Window: ``Window`` subclass if a ``win_type`` is passed.
