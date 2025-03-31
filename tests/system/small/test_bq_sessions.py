@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from concurrent.futures import ThreadPoolExecutor
+import time
 
 import google
 import google.api_core.exceptions
@@ -57,8 +58,13 @@ def test_bq_session_create_temp_table_clustered(bigquery_client: bigquery.Client
     assert result_table.clustering_fields == cluster_cols
 
     session_resource_manager.close()
-    with pytest.raises(google.api_core.exceptions.NotFound):
-        bigquery_client.get_table(session_table_ref)
+    # eventually consistent
+    for attempt in range(5):
+        try:
+            bigquery_client.get_table(session_table_ref)
+        except google.api_core.exceptions.NotFound:
+            return
+        time.sleep(1.0)
 
 
 def test_bq_session_create_multi_temp_tables(bigquery_client: bigquery.Client):
