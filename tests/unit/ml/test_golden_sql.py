@@ -243,7 +243,7 @@ def test_decomposition_mf_predict(mock_session, bqml_model, mock_X):
 
     mock_session.read_gbq.assert_called_once_with(
         "SELECT * FROM ML.RECOMMEND(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_sql))",
-        index_col=["index_column_id"],
+        trial_id=["index_column_id"],
     )
 
 

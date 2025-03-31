@@ -11,7 +11,7 @@
     },
     {
       "mode": "NULLABLE",
-      "name": "ratings",
+      "name": "rating",
       "type": "FLOAT"
     }
 ]

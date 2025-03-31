@@ -172,15 +172,12 @@ def test_decomposition_mf_configure_fit_load(
         num_factors=6,
         feedback_type="explicit",
         user_col="user_id",
-        item_col="item_col",
-        rating_col="ratings",
+        item_col="item_id",
+        rating_col="rating",
         l2_reg=9.83,
     )
-    model.fit(
-        ratings_df_default_index.rename(
-            columns={"rating": "rating_col", "item_id": "item_col"}
-        )
-    )
+
+    model.fit(ratings_df_default_index)
 
     reloaded_model = model.to_gbq(
         f"{dataset_id}.temp_configured_mf_model", replace=True
@@ -191,16 +188,14 @@ def test_decomposition_mf_configure_fit_load(
             {
                 "user_id": ["11", "12", "13"],
                 "item_id": [1, 2, 3],
-                "ratings": [1.0, 2.0, 3.0],
+                "rating": [1.0, 2.0, 3.0],
             }
         )
     )
 
     reloaded_model.score(new_ratings)
 
-    result = reloaded_model.predict(
-        new_ratings.rename(columns={"item_id": "item_col"})
-    ).to_pandas()
+    result = reloaded_model.predict(new_ratings).to_pandas()
 
     assert reloaded_model._bqml_model is not None
     assert (
@@ -211,6 +206,6 @@ def test_decomposition_mf_configure_fit_load(
     assert reloaded_model.feedback_type == "explicit"
     assert reloaded_model.num_factors == 6
     assert reloaded_model.user_col == "user_id"
-    assert reloaded_model.item_col == "item_col"
-    assert reloaded_model.rating_col == "ratings"
+    assert reloaded_model.item_col == "item_id"
+    assert reloaded_model.rating_col == "rating"
     assert reloaded_model.l2_reg == 9.83

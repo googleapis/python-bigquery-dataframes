@@ -273,7 +273,7 @@ class MatrixFactorization(
 
     @property
     def rating_col(self) -> str:
-        """str: The rating column name. Defaults to 'rating'.""""
+        """str: The rating column name. Defaults to 'rating'."""
         return self._input_label_columns[0]
 
     @classmethod
