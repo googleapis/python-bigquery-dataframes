@@ -271,6 +271,11 @@ class MatrixFactorization(
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
 
+    @property
+    def rating_col(self) -> str:
+        """str: The rating column name. Defaults to 'rating'.""""
+        return self._input_label_columns[0]
+
     @classmethod
     def _from_bq(
         cls, session: bigframes.session.Session, bq_model: bigquery.Model
