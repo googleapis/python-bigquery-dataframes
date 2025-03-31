@@ -34,7 +34,7 @@ _BQML_PARAMS_MAPPING = {
     "num_factors": "numFactors",
     "user_col": "userColumn",
     "item_col": "itemColumn",
-    # TODO: Add rating_col
+    "_input_label_columns": "inputLabelColumns",
     "l2_reg": "l2Regularization",
 }
 
