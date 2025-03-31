@@ -260,7 +260,7 @@ class MatrixFactorization(
                 f"Expected rating_col to be a str, but got {type(rating_col)}."
             )
 
-        self.rating_col = rating_col
+        self._input_label_columns = [rating_col]
 
         if not isinstance(l2_reg, (float, int)):
             raise TypeError(
