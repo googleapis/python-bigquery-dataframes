@@ -340,15 +340,17 @@ class CutOp(UnaryWindowOp):
     # TODO: Unintuitive, refactor into multiple ops?
     bins: typing.Union[int, Iterable]
     right: Optional[bool]
-    labels: Optional[bool]
+    labels: typing.Union[bool, Iterable[str], None]
 
     @property
     def skips_nulls(self):
         return False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if isinstance(self.bins, int) and (self.labels is False):
+        if self.labels is False:
             return dtypes.INT_DTYPE
+        elif isinstance(self.labels, Iterable):
+            return dtypes.STRING_DTYPE
         else:
             # Assumption: buckets use same numeric type
             if isinstance(self.bins, int):

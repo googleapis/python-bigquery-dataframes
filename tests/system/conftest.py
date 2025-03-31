@@ -185,8 +185,13 @@ def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, Non
 
 
 @pytest.fixture(scope="session")
-def bq_connection(bigquery_client: bigquery.Client) -> str:
-    return f"{bigquery_client.project}.{bigquery_client.location}.bigframes-rf-conn"
+def bq_connection_name() -> str:
+    return "bigframes-rf-conn"
+
+
+@pytest.fixture(scope="session")
+def bq_connection(bigquery_client: bigquery.Client, bq_connection_name: str) -> str:
+    return f"{bigquery_client.project}.{bigquery_client.location}.{bq_connection_name}"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -466,7 +471,7 @@ def nested_structs_df(
 
 
 @pytest.fixture(scope="session")
-def nested_structs_pandas_df() -> pd.DataFrame:
+def nested_structs_pandas_df(nested_structs_pandas_type: pd.ArrowDtype) -> pd.DataFrame:
     """pd.DataFrame pointing at test data."""
 
     df = pd.read_json(
@@ -474,6 +479,7 @@ def nested_structs_pandas_df() -> pd.DataFrame:
         lines=True,
     )
     df = df.set_index("id")
+    df["person"] = df["person"].astype(nested_structs_pandas_type)
     return df
 
 

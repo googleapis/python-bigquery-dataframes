@@ -1202,10 +1202,14 @@ class Session(
 
     def remote_function(
         self,
-        *,
+        # Make sure that the input/output types, and dataset can be used
+        # positionally. This avoids the worst of the breaking change from 1.x to
+        # 2.x while still preventing possible mixups between consecutive str
+        # parameters.
         input_types: Union[None, type, Sequence[type]] = None,
         output_type: Optional[type] = None,
         dataset: Optional[str] = None,
+        *,
         bigquery_connection: Optional[str] = None,
         reuse: bool = True,
         name: Optional[str] = None,
@@ -1775,8 +1779,8 @@ class Session(
         """Create the connection with the session settings and try to attach iam role to the connection SA.
         If any of project, location or connection isn't specified, use the session defaults. Returns fully-qualified connection name."""
         connection = self._bq_connection if not connection else connection
-        connection = bigframes.clients.resolve_full_bq_connection_name(
-            connection_name=connection,
+        connection = bigframes.clients.get_canonical_bq_connection_id(
+            connection_id=connection,
             default_project=self._project,
             default_location=self._location,
         )
