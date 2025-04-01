@@ -608,6 +608,87 @@ class BlobAccessor(base.SeriesMethods):
 
         return dst
 
+    def image_remove_background(
+        self,
+        *,
+        dst: Optional[Union[str, bigframes.series.Series]] = None,
+        connection: Optional[str] = None,
+        max_batching_rows: int = 50,
+        container_cpu: Union[float, int] = 1,
+        container_memory: str = "2Gi",
+    ) -> bigframes.series.Series:
+        """Blurs images.
+
+        .. note::
+            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+
+        Args:
+            ksize (tuple(int, int)): Kernel size.
+            dst (str or bigframes.series.Series or None, default None): Output destination. Can be one of:
+                str: GCS folder str. The output filenames are the same as the input files.
+                blob Series: The output file paths are determined by the uris of the blob Series.
+                None: Output to BQ as bytes.
+                Encoding is determined by the extension of the output filenames (or input filenames if doesn't have output filenames). If filename doesn't have an extension, use ".jpeg" for encoding.
+            connection (str or None, default None): BQ connection used for function internet transactions, and the output blob if "dst" is str. If None, uses default connection of the session.
+            max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
+            container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
+            container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+
+        Returns:
+            bigframes.series.Series: blob Series if destination is GCS. Or bytes Series if destination is BQ.
+        """
+        import bigframes.blob._functions as blob_func
+
+        connection = self._resolve_connection(connection)
+        df = self._get_runtime_json_str(mode="R").to_frame()
+
+        if dst is None:
+            raise NotImplementedError
+        #     ext = self.uri().str.extract(FILE_EXT_REGEX)
+
+        #     image_blur_udf = blob_func.TransformFunction(
+        #         blob_func.image_blur_to_bytes_def,
+        #         session=self._block.session,
+        #         connection=connection,
+        #         max_batching_rows=max_batching_rows,
+        #         container_cpu=container_cpu,
+        #         container_memory=container_memory,
+        #     ).udf()
+
+        #     df["ksize_x"], df["ksize_y"] = ksize
+        #     df["ext"] = ext  # type: ignore
+        #     res = self._df_apply_udf(df, image_blur_udf)
+
+        #     return res
+
+        if isinstance(dst, str):
+            dst = os.path.join(dst, "")
+            # Replace src folder with dst folder, keep the file names.
+            dst_uri = self.uri().str.replace(FILE_FOLDER_REGEX, rf"{dst}\1", regex=True)
+            dst = cast(
+                bigframes.series.Series, dst_uri.str.to_blob(connection=connection)
+            )
+
+        image_remove_background_udf = blob_func.TransformFunction(
+            blob_func.image_remove_background_def,
+            session=self._block.session,
+            connection=connection,
+            max_batching_rows=max_batching_rows,
+            container_cpu=container_cpu,
+            container_memory=container_memory,
+        ).udf()
+
+        dst_rt = dst.blob._get_runtime_json_str(mode="RW")
+
+        df = df.join(dst_rt, how="outer")
+
+        res = self._df_apply_udf(df, image_remove_background_udf)
+        res.cache()  # to execute the udf
+
+        self._add_to_cleanup_set(image_remove_background_udf)
+
+        return dst
+
     def pdf_extract(
         self,
         *,

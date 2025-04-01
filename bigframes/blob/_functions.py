@@ -396,6 +396,49 @@ image_normalize_to_bytes_def = FunctionDef(
 )
 
 
+def image_remove_background_func(
+    src_obj_ref_rt: str,
+    dst_obj_ref_rt: str,
+) -> str:
+    import json
+
+    import rembg
+    import requests
+    from requests import adapters
+
+    session = requests.Session()
+    session.mount("https://", adapters.HTTPAdapter(max_retries=3))
+
+    src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
+    dst_obj_ref_rt_json = json.loads(dst_obj_ref_rt)
+
+    src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
+    dst_url = dst_obj_ref_rt_json["access_urls"]["write_url"]
+
+    response = session.get(src_url, timeout=30)
+    bts = response.content
+
+    bts = rembg.remove(bts)
+
+    content_type = "image/png"
+
+    session.put(
+        url=dst_url,
+        data=bts,
+        headers={
+            "Content-Type": content_type,
+        },
+        timeout=30,
+    )
+
+    return dst_obj_ref_rt
+
+
+image_remove_background_def = FunctionDef(
+    image_remove_background_func, ["rembg[cpu]", "requests"]
+)
+
+
 # Extracts all text from a PDF url
 def pdf_extract_func(src_obj_ref_rt: str) -> str:
     try:
