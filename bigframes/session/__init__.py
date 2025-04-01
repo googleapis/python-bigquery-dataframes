@@ -1004,6 +1004,7 @@ class Session(
 
             if isinstance(filepath_or_buffer, str):
                 self._check_file_size(filepath_or_buffer)
+
             pandas_df = pandas.read_csv(
                 filepath_or_buffer,
                 sep=sep,
