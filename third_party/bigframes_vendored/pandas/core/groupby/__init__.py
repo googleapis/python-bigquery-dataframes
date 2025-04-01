@@ -1036,7 +1036,7 @@ class GroupBy:
                 to the size of the window.
 
             on (str, optional):
-                For a DataFrame, a column label or Index level on which to calculate the rolling window,
+                For a DataFrame, a column label on which to calculate the rolling window,
                 rather than the DataFrame’s index.
 
             closed (str, default 'right'):

@@ -1072,6 +1072,16 @@ class NDFrame(indexing.IndexingMixin):
             4       2
             dtype: Int64
 
+            >>> df = bpd.DataFrame({'A': [0,1,2,3], 'B': [0,2,4,6]})
+            >>> df.rolling(window=2, on='A', closed='both').sum()
+            A     B
+            0  0  <NA>
+            1  1     2
+            2  2     6
+            3  3    12
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
         Args:
             window (int):
                 Size of the moving window.
