@@ -61,5 +61,6 @@ system_tests/local_test_setup
 
 # Make sure a generated file isn't accidentally committed.
 demo.ipynb
+scratch/*
 pylintrc
 pylintrc.test
