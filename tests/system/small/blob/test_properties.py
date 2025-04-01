@@ -61,14 +61,14 @@ def test_blob_metadata(images_mm_df: bpd.DataFrame):
             [
                 (
                     '{"content_type":"image/jpeg",'
-                    '"md5_hash":"e130ad042261a1883cd2cc06831cf748",'
-                    '"size":338390,'
+                    '"md5_hash":"e2ae3191ff2b809fd0935f01a537c650",'
+                    '"size":43333,'
                     '"updated":1739574332000000}'
                 ),
                 (
                     '{"content_type":"image/jpeg",'
-                    '"md5_hash":"e2ae3191ff2b809fd0935f01a537c650",'
-                    '"size":43333,'
+                    '"md5_hash":"e130ad042261a1883cd2cc06831cf748",'
+                    '"size":338390,'
                     '"updated":1739574332000000}'
                 ),
             ],
