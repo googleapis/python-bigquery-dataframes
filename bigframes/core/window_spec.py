@@ -193,14 +193,12 @@ class WindowSpec:
         bounds: The window boundaries
         ordering: A list of columns ids and ordering direction to override base ordering
         min_periods: The minimum number of observations in window required to have a value
-        on: The id of the column on which to calculate the rolling window
     """
 
     grouping_keys: Tuple[ex.DerefOp, ...] = tuple()
     ordering: Tuple[orderings.OrderingExpression, ...] = tuple()
     bounds: Union[RowsWindowBounds, RangeWindowBounds, None] = None
     min_periods: int = 0
-    on: str | None = None
 
     @property
     def row_bounded(self):
