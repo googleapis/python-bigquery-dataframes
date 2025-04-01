@@ -68,7 +68,7 @@ s.move(
 assert 1 == s.replace(
     [".gitignore"],
     re.escape("# Make sure a generated file isn't accidentally committed.\n"),
-    "# Make sure a generated file isn't accidentally committed.\ndemo.ipynb\nscratch/*\n",
+    "# Make sure a generated file isn't accidentally committed.\ndemo.ipynb\n",
 )
 
 # Encourage sharring all relevant versions in bug reports.
