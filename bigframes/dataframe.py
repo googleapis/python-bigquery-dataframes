@@ -3318,10 +3318,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         window_def = windows.WindowSpec(
             bounds=windows.RowsWindowBounds.from_window_size(window, closed),
             min_periods=min_periods if min_periods is not None else window,
-            on=None if on is None else self._block.resolve_label_exact_or_error(on),
+        )
+        skip_agg_col_id = (
+            None if on is None else self._block.resolve_label_exact_or_error(on)
         )
         return bigframes.core.window.Window(
-            self._block, window_def, self._block.value_columns
+            self._block,
+            window_def,
+            self._block.value_columns,
+            skip_agg_column_id=skip_agg_col_id,
         )
 
     @validations.requires_ordering()

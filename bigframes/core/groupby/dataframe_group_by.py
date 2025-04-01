@@ -317,13 +317,19 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             bounds=window_specs.RowsWindowBounds.from_window_size(window, closed),
             min_periods=min_periods if min_periods is not None else window,
             grouping_keys=tuple(ex.deref(col) for col in self._by_col_ids),
-            on=None if on is None else self._block.resolve_label_exact_or_error(on),
         )
         block = self._block.order_by(
             [order.ascending_over(col) for col in self._by_col_ids],
         )
+        skip_agg_col_id = (
+            None if on is None else self._block.resolve_label_exact_or_error(on)
+        )
         return windows.Window(
-            block, window_spec, self._selected_cols, drop_null_groups=self._dropna
+            block,
+            window_spec,
+            self._selected_cols,
+            drop_null_groups=self._dropna,
+            skip_agg_column_id=skip_agg_col_id,
         )
 
     @validations.requires_ordering()

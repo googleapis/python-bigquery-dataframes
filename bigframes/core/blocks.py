@@ -1066,11 +1066,6 @@ class Block:
         skip_reproject_unsafe: bool = False,
         never_skip_nulls: bool = False,
     ) -> typing.Tuple[Block, str]:
-        if column == window_spec.on:
-            # For row-based window, do nothing
-            # TODO(b/388916840) Support range rolling with "on"
-            return self, column
-
         block = self
         if skip_null_groups:
             for key in window_spec.grouping_keys:
