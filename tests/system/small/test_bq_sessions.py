@@ -58,13 +58,12 @@ def test_bq_session_create_temp_table_clustered(bigquery_client: bigquery.Client
     assert result_table.clustering_fields == cluster_cols
 
     session_resource_manager.close()
-    # eventually consistent
-    for attempt in range(5):
-        try:
+    with pytest.raises(google.api_core.exceptions.NotFound):
+        # It may take time for the underlying tables to get cleaned up after
+        # closing the session, so wait at least 1 minute to check.
+        for _ in range(6):
             bigquery_client.get_table(session_table_ref)
-        except google.api_core.exceptions.NotFound:
-            return
-        time.sleep(1.0)
+            time.sleep(10)
 
 
 def test_bq_session_create_multi_temp_tables(bigquery_client: bigquery.Client):

@@ -41,7 +41,7 @@ dependencies = [
     "google-auth >=2.15.0,<3.0dev",
     "google-cloud-bigtable >=2.24.0",
     "google-cloud-pubsub >=2.21.4",
-    "google-cloud-bigquery[bqstorage,pandas] >=3.18.0",
+    "google-cloud-bigquery[bqstorage,pandas] >=3.31.0",
     "google-cloud-functions >=1.12.0",
     "google-cloud-bigquery-connection >=1.12.0",
     "google-cloud-iam >=2.12.1",
@@ -51,7 +51,7 @@ dependencies = [
     "jellyfish >=0.8.9,<1.1.2",
     "numpy >=1.24.0",
     "pandas >=1.5.3",
-    "pandas-gbq >=0.26.0",
+    "pandas-gbq >=0.26.1",
     "pyarrow >=15.0.2",
     "pydata-google-auth >=1.8.2",
     "requests >=2.27.1",
@@ -83,6 +83,7 @@ extras = {
         "pre-commit",
         "nox",
         "google-cloud-testutils",
+        "freezegun",
     ],
 }
 extras["all"] = list(sorted(frozenset(itertools.chain.from_iterable(extras.values()))))
@@ -117,6 +118,7 @@ setuptools.setup(
     version=version_id,
     description=description,
     long_description=readme,
+    long_description_content_type="text/x-rst",
     author="Google LLC",
     author_email="bigframes-feedback@google.com",
     license="Apache 2.0",

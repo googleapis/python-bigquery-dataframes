@@ -40,6 +40,16 @@ def test_concat_dataframe(scalars_dfs, ordered):
     assert_pandas_df_equal(bf_result, pd_result, ignore_order=not ordered)
 
 
+def test_concat_dataframe_w_struct_cols(nested_structs_df, nested_structs_pandas_df):
+    """Avoid regressions for internal issue 407107482"""
+    empty_bf_df = bpd.DataFrame(session=nested_structs_df._block.session)
+    bf_result = bpd.concat((empty_bf_df, nested_structs_df), ignore_index=True)
+    bf_result = bf_result.to_pandas()
+    pd_result = pd.concat((pd.DataFrame(), nested_structs_pandas_df), ignore_index=True)
+    pd_result.index = pd_result.index.astype("Int64")
+    pd.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_concat_series(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = bpd.concat(
@@ -404,6 +414,14 @@ def _convert_pandas_category(pd_s: pd.Series):
             f"Input must be a pandas Series with categorical data: {pd_s.dtype}"
         )
 
+    if pd.api.types.is_object_dtype(pd_s.cat.categories.dtype):
+        return pd_s.astype(pd.StringDtype(storage="pyarrow"))
+
+    if not isinstance(pd_s.cat.categories.dtype, pd.IntervalDtype):
+        raise ValueError(
+            f"Must be a IntervalDtype with categorical data: {pd_s.cat.categories.dtype}"
+        )
+
     if pd_s.cat.categories.dtype.closed == "left":  # type: ignore
         left_key = "left_inclusive"
         right_key = "right_exclusive"
@@ -465,6 +483,17 @@ def test_cut_by_int_bins(scalars_dfs, labels, right):
     pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
 
 
+def test_cut_by_int_bins_w_labels(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    labels = ["A", "B", "C", "D", "E"]
+    pd_result = pd.cut(scalars_pandas_df["float64_col"], 5, labels=labels)
+    bf_result = bpd.cut(scalars_df["float64_col"], 5, labels=labels)
+
+    pd_result = _convert_pandas_category(pd_result)
+    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
+
+
 @pytest.mark.parametrize(
     ("breaks", "right", "labels"),
     [
@@ -494,7 +523,7 @@ def test_cut_by_int_bins(scalars_dfs, labels, right):
         ),
     ],
 )
-def test_cut_numeric_breaks(scalars_dfs, breaks, right, labels):
+def test_cut_by_numeric_breaks(scalars_dfs, breaks, right, labels):
     scalars_df, scalars_pandas_df = scalars_dfs
 
     pd_result = pd.cut(
@@ -506,6 +535,18 @@ def test_cut_numeric_breaks(scalars_dfs, breaks, right, labels):
 
     pd_result_converted = _convert_pandas_category(pd_result)
     pd.testing.assert_series_equal(bf_result, pd_result_converted)
+
+
+def test_cut_by_numeric_breaks_w_labels(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bins = [0, 5, 10, 15, 20]
+    labels = ["A", "B", "C", "D"]
+    pd_result = pd.cut(scalars_pandas_df["float64_col"], bins, labels=labels)
+    bf_result = bpd.cut(scalars_df["float64_col"], bins, labels=labels)
+
+    pd_result = _convert_pandas_category(pd_result)
+    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
 
 
 @pytest.mark.parametrize(
@@ -534,7 +575,7 @@ def test_cut_numeric_breaks(scalars_dfs, breaks, right, labels):
         ),
     ],
 )
-def test_cut_with_interval(scalars_dfs, bins, right, labels):
+def test_cut_by_interval_bins(scalars_dfs, bins, right, labels):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = bpd.cut(
         scalars_df["int64_too"], bins, labels=labels, right=right
@@ -548,22 +589,30 @@ def test_cut_with_interval(scalars_dfs, bins, right, labels):
     pd.testing.assert_series_equal(bf_result, pd_result_converted)
 
 
+def test_cut_by_interval_bins_w_labels(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bins = pd.IntervalIndex.from_tuples([(1, 2), (2, 3), (4, 5)])
+    labels = ["A", "B", "C", "D", "E"]
+    pd_result = pd.cut(scalars_pandas_df["float64_col"], bins, labels=labels)
+    bf_result = bpd.cut(scalars_df["float64_col"], bins, labels=labels)
+
+    pd_result = _convert_pandas_category(pd_result)
+    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
+
+
 @pytest.mark.parametrize(
-    "bins",
+    ("bins", "labels"),
     [
-        pytest.param([], id="empty_breaks"),
-        pytest.param(
-            [1], id="single_int_breaks", marks=pytest.mark.skip(reason="b/404338651")
-        ),
-        pytest.param(pd.IntervalIndex.from_tuples([]), id="empty_interval_index"),
+        pytest.param([], None, id="empty_breaks"),
+        pytest.param([1], False, id="single_int_breaks"),
+        pytest.param(pd.IntervalIndex.from_tuples([]), None, id="empty_interval_index"),
     ],
 )
-def test_cut_by_edge_cases_bins(scalars_dfs, bins):
+def test_cut_by_edge_cases_bins(scalars_dfs, bins, labels):
     scalars_df, scalars_pandas_df = scalars_dfs
-    bf_result = bpd.cut(scalars_df["int64_too"], bins, labels=False).to_pandas()
-    if isinstance(bins, list):
-        bins = pd.IntervalIndex.from_tuples(bins)
-    pd_result = pd.cut(scalars_pandas_df["int64_too"], bins, labels=False)
+    bf_result = bpd.cut(scalars_df["int64_too"], bins, labels=labels).to_pandas()
+    pd_result = pd.cut(scalars_pandas_df["int64_too"], bins, labels=labels)
 
     pd_result_converted = _convert_pandas_category(pd_result)
     pd.testing.assert_series_equal(bf_result, pd_result_converted)
