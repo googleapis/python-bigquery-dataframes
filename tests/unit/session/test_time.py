@@ -46,10 +46,7 @@ def bq_client():
 
 
 def test_bqsyncedclock_get_time(bq_client):
-    try:
-        import freezegun
-    except ImportError:
-        pytest.skip("Skip the test when freezegun is not intalled.")
+    freezegun = pytest.importorskip("freezegun")
 
     # this initial local time is actually irrelevant, only the ticks matter
     initial_local_datetime = datetime.datetime(
