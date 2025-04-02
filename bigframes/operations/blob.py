@@ -304,7 +304,7 @@ class BlobAccessor(base.SeriesMethods):
         )
 
     def get_runtime_json_str(
-        self, mode: str = "R", with_metadata: bool = False
+        self, mode: str = "R", *, with_metadata: bool = False
     ) -> bigframes.series.Series:
         """Get the runtime (contains signed URL to access gcs data) and apply the ToJSONSTring transformation.
 

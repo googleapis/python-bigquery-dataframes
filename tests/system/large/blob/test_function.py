@@ -25,11 +25,11 @@ import bigframes
 from bigframes import dtypes
 import bigframes.pandas as bpd
 
-# TODO(shobs): restore these tests after the managed udf cleanup issue is
-# resolved in the test project
-pytestmark = pytest.mark.skip(
-    reason="temporarily disable to debug managed udf cleanup in the test project"
-)
+# # TODO(shobs): restore these tests after the managed udf cleanup issue is
+# # resolved in the test project
+# pytestmark = pytest.mark.skip(
+#     reason="temporarily disable to debug managed udf cleanup in the test project"
+# )
 
 
 @pytest.fixture(scope="function")
