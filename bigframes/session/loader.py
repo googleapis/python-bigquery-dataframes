@@ -164,13 +164,11 @@ class GbqDataLoader:
         job_config = bigquery.LoadJobConfig()
         job_config.schema = schema
 
-        # TODO: Remove this. It's likely that the slower load job due to
-        # clustering doesn't improve speed of queries because pandas tables are
-        # small.
         cluster_cols = [ordering_col]
         job_config.clustering_fields = cluster_cols
 
         job_config.labels = {"bigframes-api": api_name}
+        # Allow field addition, as we want to keep the clustered ordering_col field we already created
         job_config.schema_update_options = [
             google.cloud.bigquery.job.SchemaUpdateOption.ALLOW_FIELD_ADDITION
         ]
