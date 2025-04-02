@@ -512,15 +512,10 @@ class GbqDataLoader:
         index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
     ) -> dataframe.DataFrame:
-        index_cols = _to_index_cols(index_col)
-
         # Need to create session table beforehand
         table = self._storage_manager.create_temp_table(_PLACEHOLDER_SCHEMA)
         # but, we just overwrite the placeholder schema immediately with the load job
         job_config.write_disposition = bigquery.WriteDisposition.WRITE_TRUNCATE
-        if not job_config.clustering_fields and index_cols:
-            job_config.clustering_fields = index_cols[:_MAX_CLUSTER_COLUMNS]
-
         if isinstance(filepath_or_buffer, str):
             filepath_or_buffer = os.path.expanduser(filepath_or_buffer)
             if filepath_or_buffer.startswith("gs://"):
