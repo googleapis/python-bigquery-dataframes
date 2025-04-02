@@ -15,7 +15,7 @@
 
 def test_explicit_matrix_factorization(random_model_id: str) -> None:
     your_model_id = random_model_id
-    # [START bigframes_dataframes_bqml_mf_create]
+    # [START bigframes_dataframes_bqml_mf_explicit_create]
     from bigframes.ml import decomposition
     import bigframes.pandas as bpd
 
@@ -37,16 +37,16 @@ def test_explicit_matrix_factorization(random_model_id: str) -> None:
     model.to_gbq(
         your_model_id, replace=True  # For example: "bqml_tutorial.mf_explicit"
     )
-    # [END bigframes_dataframes_bqml_mf_create]
-    # [START bigframes_dataframe_bqml_mf_evaluate]
+    # [END bigframes_dataframes_bqml_mf_explicit_create]
+    # [START bigframes_dataframe_bqml_mf_explicit_evaluate]
     import bigframes.pandas as bpd
 
     model.score(bq_df)
-    # [END bigframes_dataframe_bqml_mf_evaluate]
-    # [START bigframes_dataframe_bqml_mf_predict]
+    # [END bigframes_dataframe_bqml_mf_explicit_evaluate]
+    # [START bigframes_dataframe_bqml_mf_explicit_predict]
 
-    # [END bigframes_dataframe_bqml_mf_predict]
-    # [START bigframes_dataframe_bqml_mf_recommend]
+    # [END bigframes_dataframe_bqml_mf_explicit_predict]
+    # [START bigframes_dataframe_bqml_mf_explicit_recommend]
     model.predict(bq_df)
-    # [END bigframes_dataframe_bqml_mf_recommend]
+    # [END bigframes_dataframe_bqml_mf_explicit_recommend]
     pass

@@ -13,5 +13,37 @@
 # limitations under the License.
 
 
-def test_explicit_matrix_factorization(random_model_id: str) -> None:
+def test_implicit_matrix_factorization(random_model_id: str) -> None:
+    # [START bigframes_dataframe_mf_implicit_data]
+    from bigframes.ml import decomposition
+    import bigframes.pandas as bpd
+
+    # sample data must be created from joined data and then grouped and ordered
+    bq_df = bpd.read_gbq("bqml_tutorial.analytics_session_data")
+    print(bq_df.peek(5))
+    # Expected output:
+    #
+    # [END bigframes_dataframe_mf_implicit_data]
+    # [START bigframes_dataframe_mf_implicit_model]
+    rating = 0.3 * (1 + (bq_df["session_duration"] - 57937) / 57937)
+    model = decomposition.MatrixFactorization(
+        num_factors=15,
+        feedback_type="implicit",
+        user_col="visitorId",
+        item_col="contentId",
+        rating_col=rating,
+        l2_reg=30,
+    )
+    # condition of rating < 1 required before fitting model
+
+    # [END bigframes_dataframe_mf_implicit_model]
+    # [START bigframes_dataframe_mf_implicit_evaluate]
+    model.fit(bq_df)
+    # [END bigframes_dataframe_mf_implicit_evaluate]
+    # [START bigframes_dataframe_mf_implicit_subset]
+
+    # [END bigframes_dataframe_mf_implicit_subset]
+    # [START bigframes_dataframe_mf_implicit_recommend]
+    model.score()
+    # [END bigframes_dataframe_mf_implicit_recommend]
     pass
