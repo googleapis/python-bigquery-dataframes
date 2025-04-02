@@ -238,15 +238,6 @@ def dataset_id(bigquery_client: bigquery.Client):
     bigquery_client.delete_dataset(dataset_id, delete_contents=True)
 
 
-@pytest.fixture(scope="session")
-def dataset_id_test(bigquery_client_test: bigquery.Client):
-    """Create (and cleanup) a temporary dataset."""
-    dataset_id = get_dataset_id(bigquery_client_test.project)
-    bigquery_client_test.create_dataset(dataset_id)
-    yield dataset_id
-    bigquery_client_test.delete_dataset(dataset_id, delete_contents=True)
-
-
 @pytest.fixture
 def dataset_id_not_created(bigquery_client: bigquery.Client):
     """Return a temporary dataset object without creating it, and clean it up
@@ -1505,20 +1496,21 @@ def images_gcs_path() -> str:
 @pytest.fixture(scope="session")
 def images_uris() -> list[str]:
     return [
-        "gs://bigframes_blob_test/images/img1.jpg",
         "gs://bigframes_blob_test/images/img0.jpg",
+        "gs://bigframes_blob_test/images/img1.jpg",
     ]
 
 
 @pytest.fixture(scope="session")
 def images_mm_df(
-    images_gcs_path, test_session: bigframes.Session, bq_connection: str
+    images_uris, test_session: bigframes.Session, bq_connection: str
 ) -> bpd.DataFrame:
     bigframes.options.experiments.blob = True
 
-    return test_session.from_glob_path(
-        images_gcs_path, name="blob_col", connection=bq_connection
+    blob_series = bpd.Series(images_uris, session=test_session).str.to_blob(
+        connection=bq_connection
     )
+    return blob_series.rename("blob_col").to_frame()
 
 
 @pytest.fixture()
