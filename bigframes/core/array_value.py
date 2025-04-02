@@ -60,6 +60,7 @@ class ArrayValue:
 
     @classmethod
     def from_pyarrow(cls, arrow_table: pa.Table, session: Session):
+        # TODO: we might need to adapt some unruly types, and even cast after in bigquery
         adapted_table = local_data.adapt_pa_table(arrow_table)
         schema = local_data.arrow_schema_to_bigframes(adapted_table.schema)
 

@@ -763,8 +763,9 @@ class SQLGlotCompiler(abc.ABC):
         elif dtype.is_date():
             return self.f.datefromparts(value.year, value.month, value.day)
         elif dtype.is_array():
+            # array type is ambiguous if no elements
             value_type = dtype.value_type
-            return self.f.array(
+            values = self.f.array(
                 *(
                     self.visit_Literal(
                         ops.Literal(v, value_type), value=v, dtype=value_type
@@ -772,6 +773,7 @@ class SQLGlotCompiler(abc.ABC):
                     for v in value
                 )
             )
+            return values if len(value) > 0 else self.cast(values, dtype)
         elif dtype.is_map():
             key_type = dtype.key_type
             keys = self.f.array(
@@ -804,6 +806,8 @@ class SQLGlotCompiler(abc.ABC):
             return sge.Struct.from_arg_list(items)
         elif dtype.is_uuid():
             return self.cast(str(value), dtype)
+        elif dtype.is_json():
+            return sge.ParseJSON(this=sge.convert(str(value)))
         elif dtype.is_geospatial():
             args = [value.wkt]
             if (srid := dtype.srid) is not None:

@@ -794,13 +794,12 @@ class Session(
             )
 
         if write_engine == "default":
-            try:
-                inline_df = self._read_pandas_inline(pandas_dataframe)
-                return inline_df
-            except ValueError:
-                pass
-            return self._read_pandas_load_job(pandas_dataframe, api_name)
-        elif write_engine == "bigquery_inline":
+            is_df_large = (
+                pandas_dataframe.memory_usage(deep=True).sum() > MAX_INLINE_DF_BYTES
+            )
+            write_engine = "bigquery_load" if is_df_large else "bigquery_inline"
+
+        if write_engine == "bigquery_inline":
             return self._read_pandas_inline(pandas_dataframe)
         elif write_engine == "bigquery_load":
             return self._read_pandas_load_job(pandas_dataframe, api_name)
@@ -814,37 +813,8 @@ class Session(
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
-        memory_usage = pandas_dataframe.memory_usage(deep=True).sum()
-        if memory_usage > MAX_INLINE_DF_BYTES:
-            raise ValueError(
-                f"DataFrame size ({memory_usage} bytes) exceeds the maximum allowed "
-                f"for inline data ({MAX_INLINE_DF_BYTES} bytes)."
-            )
-
-        try:
-            local_block = blocks.Block.from_local(pandas_dataframe, self)
-            inline_df = dataframe.DataFrame(local_block)
-        except (
-            pa.ArrowInvalid,  # Thrown by arrow for unsupported types, such as geo.
-            pa.ArrowTypeError,  # Thrown by arrow for types without mapping (geo).
-            ValueError,  # Thrown by ibis for some unhandled types
-            TypeError,  # Not all types handleable by local code path
-        ) as exc:
-            raise ValueError(
-                f"Could not convert with a BigQuery type: `{exc}`. "
-            ) from exc
-
-        # Make sure all types are inlinable to avoid escaping errors.
-        inline_types = inline_df._block.expr.schema.dtypes
-        noninlinable_types = [
-            dtype for dtype in inline_types if dtype not in INLINABLE_DTYPES
-        ]
-        if len(noninlinable_types) != 0:
-            raise ValueError(
-                f"Could not inline with a BigQuery type: `{noninlinable_types}`. "
-                f"{constants.FEEDBACK_LINK}"
-            )
-
+        local_block = blocks.Block.from_local(pandas_dataframe, self)
+        inline_df = dataframe.DataFrame(local_block)
         return inline_df
 
     def _read_pandas_load_job(

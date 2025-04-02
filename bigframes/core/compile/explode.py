@@ -38,7 +38,7 @@ def explode_unordered(
         bigframes_vendored.ibis.greatest(
             1,  # We always want at least 1 element to fill in NULLs for empty arrays.
             bigframes_vendored.ibis.least(
-                *[table[column_id].length() for column_id in column_ids]
+                *[table[column_id].length().fill_null(1) for column_id in column_ids]
             ),
         ),
         1,

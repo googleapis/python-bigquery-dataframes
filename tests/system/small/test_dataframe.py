@@ -5288,6 +5288,10 @@ def test_dataframe_explode(col_names, ignore_index, session):
     bf_materialized = bf_result.to_pandas()
     execs_post = metrics.execution_count
 
+    print("bigframes")
+    print(bf_materialized)
+    print("pandas")
+    print(pd_result)
     pd.testing.assert_frame_equal(
         bf_materialized,
         pd_result,

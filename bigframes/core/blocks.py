@@ -176,7 +176,6 @@ class Block:
         *,
         cache_transpose: bool = True,
     ) -> Block:
-        # Assumes caller has already converted datatypes to bigframes ones.
         pd_data = data
         column_labels = pd_data.columns
         index_labels = list(pd_data.index.names)
@@ -187,6 +186,7 @@ class Block:
 
         pd_data = pd_data.set_axis(column_ids, axis=1)
         pd_data = pd_data.reset_index(names=index_ids)
+        # TODO: We need to
         as_pyarrow = pa.Table.from_pandas(pd_data, preserve_index=False)
         array_value = core.ArrayValue.from_pyarrow(as_pyarrow, session=session)
         block = cls(
