@@ -14,4 +14,39 @@
 
 
 def test_explicit_matrix_factorization(random_model_id: str) -> None:
+    your_model_id = random_model_id
+    # [START bigframes_dataframes_bqml_mf_create]
+    from bigframes.ml import decomposition
+    import bigframes.pandas as bpd
+
+    # Load data from BigQuery
+    bq_df = bpd.read_gbq(
+        "bqml_tutorial.ratings", columns=("user_id", "item_id", "rating")
+    )
+
+    # Create the Matrix Factorization model
+    model = decomposition.MatrixFactorization(
+        num_factors=34,
+        feedback_type="explicit",
+        user_col="user_id",
+        item_col="item_id",
+        rating_col="rating",
+        l2_reg=9.83,
+    )
+    model.fit(bq_df)
+    model.to_gbq(
+        your_model_id, replace=True  # For example: "bqml_tutorial.mf_explicit"
+    )
+    # [END bigframes_dataframes_bqml_mf_create]
+    # [START bigframes_dataframe_bqml_mf_evaluate]
+    import bigframes.pandas as bpd
+
+    model.score(bq_df)
+    # [END bigframes_dataframe_bqml_mf_evaluate]
+    # [START bigframes_dataframe_bqml_mf_predict]
+
+    # [END bigframes_dataframe_bqml_mf_predict]
+    # [START bigframes_dataframe_bqml_mf_recommend]
+    model.predict(bq_df)
+    # [END bigframes_dataframe_bqml_mf_recommend]
     pass
