@@ -401,13 +401,11 @@ class Session(
 
         # Protect against failure when the Session is a fake for testing or
         # failed to initialize.
-        anon_dataset_manager = getattr(self, "_anon_dataset_manager", None)
-        if anon_dataset_manager:
-            self._anon_dataset_manager.close()
+        if anon_dataset_manager := getattr(self, "_anon_dataset_manager", None):
+            anon_dataset_manager.close()
 
-        if getattr(self, "_session_resource_manager", None):
-            if self._session_resource_manager is not None:
-                self._session_resource_manager.close()
+        if session_resource_manager := getattr(self, "_session_resource_manager", None):
+            session_resource_manager.close()
 
         remote_function_session = getattr(self, "_function_session", None)
         if remote_function_session:
