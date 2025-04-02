@@ -383,6 +383,8 @@ class BlobAccessor(base.SeriesMethods):
             df["ext"] = ext  # type: ignore
             res = self._df_apply_udf(df, image_blur_udf)
 
+            self._add_to_cleanup_set(image_blur_udf)
+
             return res
 
         if isinstance(dst, str):
@@ -480,6 +482,8 @@ class BlobAccessor(base.SeriesMethods):
             df["ext"] = ext  # type: ignore
             res = self._df_apply_udf(df, image_resize_udf)
 
+            self._add_to_cleanup_set(image_resize_udf)
+
             return res
 
         if isinstance(dst, str):
@@ -571,6 +575,8 @@ class BlobAccessor(base.SeriesMethods):
             df["norm_type"] = norm_type
             df["ext"] = ext  # type: ignore
             res = self._df_apply_udf(df, image_normalize_udf)
+
+            self._add_to_cleanup_set(image_normalize_udf)
 
             return res
 
