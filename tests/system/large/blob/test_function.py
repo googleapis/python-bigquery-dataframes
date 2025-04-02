@@ -46,8 +46,8 @@ def images_output_folder() -> Generator[str, None, None]:
 @pytest.fixture(scope="function")
 def images_output_uris(images_output_folder: str) -> list[str]:
     return [
-        os.path.join(images_output_folder, "img1.jpg"),
         os.path.join(images_output_folder, "img0.jpg"),
+        os.path.join(images_output_folder, "img1.jpg"),
     ]
 
 

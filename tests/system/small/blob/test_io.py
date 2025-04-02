@@ -49,7 +49,14 @@ def test_blob_create_from_glob_path(
     blob_df = test_session.from_glob_path(
         images_gcs_path, connection=bq_connection, name="blob_col"
     )
-    pd_blob_df = blob_df["blob_col"].struct.explode().to_pandas()
+    pd_blob_df = (
+        blob_df["blob_col"]
+        .struct.explode()
+        .to_pandas()
+        .sort_values("uri")
+        .reset_index(drop=True)
+    )
+
     expected_df = pd.DataFrame(
         {
             "uri": images_uris,
@@ -72,7 +79,13 @@ def test_blob_create_read_gbq_object_table(
     obj_table = test_session._create_object_table(images_gcs_path, bq_connection)
 
     blob_df = test_session.read_gbq_object_table(obj_table, name="blob_col")
-    pd_blob_df = blob_df["blob_col"].struct.explode().to_pandas()
+    pd_blob_df = (
+        blob_df["blob_col"]
+        .struct.explode()
+        .to_pandas()
+        .sort_values("uri")
+        .reset_index(drop=True)
+    )
     expected_df = pd.DataFrame(
         {
             "uri": images_uris,
