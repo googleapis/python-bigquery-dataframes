@@ -463,9 +463,6 @@ class UnorderedIR:
                 never_skip_nulls=never_skip_nulls,
             )
 
-        if expression.op.order_independent and not window_spec.row_bounded:
-            # notably percentile_cont does not support ordering clause
-            window_spec = window_spec.without_order()
         window = self._ibis_window_from_spec(window_spec)
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
 
@@ -541,17 +538,30 @@ class UnorderedIR:
         # 1. Order-independent op (aggregation, cut, rank) with unbound window - no ordering clause needed
         # 2. Order-independent op (aggregation, cut, rank) with range window - use ordering clause, ties allowed
         # 3. Order-depedenpent op (navigation functions, array_agg) or rows bounds - use total row order to break ties.
-        if window_spec.ordering:
+        if window_spec.row_bounded:
+            if len(window_spec.ordering) == 0:
+                raise ValueError("No ordering provided for ordered analytic function")
             order_by = _convert_ordering_to_table_values(
-                self._column_names,
-                window_spec.ordering,
+                self._column_names, window_spec.ordering
             )
-        elif window_spec.row_bounded:
-            # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
-            raise ValueError("No ordering provided for ordered analytic function")
         else:
-            # Unbound grouping window. Suitable for aggregations but not for analytic function application.
-            order_by = None
+            # Range rolling
+            ordering_col = window_spec.ordering[0]
+            ibis_ref = op_compiler.compile_expression(
+                ordering_col.scalar_expression, self._column_names
+            )
+            # Decorate the rolling column for time-range rolling
+            if ibis_ref.type().timezone is None:
+                # We cannot directly use UNIX_MICROS on DATETIME, so we cast the column
+                # to TIMESTAMP(tz=UTC)
+                ibis_ref = ibis_ref.cast(ibis_dtypes.Timestamp(timezone="UTC"))
+            ibis_ref = scalar_op_compiler.unix_micros(ibis_ref)
+
+            order_by = [
+                bigframes_vendored.ibis.asc(ibis_ref)  # type:ignore
+                if ordering_col.direction.is_ascending
+                else bigframes_vendored.ibis.desc(ibis_ref)  # type:ignore
+            ]
 
         window = bigframes_vendored.ibis.window(order_by=order_by, group_by=group_by)
         if window_spec.bounds is not None:
@@ -692,8 +702,8 @@ def _add_boundary(
 ) -> ibis_expr_builders.LegacyWindowBuilder:
     if isinstance(bounds, RangeWindowBounds):
         return ibis_window.range(
-            start=_to_ibis_boundary(bounds.start),
-            end=_to_ibis_boundary(bounds.end),
+            start=_to_ibis_boundary(bounds.start_micros),
+            end=_to_ibis_boundary(bounds.end_micros),
         )
     if isinstance(bounds, RowsWindowBounds):
         if bounds.start is not None or bounds.end is not None:

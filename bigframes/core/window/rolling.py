@@ -14,11 +14,17 @@
 
 from __future__ import annotations
 
+import datetime
+from functools import singledispatch
 import typing
 
 import bigframes_vendored.pandas.core.window.rolling as vendored_pandas_rolling
+import numpy
+import pandas
 
-from bigframes.core import log_adapter, window_spec
+from bigframes import dtypes
+from bigframes.core import expression as ex
+from bigframes.core import log_adapter, nodes, ordering, window_spec
 import bigframes.core.blocks as blocks
 import bigframes.operations.aggregations as agg_ops
 
@@ -118,3 +124,77 @@ class Window(vendored_pandas_rolling.Window):
 
         labels = [self._block.col_id_to_label[col] for col in agg_col_ids]
         return block.select_columns(result_ids).with_column_labels(labels)
+
+
+def create_range_window(
+    block: blocks.Block,
+    window: pandas.Timedelta | numpy.timedelta64 | datetime.timedelta | str,
+    min_periods: int | None,
+    closed: typing.Literal["right", "left", "both", "neither"],
+    is_series: bool,
+) -> Window:
+
+    index_dtypes = block.index.dtypes
+    if len(index_dtypes) > 1:
+        raise ValueError("Range rolling on MultiIndex is not supported")
+    if index_dtypes[0] != dtypes.TIMESTAMP_DTYPE:
+        raise ValueError("Index type should be timestamps with timezones")
+
+    order_direction = _find_ordering(block.expr.node, block.index_columns[0])
+    if order_direction is None:
+        raise ValueError(
+            "The index might not be in a monotonic order. Please sort the index before rolling."
+        )
+    if isinstance(window, str):
+        window = pandas.Timedelta(window)
+    spec = window_spec.WindowSpec(
+        bounds=window_spec.RangeWindowBounds.from_timedelta_window(window, closed),
+        min_periods=1 if min_periods is None else min_periods,
+        ordering=(
+            ordering.OrderingExpression(
+                ex.deref(block.index_columns[0]), order_direction
+            ),
+        ),
+    )
+    return Window(block, spec, block.value_columns, is_series=is_series)
+
+
+@singledispatch
+def _find_ordering(
+    root: nodes.BigFrameNode, column_id: str
+) -> ordering.OrderingDirection | None:
+    """Returns the order of the given column with tree traversal. If the column cannot be found,
+    or the ordering information is not available, return None.
+    """
+    return None
+
+
+@_find_ordering.register
+def _(root: nodes.OrderByNode, column_id: str) -> ordering.OrderingDirection | None:
+    for order_expr in root.by:
+        scalar_expr = order_expr.scalar_expression
+        if isinstance(scalar_expr, ex.DerefOp) and scalar_expr.id.name == column_id:
+            return order_expr.direction
+
+    return None
+
+
+@_find_ordering.register
+def _(root: nodes.ReversedNode, column_id: str):
+    direction = _find_ordering(root.child, column_id)
+
+    if direction is None:
+        return None
+    return direction.reverse()
+
+
+@_find_ordering.register
+def _(root: nodes.SelectionNode, column_id: str):
+    for alias_ref in root.input_output_pairs:
+        if alias_ref.id.name == column_id:
+            return _find_ordering(root.child, alias_ref.ref.id.name)
+
+
+@_find_ordering.register
+def _(root: nodes.FilterNode, column_id: str):
+    return _find_ordering(root.child, column_id)

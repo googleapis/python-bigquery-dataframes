@@ -14,9 +14,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import datetime
 import itertools
 from typing import Literal, Mapping, Optional, Set, Tuple, Union
 
+import numpy as np
+import pandas as pd
+
+from bigframes.core import utils
 import bigframes.core.expression as ex
 import bigframes.core.identifiers as ids
 import bigframes.core.ordering as orderings
@@ -168,9 +173,43 @@ class RowsWindowBounds:
 
 @dataclass(frozen=True)
 class RangeWindowBounds:
-    # TODO(b/388916840) Support range rolling on timeseries with timedeltas.
-    start: Optional[int] = None
-    end: Optional[int] = None
+    """Represents a time range window, inclusively bounded by start and end"""
+
+    start: pd.Timedelta | None = None
+    end: pd.Timedelta | None = None
+
+    @classmethod
+    def from_timedelta_window(
+        cls,
+        window: pd.Timedelta | np.timedelta64 | datetime.timedelta,
+        closed: Literal["right", "left", "both", "neither"],
+    ) -> RangeWindowBounds:
+        window = pd.Timedelta(window)
+        tick = pd.Timedelta("1us")
+        zero = pd.Timedelta(0)
+
+        if closed == "right":
+            return cls(-(window - tick), zero)
+        elif closed == "left":
+            return cls(-window, -tick)
+        elif closed == "both":
+            return cls(-window, zero)
+        elif closed == "neither":
+            return cls(-(window - tick), -tick)
+        else:
+            raise ValueError(f"Unsupported value for 'closed' parameter: {closed}")
+
+    @property
+    def start_micros(self) -> int | None:
+        if self.start is None:
+            return None
+        return utils.timedelta_to_micros(self.start)
+
+    @property
+    def end_micros(self) -> int | None:
+        if self.end is None:
+            return None
+        return utils.timedelta_to_micros(self.end)
 
     def __post_init__(self):
         if self.start is None:
