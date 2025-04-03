@@ -104,13 +104,9 @@ _MODEL_NOT_SUPPORTED_WARNING = (
     "You should use this model name only if you are sure that it is supported in BigQuery."
 )
 
-_REMOVE_DEFAULT_MODEL_WARNING = "Due to the frequent deprecation of LLM models, the default model will be removed in BigFrames 3.0."
+_REMOVE_DEFAULT_MODEL_WARNING = "Since upgrading the default model can cause unintended breakages, the default model will be removed in BigFrames 3.0. Please supply an explicit model to avoid this message."
 
 
-@typing_extensions.deprecated(
-    _REMOVE_DEFAULT_MODEL_WARNING,
-    category=exceptions.DefaultModelRemovalWarning,
-)
 @log_adapter.class_logger
 class TextEmbeddingGenerator(base.RetriableRemotePredictor):
     """Text embedding generator LLM model.
@@ -253,10 +249,6 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
         return new_model.session.read_gbq_model(model_name)
 
 
-@typing_extensions.deprecated(
-    _REMOVE_DEFAULT_MODEL_WARNING,
-    category=exceptions.DefaultModelRemovalWarning,
-)
 @log_adapter.class_logger
 class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
     """Multimodal embedding generator LLM model.
@@ -405,10 +397,6 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
         return new_model.session.read_gbq_model(model_name)
 
 
-@typing_extensions.deprecated(
-    _REMOVE_DEFAULT_MODEL_WARNING,
-    category=exceptions.DefaultModelRemovalWarning,
-)
 @log_adapter.class_logger
 class GeminiTextGenerator(base.RetriableRemotePredictor):
     """Gemini text generator LLM model.
@@ -791,10 +779,6 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         return new_model.session.read_gbq_model(model_name)
 
 
-@typing_extensions.deprecated(
-    _REMOVE_DEFAULT_MODEL_WARNING,
-    category=exceptions.DefaultModelRemovalWarning,
-)
 @log_adapter.class_logger
 class Claude3TextGenerator(base.RetriableRemotePredictor):
     """Claude3 text generator LLM model.
