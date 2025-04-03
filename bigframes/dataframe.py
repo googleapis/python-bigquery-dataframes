@@ -1712,7 +1712,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if max_download_size is not None:
             msg = bfe.format_message(
                 "DEPRECATED: The `max_download_size` parameters for `DataFrame.to_pandas()` "
-                "are deprecated and will be removed soon. Please use `DataFrame.to_pandas_batch()`."
+                "are deprecated and will be removed soon. Please use `DataFrame.to_pandas_batches()`."
             )
             warnings.warn(msg, category=UserWarning)
         if sampling_method is not None or random_state is not None:

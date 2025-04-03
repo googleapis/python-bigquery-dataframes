@@ -290,17 +290,17 @@ def test_to_pandas_downsampling_option_override(session):
     [
         pytest.param(
             {"sampling_method": "head"},
-            r"DEPRECATED[\S\s]*sampling_method[\S\s]*DataFrame",
+            r"DEPRECATED[\S\s]*sampling_method[\S\s]*DataFrame.sample",
             id="sampling_method",
         ),
         pytest.param(
             {"random_state": 10},
-            r"DEPRECATED[\S\s]*random_state[\S\s]*DataFrame",
+            r"DEPRECATED[\S\s]*random_state[\S\s]*DataFrame.sample",
             id="random_state",
         ),
         pytest.param(
             {"max_download_size": 10},
-            r"DEPRECATED[\S\s]*max_download_size[\S\s]*DataFrame",
+            r"DEPRECATED[\S\s]*max_download_size[\S\s]*DataFrame.to_pandas_batches",
             id="max_download_size",
         ),
     ],

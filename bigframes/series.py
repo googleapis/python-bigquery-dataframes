@@ -464,7 +464,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if max_download_size is not None:
             msg = bfe.format_message(
                 "DEPRECATED: The `max_download_size` parameters for `Series.to_pandas()` "
-                "are deprecated and will be removed soon. Please use `Series.to_pandas_batch()`."
+                "are deprecated and will be removed soon. Please use `Series.to_pandas_batches()`."
             )
             warnings.warn(msg, category=UserWarning)
         if sampling_method is not None or random_state is not None:
