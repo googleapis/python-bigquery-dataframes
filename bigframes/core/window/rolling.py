@@ -170,7 +170,7 @@ def _find_ordering(
 
 
 @_find_ordering.register
-def _(root: nodes.OrderByNode, column_id: str) -> ordering.OrderingDirection | None:
+def _(root: nodes.OrderByNode, column_id: str):
     for order_expr in root.by:
         scalar_expr = order_expr.scalar_expression
         if isinstance(scalar_expr, ex.DerefOp) and scalar_expr.id.name == column_id:
