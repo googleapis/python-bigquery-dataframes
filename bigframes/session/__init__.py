@@ -70,13 +70,14 @@ import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
+from bigframes.session import bigquery_session
 import bigframes.session._io.bigquery as bf_io_bigquery
+import bigframes.session.anonymous_dataset
 import bigframes.session.clients
 import bigframes.session.executor
 import bigframes.session.loader
 import bigframes.session.metrics
 import bigframes.session.planner
-import bigframes.session.temp_storage
 import bigframes.session.validation
 
 # Avoid circular imports.
@@ -247,13 +248,25 @@ class Session(
 
         self._metrics = bigframes.session.metrics.ExecutionMetrics()
         self._function_session = bff_session.FunctionSession()
-        self._temp_storage_manager = (
-            bigframes.session.temp_storage.AnonymousDatasetManager(
+        self._anon_dataset_manager = (
+            bigframes.session.anonymous_dataset.AnonymousDatasetManager(
                 self._clients_provider.bqclient,
                 location=self._location,
                 session_id=self._session_id,
                 kms_key=self._bq_kms_key_name,
             )
+        )
+        # Session temp tables don't support specifying kms key, so use anon dataset if kms key specified
+        self._session_resource_manager = (
+            bigquery_session.SessionResourceManager(
+                self.bqclient,
+                self._location,
+            )
+            if (self._bq_kms_key_name is None)
+            else None
+        )
+        self._temp_storage_manager = (
+            self._session_resource_manager or self._anon_dataset_manager
         )
         self._executor: bigframes.session.executor.Executor = (
             bigframes.session.executor.BigQueryCachingExecutor(
@@ -375,7 +388,7 @@ class Session(
 
     @property
     def _anonymous_dataset(self):
-        return self._temp_storage_manager.dataset
+        return self._anon_dataset_manager.dataset
 
     def __hash__(self):
         # Stable hash needed to use in expression tree
@@ -388,9 +401,11 @@ class Session(
 
         # Protect against failure when the Session is a fake for testing or
         # failed to initialize.
-        temp_storage_manager = getattr(self, "_temp_storage_manager", None)
-        if temp_storage_manager:
-            self._temp_storage_manager.clean_up_tables()
+        if anon_dataset_manager := getattr(self, "_anon_dataset_manager", None):
+            anon_dataset_manager.close()
+
+        if session_resource_manager := getattr(self, "_session_resource_manager", None):
+            session_resource_manager.close()
 
         remote_function_session = getattr(self, "_function_session", None)
         if remote_function_session:
@@ -906,8 +921,6 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager.allocate_temp_table()
-
         if engine is not None and engine == "bigquery":
             if any(param is not None for param in (dtype, names)):
                 not_supported = ("dtype", "names")
@@ -967,9 +980,7 @@ class Session(
                 )
 
             job_config = bigquery.LoadJobConfig()
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.CSV
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.autodetect = True
             job_config.field_delimiter = sep
             job_config.encoding = encoding
@@ -983,9 +994,8 @@ class Session(
             elif header > 0:
                 job_config.skip_leading_rows = header
 
-            return self._loader._read_bigquery_load_job(
+            return self._loader.read_bigquery_load_job(
                 filepath_or_buffer,
-                table,
                 job_config=job_config,
                 index_col=index_col,
                 columns=columns,
@@ -1052,18 +1062,12 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager.allocate_temp_table()
-
         if engine == "bigquery":
             job_config = bigquery.LoadJobConfig()
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.PARQUET
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.labels = {"bigframes-api": "read_parquet"}
 
-            return self._loader._read_bigquery_load_job(
-                path, table, job_config=job_config
-            )
+            return self._loader.read_bigquery_load_job(path, job_config=job_config)
         else:
             if "*" in path:
                 raise ValueError(
@@ -1106,8 +1110,6 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager.allocate_temp_table()
-
         if engine == "bigquery":
 
             if dtype is not None:
@@ -1131,16 +1133,13 @@ class Session(
                 )
 
             job_config = bigquery.LoadJobConfig()
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.autodetect = True
             job_config.encoding = encoding
             job_config.labels = {"bigframes-api": "read_json"}
 
-            return self._loader._read_bigquery_load_job(
+            return self._loader.read_bigquery_load_job(
                 path_or_buf,
-                table,
                 job_config=job_config,
             )
         else:
@@ -1202,14 +1201,19 @@ class Session(
 
     def remote_function(
         self,
+        # Make sure that the input/output types, and dataset can be used
+        # positionally. This avoids the worst of the breaking change from 1.x to
+        # 2.x while still preventing possible mixups between consecutive str
+        # parameters.
         input_types: Union[None, type, Sequence[type]] = None,
         output_type: Optional[type] = None,
         dataset: Optional[str] = None,
+        *,
         bigquery_connection: Optional[str] = None,
         reuse: bool = True,
         name: Optional[str] = None,
         packages: Optional[Sequence[str]] = None,
-        cloud_function_service_account: Optional[str] = None,
+        cloud_function_service_account: str,
         cloud_function_kms_key_name: Optional[str] = None,
         cloud_function_docker_repository: Optional[str] = None,
         max_batching_rows: Optional[int] = 1000,
@@ -1217,9 +1221,9 @@ class Session(
         cloud_function_max_instances: Optional[int] = None,
         cloud_function_vpc_connector: Optional[str] = None,
         cloud_function_memory_mib: Optional[int] = 1024,
-        cloud_function_ingress_settings: Optional[
-            Literal["all", "internal-only", "internal-and-gclb"]
-        ] = None,
+        cloud_function_ingress_settings: Literal[
+            "all", "internal-only", "internal-and-gclb"
+        ] = "internal-only",
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1327,8 +1331,8 @@ class Session(
                 Explicit name of the external package dependencies. Each dependency
                 is added to the `requirements.txt` as is, and can be of the form
                 supported in https://pip.pypa.io/en/stable/reference/requirements-file-format/.
-            cloud_function_service_account (str, Optional):
-                Service account to use for the cloud functions. If not provided
+            cloud_function_service_account (str):
+                Service account to use for the cloud functions. If "default" provided
                 then the default service account would be used. See
                 https://cloud.google.com/functions/docs/securing/function-identity
                 for more details. Please make sure the service account has the
@@ -1392,8 +1396,8 @@ class Session(
             cloud_function_ingress_settings (str, Optional):
                 Ingress settings controls dictating what traffic can reach the
                 function. Options are: `all`, `internal-only`, or `internal-and-gclb`.
-                If no setting is provided, `all` will be used by default and a warning
-                will be issued. See for more details
+                If no setting is provided, `internal-only` will be used by default.
+                See for more details
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
         Returns:
             collections.abc.Callable:
@@ -1406,8 +1410,8 @@ class Session(
                 `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
         """
         return self._function_session.remote_function(
-            input_types,
-            output_type,
+            input_types=input_types,
+            output_type=output_type,
             session=self,
             dataset=dataset,
             bigquery_connection=bigquery_connection,
@@ -1435,7 +1439,13 @@ class Session(
         name: Optional[str] = None,
         packages: Optional[Sequence[str]] = None,
     ):
-        """Decorator to turn a Python udf into a BigQuery managed function.
+        """Decorator to turn a Python user defined function (udf) into a
+        BigQuery managed function.
+
+        .. note::
+            The udf must be self-contained, i.e. it must not contain any
+            references to an import or variable defined outside the function
+            body.
 
         .. note::
             Please have following IAM roles enabled for you:
@@ -1493,8 +1503,8 @@ class Session(
                 deployed for the user defined code.
         """
         return self._function_session.udf(
-            input_types,
-            output_type,
+            input_types=input_types,
+            output_type=output_type,
             session=self,
             dataset=dataset,
             bigquery_connection=bigquery_connection,
@@ -1587,7 +1597,7 @@ class Session(
         Another use case is to define your own remote function and use it later.
         For example, define the remote function:
 
-            >>> @bpd.remote_function()
+            >>> @bpd.remote_function(cloud_function_service_account="default")
             ... def tenfold(num: int) -> float:
             ...     return num * 10
 
@@ -1614,7 +1624,7 @@ class Session(
         note, row processor implies that the function has only one input
         parameter.
 
-            >>> @bpd.remote_function()
+            >>> @bpd.remote_function(cloud_function_service_account="default")
             ... def row_sum(s: bpd.Series) -> float:
             ...     return s['a'] + s['b'] + s['c']
 
@@ -1702,7 +1712,7 @@ class Session(
 
     def _create_object_table(self, path: str, connection: str) -> str:
         """Create a random id Object Table from the input path and connection."""
-        table = str(self._loader._storage_manager.generate_unique_resource_id())
+        table = str(self._anon_dataset_manager.generate_unique_resource_id())
 
         import textwrap
 
@@ -1757,7 +1767,9 @@ class Session(
 
         table = self._create_object_table(path, connection)
 
-        s = self.read_gbq(table)["uri"].str.to_blob(connection)
+        s = self._loader.read_gbq_table(table, api_name="from_glob_path")[
+            "uri"
+        ].str.to_blob(connection)
         return s.rename(name).to_frame()
 
     def _create_bq_connection(
@@ -1766,8 +1778,8 @@ class Session(
         """Create the connection with the session settings and try to attach iam role to the connection SA.
         If any of project, location or connection isn't specified, use the session defaults. Returns fully-qualified connection name."""
         connection = self._bq_connection if not connection else connection
-        connection = bigframes.clients.resolve_full_bq_connection_name(
-            connection_name=connection,
+        connection = bigframes.clients.get_canonical_bq_connection_id(
+            connection_id=connection,
             default_project=self._project,
             default_location=self._location,
         )
@@ -1807,7 +1819,9 @@ class Session(
         table = self.bqclient.get_table(object_table)
         connection = table._properties["externalDataConfiguration"]["connectionId"]
 
-        s = self.read_gbq(object_table)["uri"].str.to_blob(connection)
+        s = self._loader.read_gbq_table(object_table, api_name="read_gbq_object_table")[
+            "uri"
+        ].str.to_blob(connection)
         return s.rename(name).to_frame()
 
 
