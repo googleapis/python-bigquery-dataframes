@@ -231,7 +231,7 @@ class UnorderedIR:
             col_out: agg_compiler.compile_aggregate(
                 aggregate,
                 bindings,
-                order_by=_convert_ordering_to_table_values(table, order_by),
+                order_by=_convert_row_ordering_to_table_values(table, order_by),
             )
             for aggregate, col_out in aggregations
         }
@@ -538,30 +538,19 @@ class UnorderedIR:
         # 1. Order-independent op (aggregation, cut, rank) with unbound window - no ordering clause needed
         # 2. Order-independent op (aggregation, cut, rank) with range window - use ordering clause, ties allowed
         # 3. Order-depedenpent op (navigation functions, array_agg) or rows bounds - use total row order to break ties.
+        if not window_spec.ordering:
+            # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
+            raise ValueError("No ordering provided for ordered analytic function")
+
         if window_spec.row_bounded:
-            if len(window_spec.ordering) == 0:
-                raise ValueError("No ordering provided for ordered analytic function")
-            order_by = _convert_ordering_to_table_values(
-                self._column_names, window_spec.ordering
+            order_by = _convert_row_ordering_to_table_values(
+                self._column_names,
+                window_spec.ordering,
             )
         else:
-            # Range rolling
-            ordering_col = window_spec.ordering[0]
-            ibis_ref = op_compiler.compile_expression(
-                ordering_col.scalar_expression, self._column_names
+            order_by = _convert_range_ordering_to_table_value(
+                self._column_names, window_spec.ordering[0]
             )
-            # Decorate the rolling column for time-range rolling
-            if ibis_ref.type().timezone is None:
-                # We cannot directly use UNIX_MICROS on DATETIME, so we cast the column
-                # to TIMESTAMP(tz=UTC)
-                ibis_ref = ibis_ref.cast(ibis_dtypes.Timestamp(timezone="UTC"))
-            ibis_ref = scalar_op_compiler.unix_micros(ibis_ref)
-
-            order_by = [
-                bigframes_vendored.ibis.asc(ibis_ref)  # type:ignore
-                if ordering_col.direction.is_ascending
-                else bigframes_vendored.ibis.desc(ibis_ref)  # type:ignore
-            ]
 
         window = bigframes_vendored.ibis.window(order_by=order_by, group_by=group_by)
         if window_spec.bounds is not None:
@@ -585,7 +574,7 @@ def is_window(column: ibis_types.Value) -> bool:
     return any(isinstance(op, ibis_ops.WindowFunction) for op in matches)
 
 
-def _convert_ordering_to_table_values(
+def _convert_row_ordering_to_table_values(
     value_lookup: typing.Mapping[str, ibis_types.Value],
     ordering_columns: typing.Sequence[OrderingExpression],
 ) -> typing.Sequence[ibis_types.Value]:
@@ -611,6 +600,19 @@ def _convert_ordering_to_table_values(
             ordering_values.append(bigframes_vendored.ibis.asc(is_null_val))
         ordering_values.append(ordering_value)
     return ordering_values
+
+
+def _convert_range_ordering_to_table_value(
+    value_lookup: typing.Mapping[str, ibis_types.Value],
+    ordering_column: OrderingExpression,
+) -> ibis_types.Value:
+    expr = op_compiler.compile_expression(
+        ordering_column.scalar_expression, value_lookup
+    )
+
+    if ordering_column.direction.is_ascending:
+        return bigframes_vendored.ibis.asc(expr)
+    return bigframes_vendored.ibis.desc(expr)
 
 
 def _string_cast_join_cond(
