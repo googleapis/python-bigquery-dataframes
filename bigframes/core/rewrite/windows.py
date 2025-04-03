@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import dataclasses
 
-from bigframes import dtypes
 from bigframes import operations as ops
 from bigframes.core import nodes
 
