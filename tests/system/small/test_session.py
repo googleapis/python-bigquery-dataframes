@@ -969,13 +969,11 @@ def test_read_pandas_json_index(session, write_engine):
 @pytest.mark.parametrize(
     ("write_engine"),
     [
-        pytest.param("default"),
         pytest.param("bigquery_load"),
         pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
     ],
 )
-def test_read_pandas_w_nested_json(session, write_engine):
+def test_read_pandas_w_nested_json_fails(session, write_engine):
     data = [
         [{"json_field": "1"}],
         [{"json_field": None}],
@@ -999,12 +997,39 @@ def test_read_pandas_w_nested_json(session, write_engine):
     ("write_engine"),
     [
         pytest.param("default"),
-        pytest.param("bigquery_load"),
-        pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
+        pytest.param("bigquery_inline"),
     ],
 )
-def test_read_pandas_w_nested_json_index(session, write_engine):
+def test_read_pandas_inline_w_nested_json(session, write_engine):
+    data = [
+        [{"json_field": "1"}],
+        [{"json_field": None}],
+        [{"json_field": '["1","3","5"]'}],
+        [{"json_field": '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}'}],
+    ]
+    pa_array = pa.array(data, type=pa.list_(pa.struct([("name", pa.string())])))
+    pd_s = pd.Series(
+        arrays.ArrowExtensionArray(pa_array),  # type: ignore
+        dtype=pd.ArrowDtype(
+            pa.list_(pa.struct([("name", bigframes.dtypes.JSON_ARROW_TYPE)]))
+        ),
+    )
+    bq_s = (
+        session.read_pandas(pd_s, write_engine=write_engine)
+        .to_pandas()
+        .reset_index(drop=True)
+    )
+    pd.testing.assert_series_equal(bq_s, pd_s)
+
+
+@pytest.mark.parametrize(
+    ("write_engine"),
+    [
+        pytest.param("bigquery_load"),
+        pytest.param("bigquery_streaming"),
+    ],
+)
+def test_read_pandas_inline_w_nested_json_index_fails(session, write_engine):
     data = [
         [{"json_field": "1"}],
         [{"json_field": None}],
@@ -1024,6 +1049,31 @@ def test_read_pandas_w_nested_json_index(session, write_engine):
         NotImplementedError, match="Nested JSON types, found in the index"
     ):
         session.read_pandas(pd_idx, write_engine=write_engine)
+
+
+@pytest.mark.parametrize(
+    ("write_engine"),
+    [
+        pytest.param("default"),
+        pytest.param("bigquery_inline"),
+    ],
+)
+def test_read_pandas_w_nested_json_index(session, write_engine):
+    data = [
+        [{"json_field": "1"}],
+        [{"json_field": None}],
+        [{"json_field": '["1","3","5"]'}],
+        [{"json_field": '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}'}],
+    ]
+    pa_array = pa.array(data, type=pa.list_(pa.struct([("name", pa.string())])))
+    pd_idx: pd.Index = pd.Index(
+        arrays.ArrowExtensionArray(pa_array),  # type: ignore
+        dtype=pd.ArrowDtype(
+            pa.list_(pa.struct([("name", bigframes.dtypes.JSON_ARROW_TYPE)]))
+        ),
+    )
+    bq_idx = session.read_pandas(pd_idx, write_engine=write_engine).to_pandas()
+    pd.testing.assert_index_equal(bq_idx, pd_idx)
 
 
 @utils.skip_legacy_pandas
