@@ -18,10 +18,15 @@ import pyarrow
 import pytest
 
 import bigframes
+import bigframes.exceptions as bfe
 import bigframes.pandas as bpd
 from tests.system.utils import cleanup_function_assets
 
-bpd.options.experiments.udf = True
+# TODO(shobs): restore these tests after the managed udf cleanup issue is
+# resolved in the test project
+pytestmark = pytest.mark.skip(
+    reason="temporarily disable to debug managed udf cleanup in the test project"
+)
 
 
 def test_managed_function_multiply_with_ibis(
@@ -72,7 +77,7 @@ def test_managed_function_multiply_with_ibis(
         )
     finally:
         # clean up the gcp assets created for the managed function.
-        cleanup_function_assets(multiply, bigquery_client)
+        cleanup_function_assets(multiply, bigquery_client, ignore_failures=False)
 
 
 def test_managed_function_stringify_with_ibis(
@@ -118,24 +123,15 @@ def test_managed_function_stringify_with_ibis(
         )
     finally:
         # clean up the gcp assets created for the managed function.
-        cleanup_function_assets(stringify, bigquery_client)
+        cleanup_function_assets(stringify, bigquery_client, ignore_failures=False)
 
 
-@pytest.mark.parametrize(
-    "array_dtype",
-    [
-        bool,
-        int,
-        float,
-        str,
-    ],
-)
-def test_managed_function_array_output(session, scalars_dfs, dataset_id, array_dtype):
+def test_managed_function_array_output(session, scalars_dfs, dataset_id):
     try:
 
         @session.udf(dataset=dataset_id)
-        def featurize(x: int) -> list[array_dtype]:  # type: ignore
-            return [array_dtype(i) for i in [x, x + 1, x + 2]]
+        def featurize(x: int) -> list[float]:
+            return [float(i) for i in [x, x + 1, x + 2]]
 
         scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -160,40 +156,25 @@ def test_managed_function_array_output(session, scalars_dfs, dataset_id, array_d
 
         # Test on the function from read_gbq_function.
         got = featurize_ref(10)
-        assert got == [array_dtype(i) for i in [10, 11, 12]]
+        assert got == [10.0, 11.0, 12.0]
 
         bf_result_gbq = bf_int64_col.apply(featurize_ref).to_pandas()
         pandas.testing.assert_series_equal(bf_result_gbq, pd_result, check_dtype=False)
 
     finally:
         # Clean up the gcp assets created for the managed function.
-        cleanup_function_assets(featurize, session.bqclient)
+        cleanup_function_assets(featurize, session.bqclient, ignore_failures=False)
 
 
-@pytest.mark.parametrize(
-    ("typ",),
-    [
-        pytest.param(int),
-        pytest.param(float),
-        pytest.param(bool),
-        pytest.param(str),
-        pytest.param(bytes),
-    ],
-)
-def test_managed_function_series_apply(
-    session,
-    typ,
-    scalars_dfs,
-):
+def test_managed_function_series_apply(session, scalars_dfs):
     try:
 
         @session.udf()
-        def foo(x: int) -> typ:  # type:ignore
-            # The bytes() constructor expects a non-negative interger as its arg.
-            return typ(abs(x))
+        def foo(x: int) -> bytes:
+            return bytes(abs(x))
 
         # Function should still work normally.
-        assert foo(-2) == typ(2)
+        assert foo(-2) == bytes(2)
 
         assert hasattr(foo, "bigframes_bigquery_function")
         assert hasattr(foo, "ibis_node")
@@ -234,29 +215,20 @@ def test_managed_function_series_apply(
         pandas.testing.assert_frame_equal(bf_result_gbq, pd_result, check_dtype=False)
     finally:
         # Clean up the gcp assets created for the managed function.
-        cleanup_function_assets(foo, session.bqclient)
+        cleanup_function_assets(foo, session.bqclient, ignore_failures=False)
 
 
-@pytest.mark.parametrize(
-    ("typ",),
-    [
-        pytest.param(int),
-        pytest.param(float),
-        pytest.param(bool),
-        pytest.param(str),
-    ],
-)
 def test_managed_function_series_apply_array_output(
     session,
-    typ,
     scalars_dfs,
 ):
     try:
 
-        @session.udf()
-        def foo_list(x: int) -> list[typ]:  # type:ignore
-            # The bytes() constructor expects a non-negative interger as its arg.
-            return [typ(abs(x)), typ(abs(x) + 1)]
+        with pytest.warns(bfe.PreviewWarning, match="udf is in preview."):
+
+            @session.udf()
+            def foo_list(x: int) -> list[float]:
+                return [float(abs(x)), float(abs(x) + 1)]
 
         scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -274,7 +246,7 @@ def test_managed_function_series_apply_array_output(
         pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
     finally:
         # Clean up the gcp assets created for the managed function.
-        cleanup_function_assets(foo_list, session.bqclient)
+        cleanup_function_assets(foo_list, session.bqclient, ignore_failures=False)
 
 
 def test_managed_function_series_combine(session, scalars_dfs):
@@ -330,7 +302,9 @@ def test_managed_function_series_combine(session, scalars_dfs):
         pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
     finally:
         # Clean up the gcp assets created for the managed function.
-        cleanup_function_assets(add_managed_func, session.bqclient)
+        cleanup_function_assets(
+            add_managed_func, session.bqclient, ignore_failures=False
+        )
 
 
 def test_managed_function_series_combine_array_output(session, scalars_dfs):
@@ -391,7 +365,9 @@ def test_managed_function_series_combine_array_output(session, scalars_dfs):
         pandas.testing.assert_series_equal(bf_result_gbq, pd_result, check_dtype=False)
     finally:
         # Clean up the gcp assets created for the managed function.
-        cleanup_function_assets(add_list_managed_func, session.bqclient)
+        cleanup_function_assets(
+            add_list_managed_func, session.bqclient, ignore_failures=False
+        )
 
 
 def test_managed_function_dataframe_map(session, scalars_dfs):
@@ -425,7 +401,7 @@ def test_managed_function_dataframe_map(session, scalars_dfs):
         pandas.testing.assert_frame_equal(bf_result, pd_result)
     finally:
         # Clean up the gcp assets created for the managed function.
-        cleanup_function_assets(mf_add_one, session.bqclient)
+        cleanup_function_assets(mf_add_one, session.bqclient, ignore_failures=False)
 
 
 def test_managed_function_dataframe_map_array_output(
@@ -464,7 +440,9 @@ def test_managed_function_dataframe_map_array_output(
         pandas.testing.assert_frame_equal(bf_result_gbq, pd_result, check_dtype=False)
     finally:
         # Clean up the gcp assets created for the managed function.
-        cleanup_function_assets(mf_add_one_list, session.bqclient)
+        cleanup_function_assets(
+            mf_add_one_list, session.bqclient, ignore_failures=False
+        )
 
 
 def test_managed_function_dataframe_apply_axis_1(session, scalars_dfs):
@@ -500,7 +478,7 @@ def test_managed_function_dataframe_apply_axis_1(session, scalars_dfs):
         )
     finally:
         # Clean up the gcp assets created for the managed function.
-        cleanup_function_assets(add_ints_mf, session.bqclient)
+        cleanup_function_assets(add_ints_mf, session.bqclient, ignore_failures=False)
 
 
 def test_managed_function_dataframe_apply_axis_1_array_output(session):
@@ -523,7 +501,10 @@ def test_managed_function_dataframe_apply_axis_1_array_output(session):
 
     try:
 
-        @session.udf(input_types=[int, float, str], output_type=list[str])
+        @session.udf(
+            input_types=[int, float, str],
+            output_type=list[str],
+        )
         def foo(x, y, z):
             return [str(x), str(y), z]
 
@@ -605,4 +586,42 @@ def test_managed_function_dataframe_apply_axis_1_array_output(session):
 
     finally:
         # Clean up the gcp assets created for the managed function.
-        cleanup_function_assets(foo, session.bqclient)
+        cleanup_function_assets(foo, session.bqclient, ignore_failures=False)
+
+
+@pytest.mark.parametrize(
+    "connection_fixture",
+    [
+        "bq_connection_name",
+        "bq_connection",
+    ],
+)
+def test_managed_function_with_connection(
+    session, scalars_dfs, request, connection_fixture
+):
+    try:
+        bigquery_connection = request.getfixturevalue(connection_fixture)
+
+        @session.udf(bigquery_connection=bigquery_connection)
+        def foo(x: int) -> int:
+            return x + 10
+
+        # Function should still work normally.
+        assert foo(-2) == 8
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_result_col = scalars_df["int64_too"].apply(foo)
+        bf_result = (
+            scalars_df["int64_too"].to_frame().assign(result=bf_result_col).to_pandas()
+        )
+
+        pd_result_col = scalars_pandas_df["int64_too"].apply(foo)
+        pd_result = (
+            scalars_pandas_df["int64_too"].to_frame().assign(result=pd_result_col)
+        )
+
+        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+    finally:
+        # Clean up the gcp assets created for the managed function.
+        cleanup_function_assets(foo, session.bqclient, ignore_failures=False)

@@ -117,6 +117,12 @@ class BqmlModel(BaseBqml):
         """Get the BQML model associated with this wrapper"""
         return self._model
 
+    def recommend(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
+        return self._apply_ml_tvf(
+            input_data,
+            self._model_manipulation_sql_generator.ml_recommend,
+        )
+
     def predict(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         return self._apply_ml_tvf(
             input_data,
@@ -132,6 +138,16 @@ class BqmlModel(BaseBqml):
                 source_sql=source_sql,
                 struct_options=options,
             ),
+        )
+
+    def global_explain(self, options: Mapping[str, bool]) -> bpd.DataFrame:
+        sql = self._model_manipulation_sql_generator.ml_global_explain(
+            struct_options=options
+        )
+        return (
+            self._session.read_gbq(sql)
+            .sort_values(by="attribution", ascending=False)
+            .set_index("feature")
         )
 
     def transform(self, input_data: bpd.DataFrame) -> bpd.DataFrame:

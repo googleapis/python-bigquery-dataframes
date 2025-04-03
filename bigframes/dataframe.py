@@ -74,6 +74,7 @@ import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
+import bigframes.operations.ai
 import bigframes.operations.plotting as plotting
 import bigframes.operations.semantics
 import bigframes.operations.structs
@@ -2428,12 +2429,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @validations.requires_ordering()
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
-        window = windows.rows(preceding=limit, following=0)
+        window = windows.rows(start=None if limit is None else -limit, end=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
     @validations.requires_ordering()
     def bfill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
-        window = windows.rows(preceding=0, following=limit)
+        window = windows.rows(start=0, end=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
 
     def isin(self, values) -> DataFrame:
@@ -3307,13 +3308,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     @validations.requires_ordering()
-    def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
-        # To get n size window, need current row and n-1 preceding rows.
-        window_def = windows.rows(
-            preceding=window - 1, following=0, min_periods=min_periods or window
+    def rolling(
+        self,
+        window: int,
+        min_periods=None,
+        on: str | None = None,
+        closed: Literal["right", "left", "both", "neither"] = "right",
+    ) -> bigframes.core.window.Window:
+        window_def = windows.WindowSpec(
+            bounds=windows.RowsWindowBounds.from_window_size(window, closed),
+            min_periods=min_periods if min_periods is not None else window,
+        )
+        skip_agg_col_id = (
+            None if on is None else self._block.resolve_label_exact_or_error(on)
         )
         return bigframes.core.window.Window(
-            self._block, window_def, self._block.value_columns
+            self._block,
+            window_def,
+            self._block.value_columns,
+            skip_agg_column_id=skip_agg_col_id,
         )
 
     @validations.requires_ordering()
@@ -3477,7 +3490,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _apply_window_op(
         self,
-        op: agg_ops.WindowOp,
+        op: agg_ops.UnaryWindowOp,
         window_spec: windows.WindowSpec,
     ):
         block, result_ids = self._block.multi_apply_window_op(
@@ -3762,7 +3775,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
             # The client code owns this table reference now
             temp_table_ref = (
-                self._session._temp_storage_manager.generate_unique_resource_id()
+                self._session._anon_dataset_manager.generate_unique_resource_id()
             )
             destination_table = f"{temp_table_ref.project}.{temp_table_ref.dataset_id}.{temp_table_ref.table_id}"
 
@@ -4169,8 +4182,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # to the applied function should be a Series, not a scalar.
 
         if utils.get_axis_number(axis) == 1:
-            msg = bfe.format_message("axis=1 scenario is in preview.")
-            warnings.warn(msg, category=bfe.PreviewWarning)
+            msg = bfe.format_message(
+                "DataFrame.apply with parameter axis=1 scenario is in preview."
+            )
+            warnings.warn(msg, category=bfe.FunctionAxisOnePreviewWarning)
 
             if not hasattr(func, "bigframes_bigquery_function"):
                 raise ValueError(
@@ -4574,4 +4589,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def semantics(self):
+        msg = bfe.format_message(
+            "The 'semantics' property will be removed. Please use 'ai' instead."
+        )
+        warnings.warn(msg, category=FutureWarning)
         return bigframes.operations.semantics.Semantics(self)
+
+    @property
+    def ai(self):
+        """Returns the accessor for AI operators."""
+        return bigframes.operations.ai.AIAccessor(self)

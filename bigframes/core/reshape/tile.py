@@ -20,6 +20,7 @@ import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
 import pandas as pd
 
+import bigframes.constants
 import bigframes.core.expression as ex
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
@@ -41,15 +42,37 @@ def cut(
     right: typing.Optional[bool] = True,
     labels: typing.Union[typing.Iterable[str], bool, None] = None,
 ) -> bigframes.series.Series:
-    if labels is not None and labels is not False:
-        raise NotImplementedError(
-            "The 'labels' parameter must be either False or None. "
-            "Please provide a valid value for 'labels'."
+    if (
+        labels is not None
+        and labels is not False
+        and not isinstance(labels, typing.Iterable)
+    ):
+        raise ValueError(
+            "Bin labels must either be False, None or passed in as a list-like argument"
         )
+    if (
+        isinstance(labels, typing.Iterable)
+        and len(list(labels)) > 0
+        and not isinstance(list(labels)[0], str)
+    ):
+        raise NotImplementedError(
+            "When using an iterable for labels, only iterables of strings are supported "
+            f"but found {type(list(labels)[0])}. {constants.FEEDBACK_LINK}"
+        )
+
+    if x.size == 0:
+        raise ValueError("Cannot cut empty array.")
 
     if isinstance(bins, int):
         if bins <= 0:
             raise ValueError("`bins` should be a positive integer.")
+        if isinstance(labels, typing.Iterable):
+            labels = tuple(labels)
+            if len(labels) != bins:
+                raise ValueError(
+                    f"Bin labels({len(labels)}) must be same as the value of bins({bins})"
+                )
+
         op = agg_ops.CutOp(bins, right=right, labels=labels)
         return x._apply_window_op(op, window_spec=window_specs.unbound())
     elif isinstance(bins, typing.Iterable):
@@ -58,6 +81,7 @@ def cut(
             bins = tuple((bin.left.item(), bin.right.item()) for bin in bins)
             # To maintain consistency with pandas' behavior
             right = True
+            labels = None
         elif len(list(bins)) == 0:
             as_index = pd.IntervalIndex.from_tuples(list(bins))
             bins = tuple()
@@ -66,6 +90,7 @@ def cut(
             bins = tuple(bins)
             # To maintain consistency with pandas' behavior
             right = True
+            labels = None
         elif pd.api.types.is_number(list(bins)[0]):
             bins_list = list(bins)
             as_index = pd.IntervalIndex.from_breaks(bins_list)
@@ -81,11 +106,24 @@ def cut(
             raise ValueError("`bins` iterable should contain tuples or numerics.")
 
         if as_index.is_overlapping:
-            raise ValueError("Overlapping IntervalIndex is not accepted.")
-        elif len(as_index) == 0:
-            op = agg_ops.CutOp(bins, right=right, labels=labels)
+            raise ValueError("Overlapping IntervalIndex is not accepted.")  # TODO: test
+
+        if isinstance(labels, typing.Iterable):
+            labels = tuple(labels)
+            if len(labels) != len(as_index):
+                raise ValueError(
+                    f"Bin labels({len(labels)}) must be same as the number of bin edges"
+                    f"({len(as_index)})"
+                )
+
+        if len(as_index) == 0:
+            dtype = agg_ops.CutOp(bins, right=right, labels=labels).output_type()
             return bigframes.series.Series(
-                [pd.NA] * len(x), dtype=op.output_type(), name=x.name
+                [pd.NA] * len(x),
+                dtype=dtype,
+                name=x.name,
+                index=x.index,
+                session=x._session,
             )
         else:
             op = agg_ops.CutOp(bins, right=right, labels=labels)

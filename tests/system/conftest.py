@@ -185,8 +185,13 @@ def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, Non
 
 
 @pytest.fixture(scope="session")
-def bq_connection(bigquery_client: bigquery.Client) -> str:
-    return f"{bigquery_client.project}.{bigquery_client.location}.bigframes-rf-conn"
+def bq_connection_name() -> str:
+    return "bigframes-rf-conn"
+
+
+@pytest.fixture(scope="session")
+def bq_connection(bigquery_client: bigquery.Client, bq_connection_name: str) -> str:
+    return f"{bigquery_client.project}.{bigquery_client.location}.{bq_connection_name}"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -315,6 +320,7 @@ def load_test_data_tables(
         ("repeated", "repeated_schema.json", "repeated.jsonl"),
         ("json", "json_schema.json", "json.jsonl"),
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
+        ("ratings", "ratings_schema.json", "ratings.jsonl"),
         ("time_series", "time_series_schema.json", "time_series.jsonl"),
         ("hockey_players", "hockey_players.json", "hockey_players.jsonl"),
         ("matrix_2by3", "matrix_2by3.json", "matrix_2by3.jsonl"),
@@ -412,6 +418,11 @@ def penguins_table_id(test_data_tables) -> str:
 
 
 @pytest.fixture(scope="session")
+def ratings_table_id(test_data_tables) -> str:
+    return test_data_tables["ratings"]
+
+
+@pytest.fixture(scope="session")
 def urban_areas_table_id(test_data_tables) -> str:
     return test_data_tables["urban_areas"]
 
@@ -460,7 +471,7 @@ def nested_structs_df(
 
 
 @pytest.fixture(scope="session")
-def nested_structs_pandas_df() -> pd.DataFrame:
+def nested_structs_pandas_df(nested_structs_pandas_type: pd.ArrowDtype) -> pd.DataFrame:
     """pd.DataFrame pointing at test data."""
 
     df = pd.read_json(
@@ -468,6 +479,7 @@ def nested_structs_pandas_df() -> pd.DataFrame:
         lines=True,
     )
     df = df.set_index("id")
+    df["person"] = df["person"].astype(nested_structs_pandas_type)
     return df
 
 
@@ -761,6 +773,14 @@ def penguins_df_null_index(
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
     return unordered_session.read_gbq(penguins_table_id)
+
+
+@pytest.fixture(scope="session")
+def ratings_df_default_index(
+    ratings_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(ratings_table_id)
 
 
 @pytest.fixture(scope="session")
@@ -1480,3 +1500,17 @@ def reset_default_session_and_location():
         yield
     bpd.close_session()
     bpd.options.bigquery.location = None
+
+
+@pytest.fixture(scope="session")
+def pdf_gcs_path() -> str:
+    return "gs://bigframes_blob_test/pdfs/*"
+
+
+@pytest.fixture(scope="session")
+def pdf_mm_df(
+    pdf_gcs_path, session: bigframes.Session, bq_connection: str
+) -> bpd.DataFrame:
+    bigframes.options.experiments.blob = True
+
+    return session.from_glob_path(pdf_gcs_path, name="pdf", connection=bq_connection)

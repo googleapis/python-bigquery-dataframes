@@ -630,8 +630,7 @@ def test_read_gbq_w_json(session):
                 )
             ),
     """
-    # TODO(b/401630655): JSON is not compatible with allow_large_results=False
-    df = session.read_gbq(sql, index_col="id").to_pandas(allow_large_results=True)
+    df = session.read_gbq(sql, index_col="id")
 
     assert df.dtypes["json_col"] == pd.ArrowDtype(db_dtypes.JSONArrowType())
 
@@ -651,17 +650,14 @@ def test_read_gbq_w_json_and_compare_w_pandas_json(session):
     df = session.read_gbq("SELECT JSON_OBJECT('foo', 10, 'bar', TRUE) AS json_col")
     assert df.dtypes["json_col"] == pd.ArrowDtype(db_dtypes.JSONArrowType())
 
-    # TODO(b/401630655): JSON is not compatible with allow_large_results=False
-    result = df.to_pandas(allow_large_results=True)
-
     # These JSON strings are compatible with BigQuery's JSON storage,
     pd_df = pd.DataFrame(
         {"json_col": ['{"bar":true,"foo":10}']},
         dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()),
     )
     pd_df.index = pd_df.index.astype("Int64")
-    pd.testing.assert_series_equal(result.dtypes, pd_df.dtypes)
-    pd.testing.assert_series_equal(result["json_col"], pd_df["json_col"])
+    pd.testing.assert_series_equal(df.dtypes, pd_df.dtypes)
+    pd.testing.assert_series_equal(df["json_col"].to_pandas(), pd_df["json_col"])
 
 
 def test_read_gbq_w_json_in_struct(session):
@@ -696,9 +692,6 @@ def test_read_gbq_w_json_in_struct(session):
 
     data = df["struct_col"].struct.field("data")
     assert data.dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
-
-    # TODO(b/401630655): JSON is not compatible with allow_large_results=False
-    data = data.to_pandas(allow_large_results=True)
 
     assert data[0] == '{"boolean":true}'
     assert data[1] == '{"int":100}'
@@ -738,10 +731,7 @@ def test_read_gbq_w_json_in_array(session):
     assert data.list.len()[0] == 7
     assert data.list[0].dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
 
-    # TODO(b/401630655): JSON is not compatible with allow_large_results=False
-    pd_data = data.to_pandas(allow_large_results=True)
-
-    assert pd_data[0] == [
+    assert data[0] == [
         '{"boolean":true}',
         '{"int":100}',
         '{"float":0.98}',
@@ -861,8 +851,6 @@ def test_read_pandas_timedelta_dataframes(session, write_engine):
         .astype("timedelta64[ns]")
     )
 
-    if write_engine == "bigquery_streaming":
-        expected_df.index = pd.Index([pd.NA] * 3, dtype="Int64")
     pd.testing.assert_frame_equal(actual_result, expected_df, check_index_type=False)
 
 
@@ -873,15 +861,12 @@ def test_read_pandas_timedelta_dataframes(session, write_engine):
 def test_read_pandas_timedelta_series(session, write_engine):
     expected_series = pd.Series(pd.to_timedelta([1, 2, 3], unit="d"))
 
-    # Until b/401630655 is resolved, json not compatible with allow_large_results=False
     actual_result = (
         session.read_pandas(expected_series, write_engine=write_engine)
         .to_pandas()
         .astype("timedelta64[ns]")
     )
 
-    if write_engine == "bigquery_streaming":
-        expected_series.index = pd.Index([pd.NA] * 3, dtype="Int64")
     pd.testing.assert_series_equal(
         actual_result, expected_series, check_index_type=False
     )
@@ -889,17 +874,16 @@ def test_read_pandas_timedelta_series(session, write_engine):
 
 @pytest.mark.parametrize(
     "write_engine",
-    ["default", "bigquery_inline", "bigquery_load"],
+    ["default", "bigquery_inline", "bigquery_load", "bigquery_streaming"],
 )
 def test_read_pandas_timedelta_index(session, write_engine):
     expected_index = pd.to_timedelta(
         [1, 2, 3], unit="d"
     )  # to_timedelta returns an index
 
-    # Until b/401630655 is resolved, json not compatible with allow_large_results=False
     actual_result = (
         session.read_pandas(expected_index, write_engine=write_engine)
-        .to_pandas(allow_large_results=True)
+        .to_pandas()
         .astype("timedelta64[ns]")
     )
 
@@ -926,19 +910,21 @@ def test_read_pandas_json_dataframes(session, write_engine):
         {"my_col": pd.Series(json_data, dtype=bigframes.dtypes.JSON_DTYPE)}
     )
 
-    # Until b/401630655 is resolved, json not compatible with allow_large_results=False
     actual_result = session.read_pandas(
         expected_df, write_engine=write_engine
-    ).to_pandas(allow_large_results=True)
+    ).to_pandas()
 
-    if write_engine == "bigquery_streaming":
-        expected_df.index = pd.Index([pd.NA] * 4, dtype="Int64")
     pd.testing.assert_frame_equal(actual_result, expected_df, check_index_type=False)
 
 
 @pytest.mark.parametrize(
-    "write_engine",
-    ["default", "bigquery_load"],
+    ("write_engine"),
+    [
+        pytest.param("default"),
+        pytest.param("bigquery_load"),
+        pytest.param("bigquery_streaming"),
+        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
+    ],
 )
 def test_read_pandas_json_series(session, write_engine):
     json_data = [
@@ -949,10 +935,9 @@ def test_read_pandas_json_series(session, write_engine):
     ]
     expected_series = pd.Series(json_data, dtype=bigframes.dtypes.JSON_DTYPE)
 
-    # Until b/401630655 is resolved, json not compatible with allow_large_results=False
     actual_result = session.read_pandas(
         expected_series, write_engine=write_engine
-    ).to_pandas(allow_large_results=True)
+    ).to_pandas()
     pd.testing.assert_series_equal(
         actual_result, expected_series, check_index_type=False
     )
@@ -963,6 +948,8 @@ def test_read_pandas_json_series(session, write_engine):
     [
         pytest.param("default"),
         pytest.param("bigquery_load"),
+        pytest.param("bigquery_streaming"),
+        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
     ],
 )
 def test_read_pandas_json_index(session, write_engine):
@@ -973,10 +960,9 @@ def test_read_pandas_json_index(session, write_engine):
         '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}',
     ]
     expected_index: pd.Index = pd.Index(json_data, dtype=bigframes.dtypes.JSON_DTYPE)
-    # Until b/401630655 is resolved, json not compatible with allow_large_results=False
     actual_result = session.read_pandas(
         expected_index, write_engine=write_engine
-    ).to_pandas(allow_large_results=True)
+    ).to_pandas()
     pd.testing.assert_index_equal(actual_result, expected_index)
 
 
@@ -985,6 +971,8 @@ def test_read_pandas_json_index(session, write_engine):
     [
         pytest.param("default"),
         pytest.param("bigquery_load"),
+        pytest.param("bigquery_streaming"),
+        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
     ],
 )
 def test_read_pandas_w_nested_json(session, write_engine):
@@ -1004,10 +992,7 @@ def test_read_pandas_w_nested_json(session, write_engine):
         ),
     )
     with pytest.raises(NotImplementedError, match="Nested JSON types, found in column"):
-        # Until b/401630655 is resolved, json not compatible with allow_large_results=False
-        session.read_pandas(pd_s, write_engine=write_engine).to_pandas(
-            allow_large_results=True
-        )
+        session.read_pandas(pd_s, write_engine=write_engine)
 
 
 @pytest.mark.parametrize(
@@ -1015,6 +1000,8 @@ def test_read_pandas_w_nested_json(session, write_engine):
     [
         pytest.param("default"),
         pytest.param("bigquery_load"),
+        pytest.param("bigquery_streaming"),
+        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
     ],
 )
 def test_read_pandas_w_nested_json_index(session, write_engine):
@@ -1036,10 +1023,7 @@ def test_read_pandas_w_nested_json_index(session, write_engine):
     with pytest.raises(
         NotImplementedError, match="Nested JSON types, found in the index"
     ):
-        # Until b/401630655 is resolved, json not compatible with allow_large_results=False
-        session.read_pandas(pd_idx, write_engine=write_engine).to_pandas(
-            allow_large_results=True
-        )
+        session.read_pandas(pd_idx, write_engine=write_engine)
 
 
 @utils.skip_legacy_pandas
@@ -1052,52 +1036,43 @@ def test_read_pandas_w_nested_json_index(session, write_engine):
         ("bigquery_streaming",),
     ),
 )
-def test_read_csv_gcs_default_engine(session, scalars_dfs, gcs_folder, write_engine):
-    scalars_df, _ = scalars_dfs
+def test_read_csv_for_gcs_file_w_default_engine(
+    session, scalars_dfs, gcs_folder, write_engine
+):
+    scalars_df, scalars_pandas_df = scalars_dfs
     path = gcs_folder + "test_read_csv_gcs_default_engine_w_index*.csv"
     read_path = utils.get_first_file_from_wildcard(path)
-    scalars_df.to_csv(path, index=False)
+    scalars_df.to_csv(path, index=True)
     dtype = scalars_df.dtypes.to_dict()
     dtype.pop("geography_col")
-    df = session.read_csv(
+    result_df = session.read_csv(
         read_path,
         # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
         dtype=dtype,
         write_engine=write_engine,
+        index_col="rowindex",
     )
-
-    # TODO(chelsealin): If we serialize the index, can more easily compare values.
-    pd.testing.assert_index_equal(df.columns, scalars_df.columns)
-
-    # The auto detects of BigQuery load job have restrictions to detect the bytes,
-    # numeric and geometry types, so they're skipped here.
-    df = df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
-    scalars_df = scalars_df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
-    assert df.shape[0] == scalars_df.shape[0]
-    pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
-
-
-def test_read_csv_gcs_bq_engine(session, scalars_dfs, gcs_folder):
-    scalars_df, _ = scalars_dfs
-    path = gcs_folder + "test_read_csv_gcs_bq_engine_w_index*.csv"
-    scalars_df.to_csv(path, index=False)
-    df = session.read_csv(
-        path,
-        engine="bigquery",
-        index_col=bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64,
-    )
-
-    # TODO(chelsealin): If we serialize the index, can more easily compare values.
-    pd.testing.assert_index_equal(df.columns, scalars_df.columns)
 
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
     # datetime, numeric and geometry types, so they're skipped here.
-    df = df.drop(columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"])
-    scalars_df = scalars_df.drop(
-        columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"]
-    )
-    assert df.shape[0] == scalars_df.shape[0]
-    pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
+    drop_columns = ["bytes_col", "numeric_col", "geography_col"]
+    result_df = result_df.drop(columns=drop_columns)
+    scalars_pandas_df = scalars_pandas_df.drop(columns=drop_columns)
+    pd.testing.assert_frame_equal(result_df.to_pandas(), scalars_pandas_df)
+
+
+def test_read_csv_for_gcs_file_w_bq_engine(session, scalars_dfs, gcs_folder):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    path = gcs_folder + "test_read_csv_gcs_bq_engine_w_index*.csv"
+    scalars_df.to_csv(path, index=True)
+    result_df = session.read_csv(path, engine="bigquery", index_col="rowindex")
+
+    # The auto detects of BigQuery load job have restrictions to detect the bytes,
+    # datetime, numeric and geometry types, so they're skipped here.
+    drop_columns = ["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+    result_df = result_df.drop(columns=drop_columns)
+    scalars_pandas_df = scalars_pandas_df.drop(columns=drop_columns)
+    pd.testing.assert_frame_equal(result_df.to_pandas(), scalars_pandas_df)
 
 
 @pytest.mark.parametrize(
@@ -1112,28 +1087,23 @@ def test_read_csv_local_default_engine(session, scalars_dfs, sep):
     scalars_df, scalars_pandas_df = scalars_dfs
     with tempfile.TemporaryDirectory() as dir:
         path = dir + "/test_read_csv_local_default_engine.csv"
-        # Using the pandas to_csv method because the BQ one does not support local write.
-        scalars_pandas_df.to_csv(path, index=False, sep=sep)
+        scalars_df.to_csv(path, index=True, sep=sep)
         dtype = scalars_df.dtypes.to_dict()
         dtype.pop("geography_col")
-        df = session.read_csv(
+        result_df = session.read_csv(
             path,
             sep=sep,
             # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
             dtype=dtype,
+            index_col="rowindex",
         )
-
-        # TODO(chelsealin): If we serialize the index, can more easily compare values.
-        pd.testing.assert_index_equal(df.columns, scalars_df.columns)
 
         # The auto detects of BigQuery load job have restrictions to detect the bytes,
-        # numeric and geometry types, so they're skipped here.
-        df = df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
-        scalars_df = scalars_df.drop(
-            columns=["bytes_col", "numeric_col", "geography_col"]
-        )
-        assert df.shape[0] == scalars_df.shape[0]
-        pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
+        # datetime, numeric and geometry types, so they're skipped here.
+        drop_columns = ["bytes_col", "numeric_col", "geography_col"]
+        result_df = result_df.drop(columns=drop_columns)
+        scalars_pandas_df = scalars_pandas_df.drop(columns=drop_columns)
+        pd.testing.assert_frame_equal(result_df.to_pandas(), scalars_pandas_df)
 
 
 @pytest.mark.parametrize(
@@ -1147,47 +1117,35 @@ def test_read_csv_local_bq_engine(session, scalars_dfs, sep):
     scalars_df, scalars_pandas_df = scalars_dfs
     with tempfile.TemporaryDirectory() as dir:
         path = dir + "/test_read_csv_local_bq_engine.csv"
-        # Using the pandas to_csv method because the BQ one does not support local write.
-        scalars_pandas_df.to_csv(path, index=False, sep=sep)
-        df = session.read_csv(path, engine="bigquery", sep=sep)
-
-        # TODO(chelsealin): If we serialize the index, can more easily compare values.
-        pd.testing.assert_index_equal(df.columns, scalars_df.columns)
+        scalars_df.to_csv(path, index=True, sep=sep)
+        result_df = session.read_csv(
+            path, engine="bigquery", sep=sep, index_col="rowindex"
+        )
 
         # The auto detects of BigQuery load job have restrictions to detect the bytes,
         # datetime, numeric and geometry types, so they're skipped here.
-        df = df.drop(
-            columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"]
-        )
-        scalars_df = scalars_df.drop(
-            columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"]
-        )
-        assert df.shape[0] == scalars_df.shape[0]
-        pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
+        drop_columns = ["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+        result_df = result_df.drop(columns=drop_columns)
+        scalars_pandas_df = scalars_pandas_df.drop(columns=drop_columns)
+        pd.testing.assert_frame_equal(result_df.to_pandas(), scalars_pandas_df)
 
 
 def test_read_csv_localbuffer_bq_engine(session, scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     with tempfile.TemporaryDirectory() as dir:
         path = dir + "/test_read_csv_local_bq_engine.csv"
-        # Using the pandas to_csv method because the BQ one does not support local write.
-        scalars_pandas_df.to_csv(path, index=False)
+        scalars_df.to_csv(path, index=True)
         with open(path, "rb") as buffer:
-            df = session.read_csv(buffer, engine="bigquery")
-
-        # TODO(chelsealin): If we serialize the index, can more easily compare values.
-        pd.testing.assert_index_equal(df.columns, scalars_df.columns)
+            result_df = session.read_csv(
+                buffer, engine="bigquery", index_col="rowindex"
+            )
 
         # The auto detects of BigQuery load job have restrictions to detect the bytes,
         # datetime, numeric and geometry types, so they're skipped here.
-        df = df.drop(
-            columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"]
-        )
-        scalars_df = scalars_df.drop(
-            columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"]
-        )
-        assert df.shape[0] == scalars_df.shape[0]
-        pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
+        drop_columns = ["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+        result_df = result_df.drop(columns=drop_columns)
+        scalars_pandas_df = scalars_pandas_df.drop(columns=drop_columns)
+        pd.testing.assert_frame_equal(result_df.to_pandas(), scalars_pandas_df)
 
 
 def test_read_csv_bq_engine_supports_index_col_false(
@@ -1441,19 +1399,16 @@ def test_read_csv_local_w_encoding(session, penguins_pandas_df_default_index, en
     with tempfile.TemporaryDirectory() as dir:
         path = dir + "/test_read_csv_local_w_encoding.csv"
         # Using the pandas to_csv method because the BQ one does not support local write.
-        penguins_pandas_df_default_index.to_csv(
-            path, index=False, encoding="ISO-8859-1"
-        )
+        penguins_pandas_df_default_index.index.name = "rowindex"
+        penguins_pandas_df_default_index.to_csv(path, index=True, encoding="ISO-8859-1")
 
         # File can only be read using the same character encoding as when written.
-        df = session.read_csv(path, engine=engine, encoding="ISO-8859-1")
-
-        # TODO(chelsealin): If we serialize the index, can more easily compare values.
-        pd.testing.assert_index_equal(
-            df.columns, penguins_pandas_df_default_index.columns
+        result_df = session.read_csv(
+            path, engine=engine, encoding="ISO-8859-1", index_col="rowindex"
         )
-
-        assert df.shape[0] == penguins_pandas_df_default_index.shape[0]
+        pd.testing.assert_frame_equal(
+            result_df.to_pandas(), penguins_pandas_df_default_index
+        )
 
 
 def test_read_pickle_local(session, penguins_pandas_df_default_index, tmp_path):

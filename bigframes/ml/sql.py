@@ -299,6 +299,11 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         return "\n".join(parts)
 
     # ML prediction TVFs
+    def ml_recommend(self, source_sql: str) -> str:
+        """Encode ML.RECOMMEND for BQML"""
+        return f"""SELECT * FROM ML.RECOMMEND(MODEL {self._model_ref_sql()},
+  ({source_sql}))"""
+
     def ml_predict(self, source_sql: str) -> str:
         """Encode ML.PREDICT for BQML"""
         return f"""SELECT * FROM ML.PREDICT(MODEL {self._model_ref_sql()},
@@ -311,6 +316,12 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         struct_options_sql = self.struct_options(**struct_options)
         return f"""SELECT * FROM ML.EXPLAIN_PREDICT(MODEL {self._model_ref_sql()},
   ({source_sql}), {struct_options_sql})"""
+
+    def ml_global_explain(self, struct_options) -> str:
+        """Encode ML.GLOBAL_EXPLAIN for BQML"""
+        struct_options_sql = self.struct_options(**struct_options)
+        return f"""SELECT * FROM ML.GLOBAL_EXPLAIN(MODEL {self._model_ref_sql()},
+  {struct_options_sql})"""
 
     def ml_forecast(self, struct_options: Mapping[str, Union[int, float]]) -> str:
         """Encode ML.FORECAST for BQML"""

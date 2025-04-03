@@ -245,9 +245,11 @@ def start_query_with_client(
                 location=location,
                 project=project,
                 api_timeout=timeout,
+                page_size=page_size,
+                max_results=max_results,
             )
             if metrics is not None:
-                metrics.count_job_stats()
+                metrics.count_job_stats(query=sql)
             return results_iterator, None
 
         query_job = bq_client.query(
