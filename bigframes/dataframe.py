@@ -1699,9 +1699,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 downsampled rows and all columns of this DataFrame. If dry_run is set, a pandas
                 Series containing dry run statistics will be returned.
         """
-
-        # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
-
         if dry_run:
             dry_run_stats, dry_run_job = self._block._compute_dry_run(
                 max_download_size=max_download_size,
