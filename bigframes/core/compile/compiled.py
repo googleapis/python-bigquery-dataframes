@@ -551,10 +551,12 @@ class UnorderedIR:
             )
 
         elif window_spec.is_range_bounded:
-            order_by = _convert_range_ordering_to_table_value(
-                self._column_names,
-                window_spec.ordering[0],
-            )
+            order_by = [
+                _convert_range_ordering_to_table_value(
+                    self._column_names,
+                    window_spec.ordering[0],
+                )
+            ]
         # The rest if branches are for unbounded windows
         elif window_spec.ordering:
             # Unbound grouping window. Suitable for aggregations but not for analytic function application.
