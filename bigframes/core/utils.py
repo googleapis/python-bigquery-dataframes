@@ -15,7 +15,7 @@ import datetime
 import functools
 import re
 import typing
-from typing import Hashable, Iterable, List
+from typing import Hashable, Iterable, List, Optional
 import warnings
 
 import bigframes_vendored.constants as constants
@@ -45,8 +45,10 @@ def get_axis_number(axis: typing.Union[str, int]) -> typing.Literal[0, 1]:
     raise ValueError(f"Not a valid axis: {axis}")
 
 
-def is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
-    return pd.api.types.is_list_like(obj)
+def is_list_like(
+    obj: typing.Any, allow_sets: Optional[bool] = True
+) -> typing_extensions.TypeGuard[typing.Sequence]:
+    return pd.api.types.is_list_like(obj, allow_sets=allow_sets)
 
 
 def is_dict_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Mapping]:
