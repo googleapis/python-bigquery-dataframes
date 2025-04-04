@@ -4342,6 +4342,7 @@ def test_series_explode_w_aggregate():
     assert s.explode().sum() == pd_s.explode().sum()
 
 
+@skip_legacy_pandas
 def test_series_construct_empty_array():
     s = bigframes.pandas.Series([[]])
     expected = pd.Series(

@@ -993,6 +993,7 @@ def test_read_pandas_w_nested_json_fails(session, write_engine):
         session.read_pandas(pd_s, write_engine=write_engine)
 
 
+@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     ("write_engine"),
     [
@@ -1051,6 +1052,7 @@ def test_read_pandas_inline_w_nested_json_index_fails(session, write_engine):
         session.read_pandas(pd_idx, write_engine=write_engine)
 
 
+@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     ("write_engine"),
     [
