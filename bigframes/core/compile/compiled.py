@@ -231,7 +231,7 @@ class UnorderedIR:
             col_out: agg_compiler.compile_aggregate(
                 aggregate,
                 bindings,
-                order_by=_convert_ordering_to_table_values(table, order_by),
+                order_by=_convert_row_ordering_to_table_values(table, order_by),
             )
             for aggregate, col_out in aggregations
         }
@@ -439,7 +439,7 @@ class UnorderedIR:
                 never_skip_nulls=never_skip_nulls,
             )
 
-        if expression.op.order_independent and not window_spec.row_bounded:
+        if expression.op.order_independent and window_spec.is_unbounded:
             # notably percentile_cont does not support ordering clause
             window_spec = window_spec.without_order()
         window = self._ibis_window_from_spec(window_spec)
@@ -517,16 +517,30 @@ class UnorderedIR:
         # 1. Order-independent op (aggregation, cut, rank) with unbound window - no ordering clause needed
         # 2. Order-independent op (aggregation, cut, rank) with range window - use ordering clause, ties allowed
         # 3. Order-depedenpent op (navigation functions, array_agg) or rows bounds - use total row order to break ties.
-        if window_spec.ordering:
-            order_by = _convert_ordering_to_table_values(
+        if window_spec.is_row_bounded:
+            if not window_spec.ordering:
+                # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
+                raise ValueError("No ordering provided for ordered analytic function")
+            order_by = _convert_row_ordering_to_table_values(
                 self._column_names,
                 window_spec.ordering,
             )
-        elif window_spec.row_bounded:
-            # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
-            raise ValueError("No ordering provided for ordered analytic function")
-        else:
+
+        elif window_spec.is_range_bounded:
+            order_by = [
+                _convert_range_ordering_to_table_value(
+                    self._column_names,
+                    window_spec.ordering[0],
+                )
+            ]
+        # The rest if branches are for unbounded windows
+        elif window_spec.ordering:
             # Unbound grouping window. Suitable for aggregations but not for analytic function application.
+            order_by = _convert_row_ordering_to_table_values(
+                self._column_names,
+                window_spec.ordering,
+            )
+        else:
             order_by = None
 
         window = bigframes_vendored.ibis.window(order_by=order_by, group_by=group_by)
@@ -551,7 +565,7 @@ def is_window(column: ibis_types.Value) -> bool:
     return any(isinstance(op, ibis_ops.WindowFunction) for op in matches)
 
 
-def _convert_ordering_to_table_values(
+def _convert_row_ordering_to_table_values(
     value_lookup: typing.Mapping[str, ibis_types.Value],
     ordering_columns: typing.Sequence[OrderingExpression],
 ) -> typing.Sequence[ibis_types.Value]:
@@ -577,6 +591,19 @@ def _convert_ordering_to_table_values(
             ordering_values.append(bigframes_vendored.ibis.asc(is_null_val))
         ordering_values.append(ordering_value)
     return ordering_values
+
+
+def _convert_range_ordering_to_table_value(
+    value_lookup: typing.Mapping[str, ibis_types.Value],
+    ordering_column: OrderingExpression,
+) -> ibis_types.Value:
+    expr = op_compiler.compile_expression(
+        ordering_column.scalar_expression, value_lookup
+    )
+
+    if ordering_column.direction.is_ascending:
+        return bigframes_vendored.ibis.asc(expr)  # type: ignore
+    return bigframes_vendored.ibis.desc(expr)  # type: ignore
 
 
 def _string_cast_join_cond(
@@ -668,8 +695,8 @@ def _add_boundary(
 ) -> ibis_expr_builders.LegacyWindowBuilder:
     if isinstance(bounds, RangeWindowBounds):
         return ibis_window.range(
-            start=_to_ibis_boundary(bounds.start),
-            end=_to_ibis_boundary(bounds.end),
+            start=_to_ibis_boundary(bounds.start_micros),
+            end=_to_ibis_boundary(bounds.end_micros),
         )
     if isinstance(bounds, RowsWindowBounds):
         if bounds.start is not None or bounds.end is not None:
