@@ -20,14 +20,13 @@ from bigframes import operations as ops
 from bigframes.core import nodes
 
 
-def rewrite_range_rolling(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
-    if isinstance(root, nodes.WindowOpNode):
-        return _rewrite_range_rolling_node(root)
+def rewrite_range_rolling(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
+    if not isinstance(node, nodes.WindowOpNode):
+        return node
 
-    return root
+    if node.window_spec.row_bounded:
+        return node
 
-
-def _rewrite_range_rolling_node(node: nodes.WindowOpNode) -> nodes.BigFrameNode:
     if len(node.window_spec.ordering) != 1:
         raise ValueError(
             "Range rolling should only be performed on exactly one column."
