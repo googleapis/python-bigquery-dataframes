@@ -476,3 +476,20 @@ def test_read_pandas_inline_w_interval_type_raises_error():
     df = pd.DataFrame(pd.arrays.IntervalArray.from_breaks([0, 10, 20, 30, 40, 50]))
     with pytest.raises(ValueError, match="Could not convert with a BigQuery type: "):
         session.read_pandas(df, write_engine="bigquery_inline")
+
+
+def test_read_pandas_inline_w_noninlineable_type_raises_error():
+    import geopandas as gpd
+    import shapely
+
+    session = resources.create_bigquery_session()
+    data = [
+        shapely.Point(1, 1),
+        shapely.Point(2, 1),
+        shapely.Point(1, 2),
+    ]
+    s = pd.Series(data, dtype=gpd.array.GeometryDtype())
+    with pytest.raises(
+        ValueError, match="Could not (convert|inline) with a BigQuery type:"
+    ):
+        session.read_pandas(s, write_engine="bigquery_inline")
