@@ -31,9 +31,9 @@ class LocalTableMetadata:
     total_bytes: int
     row_count: int
 
-    @staticmethod
-    def from_arrow(table: pa.Table):
-        return LocalTableMetadata(total_bytes=table.nbytes, row_count=table.num_rows)
+    @classmethod
+    def from_arrow(cls, table: pa.Table):
+        return cls(total_bytes=table.nbytes, row_count=table.num_rows)
 
 
 @dataclasses.dataclass(frozen=True)
