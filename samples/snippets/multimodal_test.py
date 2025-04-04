@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-def test_multimodal_dataframe():
+def test_multimodal_dataframe() -> None:
     # [START bigquery_dataframes_multimodal_dataframe]
     import bigframes
 
