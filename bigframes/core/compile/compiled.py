@@ -548,9 +548,11 @@ class UnorderedIR:
                 window_spec.ordering,
             )
         else:
-            order_by = _convert_range_ordering_to_table_value(
-                self._column_names, window_spec.ordering[0]
-            )
+            order_by = [
+                _convert_range_ordering_to_table_value(
+                    self._column_names, window_spec.ordering[0]
+                )
+            ]
 
         window = bigframes_vendored.ibis.window(order_by=order_by, group_by=group_by)
         if window_spec.bounds is not None:
@@ -611,8 +613,8 @@ def _convert_range_ordering_to_table_value(
     )
 
     if ordering_column.direction.is_ascending:
-        return bigframes_vendored.ibis.asc(expr)
-    return bigframes_vendored.ibis.desc(expr)
+        return bigframes_vendored.ibis.asc(expr)  # type: ignore
+    return bigframes_vendored.ibis.desc(expr)  # type: ignore
 
 
 def _string_cast_join_cond(
