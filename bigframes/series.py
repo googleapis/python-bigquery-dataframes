@@ -427,7 +427,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     method instead.
 
                 Download size threshold in MB. If ``max_download_size`` is exceeded when downloading data,
-                the data will be downsampled if ``bigframes.options.sampling.enable_downsampling`` is 
+                the data will be downsampled if ``bigframes.options.sampling.enable_downsampling`` is
                 ``True``, otherwise, an error will be raised. If set to a value other than ``None``,
                 this will supersede the global config.
             sampling_method (str, default None):
