@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import datetime
 import decimal
 import math
 import re
@@ -478,6 +479,11 @@ class BigQueryCompiler(SQLGlotCompiler):
             return sge.convert(str(value))
 
         elif dtype.is_int64():
+            # allows directly using values out of a duration arrow array
+            if isinstance(value, datetime.timedelta):
+                value = (
+                    (value.days * 3600 * 24) + value.seconds
+                ) * 1_000_000 + value.microseconds
             return sge.convert(np.int64(value))
         return None
 
