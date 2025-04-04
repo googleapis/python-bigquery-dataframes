@@ -228,7 +228,7 @@ def test_dataframe_window_agg_ops(scalars_dfs, windowing, agg_op):
 
 @pytest.mark.parametrize("closed", ["left", "right", "both", "neither"])
 @pytest.mark.parametrize(
-    "window",  # skipped numpy because Pandas does not support it.
+    "window",  # skipped numpy timedelta because Pandas does not support it.
     [pd.Timedelta("3s"), datetime.timedelta(seconds=3), "3s"],
 )
 @pytest.mark.parametrize("ascending", [True, False])

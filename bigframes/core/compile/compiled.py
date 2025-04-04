@@ -463,6 +463,9 @@ class UnorderedIR:
                 never_skip_nulls=never_skip_nulls,
             )
 
+        if expression.op.order_independent and window_spec.is_unbounded:
+            # notably percentile_cont does not support ordering clause
+            window_spec = window_spec.without_order()
         window = self._ibis_window_from_spec(window_spec)
         bindings = {col: self._get_ibis_column(col) for col in self.column_ids}
 
@@ -538,21 +541,29 @@ class UnorderedIR:
         # 1. Order-independent op (aggregation, cut, rank) with unbound window - no ordering clause needed
         # 2. Order-independent op (aggregation, cut, rank) with range window - use ordering clause, ties allowed
         # 3. Order-depedenpent op (navigation functions, array_agg) or rows bounds - use total row order to break ties.
-        if not window_spec.ordering:
-            # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
-            raise ValueError("No ordering provided for ordered analytic function")
+        if window_spec.is_row_bounded:
+            if not window_spec.ordering:
+                # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
+                raise ValueError("No ordering provided for ordered analytic function")
+            order_by = _convert_row_ordering_to_table_values(
+                self._column_names,
+                window_spec.ordering,
+            )
 
-        if window_spec.row_bounded:
+        elif window_spec.is_range_bounded:
+            order_by = _convert_range_ordering_to_table_value(
+                self._column_names,
+                window_spec.ordering[0],
+            )
+        # The rest if branches are for unbounded windows
+        elif window_spec.ordering:
+            # Unbound grouping window. Suitable for aggregations but not for analytic function application.
             order_by = _convert_row_ordering_to_table_values(
                 self._column_names,
                 window_spec.ordering,
             )
         else:
-            order_by = [
-                _convert_range_ordering_to_table_value(
-                    self._column_names, window_spec.ordering[0]
-                )
-            ]
+            order_by = None
 
         window = bigframes_vendored.ibis.window(order_by=order_by, group_by=group_by)
         if window_spec.bounds is not None:

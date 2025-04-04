@@ -240,7 +240,7 @@ class WindowSpec:
     min_periods: int = 0
 
     @property
-    def row_bounded(self):
+    def is_row_bounded(self):
         """
         Whether the window is bounded by row offsets.
 
@@ -248,6 +248,26 @@ class WindowSpec:
         to calculate deterministically.
         """
         return isinstance(self.bounds, RowsWindowBounds)
+
+    @property
+    def is_range_bounded(self):
+        """
+        Whether the window is bounded by range offsets.
+
+        This is relevant for determining whether the window requires a total order
+        to calculate deterministically.
+        """
+        return isinstance(self.bounds, RangeWindowBounds)
+
+    @property
+    def is_unbounded(self):
+        """
+        Whether the window is unbounded.
+
+        This is relevant for determining whether the window requires a total order
+        to calculate deterministically.
+        """
+        return self.bounds is None
 
     @property
     def all_referenced_columns(self) -> Set[ids.ColumnId]:
@@ -261,7 +281,7 @@ class WindowSpec:
 
     def without_order(self) -> WindowSpec:
         """Removes ordering clause if ordering isn't required to define bounds."""
-        if self.row_bounded:
+        if self.is_row_bounded:
             raise ValueError("Cannot remove order from row-bounded window")
         return replace(self, ordering=())
 

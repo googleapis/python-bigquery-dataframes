@@ -1358,7 +1358,7 @@ class WindowOpNode(UnaryNode, AdditiveNode):
         """Validate the local data in the node."""
         # Since inner order and row bounds are coupled, rank ops can't be row bounded
         assert (
-            not self.window_spec.row_bounded
+            not self.window_spec.is_row_bounded
         ) or self.expression.op.implicitly_inherits_order
         assert all(ref in self.child.ids for ref in self.expression.column_references)
 
@@ -1420,7 +1420,7 @@ class WindowOpNode(UnaryNode, AdditiveNode):
         op_inherits_order = (
             not self.expression.op.order_independent
         ) and self.expression.op.implicitly_inherits_order
-        return op_inherits_order or self.window_spec.row_bounded
+        return op_inherits_order or self.window_spec.is_row_bounded
 
     @property
     def additive_base(self) -> BigFrameNode:

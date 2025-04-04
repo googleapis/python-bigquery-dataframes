@@ -140,7 +140,7 @@ def create_range_window(
     if index_dtypes[0] != dtypes.TIMESTAMP_DTYPE:
         raise ValueError("Index type should be timestamps with timezones")
 
-    order_direction = _find_ordering(block.expr.node, block.index_columns[0])
+    order_direction = _find_order_direction(block.expr.node, block.index_columns[0])
     if order_direction is None:
         raise ValueError(
             "The index might not be in a monotonic order. Please sort the index before rolling."
@@ -160,7 +160,7 @@ def create_range_window(
 
 
 @singledispatch
-def _find_ordering(
+def _find_order_direction(
     root: nodes.BigFrameNode, column_id: str
 ) -> ordering.OrderingDirection | None:
     """Returns the order of the given column with tree traversal. If the column cannot be found,
@@ -169,32 +169,37 @@ def _find_ordering(
     return None
 
 
-@_find_ordering.register
+@_find_order_direction.register
 def _(root: nodes.OrderByNode, column_id: str):
-    for order_expr in root.by:
-        scalar_expr = order_expr.scalar_expression
-        if isinstance(scalar_expr, ex.DerefOp) and scalar_expr.id.name == column_id:
-            return order_expr.direction
+    if len(root.by) == 0:
+        return None
+
+    # Only when the column is used as the first ordering key
+    # does it guarantee that its values are in a monotonic order.
+    order_expr = root.by[0]
+    scalar_expr = order_expr.scalar_expression
+    if isinstance(scalar_expr, ex.DerefOp) and scalar_expr.id.name == column_id:
+        return order_expr.direction
 
     return None
 
 
-@_find_ordering.register
+@_find_order_direction.register
 def _(root: nodes.ReversedNode, column_id: str):
-    direction = _find_ordering(root.child, column_id)
+    direction = _find_order_direction(root.child, column_id)
 
     if direction is None:
         return None
     return direction.reverse()
 
 
-@_find_ordering.register
+@_find_order_direction.register
 def _(root: nodes.SelectionNode, column_id: str):
     for alias_ref in root.input_output_pairs:
         if alias_ref.id.name == column_id:
-            return _find_ordering(root.child, alias_ref.ref.id.name)
+            return _find_order_direction(root.child, alias_ref.ref.id.name)
 
 
-@_find_ordering.register
+@_find_order_direction.register
 def _(root: nodes.FilterNode, column_id: str):
-    return _find_ordering(root.child, column_id)
+    return _find_order_direction(root.child, column_id)

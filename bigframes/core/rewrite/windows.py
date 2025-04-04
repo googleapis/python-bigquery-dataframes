@@ -24,7 +24,7 @@ def rewrite_range_rolling(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
     if not isinstance(node, nodes.WindowOpNode):
         return node
 
-    if node.window_spec.row_bounded:
+    if not node.window_spec.is_range_bounded:
         return node
 
     if len(node.window_spec.ordering) != 1:
