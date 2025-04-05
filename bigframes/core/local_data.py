@@ -21,7 +21,7 @@ import functools
 from typing import Union
 import uuid
 
-import geopandas
+import geopandas  # type: ignore
 import numpy as np
 import pandas
 import pyarrow as pa
