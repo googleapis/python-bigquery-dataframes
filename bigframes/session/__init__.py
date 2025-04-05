@@ -108,11 +108,6 @@ MAX_INLINE_DF_BYTES = 5000
 
 logger = logging.getLogger(__name__)
 
-NON_INLINABLE_DTYPES: Sequence[bigframes.dtypes.Dtype] = (
-    # Currently excluded as doesn't have arrow type
-    bigframes.dtypes.GEO_DTYPE,
-)
-
 
 class Session(
     third_party_pandas_gbq.GBQIOMixin,
@@ -798,12 +793,7 @@ class Session(
             )
 
         if write_engine == "default":
-            try:
-                inline_df = self._read_pandas_inline(pandas_dataframe)
-                return inline_df
-            except ValueError:
-                pass
-            return self._read_pandas_load_job(pandas_dataframe, api_name)
+            return self._read_pandas_inline(pandas_dataframe)
         elif write_engine == "bigquery_inline":
             return self._read_pandas_inline(pandas_dataframe)
         elif write_engine == "bigquery_load":
@@ -837,17 +827,6 @@ class Session(
             raise ValueError(
                 f"Could not convert with a BigQuery type: `{exc}`. "
             ) from exc
-
-        # Make sure all types are inlinable to avoid escaping errors.
-        inline_types = inline_df._block.expr.schema.dtypes
-        noninlinable_types = [
-            dtype for dtype in inline_types if dtype in NON_INLINABLE_DTYPES
-        ]
-        if len(noninlinable_types) != 0:
-            raise ValueError(
-                f"Could not inline with a BigQuery type: `{noninlinable_types}`. "
-                f"{constants.FEEDBACK_LINK}"
-            )
 
         return inline_df
 
