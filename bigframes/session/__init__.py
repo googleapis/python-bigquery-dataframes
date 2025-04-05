@@ -793,7 +793,12 @@ class Session(
             )
 
         if write_engine == "default":
-            return self._read_pandas_inline(pandas_dataframe)
+            try:
+                inline_df = self._read_pandas_inline(pandas_dataframe)
+                return inline_df
+            except ValueError:
+                pass
+            return self._read_pandas_load_job(pandas_dataframe, api_name)
         elif write_engine == "bigquery_inline":
             return self._read_pandas_inline(pandas_dataframe)
         elif write_engine == "bigquery_load":

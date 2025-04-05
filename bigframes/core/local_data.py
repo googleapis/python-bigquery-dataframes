@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import dataclasses
 import functools
-from typing import Union
+from typing import cast, Union
 import uuid
 
 import geopandas  # type: ignore
@@ -117,7 +117,7 @@ def _adapt_pandas_series(
         except TypeError:
             pass
     if series.dtype == bigframes.dtypes.GEO_DTYPE:
-        series = geopandas.GeoSeries(series).to_wkt()
+        series = geopandas.GeoSeries(series).to_wkt(rounding_precision=-1)
         return pa.array(series, type=pa.string()), bigframes.dtypes.GEO_DTYPE
     return _adapt_arrow_array(pa.array(series))
 
@@ -129,6 +129,9 @@ def _adapt_arrow_array(
     if target_type != array.type:
         # TODO: Maybe warn if lossy conversion?
         array = array.cast(target_type)
+    bf_type = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(target_type)
+    storage_type = _get_managed_storage_type(bf_type)
+    assert storage_type == array.type
     return array, bigframes.dtypes.arrow_dtype_to_bigframes_dtype(target_type)
 
 
@@ -147,8 +150,6 @@ def _arrow_type_replacements(type: pa.DataType) -> pa.DataType:
         return pa.decimal128(38, 9)
     if pa.types.is_decimal256(type):
         return pa.decimal256(76, 38)
-    if pa.types.is_dictionary(type):
-        return _arrow_type_replacements(type.value_type)
     if pa.types.is_large_string(type):
         # simple string type can handle the largest strings needed
         return pa.string()
@@ -160,5 +161,13 @@ def _arrow_type_replacements(type: pa.DataType) -> pa.DataType:
         if new_field_t != type.value_type:
             return pa.list_(new_field_t)
         return type
+    if pa.types.is_struct(type):
+        struct_type = cast(pa.StructType, type)
+        new_fields: list[pa.Field] = []
+        for i in range(struct_type.num_fields):
+            field = struct_type.field(i)
+            field.with_type(_arrow_type_replacements(field.type))
+            new_fields.append(field.with_type(_arrow_type_replacements(field.type)))
+        return pa.struct(new_fields)
     else:
         return type
