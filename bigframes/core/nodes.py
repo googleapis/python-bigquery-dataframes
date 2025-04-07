@@ -1415,6 +1415,8 @@ class WindowOpNode(UnaryNode, AdditiveNode):
         op_inherits_order = (
             not self.expression.op.order_independent
         ) and self.expression.op.implicitly_inherits_order
+        # range-bounded windows do not inherit orders because their ordering are 
+        # already defined before rewrite time.
         return op_inherits_order or self.window_spec.is_row_bounded
 
     @property
