@@ -1670,16 +1670,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Args:
             max_download_size (int, default None):
                 .. deprecated:: 2.0.0
-                    `max_download_size` parameter is deprecated. Please use `to_pandas_batch()` method
-                    instead.
+                    ``max_download_size`` parameter is deprecated. Please use ``to_pandas_batches()``
+                    method instead.
 
-                Download size threshold in MB. If max_download_size is exceeded when downloading data
-                (e.g., to_pandas()), the data will be downsampled if
-                bigframes.options.sampling.enable_downsampling is True, otherwise, an error will be
-                raised. If set to a value other than None, this will supersede the global config.
+                Download size threshold in MB. If ``max_download_size`` is exceeded when downloading data,
+                the data will be downsampled if ``bigframes.options.sampling.enable_downsampling`` is
+                ``True``, otherwise, an error will be raised. If set to a value other than ``None``,
+                this will supersede the global config.
             sampling_method (str, default None):
                 .. deprecated:: 2.0.0
-                    `sampling_method` parameter is deprecated. Please use `sample()` method instead.
+                    ``sampling_method`` parameter is deprecated. Please use ``sample()`` method instead.
 
                 Downsampling algorithms to be chosen from, the choices are: "head": This algorithm
                 returns a portion of the data from the beginning. It is fast and requires minimal
@@ -1688,7 +1688,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 the global config.
             random_state (int, default None):
                 .. deprecated:: 2.0.0
-                    `random_state` parameter is deprecated. Please use `sample()` method instead.
+                    ``random_state`` parameter is deprecated. Please use ``sample()`` method instead.
 
                 The seed for the uniform downsampling algorithm. If provided, the uniform method may
                 take longer to execute and require more computation. If set to a value other than
@@ -1712,7 +1712,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if max_download_size is not None:
             msg = bfe.format_message(
                 "DEPRECATED: The `max_download_size` parameters for `DataFrame.to_pandas()` "
-                "are deprecated and will be removed soon. Please use `DataFrame.to_pandas_batch()`."
+                "are deprecated and will be removed soon. Please use `DataFrame.to_pandas_batches()`."
             )
             warnings.warn(msg, category=UserWarning)
         if sampling_method is not None or random_state is not None:

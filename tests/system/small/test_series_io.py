@@ -14,8 +14,6 @@
 import pandas as pd
 import pytest
 
-import pytest
-
 import bigframes
 import bigframes.series
 
@@ -45,17 +43,17 @@ def test_to_pandas_override_global_option(scalars_df_index):
     [
         pytest.param(
             {"sampling_method": "head"},
-            r"DEPRECATED[\S\s]*sampling_method[\S\s]*Series",
+            r"DEPRECATED[\S\s]*sampling_method[\S\s]*Series.sample",
             id="sampling_method",
         ),
         pytest.param(
             {"random_state": 10},
-            r"DEPRECATED[\S\s]*random_state[\S\s]*Series",
+            r"DEPRECATED[\S\s]*random_state[\S\s]*Series.sample",
             id="random_state",
         ),
         pytest.param(
             {"max_download_size": 10},
-            r"DEPRECATED[\S\s]*max_download_size[\S\s]*Series",
+            r"DEPRECATED[\S\s]*max_download_size[\S\s]*Series.to_pandas_batches",
             id="max_download_size",
         ),
     ],
