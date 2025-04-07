@@ -111,15 +111,19 @@ def _get_managed_storage_type(dtype: bigframes.dtypes.Dtype) -> pa.DataType:
 def _adapt_pandas_series(
     series: pandas.Series,
 ) -> tuple[Union[pa.ChunkedArray, pa.Array], bigframes.dtypes.Dtype]:
-    if series.dtype == np.dtype("O"):
-        try:
-            series = series.astype(bigframes.dtypes.GEO_DTYPE)
-        except TypeError:
-            pass
+    # Mostly rely on pyarrow conversions, but have to convert geo without its help.
     if series.dtype == bigframes.dtypes.GEO_DTYPE:
         series = geopandas.GeoSeries(series).to_wkt(rounding_precision=-1)
         return pa.array(series, type=pa.string()), bigframes.dtypes.GEO_DTYPE
-    return _adapt_arrow_array(pa.array(series))
+    try:
+        return _adapt_arrow_array(pa.array(series))
+    except Exception as e:
+        if series.dtype == np.dtype("O"):
+            try:
+                series = series.astype(bigframes.dtypes.GEO_DTYPE)
+            except TypeError:
+                pass
+        raise e
 
 
 def _adapt_arrow_array(
