@@ -131,8 +131,11 @@ def _adapt_arrow_array(
         array = array.cast(target_type)
     bf_type = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(target_type)
     storage_type = _get_managed_storage_type(bf_type)
-    assert storage_type == array.type
-    return array, bigframes.dtypes.arrow_dtype_to_bigframes_dtype(target_type)
+    if storage_type != array.type:
+        raise TypeError(
+            f"Expected {bf_type} to use arrow {storage_type}, instead got {array.type}"
+        )
+    return array, bf_type
 
 
 def _arrow_type_replacements(type: pa.DataType) -> pa.DataType:
