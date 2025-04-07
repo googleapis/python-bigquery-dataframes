@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from collections import abc
 import datetime
 import logging
 import os
@@ -26,6 +27,7 @@ from typing import (
     Callable,
     Dict,
     IO,
+    Hashable,
     Iterable,
     Literal,
     MutableSequence,
@@ -993,13 +995,15 @@ class Session(
         dtype,
         encoding,
     ) -> dataframe.DataFrame:
-
-        if any(param is not None for param in (dtype, names)):
-            not_supported = ("dtype", "names")
-            raise NotImplementedError(
-                f"BigQuery engine does not support these arguments: {not_supported}. "
-                f"{constants.FEEDBACK_LINK}"
-            )
+        if names is not None:
+            if len(names) != len(set(names)):
+                raise ValueError("Duplicated names are not allowed.")
+            # TEST: names="abc", names={"a", "b", "c"}
+            if not (
+                bigframes.core.utils.is_list_like(names, allow_sets=False)
+                or isinstance(names, abc.KeysView)
+            ):
+                raise ValueError("Names should be an ordered collection.")
 
         # TODO(b/338089659): Looks like we can relax this 1 column
         # restriction if we check the contents of an iterable are strings
@@ -1066,12 +1070,28 @@ class Session(
         elif header > 0:
             job_config.skip_leading_rows = header + 1
 
-        return self._loader.read_bigquery_load_job(
+        df = self._loader.read_bigquery_load_job(
             filepath_or_buffer,
             job_config=job_config,
             index_col=index_col,
             columns=columns,
         )
+        if names is not None:
+            if len(names) > len(df.columns):
+                raise ValueError(
+                    f"Too many columns specified: expected {len(df.columns)} and found"
+                    f" {len(names)}"
+                )
+            elif len(names) == len(df.columns):
+                rename_map = {key: value for key, value in zip(df.columns, names)}
+                df = df.rename(columns=rename_map)
+            else:
+                diff = len(df.columns) - len(names)
+                index_cols = df.columns[:diff]
+                columns = df.columns[diff:]
+                rename_map = {key: value for key, value in zip(columns, names)}
+                df = df.rename(columns=rename_map).set_index(index_cols)
+        return df
 
     def read_pickle(
         self,

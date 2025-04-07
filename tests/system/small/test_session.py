@@ -1105,7 +1105,6 @@ def test_read_pandas_w_nested_json_index(session, write_engine):
     pd.testing.assert_index_equal(bq_idx, pd_idx)
 
 
-@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     ("write_engine",),
     (
@@ -1193,11 +1192,16 @@ def test_read_csv_w_index_col(session, write_df_to_local_csv_file, index_col):
         assert len(bf_df.columns) == len(scalars_df.columns) + 1
         assert len(bf_df.columns) == len(pd_df.columns)
 
-        bf_df = bf_df.set_index("rowindex")
+        # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+        # (b/280889935) or guarantee row ordering.
+        bf_df = bf_df.set_index("rowindex").sort_index()
         pd_df = pd_df.set_index("rowindex")
     else:
         assert len(bf_df.columns) == len(scalars_df.columns)
         assert len(bf_df.columns) == len(pd_df.columns)
+    
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), scalars_df.to_pandas())
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
 @pytest.mark.parametrize(
@@ -1345,13 +1349,27 @@ def test_read_csv_local_w_encoding(session, penguins_pandas_df_default_index):
         bf_df = session.read_csv(
             path, engine="bigquery", index_col="rowindex", encoding="ISO-8859-1"
         )
-        # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
-        # (b/280889935) or guarantee row ordering.
-        bf_df = bf_df.sort_index()
         pd.testing.assert_frame_equal(
             bf_df.to_pandas(), penguins_pandas_df_default_index
         )
         pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+def test_read_csv_w_names_parameter(session, write_df_to_gcs_csv_file):
+    scalars_df, path = write_df_to_gcs_csv_file
+
+    # Compares results for pandas and bigframes engines
+    pd_df = session.read_csv(
+        path,
+        index_col="rowindex",
+        dtype=scalars_df.dtypes.to_dict(),
+    )
+
+    bf_df = session.read_csv(
+        path, engine="bigquery", index_col="rowindex"
+    )
+    pd.testing.assert_frame_equal(pd_df.to_pandas(), scalars_df.to_pandas())
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
 def test_read_pickle_local(session, penguins_pandas_df_default_index, tmp_path):
