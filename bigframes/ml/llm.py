@@ -21,7 +21,6 @@ import warnings
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
-import typing_extensions
 
 from bigframes import dtypes, exceptions
 import bigframes.bigquery as bbq
@@ -136,6 +135,10 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
         connection_name: Optional[str] = None,
     ):
         self.model_name = model_name
+        if model_name == "text-embedding-004":
+            msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
+
         self.session = session or global_session.get_global_session()
         self.connection_name = connection_name
 

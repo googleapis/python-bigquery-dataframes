@@ -87,10 +87,6 @@ class ApiDeprecationWarning(FutureWarning):
     """The API has been deprecated."""
 
 
-class DefaultModelRemovalWarning(FutureWarning):
-    """The default model has been removed."""
-
-
 class BadIndexerKeyWarning(Warning):
     """The indexer key is not used correctly."""
 
