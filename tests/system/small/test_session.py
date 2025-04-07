@@ -40,7 +40,7 @@ from tests.system import utils
 
 
 @pytest.fixture(scope="module")
-def write_df_to_local_csv_file(scalars_df_index):
+def df_and_local_csv(scalars_df_index):
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
     # datetime, numeric and geometry types, so they're skipped here.
     drop_columns = ["bytes_col", "datetime_col", "numeric_col", "geography_col"]
@@ -54,7 +54,7 @@ def write_df_to_local_csv_file(scalars_df_index):
 
 
 @pytest.fixture(scope="module")
-def write_df_to_gcs_csv_file(scalars_df_index, gcs_folder):
+def df_and_gcs_csv(scalars_df_index, gcs_folder):
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
     # datetime, numeric and geometry types, so they're skipped here.
     drop_columns = ["bytes_col", "datetime_col", "numeric_col", "geography_col"]
@@ -1105,7 +1105,6 @@ def test_read_pandas_w_nested_json_index(session, write_engine):
     pd.testing.assert_index_equal(bq_idx, pd_idx)
 
 
-@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     ("write_engine",),
     (
@@ -1115,10 +1114,8 @@ def test_read_pandas_w_nested_json_index(session, write_engine):
         ("bigquery_streaming",),
     ),
 )
-def test_read_csv_for_gcs_file_w_write_engine(
-    session, write_df_to_gcs_csv_file, write_engine
-):
-    scalars_df, path = write_df_to_gcs_csv_file
+def test_read_csv_for_gcs_file_w_write_engine(session, df_and_gcs_csv, write_engine):
+    scalars_df, path = df_and_gcs_csv
 
     # Compares results for pandas and bigframes engines
     pd_df = session.read_csv(
@@ -1143,8 +1140,8 @@ def test_read_csv_for_gcs_file_w_write_engine(
         pytest.param("\t", id="custom_sep"),
     ],
 )
-def test_read_csv_for_local_file_w_sep(session, write_df_to_local_csv_file, sep):
-    scalars_df, _ = write_df_to_local_csv_file
+def test_read_csv_for_local_file_w_sep(session, df_and_local_csv, sep):
+    scalars_df, _ = df_and_local_csv
 
     with tempfile.TemporaryDirectory() as dir:
         # Prepares local CSV file for reading
@@ -1165,39 +1162,55 @@ def test_read_csv_for_local_file_w_sep(session, write_df_to_local_csv_file, sep)
         pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
-@pytest.mark.parametrize(
-    "index_col",
-    [False, "rowindex"],
-)
-def test_read_csv_w_index_col(session, write_df_to_local_csv_file, index_col):
+def test_read_csv_w_index_col_false(session, df_and_local_csv):
     # Compares results for pandas and bigframes engines
-    scalars_df, path = write_df_to_local_csv_file
+    scalars_df, path = df_and_local_csv
     with open(path, "rb") as buffer:
         bf_df = session.read_csv(
             buffer,
             engine="bigquery",
-            index_col=index_col,
+            index_col=False,
         )
     with open(path, "rb") as buffer:
         # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
         pd_df = session.read_csv(
-            buffer, index_col=index_col, dtype=scalars_df.dtypes.to_dict()
+            buffer, index_col=False, dtype=scalars_df.dtypes.to_dict()
         )
 
     assert bf_df.shape[0] == scalars_df.shape[0]
     assert bf_df.shape[0] == pd_df.shape[0]
 
-    if index_col is False:
-        # We use a default index because of index_col=False, so the previous index
-        # column is just loaded as a column.
-        assert len(bf_df.columns) == len(scalars_df.columns) + 1
-        assert len(bf_df.columns) == len(pd_df.columns)
+    # We use a default index because of index_col=False, so the previous index
+    # column is just loaded as a column.
+    assert len(bf_df.columns) == len(scalars_df.columns) + 1
+    assert len(bf_df.columns) == len(pd_df.columns)
 
-        bf_df = bf_df.set_index("rowindex")
-        pd_df = pd_df.set_index("rowindex")
-    else:
-        assert len(bf_df.columns) == len(scalars_df.columns)
-        assert len(bf_df.columns) == len(pd_df.columns)
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.set_index("rowindex").sort_index()
+    pd_df = pd_df.set_index("rowindex")
+
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), scalars_df.to_pandas())
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+def test_read_csv_w_index_col_column_label(session, df_and_gcs_csv):
+    scalars_df, path = df_and_gcs_csv
+    bf_df = session.read_csv(path, engine="bigquery", index_col="rowindex")
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    pd_df = session.read_csv(
+        path, index_col="rowindex", dtype=scalars_df.dtypes.to_dict()
+    )
+
+    assert bf_df.shape == scalars_df.shape
+    assert bf_df.shape == pd_df.shape
+
+    assert len(bf_df.columns) == len(scalars_df.columns)
+    assert len(bf_df.columns) == len(pd_df.columns)
+
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), scalars_df.to_pandas())
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
 @pytest.mark.parametrize(
@@ -1236,9 +1249,9 @@ def test_read_csv_default_engine_throws_not_implemented_error(
     "header",
     [0, 1, 5],
 )
-def test_read_csv_for_gcs_file_w_header(session, write_df_to_gcs_csv_file, header):
+def test_read_csv_for_gcs_file_w_header(session, df_and_gcs_csv, header):
     # Compares results for pandas and bigframes engines
-    scalars_df, path = write_df_to_gcs_csv_file
+    scalars_df, path = df_and_gcs_csv
     bf_df = session.read_csv(path, engine="bigquery", index_col=False, header=header)
     pd_df = session.read_csv(
         path, index_col=False, header=header, dtype=scalars_df.dtypes.to_dict()
@@ -1268,9 +1281,9 @@ def test_read_csv_for_gcs_file_w_header(session, write_df_to_gcs_csv_file, heade
         pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
-def test_read_csv_w_usecols(session, write_df_to_local_csv_file):
+def test_read_csv_w_usecols(session, df_and_local_csv):
     # Compares results for pandas and bigframes engines
-    scalars_df, path = write_df_to_local_csv_file
+    scalars_df, path = df_and_local_csv
     with open(path, "rb") as buffer:
         bf_df = session.read_csv(
             buffer,

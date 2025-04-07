@@ -954,6 +954,12 @@ class Session(
         write_engine,
         **kwargs,
     ) -> dataframe.DataFrame:
+        """Reads a CSV file using pandas engines into a BigQuery DataFrames.
+
+        This method serves as the implementation backend for read_csv when the
+        specified engine is one supported directly by pandas ('c', 'python',
+        'pyarrow').
+        """
         if isinstance(index_col, bigframes.enums.DefaultIndexKind):
             raise NotImplementedError(
                 f"With index_col={repr(index_col)}, only engine='bigquery' is supported. "
@@ -993,6 +999,13 @@ class Session(
         dtype,
         encoding,
     ) -> dataframe.DataFrame:
+        """Reads a CSV file using the BigQuery engine into a BigQuery DataFrames.
+
+        This method serves as the implementation backend for read_csv when the
+        'bigquery' engine is specified or inferred. It leverages BigQuery's
+        native CSV loading capabilities, making it suitable for large datasets
+        that may not fit into local memory.
+        """
 
         if any(param is not None for param in (dtype, names)):
             not_supported = ("dtype", "names")
@@ -1057,6 +1070,8 @@ class Session(
         job_config.field_delimiter = sep
         job_config.encoding = encoding
         job_config.labels = {"bigframes-api": "read_csv"}
+
+        # b/409070192: When header > 0, pandas and BigFrames returns different column naming.
 
         # We want to match pandas behavior. If header is 0, no rows should be skipped, so we
         # do not need to set `skip_leading_rows`. If header is None, then there is no header.
