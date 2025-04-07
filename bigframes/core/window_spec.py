@@ -21,7 +21,6 @@ from typing import Literal, Mapping, Optional, Set, Tuple, Union
 import numpy as np
 import pandas as pd
 
-from bigframes.core import utils
 import bigframes.core.expression as ex
 import bigframes.core.identifiers as ids
 import bigframes.core.ordering as orderings
@@ -198,18 +197,6 @@ class RangeWindowBounds:
             return cls(-(window - tick), -tick)
         else:
             raise ValueError(f"Unsupported value for 'closed' parameter: {closed}")
-
-    @property
-    def start_micros(self) -> int | None:
-        if self.start is None:
-            return None
-        return utils.timedelta_to_micros(self.start)
-
-    @property
-    def end_micros(self) -> int | None:
-        if self.end is None:
-            return None
-        return utils.timedelta_to_micros(self.end)
 
     def __post_init__(self):
         if self.start is None:

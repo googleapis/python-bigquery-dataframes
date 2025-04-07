@@ -29,6 +29,7 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 from google.cloud import bigquery
 import pyarrow as pa
 
+from bigframes.core import utils
 import bigframes.core.compile.aggregate_compiler as agg_compiler
 import bigframes.core.compile.googlesql
 import bigframes.core.compile.ibis_types
@@ -597,6 +598,17 @@ def _convert_range_ordering_to_table_value(
     value_lookup: typing.Mapping[str, ibis_types.Value],
     ordering_column: OrderingExpression,
 ) -> ibis_types.Value:
+    """Converts the ordering for range windows to Ibis references.
+
+    Note that this method is different from `_convert_row_ordering_to_table_values` in
+    that it does not arrange null values. There are two reasons:
+    1. Manipulating null positions requires more than one ordering key, which is forbidden
+       by SQL window syntax for range rolling.
+    2. Pandas does not allow range rolling on timeseries with nulls.
+
+    Therefore, we opt for the simplest approach here: generate the simplest SQL and follow
+    the BigQuery engine behavior.
+    """
     expr = op_compiler.compile_expression(
         ordering_column.scalar_expression, value_lookup
     )
@@ -695,8 +707,14 @@ def _add_boundary(
 ) -> ibis_expr_builders.LegacyWindowBuilder:
     if isinstance(bounds, RangeWindowBounds):
         return ibis_window.range(
-            start=_to_ibis_boundary(bounds.start_micros),
-            end=_to_ibis_boundary(bounds.end_micros),
+            start=_to_ibis_boundary(
+                None
+                if bounds.start is None
+                else utils.timedelta_to_micros(bounds.start)
+            ),
+            end=_to_ibis_boundary(
+                None if bounds.end is None else utils.timedelta_to_micros(bounds.end)
+            ),
         )
     if isinstance(bounds, RowsWindowBounds):
         if bounds.start is not None or bounds.end is not None:

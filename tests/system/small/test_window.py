@@ -260,16 +260,18 @@ def test_range_rolling_order_info_lookup(range_rolling_dfs):
     actual_result = (
         bf_df.set_index("ts_col")
         .sort_index(ascending=False)["int_col"]
+        .isin(bf_df["int_col"])
         .rolling(window="3s")
-        .min()
+        .count()
         .to_pandas()
     )
 
     expected_result = (
         pd_df.set_index("ts_col")
         .sort_index(ascending=False)["int_col"]
+        .isin(pd_df["int_col"])
         .rolling(window="3s")
-        .min()
+        .count()
     )
     pd.testing.assert_series_equal(
         actual_result, expected_result, check_dtype=False, check_index=False

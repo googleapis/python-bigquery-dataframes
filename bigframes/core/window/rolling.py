@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import datetime
-from functools import singledispatch
 import typing
 
 import bigframes_vendored.pandas.core.window.rolling as vendored_pandas_rolling
@@ -24,8 +23,9 @@ import pandas
 
 from bigframes import dtypes
 from bigframes.core import expression as ex
-from bigframes.core import log_adapter, nodes, ordering, window_spec
+from bigframes.core import log_adapter, ordering, window_spec
 import bigframes.core.blocks as blocks
+from bigframes.core.window import ordering as window_ordering
 import bigframes.operations.aggregations as agg_ops
 
 
@@ -140,7 +140,9 @@ def create_range_window(
     if index_dtypes[0] != dtypes.TIMESTAMP_DTYPE:
         raise ValueError("Index type should be timestamps with timezones")
 
-    order_direction = _find_order_direction(block.expr.node, block.index_columns[0])
+    order_direction = window_ordering.find_order_direction(
+        block.expr.node, block.index_columns[0]
+    )
     if order_direction is None:
         raise ValueError(
             "The index might not be in a monotonic order. Please sort the index before rolling."
@@ -157,48 +159,3 @@ def create_range_window(
         ),
     )
     return Window(block, spec, block.value_columns, is_series=is_series)
-
-
-@singledispatch
-def _find_order_direction(
-    root: nodes.BigFrameNode, column_id: str
-) -> ordering.OrderingDirection | None:
-    """Returns the order of the given column with tree traversal. If the column cannot be found,
-    or the ordering information is not available, return None.
-    """
-    return None
-
-
-@_find_order_direction.register
-def _(root: nodes.OrderByNode, column_id: str):
-    if len(root.by) == 0:
-        return None
-
-    # Make sure the window key is the prefix of sorting keys.
-    order_expr = root.by[0]
-    scalar_expr = order_expr.scalar_expression
-    if isinstance(scalar_expr, ex.DerefOp) and scalar_expr.id.name == column_id:
-        return order_expr.direction
-
-    return None
-
-
-@_find_order_direction.register
-def _(root: nodes.ReversedNode, column_id: str):
-    direction = _find_order_direction(root.child, column_id)
-
-    if direction is None:
-        return None
-    return direction.reverse()
-
-
-@_find_order_direction.register
-def _(root: nodes.SelectionNode, column_id: str):
-    for alias_ref in root.input_output_pairs:
-        if alias_ref.id.name == column_id:
-            return _find_order_direction(root.child, alias_ref.ref.id.name)
-
-
-@_find_order_direction.register
-def _(root: nodes.FilterNode, column_id: str):
-    return _find_order_direction(root.child, column_id)
