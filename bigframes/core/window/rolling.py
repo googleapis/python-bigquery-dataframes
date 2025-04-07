@@ -174,10 +174,11 @@ def _(root: nodes.OrderByNode, column_id: str):
     if len(root.by) == 0:
         return None
 
-    for order_expr in root.by:
-        scalar_expr = order_expr.scalar_expression
-        if isinstance(scalar_expr, ex.DerefOp) and scalar_expr.id.name == column_id:
-            return order_expr.direction
+    # Make sure the window key is the prefix of sorting keys.
+    order_expr = root.by[0]
+    scalar_expr = order_expr.scalar_expression
+    if isinstance(scalar_expr, ex.DerefOp) and scalar_expr.id.name == column_id:
+        return order_expr.direction
 
     return None
 
