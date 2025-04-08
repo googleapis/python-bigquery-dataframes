@@ -53,7 +53,7 @@ import bigframes.features
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
 import bigframes.session.planner
-import bigframes.session.temp_storage
+import bigframes.session.temporary_storage
 
 # Max complexity that should be executed as a single query
 QUERY_COMPLEXITY_LIMIT = 1e7
@@ -195,7 +195,7 @@ class BigQueryCachingExecutor(Executor):
     def __init__(
         self,
         bqclient: bigquery.Client,
-        storage_manager: bigframes.session.temp_storage.AnonymousDatasetManager,
+        storage_manager: bigframes.session.temporary_storage.TemporaryStorageManager,
         bqstoragereadclient: google.cloud.bigquery_storage_v1.BigQueryReadClient,
         *,
         strictly_ordered: bool = True,
@@ -221,7 +221,7 @@ class BigQueryCachingExecutor(Executor):
         enable_cache: bool = True,
     ) -> str:
         if offset_column:
-            array_value, internal_offset_col = array_value.promote_offsets()
+            array_value, _ = array_value.promote_offsets()
         node = (
             self.replace_cached_subtrees(array_value.node)
             if enable_cache
@@ -248,7 +248,7 @@ class BigQueryCachingExecutor(Executor):
         job_config = bigquery.QueryJobConfig()
         # Use explicit destination to avoid 10GB limit of temporary table
         if use_explicit_destination:
-            destination_table = self.storage_manager.allocate_and_create_temp_table(
+            destination_table = self.storage_manager.create_temp_table(
                 array_value.schema.to_bigquery(), cluster_cols=[]
             )
             job_config.destination = destination_table
@@ -264,7 +264,13 @@ class BigQueryCachingExecutor(Executor):
 
         # Though we provide the read client, iterator may or may not use it based on what is efficient for the result
         def iterator_supplier():
-            return iterator.to_arrow_iterable(bqstorage_client=self.bqstoragereadclient)
+            # Workaround issue fixed by: https://github.com/googleapis/python-bigquery/pull/2154
+            if iterator._page_size is not None or iterator.max_results is not None:
+                return iterator.to_arrow_iterable(bqstorage_client=None)
+            else:
+                return iterator.to_arrow_iterable(
+                    bqstorage_client=self.bqstoragereadclient
+                )
 
         if query_job:
             size_bytes = self.bqclient.get_table(query_job.destination).num_bytes
@@ -392,7 +398,7 @@ class BigQueryCachingExecutor(Executor):
         job_config = bigquery.QueryJobConfig()
         # Use explicit destination to avoid 10GB limit of temporary table
         if use_explicit_destination:
-            destination_table = self.storage_manager.allocate_and_create_temp_table(
+            destination_table = self.storage_manager.create_temp_table(
                 array_value.schema.to_bigquery(), cluster_cols=[]
             )
             job_config.destination = destination_table
@@ -645,9 +651,7 @@ class BigQueryCachingExecutor(Executor):
         cluster_cols: Sequence[str],
     ) -> bigquery.TableReference:
         assert len(cluster_cols) <= _MAX_CLUSTER_COLUMNS
-        temp_table = self.storage_manager.allocate_and_create_temp_table(
-            schema, cluster_cols
-        )
+        temp_table = self.storage_manager.create_temp_table(schema, cluster_cols)
 
         # TODO: Get default job config settings
         job_config = cast(

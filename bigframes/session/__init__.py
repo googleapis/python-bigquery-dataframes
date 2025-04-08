@@ -70,13 +70,14 @@ import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
+from bigframes.session import bigquery_session
 import bigframes.session._io.bigquery as bf_io_bigquery
+import bigframes.session.anonymous_dataset
 import bigframes.session.clients
 import bigframes.session.executor
 import bigframes.session.loader
 import bigframes.session.metrics
 import bigframes.session.planner
-import bigframes.session.temp_storage
 import bigframes.session.validation
 
 # Avoid circular imports.
@@ -107,20 +108,9 @@ MAX_INLINE_DF_BYTES = 5000
 
 logger = logging.getLogger(__name__)
 
-# Excludes geography and nested (array, struct) datatypes
-INLINABLE_DTYPES: Sequence[bigframes.dtypes.Dtype] = (
-    pandas.BooleanDtype(),
-    pandas.Float64Dtype(),
-    pandas.Int64Dtype(),
-    pandas.StringDtype(storage="pyarrow"),
-    pandas.ArrowDtype(pa.binary()),
-    pandas.ArrowDtype(pa.date32()),
-    pandas.ArrowDtype(pa.time64("us")),
-    pandas.ArrowDtype(pa.timestamp("us")),
-    pandas.ArrowDtype(pa.timestamp("us", tz="UTC")),
-    pandas.ArrowDtype(pa.decimal128(38, 9)),
-    pandas.ArrowDtype(pa.decimal256(76, 38)),
-    pandas.ArrowDtype(pa.duration("us")),
+NON_INLINABLE_DTYPES: Sequence[bigframes.dtypes.Dtype] = (
+    # Currently excluded as doesn't have arrow type
+    bigframes.dtypes.GEO_DTYPE,
 )
 
 
@@ -247,13 +237,25 @@ class Session(
 
         self._metrics = bigframes.session.metrics.ExecutionMetrics()
         self._function_session = bff_session.FunctionSession()
-        self._temp_storage_manager = (
-            bigframes.session.temp_storage.AnonymousDatasetManager(
+        self._anon_dataset_manager = (
+            bigframes.session.anonymous_dataset.AnonymousDatasetManager(
                 self._clients_provider.bqclient,
                 location=self._location,
                 session_id=self._session_id,
                 kms_key=self._bq_kms_key_name,
             )
+        )
+        # Session temp tables don't support specifying kms key, so use anon dataset if kms key specified
+        self._session_resource_manager = (
+            bigquery_session.SessionResourceManager(
+                self.bqclient,
+                self._location,
+            )
+            if (self._bq_kms_key_name is None)
+            else None
+        )
+        self._temp_storage_manager = (
+            self._session_resource_manager or self._anon_dataset_manager
         )
         self._executor: bigframes.session.executor.Executor = (
             bigframes.session.executor.BigQueryCachingExecutor(
@@ -375,7 +377,7 @@ class Session(
 
     @property
     def _anonymous_dataset(self):
-        return self._temp_storage_manager.dataset
+        return self._anon_dataset_manager.dataset
 
     def __hash__(self):
         # Stable hash needed to use in expression tree
@@ -388,9 +390,11 @@ class Session(
 
         # Protect against failure when the Session is a fake for testing or
         # failed to initialize.
-        temp_storage_manager = getattr(self, "_temp_storage_manager", None)
-        if temp_storage_manager:
-            self._temp_storage_manager.clean_up_tables()
+        if anon_dataset_manager := getattr(self, "_anon_dataset_manager", None):
+            anon_dataset_manager.close()
+
+        if session_resource_manager := getattr(self, "_session_resource_manager", None):
+            session_resource_manager.close()
 
         remote_function_session = getattr(self, "_function_session", None)
         if remote_function_session:
@@ -837,7 +841,7 @@ class Session(
         # Make sure all types are inlinable to avoid escaping errors.
         inline_types = inline_df._block.expr.schema.dtypes
         noninlinable_types = [
-            dtype for dtype in inline_types if dtype not in INLINABLE_DTYPES
+            dtype for dtype in inline_types if dtype in NON_INLINABLE_DTYPES
         ]
         if len(noninlinable_types) != 0:
             raise ValueError(
@@ -906,105 +910,11 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager.allocate_temp_table()
 
-        if engine is not None and engine == "bigquery":
-            if any(param is not None for param in (dtype, names)):
-                not_supported = ("dtype", "names")
-                raise NotImplementedError(
-                    f"BigQuery engine does not support these arguments: {not_supported}. "
-                    f"{constants.FEEDBACK_LINK}"
-                )
-
-            # TODO(b/338089659): Looks like we can relax this 1 column
-            # restriction if we check the contents of an iterable are strings
-            # not integers.
-            if (
-                # Empty tuples, None, and False are allowed and falsey.
-                index_col
-                and not isinstance(index_col, bigframes.enums.DefaultIndexKind)
-                and not isinstance(index_col, str)
-            ):
-                raise NotImplementedError(
-                    "BigQuery engine only supports a single column name for `index_col`, "
-                    f"got: {repr(index_col)}. {constants.FEEDBACK_LINK}"
-                )
-
-            # None and False cannot be passed to read_gbq.
-            # TODO(b/338400133): When index_col is None, we should be using the
-            # first column of the CSV as the index to be compatible with the
-            # pandas engine. According to the pandas docs, only "False"
-            # indicates a default sequential index.
-            if not index_col:
-                index_col = ()
-
-            index_col = typing.cast(
-                Union[
-                    Sequence[str],  # Falsey values
-                    bigframes.enums.DefaultIndexKind,
-                    str,
-                ],
-                index_col,
-            )
-
-            # usecols should only be an iterable of strings (column names) for use as columns in read_gbq.
-            columns: Tuple[Any, ...] = tuple()
-            if usecols is not None:
-                if isinstance(usecols, Iterable) and all(
-                    isinstance(col, str) for col in usecols
-                ):
-                    columns = tuple(col for col in usecols)
-                else:
-                    raise NotImplementedError(
-                        "BigQuery engine only supports an iterable of strings for `usecols`. "
-                        f"{constants.FEEDBACK_LINK}"
-                    )
-
-            if encoding is not None and encoding not in _VALID_ENCODINGS:
-                raise NotImplementedError(
-                    f"BigQuery engine only supports the following encodings: {_VALID_ENCODINGS}. "
-                    f"{constants.FEEDBACK_LINK}"
-                )
-
-            job_config = bigquery.LoadJobConfig()
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
-            job_config.source_format = bigquery.SourceFormat.CSV
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
-            job_config.autodetect = True
-            job_config.field_delimiter = sep
-            job_config.encoding = encoding
-            job_config.labels = {"bigframes-api": "read_csv"}
-
-            # We want to match pandas behavior. If header is 0, no rows should be skipped, so we
-            # do not need to set `skip_leading_rows`. If header is None, then there is no header.
-            # Setting skip_leading_rows to 0 does that. If header=N and N>0, we want to skip N rows.
-            if header is None:
-                job_config.skip_leading_rows = 0
-            elif header > 0:
-                job_config.skip_leading_rows = header
-
-            return self._loader._read_bigquery_load_job(
-                filepath_or_buffer,
-                table,
-                job_config=job_config,
-                index_col=index_col,
-                columns=columns,
-            )
-        else:
-            if isinstance(index_col, bigframes.enums.DefaultIndexKind):
-                raise NotImplementedError(
-                    f"With index_col={repr(index_col)}, only engine='bigquery' is supported. "
-                    f"{constants.FEEDBACK_LINK}"
-                )
-            if any(arg in kwargs for arg in ("chunksize", "iterator")):
-                raise NotImplementedError(
-                    "'chunksize' and 'iterator' arguments are not supported. "
-                    f"{constants.FEEDBACK_LINK}"
-                )
-
-            if isinstance(filepath_or_buffer, str):
-                self._check_file_size(filepath_or_buffer)
-            pandas_df = pandas.read_csv(
+        if engine != "bigquery":
+            # Using pandas.read_csv by default and warning about potential issues with
+            # large files.
+            return self._read_csv_w_pandas_engines(
                 filepath_or_buffer,
                 sep=sep,
                 header=header,
@@ -1014,9 +924,169 @@ class Session(
                 dtype=dtype,
                 engine=engine,
                 encoding=encoding,
+                write_engine=write_engine,
                 **kwargs,
             )
-            return self._read_pandas(pandas_df, api_name="read_csv", write_engine=write_engine)  # type: ignore
+        else:
+            return self._read_csv_w_bigquery_engine(
+                filepath_or_buffer,
+                sep=sep,
+                header=header,
+                names=names,
+                index_col=index_col,
+                usecols=usecols,  # type: ignore
+                dtype=dtype,
+                encoding=encoding,
+            )
+
+    def _read_csv_w_pandas_engines(
+        self,
+        filepath_or_buffer,
+        *,
+        sep,
+        header,
+        names,
+        index_col,
+        usecols,
+        dtype,
+        engine,
+        encoding,
+        write_engine,
+        **kwargs,
+    ) -> dataframe.DataFrame:
+        """Reads a CSV file using pandas engines into a BigQuery DataFrames.
+
+        This method serves as the implementation backend for read_csv when the
+        specified engine is one supported directly by pandas ('c', 'python',
+        'pyarrow').
+        """
+        if isinstance(index_col, bigframes.enums.DefaultIndexKind):
+            raise NotImplementedError(
+                f"With index_col={repr(index_col)}, only engine='bigquery' is supported. "
+                f"{constants.FEEDBACK_LINK}"
+            )
+        if any(arg in kwargs for arg in ("chunksize", "iterator")):
+            raise NotImplementedError(
+                "'chunksize' and 'iterator' arguments are not supported. "
+                f"{constants.FEEDBACK_LINK}"
+            )
+        if isinstance(filepath_or_buffer, str):
+            self._check_file_size(filepath_or_buffer)
+
+        pandas_df = pandas.read_csv(
+            filepath_or_buffer,
+            sep=sep,
+            header=header,
+            names=names,
+            index_col=index_col,
+            usecols=usecols,  # type: ignore
+            dtype=dtype,
+            engine=engine,
+            encoding=encoding,
+            **kwargs,
+        )
+        return self._read_pandas(pandas_df, api_name="read_csv", write_engine=write_engine)  # type: ignore
+
+    def _read_csv_w_bigquery_engine(
+        self,
+        filepath_or_buffer,
+        *,
+        sep,
+        header,
+        names,
+        index_col,
+        usecols,
+        dtype,
+        encoding,
+    ) -> dataframe.DataFrame:
+        """Reads a CSV file using the BigQuery engine into a BigQuery DataFrames.
+
+        This method serves as the implementation backend for read_csv when the
+        'bigquery' engine is specified or inferred. It leverages BigQuery's
+        native CSV loading capabilities, making it suitable for large datasets
+        that may not fit into local memory.
+        """
+
+        if any(param is not None for param in (dtype, names)):
+            not_supported = ("dtype", "names")
+            raise NotImplementedError(
+                f"BigQuery engine does not support these arguments: {not_supported}. "
+                f"{constants.FEEDBACK_LINK}"
+            )
+
+        # TODO(b/338089659): Looks like we can relax this 1 column
+        # restriction if we check the contents of an iterable are strings
+        # not integers.
+        if (
+            # Empty tuples, None, and False are allowed and falsey.
+            index_col
+            and not isinstance(index_col, bigframes.enums.DefaultIndexKind)
+            and not isinstance(index_col, str)
+        ):
+            raise NotImplementedError(
+                "BigQuery engine only supports a single column name for `index_col`, "
+                f"got: {repr(index_col)}. {constants.FEEDBACK_LINK}"
+            )
+
+        # None and False cannot be passed to read_gbq.
+        # TODO(b/338400133): When index_col is None, we should be using the
+        # first column of the CSV as the index to be compatible with the
+        # pandas engine. According to the pandas docs, only "False"
+        # indicates a default sequential index.
+        if not index_col:
+            index_col = ()
+
+        index_col = typing.cast(
+            Union[
+                Sequence[str],  # Falsey values
+                bigframes.enums.DefaultIndexKind,
+                str,
+            ],
+            index_col,
+        )
+
+        # usecols should only be an iterable of strings (column names) for use as columns in read_gbq.
+        columns: Tuple[Any, ...] = tuple()
+        if usecols is not None:
+            if isinstance(usecols, Iterable) and all(
+                isinstance(col, str) for col in usecols
+            ):
+                columns = tuple(col for col in usecols)
+            else:
+                raise NotImplementedError(
+                    "BigQuery engine only supports an iterable of strings for `usecols`. "
+                    f"{constants.FEEDBACK_LINK}"
+                )
+
+        if encoding is not None and encoding not in _VALID_ENCODINGS:
+            raise NotImplementedError(
+                f"BigQuery engine only supports the following encodings: {_VALID_ENCODINGS}. "
+                f"{constants.FEEDBACK_LINK}"
+            )
+
+        job_config = bigquery.LoadJobConfig()
+        job_config.source_format = bigquery.SourceFormat.CSV
+        job_config.autodetect = True
+        job_config.field_delimiter = sep
+        job_config.encoding = encoding
+        job_config.labels = {"bigframes-api": "read_csv"}
+
+        # b/409070192: When header > 0, pandas and BigFrames returns different column naming.
+
+        # We want to match pandas behavior. If header is 0, no rows should be skipped, so we
+        # do not need to set `skip_leading_rows`. If header is None, then there is no header.
+        # Setting skip_leading_rows to 0 does that. If header=N and N>0, we want to skip N rows.
+        if header is None:
+            job_config.skip_leading_rows = 0
+        elif header > 0:
+            job_config.skip_leading_rows = header + 1
+
+        return self._loader.read_bigquery_load_job(
+            filepath_or_buffer,
+            job_config=job_config,
+            index_col=index_col,
+            columns=columns,
+        )
 
     def read_pickle(
         self,
@@ -1052,18 +1122,12 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager.allocate_temp_table()
-
         if engine == "bigquery":
             job_config = bigquery.LoadJobConfig()
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.PARQUET
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.labels = {"bigframes-api": "read_parquet"}
 
-            return self._loader._read_bigquery_load_job(
-                path, table, job_config=job_config
-            )
+            return self._loader.read_bigquery_load_job(path, job_config=job_config)
         else:
             if "*" in path:
                 raise ValueError(
@@ -1106,8 +1170,6 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager.allocate_temp_table()
-
         if engine == "bigquery":
 
             if dtype is not None:
@@ -1131,16 +1193,13 @@ class Session(
                 )
 
             job_config = bigquery.LoadJobConfig()
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.autodetect = True
             job_config.encoding = encoding
             job_config.labels = {"bigframes-api": "read_json"}
 
-            return self._loader._read_bigquery_load_job(
+            return self._loader.read_bigquery_load_job(
                 path_or_buf,
-                table,
                 job_config=job_config,
             )
         else:
@@ -1713,7 +1772,7 @@ class Session(
 
     def _create_object_table(self, path: str, connection: str) -> str:
         """Create a random id Object Table from the input path and connection."""
-        table = str(self._loader._storage_manager.generate_unique_resource_id())
+        table = str(self._anon_dataset_manager.generate_unique_resource_id())
 
         import textwrap
 

@@ -14,8 +14,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import datetime
 import itertools
 from typing import Literal, Mapping, Optional, Set, Tuple, Union
+
+import numpy as np
+import pandas as pd
 
 import bigframes.core.expression as ex
 import bigframes.core.identifiers as ids
@@ -168,9 +172,31 @@ class RowsWindowBounds:
 
 @dataclass(frozen=True)
 class RangeWindowBounds:
-    # TODO(b/388916840) Support range rolling on timeseries with timedeltas.
-    start: Optional[int] = None
-    end: Optional[int] = None
+    """Represents a time range window, inclusively bounded by start and end"""
+
+    start: pd.Timedelta | None = None
+    end: pd.Timedelta | None = None
+
+    @classmethod
+    def from_timedelta_window(
+        cls,
+        window: pd.Timedelta | np.timedelta64 | datetime.timedelta,
+        closed: Literal["right", "left", "both", "neither"],
+    ) -> RangeWindowBounds:
+        window = pd.Timedelta(window)
+        tick = pd.Timedelta("1us")
+        zero = pd.Timedelta(0)
+
+        if closed == "right":
+            return cls(-(window - tick), zero)
+        elif closed == "left":
+            return cls(-window, -tick)
+        elif closed == "both":
+            return cls(-window, zero)
+        elif closed == "neither":
+            return cls(-(window - tick), -tick)
+        else:
+            raise ValueError(f"Unsupported value for 'closed' parameter: {closed}")
 
     def __post_init__(self):
         if self.start is None:
@@ -187,10 +213,12 @@ class RangeWindowBounds:
 class WindowSpec:
     """
     Specifies a window over which aggregate and analytic function may be applied.
-    grouping_keys: set of column ids to group on
-    preceding: Number of preceding rows in the window
-    following: Number of preceding rows in the window
-    ordering: List of columns ids and ordering direction to override base ordering
+
+    Attributes:
+        grouping_keys: A set of column ids to group on
+        bounds: The window boundaries
+        ordering: A list of columns ids and ordering direction to override base ordering
+        min_periods: The minimum number of observations in window required to have a value
     """
 
     grouping_keys: Tuple[ex.DerefOp, ...] = tuple()
@@ -199,7 +227,7 @@ class WindowSpec:
     min_periods: int = 0
 
     @property
-    def row_bounded(self):
+    def is_row_bounded(self):
         """
         Whether the window is bounded by row offsets.
 
@@ -207,6 +235,26 @@ class WindowSpec:
         to calculate deterministically.
         """
         return isinstance(self.bounds, RowsWindowBounds)
+
+    @property
+    def is_range_bounded(self):
+        """
+        Whether the window is bounded by range offsets.
+
+        This is relevant for determining whether the window requires a total order
+        to calculate deterministically.
+        """
+        return isinstance(self.bounds, RangeWindowBounds)
+
+    @property
+    def is_unbounded(self):
+        """
+        Whether the window is unbounded.
+
+        This is relevant for determining whether the window requires a total order
+        to calculate deterministically.
+        """
+        return self.bounds is None
 
     @property
     def all_referenced_columns(self) -> Set[ids.ColumnId]:
@@ -220,7 +268,7 @@ class WindowSpec:
 
     def without_order(self) -> WindowSpec:
         """Removes ordering clause if ordering isn't required to define bounds."""
-        if self.row_bounded:
+        if self.is_row_bounded:
             raise ValueError("Cannot remove order from row-bounded window")
         return replace(self, ordering=())
 

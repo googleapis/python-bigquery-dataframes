@@ -16,10 +16,35 @@
 
 from __future__ import annotations
 
+import dataclasses
+import functools
+import uuid
+
 import pyarrow as pa
 
 import bigframes.core.schema as schemata
 import bigframes.dtypes
+
+
+@dataclasses.dataclass(frozen=True)
+class LocalTableMetadata:
+    total_bytes: int
+    row_count: int
+
+    @classmethod
+    def from_arrow(cls, table: pa.Table):
+        return cls(total_bytes=table.nbytes, row_count=table.num_rows)
+
+
+@dataclasses.dataclass(frozen=True)
+class ManagedArrowTable:
+    data: pa.Table = dataclasses.field(hash=False)
+    schema: schemata.ArraySchema = dataclasses.field(hash=False)
+    id: uuid.UUID = dataclasses.field(default_factory=uuid.uuid4)
+
+    @functools.cached_property
+    def metadata(self):
+        return LocalTableMetadata.from_arrow(self.data)
 
 
 def arrow_schema_to_bigframes(arrow_schema: pa.Schema) -> schemata.ArraySchema:
@@ -71,5 +96,13 @@ def arrow_type_replacements(type: pa.DataType) -> pa.DataType:
     if pa.types.is_large_string(type):
         # simple string type can handle the largest strings needed
         return pa.string()
+    if pa.types.is_null(type):
+        # null as a type not allowed, default type is float64 for bigframes
+        return pa.float64()
+    if pa.types.is_list(type):
+        new_field_t = arrow_type_replacements(type.value_type)
+        if new_field_t != type.value_type:
+            return pa.list_(new_field_t)
+        return type
     else:
         return type

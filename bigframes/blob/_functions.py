@@ -69,7 +69,7 @@ class TransformFunction:
     def _create_udf(self):
         """Create Python UDF in BQ. Return name of the UDF."""
         udf_name = str(
-            self._session._loader._storage_manager.generate_unique_resource_id()
+            self._session._anon_dataset_manager.generate_unique_resource_id()
         )
 
         func_body = inspect.getsource(self._func)
@@ -102,6 +102,9 @@ AS r\"\"\"
     def udf(self):
         """Create and return the UDF object."""
         udf_name = self._create_udf()
+
+        # TODO(b/404605969): remove cleanups when UDF fixes dataset deletion.
+        self._session._function_session._update_temp_artifacts(udf_name, "")
         return self._session.read_gbq_function(udf_name)
 
 
