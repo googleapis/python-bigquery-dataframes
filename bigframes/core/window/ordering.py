@@ -67,10 +67,5 @@ def _(root: nodes.FilterNode, column_id: str):
 
 
 @find_order_direction.register
-def _(root: nodes.InNode, column_id: str):
-    return find_order_direction(root.left_child, column_id)
-
-
-@find_order_direction.register
-def _(root: nodes.WindowOpNode, column_id: str):
-    return find_order_direction(root.child, column_id)
+def _(root: nodes.AdditiveNode, column_id: str):
+    return find_order_direction(root.additive_base, column_id)
