@@ -19,7 +19,6 @@ from typing import Literal, Sequence, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
-import jellyfish
 import pandas as pd
 
 from bigframes import session
@@ -87,6 +86,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             typing.Sequence[blocks.Label],
         ],
     ):
+        import bigframes._string_tools
+
         if utils.is_list_like(key):
             keys = list(key)
         else:
@@ -101,7 +102,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 possible_key.append(
                     min(
                         self._block.column_labels,
-                        key=lambda item: jellyfish.damerau_levenshtein_distance(
+                        key=lambda item: bigframes._string_tools.levenshtein_distance(
                             bad_key, item
                         ),
                     )
