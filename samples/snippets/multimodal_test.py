@@ -111,5 +111,6 @@ def test_multimodal_dataframe() -> None:
     # [END bigquery_dataframes_multimodal_dataframe_pdf_chunk]
     assert df_image is not None
     assert answer is not None
+    assert answer_alt is not None
     assert embeddings is not None
     assert chunked is not None
