@@ -40,9 +40,9 @@ import google.cloud.bigquery_storage_v1
 import pyarrow
 
 import bigframes.core
+from bigframes.core import rewrite
 import bigframes.core.compile
 import bigframes.core.guid
-import bigframes.core.identifiers
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
 import bigframes.core.schema
@@ -244,6 +244,15 @@ class BigQueryCachingExecutor(Executor):
         if bigframes.options.compute.enable_multi_query_execution:
             self._simplify_with_caching(array_value)
 
+        if (
+            not use_explicit_destination
+            and (page_size is None)
+            and (max_results is None)
+        ):
+            maybe_result = self._execute_direct_gbq(array_value)
+            if maybe_result:
+                return maybe_result
+
         sql = self.to_sql(array_value, ordered=ordered)
         job_config = bigquery.QueryJobConfig()
         # Use explicit destination to avoid 10GB limit of temporary table
@@ -296,6 +305,66 @@ class BigQueryCachingExecutor(Executor):
             query_job=query_job,
             total_bytes=size_bytes,
             total_rows=iterator.total_rows,
+        )
+
+    # TODO: Extract out to sub-executor or similar interface
+    # TODO: Support peek and head
+    def _execute_direct_gbq(
+        self, array_value: bigframes.core.ArrayValue
+    ) -> Optional[ExecuteResult]:
+        node = rewrite.try_reduce_to_table_scan(
+            rewrite.column_pruning(self.replace_cached_subtrees(array_value.node))
+        )
+        import google.cloud.bigquery_storage_v1.types as bq_storage_types
+        from google.protobuf.timestamp_pb2 import Timestamp
+
+        if not isinstance(node, nodes.ReadTableNode):
+            return None
+        bq_table = node.source.table.get_table_ref()
+        read_options = bq_storage_types.ReadSession.TableReadOptions(
+            selected_fields=[item.source_id for item in node.scan_list.items]
+        )
+        if node.source.at_time:
+            snapshot_time = Timestamp()
+            snapshot_time.FromDatetime(node.source.at_time)
+            table_mods = bq_storage_types.ReadSession.TableModifiers(
+                snapshot_time=snapshot_time
+            )
+        else:
+            table_mods = bq_storage_types.ReadSession.TableModifiers()
+
+        def iterator_supplier():
+            requested_session = bq_storage_types.stream.ReadSession(
+                table=bq_table.to_bqstorage(),
+                data_format=bq_storage_types.DataFormat.ARROW,
+                read_options=read_options,
+                table_modifiers=table_mods,
+            )
+            # Single stream to maintain ordering
+            request = bq_storage_types.CreateReadSessionRequest(
+                parent=f"projects/{self.bqclient.project}",
+                read_session=requested_session,
+                max_stream_count=1,
+            )
+            session = self.bqstoragereadclient.create_read_session(
+                request=request, retry=None
+            )
+
+            if not session.streams:
+                return iter([])
+
+            reader = self.bqstoragereadclient.read_rows(
+                session.streams[0].name, retry=None
+            )
+            rowstream = reader.rows()
+            return map(lambda page: page.to_arrow(), rowstream.pages)
+
+        return ExecuteResult(
+            arrow_batches=iterator_supplier,
+            schema=array_value.schema,
+            query_job=None,
+            total_bytes=None,
+            total_rows=node.source.table.n_rows,
         )
 
     def export_gbq(
