@@ -271,7 +271,7 @@ def test_to_pandas_downsampling_option_override(session):
     download_size = 1
 
     with pytest.warns(
-        UserWarning, match="The data size .* exceeds the maximum download limit"
+        FutureWarning, match="The data size .* exceeds the maximum download limit"
     ):
         # limits only apply for allow_large_result=True
         df = df.to_pandas(
@@ -306,7 +306,7 @@ def test_to_pandas_downsampling_option_override(session):
     ],
 )
 def test_to_pandas_warns_deprecated_parameters(scalars_df_index, kwargs, message):
-    with pytest.warns(UserWarning, match=message):
+    with pytest.warns(FutureWarning, match=message):
         scalars_df_index.to_pandas(
             # limits only apply for allow_large_result=True
             allow_large_results=True,

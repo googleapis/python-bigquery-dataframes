@@ -60,7 +60,7 @@ def test_to_pandas_override_global_option(scalars_df_index):
 )
 def test_to_pandas_warns_deprecated_parameters(scalars_df_index, kwargs, message):
     s: bigframes.series.Series = scalars_df_index["int64_col"]
-    with pytest.warns(UserWarning, match=message):
+    with pytest.warns(FutureWarning, match=message):
         s.to_pandas(
             # limits only apply for allow_large_result=True
             allow_large_results=True,

@@ -1714,14 +1714,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 "DEPRECATED: The `max_download_size` parameters for `DataFrame.to_pandas()` "
                 "are deprecated and will be removed soon. Please use `DataFrame.to_pandas_batches()`."
             )
-            warnings.warn(msg, category=UserWarning)
+            warnings.warn(msg, category=FutureWarning)
         if sampling_method is not None or random_state is not None:
             msg = bfe.format_message(
                 "DEPRECATED: The `sampling_method` and `random_state` parameters for "
                 "`DataFrame.to_pandas()` are deprecated and will be removed soon. "
                 "Please use `DataFrame.sample().to_pandas()` instead for sampling."
             )
-            warnings.warn(msg, category=UserWarning, stacklevel=2)
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
 
         if dry_run:
             dry_run_stats, dry_run_job = self._block._compute_dry_run(

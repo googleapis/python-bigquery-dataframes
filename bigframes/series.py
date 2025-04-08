@@ -477,14 +477,14 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 "DEPRECATED: The `max_download_size` parameters for `Series.to_pandas()` "
                 "are deprecated and will be removed soon. Please use `Series.to_pandas_batches()`."
             )
-            warnings.warn(msg, category=UserWarning)
+            warnings.warn(msg, category=FutureWarning)
         if sampling_method is not None or random_state is not None:
             msg = bfe.format_message(
                 "DEPRECATED: The `sampling_method` and `random_state` parameters for "
                 "`Series.to_pandas()` are deprecated and will be removed soon. "
                 "Please use `Series.sample().to_pandas()` instead for sampling."
             )
-            warnings.warn(msg, category=UserWarning)
+            warnings.warn(msg, category=FutureWarning)
 
         if dry_run:
             dry_run_stats, dry_run_job = self._block._compute_dry_run(
