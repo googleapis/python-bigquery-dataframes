@@ -115,7 +115,8 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
             The model for text embedding. Possible values are "text-embedding-005", "text-embedding-004"
             or "text-multilingual-embedding-002". text-embedding models returns model embeddings for text inputs.
             text-multilingual-embedding models returns model embeddings for text inputs which support over 100 languages.
-            Default to "text-embedding-004".
+            If no setting is provided, "text-embedding-004" will be used by
+            default and a warning will be issued.
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
@@ -134,11 +135,10 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
-        self.model_name = model_name
-        if model_name == "text-embedding-004":
+        if model_name == _TEXT_EMBEDDING_004_ENDPOINT:
             msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
             warnings.warn(msg, category=FutureWarning, stacklevel=2)
-
+        self.model_name = model_name
         self.session = session or global_session.get_global_session()
         self.connection_name = connection_name
 
@@ -262,7 +262,8 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
     Args:
         model_name (str, Default to "multimodalembedding@001"):
             The model for multimodal embedding. Can set to "multimodalembedding@001". Multimodal-embedding models returns model embeddings for text, image and video inputs.
-            Default to "multimodalembedding@001".
+            If no setting is provided, "multimodalembedding@001" will be used by
+            default and a warning will be issued.
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
@@ -279,6 +280,9 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
     ):
         if not bigframes.options.experiments.blob:
             raise NotImplementedError()
+        if model_name == _MULTIMODAL_EMBEDDING_001_ENDPOINT:
+            msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
         self.model_name = model_name
         self.session = session or global_session.get_global_session()
         self.connection_name = connection_name
@@ -414,7 +418,8 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
             "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-1.5-flash-001",
             "gemini-1.5-flash-002", "gemini-2.0-flash-exp",
             "gemini-2.0-flash-lite-001", and "gemini-2.0-flash-001".
-            Default to "gemini-2.0-flash-001".
+            If no setting is provided, "gemini-2.0-flash-001" will be used by
+            default and a warning will be issued.
 
         .. note::
             "gemini-2.0-flash-exp", "gemini-1.5-pro-preview-0514" and "gemini-1.5-flash-preview-0514" is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
@@ -460,6 +465,9 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
                 "(https://cloud.google.com/products#product-launch-stages)."
             )
             warnings.warn(msg, category=exceptions.PreviewWarning)
+        if model_name == _GEMINI_2_FLASH_001_ENDPOINT:
+            msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
         self.model_name = model_name
         self.session = session or global_session.get_global_session()
         self.max_iterations = max_iterations
@@ -809,7 +817,8 @@ class Claude3TextGenerator(base.RetriableRemotePredictor):
             "claude-3-5-sonnet" is Anthropic's most powerful AI model and maintains the speed and cost of Claude 3 Sonnet, which is a mid-tier model.
             "claude-3-opus" is Anthropic's second-most powerful AI model, with strong performance on highly complex tasks.
             https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#available-claude-models
-            Default to "claude-3-sonnet".
+            If no setting is provided, "claude-3-sonnet" will be used by default
+            and a warning will be issued.
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
@@ -827,6 +836,9 @@ class Claude3TextGenerator(base.RetriableRemotePredictor):
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
+        if model_name == _CLAUDE_3_SONNET_ENDPOINT:
+            msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
         self.model_name = model_name
         self.session = session or global_session.get_global_session()
         self.connection_name = connection_name
