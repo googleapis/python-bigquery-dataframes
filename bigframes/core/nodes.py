@@ -24,12 +24,10 @@ from typing import Callable, cast, Iterable, Mapping, Optional, Sequence, Tuple
 
 import google.cloud.bigquery as bq
 
-from bigframes.core import identifiers
+from bigframes.core import identifiers, local_data
 from bigframes.core.bigframe_node import BigFrameNode, COLUMN_SET, Field
 import bigframes.core.expression as ex
-import bigframes.core.guid
 from bigframes.core.ordering import OrderingExpression
-import bigframes.core.schema as schemata
 import bigframes.core.slices as slices
 import bigframes.core.window_spec as window
 import bigframes.dtypes
@@ -579,11 +577,8 @@ class ScanList:
 
 @dataclasses.dataclass(frozen=True, eq=False)
 class ReadLocalNode(LeafNode):
-    # TODO: Combine feather_bytes, data_schema, n_rows into a LocalDataDef struct
     # TODO: Track nullability for local data
-    feather_bytes: bytes
-    data_schema: schemata.ArraySchema
-    n_rows: int
+    local_data_source: local_data.ManagedArrowTable
     # Mapping of local ids to bfet id.
     scan_list: ScanList
     # Offsets are generated only if this is non-null
@@ -623,7 +618,7 @@ class ReadLocalNode(LeafNode):
 
     @property
     def row_count(self) -> typing.Optional[int]:
-        return self.n_rows
+        return self.local_data_source.metadata.row_count
 
     @property
     def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
@@ -1358,7 +1353,7 @@ class WindowOpNode(UnaryNode, AdditiveNode):
         """Validate the local data in the node."""
         # Since inner order and row bounds are coupled, rank ops can't be row bounded
         assert (
-            not self.window_spec.row_bounded
+            not self.window_spec.is_row_bounded
         ) or self.expression.op.implicitly_inherits_order
         assert all(ref in self.child.ids for ref in self.expression.column_references)
 
@@ -1420,7 +1415,9 @@ class WindowOpNode(UnaryNode, AdditiveNode):
         op_inherits_order = (
             not self.expression.op.order_independent
         ) and self.expression.op.implicitly_inherits_order
-        return op_inherits_order or self.window_spec.row_bounded
+        # range-bounded windows do not inherit orders because their ordering are
+        # already defined before rewrite time.
+        return op_inherits_order or self.window_spec.is_row_bounded
 
     @property
     def additive_base(self) -> BigFrameNode:
