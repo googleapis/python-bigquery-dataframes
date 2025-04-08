@@ -271,7 +271,7 @@ def test_to_pandas_downsampling_option_override(session):
     download_size = 1
 
     with pytest.warns(
-        FutureWarning, match="The data size .* exceeds the maximum download limit"
+        UserWarning, match="The data size .* exceeds the maximum download limit"
     ):
         # limits only apply for allow_large_result=True
         df = df.to_pandas(
