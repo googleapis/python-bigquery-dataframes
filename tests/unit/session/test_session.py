@@ -21,9 +21,7 @@ import warnings
 
 import google.api_core.exceptions
 import google.cloud.bigquery
-import google.cloud.bigquery.table
 import pandas as pd
-import pyarrow as pa
 import pytest
 
 import bigframes
@@ -137,7 +135,7 @@ CLUSTERED_OR_PARTITIONED_TABLES = [
         ),
     ],
 )
-def test_read_csv_bq_engine_throws_not_implemented_error(kwargs, match):
+def test_read_csv_w_bq_engine_raises_error(kwargs, match):
     session = resources.create_bigquery_session()
 
     with pytest.raises(NotImplementedError, match=match):
@@ -150,9 +148,10 @@ def test_read_csv_bq_engine_throws_not_implemented_error(kwargs, match):
         ("c",),
         ("python",),
         ("pyarrow",),
+        ("python-fwf",),
     ),
 )
-def test_read_csv_pandas_engines_index_col_sequential_int64_not_supported(engine):
+def test_read_csv_w_pandas_engines_raises_error_for_sequential_int64_index_col(engine):
     session = resources.create_bigquery_session()
 
     with pytest.raises(NotImplementedError, match="index_col"):
@@ -161,6 +160,22 @@ def test_read_csv_pandas_engines_index_col_sequential_int64_not_supported(engine
             engine=engine,
             index_col=bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64,
         )
+
+
+@pytest.mark.parametrize(
+    ("kwargs"),
+    [
+        pytest.param({"chunksize": 5}, id="with_chunksize"),
+        pytest.param({"iterator": True}, id="with_iterator"),
+    ],
+)
+def test_read_csv_w_pandas_engines_raises_error_for_unsupported_args(kwargs):
+    session = resources.create_bigquery_session()
+    with pytest.raises(
+        NotImplementedError,
+        match="'chunksize' and 'iterator' arguments are not supported.",
+    ):
+        session.read_csv("path/to/csv.csv", **kwargs)
 
 
 @pytest.mark.parametrize(
@@ -478,16 +493,3 @@ def test_read_pandas_inline_w_interval_type_raises_error():
     df = pd.DataFrame(pd.arrays.IntervalArray.from_breaks([0, 10, 20, 30, 40, 50]))
     with pytest.raises(ValueError, match="Could not convert with a BigQuery type: "):
         session.read_pandas(df, write_engine="bigquery_inline")
-
-
-def test_read_pandas_inline_w_noninlineable_type_raises_error():
-    session = resources.create_bigquery_session()
-    data = [
-        [1, 2, 3],
-        [4, 5],
-        None,
-        [6, 7, 8, 9],
-    ]
-    s = pd.Series(data, dtype=pd.ArrowDtype(pa.list_(pa.int64())))
-    with pytest.raises(ValueError, match="Could not inline with a BigQuery type:"):
-        session.read_pandas(s, write_engine="bigquery_inline")

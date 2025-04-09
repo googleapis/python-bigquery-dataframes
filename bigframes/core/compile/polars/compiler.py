@@ -16,7 +16,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import itertools
-from typing import cast, Optional, Sequence, Tuple, TYPE_CHECKING, Union
+from typing import cast, Optional, Sequence, Tuple, TYPE_CHECKING
 
 import bigframes.core
 from bigframes.core import window_spec
@@ -205,11 +205,10 @@ class PolarsCompiler:
         cols_to_read = {
             scan_item.source_id: scan_item.id.sql for scan_item in node.scan_list.items
         }
-        return (
-            pl.read_ipc(node.feather_bytes, columns=list(cols_to_read.keys()))
-            .lazy()
-            .rename(cols_to_read)
-        )
+        lazy_frame = cast(
+            pl.DataFrame, pl.from_arrow(node.local_data_source.data)
+        ).lazy()
+        return lazy_frame.select(cols_to_read.keys()).rename(cols_to_read)
 
     @compile_node.register
     def compile_filter(self, node: nodes.FilterNode):
@@ -360,6 +359,7 @@ class PolarsCompiler:
             return df.with_columns([agg_expr])
 
         else:  # row-bounded window
+            assert isinstance(window.bounds, window_spec.RowsWindowBounds)
             # Polars API semi-bounded, and any grouped rolling window challenging
             # https://github.com/pola-rs/polars/issues/4799
             # https://github.com/pola-rs/polars/issues/8976
@@ -383,9 +383,7 @@ class PolarsCompiler:
             return pl.concat([df, results], how="horizontal")
 
 
-def _get_period(
-    bounds: Union[window_spec.RowsWindowBounds, window_spec.RangeWindowBounds]
-) -> Optional[int]:
+def _get_period(bounds: window_spec.RowsWindowBounds) -> Optional[int]:
     """Returns None if the boundary is infinite."""
     if bounds.start is None or bounds.end is None:
         return None
