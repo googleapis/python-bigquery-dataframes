@@ -295,7 +295,7 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = (),
         enable_snapshot: bool = True,
     ) -> dataframe.DataFrame:
-        import bigframes._string_tools
+        import bigframes._tools.strings
         import bigframes.dataframe as dataframe
 
         # ---------------------------------
@@ -336,7 +336,7 @@ class GbqDataLoader:
             if key not in table_column_names:
                 possibility = min(
                     table_column_names,
-                    key=lambda item: bigframes._string_tools.levenshtein_distance(
+                    key=lambda item: bigframes._tools.strings.levenshtein_distance(
                         key, item
                     ),
                 )
@@ -356,7 +356,7 @@ class GbqDataLoader:
             if key not in table_column_names:
                 possibility = min(
                     table_column_names,
-                    key=lambda item: bigframes._string_tools.levenshtein_distance(
+                    key=lambda item: bigframes._tools.strings.levenshtein_distance(
                         key, item
                     ),
                 )

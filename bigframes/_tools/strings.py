@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Helper methods for processing strings with minimal dependencies.
+
+Please keep the dependencies used in this subpackage to a minimum to avoid the
+risk of circular dependencies.
+"""
+
 import numpy
 
 
@@ -57,7 +63,4 @@ def levenshtein_distance(left: str, right: str) -> int:
         distances0 = distances1
         distances1 = temp
 
-    # TODO(tswast): This doesn't seem correct for common prefix, like left =
-    # "abc", right = "abcxyz", but I suppose those having the smallest distance
-    # is fine for our use case.
     return distances0[len(right)]

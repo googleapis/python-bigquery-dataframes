@@ -86,7 +86,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             typing.Sequence[blocks.Label],
         ],
     ):
-        import bigframes._string_tools
+        import bigframes._tools.strings
 
         if utils.is_list_like(key):
             keys = list(key)
@@ -102,7 +102,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 possible_key.append(
                     min(
                         self._block.column_labels,
-                        key=lambda item: bigframes._string_tools.levenshtein_distance(
+                        key=lambda item: bigframes._tools.strings.levenshtein_distance(
                             bad_key, item
                         ),
                     )
