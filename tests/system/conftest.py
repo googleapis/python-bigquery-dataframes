@@ -192,8 +192,6 @@ def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, Non
 @pytest.fixture(scope="session")
 def test_session() -> Generator[bigframes.Session, None, None]:
     context = bigframes.BigQueryOptions(
-        location="US",
-        project="bigframes-dev",
         client_endpoints_override={
             "bqclient": "https://test-bigquery.sandbox.google.com",
             "bqconnectionclient": "test-bigqueryconnection.sandbox.googleapis.com",
