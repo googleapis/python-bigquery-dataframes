@@ -1034,7 +1034,7 @@ class GroupBy:
                 If a string, the timedelta representation in string. This string
                 must be parsable by pandas.Timedelta().
 
-                Otherwise, the time range for each window. 
+                Otherwise, the time range for each window.
 
             min_periods (int, default None):
                 Minimum number of observations in window required to have a value;
