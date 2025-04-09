@@ -108,11 +108,6 @@ MAX_INLINE_DF_BYTES = 5000
 
 logger = logging.getLogger(__name__)
 
-NON_INLINABLE_DTYPES: Sequence[bigframes.dtypes.Dtype] = (
-    # Currently excluded as doesn't have arrow type
-    bigframes.dtypes.GEO_DTYPE,
-)
-
 
 class Session(
     third_party_pandas_gbq.GBQIOMixin,
@@ -837,17 +832,6 @@ class Session(
             raise ValueError(
                 f"Could not convert with a BigQuery type: `{exc}`. "
             ) from exc
-
-        # Make sure all types are inlinable to avoid escaping errors.
-        inline_types = inline_df._block.expr.schema.dtypes
-        noninlinable_types = [
-            dtype for dtype in inline_types if dtype in NON_INLINABLE_DTYPES
-        ]
-        if len(noninlinable_types) != 0:
-            raise ValueError(
-                f"Could not inline with a BigQuery type: `{noninlinable_types}`. "
-                f"{constants.FEEDBACK_LINK}"
-            )
 
         return inline_df
 
@@ -1833,7 +1817,10 @@ class Session(
         return s.rename(name).to_frame()
 
     def _create_bq_connection(
-        self, iam_role: str, *, connection: Optional[str] = None
+        self,
+        *,
+        connection: Optional[str] = None,
+        iam_role: Optional[str] = None,
     ) -> str:
         """Create the connection with the session settings and try to attach iam role to the connection SA.
         If any of project, location or connection isn't specified, use the session defaults. Returns fully-qualified connection name."""
