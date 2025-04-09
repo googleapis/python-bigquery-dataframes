@@ -312,7 +312,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     @validations.requires_ordering()
     def rolling(
         self,
-        window: int | pandas.Timedelta | numpy.timedelta64 | datetime.timedelta | str,
+        window: int | pd.Timedelta | numpy.timedelta64 | datetime.timedelta | str,
         min_periods=None,
         on: str | None = None,
         closed: Literal["right", "left", "both", "neither"] = "right",
