@@ -26,7 +26,7 @@ import geopandas  # type: ignore
 import numpy as np
 import pandas
 import pyarrow as pa
-import pyarrow.parquet
+import pyarrow.parquet  # type: ignore
 
 import bigframes.core.schema as schemata
 import bigframes.dtypes
