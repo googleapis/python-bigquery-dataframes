@@ -127,15 +127,18 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
     def __init__(
         self,
         *,
-        model_name: Literal[
-            "text-embedding-005",
-            "text-embedding-004",
-            "text-multilingual-embedding-002",
-        ] = "text-embedding-004",
+        model_name: Optional[
+            Literal[
+                "text-embedding-005",
+                "text-embedding-004",
+                "text-multilingual-embedding-002",
+            ]
+        ] = None,
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
-        if model_name == _TEXT_EMBEDDING_004_ENDPOINT:
+        if model_name is None:
+            model_name = "text-embedding-004"
             msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
             warnings.warn(msg, category=FutureWarning, stacklevel=2)
         self.model_name = model_name
@@ -274,13 +277,14 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
     def __init__(
         self,
         *,
-        model_name: Literal["multimodalembedding@001"] = "multimodalembedding@001",
+        model_name: Optional[Literal["multimodalembedding@001"]] = None,
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
         if not bigframes.options.experiments.blob:
             raise NotImplementedError()
-        if model_name == _MULTIMODAL_EMBEDDING_001_ENDPOINT:
+        if model_name is None:
+            model_name = "multimodalembedding@001"
             msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
             warnings.warn(msg, category=FutureWarning, stacklevel=2)
         self.model_name = model_name
@@ -440,17 +444,19 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
     def __init__(
         self,
         *,
-        model_name: Literal[
-            "gemini-1.5-pro-preview-0514",
-            "gemini-1.5-flash-preview-0514",
-            "gemini-1.5-pro-001",
-            "gemini-1.5-pro-002",
-            "gemini-1.5-flash-001",
-            "gemini-1.5-flash-002",
-            "gemini-2.0-flash-exp",
-            "gemini-2.0-flash-001",
-            "gemini-2.0-flash-lite-001",
-        ] = "gemini-2.0-flash-001",
+        model_name: Optional[
+            Literal[
+                "gemini-1.5-pro-preview-0514",
+                "gemini-1.5-flash-preview-0514",
+                "gemini-1.5-pro-001",
+                "gemini-1.5-pro-002",
+                "gemini-1.5-flash-001",
+                "gemini-1.5-flash-002",
+                "gemini-2.0-flash-exp",
+                "gemini-2.0-flash-001",
+                "gemini-2.0-flash-lite-001",
+            ]
+        ] = None,
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
         max_iterations: int = 300,
@@ -465,7 +471,8 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
                 "(https://cloud.google.com/products#product-launch-stages)."
             )
             warnings.warn(msg, category=exceptions.PreviewWarning)
-        if model_name == _GEMINI_2_FLASH_001_ENDPOINT:
+        if model_name is None:
+            model_name = "gemini-2.0-flash-001"
             msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
             warnings.warn(msg, category=FutureWarning, stacklevel=2)
         self.model_name = model_name
@@ -830,13 +837,19 @@ class Claude3TextGenerator(base.RetriableRemotePredictor):
     def __init__(
         self,
         *,
-        model_name: Literal[
-            "claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet", "claude-3-opus"
-        ] = "claude-3-sonnet",
+        model_name: Optional[
+            Literal[
+                "claude-3-sonnet",
+                "claude-3-haiku",
+                "claude-3-5-sonnet",
+                "claude-3-opus",
+            ]
+        ] = None,
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
-        if model_name == _CLAUDE_3_SONNET_ENDPOINT:
+        if model_name is None:
+            model_name = "claude-3-sonnet"
             msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
             warnings.warn(msg, category=FutureWarning, stacklevel=2)
         self.model_name = model_name
