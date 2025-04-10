@@ -59,15 +59,10 @@ from bigframes import exceptions as bfe
 from bigframes import version
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
-import bigframes.core.blocks as blocks
-import bigframes.core.compile
-import bigframes.core.guid
-import bigframes.core.pruning
+from bigframes.core import blocks
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
 # to register new and replacement ops with the Ibis BigQuery backend.
-import bigframes.dataframe
-import bigframes.dtypes
 import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
 from bigframes.session import bigquery_session
@@ -77,7 +72,6 @@ import bigframes.session.clients
 import bigframes.session.executor
 import bigframes.session.loader
 import bigframes.session.metrics
-import bigframes.session.planner
 import bigframes.session.validation
 
 # Avoid circular imports.
@@ -792,14 +786,18 @@ class Session(
                 "bigframes.pandas.DataFrame."
             )
 
+        mem_usage = pandas_dataframe.memory_usage(deep=True).sum()
         if write_engine == "default":
-            try:
-                inline_df = self._read_pandas_inline(pandas_dataframe)
-                return inline_df
-            except ValueError:
-                pass
-            return self._read_pandas_load_job(pandas_dataframe, api_name)
-        elif write_engine == "bigquery_inline":
+            write_engine = (
+                "bigquery_load" if mem_usage > MAX_INLINE_DF_BYTES else "bigquery_load"
+            )
+
+        if write_engine == "bigquery_inline":
+            if mem_usage > MAX_INLINE_DF_BYTES:
+                raise ValueError(
+                    f"DataFrame size ({mem_usage} bytes) exceeds the maximum allowed "
+                    f"for inline data ({MAX_INLINE_DF_BYTES} bytes)."
+                )
             return self._read_pandas_inline(pandas_dataframe)
         elif write_engine == "bigquery_load":
             return self._read_pandas_load_job(pandas_dataframe, api_name)
@@ -813,27 +811,8 @@ class Session(
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
-        memory_usage = pandas_dataframe.memory_usage(deep=True).sum()
-        if memory_usage > MAX_INLINE_DF_BYTES:
-            raise ValueError(
-                f"DataFrame size ({memory_usage} bytes) exceeds the maximum allowed "
-                f"for inline data ({MAX_INLINE_DF_BYTES} bytes)."
-            )
-
-        try:
-            local_block = blocks.Block.from_local(pandas_dataframe, self)
-            inline_df = dataframe.DataFrame(local_block)
-        except (
-            pa.ArrowInvalid,  # Thrown by arrow for unsupported types, such as geo.
-            pa.ArrowTypeError,  # Thrown by arrow for types without mapping (geo).
-            ValueError,  # Thrown by ibis for some unhandled types
-            TypeError,  # Not all types handleable by local code path
-        ) as exc:
-            raise ValueError(
-                f"Could not convert with a BigQuery type: `{exc}`. "
-            ) from exc
-
-        return inline_df
+        local_block = blocks.Block.from_local(pandas_dataframe, self)
+        return dataframe.DataFrame(local_block)
 
     def _read_pandas_load_job(
         self,

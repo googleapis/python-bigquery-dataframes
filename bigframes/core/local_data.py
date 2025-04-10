@@ -18,13 +18,15 @@ from __future__ import annotations
 
 import dataclasses
 import functools
-from typing import cast, Union
+import io
+from typing import cast, Literal, Optional, Union
 import uuid
 
 import geopandas  # type: ignore
 import numpy as np
 import pandas
 import pyarrow as pa
+import pyarrow.parquet
 
 import bigframes.core.schema as schemata
 import bigframes.dtypes
@@ -89,6 +91,25 @@ class ManagedArrowTable:
             pa.table(columns, names=table.column_names),
             schemata.ArraySchema(tuple(fields)),
         )
+
+    def to_parquet(
+        self,
+        dst: Union[str, io.IOBase],
+        offsets_col: Optional[str] = None,
+        geo_format: Literal["wkb", "wkt"] = "wkt",
+        duration_type: Literal["int", "duration"] = "int",
+        json_type: Literal["string"] = "string",
+    ):
+        pa_table = self.data
+        if offsets_col is not None:
+            pa_table = pa_table.append_column(
+                offsets_col, pa.array(range(pa_table.num_rows), type=pa.int64())
+            )
+        if geo_format != "wkt":
+            raise NotImplementedError(f"geo format {geo_format} not yet implemented")
+        assert duration_type == "int"
+        assert json_type == "string"
+        pyarrow.parquet.write_table(pa_table, where=dst)
 
     def validate(self):
         # TODO: Content-based validation for some datatypes (eg json, wkt, list) where logical domain is smaller than pyarrow type

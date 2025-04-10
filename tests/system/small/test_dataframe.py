@@ -78,6 +78,23 @@ def test_df_construct_pandas_default(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+@pytest.mark.parametrize(
+    ("write_engine"),
+    [
+        ("bigquery_inline"),
+        ("bigquery_load"),
+        # TODO: Streaming
+    ],
+)
+def test_read_pandas_all_nice_types(
+    session: bigframes.Session, scalars_pandas_df_index: pd.DataFrame, write_engine
+):
+    bf_result = session.read_pandas(
+        scalars_pandas_df_index, write_engine=write_engine
+    ).to_pandas()
+    pandas.testing.assert_frame_equal(bf_result, scalars_pandas_df_index)
+
+
 def test_df_construct_large_strings():
     data = [["hello", "w" + "o" * 50000 + "rld"]]
     bf_result = dataframe.DataFrame(data).to_pandas()

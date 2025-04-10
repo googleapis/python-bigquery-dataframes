@@ -699,9 +699,10 @@ def convert_schema_field(
 
 
 def convert_to_schema_field(
-    name: str,
-    bigframes_dtype: Dtype,
+    name: str, bigframes_dtype: Dtype, overrides: dict[Dtype, str] = {}
 ) -> google.cloud.bigquery.SchemaField:
+    if bigframes_dtype in overrides:
+        return google.cloud.bigquery.SchemaField(name, overrides[bigframes_dtype])
     if bigframes_dtype in _BIGFRAMES_TO_TK:
         return google.cloud.bigquery.SchemaField(
             name, _BIGFRAMES_TO_TK[bigframes_dtype]
@@ -711,7 +712,7 @@ def convert_to_schema_field(
             inner_type = arrow_dtype_to_bigframes_dtype(
                 bigframes_dtype.pyarrow_dtype.value_type
             )
-            inner_field = convert_to_schema_field(name, inner_type)
+            inner_field = convert_to_schema_field(name, inner_type, overrides)
             return google.cloud.bigquery.SchemaField(
                 name, inner_field.field_type, mode="REPEATED", fields=inner_field.fields
             )
@@ -721,7 +722,9 @@ def convert_to_schema_field(
             for i in range(struct_type.num_fields):
                 field = struct_type.field(i)
                 inner_bf_type = arrow_dtype_to_bigframes_dtype(field.type)
-                inner_fields.append(convert_to_schema_field(field.name, inner_bf_type))
+                inner_fields.append(
+                    convert_to_schema_field(field.name, inner_bf_type, overrides)
+                )
 
             return google.cloud.bigquery.SchemaField(
                 name, "RECORD", fields=inner_fields

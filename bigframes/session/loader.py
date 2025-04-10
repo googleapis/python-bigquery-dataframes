@@ -17,6 +17,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import datetime
+import io
 import itertools
 import os
 import typing
@@ -25,56 +26,40 @@ from typing import Dict, Hashable, IO, Iterable, List, Optional, Sequence, Tuple
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
-import google.auth.credentials
 import google.cloud.bigquery as bigquery
 import google.cloud.bigquery.job
 import google.cloud.bigquery.table
-import google.cloud.bigquery_connection_v1
-import google.cloud.bigquery_storage_v1
-import google.cloud.functions_v2
-import google.cloud.resourcemanager_v3
 import pandas
 import pandas_gbq.schema.pandas_to_bigquery  # type: ignore
 
-import bigframes.clients
-import bigframes.constants
+from bigframes.core import local_data, utils
 import bigframes.core as core
 import bigframes.core.blocks as blocks
-import bigframes.core.compile
 import bigframes.core.expression as expression
-import bigframes.core.guid
-import bigframes.core.ordering
-import bigframes.core.pruning
 import bigframes.core.schema as schemata
-import bigframes.dataframe
 import bigframes.dtypes
-import bigframes.exceptions
 import bigframes.formatting_helpers as formatting_helpers
-import bigframes.operations
 import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session._io.pandas as bf_io_pandas
-import bigframes.session.anonymous_dataset
-import bigframes.session.clients
-import bigframes.session.executor
 import bigframes.session.metrics
-import bigframes.session.planner
 import bigframes.session.temporary_storage
 import bigframes.session.time as session_time
-import bigframes.version
 
 # Avoid circular imports.
 if typing.TYPE_CHECKING:
-    import bigframes.core.indexes
     import bigframes.dataframe as dataframe
-    import bigframes.series
     import bigframes.session
 
-_MAX_CLUSTER_COLUMNS = 4
 _PLACEHOLDER_SCHEMA = (
     google.cloud.bigquery.SchemaField("bf_loader_placeholder", "INTEGER"),
 )
+
+_LOAD_JOB_TYPE_OVERRIDES = {
+    bigframes.dtypes.JSON_DTYPE: "STRING",
+    bigframes.dtypes.TIMEDELTA_DTYPE: "INTEGER",
+}
 
 
 def _to_index_cols(
@@ -142,64 +127,69 @@ class GbqDataLoader:
     def read_pandas_load_job(
         self, pandas_dataframe: pandas.DataFrame, api_name: str
     ) -> dataframe.DataFrame:
-        import bigframes.dataframe as dataframe
+        # TODO: Push this into from_pandas, along with index flag
+        from bigframes import dataframe
 
-        df_and_labels = bf_io_pandas.pandas_to_bq_compatible(pandas_dataframe)
-        pandas_dataframe_copy = df_and_labels.df
-        new_idx_ids = pandas_dataframe_copy.index.names
-        ordering_col = df_and_labels.ordering_col
-
-        # TODO(https://github.com/googleapis/python-bigquery-pandas/issues/760):
-        # Once pandas-gbq can show a link to the running load job like
-        # bigframes does, switch to using pandas-gbq to load the
-        # bigquery-compatible pandas DataFrame.
-        schema: list[
-            bigquery.SchemaField
-        ] = pandas_gbq.schema.pandas_to_bigquery.dataframe_to_bigquery_fields(
-            pandas_dataframe_copy,
-            index=True,
+        val_cols, idx_cols = utils.get_standardized_ids(
+            pandas_dataframe.columns, pandas_dataframe.index.names, strict=True
         )
+        prepared_df = pandas_dataframe.reset_index(drop=False).set_axis(
+            [*idx_cols, *val_cols], axis="columns"
+        )
+
+        managed_data = local_data.ManagedArrowTable.from_pandas(prepared_df)
+
+        array_value = self.load_data(managed_data, api_name=api_name)
+        block = blocks.Block(
+            array_value,
+            index_columns=idx_cols,
+            column_labels=pandas_dataframe.columns,
+            index_labels=pandas_dataframe.index.names,
+        )
+        return dataframe.DataFrame(block)
+
+    def load_data(
+        self, data: local_data.ManagedArrowTable, api_name: Optional[str] = None
+    ) -> core.ArrayValue:
+        """Load managed data into bigquery"""
+        ordering_col = "bf_load_job_offsets"
+
+        schema_w_offsets = data.schema.append(
+            schemata.SchemaItem(ordering_col, bigframes.dtypes.INT_DTYPE)
+        )
+        bq_schema = schema_w_offsets.to_bigquery(_LOAD_JOB_TYPE_OVERRIDES)
 
         job_config = bigquery.LoadJobConfig()
-        job_config.schema = schema
-
-        cluster_cols = [ordering_col]
-        job_config.clustering_fields = cluster_cols
-
-        job_config.labels = {"bigframes-api": api_name}
-        # Allow field addition, as we want to keep the clustered ordering_col field we already created
-        job_config.schema_update_options = [
-            google.cloud.bigquery.job.SchemaUpdateOption.ALLOW_FIELD_ADDITION
-        ]
+        job_config.source_format = bigquery.SourceFormat.PARQUET
+        job_config.schema = bq_schema
+        if api_name:
+            job_config.labels = {"bigframes-api": api_name}
 
         load_table_destination = self._storage_manager.create_temp_table(
-            [google.cloud.bigquery.SchemaField(ordering_col, "INTEGER")], [ordering_col]
+            bq_schema, [ordering_col]
         )
-        load_job = self._bqclient.load_table_from_dataframe(
-            pandas_dataframe_copy,
-            load_table_destination,
-            job_config=job_config,
+        destination_table = self._bqclient.get_table(load_table_destination)
+
+        buffer = io.BytesIO()
+        data.to_parquet(
+            buffer,
+            offsets_col=ordering_col,
+            geo_format="wkt",
+            duration_type="int",
+            json_type="string",
+        )
+        buffer.seek(0)
+        load_job = self._bqclient.load_table_from_file(
+            buffer, destination=load_table_destination, job_config=job_config
         )
         self._start_generic_job(load_job)
 
-        destination_table = self._bqclient.get_table(load_table_destination)
-        array_value = core.ArrayValue.from_table(
+        return core.ArrayValue.from_table(
             table=destination_table,
-            # TODO (b/394156190): Generate this directly from original pandas df.
-            schema=schemata.ArraySchema.from_bq_table(
-                destination_table, df_and_labels.col_type_overrides
-            ),
+            schema=schema_w_offsets,
             session=self._session,
             offsets_col=ordering_col,
         ).drop_columns([ordering_col])
-
-        block = blocks.Block(
-            array_value,
-            index_columns=new_idx_ids,
-            column_labels=df_and_labels.column_labels,
-            index_labels=df_and_labels.index_labels,
-        )
-        return dataframe.DataFrame(block)
 
     def read_pandas_streaming(
         self,

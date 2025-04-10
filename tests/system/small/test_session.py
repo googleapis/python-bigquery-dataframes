@@ -870,15 +870,15 @@ def test_read_pandas_tokyo(
     ["default", "bigquery_inline", "bigquery_load", "bigquery_streaming"],
 )
 def test_read_pandas_timedelta_dataframes(session, write_engine):
-    expected_df = pd.DataFrame({"my_col": pd.to_timedelta([1, 2, 3], unit="d")})
+    pandas_df = pd.DataFrame({"my_col": pd.to_timedelta([1, 2, 3], unit="d")})
 
-    actual_result = (
-        session.read_pandas(expected_df, write_engine=write_engine)
-        .to_pandas()
-        .astype("timedelta64[ns]")
-    )
+    actual_result = session.read_pandas(
+        pandas_df, write_engine=write_engine
+    ).to_pandas()
+    expected_result = pandas_df.astype(bigframes.dtypes.TIMEDELTA_DTYPE)
+    expected_result.index = expected_result.index.astype(bigframes.dtypes.INT_DTYPE)
 
-    pd.testing.assert_frame_equal(actual_result, expected_df, check_index_type=False)
+    pd.testing.assert_frame_equal(actual_result, expected_result)
 
 
 @pytest.mark.parametrize(
@@ -923,7 +923,7 @@ def test_read_pandas_timedelta_index(session, write_engine):
         pytest.param("default"),
         pytest.param("bigquery_load"),
         pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
+        pytest.param("bigquery_inline"),
     ],
 )
 def test_read_pandas_json_dataframes(session, write_engine):
