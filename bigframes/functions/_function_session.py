@@ -775,6 +775,8 @@ class FunctionSession:
                 Name of the BigQuery connection. It is used to provide an
                 identity to the serverless instances running the user code. It
                 helps BigQuery manage and track the resources used by the udf.
+                When it defaults to None, the UDF will be created without
+                referencing a specific connection in its BigQuery DDL.
             name (str, Optional):
                 Explicit name of the persisted BigQuery managed function. Use it
                 with caution, because more than one users working in the same
