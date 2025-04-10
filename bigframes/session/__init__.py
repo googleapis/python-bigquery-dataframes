@@ -789,7 +789,9 @@ class Session(
         mem_usage = pandas_dataframe.memory_usage(deep=True).sum()
         if write_engine == "default":
             write_engine = (
-                "bigquery_load" if mem_usage > MAX_INLINE_DF_BYTES else "bigquery_load"
+                "bigquery_load"
+                if mem_usage > MAX_INLINE_DF_BYTES
+                else "bigquery_inline"
             )
 
         if write_engine == "bigquery_inline":
