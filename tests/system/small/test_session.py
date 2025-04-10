@@ -865,6 +865,8 @@ def test_read_pandas_tokyo(
     assert len(expected) == result.total_rows
 
 
+# old versions don't support local casting to arrow duration
+@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     "write_engine",
     ["default", "bigquery_inline", "bigquery_load", "bigquery_streaming"],

@@ -138,11 +138,12 @@ def _adapt_pandas_series(
         return pa.array(series, type=pa.string()), bigframes.dtypes.GEO_DTYPE
     try:
         return _adapt_arrow_array(pa.array(series))
-    except Exception as e:
+    except pa.ArrowInvalid as e:
         if series.dtype == np.dtype("O"):
             try:
-                series = series.astype(bigframes.dtypes.GEO_DTYPE)
+                return _adapt_pandas_series(series.astype(bigframes.dtypes.GEO_DTYPE))
             except TypeError:
+                # Prefer original error
                 pass
         raise e
 
