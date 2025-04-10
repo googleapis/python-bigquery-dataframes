@@ -239,7 +239,7 @@ class BigQueryCachingExecutor(Executor):
         max_results: Optional[int] = None,
     ):
         if use_explicit_destination is None:
-            use_explicit_destination = bigframes.options.bigquery.allow_large_results
+            use_explicit_destination = bigframes.options.compute.allow_large_results
 
         if bigframes.options.compute.enable_multi_query_execution:
             self._simplify_with_caching(array_value)
@@ -282,7 +282,7 @@ class BigQueryCachingExecutor(Executor):
                 "The query result size has exceeded 10 GB. In BigFrames 2.0 and "
                 "later, you might need to manually set `allow_large_results=True` in "
                 "the IO method or adjust the BigFrames option: "
-                "`bigframes.options.bigquery.allow_large_results=True`."
+                "`bigframes.options.compute.allow_large_results=True`."
             )
             warnings.warn(msg, FutureWarning)
         # Runs strict validations to ensure internal type predictions and ibis are completely in sync
@@ -393,7 +393,7 @@ class BigQueryCachingExecutor(Executor):
             msg = bfe.format_message("Peeking this value cannot be done efficiently.")
             warnings.warn(msg)
         if use_explicit_destination is None:
-            use_explicit_destination = bigframes.options.bigquery.allow_large_results
+            use_explicit_destination = bigframes.options.compute.allow_large_results
 
         job_config = bigquery.QueryJobConfig()
         # Use explicit destination to avoid 10GB limit of temporary table
