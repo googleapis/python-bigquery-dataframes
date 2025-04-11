@@ -19,7 +19,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import io
-from typing import cast, Literal, Optional, Union
+from typing import Callable, cast, Iterable, Literal, Optional, Union
 import uuid
 
 import geopandas  # type: ignore
@@ -44,7 +44,9 @@ class LocalTableMetadata:
 
 _MANAGED_STORAGE_TYPES_OVERRIDES: dict[bigframes.dtypes.Dtype, pa.DataType] = {
     # wkt to be precise
-    bigframes.dtypes.GEO_DTYPE: pa.string()
+    bigframes.dtypes.GEO_DTYPE: pa.string(),
+    # Just json as string
+    bigframes.dtypes.JSON_DTYPE: pa.string(),
 }
 
 
@@ -95,9 +97,10 @@ class ManagedArrowTable:
     def to_parquet(
         self,
         dst: Union[str, io.IOBase],
+        *,
         offsets_col: Optional[str] = None,
         geo_format: Literal["wkb", "wkt"] = "wkt",
-        duration_type: Literal["int", "duration"] = "int",
+        duration_type: Literal["int", "timedelta"] = "timedelta",
         json_type: Literal["string"] = "string",
     ):
         pa_table = self.data
@@ -107,9 +110,35 @@ class ManagedArrowTable:
             )
         if geo_format != "wkt":
             raise NotImplementedError(f"geo format {geo_format} not yet implemented")
-        assert duration_type == "int"
+        if duration_type != "timedelta":
+            raise NotImplementedError(
+                f"duration as {duration_type} not yet implemented"
+            )
         assert json_type == "string"
         pyarrow.parquet.write_table(pa_table, where=dst)
+
+    def itertuples(
+        self,
+        *,
+        geo_format: Literal["wkb", "wkt"] = "wkt",
+        duration_type: Literal["int", "timedelta"] = "timedelta",
+        json_type: Literal["string"] = "string",
+    ) -> Iterable[tuple]:
+        """
+        Yield each row as an unlabeled tuple.
+
+        Row-wise iteration of columnar data is slow, avoid if possible.
+        """
+        if geo_format != "wkt":
+            raise NotImplementedError(f"geo format {geo_format} not yet implemented")
+        if duration_type != "timedelta":
+            raise NotImplementedError(
+                f"duration as {duration_type} not yet implemented"
+            )
+        assert json_type == "string"
+        for batch in self.data.to_batches():
+            for row_dict in batch.to_pylist():
+                yield tuple(row_dict.values())
 
     def validate(self):
         # TODO: Content-based validation for some datatypes (eg json, wkt, list) where logical domain is smaller than pyarrow type
@@ -120,13 +149,6 @@ class ManagedArrowTable:
                 raise TypeError(
                     f"Field {bf_field} has arrow array type: {arrow_type}, expected type: {expected_arrow_type}"
                 )
-
-
-def _get_managed_storage_type(dtype: bigframes.dtypes.Dtype) -> pa.DataType:
-    if dtype in _MANAGED_STORAGE_TYPES_OVERRIDES.keys():
-        return _MANAGED_STORAGE_TYPES_OVERRIDES[dtype]
-    else:
-        return bigframes.dtypes.bigframes_dtype_to_arrow_dtype(dtype)
 
 
 def _adapt_pandas_series(
@@ -151,20 +173,50 @@ def _adapt_pandas_series(
 def _adapt_arrow_array(
     array: Union[pa.ChunkedArray, pa.Array]
 ) -> tuple[Union[pa.ChunkedArray, pa.Array], bigframes.dtypes.Dtype]:
-    target_type = _arrow_type_replacements(array.type)
+    target_type = _logical_type_replacements(array.type)
     if target_type != array.type:
         # TODO: Maybe warn if lossy conversion?
         array = array.cast(target_type)
     bf_type = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(target_type)
+
     storage_type = _get_managed_storage_type(bf_type)
     if storage_type != array.type:
-        raise TypeError(
-            f"Expected {bf_type} to use arrow {storage_type}, instead got {array.type}"
-        )
+        array = array.cast(storage_type)
     return array, bf_type
 
 
-def _arrow_type_replacements(type: pa.DataType) -> pa.DataType:
+def _get_managed_storage_type(dtype: bigframes.dtypes.Dtype) -> pa.DataType:
+    if dtype in _MANAGED_STORAGE_TYPES_OVERRIDES.keys():
+        return _MANAGED_STORAGE_TYPES_OVERRIDES[dtype]
+    return _physical_type_replacements(
+        bigframes.dtypes.bigframes_dtype_to_arrow_dtype(dtype)
+    )
+
+
+def _recursive_map_types(
+    f: Callable[[pa.DataType], pa.DataType]
+) -> Callable[[pa.DataType], pa.DataType]:
+    @functools.wraps(f)
+    def recursive_f(type: pa.DataType) -> pa.DataType:
+        if pa.types.is_list(type):
+            new_field_t = recursive_f(type.value_type)
+            if new_field_t != type.value_type:
+                return pa.list_(new_field_t)
+            return type
+        if pa.types.is_struct(type):
+            struct_type = cast(pa.StructType, type)
+            new_fields: list[pa.Field] = []
+            for i in range(struct_type.num_fields):
+                field = struct_type.field(i)
+                new_fields.append(field.with_type(recursive_f(field.type)))
+            return pa.struct(new_fields)
+        return f(type)
+
+    return recursive_f
+
+
+@_recursive_map_types
+def _logical_type_replacements(type: pa.DataType) -> pa.DataType:
     if pa.types.is_timestamp(type):
         # This is potentially lossy, but BigFrames doesn't support ns
         new_tz = "UTC" if (type.tz is not None) else None
@@ -185,18 +237,19 @@ def _arrow_type_replacements(type: pa.DataType) -> pa.DataType:
     if pa.types.is_null(type):
         # null as a type not allowed, default type is float64 for bigframes
         return pa.float64()
-    if pa.types.is_list(type):
-        new_field_t = _arrow_type_replacements(type.value_type)
-        if new_field_t != type.value_type:
-            return pa.list_(new_field_t)
-        return type
-    if pa.types.is_struct(type):
-        struct_type = cast(pa.StructType, type)
-        new_fields: list[pa.Field] = []
-        for i in range(struct_type.num_fields):
-            field = struct_type.field(i)
-            field.with_type(_arrow_type_replacements(field.type))
-            new_fields.append(field.with_type(_arrow_type_replacements(field.type)))
-        return pa.struct(new_fields)
     else:
         return type
+
+
+_ARROW_MANAGED_STORAGE_OVERRIDES = {
+    bigframes.dtypes._BIGFRAMES_TO_ARROW[bf_dtype]: arrow_type
+    for bf_dtype, arrow_type in _MANAGED_STORAGE_TYPES_OVERRIDES.items()
+    if bf_dtype in bigframes.dtypes._BIGFRAMES_TO_ARROW
+}
+
+
+@_recursive_map_types
+def _physical_type_replacements(dtype: pa.DataType) -> pa.DataType:
+    if dtype in _ARROW_MANAGED_STORAGE_OVERRIDES:
+        return _ARROW_MANAGED_STORAGE_OVERRIDES[dtype]
+    return dtype

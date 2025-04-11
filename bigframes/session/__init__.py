@@ -53,7 +53,6 @@ from pandas._typing import (
     ReadPickleBuffer,
     StorageOptions,
 )
-import pyarrow as pa
 
 from bigframes import exceptions as bfe
 from bigframes import version
@@ -802,9 +801,13 @@ class Session(
                 )
             return self._read_pandas_inline(pandas_dataframe)
         elif write_engine == "bigquery_load":
-            return self._read_pandas_load_job(pandas_dataframe, api_name)
+            return self._loader.read_pandas(
+                pandas_dataframe, method="load", api_name=api_name
+            )
         elif write_engine == "bigquery_streaming":
-            return self._read_pandas_streaming(pandas_dataframe)
+            return self._loader.read_pandas(
+                pandas_dataframe, method="stream", api_name=api_name
+            )
         else:
             raise ValueError(f"Got unexpected write_engine '{write_engine}'")
 
@@ -815,24 +818,6 @@ class Session(
 
         local_block = blocks.Block.from_local(pandas_dataframe, self)
         return dataframe.DataFrame(local_block)
-
-    def _read_pandas_load_job(
-        self,
-        pandas_dataframe: pandas.DataFrame,
-        api_name: str,
-    ) -> dataframe.DataFrame:
-        try:
-            return self._loader.read_pandas_load_job(pandas_dataframe, api_name)
-        except (pa.ArrowInvalid, pa.ArrowTypeError) as exc:
-            raise ValueError(
-                f"Could not convert with a BigQuery type: `{exc}`."
-            ) from exc
-
-    def _read_pandas_streaming(
-        self,
-        pandas_dataframe: pandas.DataFrame,
-    ) -> dataframe.DataFrame:
-        return self._loader.read_pandas_streaming(pandas_dataframe)
 
     def read_csv(
         self,

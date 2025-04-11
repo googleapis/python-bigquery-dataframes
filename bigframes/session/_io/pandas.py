@@ -163,10 +163,9 @@ def pandas_to_bq_compatible(pandas_dataframe: pandas.DataFrame) -> DataFrameAndL
     pandas_dataframe_copy[ordering_col] = np.arange(pandas_dataframe_copy.shape[0])
 
     timedelta_cols = utils.replace_timedeltas_with_micros(pandas_dataframe_copy)
-    json_cols = utils.replace_json_with_string(pandas_dataframe_copy)
     col_type_overrides: typing.Dict[str, bigframes.dtypes.Dtype] = {
         **{col: bigframes.dtypes.TIMEDELTA_DTYPE for col in timedelta_cols},
-        **{col: bigframes.dtypes.JSON_DTYPE for col in json_cols},
+        # **{col: bigframes.dtypes.JSON_DTYPE for col in json_cols},
     }
 
     return DataFrameAndLabels(

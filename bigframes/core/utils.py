@@ -261,37 +261,18 @@ def _search_for_nested_json_type(arrow_type: pa.DataType) -> bool:
     return False
 
 
-def replace_json_with_string(dataframe: pd.DataFrame) -> List[str]:
+def validate_dtype_can_load(name: str, column_type: dtypes.Dtype):
     """
     Due to a BigQuery IO limitation with loading JSON from Parquet files (b/374784249),
     we're using a workaround: storing JSON as strings and then parsing them into JSON
     objects.
     TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
     """
-    updated_columns = []
 
-    for col in dataframe.columns:
-        column_type = dataframe[col].dtype
-        if column_type == dtypes.JSON_DTYPE:
-            dataframe[col] = dataframe[col].astype(dtypes.STRING_DTYPE)
-            updated_columns.append(col)
-        elif isinstance(column_type, pd.ArrowDtype) and _search_for_nested_json_type(
-            column_type.pyarrow_dtype
-        ):
-            raise NotImplementedError(
-                f"Nested JSON types, found in column `{col}`: `{column_type}`', "
-                f"are currently unsupported for upload. {constants.FEEDBACK_LINK}"
-            )
-
-    if dataframe.index.dtype == dtypes.JSON_DTYPE:
-        dataframe.index = dataframe.index.astype(dtypes.STRING_DTYPE)
-        updated_columns.append(dataframe.index.name)
-    elif isinstance(
-        dataframe.index.dtype, pd.ArrowDtype
-    ) and _search_for_nested_json_type(dataframe.index.dtype.pyarrow_dtype):
+    if isinstance(column_type, pd.ArrowDtype) and _search_for_nested_json_type(
+        column_type.pyarrow_dtype
+    ):
         raise NotImplementedError(
-            f"Nested JSON types, found in the index: `{dataframe.index.dtype}`', "
+            f"Nested JSON types, found in column `{name}`: `{column_type}`', "
             f"are currently unsupported for upload. {constants.FEEDBACK_LINK}"
         )
-
-    return updated_columns

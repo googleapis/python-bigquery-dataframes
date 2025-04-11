@@ -83,7 +83,7 @@ def test_df_construct_pandas_default(scalars_dfs):
     [
         ("bigquery_inline"),
         ("bigquery_load"),
-        # TODO: Streaming
+        ("bigquery_streaming"),
     ],
 )
 def test_read_pandas_all_nice_types(

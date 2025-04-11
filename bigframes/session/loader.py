@@ -21,28 +21,33 @@ import io
 import itertools
 import os
 import typing
-from typing import Dict, Hashable, IO, Iterable, List, Optional, Sequence, Tuple
+from typing import (
+    Dict,
+    Hashable,
+    IO,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
-import google.cloud.bigquery.job
 import google.cloud.bigquery.table
 import pandas
-import pandas_gbq.schema.pandas_to_bigquery  # type: ignore
 
 from bigframes.core import local_data, utils
 import bigframes.core as core
 import bigframes.core.blocks as blocks
-import bigframes.core.expression as expression
 import bigframes.core.schema as schemata
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatting_helpers
-import bigframes.operations.aggregations as agg_ops
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
-import bigframes.session._io.pandas as bf_io_pandas
 import bigframes.session.metrics
 import bigframes.session.temporary_storage
 import bigframes.session.time as session_time
@@ -57,7 +62,14 @@ _PLACEHOLDER_SCHEMA = (
 )
 
 _LOAD_JOB_TYPE_OVERRIDES = {
+    # Json load jobs not supported yet: b/271321143
     bigframes.dtypes.JSON_DTYPE: "STRING",
+    # Timedelta is emulated using integer in bq type system
+    bigframes.dtypes.TIMEDELTA_DTYPE: "INTEGER",
+}
+
+_STREAM_JOB_TYPE_OVERRIDES = {
+    # Timedelta is emulated using integer in bq type system
     bigframes.dtypes.TIMEDELTA_DTYPE: "INTEGER",
 }
 
@@ -124,8 +136,11 @@ class GbqDataLoader:
         self._clock = session_time.BigQuerySyncedClock(bqclient)
         self._clock.sync()
 
-    def read_pandas_load_job(
-        self, pandas_dataframe: pandas.DataFrame, api_name: str
+    def read_pandas(
+        self,
+        pandas_dataframe: pandas.DataFrame,
+        method: Literal["load", "stream"],
+        api_name: str,
     ) -> dataframe.DataFrame:
         # TODO: Push this into from_pandas, along with index flag
         from bigframes import dataframe
@@ -136,10 +151,15 @@ class GbqDataLoader:
         prepared_df = pandas_dataframe.reset_index(drop=False).set_axis(
             [*idx_cols, *val_cols], axis="columns"
         )
-
         managed_data = local_data.ManagedArrowTable.from_pandas(prepared_df)
 
-        array_value = self.load_data(managed_data, api_name=api_name)
+        if method == "load":
+            array_value = self.load_data(managed_data, api_name=api_name)
+        elif method == "stream":
+            array_value = self.stream_data(managed_data)
+        else:
+            raise ValueError(f"Unsupported read method {method}")
+
         block = blocks.Block(
             array_value,
             index_columns=idx_cols,
@@ -153,6 +173,10 @@ class GbqDataLoader:
     ) -> core.ArrayValue:
         """Load managed data into bigquery"""
         ordering_col = "bf_load_job_offsets"
+
+        # JSON support incomplete
+        for item in data.schema.items:
+            utils.validate_dtype_can_load(item.column, item.dtype)
 
         schema_w_offsets = data.schema.append(
             schemata.SchemaItem(ordering_col, bigframes.dtypes.INT_DTYPE)
@@ -175,7 +199,7 @@ class GbqDataLoader:
             buffer,
             offsets_col=ordering_col,
             geo_format="wkt",
-            duration_type="int",
+            duration_type="timedelta",
             json_type="string",
         )
         buffer.seek(0)
@@ -191,79 +215,38 @@ class GbqDataLoader:
             offsets_col=ordering_col,
         ).drop_columns([ordering_col])
 
-    def read_pandas_streaming(
-        self,
-        pandas_dataframe: pandas.DataFrame,
-    ) -> dataframe.DataFrame:
-        """Same as pandas_to_bigquery_load, but uses the BQ legacy streaming API."""
-        import bigframes.dataframe as dataframe
-
-        df_and_labels = bf_io_pandas.pandas_to_bq_compatible(pandas_dataframe)
-        pandas_dataframe_copy = df_and_labels.df
-        new_idx_ids = pandas_dataframe_copy.index.names
-        ordering_col = df_and_labels.ordering_col
-
-        # TODO(https://github.com/googleapis/python-bigquery-pandas/issues/300):
-        # Once pandas-gbq can do streaming inserts (again), switch to using
-        # pandas-gbq to write the bigquery-compatible pandas DataFrame.
-        schema: list[
-            bigquery.SchemaField
-        ] = pandas_gbq.schema.pandas_to_bigquery.dataframe_to_bigquery_fields(
-            pandas_dataframe_copy,
-            index=True,
+    def stream_data(self, data: local_data.ManagedArrowTable) -> core.ArrayValue:
+        """Load managed data into bigquery"""
+        ordering_col = "bf_stream_job_offsets"
+        schema_w_offsets = data.schema.append(
+            schemata.SchemaItem(ordering_col, bigframes.dtypes.INT_DTYPE)
         )
-
-        destination = self._storage_manager.create_temp_table(
-            schema,
-            [ordering_col],
+        bq_schema = schema_w_offsets.to_bigquery(_STREAM_JOB_TYPE_OVERRIDES)
+        load_table_destination = self._storage_manager.create_temp_table(
+            bq_schema, [ordering_col]
         )
-        destination_table = bigquery.Table(destination, schema=schema)
+        destination_table = self._bqclient.get_table(load_table_destination)
 
-        # `insert_rows_from_dataframe` does not include the DataFrame's index,
-        # so reset_index() is called first.
-        for errors in self._bqclient.insert_rows_from_dataframe(
+        rows = data.itertuples(
+            geo_format="wkt", duration_type="timedelta", json_type="string"
+        )
+        rows_w_offsets = ((*row, offset) for offset, row in enumerate(rows))
+
+        for errors in self._bqclient.insert_rows(
             destination_table,
-            pandas_dataframe_copy.reset_index(),
+            rows_w_offsets,
+            row_ids=map(str, itertools.count()),  # used to ensure only-once insertion
         ):
             if errors:
                 raise ValueError(
                     f"Problem loading at least one row from DataFrame: {errors}. {constants.FEEDBACK_LINK}"
                 )
-        array_value = (
-            core.ArrayValue.from_table(
-                table=destination_table,
-                schema=schemata.ArraySchema.from_bq_table(
-                    destination_table, df_and_labels.col_type_overrides
-                ),
-                session=self._session,
-                # Don't set the offsets column because we want to group by it.
-            )
-            # There may be duplicate rows because of hidden retries, so use a query to
-            # deduplicate based on the ordering ID, which is guaranteed to be unique.
-            # We know that rows with same ordering ID are duplicates,
-            # so ANY_VALUE() is deterministic.
-            .aggregate(
-                by_column_ids=[ordering_col],
-                aggregations=[
-                    (
-                        expression.UnaryAggregation(
-                            agg_ops.AnyValueOp(),
-                            expression.deref(field.name),
-                        ),
-                        field.name,
-                    )
-                    for field in destination_table.schema
-                    if field.name != ordering_col
-                ],
-            ).drop_columns([ordering_col])
-        )
-        block = blocks.Block(
-            array_value,
-            index_columns=new_idx_ids,
-            column_labels=df_and_labels.column_labels,
-            index_labels=df_and_labels.index_labels,
-        )
-        return dataframe.DataFrame(block)
+        return core.ArrayValue.from_table(
+            table=destination_table,
+            schema=schema_w_offsets,
+            session=self._session,
+            offsets_col=ordering_col,
+        ).drop_columns([ordering_col])
 
     def _start_generic_job(self, job: formatting_helpers.GenericJob):
         if bigframes.options.display.progress_bar is not None:
