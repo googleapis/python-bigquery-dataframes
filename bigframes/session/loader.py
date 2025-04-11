@@ -199,7 +199,7 @@ class GbqDataLoader:
             buffer,
             offsets_col=ordering_col,
             geo_format="wkt",
-            duration_type="timedelta",
+            duration_type="duration",
             json_type="string",
         )
         buffer.seek(0)

@@ -100,7 +100,7 @@ class ManagedArrowTable:
         *,
         offsets_col: Optional[str] = None,
         geo_format: Literal["wkb", "wkt"] = "wkt",
-        duration_type: Literal["int", "timedelta"] = "timedelta",
+        duration_type: Literal["int", "duration"] = "duration",
         json_type: Literal["string"] = "string",
     ):
         pa_table = self.data
@@ -110,7 +110,7 @@ class ManagedArrowTable:
             )
         if geo_format != "wkt":
             raise NotImplementedError(f"geo format {geo_format} not yet implemented")
-        if duration_type != "timedelta":
+        if duration_type != "duration":
             raise NotImplementedError(
                 f"duration as {duration_type} not yet implemented"
             )
@@ -122,7 +122,7 @@ class ManagedArrowTable:
         *,
         geo_format: Literal["wkb", "wkt"] = "wkt",
         duration_type: Literal["int", "timedelta"] = "timedelta",
-        json_type: Literal["string"] = "string",
+        json_type: Literal["string", "dict"] = "string",
     ) -> Iterable[tuple]:
         """
         Yield each row as an unlabeled tuple.
@@ -135,7 +135,7 @@ class ManagedArrowTable:
             raise NotImplementedError(
                 f"duration as {duration_type} not yet implemented"
             )
-        assert json_type == "string"
+
         for batch in self.data.to_batches():
             for row_dict in batch.to_pylist():
                 yield tuple(row_dict.values())
