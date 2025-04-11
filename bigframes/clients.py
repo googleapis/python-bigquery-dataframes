@@ -24,7 +24,6 @@ from typing import cast, Optional
 import google.api_core.exceptions
 import google.api_core.retry
 from google.cloud import bigquery_connection_v1, resourcemanager_v3
-from google.iam.v1 import iam_policy_pb2, policy_pb2
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +85,11 @@ class BqConnectionManager:
         self._cloud_resource_manager_client = cloud_resource_manager_client
 
     def create_bq_connection(
-        self, project_id: str, location: str, connection_id: str, iam_role: str
+        self,
+        project_id: str,
+        location: str,
+        connection_id: str,
+        iam_role: Optional[str] = None,
     ):
         """Create the BQ connection if not exist. In addition, try to add the IAM role to the connection to ensure required permissions.
 
@@ -119,11 +122,12 @@ class BqConnectionManager:
 
         # Ensure IAM role on the BQ connection
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#grant_permission_on_function
-        try:
-            self._ensure_iam_binding(project_id, service_account_id, iam_role)
-        except google.api_core.exceptions.PermissionDenied as ex:
-            ex.message = f"Failed ensuring IAM binding (role={iam_role}, service-account={service_account_id}). {ex.message}"
-            raise
+        if iam_role:
+            try:
+                self._ensure_iam_binding(project_id, service_account_id, iam_role)
+            except google.api_core.exceptions.PermissionDenied as ex:
+                ex.message = f"Failed ensuring IAM binding (role={iam_role}, service-account={service_account_id}). {ex.message}"
+                raise
 
     # Introduce retries to accommodate transient errors like:
     # (1) Etag mismatch,
@@ -156,7 +160,9 @@ class BqConnectionManager:
         project = f"projects/{project_id}"
         service_account = f"serviceAccount:{service_account_id}"
         role = f"roles/{iam_role}"
-        request = iam_policy_pb2.GetIamPolicyRequest(resource=project)
+        request = {
+            "resource": project
+        }  # Use a dictionary to avoid problematic google.iam namespace package.
         policy = self._cloud_resource_manager_client.get_iam_policy(request=request)
 
         # Check if the binding already exists, and if does, do nothing more
@@ -166,9 +172,15 @@ class BqConnectionManager:
                     return
 
         # Create a new binding
-        new_binding = policy_pb2.Binding(role=role, members=[service_account])
+        new_binding = {
+            "role": role,
+            "members": [service_account],
+        }  # Use a dictionary to avoid problematic google.iam namespace package.
         policy.bindings.append(new_binding)
-        request = iam_policy_pb2.SetIamPolicyRequest(resource=project, policy=policy)
+        request = {
+            "resource": project,
+            "policy": policy,
+        }  # Use a dictionary to avoid problematic google.iam namespace package.
         self._cloud_resource_manager_client.set_iam_policy(request=request)
 
         # We would wait for the IAM policy change to take effect

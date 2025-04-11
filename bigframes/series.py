@@ -23,7 +23,19 @@ import itertools
 import numbers
 import textwrap
 import typing
-from typing import Any, cast, List, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    cast,
+    Iterable,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
+import warnings
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.series as vendored_pandas_series
@@ -46,9 +58,11 @@ import bigframes.core.scalar as scalars
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
 import bigframes.core.window
+from bigframes.core.window import rolling
 import bigframes.core.window_spec as windows
 import bigframes.dataframe
 import bigframes.dtypes
+import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -385,19 +399,62 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> pandas.Series:
         """Writes Series to pandas Series.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([4, 3, 2])
+
+        Download the data from BigQuery and convert it into an in-memory pandas Series.
+
+            >>> s.to_pandas()
+            0    4
+            1    3
+            2    2
+            dtype: Int64
+
+        Estimate job statistics without processing or downloading data by using `dry_run=True`.
+
+            >>> s.to_pandas(dry_run=True) # doctest: +SKIP
+            columnCount                                                            1
+            columnDtypes                                               {None: Int64}
+            indexLevel                                                             1
+            indexDtypes                                                      [Int64]
+            projectId                                                  bigframes-dev
+            location                                                              US
+            jobType                                                            QUERY
+            destinationTable       {'projectId': 'bigframes-dev', 'datasetId': '_...
+            useLegacySql                                                       False
+            referencedTables                                                    None
+            totalBytesProcessed                                                    0
+            cacheHit                                                           False
+            statementType                                                     SELECT
+            creationTime                            2025-04-03 18:54:59.219000+00:00
+            dtype: object
+
         Args:
             max_download_size (int, default None):
-                Download size threshold in MB. If max_download_size is exceeded when downloading data
-                (e.g., to_pandas()), the data will be downsampled if
-                bigframes.options.sampling.enable_downsampling is True, otherwise, an error will be
-                raised. If set to a value other than None, this will supersede the global config.
+                .. deprecated:: 2.0.0
+                    ``max_download_size`` parameter is deprecated. Please use ``to_pandas_batches()``
+                    method instead.
+
+                Download size threshold in MB. If ``max_download_size`` is exceeded when downloading data,
+                the data will be downsampled if ``bigframes.options.sampling.enable_downsampling`` is
+                ``True``, otherwise, an error will be raised. If set to a value other than ``None``,
+                this will supersede the global config.
             sampling_method (str, default None):
+                .. deprecated:: 2.0.0
+                    ``sampling_method`` parameter is deprecated. Please use ``sample()`` method instead.
+
                 Downsampling algorithms to be chosen from, the choices are: "head": This algorithm
                 returns a portion of the data from the beginning. It is fast and requires minimal
                 computations to perform the downsampling; "uniform": This algorithm returns uniform
                 random samples of the data. If set to a value other than None, this will supersede
                 the global config.
             random_state (int, default None):
+                .. deprecated:: 2.0.0
+                    ``random_state`` parameter is deprecated. Please use ``sample()`` method instead.
+
                 The seed for the uniform downsampling algorithm. If provided, the uniform method may
                 take longer to execute and require more computation. If set to a value other than
                 None, this will supersede the global config.
@@ -416,6 +473,19 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame. If dry_run
                 is set to True, a pandas Series containing dry run statistics will be returned.
         """
+        if max_download_size is not None:
+            msg = bfe.format_message(
+                "DEPRECATED: The `max_download_size` parameters for `Series.to_pandas()` "
+                "are deprecated and will be removed soon. Please use `Series.to_pandas_batches()`."
+            )
+            warnings.warn(msg, category=FutureWarning)
+        if sampling_method is not None or random_state is not None:
+            msg = bfe.format_message(
+                "DEPRECATED: The `sampling_method` and `random_state` parameters for "
+                "`Series.to_pandas()` are deprecated and will be removed soon. "
+                "Please use `Series.sample().to_pandas()` instead for sampling."
+            )
+            warnings.warn(msg, category=FutureWarning)
 
         if dry_run:
             dry_run_stats, dry_run_job = self._block._compute_dry_run(
@@ -444,6 +514,70 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         series = df.squeeze(axis=1)
         series.name = self._name
         return series
+
+    def to_pandas_batches(
+        self,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+        *,
+        allow_large_results: Optional[bool] = None,
+    ) -> Iterable[pandas.Series]:
+        """Stream Series results to an iterable of pandas Series.
+
+        page_size and max_results determine the size and number of batches,
+        see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob#google_cloud_bigquery_job_QueryJob_result
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([4, 3, 2, 2, 3])
+
+        Iterate through the results in batches, limiting the total rows yielded
+        across all batches via `max_results`:
+
+            >>> for s_batch in s.to_pandas_batches(max_results=3):
+            ...     print(s_batch)
+            0    4
+            1    3
+            2    2
+            dtype: Int64
+
+        Alternatively, control the approximate size of each batch using `page_size`
+        and fetch batches manually using `next()`:
+
+            >>> it = s.to_pandas_batches(page_size=2)
+            >>> next(it)
+            0    4
+            1    3
+            dtype: Int64
+            >>> next(it)
+            2    2
+            3    2
+            dtype: Int64
+
+        Args:
+            page_size (int, default None):
+                The maximum number of rows of each batch. Non-positive values are ignored.
+            max_results (int, default None):
+                The maximum total number of rows of all batches.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
+
+        Returns:
+            Iterable[pandas.Series]:
+                An iterable of smaller Series which combine to
+                form the original Series. Results stream from bigquery,
+                see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
+        """
+        df = self._block.to_pandas_batches(
+            page_size=page_size,
+            max_results=max_results,
+            allow_large_results=allow_large_results,
+            squeeze=True,
+        )
+        return df
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
         _, query_job = self._block._compute_dry_run((self._value_column,))
@@ -1441,16 +1575,26 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @validations.requires_ordering()
     def rolling(
         self,
-        window: int,
-        min_periods=None,
+        window: int | pandas.Timedelta | numpy.timedelta64 | datetime.timedelta | str,
+        min_periods: int | None = None,
         closed: Literal["right", "left", "both", "neither"] = "right",
     ) -> bigframes.core.window.Window:
-        window_spec = windows.WindowSpec(
-            bounds=windows.RowsWindowBounds.from_window_size(window, closed),
-            min_periods=min_periods if min_periods is not None else window,
-        )
-        return bigframes.core.window.Window(
-            self._block, window_spec, self._block.value_columns, is_series=True
+        if isinstance(window, int):
+            # Rows rolling
+            window_spec = windows.WindowSpec(
+                bounds=windows.RowsWindowBounds.from_window_size(window, closed),
+                min_periods=window if min_periods is None else min_periods,
+            )
+            return bigframes.core.window.Window(
+                self._block, window_spec, self._block.value_columns, is_series=True
+            )
+
+        return rolling.create_range_window(
+            block=self._block,
+            window=window,
+            min_periods=min_periods,
+            closed=closed,
+            is_series=True,
         )
 
     @validations.requires_ordering()
