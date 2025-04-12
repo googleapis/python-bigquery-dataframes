@@ -268,6 +268,9 @@ def validate_dtype_can_load(name: str, column_type: dtypes.Dtype):
     objects.
     TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
     """
+    # we can handle top-level json, but not nested yet through string conversion
+    if column_type == dtypes.JSON_DTYPE:
+        return
 
     if isinstance(column_type, pd.ArrowDtype) and _search_for_nested_json_type(
         column_type.pyarrow_dtype

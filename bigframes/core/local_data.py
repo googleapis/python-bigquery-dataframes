@@ -19,7 +19,9 @@ from __future__ import annotations
 import dataclasses
 import functools
 import io
-from typing import Callable, cast, Iterable, Literal, Optional, Union
+import itertools
+import json
+from typing import Any, Callable, cast, Generator, Iterable, Literal, Optional, Union
 import uuid
 
 import geopandas  # type: ignore
@@ -122,23 +124,21 @@ class ManagedArrowTable:
         *,
         geo_format: Literal["wkb", "wkt"] = "wkt",
         duration_type: Literal["int", "timedelta"] = "timedelta",
-        json_type: Literal["string", "dict"] = "string",
+        json_type: Literal["string", "object"] = "string",
     ) -> Iterable[tuple]:
         """
         Yield each row as an unlabeled tuple.
 
         Row-wise iteration of columnar data is slow, avoid if possible.
         """
-        if geo_format != "wkt":
-            raise NotImplementedError(f"geo format {geo_format} not yet implemented")
-        if duration_type != "timedelta":
-            raise NotImplementedError(
-                f"duration as {duration_type} not yet implemented"
-            )
-
-        for batch in self.data.to_batches():
-            for row_dict in batch.to_pylist():
-                yield tuple(row_dict.values())
+        for row_dict in _iter_table(
+            self.data,
+            self.schema,
+            geo_format=geo_format,
+            duration_type=duration_type,
+            json_type=json_type,
+        ):
+            yield tuple(row_dict.values())
 
     def validate(self):
         # TODO: Content-based validation for some datatypes (eg json, wkt, list) where logical domain is smaller than pyarrow type
@@ -149,6 +149,80 @@ class ManagedArrowTable:
                 raise TypeError(
                     f"Field {bf_field} has arrow array type: {arrow_type}, expected type: {expected_arrow_type}"
                 )
+
+
+# Sequential iterator, but could split into batches and leverage parallelism for speed
+def _iter_table(
+    table: pa.Table,
+    schema: schemata.ArraySchema,
+    *,
+    geo_format: Literal["wkb", "wkt"] = "wkt",
+    duration_type: Literal["int", "timedelta"] = "timedelta",
+    json_type: Literal["string", "object"] = "string",
+) -> Generator[dict[str, Any], None, None]:
+    """For when you feel like iterating row-wise over a column store. Don't expect speed."""
+
+    if geo_format != "wkt":
+        raise NotImplementedError(f"geo format {geo_format} not yet implemented")
+
+    @functools.singledispatch
+    def iter_array(
+        array: pa.Array, dtype: bigframes.dtypes.Dtype
+    ) -> Generator[Any, None, None]:
+        values = array.to_pylist()
+        if bigframes.dtypes.is_json_like(dtype):
+            if json_type == "object":
+                yield from map(lambda x: json.loads(x) if x is not None else x, values)
+            else:
+                yield from values
+        elif dtype == bigframes.dtypes.TIMEDELTA_DTYPE:
+            if duration_type == "int":
+                yield from map(
+                    lambda x: ((x.days * 3600 * 24) + x.seconds) * 1_000_000
+                    + x.microseconds
+                    if x is not None
+                    else x,
+                    values,
+                )
+            else:
+                yield from values
+        else:
+            yield from values
+
+    @iter_array.register
+    def _(
+        array: pa.ListArray, dtype: bigframes.dtypes.Dtype
+    ) -> Generator[Any, None, None]:
+        value_generator = iter_array(
+            array.flatten(), bigframes.dtypes.get_array_inner_type(dtype)
+        )
+        for (start, end) in itertools.pairwise(array.offsets):
+            arr_size = end.as_py() - start.as_py()
+            yield list(itertools.islice(value_generator, arr_size))
+
+    @iter_array.register
+    def _(
+        array: pa.StructArray, dtype: bigframes.dtypes.Dtype
+    ) -> Generator[Any, None, None]:
+        # yield from each subarray
+        sub_generators: dict[str, Generator[Any, None, None]] = {}
+        for field_name, dtype in bigframes.dtypes.get_struct_fields(dtype).items():
+            sub_generators[field_name] = iter_array(array.field(field_name), dtype)
+
+        keys = list(sub_generators.keys())
+        for row_values in zip(*sub_generators.values()):
+            yield {key: value for key, value in zip(keys, row_values)}
+
+    for batch in table.to_batches():
+        sub_generators: dict[str, Generator[Any, None, None]] = {}
+        for field in schema.items:
+            sub_generators[field.column] = iter_array(
+                batch.column(field.column), field.dtype
+            )
+
+        keys = list(sub_generators.keys())
+        for row_values in zip(*sub_generators.values()):
+            yield {key: value for key, value in zip(keys, row_values)}
 
 
 def _adapt_pandas_series(

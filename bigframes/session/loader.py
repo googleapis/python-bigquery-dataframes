@@ -228,7 +228,7 @@ class GbqDataLoader:
         destination_table = self._bqclient.get_table(load_table_destination)
 
         rows = data.itertuples(
-            geo_format="wkt", duration_type="timedelta", json_type="string"
+            geo_format="wkt", duration_type="int", json_type="object"
         )
         rows_w_offsets = ((*row, offset) for offset, row in enumerate(rows))
 

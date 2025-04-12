@@ -352,6 +352,24 @@ def is_comparable(type_: ExpressionType) -> bool:
     return (type_ is not None) and is_orderable(type_)
 
 
+def get_struct_fields(type_: ExpressionType) -> dict[str, Dtype]:
+    assert isinstance(type_, pd.ArrowDtype)
+    assert isinstance(type_.pyarrow_dtype, pa.StructType)
+    struct_type = type_.pyarrow_dtype
+    result: dict[str, Dtype] = {}
+    for field_no in range(struct_type.num_fields):
+        field = struct_type.field(field_no)
+        result[field.name] = arrow_dtype_to_bigframes_dtype(field.type)
+    return result
+
+
+def get_array_inner_type(type_: ExpressionType) -> Dtype:
+    assert isinstance(type_, pd.ArrowDtype)
+    assert isinstance(type_.pyarrow_dtype, pa.ListType)
+    list_type = type_.pyarrow_dtype
+    return arrow_dtype_to_bigframes_dtype(list_type.value_type)
+
+
 _ORDERABLE_SIMPLE_TYPES = set(
     mapping.dtype for mapping in SIMPLE_TYPES if mapping.orderable
 )
