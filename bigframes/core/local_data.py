@@ -170,7 +170,7 @@ def _iter_table(
         array: pa.Array, dtype: bigframes.dtypes.Dtype
     ) -> Generator[Any, None, None]:
         values = array.to_pylist()
-        if bigframes.dtypes.is_json_like(dtype):
+        if dtype == bigframes.dtypes.JSON_DTYPE:
             if json_type == "object":
                 yield from map(lambda x: json.loads(x) if x is not None else x, values)
             else:

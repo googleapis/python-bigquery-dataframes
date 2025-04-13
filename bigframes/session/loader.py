@@ -39,6 +39,7 @@ import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import google.cloud.bigquery.table
 import pandas
+import pyarrow as pa
 
 from bigframes.core import local_data, utils
 import bigframes.core as core
@@ -176,7 +177,7 @@ class GbqDataLoader:
 
         # JSON support incomplete
         for item in data.schema.items:
-            utils.validate_dtype_can_load(item.column, item.dtype)
+            _validate_dtype_can_load(item.column, item.dtype)
 
         schema_w_offsets = data.schema.append(
             schemata.SchemaItem(ordering_col, bigframes.dtypes.INT_DTYPE)
@@ -736,3 +737,39 @@ def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:
         configuration["jobTimeoutMs"] = timeout_ms
 
     return configuration
+
+
+def _search_for_nested_json_type(arrow_type: pa.DataType) -> bool:
+    """
+    Searches recursively for JSON array type within a PyArrow DataType.
+    """
+    if arrow_type == bigframes.dtypes.JSON_ARROW_TYPE:
+        return True
+    if pa.types.is_list(arrow_type):
+        return _search_for_nested_json_type(arrow_type.value_type)
+    if pa.types.is_struct(arrow_type):
+        for i in range(arrow_type.num_fields):
+            if _search_for_nested_json_type(arrow_type.field(i).type):
+                return True
+        return False
+    return False
+
+
+def _validate_dtype_can_load(name: str, column_type: bigframes.dtypes.Dtype):
+    """
+    Due to a BigQuery IO limitation with loading JSON from Parquet files (b/374784249),
+    we're using a workaround: storing JSON as strings and then parsing them into JSON
+    objects.
+    TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
+    """
+    # we can handle top-level json, but not nested yet through string conversion
+    if column_type == bigframes.dtypes.JSON_DTYPE:
+        return
+
+    if isinstance(column_type, pandas.ArrowDtype) and _search_for_nested_json_type(
+        column_type.pyarrow_dtype
+    ):
+        raise NotImplementedError(
+            f"Nested JSON types, found in column `{name}`: `{column_type}`', "
+            f"are currently unsupported for upload. {constants.FEEDBACK_LINK}"
+        )

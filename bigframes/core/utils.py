@@ -18,15 +18,11 @@ import typing
 from typing import Hashable, Iterable, List
 import warnings
 
-import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 import numpy as np
 import pandas as pd
-import pandas.api.types as pdtypes
-import pyarrow as pa
 import typing_extensions
 
-import bigframes.dtypes as dtypes
 import bigframes.exceptions as bfe
 
 UNNAMED_COLUMN_ID = "bigframes_unnamed_column"
@@ -222,60 +218,3 @@ def timedelta_to_micros(
         ) * 1_000_000 + timedelta.microseconds
 
     raise TypeError(f"Unrecognized input type: {type(timedelta)}")
-
-
-def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:
-    """
-    Replaces in-place timedeltas to integer values in microseconds. Nanosecond part is ignored.
-
-    Returns:
-        The names of updated columns
-    """
-    updated_columns = []
-
-    for col in dataframe.columns:
-        if pdtypes.is_timedelta64_dtype(dataframe[col].dtype):
-            dataframe[col] = dataframe[col].apply(timedelta_to_micros)
-            updated_columns.append(col)
-
-    if pdtypes.is_timedelta64_dtype(dataframe.index.dtype):
-        dataframe.index = dataframe.index.map(timedelta_to_micros)
-        updated_columns.append(dataframe.index.name)
-
-    return updated_columns
-
-
-def _search_for_nested_json_type(arrow_type: pa.DataType) -> bool:
-    """
-    Searches recursively for JSON array type within a PyArrow DataType.
-    """
-    if arrow_type == dtypes.JSON_ARROW_TYPE:
-        return True
-    if pa.types.is_list(arrow_type):
-        return _search_for_nested_json_type(arrow_type.value_type)
-    if pa.types.is_struct(arrow_type):
-        for i in range(arrow_type.num_fields):
-            if _search_for_nested_json_type(arrow_type.field(i).type):
-                return True
-        return False
-    return False
-
-
-def validate_dtype_can_load(name: str, column_type: dtypes.Dtype):
-    """
-    Due to a BigQuery IO limitation with loading JSON from Parquet files (b/374784249),
-    we're using a workaround: storing JSON as strings and then parsing them into JSON
-    objects.
-    TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
-    """
-    # we can handle top-level json, but not nested yet through string conversion
-    if column_type == dtypes.JSON_DTYPE:
-        return
-
-    if isinstance(column_type, pd.ArrowDtype) and _search_for_nested_json_type(
-        column_type.pyarrow_dtype
-    ):
-        raise NotImplementedError(
-            f"Nested JSON types, found in column `{name}`: `{column_type}`', "
-            f"are currently unsupported for upload. {constants.FEEDBACK_LINK}"
-        )
