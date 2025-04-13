@@ -1,3 +1,18 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from __future__ import annotations
+
 from typing import Any, Optional
 
 from google.cloud import bigquery_storage_v1
@@ -7,6 +22,10 @@ from bigframes.session import executor, semi_executor
 
 
 class ReadApiSemiExecutor(semi_executor.SemiExecutor):
+    """
+    Executes plans reducible to a bq table scan by directly reading the table with the read api.
+    """
+
     def __init__(
         self, bqstoragereadclient: bigquery_storage_v1.BigQueryReadClient, project: str
     ):
@@ -29,7 +48,7 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
             return None
 
         import google.cloud.bigquery_storage_v1.types as bq_storage_types
-        from google.protobuf.timestamp_pb2 import Timestamp
+        from google.protobuf import timestamp_pb2
 
         bq_table = node.source.table.get_table_ref()
         read_options: dict[str, Any] = {
@@ -41,7 +60,7 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
 
         table_mod_options = {}
         if node.source.at_time:
-            snapshot_time = Timestamp()
+            snapshot_time = timestamp_pb2.Timestamp()
             snapshot_time.FromDatetime(node.source.at_time)
             table_mod_options["snapshot_time"] = snapshot_time = snapshot_time
         table_mods = bq_storage_types.ReadSession.TableModifiers(**table_mod_options)

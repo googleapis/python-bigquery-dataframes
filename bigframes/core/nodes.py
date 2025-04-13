@@ -581,22 +581,28 @@ class ScanItem(typing.NamedTuple):
 
 @dataclasses.dataclass(frozen=True)
 class ScanList:
+    """
+    Defines the set of columns to scan from a source, along with the variable to bind the columns to.
+    """
+
     items: typing.Tuple[ScanItem, ...]
 
-    def filter(
+    def filter_cols(
         self,
         ids: AbstractSet[identifiers.ColumnId],
     ) -> ScanList:
+        """Drop columns from the scan that except those in the 'ids' arg."""
         result = ScanList(tuple(item for item in self.items if item.id in ids))
         if len(result.items) == 0:
-            # We need to select something, or stuff breaks
+            # We need to select something, or sql syntax breaks
             result = ScanList(self.items[:1])
         return result
 
-    def select(
+    def project(
         self,
         selections: Mapping[identifiers.ColumnId, identifiers.ColumnId],
     ) -> ScanList:
+        """Project given ids from the scanlist, dropping previous bindings."""
         by_id = {item.id: item for item in self.items}
         result = ScanList(
             tuple(
@@ -604,7 +610,7 @@ class ScanList:
             )
         )
         if len(result.items) == 0:
-            # We need to select something, or stuff breaks
+            # We need to select something, or sql syntax breaks
             result = ScanList((self.items[:1]))
         return result
 

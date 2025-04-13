@@ -20,6 +20,10 @@ from bigframes.session import executor
 
 # Unstable interface, in development
 class SemiExecutor(abc.ABC):
+    """
+    A semi executor executes a subset of possible plans, returns None if it cannot execute a given plan.
+    """
+
     def execute(
         self,
         plan: bigframe_node.BigFrameNode,

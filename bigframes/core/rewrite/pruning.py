@@ -170,7 +170,7 @@ def prune_readlocal(
     node: bigframes.core.nodes.ReadLocalNode,
     selection: AbstractSet[identifiers.ColumnId],
 ) -> bigframes.core.nodes.ReadLocalNode:
-    new_scan_list = node.scan_list.filter(selection)
+    new_scan_list = node.scan_list.filter_cols(selection)
     return dataclasses.replace(
         node,
         scan_list=new_scan_list,
@@ -183,5 +183,5 @@ def prune_readtable(
     node: bigframes.core.nodes.ReadTableNode,
     selection: AbstractSet[identifiers.ColumnId],
 ) -> bigframes.core.nodes.ReadTableNode:
-    new_scan_list = node.scan_list.filter(selection)
+    new_scan_list = node.scan_list.filter_cols(selection)
     return dataclasses.replace(node, scan_list=new_scan_list)

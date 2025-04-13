@@ -47,5 +47,5 @@ def _(node: nodes.SelectionNode) -> nodes.BigFrameNode:
     selection = {
         aliased_ref.ref.id: aliased_ref.id for aliased_ref in node.input_output_pairs
     }
-    new_scan_list = node.child.scan_list.select(selection)
+    new_scan_list = node.child.scan_list.project(selection)
     return dataclasses.replace(node.child, scan_list=new_scan_list)
