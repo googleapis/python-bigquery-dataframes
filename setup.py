@@ -47,8 +47,6 @@ dependencies = [
     "google-cloud-iam >=2.12.1",
     "google-cloud-resource-manager >=1.10.3",
     "google-cloud-storage >=2.0.0",
-    # Upper bound due to no windows build for 1.1.2
-    "jellyfish >=0.8.9,<1.1.2",
     "numpy >=1.24.0",
     "pandas >=1.5.3",
     "pandas-gbq >=0.26.1",
@@ -63,7 +61,6 @@ dependencies = [
     "db-dtypes >=1.4.2",
     # For vendored ibis-framework.
     "atpublic>=2.3,<6",
-    "parsy>=2,<3",
     "python-dateutil>=2.8.2,<3",
     "pytz>=2022.7",
     "toolz>=0.11,<2",
