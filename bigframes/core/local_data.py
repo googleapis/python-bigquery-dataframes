@@ -308,6 +308,8 @@ def _logical_type_replacements(type: pa.DataType) -> pa.DataType:
     if pa.types.is_large_string(type):
         # simple string type can handle the largest strings needed
         return pa.string()
+    if pa.types.is_dictionary(type):
+        return _logical_type_replacements(type.value_type)
     if pa.types.is_null(type):
         # null as a type not allowed, default type is float64 for bigframes
         return pa.float64()

@@ -1760,6 +1760,29 @@ def test_len(scalars_dfs):
     assert bf_result == pd_result
 
 
+@pytest.mark.parametrize(
+    ("n_rows",),
+    [
+        (50,),
+        (10000,),
+    ],
+)
+@pytest.mark.parametrize(
+    "write_engine",
+    ["bigquery_load", "bigquery_streaming"],
+)
+def test_df_len_local(session, n_rows, write_engine):
+    assert (
+        len(
+            session.read_pandas(
+                pd.DataFrame(np.random.randint(1, 7, n_rows), columns=["one"]),
+                write_engine=write_engine,
+            )
+        )
+        == n_rows
+    )
+
+
 def test_size(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df.size

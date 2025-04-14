@@ -193,7 +193,6 @@ class GbqDataLoader:
         load_table_destination = self._storage_manager.create_temp_table(
             bq_schema, [ordering_col]
         )
-        destination_table = self._bqclient.get_table(load_table_destination)
 
         buffer = io.BytesIO()
         data.to_parquet(
@@ -208,12 +207,14 @@ class GbqDataLoader:
             buffer, destination=load_table_destination, job_config=job_config
         )
         self._start_generic_job(load_job)
-
+        # must get table metadata after load job for accurate metadata
+        destination_table = self._bqclient.get_table(load_table_destination)
         return core.ArrayValue.from_table(
             table=destination_table,
             schema=schema_w_offsets,
             session=self._session,
             offsets_col=ordering_col,
+            n_rows=data.data.num_rows,
         ).drop_columns([ordering_col])
 
     def stream_data(self, data: local_data.ManagedArrowTable) -> core.ArrayValue:
@@ -226,7 +227,6 @@ class GbqDataLoader:
         load_table_destination = self._storage_manager.create_temp_table(
             bq_schema, [ordering_col]
         )
-        destination_table = self._bqclient.get_table(load_table_destination)
 
         rows = data.itertuples(
             geo_format="wkt", duration_type="int", json_type="object"
@@ -234,19 +234,22 @@ class GbqDataLoader:
         rows_w_offsets = ((*row, offset) for offset, row in enumerate(rows))
 
         for errors in self._bqclient.insert_rows(
-            destination_table,
+            load_table_destination,
             rows_w_offsets,
+            selected_fields=bq_schema,
             row_ids=map(str, itertools.count()),  # used to ensure only-once insertion
         ):
             if errors:
                 raise ValueError(
                     f"Problem loading at least one row from DataFrame: {errors}. {constants.FEEDBACK_LINK}"
                 )
+        destination_table = self._bqclient.get_table(load_table_destination)
         return core.ArrayValue.from_table(
             table=destination_table,
             schema=schema_w_offsets,
             session=self._session,
             offsets_col=ordering_col,
+            n_rows=data.data.num_rows,
         ).drop_columns([ordering_col])
 
     def _start_generic_job(self, job: formatting_helpers.GenericJob):
