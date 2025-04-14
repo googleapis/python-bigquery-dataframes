@@ -742,17 +742,17 @@ def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:
     return configuration
 
 
-def _search_for_nested_json_type(arrow_type: pa.DataType) -> bool:
+def _has_json_arrow_type(arrow_type: pa.DataType) -> bool:
     """
     Searches recursively for JSON array type within a PyArrow DataType.
     """
     if arrow_type == bigframes.dtypes.JSON_ARROW_TYPE:
         return True
     if pa.types.is_list(arrow_type):
-        return _search_for_nested_json_type(arrow_type.value_type)
+        return _has_json_arrow_type(arrow_type.value_type)
     if pa.types.is_struct(arrow_type):
         for i in range(arrow_type.num_fields):
-            if _search_for_nested_json_type(arrow_type.field(i).type):
+            if _has_json_arrow_type(arrow_type.field(i).type):
                 return True
         return False
     return False
@@ -760,16 +760,21 @@ def _search_for_nested_json_type(arrow_type: pa.DataType) -> bool:
 
 def _validate_dtype_can_load(name: str, column_type: bigframes.dtypes.Dtype):
     """
+    Determines whether a datatype is supported by bq load jobs.
+
     Due to a BigQuery IO limitation with loading JSON from Parquet files (b/374784249),
     we're using a workaround: storing JSON as strings and then parsing them into JSON
     objects.
     TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
+
+    Raises:
+        NotImplementedError: Type is not yet supported by load jobs.
     """
     # we can handle top-level json, but not nested yet through string conversion
     if column_type == bigframes.dtypes.JSON_DTYPE:
         return
 
-    if isinstance(column_type, pandas.ArrowDtype) and _search_for_nested_json_type(
+    if isinstance(column_type, pandas.ArrowDtype) and _has_json_arrow_type(
         column_type.pyarrow_dtype
     ):
         raise NotImplementedError(
