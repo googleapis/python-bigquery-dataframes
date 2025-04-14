@@ -17,7 +17,7 @@ import re
 import bigframes_vendored.constants as constants
 import geopandas  # type: ignore
 from geopandas.array import GeometryDtype  # type:ignore
-import geopandas.testing
+import geopandas.testing  # type:ignore
 import google.api_core.exceptions
 import pandas as pd
 import pytest
