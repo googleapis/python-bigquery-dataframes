@@ -110,11 +110,6 @@ def bigquery_client_tokyo(session_tokyo: bigframes.Session) -> bigquery.Client:
 
 
 @pytest.fixture(scope="session")
-def bigquery_client_test(test_session: bigframes.Session) -> bigquery.Client:
-    return test_session.bqclient
-
-
-@pytest.fixture(scope="session")
 def ibis_client(session: bigframes.Session) -> ibis_backends.BaseBackend:
     return session.ibis_client
 
