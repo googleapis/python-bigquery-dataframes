@@ -53,21 +53,15 @@ from pandas._typing import (
     ReadPickleBuffer,
     StorageOptions,
 )
-import pyarrow as pa
 
 from bigframes import exceptions as bfe
 from bigframes import version
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
-import bigframes.core.blocks as blocks
-import bigframes.core.compile
-import bigframes.core.guid
-import bigframes.core.pruning
+from bigframes.core import blocks
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
 # to register new and replacement ops with the Ibis BigQuery backend.
-import bigframes.dataframe
-import bigframes.dtypes
 import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
 from bigframes.session import bigquery_session, bq_caching_executor, executor
@@ -76,7 +70,6 @@ import bigframes.session.anonymous_dataset
 import bigframes.session.clients
 import bigframes.session.loader
 import bigframes.session.metrics
-import bigframes.session.planner
 import bigframes.session.validation
 
 # Avoid circular imports.
@@ -789,19 +782,29 @@ class Session(
                 "bigframes.pandas.DataFrame."
             )
 
+        mem_usage = pandas_dataframe.memory_usage(deep=True).sum()
         if write_engine == "default":
-            try:
-                inline_df = self._read_pandas_inline(pandas_dataframe)
-                return inline_df
-            except ValueError:
-                pass
-            return self._read_pandas_load_job(pandas_dataframe, api_name)
-        elif write_engine == "bigquery_inline":
+            write_engine = (
+                "bigquery_load"
+                if mem_usage > MAX_INLINE_DF_BYTES
+                else "bigquery_inline"
+            )
+
+        if write_engine == "bigquery_inline":
+            if mem_usage > MAX_INLINE_DF_BYTES:
+                raise ValueError(
+                    f"DataFrame size ({mem_usage} bytes) exceeds the maximum allowed "
+                    f"for inline data ({MAX_INLINE_DF_BYTES} bytes)."
+                )
             return self._read_pandas_inline(pandas_dataframe)
         elif write_engine == "bigquery_load":
-            return self._read_pandas_load_job(pandas_dataframe, api_name)
+            return self._loader.read_pandas(
+                pandas_dataframe, method="load", api_name=api_name
+            )
         elif write_engine == "bigquery_streaming":
-            return self._read_pandas_streaming(pandas_dataframe)
+            return self._loader.read_pandas(
+                pandas_dataframe, method="stream", api_name=api_name
+            )
         else:
             raise ValueError(f"Got unexpected write_engine '{write_engine}'")
 
@@ -810,45 +813,8 @@ class Session(
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
-        memory_usage = pandas_dataframe.memory_usage(deep=True).sum()
-        if memory_usage > MAX_INLINE_DF_BYTES:
-            raise ValueError(
-                f"DataFrame size ({memory_usage} bytes) exceeds the maximum allowed "
-                f"for inline data ({MAX_INLINE_DF_BYTES} bytes)."
-            )
-
-        try:
-            local_block = blocks.Block.from_local(pandas_dataframe, self)
-            inline_df = dataframe.DataFrame(local_block)
-        except (
-            pa.ArrowInvalid,  # Thrown by arrow for unsupported types, such as geo.
-            pa.ArrowTypeError,  # Thrown by arrow for types without mapping (geo).
-            ValueError,  # Thrown by ibis for some unhandled types
-            TypeError,  # Not all types handleable by local code path
-        ) as exc:
-            raise ValueError(
-                f"Could not convert with a BigQuery type: `{exc}`. "
-            ) from exc
-
-        return inline_df
-
-    def _read_pandas_load_job(
-        self,
-        pandas_dataframe: pandas.DataFrame,
-        api_name: str,
-    ) -> dataframe.DataFrame:
-        try:
-            return self._loader.read_pandas_load_job(pandas_dataframe, api_name)
-        except (pa.ArrowInvalid, pa.ArrowTypeError) as exc:
-            raise ValueError(
-                f"Could not convert with a BigQuery type: `{exc}`."
-            ) from exc
-
-    def _read_pandas_streaming(
-        self,
-        pandas_dataframe: pandas.DataFrame,
-    ) -> dataframe.DataFrame:
-        return self._loader.read_pandas_streaming(pandas_dataframe)
+        local_block = blocks.Block.from_local(pandas_dataframe, self)
+        return dataframe.DataFrame(local_block)
 
     def read_csv(
         self,
@@ -1510,12 +1476,16 @@ class Session(
                 format. If this parameter is not provided then session dataset
                 id is used.
             bigquery_connection (str, Optional):
-                Name of the BigQuery connection. You should either have the
-                connection already created in the `location` you have chosen, or
-                you should have the Project IAM Admin role to enable the service
-                to create the connection for you if you need it. If this
-                parameter is not provided then the BigQuery connection from the
-                session is used.
+                Name of the BigQuery connection. It is used to provide an
+                identity to the serverless instances running the user code. It
+                helps BigQuery manage and track the resources used by the udf.
+                This connection is required for internet access and for
+                interacting with other GCP services. To access GCP services, the
+                appropriate IAM permissions must also be granted to the
+                connection's Service Account. When it defaults to None, the udf
+                will be created without any connection. A udf without a
+                connection has no internet access and no access to other GCP
+                services.
             name (str, Optional):
                 Explicit name of the persisted BigQuery managed function. Use it
                 with caution, because more than one users working in the same
@@ -1802,9 +1772,7 @@ class Session(
             raise NotImplementedError()
 
         # TODO(garrettwu): switch to pseudocolumn when b/374988109 is done.
-        connection = self._create_bq_connection(
-            connection=connection, iam_role="storage.objectUser"
-        )
+        connection = self._create_bq_connection(connection=connection)
 
         table = self._create_object_table(path, connection)
 
