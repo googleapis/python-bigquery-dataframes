@@ -1114,7 +1114,7 @@ class SelectionNode(UnaryNode):
         return 0
 
     @property
-    def double_references_ids(self) -> bool:
+    def has_multi_referenced_ids(self) -> bool:
         referenced = tuple(ref.ref.id for ref in self.input_output_pairs)
         return len(referenced) != len(set(referenced))
 

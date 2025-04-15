@@ -18,15 +18,11 @@ from typing import Optional
 from bigframes.core import nodes
 
 
-def try_reduce_to_table_scan(node: nodes.BigFrameNode) -> Optional[nodes.ReadTableNode]:
-    if not all(
-        map(
-            lambda x: isinstance(x, (nodes.ReadTableNode, nodes.SelectionNode)),
-            node.unique_nodes(),
-        )
-    ):
-        return None
-    result = node.bottom_up(merge_scan)
+def try_reduce_to_table_scan(root: nodes.BigFrameNode) -> Optional[nodes.ReadTableNode]:
+    for node in root.unique_nodes():
+        if not isinstance(node, (nodes.ReadTableNode, nodes.SelectionNode)):
+            return None
+    result = root.bottom_up(merge_scan)
     if isinstance(result, nodes.ReadTableNode):
         return result
     return None
@@ -41,7 +37,7 @@ def merge_scan(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
 def _(node: nodes.SelectionNode) -> nodes.BigFrameNode:
     if not isinstance(node.child, nodes.ReadTableNode):
         return node
-    if node.double_references_ids:
+    if node.has_multi_referenced_ids:
         return node
 
     selection = {
