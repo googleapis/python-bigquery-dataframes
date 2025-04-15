@@ -77,7 +77,7 @@ def dataset_id_eu(bigquery_client: bigquery.Client, project_id: str) -> Iterator
 
 
 @pytest.fixture(scope="session")
-def gcs_dst_folder() -> str:
+def gcs_dst_bucket() -> str:
     return "gs://bigframes_blob_test"
 
 
