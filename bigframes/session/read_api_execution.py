@@ -96,5 +96,5 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
             schema=plan.schema,
             query_job=None,
             total_bytes=None,
-            total_rows=node.source.table.n_rows,
+            total_rows=node.source.n_rows,
         )
