@@ -98,15 +98,14 @@ class ManagedArrowTable:
         mat.validate()
         return mat
 
-    def to_parquet(
+    def to_pyarrow_table(
         self,
-        dst: Union[str, io.IOBase],
         *,
         offsets_col: Optional[str] = None,
         geo_format: Literal["wkb", "wkt"] = "wkt",
         duration_type: Literal["int", "duration"] = "duration",
         json_type: Literal["string"] = "string",
-    ):
+    ) -> pa.Table:
         pa_table = self.data
         if offsets_col is not None:
             pa_table = pa_table.append_column(
@@ -119,6 +118,23 @@ class ManagedArrowTable:
                 f"duration as {duration_type} not yet implemented"
             )
         assert json_type == "string"
+        return pa_table
+
+    def to_parquet(
+        self,
+        dst: Union[str, io.IOBase],
+        *,
+        offsets_col: Optional[str] = None,
+        geo_format: Literal["wkb", "wkt"] = "wkt",
+        duration_type: Literal["int", "duration"] = "duration",
+        json_type: Literal["string"] = "string",
+    ):
+        pa_table = self.to_pyarrow_table(
+            offsets_col=offsets_col,
+            geo_format=geo_format,
+            duration_type=duration_type,
+            json_type=json_type,
+        )
         pyarrow.parquet.write_table(pa_table, where=dst)
 
     def itertuples(
@@ -280,6 +296,8 @@ def _adapt_pandas_series(
 def _adapt_arrow_array(
     array: Union[pa.ChunkedArray, pa.Array]
 ) -> tuple[Union[pa.ChunkedArray, pa.Array], bigframes.dtypes.Dtype]:
+    if array.type == bigframes.dtypes.JSON_ARROW_TYPE:
+        return _canonicalize_json(array), bigframes.dtypes.JSON_DTYPE
     target_type = _logical_type_replacements(array.type)
     if target_type != array.type:
         # TODO: Maybe warn if lossy conversion?
@@ -290,6 +308,19 @@ def _adapt_arrow_array(
     if storage_type != array.type:
         array = array.cast(storage_type)
     return array, bf_type
+
+
+def _canonicalize_json(array: pa.Array) -> pa.Array:
+    def _canonicalize_scalar(json_string):
+        if json_string is None:
+            return None
+        return json.dumps(
+            json.loads(json_string), sort_keys=True, separators=(",", ":")
+        )
+
+    return pa.array(
+        [_canonicalize_scalar(value) for value in array.to_pylist()], type=pa.string()
+    )
 
 
 def _get_managed_storage_type(dtype: bigframes.dtypes.Dtype) -> pa.DataType:

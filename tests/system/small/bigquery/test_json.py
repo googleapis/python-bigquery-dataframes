@@ -66,7 +66,7 @@ def test_json_set_w_more_pairs():
         s, json_path_value_pairs=[("$.a", 1), ("$.b", 2), ("$.a", [3, 4, 5])]
     )
 
-    expected_json = ['{"a": 3, "b": 2}', '{"a": 4, "b": 2}', '{"a": 5, "b": 2, "c": 1}']
+    expected_json = ['{"a": 3,"b":2}', '{"a":4,"b": 2}', '{"a": 5,"b":2,"c":1}']
     expected = bpd.Series(expected_json, dtype=dtypes.JSON_DTYPE)
 
     pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas())
@@ -155,7 +155,7 @@ def test_json_extract_array_from_json_strings():
     )
     actual = bbq.json_extract_array(s, "$.a")
     expected = bpd.Series(
-        [['"ab"', '"2"', '"3 xy"'], [], ['"4"', '"5"'], None],
+        [['"ab"', '"2"', '"3 xy"'], [], ['"4"', '"5"'], []],
         dtype=pd.ArrowDtype(pa.list_(pa.string())),
     )
 
