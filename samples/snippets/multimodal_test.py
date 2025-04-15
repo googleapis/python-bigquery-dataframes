@@ -14,7 +14,7 @@
 
 
 def test_multimodal_dataframe(gcs_dst_bucket: str) -> None:
-    # dst folder must be gcs folders that the connection Service Accouonts have write access.
+    # destination folder must be in a GCS bucket that the BQ connection service account (default or user provided) has write access to.
     dst_bucket = gcs_dst_bucket
     # [START bigquery_dataframes_multimodal_dataframe_create]
     import bigframes
