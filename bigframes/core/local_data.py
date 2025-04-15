@@ -96,6 +96,49 @@ class ManagedArrowTable:
             schemata.ArraySchema(tuple(fields)),
         )
 
+    def to_arrow(
+        self,
+        *,
+        offsets_col: Optional[str] = None,
+        geo_format: Literal["wkb", "wkt"] = "wkt",
+        duration_type: Literal["int", "duration"] = "duration",
+        json_type: Literal["string"] = "string",
+    ) -> tuple[pa.Schema, Iterable[pa.RecordBatch]]:
+        if geo_format != "wkt":
+            raise NotImplementedError(f"geo format {geo_format} not yet implemented")
+        assert json_type == "string"
+
+        batches = self.data.to_batches()
+        schema = self.data.schema
+        if duration_type == "int":
+
+            @_recursive_map_types
+            def durations_to_ints(type: pa.DataType) -> pa.DataType:
+                if pa.types.is_duration(type):
+                    return pa.int64()
+                return type
+
+            schema = pa.schema(
+                pa.field(field.name, durations_to_ints(field.type))
+                for field in self.data.schema
+            )
+
+            # Can't use RecordBatch.cast until set higher min pyarrow version
+            def convert_batch(batch: pa.RecordBatch) -> pa.RecordBatch:
+                return pa.record_batch(
+                    [arr.cast(type) for arr, type in zip(batch.columns, schema.types)],
+                    schema=schema,
+                )
+
+            batches = map(convert_batch, batches)
+
+        if offsets_col is not None:
+            return schema.append(pa.field(offsets_col, pa.int64())), _append_offsets(
+                batches, offsets_col
+            )
+        else:
+            return schema, batches
+
     def to_parquet(
         self,
         dst: Union[str, io.IOBase],
@@ -105,18 +148,13 @@ class ManagedArrowTable:
         duration_type: Literal["int", "duration"] = "duration",
         json_type: Literal["string"] = "string",
     ):
-        pa_table = self.data
-        if offsets_col is not None:
-            pa_table = pa_table.append_column(
-                offsets_col, pa.array(range(pa_table.num_rows), type=pa.int64())
-            )
-        if geo_format != "wkt":
-            raise NotImplementedError(f"geo format {geo_format} not yet implemented")
-        if duration_type != "duration":
-            raise NotImplementedError(
-                f"duration as {duration_type} not yet implemented"
-            )
-        assert json_type == "string"
+        schema, batches = self.to_arrow(
+            offsets_col=offsets_col,
+            geo_format=geo_format,
+            duration_type=duration_type,
+            json_type=json_type,
+        )
+        pa_table = pa.Table.from_batches(batches, schema=schema)
         pyarrow.parquet.write_table(pa_table, where=dst)
 
     def itertuples(
@@ -329,3 +367,17 @@ def _physical_type_replacements(dtype: pa.DataType) -> pa.DataType:
     if dtype in _ARROW_MANAGED_STORAGE_OVERRIDES:
         return _ARROW_MANAGED_STORAGE_OVERRIDES[dtype]
     return dtype
+
+
+def _append_offsets(
+    batches: Iterable[pa.RecordBatch], offsets_col_name: str
+) -> Iterable[pa.RecordBatch]:
+    offset = 0
+    for batch in batches:
+        offsets = pa.array(range(offset, offset + batch.num_rows), type=pa.int64())
+        batch_w_offsets = pa.record_batch(
+            [*batch.columns, offsets],
+            schema=batch.schema.append(pa.field(offsets_col_name, pa.int64())),
+        )
+        offset += batch.num_rows
+        yield batch_w_offsets

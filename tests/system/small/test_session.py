@@ -38,6 +38,17 @@ import bigframes.dtypes
 import bigframes.ml.linear_model
 from tests.system import utils
 
+all_write_engines = pytest.mark.parametrize(
+    "write_engine",
+    [
+        "default",
+        "bigquery_inline",
+        "bigquery_load",
+        "bigquery_streaming",
+        "bigquery_write",
+    ],
+)
+
 
 @pytest.fixture(scope="module")
 def df_and_local_csv(scalars_df_index):
@@ -867,10 +878,7 @@ def test_read_pandas_tokyo(
 
 # old versions don't support local casting to arrow duration
 @utils.skip_legacy_pandas
-@pytest.mark.parametrize(
-    "write_engine",
-    ["default", "bigquery_inline", "bigquery_load", "bigquery_streaming"],
-)
+@all_write_engines
 def test_read_pandas_timedelta_dataframes(session, write_engine):
     pandas_df = pd.DataFrame({"my_col": pd.to_timedelta([1, 2, 3], unit="d")})
 
@@ -883,10 +891,7 @@ def test_read_pandas_timedelta_dataframes(session, write_engine):
     pd.testing.assert_frame_equal(actual_result, expected_result)
 
 
-@pytest.mark.parametrize(
-    "write_engine",
-    ["default", "bigquery_inline", "bigquery_load", "bigquery_streaming"],
-)
+@all_write_engines
 def test_read_pandas_timedelta_series(session, write_engine):
     expected_series = pd.Series(pd.to_timedelta([1, 2, 3], unit="d"))
 
@@ -901,10 +906,7 @@ def test_read_pandas_timedelta_series(session, write_engine):
     )
 
 
-@pytest.mark.parametrize(
-    "write_engine",
-    ["default", "bigquery_inline", "bigquery_load", "bigquery_streaming"],
-)
+@all_write_engines
 def test_read_pandas_timedelta_index(session, write_engine):
     expected_index = pd.to_timedelta(
         [1, 2, 3], unit="d"
@@ -919,15 +921,7 @@ def test_read_pandas_timedelta_index(session, write_engine):
     pd.testing.assert_index_equal(actual_result, expected_index)
 
 
-@pytest.mark.parametrize(
-    ("write_engine"),
-    [
-        pytest.param("default"),
-        pytest.param("bigquery_load"),
-        pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_inline"),
-    ],
-)
+@all_write_engines
 def test_read_pandas_json_dataframes(session, write_engine):
     json_data = [
         "1",
@@ -946,15 +940,7 @@ def test_read_pandas_json_dataframes(session, write_engine):
     pd.testing.assert_frame_equal(actual_result, expected_df, check_index_type=False)
 
 
-@pytest.mark.parametrize(
-    ("write_engine"),
-    [
-        pytest.param("default"),
-        pytest.param("bigquery_load"),
-        pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_inline"),
-    ],
-)
+@all_write_engines
 def test_read_pandas_json_series(session, write_engine):
     json_data = [
         "1",
@@ -972,15 +958,7 @@ def test_read_pandas_json_series(session, write_engine):
     )
 
 
-@pytest.mark.parametrize(
-    ("write_engine"),
-    [
-        pytest.param("default"),
-        pytest.param("bigquery_load"),
-        pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
-    ],
-)
+@all_write_engines
 def test_read_pandas_json_index(session, write_engine):
     json_data = [
         "1",
@@ -1028,6 +1006,7 @@ def test_read_pandas_w_nested_json_fails(session, write_engine):
         pytest.param("default"),
         pytest.param("bigquery_inline"),
         pytest.param("bigquery_streaming"),
+        pytest.param("bigquery_write"),
     ],
 )
 def test_read_pandas_w_nested_json(session, write_engine):
@@ -1085,6 +1064,7 @@ def test_read_pandas_w_nested_json_index_fails(session, write_engine):
         pytest.param("default"),
         pytest.param("bigquery_inline"),
         pytest.param("bigquery_streaming"),
+        pytest.param("bigquery_write"),
     ],
 )
 def test_read_pandas_w_nested_json_index(session, write_engine):
@@ -1105,15 +1085,7 @@ def test_read_pandas_w_nested_json_index(session, write_engine):
     pd.testing.assert_index_equal(bq_idx, pd_idx)
 
 
-@pytest.mark.parametrize(
-    ("write_engine",),
-    (
-        ("default",),
-        ("bigquery_inline",),
-        ("bigquery_load",),
-        ("bigquery_streaming",),
-    ),
-)
+@all_write_engines
 def test_read_csv_for_gcs_file_w_write_engine(session, df_and_gcs_csv, write_engine):
     scalars_df, path = df_and_gcs_csv
 
