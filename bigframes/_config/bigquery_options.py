@@ -19,10 +19,8 @@ from __future__ import annotations
 from typing import Literal, Optional
 import warnings
 
-import google.api_core.exceptions
 import google.auth.credentials
 
-import bigframes.constants
 import bigframes.enums
 import bigframes.exceptions as bfe
 
@@ -239,22 +237,43 @@ class BigQueryOptions:
     @property
     def allow_large_results(self) -> bool:
         """
-        Sets the flag to allow or disallow query results larger than 10 GB.
+        DEPRECATED: Checks the legacy global setting for allowing large results.
+        Use ``bpd.options.compute.allow_large_results`` instead.
 
-        The default setting for this flag is True, which allows queries to return results
-        exceeding 10 GB by creating an explicit destination table. If set to False, it
-        restricts the result size to 10 GB, and BigQuery will raise an error if this limit
-        is exceeded.
+        Warning: Accessing ``bpd.options.bigquery.allow_large_results`` is deprecated
+        and this property will be removed in a future version. The configuration for
+        handling large results has moved.
 
         Returns:
-            bool: True if large results are allowed with an explicit destination table,
-            False if results are limited to 10 GB and errors are raised when exceeded.
+            bool: The value of the deprecated setting.
         """
+        warnings.warn(
+            "`bpd.options.bigquery.allow_large_results` is deprecated and will be removed soon. "
+            "Please use `bpd.options.compute.allow_large_results` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self._allow_large_results
 
     @allow_large_results.setter
     def allow_large_results(self, value: bool):
-        self._allow_large_results = value
+        """
+        DEPRECATED: Setting ``allow_large_results`` via ``bpd.options.bigquery``
+        is deprecated and has no effect. Use
+        ``bpd.options.compute.allow_large_results`` instead.
+
+        Warning: Setting this option here is deprecated, ignored, and this setter
+        will be removed in a future version. The configuration for handling large
+        results has moved.
+        """
+        warnings.warn(
+            "Setting `bpd.options.bigquery.allow_large_results` is deprecated, ignored, "
+            "and will be removed soon. "
+            "Please use `bpd.options.compute.allow_large_results = <value>` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        pass
 
     @property
     def use_regional_endpoints(self) -> bool:
