@@ -1263,7 +1263,7 @@ WHERE
 
 @pytest.fixture(scope="session")
 def llm_fine_tune_df_default_index(
-    ession: bigframes.Session,
+    session: bigframes.Session,
 ) -> bigframes.dataframe.DataFrame:
     training_table_name = "llm_tuning.emotion_classification_train"
     df = session.read_gbq(training_table_name).dropna().head(30)
