@@ -241,8 +241,8 @@ class BlobAccessor(base.SeriesMethods):
         Args:
             n (int, default 3): number of sample blob objects to display.
             content_type (str, default ""): content type of the blob. If unset, use the blob metadata of the storage. Possible values are "image", "audio" and "video".
-            width (int or None, default None): width in pixels that the image/video are constrained to. If unset, use the image/video's original size. No-op for other content types.
-            height (int or None, default None): height in pixels that the image/video are constrained to. If unset, use the image/video's original size. No-op for other content types.
+            width (int or None, default None): width in pixels that the image/video are constrained to. If unset, use the image/video's original size or ratio. No-op for other content types.
+            height (int or None, default None): height in pixels that the image/video are constrained to. If unset, use the image/video's original size or ratio. No-op for other content types.
         """
         # col name doesn't matter here. Rename to avoid column name conflicts
         df = bigframes.series.Series(self._block).rename("blob_col").to_frame()
