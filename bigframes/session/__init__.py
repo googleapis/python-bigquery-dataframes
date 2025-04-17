@@ -970,19 +970,6 @@ class Session(
             warnings.warn(msg, category=FutureWarning)
             index_col = None
 
-        # TODO(b/338089659): Looks like we can relax this 1 column
-        # restriction if we check the contents of an iterable are strings
-        # not integers.
-        if (
-            # Empty tuples, None, and False are allowed and falsey.
-            index_col
-            and not isinstance(index_col, str)
-        ):
-            raise NotImplementedError(
-                "BigQuery engine only supports a single column name for `index_col`, "
-                f"got: {repr(index_col)}. {constants.FEEDBACK_LINK}"
-            )
-
         # None and False cannot be passed to read_gbq.
         if not index_col:
             index_col = ()

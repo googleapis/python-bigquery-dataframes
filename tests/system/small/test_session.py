@@ -1290,22 +1290,31 @@ def test_read_csv_for_index_col_w_false(session, df_and_local_csv, index_col):
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
-def test_read_csv_for_index_col_w_column_label(session, df_and_gcs_csv):
+@pytest.mark.parametrize(
+    "index_col",
+    [
+        pytest.param("rowindex", id="single_column"),
+        pytest.param(["rowindex", "bool_col"], id="multi_column"),
+    ],
+)
+def test_read_csv_for_index_col_w_column_labels(session, df_and_gcs_csv, index_col):
     scalars_df, path = df_and_gcs_csv
-    bf_df = session.read_csv(path, engine="bigquery", index_col="rowindex")
+    bf_df = session.read_csv(path, engine="bigquery", index_col=index_col)
 
     # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
     pd_df = session.read_csv(
-        path, index_col="rowindex", dtype=scalars_df.dtypes.to_dict()
+        path, index_col=index_col, dtype=scalars_df.dtypes.to_dict()
     )
 
-    assert bf_df.shape == scalars_df.shape
+    expected_df = scalars_df.reset_index().set_index(index_col)
+
+    assert bf_df.shape == expected_df.shape
     assert bf_df.shape == pd_df.shape
 
-    assert len(bf_df.columns) == len(scalars_df.columns)
+    assert len(bf_df.columns) == len(expected_df.columns)
     assert len(bf_df.columns) == len(pd_df.columns)
 
-    pd.testing.assert_frame_equal(bf_df.to_pandas(), scalars_df.to_pandas())
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), expected_df.to_pandas())
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
