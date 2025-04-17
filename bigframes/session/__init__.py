@@ -961,13 +961,21 @@ class Session(
                 f"{constants.FEEDBACK_LINK}"
             )
 
+        if isinstance(index_col, bigframes.enums.DefaultIndexKind):
+            msg = bfe.format_message(
+                "DEPRECATED: Using `bigframes.enums.DefaultIndexKind` for the `index_col` "
+                "parameter is deprecated and will be removed soon. Please update your "
+                "code to use `index_col=None` instead."
+            )
+            warnings.warn(msg, category=FutureWarning)
+            index_col = None
+
         # TODO(b/338089659): Looks like we can relax this 1 column
         # restriction if we check the contents of an iterable are strings
         # not integers.
         if (
             # Empty tuples, None, and False are allowed and falsey.
             index_col
-            and not isinstance(index_col, bigframes.enums.DefaultIndexKind)
             and not isinstance(index_col, str)
         ):
             raise NotImplementedError(
@@ -976,10 +984,6 @@ class Session(
             )
 
         # None and False cannot be passed to read_gbq.
-        # TODO(b/338400133): When index_col is None, we should be using the
-        # first column of the CSV as the index to be compatible with the
-        # pandas engine. According to the pandas docs, only "False"
-        # indicates a default sequential index.
         if not index_col:
             index_col = ()
 

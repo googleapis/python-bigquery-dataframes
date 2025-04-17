@@ -1216,15 +1216,18 @@ def test_read_csv_for_local_file_w_sep(session, df_and_local_csv, sep):
         pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
-def test_read_csv_w_index_col_false(session, df_and_local_csv):
-    # Compares results for pandas and bigframes engines
+def test_read_csv_for_index_col_w_defaultindexkind(session, df_and_local_csv):
     scalars_df, path = df_and_local_csv
+    # Verify raising deprecated messages
     with open(path, "rb") as buffer:
-        bf_df = session.read_csv(
-            buffer,
-            engine="bigquery",
-            index_col=False,
-        )
+        with pytest.warns(
+            FutureWarning, match=r"DEPRECATED[\S\s]*bigframes.enums.DefaultIndexKind"
+        ):
+            bf_df = session.read_csv(
+                buffer,
+                engine="bigquery",
+                index_col=bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64,
+            )
     with open(path, "rb") as buffer:
         # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
         pd_df = session.read_csv(
@@ -1248,7 +1251,46 @@ def test_read_csv_w_index_col_false(session, df_and_local_csv):
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
-def test_read_csv_w_index_col_column_label(session, df_and_gcs_csv):
+@pytest.mark.parametrize(
+    "index_col",
+    [
+        pytest.param(None, id="none"),
+        pytest.param(False, id="false"),
+    ],
+)
+def test_read_csv_for_index_col_w_false(session, df_and_local_csv, index_col):
+    # Compares results for pandas and bigframes engines
+    scalars_df, path = df_and_local_csv
+    with open(path, "rb") as buffer:
+        bf_df = session.read_csv(
+            buffer,
+            engine="bigquery",
+            index_col=index_col,
+        )
+    with open(path, "rb") as buffer:
+        # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+        pd_df = session.read_csv(
+            buffer, index_col=index_col, dtype=scalars_df.dtypes.to_dict()
+        )
+
+    assert bf_df.shape[0] == scalars_df.shape[0]
+    assert bf_df.shape[0] == pd_df.shape[0]
+
+    # We use a default index because of index_col=False, so the previous index
+    # column is just loaded as a column.
+    assert len(bf_df.columns) == len(scalars_df.columns) + 1
+    assert len(bf_df.columns) == len(pd_df.columns)
+
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.set_index("rowindex").sort_index()
+    pd_df = pd_df.set_index("rowindex")
+
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), scalars_df.to_pandas())
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+def test_read_csv_for_index_col_w_column_label(session, df_and_gcs_csv):
     scalars_df, path = df_and_gcs_csv
     bf_df = session.read_csv(path, engine="bigquery", index_col="rowindex")
 
