@@ -26,11 +26,12 @@ import uuid
 
 import geopandas  # type: ignore
 import numpy as np
-import pandas
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet  # type: ignore
 
 import bigframes.core.schema as schemata
+import bigframes.core.utils as utils
 import bigframes.dtypes
 
 
@@ -66,7 +67,7 @@ class ManagedArrowTable:
         return LocalTableMetadata.from_arrow(self.data)
 
     @classmethod
-    def from_pandas(cls, dataframe: pandas.DataFrame) -> ManagedArrowTable:
+    def from_pandas(cls, dataframe: pd.DataFrame) -> ManagedArrowTable:
         """Creates managed table from pandas. Ignores index, col names must be unique strings"""
         columns: list[pa.ChunkedArray] = []
         fields: list[schemata.SchemaItem] = []
@@ -77,6 +78,8 @@ class ManagedArrowTable:
             new_arr, bf_type = _adapt_pandas_series(col)
             columns.append(new_arr)
             fields.append(schemata.SchemaItem(str(name), bf_type))
+            if bf_type == bigframes.dtypes.JSON_DTYPE:
+                _is_valid_json_series(col)
 
         return ManagedArrowTable(
             pa.table(columns, names=column_names), schemata.ArraySchema(tuple(fields))
@@ -226,7 +229,7 @@ def _iter_table(
 
 
 def _adapt_pandas_series(
-    series: pandas.Series,
+    series: pd.Series,
 ) -> tuple[Union[pa.ChunkedArray, pa.Array], bigframes.dtypes.Dtype]:
     # Mostly rely on pyarrow conversions, but have to convert geo without its help.
     if series.dtype == bigframes.dtypes.GEO_DTYPE:
@@ -329,3 +332,15 @@ def _physical_type_replacements(dtype: pa.DataType) -> pa.DataType:
     if dtype in _ARROW_MANAGED_STORAGE_OVERRIDES:
         return _ARROW_MANAGED_STORAGE_OVERRIDES[dtype]
     return dtype
+
+
+def _is_valid_json_series(s: pd.Series):
+    """Validate elements of a Series by attempting JSON parsing."""
+    for data in s:
+        # Skip scalar null values to avoid `TypeError` from json.load.
+        if not utils.is_list_like(data) and pd.isna(data):
+            continue
+        try:
+            json.loads(data)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON format found: {data!r}") from e

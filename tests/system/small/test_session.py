@@ -962,8 +962,8 @@ def test_read_pandas_json_series(session, write_engine):
     json_data = [
         "1",
         None,
-        '["1","3","5"]',
-        '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}',
+        '[1,"3",null,{"a":null}]',
+        '{"a":1,"b":["x","y"],"c":{"x":[],"y":null,"z":false}}',
     ]
     expected_series = pd.Series(json_data, dtype=bigframes.dtypes.JSON_DTYPE)
 
@@ -973,6 +973,28 @@ def test_read_pandas_json_series(session, write_engine):
     pd.testing.assert_series_equal(
         actual_result, expected_series, check_index_type=False
     )
+
+
+@pytest.mark.parametrize(
+    ("write_engine"),
+    [
+        pytest.param("default"),
+        pytest.param("bigquery_inline"),
+        pytest.param("bigquery_load"),
+        pytest.param("bigquery_streaming"),
+    ],
+)
+def test_read_pandas_json_series_w_invalid_json(session, write_engine):
+    json_data = [
+        "False",  # Should be "false"
+    ]
+    pd_s = pd.Series(json_data, dtype=bigframes.dtypes.JSON_DTYPE)
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid JSON format found",
+    ):
+        session.read_pandas(pd_s, write_engine=write_engine)
 
 
 @pytest.mark.parametrize(
