@@ -865,13 +865,16 @@ def test_read_pandas_tokyo(
     assert len(expected) == result.total_rows
 
 
-# old versions don't support local casting to arrow duration
-@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     "write_engine",
     ["default", "bigquery_inline", "bigquery_load", "bigquery_streaming"],
 )
 def test_read_pandas_timedelta_dataframes(session, write_engine):
+    pytest.importorskip(
+        "pandas",
+        minversion="2.0.0",
+        reason="old versions don't support local casting to arrow duration",
+    )
     pandas_df = pd.DataFrame({"my_col": pd.to_timedelta([1, 2, 3], unit="d")})
 
     actual_result = session.read_pandas(
@@ -1021,7 +1024,6 @@ def test_read_pandas_w_nested_json_fails(session, write_engine):
         session.read_pandas(pd_s, write_engine=write_engine)
 
 
-@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     ("write_engine"),
     [
@@ -1031,6 +1033,8 @@ def test_read_pandas_w_nested_json_fails(session, write_engine):
     ],
 )
 def test_read_pandas_w_nested_json(session, write_engine):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     data = [
         [{"json_field": "1"}],
         [{"json_field": None}],
@@ -1078,7 +1082,6 @@ def test_read_pandas_w_nested_json_index_fails(session, write_engine):
         session.read_pandas(pd_idx, write_engine=write_engine)
 
 
-@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     ("write_engine"),
     [
@@ -1088,6 +1091,8 @@ def test_read_pandas_w_nested_json_index_fails(session, write_engine):
     ],
 )
 def test_read_pandas_w_nested_json_index(session, write_engine):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     data = [
         [{"json_field": "1"}],
         [{"json_field": None}],
@@ -1627,3 +1632,56 @@ def test_read_gbq_test(test_session: bigframes.Session):
     actual = test_session.read_gbq(table_id).to_pandas()
 
     assert actual.shape == (1, 1)
+
+
+@pytest.mark.parametrize(
+    ("query_or_table", "index_col", "columns"),
+    [
+        pytest.param(
+            "{scalars_table_id}",
+            ("int64_col", "string_col", "int64_col"),
+            ("float64_col", "bool_col"),
+            id="table_input_index_col_dup",
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+                reason="ValueError: Duplicate names within 'index_col'.",
+                strict=True,
+            ),
+        ),
+        pytest.param(
+            """SELECT int64_col, string_col, float64_col, bool_col
+               FROM `{scalars_table_id}`""",
+            ("int64_col",),
+            ("string_col", "float64_col", "string_col"),
+            id="query_input_columns_dup",
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+                reason="ValueError: Duplicate names within 'columns'.",
+                strict=True,
+            ),
+        ),
+        pytest.param(
+            "{scalars_table_id}",
+            ("int64_col", "string_col"),
+            ("float64_col", "string_col", "bool_col"),
+            id="table_input_cross_dup",
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+                reason="ValueError: Overlap between 'index_col' and 'columns'.",
+                strict=True,
+            ),
+        ),
+    ],
+)
+def test_read_gbq_duplicate_columns_xfail(
+    session: bigframes.Session,
+    scalars_table_id: str,
+    query_or_table: str,
+    index_col: tuple,
+    columns: tuple,
+):
+    session.read_gbq(
+        query_or_table.format(scalars_table_id=scalars_table_id),
+        index_col=index_col,
+        columns=columns,
+    )
