@@ -31,7 +31,6 @@ import pyarrow as pa
 import pyarrow.parquet  # type: ignore
 
 import bigframes.core.schema as schemata
-import bigframes.core.utils as utils
 import bigframes.dtypes
 
 
@@ -79,7 +78,7 @@ class ManagedArrowTable:
         mat = ManagedArrowTable(
             pa.table(columns, names=column_names), schemata.ArraySchema(tuple(fields))
         )
-        mat.validate(include_context=True)
+        mat.validate(include_content=True)
         return mat
 
     @classmethod
@@ -142,7 +141,7 @@ class ManagedArrowTable:
         ):
             yield tuple(row_dict.values())
 
-    def validate(self, include_context: bool = False):
+    def validate(self, include_content: bool = False):
         for bf_field, arrow_field in zip(self.schema.items, self.data.schema):
             expected_arrow_type = _get_managed_storage_type(bf_field.dtype)
             arrow_type = arrow_field.type
@@ -151,13 +150,13 @@ class ManagedArrowTable:
                     f"Field {bf_field} has arrow array type: {arrow_type}, expected type: {expected_arrow_type}"
                 )
 
-        if include_context:
+        if include_content:
             for batch in self.data.to_batches():
                 for field in self.schema.items:
-                    _validate_context(batch.column(field.column), field.dtype)
+                    _validate_content(batch.column(field.column), field.dtype)
 
 
-def _validate_context(array: pa.Array, dtype: bigframes.dtypes.Dtype):
+def _validate_content(array: pa.Array, dtype: bigframes.dtypes.Dtype):
     """
     Recursively validates the content of a PyArrow Array based on the
     expected BigFrames dtype, focusing on complex types like JSON, structs,
@@ -167,9 +166,6 @@ def _validate_context(array: pa.Array, dtype: bigframes.dtypes.Dtype):
     if dtype == bigframes.dtypes.JSON_DTYPE:
         values = array.to_pandas()
         for data in values:
-            # Skip scalar null values to avoid `TypeError` from json.load.
-            if not utils.is_list_like(data) and pd.isna(data):
-                continue
             try:
                 # Attempts JSON parsing.
                 json.loads(data)
@@ -177,9 +173,9 @@ def _validate_context(array: pa.Array, dtype: bigframes.dtypes.Dtype):
                 raise ValueError(f"Invalid JSON format found: {data!r}") from e
     elif bigframes.dtypes.is_struct_like(dtype):
         for field_name, dtype in bigframes.dtypes.get_struct_fields(dtype).items():
-            _validate_context(array.field(field_name), dtype)
+            _validate_content(array.field(field_name), dtype)
     elif bigframes.dtypes.is_array_like(dtype):
-        return _validate_context(
+        return _validate_content(
             array.flatten(), bigframes.dtypes.get_array_inner_type(dtype)
         )
 
@@ -362,15 +358,3 @@ def _physical_type_replacements(dtype: pa.DataType) -> pa.DataType:
     if dtype in _ARROW_MANAGED_STORAGE_OVERRIDES:
         return _ARROW_MANAGED_STORAGE_OVERRIDES[dtype]
     return dtype
-
-
-def _is_valid_json_series(s: pd.Series):
-    """Validate elements of a Series by attempting JSON parsing."""
-    for data in s:
-        # Skip scalar null values to avoid `TypeError` from json.load.
-        if not utils.is_list_like(data) and pd.isna(data):
-            continue
-        try:
-            json.loads(data)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON format found: {data!r}") from e
