@@ -59,9 +59,6 @@ class ManagedArrowTable:
     schema: schemata.ArraySchema = dataclasses.field(hash=False)
     id: uuid.UUID = dataclasses.field(default_factory=uuid.uuid4)
 
-    def __post_init__(self):
-        self.validate()
-
     @functools.cached_property
     def metadata(self) -> LocalTableMetadata:
         return LocalTableMetadata.from_arrow(self.data)
@@ -78,12 +75,12 @@ class ManagedArrowTable:
             new_arr, bf_type = _adapt_pandas_series(col)
             columns.append(new_arr)
             fields.append(schemata.SchemaItem(str(name), bf_type))
-            if bf_type == bigframes.dtypes.JSON_DTYPE:
-                _is_valid_json_series(col)
 
-        return ManagedArrowTable(
+        mat = ManagedArrowTable(
             pa.table(columns, names=column_names), schemata.ArraySchema(tuple(fields))
         )
+        mat.validate(include_context=True)
+        return mat
 
     @classmethod
     def from_pyarrow(self, table: pa.Table) -> ManagedArrowTable:
@@ -94,10 +91,12 @@ class ManagedArrowTable:
             columns.append(new_arr)
             fields.append(schemata.SchemaItem(name, bf_type))
 
-        return ManagedArrowTable(
+        mat = ManagedArrowTable(
             pa.table(columns, names=table.column_names),
             schemata.ArraySchema(tuple(fields)),
         )
+        mat.validate()
+        return mat
 
     def to_parquet(
         self,
@@ -143,8 +142,7 @@ class ManagedArrowTable:
         ):
             yield tuple(row_dict.values())
 
-    def validate(self):
-        # TODO: Content-based validation for some datatypes (eg json, wkt, list) where logical domain is smaller than pyarrow type
+    def validate(self, include_context: bool = False):
         for bf_field, arrow_field in zip(self.schema.items, self.data.schema):
             expected_arrow_type = _get_managed_storage_type(bf_field.dtype)
             arrow_type = arrow_field.type
@@ -152,6 +150,38 @@ class ManagedArrowTable:
                 raise TypeError(
                     f"Field {bf_field} has arrow array type: {arrow_type}, expected type: {expected_arrow_type}"
                 )
+
+        if include_context:
+            for batch in self.data.to_batches():
+                for field in self.schema.items:
+                    _validate_context(batch.column(field.column), field.dtype)
+
+
+def _validate_context(array: pa.Array, dtype: bigframes.dtypes.Dtype):
+    """
+    Recursively validates the content of a PyArrow Array based on the
+    expected BigFrames dtype, focusing on complex types like JSON, structs,
+    and arrays where the Arrow type alone isn't sufficient.
+    """
+    # TODO: validate GEO data context.
+    if dtype == bigframes.dtypes.JSON_DTYPE:
+        values = array.to_pandas()
+        for data in values:
+            # Skip scalar null values to avoid `TypeError` from json.load.
+            if not utils.is_list_like(data) and pd.isna(data):
+                continue
+            try:
+                # Attempts JSON parsing.
+                json.loads(data)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON format found: {data!r}") from e
+    elif bigframes.dtypes.is_struct_like(dtype):
+        for field_name, dtype in bigframes.dtypes.get_struct_fields(dtype).items():
+            _validate_context(array.field(field_name), dtype)
+    elif bigframes.dtypes.is_array_like(dtype):
+        return _validate_context(
+            array.flatten(), bigframes.dtypes.get_array_inner_type(dtype)
+        )
 
 
 # Sequential iterator, but could split into batches and leverage parallelism for speed

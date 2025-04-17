@@ -1081,6 +1081,33 @@ def test_read_pandas_w_nested_json(session, write_engine):
 @pytest.mark.parametrize(
     ("write_engine"),
     [
+        pytest.param("default"),
+        pytest.param("bigquery_inline"),
+        pytest.param("bigquery_load"),
+        pytest.param("bigquery_streaming"),
+    ],
+)
+def test_read_pandas_w_nested_invalid_json(session, write_engine):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
+    data = [
+        [{"json_field": "NULL"}],  # Should be "null"
+    ]
+    pa_array = pa.array(data, type=pa.list_(pa.struct([("json_field", pa.string())])))
+    pd_s = pd.Series(
+        arrays.ArrowExtensionArray(pa_array),  # type: ignore
+        dtype=pd.ArrowDtype(
+            pa.list_(pa.struct([("json_field", bigframes.dtypes.JSON_ARROW_TYPE)]))
+        ),
+    )
+
+    with pytest.raises(ValueError, match="Invalid JSON format found"):
+        session.read_pandas(pd_s, write_engine=write_engine)
+
+
+@pytest.mark.parametrize(
+    ("write_engine"),
+    [
         pytest.param("bigquery_load"),
     ],
 )
