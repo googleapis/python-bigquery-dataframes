@@ -31,6 +31,7 @@ import pyarrow as pa
 import pyarrow.parquet  # type: ignore
 
 import bigframes.core.schema as schemata
+import bigframes.core.utils as utils
 import bigframes.dtypes
 
 
@@ -166,6 +167,9 @@ def _validate_content(array: pa.Array, dtype: bigframes.dtypes.Dtype):
     if dtype == bigframes.dtypes.JSON_DTYPE:
         values = array.to_pandas()
         for data in values:
+            # Skip scalar null values to avoid `TypeError` from json.load.
+            if not utils.is_list_like(data) and pd.isna(data):
+                continue
             try:
                 # Attempts JSON parsing.
                 json.loads(data)
