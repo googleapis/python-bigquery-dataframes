@@ -1216,38 +1216,6 @@ def test_read_csv_for_local_file_w_sep(session, df_and_local_csv, sep):
         pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
-def test_read_csv_for_index_col_w_defaultindexkind(session, df_and_local_csv):
-    scalars_df, path = df_and_local_csv
-    # Verify raising deprecated messages
-    with open(path, "rb") as buffer:
-        with pytest.warns(
-            FutureWarning, match=r"DEPRECATED[\S\s]*bigframes.enums.DefaultIndexKind"
-        ):
-            bf_df = session.read_csv(
-                buffer,
-                engine="bigquery",
-                index_col=bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64,
-            )
-    with open(path, "rb") as buffer:
-        # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
-        pd_df = session.read_csv(
-            buffer, index_col=False, dtype=scalars_df.dtypes.to_dict()
-        )
-
-    assert bf_df.shape[0] == pd_df.shape[0]
-
-    # We use a default index because of index_col=False, so the previous index
-    # column is just loaded as a column.
-    assert len(bf_df.columns) == len(scalars_df.columns) + 1
-    assert len(bf_df.columns) == len(pd_df.columns)
-
-    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
-    # (b/280889935) or guarantee row ordering.
-    bf_df = bf_df.set_index("rowindex").sort_index()
-    pd_df = pd_df.set_index("rowindex")
-    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
-
-
 @pytest.mark.parametrize(
     "index_col",
     [

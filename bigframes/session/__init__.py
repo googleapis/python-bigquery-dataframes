@@ -961,30 +961,12 @@ class Session(
                 f"{constants.FEEDBACK_LINK}"
             )
 
-        if isinstance(index_col, bigframes.enums.DefaultIndexKind):
-            msg = bfe.format_message(
-                "DEPRECATED: Using `bigframes.enums.DefaultIndexKind` for the `index_col` "
-                "parameter is deprecated and will be removed soon. Please update your "
-                "code to use `index_col=None` instead."
-            )
-            warnings.warn(msg, category=FutureWarning)
-            index_col = None
-
         if index_col is True:
             raise ValueError("The value of index_col couldn't be 'True'")
 
         # None and False cannot be passed to read_gbq.
         if index_col is None or index_col is False:
             index_col = ()
-
-        index_col = typing.cast(
-            Union[
-                Sequence[str],  # Falsey values
-                bigframes.enums.DefaultIndexKind,
-                str,
-            ],
-            index_col,
-        )
 
         # usecols should only be an iterable of strings (column names) for use as columns in read_gbq.
         columns: Tuple[Any, ...] = tuple()
