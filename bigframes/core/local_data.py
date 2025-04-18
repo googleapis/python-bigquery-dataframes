@@ -113,26 +113,8 @@ class ManagedArrowTable:
         batches = self.data.to_batches()
         schema = self.data.schema
         if duration_type == "int":
-
-            @_recursive_map_types
-            def durations_to_ints(type: pa.DataType) -> pa.DataType:
-                if pa.types.is_duration(type):
-                    return pa.int64()
-                return type
-
-            schema = pa.schema(
-                pa.field(field.name, durations_to_ints(field.type))
-                for field in self.data.schema
-            )
-
-            # Can't use RecordBatch.cast until set higher min pyarrow version
-            def convert_batch(batch: pa.RecordBatch) -> pa.RecordBatch:
-                return pa.record_batch(
-                    [arr.cast(type) for arr, type in zip(batch.columns, schema.types)],
-                    schema=schema,
-                )
-
-            batches = map(convert_batch, batches)
+            schema = _schema_durations_to_ints(schema)
+            batches = map(functools.partial(_cast_pa_batch, schema=schema), batches)
 
         if offsets_col is not None:
             return schema.append(pa.field(offsets_col, pa.int64())), _append_offsets(
@@ -414,3 +396,24 @@ def _append_offsets(
         )
         offset += batch.num_rows
         yield batch_w_offsets
+
+
+@_recursive_map_types
+def _durations_to_ints(type: pa.DataType) -> pa.DataType:
+    if pa.types.is_duration(type):
+        return pa.int64()
+    return type
+
+
+def _schema_durations_to_ints(schema: pa.Schema) -> pa.Schema:
+    return pa.schema(
+        pa.field(field.name, _durations_to_ints(field.type)) for field in schema
+    )
+
+
+# TODO: Use RecordBatch.cast once min pyarrow>=16.0
+def _cast_pa_batch(batch: pa.RecordBatch, schema: pa.Schema) -> pa.RecordBatch:
+    return pa.record_batch(
+        [arr.cast(type) for arr, type in zip(batch.columns, schema.types)],
+        schema=schema,
+    )

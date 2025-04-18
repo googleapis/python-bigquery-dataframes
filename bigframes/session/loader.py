@@ -321,6 +321,10 @@ class GbqDataLoader:
                 raise ValueError(
                     f"Problem loading at least one row from DataFrame: {response.row_errors}. {constants.FEEDBACK_LINK}"
                 )
+        # This step isn't strictly necessary in COMMITTED mode, but avoids max active stream limits
+        response = self._write_client.finalize_write_stream(name=stream.name)
+        assert response.row_count == data.data.num_rows
+
         destination_table = self._bqclient.get_table(bq_table_ref)
         return core.ArrayValue.from_table(
             table=destination_table,
