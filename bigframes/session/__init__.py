@@ -970,8 +970,11 @@ class Session(
             warnings.warn(msg, category=FutureWarning)
             index_col = None
 
+        if index_col is True:
+            raise ValueError("The value of index_col couldn't be 'True'")
+
         # None and False cannot be passed to read_gbq.
-        if not index_col:
+        if index_col is None or index_col is False:
             index_col = ()
 
         index_col = typing.cast(

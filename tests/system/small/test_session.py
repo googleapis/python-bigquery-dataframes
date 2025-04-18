@@ -1234,7 +1234,6 @@ def test_read_csv_for_index_col_w_defaultindexkind(session, df_and_local_csv):
             buffer, index_col=False, dtype=scalars_df.dtypes.to_dict()
         )
 
-    assert bf_df.shape[0] == scalars_df.shape[0]
     assert bf_df.shape[0] == pd_df.shape[0]
 
     # We use a default index because of index_col=False, so the previous index
@@ -1246,8 +1245,6 @@ def test_read_csv_for_index_col_w_defaultindexkind(session, df_and_local_csv):
     # (b/280889935) or guarantee row ordering.
     bf_df = bf_df.set_index("rowindex").sort_index()
     pd_df = pd_df.set_index("rowindex")
-
-    pd.testing.assert_frame_equal(bf_df.to_pandas(), scalars_df.to_pandas())
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
@@ -1256,6 +1253,7 @@ def test_read_csv_for_index_col_w_defaultindexkind(session, df_and_local_csv):
     [
         pytest.param(None, id="none"),
         pytest.param(False, id="false"),
+        pytest.param([], id="empty_list"),
     ],
 )
 def test_read_csv_for_index_col_w_false(session, df_and_local_csv, index_col):
@@ -1273,49 +1271,63 @@ def test_read_csv_for_index_col_w_false(session, df_and_local_csv, index_col):
             buffer, index_col=index_col, dtype=scalars_df.dtypes.to_dict()
         )
 
-    assert bf_df.shape[0] == scalars_df.shape[0]
-    assert bf_df.shape[0] == pd_df.shape[0]
-
-    # We use a default index because of index_col=False, so the previous index
-    # column is just loaded as a column.
-    assert len(bf_df.columns) == len(scalars_df.columns) + 1
-    assert len(bf_df.columns) == len(pd_df.columns)
+    assert bf_df.shape == pd_df.shape
 
     # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
     # (b/280889935) or guarantee row ordering.
     bf_df = bf_df.set_index("rowindex").sort_index()
     pd_df = pd_df.set_index("rowindex")
-
-    pd.testing.assert_frame_equal(bf_df.to_pandas(), scalars_df.to_pandas())
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
 @pytest.mark.parametrize(
     "index_col",
     [
-        pytest.param("rowindex", id="single_column"),
-        pytest.param(["rowindex", "bool_col"], id="multi_column"),
+        pytest.param("rowindex", id="single_str"),
+        pytest.param(["rowindex", "bool_col"], id="multi_str"),
+        pytest.param(0, id="single_int"),
+        pytest.param([0, 2], id="multi_int"),
+        pytest.param([0, "bool_col"], id="mix_types"),
     ],
 )
-def test_read_csv_for_index_col_w_column_labels(session, df_and_gcs_csv, index_col):
-    scalars_df, path = df_and_gcs_csv
+def test_read_csv_for_index_col(session, df_and_gcs_csv, index_col):
+    scalars_pandas_df, path = df_and_gcs_csv
     bf_df = session.read_csv(path, engine="bigquery", index_col=index_col)
 
     # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
     pd_df = session.read_csv(
-        path, index_col=index_col, dtype=scalars_df.dtypes.to_dict()
+        path, index_col=index_col, dtype=scalars_pandas_df.dtypes.to_dict()
     )
 
-    expected_df = scalars_df.reset_index().set_index(index_col)
-
-    assert bf_df.shape == expected_df.shape
     assert bf_df.shape == pd_df.shape
-
-    assert len(bf_df.columns) == len(expected_df.columns)
-    assert len(bf_df.columns) == len(pd_df.columns)
-
-    pd.testing.assert_frame_equal(bf_df.to_pandas(), expected_df.to_pandas())
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+@pytest.mark.parametrize(
+    ("index_col", "error_type", "error_msg"),
+    [
+        pytest.param(
+            True, ValueError, "The value of index_col couldn't be 'True'", id="true"
+        ),
+        pytest.param(100, ValueError, "out of bounds", id="single_int"),
+        pytest.param([0, 200], ValueError, "out of bounds", id="multi_int"),
+        pytest.param(
+            [0.1], TypeError, "it must contain either strings", id="invalid_iterable"
+        ),
+        pytest.param(
+            3.14, TypeError, "Unsupported type for index_col", id="unsupported_type"
+        ),
+    ],
+)
+def test_read_csv_raises_error_for_invalid_index_col(
+    session, df_and_gcs_csv, index_col, error_type, error_msg
+):
+    _, path = df_and_gcs_csv
+    with pytest.raises(
+        error_type,
+        match=error_msg,
+    ):
+        session.read_csv(path, engine="bigquery", index_col=index_col)
 
 
 @pytest.mark.parametrize(
