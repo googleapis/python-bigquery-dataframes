@@ -306,14 +306,18 @@ class GbqDataLoader:
             schema, batches = data.to_arrow(
                 offsets_col=ordering_col, duration_type="int"
             )
+            offset = 0
             for batch in batches:
-                request = bq_storage_types.AppendRowsRequest(write_stream=stream.name)
+                request = bq_storage_types.AppendRowsRequest(
+                    write_stream=stream.name, offset=offset
+                )
                 request.arrow_rows.writer_schema.serialized_schema = (
                     schema.serialize().to_pybytes()
                 )
                 request.arrow_rows.rows.serialized_record_batch = (
                     batch.serialize().to_pybytes()
                 )
+                offset += batch.num_rows
                 yield request
 
         for response in self._write_client.append_rows(requests=request_gen()):
