@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "2.0.0"
+"""[Experimental] Utilities for testing BigQuery DataFrames.
 
-# {x-release-please-start-date}
-__release_date__ = "2025-04-17"
-# {x-release-please-end}
+These modules are provided for testing the BigQuery DataFrames package. The
+interface is not considered stable.
+"""

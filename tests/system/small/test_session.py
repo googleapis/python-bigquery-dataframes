@@ -876,10 +876,13 @@ def test_read_pandas_tokyo(
     assert len(expected) == result.total_rows
 
 
-# old versions don't support local casting to arrow duration
-@utils.skip_legacy_pandas
 @all_write_engines
 def test_read_pandas_timedelta_dataframes(session, write_engine):
+    pytest.importorskip(
+        "pandas",
+        minversion="2.0.0",
+        reason="old versions don't support local casting to arrow duration",
+    )
     pandas_df = pd.DataFrame({"my_col": pd.to_timedelta([1, 2, 3], unit="d")})
 
     actual_result = session.read_pandas(
@@ -945,8 +948,8 @@ def test_read_pandas_json_series(session, write_engine):
     json_data = [
         "1",
         None,
-        '["1","3","5"]',
-        '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}',
+        '[1,"3",null,{"a":null}]',
+        '{"a":1,"b":["x","y"],"c":{"x":[],"y":null,"z":false}}',
     ]
     expected_series = pd.Series(json_data, dtype=bigframes.dtypes.JSON_DTYPE)
 
@@ -956,6 +959,20 @@ def test_read_pandas_json_series(session, write_engine):
     pd.testing.assert_series_equal(
         actual_result, expected_series, check_index_type=False
     )
+
+
+@all_write_engines
+def test_read_pandas_json_series_w_invalid_json(session, write_engine):
+    json_data = [
+        "False",  # Should be "false"
+    ]
+    pd_s = pd.Series(json_data, dtype=bigframes.dtypes.JSON_DTYPE)
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid JSON format found",
+    ):
+        session.read_pandas(pd_s, write_engine=write_engine)
 
 
 @all_write_engines
@@ -999,7 +1016,6 @@ def test_read_pandas_w_nested_json_fails(session, write_engine):
         session.read_pandas(pd_s, write_engine=write_engine)
 
 
-@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     ("write_engine"),
     [
@@ -1010,6 +1026,8 @@ def test_read_pandas_w_nested_json_fails(session, write_engine):
     ],
 )
 def test_read_pandas_w_nested_json(session, write_engine):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     data = [
         [{"json_field": "1"}],
         [{"json_field": None}],
@@ -1029,6 +1047,33 @@ def test_read_pandas_w_nested_json(session, write_engine):
         .reset_index(drop=True)
     )
     pd.testing.assert_series_equal(bq_s, pd_s)
+
+
+@pytest.mark.parametrize(
+    ("write_engine"),
+    [
+        pytest.param("default"),
+        pytest.param("bigquery_inline"),
+        pytest.param("bigquery_load"),
+        pytest.param("bigquery_streaming"),
+    ],
+)
+def test_read_pandas_w_nested_invalid_json(session, write_engine):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
+    data = [
+        [{"json_field": "NULL"}],  # Should be "null"
+    ]
+    pa_array = pa.array(data, type=pa.list_(pa.struct([("json_field", pa.string())])))
+    pd_s = pd.Series(
+        arrays.ArrowExtensionArray(pa_array),  # type: ignore
+        dtype=pd.ArrowDtype(
+            pa.list_(pa.struct([("json_field", bigframes.dtypes.JSON_ARROW_TYPE)]))
+        ),
+    )
+
+    with pytest.raises(ValueError, match="Invalid JSON format found"):
+        session.read_pandas(pd_s, write_engine=write_engine)
 
 
 @pytest.mark.parametrize(
@@ -1057,7 +1102,6 @@ def test_read_pandas_w_nested_json_index_fails(session, write_engine):
         session.read_pandas(pd_idx, write_engine=write_engine)
 
 
-@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     ("write_engine"),
     [
@@ -1068,6 +1112,8 @@ def test_read_pandas_w_nested_json_index_fails(session, write_engine):
     ],
 )
 def test_read_pandas_w_nested_json_index(session, write_engine):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     data = [
         [{"json_field": "1"}],
         [{"json_field": None}],

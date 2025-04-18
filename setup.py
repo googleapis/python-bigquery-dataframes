@@ -55,6 +55,7 @@ dependencies = [
     "pyarrow >=15.0.2",
     "pydata-google-auth >=1.8.2",
     "requests >=2.27.1",
+    "shapely >=1.8.5",
     "sqlglot >=23.6.3",
     "tabulate >=0.9",
     "ipywidgets >=7.7.1",
@@ -78,7 +79,6 @@ extras = {
     # Packages required for basic development flow.
     "dev": [
         "pytest",
-        "pytest-mock",
         "pre-commit",
         "nox",
         "google-cloud-testutils",
