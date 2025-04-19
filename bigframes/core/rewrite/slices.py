@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations
 
+import dataclasses
 import functools
 from typing import Optional, Sequence, Tuple
 
@@ -24,7 +25,22 @@ import bigframes.core.slices as slices
 import bigframes.operations as ops
 
 
-def pullup_limit_from_slice(
+def pull_up_limits(root: nodes.ResultNode) -> nodes.ResultNode:
+    if not root.is_ordered:
+        return root
+    else:
+        new_child, derived_limit = _pullup_slice_inner(root.child)
+        if derived_limit is None:
+            return root
+        if (root.limit is None) or (derived_limit < root.limit):
+            # new child has redundant slice ops removed now
+            return dataclasses.replace(root, child=new_child, limit=derived_limit)
+        else:
+            # new child has redundant slice ops removed now
+            return dataclasses.replace(root, child=new_child)
+
+
+def _pullup_slice_inner(
     root: nodes.BigFrameNode,
 ) -> Tuple[nodes.BigFrameNode, Optional[int]]:
     """
@@ -40,7 +56,7 @@ def pullup_limit_from_slice(
             assert root.step == 1
             assert root.stop is not None
             limit = root.stop
-            new_root, prior_limit = pullup_limit_from_slice(root.child)
+            new_root, prior_limit = _pullup_slice_inner(root.child)
             if (prior_limit is not None) and (prior_limit < limit):
                 limit = prior_limit
             return new_root, limit
@@ -48,7 +64,7 @@ def pullup_limit_from_slice(
         isinstance(root, (nodes.SelectionNode, nodes.ProjectionNode))
         and root.row_preserving
     ):
-        new_child, prior_limit = pullup_limit_from_slice(root.child)
+        new_child, prior_limit = _pullup_slice_inner(root.child)
         if prior_limit is not None:
             return root.transform_children(lambda _: new_child), prior_limit
     # Most ops don't support pulling up slice, like filter, agg, join, etc.

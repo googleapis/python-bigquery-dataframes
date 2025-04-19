@@ -63,7 +63,9 @@ class Select(abc.SQLSyntax):
 
     def select(
         self,
-        columns: typing.Union[typing.Iterable[str], str, None] = None,
+        columns: typing.Union[
+            typing.Iterable[str], typing.Iterable[tuple[str, str]], str, None
+        ] = None,
         distinct: bool = False,
     ) -> Select:
         if isinstance(columns, str):
@@ -71,6 +73,13 @@ class Select(abc.SQLSyntax):
         self.select_list: typing.List[typing.Union[SelectExpression, SelectAll]] = (
             [
                 SelectExpression(expression=expr.ColumnExpression(name=column))
+                if isinstance(column, str)
+                else SelectExpression(
+                    expression=expr.ColumnExpression(name=column[0]),
+                    alias=expr.AliasExpression(alias=column[1])
+                    if (column[0] != column[1])
+                    else None,
+                )
                 for column in columns
             ]
             if columns
