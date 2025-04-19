@@ -98,15 +98,14 @@ class ManagedArrowTable:
         mat.validate()
         return mat
 
-    def to_parquet(
+    def to_arrow(
         self,
-        dst: Union[str, io.IOBase],
         *,
         offsets_col: Optional[str] = None,
         geo_format: Literal["wkb", "wkt"] = "wkt",
         duration_type: Literal["int", "duration"] = "duration",
         json_type: Literal["string"] = "string",
-    ):
+    ) -> pa.Table:
         pa_table = self.data
         if offsets_col is not None:
             pa_table = pa_table.append_column(
@@ -119,6 +118,23 @@ class ManagedArrowTable:
                 f"duration as {duration_type} not yet implemented"
             )
         assert json_type == "string"
+        return pa_table
+
+    def to_parquet(
+        self,
+        dst: Union[str, io.IOBase],
+        *,
+        offsets_col: Optional[str] = None,
+        geo_format: Literal["wkb", "wkt"] = "wkt",
+        duration_type: Literal["int", "duration"] = "duration",
+        json_type: Literal["string"] = "string",
+    ):
+        pa_table = self.to_arrow(
+            offsets_col=offsets_col,
+            geo_format=geo_format,
+            duration_type=duration_type,
+            json_type=json_type,
+        )
         pyarrow.parquet.write_table(pa_table, where=dst)
 
     def itertuples(
