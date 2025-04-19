@@ -4,6 +4,14 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.1.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.0.0...v2.1.0) (2025-04-18)
+
+
+### Features
+
+* Enable local json string validations ([#1614](https://github.com/googleapis/python-bigquery-dataframes/issues/1614)) ([233347a](https://github.com/googleapis/python-bigquery-dataframes/commit/233347aca0ac55b2407e0f49430bf13536986e25))
+* Enhance `read_csv` `index_col` parameter support ([#1631](https://github.com/googleapis/python-bigquery-dataframes/issues/1631)) ([f4e5b26](https://github.com/googleapis/python-bigquery-dataframes/commit/f4e5b26b7b7b00ef807987c4b9c5fded56ad883f))
+
 ## [2.0.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v1.42.0...v2.0.0) (2025-04-17)
 
 
