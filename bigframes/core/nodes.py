@@ -1606,7 +1606,6 @@ class ExplodeNode(UnaryNode):
 @dataclasses.dataclass(frozen=True, eq=False)
 class ResultNode(UnaryNode):
     output_cols: tuple[tuple[ex.DerefOp, str], ...]
-    is_ordered: bool
     order_by: Optional[RowOrdering] = None
     limit: Optional[int] = None
     # TODO: CTE definitions
@@ -1638,11 +1637,11 @@ class ResultNode(UnaryNode):
     @property
     def row_count(self) -> Optional[int]:
         child_count = self.child.row_count
-        if child_count is not None:
-            if self.limit is not None:
-                return min(self.limit, child_count)
+        if child_count is None:
+            return None
+        if self.limit is None:
             return child_count
-        return None
+        return min(self.limit, child_count)
 
     @property
     def variables_introduced(self) -> int:

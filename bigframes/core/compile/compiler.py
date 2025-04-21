@@ -59,7 +59,6 @@ def compile_sql(request: CompileRequest) -> CompileResult:
     result_node = nodes.ResultNode(
         request.node,
         output_cols=output_names,
-        is_ordered=request.sort_rows,
         limit=request.peek_rows,
     )
     if request.sort_rows:
@@ -72,26 +71,24 @@ def compile_sql(request: CompileRequest) -> CompileResult:
     result_node = rewrites.defer_order(
         result_node, output_hidden_row_keys=request.materialize_all_order_keys
     )
-    if not request.sort_rows:
-        ordering: Optional[bf_ordering.RowOrdering] = result_node.order_by
-        result_node = dataclasses.replace(result_node, order_by=None)
-        result_node = cast(nodes.ResultNode, rewrites.column_pruning(result_node))
-        sql = compile_result_node(result_node)
-        # Return the ordering if no extra columns are needed to define the row order
-        if ordering is not None:
-            output_order = (
-                ordering
-                if ordering.referenced_columns.issubset(result_node.ids)
-                else None
-            )
-        assert (not request.materialize_all_order_keys) or (output_order is not None)
-        return CompileResult(sql, result_node.schema.to_bigquery(), output_order)
-    else:
+    if request.sort_rows:
         result_node = cast(nodes.ResultNode, rewrites.column_pruning(result_node))
         sql = compile_result_node(result_node)
         return CompileResult(
             sql, result_node.schema.to_bigquery(), result_node.order_by
         )
+
+    ordering: Optional[bf_ordering.RowOrdering] = result_node.order_by
+    result_node = dataclasses.replace(result_node, order_by=None)
+    result_node = cast(nodes.ResultNode, rewrites.column_pruning(result_node))
+    sql = compile_result_node(result_node)
+    # Return the ordering iff no extra columns are needed to define the row order
+    if ordering is not None:
+        output_order = (
+            ordering if ordering.referenced_columns.issubset(result_node.ids) else None
+        )
+    assert (not request.materialize_all_order_keys) or (output_order is not None)
+    return CompileResult(sql, result_node.schema.to_bigquery(), output_order)
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
