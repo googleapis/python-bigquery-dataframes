@@ -44,7 +44,7 @@ class CompileRequest:
     node: nodes.BigFrameNode
     sort_rows: bool
     materialize_all_order_keys: bool = False
-    peek_rows: typing.Optional[int] = None
+    peek_count: typing.Optional[int] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -59,7 +59,7 @@ def compile_sql(request: CompileRequest) -> CompileResult:
     result_node = nodes.ResultNode(
         request.node,
         output_cols=output_names,
-        limit=request.peek_rows,
+        limit=request.peek_count,
     )
     if request.sort_rows:
         # Can only pullup slice if we are doing ORDER BY in outermost SELECT

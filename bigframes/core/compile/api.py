@@ -34,7 +34,7 @@ class SQLCompiler:
         limit: Optional[int] = None,
     ) -> str:
         """Compile node into sql where rows are sorted with ORDER BY."""
-        request = compiler.CompileRequest(node, sort_rows=ordered, peek_rows=limit)
+        request = compiler.CompileRequest(node, sort_rows=ordered, peek_count=limit)
         return compiler.compile_sql(request).sql
 
     def compile_raw(
