@@ -213,6 +213,102 @@ def st_difference(
     return series._apply_binary_op(other, ops.geo_st_difference_op)
 
 
+def st_distance(
+    series: bigframes.series.Series,
+    other: bigframes.series.Series,
+    *,
+    use_spheroid: bool = False,
+) -> bigframes.series.Series:
+    """
+    Returns the shortest distance in meters between two non-empty
+    ``GEOGRAPHY``s.
+
+    **Examples:**
+
+        >>> import bigframes as bpd
+        >>> import bigframes.bigquery as bbq
+        >>> import bigframes.geopandas
+        >>> from shapely.geometry import Polygon, LineString, Point
+        >>> bpd.options.display.progress_bar = None
+
+    We can check two GeoSeries against each other, row by row.
+
+        >>> s1 = bigframes.geopandas.GeoSeries(
+        ...    [
+        ...        Point(0, 0),
+        ...        Point(0.00001, 0),
+        ...        Point(0.00002, 0),
+        ...    ],
+        ... )
+        >>> s2 = bigframes.geopandas.GeoSeries(
+        ...    [
+        ...        Polygon([(0, 0), (1, 1), (0, 1)]),
+        ...        LineString([(1, 0), (1, 3)]),
+        ...        LineString([(2, 0), (0, 2)]),
+        ...        Point(1, 1),
+        ...        Point(0, 1),
+        ...    ],
+        ...    index=range(1, 6),
+        ... )
+
+        >>> s1
+        0    POLYGON ((0 0, 2 2, 0 2, 0 0))
+        1    POLYGON ((0 0, 2 2, 0 2, 0 0))
+        2             LINESTRING (0 0, 2 2)
+        3             LINESTRING (2 0, 0 2)
+        4                       POINT (0 1)
+        dtype: geometry
+
+        >>> s2
+        1    POLYGON ((0 0, 1 1, 0 1, 0 0))
+        2             LINESTRING (1 0, 1 3)
+        3             LINESTRING (2 0, 0 2)
+        4                       POINT (1 1)
+        5                       POINT (0 1)
+        dtype: geometry
+
+        >>> bbq.st_distance(s1, s2, use_spheroid=True)
+        0                                    None
+        1    POLYGON ((0 0, 0.99954 1, 0 1, 0 0))
+        2                       POINT (1 1.00046)
+        3                   LINESTRING (2 0, 0 2)
+        4                GEOMETRYCOLLECTION EMPTY
+        5                                    None
+        dtype: geometry
+
+    We can also do intersection of each geometry and a single shapely geometry:
+
+        >>> bbq.st_intersection(s1, bigframes.geopandas.GeoSeries([Polygon([(0, 0), (1, 1), (0, 1)])]))
+        0    POLYGON ((0 0, 0.99954 1, 0 1, 0 0))
+        1                                    None
+        2                                    None
+        3                                    None
+        4                                    None
+        dtype: geometry
+
+    Args:
+        series:
+            A ``GEOGRAPHY`` type Series or GeoSeries.
+        other:
+            A ``GEOGRAPHY`` type Series or GeoSeries.
+        use_spheroid (optional, default ``False``):
+            Determines how this function measures distance. If ``use_spheroid``
+            is False, the function measures distance on the surface of a perfect
+            sphere. If ``use_spheroid`` is True, the function measures distance
+            on the surface of the `WGS84 spheroid
+            <https://cloud.google.com/bigquery/docs/geospatial-data>`_. The
+            default value of ``use_spheroid`` is False.
+
+    Returns:
+        bigframes.pandas.Series:
+            The Series (elementwise) of the smallest distance between
+            each aligned geometry with other.
+    """
+    return series._apply_binary_op(
+        other, ops.GeoStDistanceOp(use_spheroid=use_spheroid)
+    )
+
+
 def st_intersection(
     series: bigframes.series.Series, other: bigframes.series.Series
 ) -> bigframes.series.Series:
