@@ -961,36 +961,12 @@ class Session(
                 f"{constants.FEEDBACK_LINK}"
             )
 
-        # TODO(b/338089659): Looks like we can relax this 1 column
-        # restriction if we check the contents of an iterable are strings
-        # not integers.
-        if (
-            # Empty tuples, None, and False are allowed and falsey.
-            index_col
-            and not isinstance(index_col, bigframes.enums.DefaultIndexKind)
-            and not isinstance(index_col, str)
-        ):
-            raise NotImplementedError(
-                "BigQuery engine only supports a single column name for `index_col`, "
-                f"got: {repr(index_col)}. {constants.FEEDBACK_LINK}"
-            )
+        if index_col is True:
+            raise ValueError("The value of index_col couldn't be 'True'")
 
         # None and False cannot be passed to read_gbq.
-        # TODO(b/338400133): When index_col is None, we should be using the
-        # first column of the CSV as the index to be compatible with the
-        # pandas engine. According to the pandas docs, only "False"
-        # indicates a default sequential index.
-        if not index_col:
+        if index_col is None or index_col is False:
             index_col = ()
-
-        index_col = typing.cast(
-            Union[
-                Sequence[str],  # Falsey values
-                bigframes.enums.DefaultIndexKind,
-                str,
-            ],
-            index_col,
-        )
 
         # usecols should only be an iterable of strings (column names) for use as columns in read_gbq.
         columns: Tuple[Any, ...] = tuple()
@@ -1447,7 +1423,7 @@ class Session(
         packages: Optional[Sequence[str]] = None,
     ):
         """Decorator to turn a Python user defined function (udf) into a
-        BigQuery managed function.
+        [BigQuery managed user-defined function](https://cloud.google.com/bigquery/docs/user-defined-functions-python).
 
         .. note::
             This feature is in preview. The code in the udf must be
@@ -1458,9 +1434,70 @@ class Session(
             in which the code is executed in the cloud.
 
         .. note::
-            Please have following IAM roles enabled for you:
+            Please have BigQuery Data Editor (roles/bigquery.dataEditor) IAM
+            role enabled for you.
 
-            * BigQuery Data Editor (roles/bigquery.dataEditor)
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import datetime
+            >>> bpd.options.display.progress_bar = None
+
+        Turning an arbitrary python function into a BigQuery managed python udf:
+
+            >>> bq_name = datetime.datetime.now().strftime("bigframes_%Y%m%d%H%M%S%f")
+            >>> @bpd.udf(dataset="bigfranes_testing", name=bq_name)
+            ... def minutes_to_hours(x: int) -> float:
+            ...     return x/60
+
+            >>> minutes = bpd.Series([0, 30, 60, 90, 120])
+            >>> minutes
+            0      0
+            1     30
+            2     60
+            3     90
+            4    120
+            dtype: Int64
+
+            >>> hours = minutes.apply(minutes_to_hours)
+            >>> hours
+            0    0.0
+            1    0.5
+            2    1.0
+            3    1.5
+            4    2.0
+            dtype: Float64
+
+        To turn a user defined function with external package dependencies into
+        a BigQuery managed python udf, you would provide the names of the
+        packages (optionally with the package version) via `packages` param.
+
+            >>> bq_name = datetime.datetime.now().strftime("bigframes_%Y%m%d%H%M%S%f")
+            >>> @bpd.udf(
+            ...     dataset="bigfranes_testing",
+            ...     name=bq_name,
+            ...     packages=["cryptography"]
+            ... )
+            ... def get_hash(input: str) -> str:
+            ...     from cryptography.fernet import Fernet
+            ...
+            ...     # handle missing value
+            ...     if input is None:
+            ...         input = ""
+            ...
+            ...     key = Fernet.generate_key()
+            ...     f = Fernet(key)
+            ...     return f.encrypt(input.encode()).decode()
+
+            >>> names = bpd.Series(["Alice", "Bob"])
+            >>> hashes = names.apply(get_hash)
+
+        You can clean-up the BigQuery functions created above using the BigQuery
+        client from the BigQuery DataFrames session:
+
+            >>> session = bpd.get_global_session()
+            >>> session.bqclient.delete_routine(minutes_to_hours.bigframes_bigquery_function)
+            >>> session.bqclient.delete_routine(get_hash.bigframes_bigquery_function)
 
         Args:
             input_types (type or sequence(type), Optional):
