@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import Optional
 
+import pyarrow as pa
+
 from bigframes.core import bigframe_node, rewrite
 from bigframes.session import executor, semi_executor
 
@@ -45,9 +47,11 @@ class LocalScanExecutor(semi_executor.SemiExecutor):
             if peek:
                 arrow_table = arrow_table.slice(0, peek)
             for batch in arrow_table.to_batches():
-                batch = batch.select([item.source_id for item in node.scan_list.items])
-                batch = batch.rename_columns(
-                    {item.source_id: item.id.sql for item in node.scan_list.items}
+                batch = pa.record_batch(
+                    {
+                        item.id.sql: batch.column(item.source_id)
+                        for item in node.scan_list.items
+                    }
                 )
                 yield batch
 
