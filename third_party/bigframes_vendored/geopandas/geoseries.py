@@ -42,7 +42,7 @@ class GeoSeries:
     # we can.
     @property
     def area(self, crs=None) -> bigframes.series.Series:  # type: ignore
-        """[Not Implemented]: Use ``bigframes.bigquery.st_area(series)``,
+        """[Not Implemented] Use ``bigframes.bigquery.st_area(series)``,
         instead to return the area in square meters.
 
         In GeoPandas, this returns a Series containing the area of each geometry
@@ -376,9 +376,10 @@ class GeoSeries:
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def distance(self: GeoSeries, other: GeoSeries) -> bigframes.series.Series:
-        """[Not Implemented]: Use ``bigframes.bigquery.st_distance(series, other)``,
-        instead to return the shorted distance between two ``GEOGRAPHY``s in
-        meters.
+        """
+        [Not Implemented] Use ``bigframes.bigquery.st_distance(series, other)``
+        instead to return the shorted distance between two
+        ``GEOGRAPHY`` objects in meters.
 
         In GeoPandas, this returns a Series of the distancies between each
         aligned geometry in the expressed in the units of the CRS.

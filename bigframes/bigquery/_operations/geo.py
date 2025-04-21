@@ -221,7 +221,7 @@ def st_distance(
 ) -> bigframes.series.Series:
     """
     Returns the shortest distance in meters between two non-empty
-    ``GEOGRAPHY``s.
+    ``GEOGRAPHY`` objects.
 
     **Examples:**
 
