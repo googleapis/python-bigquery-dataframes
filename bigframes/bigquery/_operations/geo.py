@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Union
 
-import shapely
+import shapely  # type: ignore
 
 from bigframes import operations as ops
 import bigframes.dtypes

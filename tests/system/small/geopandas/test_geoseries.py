@@ -107,15 +107,14 @@ def test_geo_distance_not_supported():
         ],
         dtype=GeometryDtype(),
     )
-    s2 = bigframes.pandas.Series(
+    s2 = bigframes.geopandas.GeoSeries(
         [
             Polygon([(0, 0), (1, 1), (0, 1)]),
             Polygon([(10, 0), (10, 5), (0, 0)]),
             Polygon([(0, 0), (2, 2), (2, 0)]),
             LineString([(0, 0), (1, 1), (0, 1)]),
             Point(0, 1),
-        ],
-        dtype=GeometryDtype(),
+        ]
     )
     with pytest.raises(
         NotImplementedError,
