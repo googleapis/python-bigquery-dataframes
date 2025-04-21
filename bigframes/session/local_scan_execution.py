@@ -47,13 +47,9 @@ class LocalScanExecutor(semi_executor.SemiExecutor):
             if peek:
                 arrow_table = arrow_table.slice(0, peek)
             for batch in arrow_table.to_batches():
-                batch = pa.record_batch(
-                    {
-                        item.id.sql: batch.column(item.source_id)
-                        for item in node.scan_list.items
-                    }
-                )
-                yield batch
+                names = [item.id.sql for item in node.scan_list.items]
+                arrays = [batch.column(item.source_id) for item in node.scan_list.items]
+                yield pa.record_batch(arrays, names=names)
 
         return executor.ExecuteResult(
             arrow_batches=iterator_supplier,
