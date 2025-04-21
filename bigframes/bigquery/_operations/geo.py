@@ -14,6 +14,10 @@
 
 from __future__ import annotations
 
+from typing import Union
+
+import shapely
+
 from bigframes import operations as ops
 import bigframes.dtypes
 import bigframes.geopandas
@@ -95,7 +99,8 @@ def st_area(series: bigframes.series.Series) -> bigframes.series.Series:
 
 
 def st_difference(
-    series: bigframes.series.Series, other: bigframes.series.Series
+    series: bigframes.series.Series,
+    other: Union[bigframes.series.Series, shapely.Geometry],
 ) -> bigframes.series.Series:
     """
     Returns a `GEOGRAPHY` that represents the point set difference of
@@ -166,39 +171,15 @@ def st_difference(
         5                                               None
         dtype: geometry
 
-    We can also check difference of single shapely geometries:
-
-        >>> polygon_s1 = bigframes.geopandas.GeoSeries(
-        ...     [
-        ...         Polygon([(0, 0), (10, 0), (10, 10), (0, 0)])
-        ...     ]
-        ... )
-        >>> polygon_s2 = bigframes.geopandas.GeoSeries(
-        ...     [
-        ...         Polygon([(4, 2), (6, 2), (8, 6), (4, 2)])
-        ...     ]
-        ... )
-
-        >>> polygon_s1
-        0    POLYGON ((0 0, 10 0, 10 10, 0 0))
-        dtype: geometry
-
-        >>> polygon_s2
-        0    POLYGON ((4 2, 6 2, 8 6, 4 2))
-        dtype: geometry
-
-        >>> bbq.st_difference(polygon_s1, polygon_s2)
-        0    POLYGON ((0 0, 10 0, 10 10, 0 0), (8 6, 6 2, 4...
-        dtype: geometry
-
     Additionally, we can check difference of a GeoSeries against a single shapely geometry:
 
-        >>> bbq.st_difference(s1, polygon_s2)
-        0    POLYGON ((0 0, 2 2, 0 2, 0 0))
-        1                              None
-        2                              None
-        3                              None
-        4                              None
+        >>> polygon = Polygon([(0, 0), (10, 0), (10, 10), (0, 0)])
+        >>> bbq.st_difference(s1, polygon)
+        0    POLYGON ((1.97082 2.00002, 0 2, 0 0, 1.97082 2...
+        1    POLYGON ((1.97082 2.00002, 0 2, 0 0, 1.97082 2...
+        2                             GEOMETRYCOLLECTION EMPTY
+        3                    LINESTRING (0.99265 1.00781, 0 2)
+        4                                          POINT (0 1)
         dtype: geometry
 
     Args:
@@ -215,7 +196,7 @@ def st_difference(
 
 def st_distance(
     series: bigframes.series.Series,
-    other: bigframes.series.Series,
+    other: Union[bigframes.series.Series, shapely.Geometry],
     *,
     use_spheroid: bool = False,
 ) -> bigframes.series.Series:
@@ -242,49 +223,25 @@ def st_distance(
         ... )
         >>> s2 = bigframes.geopandas.GeoSeries(
         ...    [
-        ...        Polygon([(0, 0), (1, 1), (0, 1)]),
-        ...        LineString([(1, 0), (1, 3)]),
-        ...        LineString([(2, 0), (0, 2)]),
-        ...        Point(1, 1),
-        ...        Point(0, 1),
+        ...        Point(0.00001, 0),
+        ...        Point(0.00003, 0),
+        ...        Point(0.00005, 0),
         ...    ],
-        ...    index=range(1, 6),
         ... )
 
-        >>> s1
-        0    POLYGON ((0 0, 2 2, 0 2, 0 0))
-        1    POLYGON ((0 0, 2 2, 0 2, 0 0))
-        2             LINESTRING (0 0, 2 2)
-        3             LINESTRING (2 0, 0 2)
-        4                       POINT (0 1)
-        dtype: geometry
-
-        >>> s2
-        1    POLYGON ((0 0, 1 1, 0 1, 0 0))
-        2             LINESTRING (1 0, 1 3)
-        3             LINESTRING (2 0, 0 2)
-        4                       POINT (1 1)
-        5                       POINT (0 1)
-        dtype: geometry
-
         >>> bbq.st_distance(s1, s2, use_spheroid=True)
-        0                                    None
-        1    POLYGON ((0 0, 0.99954 1, 0 1, 0 0))
-        2                       POINT (1 1.00046)
-        3                   LINESTRING (2 0, 0 2)
-        4                GEOMETRYCOLLECTION EMPTY
-        5                                    None
-        dtype: geometry
+        0    1.113195
+        1     2.22639
+        2    3.339585
+        dtype: Float64
 
-    We can also do intersection of each geometry and a single shapely geometry:
+    We can also calculate the distance of each geometry and a single shapely geometry:
 
-        >>> bbq.st_intersection(s1, bigframes.geopandas.GeoSeries([Polygon([(0, 0), (1, 1), (0, 1)])]))
-        0    POLYGON ((0 0, 0.99954 1, 0 1, 0 0))
-        1                                    None
-        2                                    None
-        3                                    None
-        4                                    None
-        dtype: geometry
+        >>> bbq.st_distance(s2, Point(0.00001, 0))
+        0         0.0
+        1    2.223902
+        2    4.447804
+        dtype: Float64
 
     Args:
         series:
@@ -310,7 +267,8 @@ def st_distance(
 
 
 def st_intersection(
-    series: bigframes.series.Series, other: bigframes.series.Series
+    series: bigframes.series.Series,
+    other: Union[bigframes.series.Series, shapely.Geometry],
 ) -> bigframes.series.Series:
     """
     Returns a `GEOGRAPHY` that represents the point set intersection of the two
@@ -380,12 +338,12 @@ def st_intersection(
 
     We can also do intersection of each geometry and a single shapely geometry:
 
-        >>> bbq.st_intersection(s1, bigframes.geopandas.GeoSeries([Polygon([(0, 0), (1, 1), (0, 1)])]))
+        >>> bbq.st_intersection(s1, Polygon([(0, 0), (1, 1), (0, 1)]))
         0    POLYGON ((0 0, 0.99954 1, 0 1, 0 0))
-        1                                    None
-        2                                    None
-        3                                    None
-        4                                    None
+        1    POLYGON ((0 0, 0.99954 1, 0 1, 0 0))
+        2             LINESTRING (0 0, 0.99954 1)
+        3                GEOMETRYCOLLECTION EMPTY
+        4                             POINT (0 1)
         dtype: geometry
 
     Args:
