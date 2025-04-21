@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa  # type: ignore
 import pytest
-import shapely
+import shapely  # type: ignore
 
 import bigframes.core.compile.ibis_types
 import bigframes.dtypes
