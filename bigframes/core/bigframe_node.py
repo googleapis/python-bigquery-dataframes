@@ -211,9 +211,11 @@ class BigFrameNode:
 
     @functools.cached_property
     def height(self) -> int:
-        if len(self.child_nodes) == 0:
-            return 0
-        return max(child.height for child in self.child_nodes) + 1
+        from bigframes.core import tree_properties
+
+        return tree_properties.GLOBAL_PROPERTY_SCOPE.get_property(
+            self, tree_properties.HEIGHT_PROP
+        )
 
     @functools.cached_property
     def total_variables(self) -> int:
