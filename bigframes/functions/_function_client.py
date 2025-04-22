@@ -274,7 +274,8 @@ class FunctionClient:
             # body.
             udf_code = textwrap.dedent(inspect.getsource(func))
             match = re.search(r"^def ", udf_code, flags=re.MULTILINE)
-            assert match is not None, "The UDF is not defined correctly."
+            if match is None:
+                raise ValueError("The UDF is not defined correctly.")
             udf_code = udf_code[match.start() :]
 
         with_connection_clause = (

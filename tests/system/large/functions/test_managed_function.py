@@ -171,7 +171,14 @@ def test_managed_function_array_output(session, scalars_dfs, dataset_id):
 def test_managed_function_series_apply(session, dataset_id, scalars_dfs):
     try:
 
-        @session.udf(dataset=dataset_id, name=prefixer.create_prefix())
+        @session.udf(
+            dataset=dataset_id,
+            # The suffix '_def_to_test_code_extraction' is included in the UDF
+            # name as a marker, relevant because the subsequent logic extracts
+            # function's source code starting from the 'def' keyword (excluding
+            # the decorator) using regex.
+            name=f"{prefixer.create_prefix()}_def_to_test_code_extraction",
+        )
         def foo(x: int) -> bytes:
             return bytes(abs(x))
 
