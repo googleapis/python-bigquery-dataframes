@@ -91,7 +91,7 @@ def st_area(
         dtype: Float64
 
     Args:
-        series (bigframes.pandas.Series | bigframes.geopandas.GeoSereies):
+        series (bigframes.pandas.Series | bigframes.geopandas.GeoSeries):
             A series containing geography objects.
 
     Returns:
@@ -190,7 +190,7 @@ def st_difference(
         dtype: geometry
 
     Args:
-        series (bigframes.pandas.Series | bigframes.geopandas.GeoSereies):
+        series (bigframes.pandas.Series | bigframes.geopandas.GeoSeries):
             A series containing geography objects.
         other (bigframes.pandas.Series | bigframes.geopandas.GeoSeries | shapely.Geometry):
             The series or geometric object to subtract from the geography
@@ -256,7 +256,7 @@ def st_distance(
         dtype: Float64
 
     Args:
-        series (bigframes.pandas.Series | bigframes.geopandas.GeoSereies):
+        series (bigframes.pandas.Series | bigframes.geopandas.GeoSeries):
             A series containing geography objects.
         other (bigframes.pandas.Series | bigframes.geopandas.GeoSeries | shapely.Geometry):
             The series or geometric object to calculate the distance in meters
@@ -362,7 +362,7 @@ def st_intersection(
         dtype: geometry
 
     Args:
-        series (bigframes.pandas.Series | bigframes.geopandas.GeoSereies):
+        series (bigframes.pandas.Series | bigframes.geopandas.GeoSeries):
             A series containing geography objects.
         other (bigframes.pandas.Series | bigframes.geopandas.GeoSeries | shapely.Geometry):
             The series or geometric object to intersect with the geography
