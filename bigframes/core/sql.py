@@ -34,7 +34,9 @@ if TYPE_CHECKING:
 
 
 ### Writing SQL Values (literals, column references, table references, etc.)
-def simple_literal(value: bytes | str | int | bool | float | datetime.datetime | None):
+def simple_literal(
+    value: bytes | str | int | bool | float | datetime.datetime | list | None,
+):
     """Return quoted input string."""
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#literals
     if value is None:
@@ -70,6 +72,10 @@ def simple_literal(value: bytes | str | int | bool | float | datetime.datetime |
     elif isinstance(value, decimal.Decimal):
         # TODO: disambiguate BIGNUMERIC based on scale and/or precision
         return f"CAST('{str(value)}' AS NUMERIC)"
+    elif isinstance(value, list):
+        simple_literals = [simple_literal(i) for i in value]
+        return f"[{', '.join(simple_literals)}]"
+
     else:
         raise ValueError(f"Cannot produce literal for {value}")
 
