@@ -19,7 +19,6 @@ from typing import Union
 import shapely  # type: ignore
 
 from bigframes import operations as ops
-import bigframes.dtypes
 import bigframes.geopandas
 import bigframes.series
 
@@ -29,7 +28,9 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/geography_function
 """
 
 
-def st_area(series: bigframes.series.Series) -> bigframes.series.Series:
+def st_area(
+    series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
+) -> bigframes.series.Series:
     """
     Returns the area in square meters covered by the polygons in the input
     `GEOGRAPHY`.
@@ -89,6 +90,10 @@ def st_area(series: bigframes.series.Series) -> bigframes.series.Series:
         4            0.0
         dtype: Float64
 
+    Args:
+        series (bigframes.pandas.Series | bigframes.geopandas.GeoSereies):
+            A series containing geography objects.
+
     Returns:
       bigframes.pandas.Series:
           Series of float representing the areas.
@@ -99,8 +104,10 @@ def st_area(series: bigframes.series.Series) -> bigframes.series.Series:
 
 
 def st_difference(
-    series: bigframes.series.Series,
-    other: Union[bigframes.series.Series, shapely.Geometry],
+    series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
+    other: Union[
+        bigframes.series.Series, bigframes.geopandas.GeoSeries, shapely.Geometry
+    ],
 ) -> bigframes.series.Series:
     """
     Returns a `GEOGRAPHY` that represents the point set difference of
@@ -183,8 +190,11 @@ def st_difference(
         dtype: geometry
 
     Args:
-        other (bigframes.series.Series or geometric object):
-            The GeoSeries (elementwise) or geometric object to find the difference to.
+        series (bigframes.pandas.Series | bigframes.geopandas.GeoSereies):
+            A series containing geography objects.
+        other (bigframes.pandas.Series | bigframes.geopandas.GeoSeries | shapely.Geometry):
+            The series or geometric object to subtract from the geography
+            objects in ``series``.
 
     Returns:
         bigframes.series.Series:
@@ -195,8 +205,10 @@ def st_difference(
 
 
 def st_distance(
-    series: bigframes.series.Series,
-    other: Union[bigframes.series.Series, shapely.Geometry],
+    series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
+    other: Union[
+        bigframes.series.Series, bigframes.geopandas.GeoSeries, shapely.Geometry
+    ],
     *,
     use_spheroid: bool = False,
 ) -> bigframes.series.Series:
@@ -244,10 +256,11 @@ def st_distance(
         dtype: Float64
 
     Args:
-        series:
-            A ``GEOGRAPHY`` type Series or GeoSeries.
-        other:
-            A ``GEOGRAPHY`` type Series or GeoSeries.
+        series (bigframes.pandas.Series | bigframes.geopandas.GeoSereies):
+            A series containing geography objects.
+        other (bigframes.pandas.Series | bigframes.geopandas.GeoSeries | shapely.Geometry):
+            The series or geometric object to calculate the distance in meters
+            to from the geography objects in ``series``.
         use_spheroid (optional, default ``False``):
             Determines how this function measures distance. If ``use_spheroid``
             is False, the function measures distance on the surface of a perfect
@@ -267,8 +280,10 @@ def st_distance(
 
 
 def st_intersection(
-    series: bigframes.series.Series,
-    other: Union[bigframes.series.Series, shapely.Geometry],
+    series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
+    other: Union[
+        bigframes.series.Series, bigframes.geopandas.GeoSeries, shapely.Geometry
+    ],
 ) -> bigframes.series.Series:
     """
     Returns a `GEOGRAPHY` that represents the point set intersection of the two
@@ -347,9 +362,11 @@ def st_intersection(
         dtype: geometry
 
     Args:
-        other (GeoSeries or geometric object):
-            The Geoseries (elementwise) or geometric object to find the
-            intersection with.
+        series (bigframes.pandas.Series | bigframes.geopandas.GeoSereies):
+            A series containing geography objects.
+        other (bigframes.pandas.Series | bigframes.geopandas.GeoSeries | shapely.Geometry):
+            The series or geometric object to intersect with the geography
+            objects in ``series``.
 
     Returns:
         bigframes.geopandas.GeoSeries:

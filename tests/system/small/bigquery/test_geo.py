@@ -176,6 +176,9 @@ def test_geo_st_distance_with_geometry_objects():
         ),
         Point(0, 0.00002),
         Polygon([(0, 0), (0.00001, 0), (0.00001, 0.00001), (0, 0.00001), (0, 0)]),
+        Point(
+            1, 1
+        ),  # No matching row in data1, so this will be NULL after the call to distance.
     ]
 
     geobf_s1 = bigframes.geopandas.GeoSeries(data=data1)
@@ -187,8 +190,9 @@ def test_geo_st_distance_with_geometry_objects():
             1.112,
             2.486,
             1.112,
+            None,
         ],
-        index=[0, 1, 2],
+        index=[0, 1, 2, 3],
         dtype="Float64",
     )
     pandas.testing.assert_series_equal(
