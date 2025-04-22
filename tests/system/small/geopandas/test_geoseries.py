@@ -17,6 +17,7 @@ import re
 import bigframes_vendored.constants as constants
 import geopandas  # type: ignore
 from geopandas.array import GeometryDtype  # type:ignore
+import geopandas.testing  # type:ignore
 import google.api_core.exceptions
 import pandas as pd
 import pytest
@@ -28,6 +29,7 @@ from shapely.geometry import (  # type: ignore
 )
 
 import bigframes.geopandas
+import bigframes.pandas
 import bigframes.series
 from tests.system.utils import assert_series_equal
 
@@ -92,6 +94,33 @@ def test_geo_area_not_supported():
         ),
     ):
         bf_series.area
+
+
+def test_geo_distance_not_supported():
+    s1 = bigframes.pandas.Series(
+        [
+            Polygon([(0, 0), (1, 1), (0, 1)]),
+            Polygon([(10, 0), (10, 5), (0, 0)]),
+            Polygon([(0, 0), (2, 2), (2, 0)]),
+            LineString([(0, 0), (1, 1), (0, 1)]),
+            Point(0, 1),
+        ],
+        dtype=GeometryDtype(),
+    )
+    s2 = bigframes.geopandas.GeoSeries(
+        [
+            Polygon([(0, 0), (1, 1), (0, 1)]),
+            Polygon([(10, 0), (10, 5), (0, 0)]),
+            Polygon([(0, 0), (2, 2), (2, 0)]),
+            LineString([(0, 0), (1, 1), (0, 1)]),
+            Point(0, 1),
+        ]
+    )
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape("GeoSeries.distance is not supported."),
+    ):
+        s1.geo.distance(s2)
 
 
 def test_geo_from_xy():
@@ -188,16 +217,17 @@ def test_geo_boundary():
             LineString([(0, 0), (1, 1), (0, 1)]),
             Point(0, 1),
         ],
+        index=pd.Index([0, 1, 2, 3, 4], dtype="Int64"),
     )
 
     bf_result = bf_s.geo.boundary.to_pandas()
     pd_result = pd_s.boundary
 
-    pd.testing.assert_series_equal(
+    geopandas.testing.assert_geoseries_equal(
         bf_result,
         pd_result,
         check_series_type=False,
-        check_index=False,
+        check_index_type=False,
     )
 
 

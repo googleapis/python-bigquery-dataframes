@@ -20,14 +20,23 @@ import datetime
 import functools
 import itertools
 import typing
-from typing import Callable, cast, Iterable, Mapping, Optional, Sequence, Tuple
+from typing import (
+    AbstractSet,
+    Callable,
+    cast,
+    Iterable,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 import google.cloud.bigquery as bq
 
 from bigframes.core import identifiers, local_data
 from bigframes.core.bigframe_node import BigFrameNode, COLUMN_SET, Field
 import bigframes.core.expression as ex
-from bigframes.core.ordering import OrderingExpression
+from bigframes.core.ordering import OrderingExpression, RowOrdering
 import bigframes.core.slices as slices
 import bigframes.core.window_spec as window
 import bigframes.dtypes
@@ -572,7 +581,38 @@ class ScanItem(typing.NamedTuple):
 
 @dataclasses.dataclass(frozen=True)
 class ScanList:
+    """
+    Defines the set of columns to scan from a source, along with the variable to bind the columns to.
+    """
+
     items: typing.Tuple[ScanItem, ...]
+
+    def filter_cols(
+        self,
+        ids: AbstractSet[identifiers.ColumnId],
+    ) -> ScanList:
+        """Drop columns from the scan that except those in the 'ids' arg."""
+        result = ScanList(tuple(item for item in self.items if item.id in ids))
+        if len(result.items) == 0:
+            # We need to select something, or sql syntax breaks
+            result = ScanList(self.items[:1])
+        return result
+
+    def project(
+        self,
+        selections: Mapping[identifiers.ColumnId, identifiers.ColumnId],
+    ) -> ScanList:
+        """Project given ids from the scanlist, dropping previous bindings."""
+        by_id = {item.id: item for item in self.items}
+        result = ScanList(
+            tuple(
+                by_id[old_id].with_id(new_id) for old_id, new_id in selections.items()
+            )
+        )
+        if len(result.items) == 0:
+            # We need to select something, or sql syntax breaks
+            result = ScanList((self.items[:1]))
+        return result
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
@@ -654,7 +694,6 @@ class GbqTable:
     dataset_id: str = dataclasses.field()
     table_id: str = dataclasses.field()
     physical_schema: Tuple[bq.SchemaField, ...] = dataclasses.field()
-    n_rows: int = dataclasses.field()
     is_physically_stored: bool = dataclasses.field()
     cluster_cols: typing.Optional[Tuple[str, ...]]
 
@@ -670,11 +709,15 @@ class GbqTable:
             dataset_id=table.dataset_id,
             table_id=table.table_id,
             physical_schema=schema,
-            n_rows=table.num_rows,
             is_physically_stored=(table.table_type in ["TABLE", "MATERIALIZED_VIEW"]),
             cluster_cols=None
             if table.clustering_fields is None
             else tuple(table.clustering_fields),
+        )
+
+    def get_table_ref(self) -> bq.TableReference:
+        return bq.TableReference(
+            bq.DatasetReference(self.project_id, self.dataset_id), self.table_id
         )
 
     @property
@@ -696,6 +739,7 @@ class BigqueryDataSource:
     # Added for backwards compatibility, not validated
     sql_predicate: typing.Optional[str] = None
     ordering: typing.Optional[orderings.RowOrdering] = None
+    n_rows: Optional[int] = None
 
 
 ## Put ordering in here or just add order_by node above?
@@ -773,7 +817,7 @@ class ReadTableNode(LeafNode):
     @property
     def row_count(self) -> typing.Optional[int]:
         if self.source.sql_predicate is None and self.source.table.is_physically_stored:
-            return self.source.table.n_rows
+            return self.source.n_rows
         return None
 
     @property
@@ -1068,6 +1112,11 @@ class SelectionNode(UnaryNode):
     def variables_introduced(self) -> int:
         # This operation only renames variables, doesn't actually create new ones
         return 0
+
+    @property
+    def has_multi_referenced_ids(self) -> bool:
+        referenced = tuple(ref.ref.id for ref in self.input_output_pairs)
+        return len(referenced) != len(set(referenced))
 
     # TODO: Reuse parent namespace
     # Currently, Selection node allows renaming an reusing existing names, so it must establish a
@@ -1553,11 +1602,50 @@ class ExplodeNode(UnaryNode):
 
 
 # Introduced during planing/compilation
+# TODO: Enforce more strictly that this should never be a child node
 @dataclasses.dataclass(frozen=True, eq=False)
 class ResultNode(UnaryNode):
-    output_names: tuple[str, ...]
-    order_by: Tuple[OrderingExpression, ...] = ()
+    output_cols: tuple[tuple[ex.DerefOp, str], ...]
+    order_by: Optional[RowOrdering] = None
     limit: Optional[int] = None
+    # TODO: CTE definitions
+
+    @property
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
+        return ()
+
+    def remap_vars(
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
+    ) -> ResultNode:
+        return self
+
+    def remap_refs(
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
+    ) -> ResultNode:
+        output_names = tuple(
+            (ref.remap_column_refs(mappings), name) for ref, name in self.output_cols
+        )
+        order_by = self.order_by.remap_column_refs(mappings) if self.order_by else None
+        return dataclasses.replace(self, output_names=output_names, order_by=order_by)  # type: ignore
+
+    @property
+    def consumed_ids(self) -> COLUMN_SET:
+        out_refs = frozenset(ref.id for ref, _ in self.output_cols)
+        order_refs = self.order_by.referenced_columns if self.order_by else frozenset()
+        return out_refs | order_refs
+
+    @property
+    def row_count(self) -> Optional[int]:
+        child_count = self.child.row_count
+        if child_count is None:
+            return None
+        if self.limit is None:
+            return child_count
+        return min(self.limit, child_count)
+
+    @property
+    def variables_introduced(self) -> int:
+        return 0
 
 
 # Tree operators

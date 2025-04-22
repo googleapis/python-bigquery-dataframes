@@ -870,15 +870,20 @@ def test_read_pandas_tokyo(
     ["default", "bigquery_inline", "bigquery_load", "bigquery_streaming"],
 )
 def test_read_pandas_timedelta_dataframes(session, write_engine):
-    expected_df = pd.DataFrame({"my_col": pd.to_timedelta([1, 2, 3], unit="d")})
-
-    actual_result = (
-        session.read_pandas(expected_df, write_engine=write_engine)
-        .to_pandas()
-        .astype("timedelta64[ns]")
+    pytest.importorskip(
+        "pandas",
+        minversion="2.0.0",
+        reason="old versions don't support local casting to arrow duration",
     )
+    pandas_df = pd.DataFrame({"my_col": pd.to_timedelta([1, 2, 3], unit="d")})
 
-    pd.testing.assert_frame_equal(actual_result, expected_df, check_index_type=False)
+    actual_result = session.read_pandas(
+        pandas_df, write_engine=write_engine
+    ).to_pandas()
+    expected_result = pandas_df.astype(bigframes.dtypes.TIMEDELTA_DTYPE)
+    expected_result.index = expected_result.index.astype(bigframes.dtypes.INT_DTYPE)
+
+    pd.testing.assert_frame_equal(actual_result, expected_result)
 
 
 @pytest.mark.parametrize(
@@ -923,7 +928,7 @@ def test_read_pandas_timedelta_index(session, write_engine):
         pytest.param("default"),
         pytest.param("bigquery_load"),
         pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
+        pytest.param("bigquery_inline"),
     ],
 )
 def test_read_pandas_json_dataframes(session, write_engine):
@@ -950,15 +955,15 @@ def test_read_pandas_json_dataframes(session, write_engine):
         pytest.param("default"),
         pytest.param("bigquery_load"),
         pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
+        pytest.param("bigquery_inline"),
     ],
 )
 def test_read_pandas_json_series(session, write_engine):
     json_data = [
         "1",
         None,
-        '["1","3","5"]',
-        '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}',
+        '[1,"3",null,{"a":null}]',
+        '{"a":1,"b":["x","y"],"c":{"x":[],"y":null,"z":false}}',
     ]
     expected_series = pd.Series(json_data, dtype=bigframes.dtypes.JSON_DTYPE)
 
@@ -968,6 +973,28 @@ def test_read_pandas_json_series(session, write_engine):
     pd.testing.assert_series_equal(
         actual_result, expected_series, check_index_type=False
     )
+
+
+@pytest.mark.parametrize(
+    ("write_engine"),
+    [
+        pytest.param("default"),
+        pytest.param("bigquery_inline"),
+        pytest.param("bigquery_load"),
+        pytest.param("bigquery_streaming"),
+    ],
+)
+def test_read_pandas_json_series_w_invalid_json(session, write_engine):
+    json_data = [
+        "False",  # Should be "false"
+    ]
+    pd_s = pd.Series(json_data, dtype=bigframes.dtypes.JSON_DTYPE)
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid JSON format found",
+    ):
+        session.read_pandas(pd_s, write_engine=write_engine)
 
 
 @pytest.mark.parametrize(
@@ -997,7 +1024,6 @@ def test_read_pandas_json_index(session, write_engine):
     ("write_engine"),
     [
         pytest.param("bigquery_load"),
-        pytest.param("bigquery_streaming"),
     ],
 )
 def test_read_pandas_w_nested_json_fails(session, write_engine):
@@ -1009,37 +1035,39 @@ def test_read_pandas_w_nested_json_fails(session, write_engine):
     ]
     # PyArrow currently lacks support for creating structs or lists containing extension types.
     # See issue: https://github.com/apache/arrow/issues/45262
-    pa_array = pa.array(data, type=pa.list_(pa.struct([("name", pa.string())])))
+    pa_array = pa.array(data, type=pa.list_(pa.struct([("json_field", pa.string())])))
     pd_s = pd.Series(
         arrays.ArrowExtensionArray(pa_array),  # type: ignore
         dtype=pd.ArrowDtype(
-            pa.list_(pa.struct([("name", bigframes.dtypes.JSON_ARROW_TYPE)]))
+            pa.list_(pa.struct([("json_field", bigframes.dtypes.JSON_ARROW_TYPE)]))
         ),
     )
     with pytest.raises(NotImplementedError, match="Nested JSON types, found in column"):
         session.read_pandas(pd_s, write_engine=write_engine)
 
 
-@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     ("write_engine"),
     [
         pytest.param("default"),
         pytest.param("bigquery_inline"),
+        pytest.param("bigquery_streaming"),
     ],
 )
-def test_read_pandas_inline_w_nested_json(session, write_engine):
+def test_read_pandas_w_nested_json(session, write_engine):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     data = [
         [{"json_field": "1"}],
         [{"json_field": None}],
         [{"json_field": '["1","3","5"]'}],
         [{"json_field": '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}'}],
     ]
-    pa_array = pa.array(data, type=pa.list_(pa.struct([("name", pa.string())])))
+    pa_array = pa.array(data, type=pa.list_(pa.struct([("json_field", pa.string())])))
     pd_s = pd.Series(
         arrays.ArrowExtensionArray(pa_array),  # type: ignore
         dtype=pd.ArrowDtype(
-            pa.list_(pa.struct([("name", bigframes.dtypes.JSON_ARROW_TYPE)]))
+            pa.list_(pa.struct([("json_field", bigframes.dtypes.JSON_ARROW_TYPE)]))
         ),
     )
     bq_s = (
@@ -1053,11 +1081,37 @@ def test_read_pandas_inline_w_nested_json(session, write_engine):
 @pytest.mark.parametrize(
     ("write_engine"),
     [
+        pytest.param("default"),
+        pytest.param("bigquery_inline"),
         pytest.param("bigquery_load"),
         pytest.param("bigquery_streaming"),
     ],
 )
-def test_read_pandas_inline_w_nested_json_index_fails(session, write_engine):
+def test_read_pandas_w_nested_invalid_json(session, write_engine):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
+    data = [
+        [{"json_field": "NULL"}],  # Should be "null"
+    ]
+    pa_array = pa.array(data, type=pa.list_(pa.struct([("json_field", pa.string())])))
+    pd_s = pd.Series(
+        arrays.ArrowExtensionArray(pa_array),  # type: ignore
+        dtype=pd.ArrowDtype(
+            pa.list_(pa.struct([("json_field", bigframes.dtypes.JSON_ARROW_TYPE)]))
+        ),
+    )
+
+    with pytest.raises(ValueError, match="Invalid JSON format found"):
+        session.read_pandas(pd_s, write_engine=write_engine)
+
+
+@pytest.mark.parametrize(
+    ("write_engine"),
+    [
+        pytest.param("bigquery_load"),
+    ],
+)
+def test_read_pandas_w_nested_json_index_fails(session, write_engine):
     data = [
         [{"json_field": "1"}],
         [{"json_field": None}],
@@ -1066,28 +1120,28 @@ def test_read_pandas_inline_w_nested_json_index_fails(session, write_engine):
     ]
     # PyArrow currently lacks support for creating structs or lists containing extension types.
     # See issue: https://github.com/apache/arrow/issues/45262
-    pa_array = pa.array(data, type=pa.list_(pa.struct([("name", pa.string())])))
+    pa_array = pa.array(data, type=pa.list_(pa.struct([("json_field", pa.string())])))
     pd_idx: pd.Index = pd.Index(
         arrays.ArrowExtensionArray(pa_array),  # type: ignore
         dtype=pd.ArrowDtype(
-            pa.list_(pa.struct([("name", bigframes.dtypes.JSON_ARROW_TYPE)]))
+            pa.list_(pa.struct([("json_field", bigframes.dtypes.JSON_ARROW_TYPE)]))
         ),
     )
-    with pytest.raises(
-        NotImplementedError, match="Nested JSON types, found in the index"
-    ):
+    with pytest.raises(NotImplementedError, match="Nested JSON types, found in"):
         session.read_pandas(pd_idx, write_engine=write_engine)
 
 
-@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     ("write_engine"),
     [
         pytest.param("default"),
         pytest.param("bigquery_inline"),
+        pytest.param("bigquery_streaming"),
     ],
 )
 def test_read_pandas_w_nested_json_index(session, write_engine):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     data = [
         [{"json_field": "1"}],
         [{"json_field": None}],
@@ -1162,55 +1216,86 @@ def test_read_csv_for_local_file_w_sep(session, df_and_local_csv, sep):
         pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
-def test_read_csv_w_index_col_false(session, df_and_local_csv):
+@pytest.mark.parametrize(
+    "index_col",
+    [
+        pytest.param(None, id="none"),
+        pytest.param(False, id="false"),
+        pytest.param([], id="empty_list"),
+    ],
+)
+def test_read_csv_for_index_col_w_false(session, df_and_local_csv, index_col):
     # Compares results for pandas and bigframes engines
     scalars_df, path = df_and_local_csv
     with open(path, "rb") as buffer:
         bf_df = session.read_csv(
             buffer,
             engine="bigquery",
-            index_col=False,
+            index_col=index_col,
         )
     with open(path, "rb") as buffer:
         # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
         pd_df = session.read_csv(
-            buffer, index_col=False, dtype=scalars_df.dtypes.to_dict()
+            buffer, index_col=index_col, dtype=scalars_df.dtypes.to_dict()
         )
 
-    assert bf_df.shape[0] == scalars_df.shape[0]
-    assert bf_df.shape[0] == pd_df.shape[0]
-
-    # We use a default index because of index_col=False, so the previous index
-    # column is just loaded as a column.
-    assert len(bf_df.columns) == len(scalars_df.columns) + 1
-    assert len(bf_df.columns) == len(pd_df.columns)
+    assert bf_df.shape == pd_df.shape
 
     # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
     # (b/280889935) or guarantee row ordering.
     bf_df = bf_df.set_index("rowindex").sort_index()
     pd_df = pd_df.set_index("rowindex")
-
-    pd.testing.assert_frame_equal(bf_df.to_pandas(), scalars_df.to_pandas())
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
-def test_read_csv_w_index_col_column_label(session, df_and_gcs_csv):
-    scalars_df, path = df_and_gcs_csv
-    bf_df = session.read_csv(path, engine="bigquery", index_col="rowindex")
+@pytest.mark.parametrize(
+    "index_col",
+    [
+        pytest.param("rowindex", id="single_str"),
+        pytest.param(["rowindex", "bool_col"], id="multi_str"),
+        pytest.param(0, id="single_int"),
+        pytest.param([0, 2], id="multi_int"),
+        pytest.param([0, "bool_col"], id="mix_types"),
+    ],
+)
+def test_read_csv_for_index_col(session, df_and_gcs_csv, index_col):
+    scalars_pandas_df, path = df_and_gcs_csv
+    bf_df = session.read_csv(path, engine="bigquery", index_col=index_col)
 
     # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
     pd_df = session.read_csv(
-        path, index_col="rowindex", dtype=scalars_df.dtypes.to_dict()
+        path, index_col=index_col, dtype=scalars_pandas_df.dtypes.to_dict()
     )
 
-    assert bf_df.shape == scalars_df.shape
     assert bf_df.shape == pd_df.shape
-
-    assert len(bf_df.columns) == len(scalars_df.columns)
-    assert len(bf_df.columns) == len(pd_df.columns)
-
-    pd.testing.assert_frame_equal(bf_df.to_pandas(), scalars_df.to_pandas())
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+@pytest.mark.parametrize(
+    ("index_col", "error_type", "error_msg"),
+    [
+        pytest.param(
+            True, ValueError, "The value of index_col couldn't be 'True'", id="true"
+        ),
+        pytest.param(100, ValueError, "out of bounds", id="single_int"),
+        pytest.param([0, 200], ValueError, "out of bounds", id="multi_int"),
+        pytest.param(
+            [0.1], TypeError, "it must contain either strings", id="invalid_iterable"
+        ),
+        pytest.param(
+            3.14, TypeError, "Unsupported type for index_col", id="unsupported_type"
+        ),
+    ],
+)
+def test_read_csv_raises_error_for_invalid_index_col(
+    session, df_and_gcs_csv, index_col, error_type, error_msg
+):
+    _, path = df_and_gcs_csv
+    with pytest.raises(
+        error_type,
+        match=error_msg,
+    ):
+        session.read_csv(path, engine="bigquery", index_col=index_col)
 
 
 @pytest.mark.parametrize(
@@ -1617,3 +1702,66 @@ def test_read_json_gcs_default_engine(session, scalars_dfs, gcs_folder):
 
     assert df.shape[0] == scalars_df.shape[0]
     pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
+
+
+def test_read_gbq_test(test_session: bigframes.Session):
+    test_project_id = "bigframes-dev"
+    test_dataset_id = "test_env_only"
+    test_table_id = "one_table"
+    table_id = f"{test_project_id}.{test_dataset_id}.{test_table_id}"
+    actual = test_session.read_gbq(table_id).to_pandas()
+
+    assert actual.shape == (1, 1)
+
+
+@pytest.mark.parametrize(
+    ("query_or_table", "index_col", "columns"),
+    [
+        pytest.param(
+            "{scalars_table_id}",
+            ("int64_col", "string_col", "int64_col"),
+            ("float64_col", "bool_col"),
+            id="table_input_index_col_dup",
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+                reason="ValueError: Duplicate names within 'index_col'.",
+                strict=True,
+            ),
+        ),
+        pytest.param(
+            """SELECT int64_col, string_col, float64_col, bool_col
+               FROM `{scalars_table_id}`""",
+            ("int64_col",),
+            ("string_col", "float64_col", "string_col"),
+            id="query_input_columns_dup",
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+                reason="ValueError: Duplicate names within 'columns'.",
+                strict=True,
+            ),
+        ),
+        pytest.param(
+            "{scalars_table_id}",
+            ("int64_col", "string_col"),
+            ("float64_col", "string_col", "bool_col"),
+            id="table_input_cross_dup",
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+                reason="ValueError: Overlap between 'index_col' and 'columns'.",
+                strict=True,
+            ),
+        ),
+    ],
+)
+def test_read_gbq_duplicate_columns_xfail(
+    session: bigframes.Session,
+    scalars_table_id: str,
+    query_or_table: str,
+    index_col: tuple,
+    columns: tuple,
+):
+    session.read_gbq(
+        query_or_table.format(scalars_table_id=scalars_table_id),
+        index_col=index_col,
+        columns=columns,
+    )
