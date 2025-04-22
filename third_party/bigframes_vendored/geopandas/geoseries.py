@@ -381,7 +381,7 @@ class GeoSeries:
         instead to return the shorted distance between two
         ``GEOGRAPHY`` objects in meters.
 
-        In GeoPandas, this returns a Series of the distancies between each
+        In GeoPandas, this returns a Series of the distances between each
         aligned geometry in the expressed in the units of the CRS.
 
         Args:
