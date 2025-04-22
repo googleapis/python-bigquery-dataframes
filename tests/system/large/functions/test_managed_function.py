@@ -171,14 +171,12 @@ def test_managed_function_array_output(session, scalars_dfs, dataset_id):
 def test_managed_function_series_apply(session, dataset_id, scalars_dfs):
     try:
 
-        @session.udf(
-            dataset=dataset_id,
-            # The suffix '_def_to_test_code_extraction' is included in the UDF
-            # name as a marker, relevant because the subsequent logic extracts
-            # function's source code starting from the 'def' keyword (excluding
-            # the decorator) using regex.
-            name=f"{prefixer.create_prefix()}_def_to_test_code_extraction",
-        )
+        # An explicit name with "def" in it is used to test the robustness of
+        # the user code extraction logic, which depends on that term.
+        bq_name = f"{prefixer.create_prefix()}_def_to_test_code_extraction"
+        assert "def" in bq_name, "The substring 'def' was not found in 'bq_name'"
+
+        @session.udf(dataset=dataset_id, name=bq_name)
         def foo(x: int) -> bytes:
             return bytes(abs(x))
 
