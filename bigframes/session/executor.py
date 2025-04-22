@@ -38,7 +38,7 @@ class ExecuteResult:
         # Need to provide schema if no result rows, as arrow can't infer
         # If ther are rows, it is safest to infer schema from batches.
         # Any discrepencies between predicted schema and actual schema will produce errors.
-        batches = self.arrow_batches()
+        batches = iter(self.arrow_batches())
         peek_it = itertools.islice(batches, 0, 1)
         peek_value = list(peek_it)
         # TODO: Enforce our internal schema on the table for consistency
