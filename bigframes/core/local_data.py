@@ -302,8 +302,8 @@ def _adapt_arrow_array(
         assert isinstance(array.type, pa.StructType)
         arrays = []
         dtypes = []
-        for field_name in array.type.names:
-            field_array, field_type = _adapt_arrow_array(array.field(field_name))
+        for i in range(array.type.num_fields):
+            field_array, field_type = _adapt_arrow_array(array.field(i))
             arrays.append(field_array)
             dtypes.append(field_type)
         struct_array = pa.StructArray.from_arrays(arrays=arrays, names=array.type.names)
