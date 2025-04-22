@@ -296,6 +296,26 @@ def _adapt_pandas_series(
 def _adapt_arrow_array(
     array: Union[pa.ChunkedArray, pa.Array]
 ) -> tuple[Union[pa.ChunkedArray, pa.Array], bigframes.dtypes.Dtype]:
+    """Normalize the array to managed storage types. Preverse shapes, only transforms values."""
+    if pa.types.is_struct(array.type):
+        assert isinstance(array, pa.StructArray)
+        assert isinstance(array.type, pa.StructType)
+        arrays = []
+        dtypes = []
+        for field_idx in array.type.get_all_field_indices():
+            field_array, field_type = _adapt_arrow_array(array.field(field_idx))
+            arrays.append(field_array)
+            dtypes.append(field_type)
+        struct_array = pa.StructArray.from_arrays(arrays=arrays, names=array.type.names)
+        dtype = bigframes.dtypes.struct_type(
+            [(name, dtype) for name, dtype in zip(array.type.names, dtypes)]
+        )
+        return struct_array, dtype
+    if pa.types.is_list(array.type):
+        assert isinstance(array, pa.ListArray)
+        values, values_type = _adapt_arrow_array(array.values)
+        new_value = pa.ListArray.from_arrays(array.offsets, values)
+        return new_value.fill_null([]), bigframes.dtypes.list_type(values_type)
     if array.type == bigframes.dtypes.JSON_ARROW_TYPE:
         return _canonicalize_json(array), bigframes.dtypes.JSON_DTYPE
     target_type = _logical_type_replacements(array.type)
