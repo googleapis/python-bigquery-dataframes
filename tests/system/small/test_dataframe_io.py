@@ -571,6 +571,8 @@ def test_to_gbq_w_flexible_column_names(
         "datetime_col": "col-with-hyphens",
         "geography_col": "1start_with_number",
         "int64_col": "col_with_underscore",
+        # Just numbers.
+        "int64_too": "123",
     }
     bf_df = scalars_df_index[renamed_columns.keys()].rename(columns=renamed_columns)
     assert list(bf_df.columns) == list(renamed_columns.values())
@@ -586,6 +588,7 @@ def test_to_gbq_w_flexible_column_names(
         "col-with-hyphens",
         "1start_with_number",
         "col_with_underscore",
+        "123",
     ]
 
 
@@ -610,6 +613,7 @@ def test_to_gbq_w_flexible_column_names_local_node(
         "col-with-hyphens": [10, 11, 12],
         "1start_with_number": [13, 14, 15],
         "col_with_underscore": [16, 17, 18],
+        "123": [19, 20, 21],
     }
     pd_df = pd.DataFrame(data)
     assert list(pd_df.columns) == list(data.keys())
@@ -627,6 +631,7 @@ def test_to_gbq_w_flexible_column_names_local_node(
         "col-with-hyphens",
         "1start_with_number",
         "col_with_underscore",
+        "123",
     ]
 
 
