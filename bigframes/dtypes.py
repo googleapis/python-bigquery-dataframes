@@ -611,7 +611,7 @@ def _infer_dtype_from_python_type(type_: type) -> Dtype:
         return GEO_DTYPE
     else:
         raise TypeError(
-            f"No matching datatype for python type: {type}. {constants.FEEDBACK_LINK}"
+            f"No matching datatype for python type: {type_}. {constants.FEEDBACK_LINK}"
         )
 
 
