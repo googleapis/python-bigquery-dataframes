@@ -587,7 +587,7 @@ def _is_bigframes_dtype(dtype) -> bool:
 
 
 def _infer_dtype_from_python_type(type_: type) -> Dtype:
-    if type in (datetime.timedelta, pd.Timedelta, np.timedelta64):
+    if type_ in (datetime.timedelta, pd.Timedelta, np.timedelta64):
         # Must check timedelta type first. Otherwise other branchs will be evaluated to true
         # E.g. np.timedelta64 is a sublcass as np.integer
         return TIMEDELTA_DTYPE
