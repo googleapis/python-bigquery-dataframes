@@ -222,6 +222,47 @@ def test_gemini_text_generator_multi_cols_predict_success(
     )
 
 
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        # "gemini-1.5-pro-preview-0514",
+        # "gemini-1.5-flash-preview-0514",
+        # "gemini-1.5-pro-001",
+        # "gemini-1.5-pro-002",
+        # "gemini-1.5-flash-001",
+        # "gemini-1.5-flash-002",
+        "gemini-2.0-flash-exp",
+    ),
+)
+@pytest.mark.flaky(retries=2)
+def test_gemini_text_generator_predict_output_schema_success(
+    llm_text_df: bpd.DataFrame, model_name, session, bq_connection
+):
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        model_name=model_name, connection_name=bq_connection, session=session
+    )
+    output_schema = {
+        "bool_output": "bool",
+        "int_output": "int64",
+        "float_output": "float64",
+        "str_output": "string",
+    }
+    df = gemini_text_generator_model.predict(
+        llm_text_df, output_schema=output_schema
+    ).to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        df,
+        columns=list(output_schema.keys()) + ["prompt", "full_response", "status"],
+        index=3,
+        col_exact=False,
+    )
+
+    assert df["bool_output"].dtype == pd.BooleanDtype()
+    assert df["int_output"].dtype == pd.Int64Dtype()
+    assert df["float_output"].dtype == pd.Float64Dtype()
+    assert df["str_output"].dtype == pd.StringDtype(storage="pyarrow")
+
+
 # Overrides __eq__ function for comparing as mock.call parameter
 class EqCmpAllDataFrame(bpd.DataFrame):
     def __eq__(self, other):
