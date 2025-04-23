@@ -21,13 +21,18 @@ from . import udf
 
 def test_udf_and_read_gbq_function(
     capsys: pytest.CaptureFixture[str],
-    project_id: str,
     dataset_id: str,
     routine_id: str,
 ) -> None:
     # We need a fresh session since we're modifying connection options.
     bigframes.pandas.close_session()
 
-    udf.run_udf_and_read_gbq_function(project_id, dataset_id, routine_id)
+    # Determine project id, in this case prefer the one set in the environment
+    # variable GOOGLE_CLOUD_PROJECT (if any)
+    import os
+
+    your_project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "bigframes-dev")
+
+    udf.run_udf_and_read_gbq_function(your_project_id, dataset_id, routine_id)
     out, _ = capsys.readouterr()
     assert "Created BQ Python UDF:" in out
