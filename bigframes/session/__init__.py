@@ -732,7 +732,9 @@ class Session(
                   workload is such that you exhaust the BigQuery load job
                   quota and your data cannot be embedded in SQL due to size or
                   data type limitations.
-
+                * "bigquery_write":
+                  [Preview] Use the BigQuery Storage Write API. This feature
+                  is in public preview.
         Returns:
             An equivalent bigframes.pandas.(DataFrame/Series/Index) object
 
