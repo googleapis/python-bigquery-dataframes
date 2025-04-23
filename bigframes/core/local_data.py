@@ -31,7 +31,6 @@ import pyarrow as pa
 import pyarrow.parquet  # type: ignore
 
 import bigframes.core.schema as schemata
-import bigframes.core.utils as utils
 import bigframes.dtypes
 
 
@@ -79,7 +78,7 @@ class ManagedArrowTable:
         mat = ManagedArrowTable(
             pa.table(columns, names=column_names), schemata.ArraySchema(tuple(fields))
         )
-        mat.validate(include_content=True)
+        mat.validate()
         return mat
 
     @classmethod
@@ -158,7 +157,7 @@ class ManagedArrowTable:
         ):
             yield tuple(row_dict.values())
 
-    def validate(self, include_content: bool = False):
+    def validate(self):
         for bf_field, arrow_field in zip(self.schema.items, self.data.schema):
             expected_arrow_type = _get_managed_storage_type(bf_field.dtype)
             arrow_type = arrow_field.type
@@ -166,38 +165,6 @@ class ManagedArrowTable:
                 raise TypeError(
                     f"Field {bf_field} has arrow array type: {arrow_type}, expected type: {expected_arrow_type}"
                 )
-
-        if include_content:
-            for batch in self.data.to_batches():
-                for field in self.schema.items:
-                    _validate_content(batch.column(field.column), field.dtype)
-
-
-def _validate_content(array: pa.Array, dtype: bigframes.dtypes.Dtype):
-    """
-    Recursively validates the content of a PyArrow Array based on the
-    expected BigFrames dtype, focusing on complex types like JSON, structs,
-    and arrays where the Arrow type alone isn't sufficient.
-    """
-    # TODO: validate GEO data context.
-    if dtype == bigframes.dtypes.JSON_DTYPE:
-        values = array.to_pandas()
-        for data in values:
-            # Skip scalar null values to avoid `TypeError` from json.load.
-            if not utils.is_list_like(data) and pd.isna(data):
-                continue
-            try:
-                # Attempts JSON parsing.
-                json.loads(data)
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Invalid JSON format found: {data!r}") from e
-    elif bigframes.dtypes.is_struct_like(dtype):
-        for field_name, dtype in bigframes.dtypes.get_struct_fields(dtype).items():
-            _validate_content(array.field(field_name), dtype)
-    elif bigframes.dtypes.is_array_like(dtype):
-        return _validate_content(
-            array.flatten(), bigframes.dtypes.get_array_inner_type(dtype)
-        )
 
 
 # Sequential iterator, but could split into batches and leverage parallelism for speed
@@ -340,6 +307,9 @@ def _canonicalize_json(array: pa.Array) -> pa.Array:
     def _canonicalize_scalar(json_string):
         if json_string is None:
             return None
+        # This is the canonical form that bq uses when emitting json
+        # The sorted keys and unambiguous whitespace ensures a 1:1 mapping
+        # between syntax and semantics.
         return json.dumps(
             json.loads(json_string), sort_keys=True, separators=(",", ":")
         )

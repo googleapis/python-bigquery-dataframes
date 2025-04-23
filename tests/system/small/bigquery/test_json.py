@@ -155,7 +155,7 @@ def test_json_extract_array_from_json_strings():
     )
     actual = bbq.json_extract_array(s, "$.a")
     expected = bpd.Series(
-        [['"ab"', '"2"', '"3 xy"'], [], ['"4"', '"5"'], []],
+        [['"ab"', '"2"', '"3 xy"'], [], ['"4"', '"5"'], None],
         dtype=pd.ArrowDtype(pa.list_(pa.string())),
     )
 
