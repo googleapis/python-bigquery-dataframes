@@ -544,6 +544,7 @@ class BlobAccessor(base.SeriesMethods):
         max_batching_rows: int = 8192,
         container_cpu: Union[float, int] = 0.33,
         container_memory: str = "512Mi",
+        verbose: bool = False,
     ) -> bigframes.series.Series:
         """Normalize images.
 
@@ -561,6 +562,10 @@ class BlobAccessor(base.SeriesMethods):
             max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
             container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+            verbose (bool, default "False"): controls the verbosity of the output.
+                when set to True, both error messages and the normalized image
+                content are displayed. Conversely, when set to False, only the
+                normalized image content is presented, suppressing error messages.
 
         Returns:
             bigframes.series.Series: blob Series if destination is GCS. Or bytes Series if destination is BQ.
@@ -568,7 +573,17 @@ class BlobAccessor(base.SeriesMethods):
         if engine is None or engine.casefold() != "opencv":
             raise ValueError("Must specify the engine, supported value is 'opencv'.")
 
+            bigframes.series.Series: blob Series if destination is GCS. Or
+                struct[str, bytes] or bytes Series if destination is BQ,
+                depend on the "verbose" parameter. Contains the normalized image
+                data. Includes error messages if verbosity is enbled.
+
+        """
+        import base64
+
+        import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
+        import bigframes.pandas as bpd
 
         connection = self._resolve_connection(connection)
         df = self.get_runtime_json_str(mode="R").to_frame()
@@ -591,7 +606,27 @@ class BlobAccessor(base.SeriesMethods):
             df["ext"] = ext  # type: ignore
             res = self._df_apply_udf(df, image_normalize_udf)
 
-            return res
+            bq_session = self._block.bq_session
+            encoded_content_series = res._apply_unary_op(
+                ops.JSONValue(json_path="$.content")
+            )
+            base64_decode_udf = bq_session.register_function(
+                "base64_decode_bq",
+                lambda x: bbq.query(f"SELECT TO_BASE64(FROM_BASE64('{x}'))")
+                .to_dataframe()
+                .iloc[0, 0],
+            )
+            decoded_content_series = encoded_content_series.apply(base64_decode_udf)
+
+            if verbose:
+                status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
+                res_df = bpd.DataFrame(
+                    {"status": status_series, "content": decoded_content_series}
+                )
+                struct_series = bbq.struct(res_df)
+                return struct_series
+            else:
+                return decoded_content_series
 
         if isinstance(dst, str):
             dst = os.path.join(dst, "")
@@ -623,7 +658,27 @@ class BlobAccessor(base.SeriesMethods):
         res = self._df_apply_udf(df, image_normalize_udf)
         res.cache()  # to execute the udf
 
-        return dst
+        bq_session = self._block.bq_session
+        encoded_content_series = res._apply_unary_op(
+            ops.JSONValue(json_path="$.content")
+        )
+        base64_decode_udf = bq_session.register_function(
+            "base64_decode_bq",
+            lambda x: bbq.query(f"SELECT TO_BASE64(FROM_BASE64('{x}'))")
+            .to_dataframe()
+            .iloc[0, 0],
+        )
+        decoded_content_series = encoded_content_series.apply(base64_decode_udf)
+
+        if verbose:
+            status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
+            res_df = bpd.DataFrame(
+                {"status": status_series, "content": decoded_content_series}
+            )
+            struct_series = bbq.struct(res_df)
+            return struct_series
+        else:
+            return decoded_content_series
 
     def pdf_extract(
         self,

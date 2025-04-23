@@ -395,40 +395,47 @@ image_normalize_def = FunctionDef(
 
 def image_normalize_to_bytes_func(
     src_obj_ref_rt: str, alpha: float, beta: float, norm_type: str, ext: str
-) -> bytes:
-    import json
+) -> str:
+    try:
+        import base64
+        import json
 
-    import cv2 as cv  # type: ignore
-    import numpy as np
-    import requests
-    from requests import adapters
+        import cv2 as cv  # type: ignore
+        import numpy as np
+        import requests
+        from requests import adapters
 
-    session = requests.Session()
-    session.mount("https://", adapters.HTTPAdapter(max_retries=3))
+        session = requests.Session()
+        session.mount("https://", adapters.HTTPAdapter(max_retries=3))
 
-    ext = ext or ".jpeg"
+        ext = ext or ".jpeg"
 
-    norm_type_mapping = {
-        "inf": cv.NORM_INF,
-        "l1": cv.NORM_L1,
-        "l2": cv.NORM_L2,
-        "minmax": cv.NORM_MINMAX,
-    }
+        norm_type_mapping = {
+            "inf": cv.NORM_INF,
+            "l1": cv.NORM_L1,
+            "l2": cv.NORM_L2,
+            "minmax": cv.NORM_MINMAX,
+        }
 
-    src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
-    src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
+        src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
+        src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
 
-    response = session.get(src_url, timeout=30)
-    bts = response.content
+        response = session.get(src_url, timeout=30)
+        bts = response.content
 
-    nparr = np.frombuffer(bts, np.uint8)
-    img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
-    img_normalized = cv.normalize(
-        img, None, alpha=alpha, beta=beta, norm_type=norm_type_mapping[norm_type]
-    )
-    bts = cv.imencode(".jpeg", img_normalized)[1].tobytes()
+        nparr = np.frombuffer(bts, np.uint8)
+        img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
+        img_normalized = cv.normalize(
+            img, None, alpha=alpha, beta=beta, norm_type=norm_type_mapping[norm_type]
+        )
+        bts = cv.imencode(".jpeg", img_normalized)[1].tobytes()
+        result_dict = {"status": "", "content": base64.b64encode(bts).decode("utf-8")}
 
-    return bts
+    except Exception as e:
+        result_dict = {"status": str(e), "content": ""}
+
+    result_json = json.dumps(result_dict)
+    return result_json
 
 
 image_normalize_to_bytes_def = FunctionDef(
