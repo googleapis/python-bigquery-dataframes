@@ -225,12 +225,12 @@ def test_gemini_text_generator_multi_cols_predict_success(
 @pytest.mark.parametrize(
     "model_name",
     (
-        # "gemini-1.5-pro-preview-0514",
-        # "gemini-1.5-flash-preview-0514",
-        # "gemini-1.5-pro-001",
-        # "gemini-1.5-pro-002",
-        # "gemini-1.5-flash-001",
-        # "gemini-1.5-flash-002",
+        "gemini-1.5-pro-preview-0514",
+        "gemini-1.5-flash-preview-0514",
+        "gemini-1.5-pro-001",
+        "gemini-1.5-pro-002",
+        "gemini-1.5-flash-001",
+        "gemini-1.5-flash-002",
         "gemini-2.0-flash-exp",
     ),
 )
