@@ -307,7 +307,7 @@ def _adapt_arrow_array(
             field_array, field_type = _adapt_arrow_array(array.field(i))
             arrays.append(field_array)
             dtypes.append(field_type)
-            pa_fields.append(array.type.field(i))
+            pa_fields.append(pa.field(array.type.field(i).name, field_array.type))
         struct_array = pa.StructArray.from_arrays(
             arrays=arrays, fields=pa_fields, mask=array.is_null()
         )

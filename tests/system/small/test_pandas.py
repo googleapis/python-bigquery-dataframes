@@ -615,10 +615,6 @@ def test_cut_by_edge_cases_bins(scalars_dfs, bins, labels):
     pd_result = pd.cut(scalars_pandas_df["int64_too"], bins, labels=labels)
 
     pd_result_converted = _convert_pandas_category(pd_result)
-    print("pandas")
-    print(pd_result.to_string())
-    print("bigframes")
-    print(bf_result.to_string())
     pd.testing.assert_series_equal(bf_result, pd_result_converted)
 
 
