@@ -302,13 +302,15 @@ def _adapt_arrow_array(
         assert isinstance(array.type, pa.StructType)
         arrays = []
         dtypes = []
+        pa_fields = []
         for i in range(array.type.num_fields):
             field_array, field_type = _adapt_arrow_array(array.field(i))
             arrays.append(field_array)
             dtypes.append(field_type)
-        struct_array = pa.StructArray.from_arrays(arrays=arrays, names=array.type.names)
+            pa_fields.append(array.type.field(i))
+        struct_array = pa.StructArray.from_arrays(arrays=arrays, fields=pa_fields)
         dtype = bigframes.dtypes.struct_type(
-            [(name, dtype) for name, dtype in zip(array.type.names, dtypes)]
+            [(field.name, dtype) for field, dtype in zip(pa_fields, dtypes)]
         )
         return struct_array, dtype
     if pa.types.is_list(array.type):
