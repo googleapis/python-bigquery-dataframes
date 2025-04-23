@@ -308,7 +308,9 @@ def _adapt_arrow_array(
             arrays.append(field_array)
             dtypes.append(field_type)
             pa_fields.append(array.type.field(i))
-        struct_array = pa.StructArray.from_arrays(arrays=arrays, fields=pa_fields)
+        struct_array = pa.StructArray.from_arrays(
+            arrays=arrays, fields=pa_fields, mask=array.is_null()
+        )
         dtype = bigframes.dtypes.struct_type(
             [(field.name, dtype) for field, dtype in zip(pa_fields, dtypes)]
         )
@@ -316,7 +318,9 @@ def _adapt_arrow_array(
     if pa.types.is_list(array.type):
         assert isinstance(array, pa.ListArray)
         values, values_type = _adapt_arrow_array(array.values)
-        new_value = pa.ListArray.from_arrays(array.offsets, values)
+        new_value = pa.ListArray.from_arrays(
+            array.offsets, values, mask=array.is_null()
+        )
         return new_value.fill_null([]), bigframes.dtypes.list_type(values_type)
     if array.type == bigframes.dtypes.JSON_ARROW_TYPE:
         return _canonicalize_json(array), bigframes.dtypes.JSON_DTYPE
