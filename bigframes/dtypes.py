@@ -371,10 +371,12 @@ def get_array_inner_type(type_: ExpressionType) -> Dtype:
 
 
 def list_type(values_type: Dtype) -> Dtype:
+    """Create a list dtype with given value type."""
     return pd.ArrowDtype(pa.list_(bigframes_dtype_to_arrow_dtype(values_type)))
 
 
 def struct_type(fields: Sequence[tuple[str, Dtype]]) -> Dtype:
+    """Create a struct dtype with give fields names and types."""
     pa_fields = [
         pa.field(str, bigframes_dtype_to_arrow_dtype(dtype)) for str, dtype in fields
     ]

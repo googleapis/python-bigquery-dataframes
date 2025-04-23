@@ -53,7 +53,8 @@ def _(node: nodes.SelectionNode) -> nodes.BigFrameNode:
         return node
     if node.has_multi_referenced_ids:
         return node
-
+    if isinstance(node, nodes.ReadLocalNode) and node.offsets_col is not None:
+        return node
     selection = {
         aliased_ref.ref.id: aliased_ref.id for aliased_ref in node.input_output_pairs
     }

@@ -15,8 +15,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-import pyarrow as pa
-
 from bigframes.core import bigframe_node, rewrite
 from bigframes.session import executor, semi_executor
 
@@ -46,15 +44,25 @@ class LocalScanExecutor(semi_executor.SemiExecutor):
             )
             if peek:
                 arrow_table = arrow_table.slice(0, peek)
-            for batch in arrow_table.to_batches():
-                names = [item.id.sql for item in node.scan_list.items]
-                arrays = [batch.column(item.source_id) for item in node.scan_list.items]
-                yield pa.record_batch(arrays, names=names)
+
+            needed_cols = [item.source_id for item in node.scan_list.items]
+            if offsets_col is not None:
+                needed_cols.append(offsets_col)
+
+            arrow_table = arrow_table.select(needed_cols)
+            arrow_table = arrow_table.rename_columns(
+                {item.source_id: item.id.sql for item in node.scan_list.items}
+            )
+            yield from arrow_table.to_batches()
+
+        total_rows = node.row_count
+        if (peek is not None) and (total_rows is not None):
+            total_rows = min(peek, total_rows)
 
         return executor.ExecuteResult(
             arrow_batches=iterator_supplier,
             schema=plan.schema,
             query_job=None,
             total_bytes=None,
-            total_rows=peek or node.local_data_source.metadata.row_count,
+            total_rows=total_rows,
         )
