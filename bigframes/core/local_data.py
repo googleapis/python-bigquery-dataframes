@@ -130,7 +130,7 @@ class ManagedArrowTable:
         duration_type: Literal["int", "duration"] = "duration",
         json_type: Literal["string"] = "string",
     ) -> pa.Table:
-        batches, schema = self.to_arrow(
+        schema, batches = self.to_arrow(
             offsets_col=offsets_col,
             geo_format=geo_format,
             duration_type=duration_type,
