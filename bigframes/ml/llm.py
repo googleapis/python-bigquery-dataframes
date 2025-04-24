@@ -72,8 +72,6 @@ _GEMINI_PREVIEW_ENDPOINTS = (
 _GEMINI_FINE_TUNE_SCORE_ENDPOINTS = (
     _GEMINI_1P5_PRO_002_ENDPOINT,
     _GEMINI_1P5_FLASH_002_ENDPOINT,
-    _GEMINI_2_FLASH_001_ENDPOINT,
-    _GEMINI_2_FLASH_LITE_001_ENDPOINT,
 )
 _GEMINI_MULTIMODAL_ENDPOINTS = (
     _GEMINI_1P5_PRO_001_ENDPOINT,
@@ -521,8 +519,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         y: utils.ArrayType,
     ) -> GeminiTextGenerator:
         """Fine tune GeminiTextGenerator model. Only support "gemini-1.5-pro-002",
-           "gemini-1.5-flash-002" models, "gemini-2.0-flash-lite-001",
-           and "gemini-2.0-flash-001" for now.
+           and "gemini-1.5-flash-002" models for now.
 
         .. note::
 
