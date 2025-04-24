@@ -271,11 +271,6 @@ def compile_concat(node: nodes.ConcatNode, *children: compiled.UnorderedIR):
 
 
 @_compile_node.register
-def compile_rowcount(node: nodes.RowCountNode, child: compiled.UnorderedIR):
-    return child.row_count(name=node.col_id.sql)
-
-
-@_compile_node.register
 def compile_aggregate(node: nodes.AggregateNode, child: compiled.UnorderedIR):
     aggs = tuple((agg, id.sql) for agg, id in node.aggregations)
     result = child.aggregate(aggs, node.by_column_ids, order_by=node.order_by)

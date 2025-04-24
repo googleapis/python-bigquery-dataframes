@@ -75,7 +75,7 @@ class Executor(abc.ABC):
         use_explicit_destination: Optional[bool] = False,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
-    ):
+    ) -> ExecuteResult:
         """
         Execute the ArrayValue, storing the result to a temporary session-owned table.
         """
@@ -134,10 +134,6 @@ class Executor(abc.ABC):
         Preview the first n rows of the dataframe. This is less efficient than the unordered peek preview op.
         """
         raise NotImplementedError("head not implemented for this executor")
-
-    # TODO: This should be done through execute()
-    def get_row_count(self, array_value: bigframes.core.ArrayValue) -> int:
-        raise NotImplementedError("get_row_count not implemented for this executor")
 
     def cached(
         self,

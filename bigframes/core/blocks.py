@@ -221,7 +221,14 @@ class Block:
             except Exception:
                 pass
 
-        row_count = self.session._executor.get_row_count(self.expr)
+        row_count = next(
+            iter(
+                self.session._executor.execute(self.expr.row_count())
+                .to_arrow_table()
+                .to_pydict()
+                .values()
+            )
+        )[0]
         return (row_count, len(self.value_columns))
 
     @property
@@ -485,7 +492,7 @@ class Block:
         *,
         ordered: bool = True,
         allow_large_results: Optional[bool] = None,
-    ) -> Tuple[pa.Table, bigquery.QueryJob]:
+    ) -> Tuple[pa.Table, Optional[bigquery.QueryJob]]:
         """Run query and download results as a pyarrow Table."""
         execute_result = self.session._executor.execute(
             self.expr, ordered=ordered, use_explicit_destination=allow_large_results
@@ -659,7 +666,7 @@ class Block:
 
         # TODO: Maybe materialize before downsampling
         # Some downsampling methods
-        if fraction < 1:
+        if fraction < 1 and (execute_result.total_rows is not None):
             if not sample_config.enable_downsampling:
                 raise RuntimeError(
                     f"The data size ({table_mb:.2f} MB) exceeds the maximum download limit of "
@@ -690,7 +697,6 @@ class Block:
                 MaterializationOptions(ordered=materialize_options.ordered)
             )
         else:
-            total_rows = execute_result.total_rows
             arrow = execute_result.to_arrow_table()
             df = io_pandas.arrow_to_pandas(arrow, schema=self.expr.schema)
             self._copy_index_to_pandas(df)
@@ -1570,12 +1576,19 @@ class Block:
 
         # head caches full underlying expression, so row_count will be free after
         head_result = self.session._executor.head(self.expr, max_results)
-        count = self.session._executor.get_row_count(self.expr)
+        row_count = next(
+            iter(
+                self.session._executor.execute(self.expr.row_count())
+                .to_arrow_table()
+                .to_pydict()
+                .values()
+            )
+        )[0]
 
         arrow = head_result.to_arrow_table()
         df = io_pandas.arrow_to_pandas(arrow, schema=self.expr.schema)
         self._copy_index_to_pandas(df)
-        return df, count, head_result.query_job
+        return df, row_count, head_result.query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
         expr, result_id = self._expr.promote_offsets()
