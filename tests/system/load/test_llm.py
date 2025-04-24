@@ -77,53 +77,6 @@ def test_llm_gemini_configure_fit(
     )
 
 
-@pytest.fixture(scope="session")
-def llm_remote_text_df_in_test_session(test_session, llm_remote_text_pandas_df):
-    return test_session.read_pandas(llm_remote_text_pandas_df)
-
-
-@pytest.mark.parametrize(
-    "model_name",
-    (
-        "gemini-2.0-flash-001",
-        "gemini-2.0-flash-lite-001",
-    ),
-)
-def test_llm_gemini_configure_fit_in_test_session(
-    test_session,
-    model_name,
-    llm_fine_tune_df_default_index_in_test_session,
-    llm_remote_text_df_in_test_session,
-):
-    model = llm.GeminiTextGenerator(
-        session=test_session, model_name=model_name, max_iterations=1
-    )
-
-    X_train = llm_fine_tune_df_default_index_in_test_session[["prompt"]]
-    y_train = llm_fine_tune_df_default_index_in_test_session[["label"]]
-    model.fit(X_train, y_train)
-
-    assert model is not None
-
-    df = model.predict(
-        llm_remote_text_df_in_test_session["prompt"],
-        temperature=0.5,
-        max_output_tokens=100,
-        top_k=20,
-        top_p=0.5,
-    ).to_pandas()
-    utils.check_pandas_df_schema_and_index(
-        df,
-        columns=[
-            "ml_generate_text_llm_result",
-            "ml_generate_text_rai_result",
-            "ml_generate_text_status",
-            "prompt",
-        ],
-        index=3,
-    )
-
-
 @pytest.mark.flaky(retries=2)
 def test_llm_gemini_w_ground_with_google_search(llm_remote_text_df):
     model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-002", max_iterations=1)
