@@ -542,7 +542,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         """
         if self.model_name not in _GEMINI_FINE_TUNE_SCORE_ENDPOINTS:
             raise NotImplementedError(
-                "fit() only supports gemini-1.5-pro-002, or gemini-1.5-flash-002 model."
+                "fit() only supports gemini-1.5-pro-002, gemini-1.5-flash-002, gemini-2.0-flash-001, and gemini-2.0-flash-lite-001 model."
             )
 
         X, y = utils.batch_convert_to_dataframe(X, y)
@@ -752,7 +752,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
 
         if self.model_name not in _GEMINI_FINE_TUNE_SCORE_ENDPOINTS:
             raise NotImplementedError(
-                "score() only supports gemini-1.5-pro-002, and gemini-1.5-flash-2 model."
+                "score() only supports gemini-1.5-pro-002, gemini-1.5-flash-2, gemini-2.0-flash-001, and gemini-2.0-flash-lite-001 model."
             )
 
         X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)

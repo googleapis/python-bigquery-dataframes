@@ -49,7 +49,7 @@ def test_multimodal_embedding_generator_predict_default_params_success(
         "gemini-2.0-flash-exp",
         "gemini-2.0-flash-001",
         "gemini-2.0-flash-lite-001",
-    ),
+    ),  # NOTE: wait for "gemini-2.0-flash-lite-001" quota support from BQML
 )
 @pytest.mark.flaky(retries=2)
 def test_gemini_text_generator_multimodal_input(
