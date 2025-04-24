@@ -231,7 +231,7 @@ def _iter_table(
         value_generator = iter_array(
             array.flatten(), bigframes.dtypes.get_array_inner_type(dtype)
         )
-        for (start, end) in itertools.pairwise(array.offsets):
+        for (start, end) in _pairwise(array.offsets):
             arr_size = end.as_py() - start.as_py()
             yield list(itertools.islice(value_generator, arr_size))
 
@@ -443,3 +443,16 @@ def _cast_pa_batch(batch: pa.RecordBatch, schema: pa.Schema) -> pa.RecordBatch:
         [arr.cast(type) for arr, type in zip(batch.columns, schema.types)],
         schema=schema,
     )
+
+
+def _pairwise(iterable):
+    do_yield = False
+    a = None
+    b = None
+    for item in iterable:
+        a = b
+        b = item
+        if do_yield:
+            yield (a, b)
+        else:
+            do_yield = True
