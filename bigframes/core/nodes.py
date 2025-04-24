@@ -33,7 +33,7 @@ from typing import (
 
 import google.cloud.bigquery as bq
 
-from bigframes.core import chain_list, identifiers, local_data
+from bigframes.core import identifiers, local_data, sequences
 from bigframes.core.bigframe_node import BigFrameNode, COLUMN_SET, Field
 import bigframes.core.expression as ex
 from bigframes.core.ordering import OrderingExpression, RowOrdering
@@ -227,7 +227,7 @@ class InNode(BigFrameNode, AdditiveNode):
 
     @property
     def fields(self) -> Sequence[Field]:
-        return chain_list.ChainList(
+        return sequences.ChainedSequence(
             self.left_child.fields,
             self.added_fields,
         )
@@ -890,7 +890,7 @@ class PromoteOffsetsNode(UnaryNode, AdditiveNode):
 
     @property
     def fields(self) -> Sequence[Field]:
-        return chain_list.ChainList(self.child.fields, self.added_fields)
+        return sequences.ChainedSequence(self.child.fields, self.added_fields)
 
     @property
     def relation_ops_created(self) -> int:
@@ -1201,7 +1201,7 @@ class ProjectionNode(UnaryNode, AdditiveNode):
 
     @property
     def fields(self) -> Sequence[Field]:
-        return chain_list.ChainList(self.child.fields, self.added_fields)
+        return sequences.ChainedSequence(self.child.fields, self.added_fields)
 
     @property
     def variables_introduced(self) -> int:
@@ -1420,7 +1420,7 @@ class WindowOpNode(UnaryNode, AdditiveNode):
 
     @property
     def fields(self) -> Sequence[Field]:
-        return chain_list.ChainList(self.child.fields, (self.added_field,))
+        return sequences.ChainedSequence(self.child.fields, (self.added_field,))
 
     @property
     def variables_introduced(self) -> int:
