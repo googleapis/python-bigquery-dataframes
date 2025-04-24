@@ -193,7 +193,6 @@ def combine_training_and_evaluation_data(
 def standardize_type(v: str, supported_dtypes: Optional[Iterable[str]] = None):
     t = v.lower()
     t = t.replace("boolean", "bool")
-    t = t.replace("str", "string")
 
     if supported_dtypes:
         if t not in supported_dtypes:

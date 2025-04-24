@@ -177,7 +177,6 @@ class BqmlModel(BaseBqml):
         )
 
     generate_text_tvf = TvfDef(generate_text, "ml_generate_text_status")
-    # generate_text.STATUS_COL = "ml_generate_text_status"
 
     def generate_embedding(
         self,
@@ -194,7 +193,6 @@ class BqmlModel(BaseBqml):
         )
 
     generate_embedding_tvf = TvfDef(generate_embedding, "ml_generate_embedding_status")
-    # generate_embedding.STATUS_COL = "ml_generate_embedding_status"
 
     def generate_table(
         self,
@@ -210,7 +208,6 @@ class BqmlModel(BaseBqml):
         )
 
     generate_table_tvf = TvfDef(generate_table, "status")
-    # generate_table.STATUS_COL = "status"
 
     def detect_anomalies(
         self, input_data: bpd.DataFrame, options: Mapping[str, int | float]
