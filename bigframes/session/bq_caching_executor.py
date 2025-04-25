@@ -35,7 +35,7 @@ import bigframes.core.tree_properties as tree_properties
 import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.features
-from bigframes.session import executor, local_scan_executor, read_api_execution
+from bigframes.session import executor, loader, local_scan_executor, read_api_execution
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
 import bigframes.session.planner
@@ -47,6 +47,7 @@ QUERY_COMPLEXITY_LIMIT = 1e7
 MAX_SUBTREE_FACTORINGS = 5
 _MAX_CLUSTER_COLUMNS = 4
 MAX_SMALL_RESULT_BYTES = 10 * 1024 * 1024 * 1024  # 10G
+MAX_INLINE_BYTES = 5000
 
 
 class BigQueryCachingExecutor(executor.Executor):
@@ -63,6 +64,7 @@ class BigQueryCachingExecutor(executor.Executor):
         bqclient: bigquery.Client,
         storage_manager: bigframes.session.temporary_storage.TemporaryStorageManager,
         bqstoragereadclient: google.cloud.bigquery_storage_v1.BigQueryReadClient,
+        loader: loader.GbqDataLoader,
         *,
         strictly_ordered: bool = True,
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
@@ -72,6 +74,7 @@ class BigQueryCachingExecutor(executor.Executor):
         self.compiler: bigframes.core.compile.SQLCompiler = (
             bigframes.core.compile.SQLCompiler()
         )
+        self.loader = loader
         self.strictly_ordered: bool = strictly_ordered
         self._cached_executions: weakref.WeakKeyDictionary[
             nodes.BigFrameNode, nodes.BigFrameNode
@@ -436,6 +439,31 @@ class BigQueryCachingExecutor(executor.Executor):
             did_cache = self._cache_most_complex_subtree(array_value.node)
             if not did_cache:
                 return
+
+    def _upload_large_local_sources(self, root: nodes.BigFrameNode):
+        for leaf in root.unique_nodes():
+            if isinstance(leaf, nodes.ReadLocalNode):
+                if leaf.local_data_source.metadata.total_bytes > MAX_INLINE_BYTES:
+                    self._cache_local_table(leaf)
+
+    def _cache_local_table(self, node: nodes.ReadLocalNode):
+        offsets_col = bigframes.core.guid.generate_guid()
+        # TODO: Best effort go through available upload paths
+        bq_data_source = self.loader.write_data(
+            node.local_data_source, offsets_col=offsets_col
+        )
+        scan_list = node.scan_list
+        if node.offsets_col is not None:
+            scan_list = scan_list.append(
+                offsets_col, bigframes.dtypes.INT_DTYPE, node.offsets_col
+            )
+        cache_node = nodes.CachedTableNode(
+            source=bq_data_source,
+            scan_list=scan_list,
+            table_session=self.loader._session,
+            original_node=node,
+        )
+        self._cached_executions[node] = cache_node
 
     def _cache_most_complex_subtree(self, node: nodes.BigFrameNode) -> bool:
         # TODO: If query fails, retry with lower complexity limit

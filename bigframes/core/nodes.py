@@ -614,6 +614,11 @@ class ScanList:
             result = ScanList((self.items[:1]))
         return result
 
+    def append(
+        self, source_id: str, dtype: bigframes.dtypes.Dtype, id: identifiers.ColumnId
+    ) -> ScanList:
+        return ScanList((*self.items, ScanItem(id, dtype, source_id)))
+
 
 @dataclasses.dataclass(frozen=True, eq=False)
 class ReadLocalNode(LeafNode):
