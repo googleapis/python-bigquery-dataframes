@@ -15,7 +15,7 @@
 import functools
 import inspect
 import threading
-from typing import List
+from typing import List, Optional
 
 from google.cloud import bigquery
 import pandas
@@ -37,7 +37,7 @@ _call_stack: List = []
 
 
 def submit_pandas_labels(
-    bq_client: bigquery.Client,
+    bq_client: Optional[bigquery.Client],
     class_name: str,
     method_name: str,
     args=(),
@@ -63,7 +63,9 @@ def submit_pandas_labels(
                     - 'PANDAS_PARAM_TRACKING_TASK': Indicates that the unimplemented feature is a
                       parameter of a method.
     """
-    if method_name.startswith("_") and not method_name.startswith("__"):
+    if bq_client is None or (
+        method_name.startswith("_") and not method_name.startswith("__")
+    ):
         return
 
     labels_dict = {
@@ -110,30 +112,22 @@ def submit_pandas_labels(
     bq_client.query(query, job_config=job_config)
 
 
-def class_logger(decorated_cls=None, /, *, include_internal_calls=False):
+def class_logger(decorated_cls=None):
     """Decorator that adds logging functionality to each method of the class."""
 
     def wrap(cls):
         for attr_name, attr_value in cls.__dict__.items():
             if callable(attr_value) and (attr_name not in _excluded_methods):
-                if isinstance(attr_value, staticmethod):
-                    # TODO(b/390244171) support for staticmethod
-                    pass
-                else:
-                    setattr(
-                        cls,
-                        attr_name,
-                        method_logger(
-                            attr_value,
-                            cls,
-                            include_internal_calls,
-                        ),
-                    )
+                setattr(
+                    cls,
+                    attr_name,
+                    method_logger(attr_value),
+                )
             elif isinstance(attr_value, property):
                 setattr(
                     cls,
                     attr_name,
-                    property_logger(attr_value, cls, include_internal_calls),
+                    property_logger(attr_value),
                 )
         return cls
 
@@ -145,32 +139,37 @@ def class_logger(decorated_cls=None, /, *, include_internal_calls=False):
     return wrap(decorated_cls)
 
 
-def method_logger(method, decorated_cls, include_internal_calls: bool):
+def method_logger(method, /, *, custom_base_name: Optional[str] = None):
     """Decorator that adds logging functionality to a method."""
 
     @functools.wraps(method)
-    def wrapper(self, *args, **kwargs):
-        class_name = decorated_cls.__name__  # Access decorated class name
+    def wrapper(*args, **kwargs):
         api_method_name = str(method.__name__)
-        full_method_name = f"{class_name.lower()}-{api_method_name}"
+        if custom_base_name is None:
+            qualname_parts = getattr(method, "__qualname__", method.__name__).split(".")
+            class_name = qualname_parts[-2] if len(qualname_parts) > 1 else ""
+            base_name = class_name if class_name else method.__module__
+        else:
+            base_name = custom_base_name
 
+        full_method_name = f"{base_name.lower()}-{api_method_name}"
         # Track directly called methods
-        if len(_call_stack) == 0 or include_internal_calls:
+        if len(_call_stack) == 0:
             add_api_method(full_method_name)
 
         _call_stack.append(full_method_name)
 
         try:
-            return method(self, *args, **kwargs)
+            return method(*args, **kwargs)
         except (NotImplementedError, TypeError) as e:
             # Log method parameters that are implemented in pandas but either missing (TypeError)
             # or not fully supported (NotImplementedError) in BigFrames.
             # Logging is currently supported only when we can access the bqclient through
             # self._block.expr.session.bqclient. Also, to avoid generating multiple queries
             # because of internal calls, we log only when the method is directly invoked.
-            if hasattr(self, "_block") and len(_call_stack) == 1:
+            if len(_call_stack) == 1:
                 submit_pandas_labels(
-                    self._block.expr.session.bqclient,
+                    _get_bq_client(*args, **kwargs),
                     class_name,
                     api_method_name,
                     args,
@@ -184,22 +183,23 @@ def method_logger(method, decorated_cls, include_internal_calls: bool):
     return wrapper
 
 
-def property_logger(prop, decorated_cls, include_internal_calls: bool):
+def property_logger(prop):
     """Decorator that adds logging functionality to a property."""
 
-    def shared_wrapper(f):
-        @functools.wraps(f)
+    def shared_wrapper(prop):
+        @functools.wraps(prop)
         def wrapped(*args, **kwargs):
-            class_name = decorated_cls.__name__
-            property_name = f.__name__
+            qualname_parts = getattr(prop, "__qualname__", prop.__name__).split(".")
+            class_name = qualname_parts[-2] if len(qualname_parts) > 1 else ""
+            property_name = prop.__name__
             full_property_name = f"{class_name.lower()}-{property_name.lower()}"
 
-            if len(_call_stack) == 0 or include_internal_calls:
+            if len(_call_stack) == 0:
                 add_api_method(full_property_name)
 
             _call_stack.append(full_property_name)
             try:
-                return f(*args, **kwargs)
+                return prop(*args, **kwargs)
             finally:
                 _call_stack.pop()
 
@@ -232,3 +232,15 @@ def get_and_reset_api_methods(dry_run: bool = False):
         if not dry_run:
             _api_methods.clear()
     return previous_api_methods
+
+
+def _get_bq_client(*args, **kwargs):
+    for argv in args:
+        if hasattr(argv, "_block"):
+            return argv._block.session.bqclient
+
+    for kwargv in kwargs.values():
+        if hasattr(kwargv, "_block"):
+            return kwargv._block.session.bqclient
+
+    return None

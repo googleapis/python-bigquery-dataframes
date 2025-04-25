@@ -156,7 +156,6 @@ def infer_unique_columns(
     bqclient: bigquery.Client,
     table: bigquery.table.Table,
     index_cols: List[str],
-    api_name: str,
     metadata_only: bool = False,
 ) -> Tuple[str, ...]:
     """Return a set of columns that can provide a unique row key or empty if none can be inferred.
@@ -178,7 +177,6 @@ def infer_unique_columns(
     # table_expression only selects just index_cols.
     is_unique_sql = bigframes.core.sql.is_distinct_sql(index_cols, table.reference)
     job_config = bigquery.QueryJobConfig()
-    job_config.labels["bigframes-api"] = api_name
     results = bqclient.query_and_wait(is_unique_sql, job_config=job_config)
     row = next(iter(results))
 
