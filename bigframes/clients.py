@@ -17,32 +17,57 @@
 from __future__ import annotations
 
 import logging
+import textwrap
 import time
 from typing import cast, Optional
 
 import google.api_core.exceptions
 import google.api_core.retry
 from google.cloud import bigquery_connection_v1, resourcemanager_v3
-from google.iam.v1 import iam_policy_pb2, policy_pb2
 
 logger = logging.getLogger(__name__)
 
 
-def resolve_full_bq_connection_name(
-    connection_name: str, default_project: str, default_location: str
+def get_canonical_bq_connection_id(
+    connection_id: str, default_project: str, default_location: str
 ) -> str:
-    """Retrieve the full connection name of the form <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
-    Use default project, location or connection_id when any of them are missing."""
-    if connection_name.count(".") == 2:
-        return connection_name
+    """
+    Retrieve the full connection id of the form
+    <PROJECT_NUMBER/PROJECT_ID>.<LOCATION>.<CONNECTION_ID>.
+    Use default project, location or connection_id when any of them are missing.
+    """
 
-    if connection_name.count(".") == 1:
-        return f"{default_project}.{connection_name}"
+    if "/" in connection_id:
+        fields = connection_id.split("/")
+        if (
+            len(fields) == 6
+            and fields[0] == "projects"
+            and fields[2] == "locations"
+            and fields[4] == "connections"
+        ):
+            return ".".join((fields[1], fields[3], fields[5]))
+    else:
+        if connection_id.count(".") == 2:
+            return connection_id
 
-    if connection_name.count(".") == 0:
-        return f"{default_project}.{default_location}.{connection_name}"
+        if connection_id.count(".") == 1:
+            return f"{default_project}.{connection_id}"
 
-    raise ValueError(f"Invalid connection name format: {connection_name}.")
+        if connection_id.count(".") == 0:
+            return f"{default_project}.{default_location}.{connection_id}"
+
+    raise ValueError(
+        textwrap.dedent(
+            f"""
+        Invalid connection id format: {connection_id}.
+        Only the following formats are supported:
+            <project-id>.<location>.<connection-id>,
+            <location>.<connection-id>,
+            <connection-id>,
+            projects/<project-id>/locations/<location>/connections/<connection-id>
+        """
+        ).strip()
+    )
 
 
 class BqConnectionManager:
@@ -60,7 +85,11 @@ class BqConnectionManager:
         self._cloud_resource_manager_client = cloud_resource_manager_client
 
     def create_bq_connection(
-        self, project_id: str, location: str, connection_id: str, iam_role: str
+        self,
+        project_id: str,
+        location: str,
+        connection_id: str,
+        iam_role: Optional[str] = None,
     ):
         """Create the BQ connection if not exist. In addition, try to add the IAM role to the connection to ensure required permissions.
 
@@ -80,7 +109,7 @@ class BqConnectionManager:
         )
         if service_account_id:
             logger.info(
-                f"Connector {project_id}.{location}.{connection_id} already exists"
+                f"BQ connection {project_id}.{location}.{connection_id} already exists"
             )
         else:
             connection_name, service_account_id = self._create_bq_connection(
@@ -90,20 +119,34 @@ class BqConnectionManager:
                 f"Created BQ connection {connection_name} with service account id: {service_account_id}"
             )
         service_account_id = cast(str, service_account_id)
+
         # Ensure IAM role on the BQ connection
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#grant_permission_on_function
-        self._ensure_iam_binding(project_id, service_account_id, iam_role)
+        if iam_role:
+            try:
+                self._ensure_iam_binding(project_id, service_account_id, iam_role)
+            except google.api_core.exceptions.PermissionDenied as ex:
+                ex.message = f"Failed ensuring IAM binding (role={iam_role}, service-account={service_account_id}). {ex.message}"
+                raise
 
-    # Introduce retries to accommodate transient errors like etag mismatch,
-    # which can be caused by concurrent operation on the same resource, and
-    # manifests with message like:
-    # google.api_core.exceptions.Aborted: 409 There were concurrent policy
-    # changes. Please retry the whole read-modify-write with exponential
-    # backoff. The request's ETag '\007\006\003,\264\304\337\272' did not match
-    # the current policy's ETag '\007\006\003,\3750&\363'.
+    # Introduce retries to accommodate transient errors like:
+    # (1) Etag mismatch,
+    #     which can be caused by concurrent operation on the same resource, and
+    #     manifests with message like:
+    #     google.api_core.exceptions.Aborted: 409 There were concurrent policy
+    #     changes. Please retry the whole read-modify-write with exponential
+    #     backoff. The request's ETag '\007\006\003,\264\304\337\272' did not
+    #     match the current policy's ETag '\007\006\003,\3750&\363'.
+    # (2) Connection creation,
+    #     for which sometimes it takes a bit for its service account to reflect
+    #     across APIs (e.g. b/397662004, b/386838767), before which, an attempt
+    #     to set an IAM policy for the service account may throw an error like:
+    #     google.api_core.exceptions.InvalidArgument: 400 Service account
+    #     bqcx-*@gcp-sa-bigquery-condel.iam.gserviceaccount.com does not exist.
     @google.api_core.retry.Retry(
         predicate=google.api_core.retry.if_exception_type(
-            google.api_core.exceptions.Aborted
+            google.api_core.exceptions.Aborted,
+            google.api_core.exceptions.InvalidArgument,
         ),
         initial=10,
         maximum=20,
@@ -117,7 +160,9 @@ class BqConnectionManager:
         project = f"projects/{project_id}"
         service_account = f"serviceAccount:{service_account_id}"
         role = f"roles/{iam_role}"
-        request = iam_policy_pb2.GetIamPolicyRequest(resource=project)
+        request = {
+            "resource": project
+        }  # Use a dictionary to avoid problematic google.iam namespace package.
         policy = self._cloud_resource_manager_client.get_iam_policy(request=request)
 
         # Check if the binding already exists, and if does, do nothing more
@@ -127,9 +172,15 @@ class BqConnectionManager:
                     return
 
         # Create a new binding
-        new_binding = policy_pb2.Binding(role=role, members=[service_account])
+        new_binding = {
+            "role": role,
+            "members": [service_account],
+        }  # Use a dictionary to avoid problematic google.iam namespace package.
         policy.bindings.append(new_binding)
-        request = iam_policy_pb2.SetIamPolicyRequest(resource=project, policy=policy)
+        request = {
+            "resource": project,
+            "policy": policy,
+        }  # Use a dictionary to avoid problematic google.iam namespace package.
         self._cloud_resource_manager_client.set_iam_policy(request=request)
 
         # We would wait for the IAM policy change to take effect

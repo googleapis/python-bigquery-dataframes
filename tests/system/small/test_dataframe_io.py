@@ -14,7 +14,6 @@
 
 from typing import Tuple
 
-import db_dtypes  # type:ignore
 import google.api_core.exceptions
 import pandas as pd
 import pandas.testing
@@ -36,6 +35,7 @@ from google.cloud import bigquery
 
 import bigframes
 import bigframes.dataframe
+import bigframes.enums
 import bigframes.features
 import bigframes.pandas as bpd
 
@@ -254,164 +254,86 @@ def test_to_pandas_array_struct_correct_result(session):
 def test_to_pandas_override_global_option(scalars_df_index):
     # Direct call to_pandas uses global default setting (allow_large_results=True),
     # table has 'bqdf' prefix.
-    scalars_df_index.to_pandas()
-    table_id = scalars_df_index._query_job.destination.table_id
-    assert table_id.startswith("bqdf")
+    with bigframes.option_context("bigquery.allow_large_results", True):
 
-    # When allow_large_results=False, a query_job object should not be created.
-    # Therefore, the table_id should remain unchanged.
-    scalars_df_index.to_pandas(allow_large_results=False)
-    assert scalars_df_index._query_job.destination.table_id == table_id
+        scalars_df_index.to_pandas()
+        table_id = scalars_df_index._query_job.destination.table_id
+        assert table_id is not None
+
+        # When allow_large_results=False, a query_job object should not be created.
+        # Therefore, the table_id should remain unchanged.
+        scalars_df_index.to_pandas(allow_large_results=False)
+        assert scalars_df_index._query_job.destination.table_id == table_id
+
+
+def test_to_pandas_downsampling_option_override(session):
+    df = session.read_gbq("bigframes-dev.bigframes_tests_sys.batting")
+    download_size = 1
+
+    with pytest.warns(
+        UserWarning, match="The data size .* exceeds the maximum download limit"
+    ):
+        # limits only apply for allow_large_result=True
+        df = df.to_pandas(
+            max_download_size=download_size,
+            sampling_method="head",
+            allow_large_results=True,
+        )
+
+    total_memory_bytes = df.memory_usage(deep=True).sum()
+    total_memory_mb = total_memory_bytes / (1024 * 1024)
+    assert total_memory_mb == pytest.approx(download_size, rel=0.5)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        pytest.param(
+            {"sampling_method": "head"},
+            r"DEPRECATED[\S\s]*sampling_method[\S\s]*DataFrame.sample",
+            id="sampling_method",
+        ),
+        pytest.param(
+            {"random_state": 10},
+            r"DEPRECATED[\S\s]*random_state[\S\s]*DataFrame.sample",
+            id="random_state",
+        ),
+        pytest.param(
+            {"max_download_size": 10},
+            r"DEPRECATED[\S\s]*max_download_size[\S\s]*DataFrame.to_pandas_batches",
+            id="max_download_size",
+        ),
+    ],
+)
+def test_to_pandas_warns_deprecated_parameters(scalars_df_index, kwargs, message):
+    with pytest.warns(FutureWarning, match=message):
+        scalars_df_index.to_pandas(
+            # limits only apply for allow_large_result=True
+            allow_large_results=True,
+            **kwargs,
+        )
+
+
+def test_to_pandas_dry_run(session, scalars_pandas_df_multi_index):
+    bf_df = session.read_pandas(scalars_pandas_df_multi_index)
+
+    result = bf_df.to_pandas(dry_run=True)
+
+    assert len(result) == 14
 
 
 def test_to_arrow_override_global_option(scalars_df_index):
     # Direct call to_arrow uses global default setting (allow_large_results=True),
-    # table has 'bqdf' prefix.
-    scalars_df_index.to_arrow()
-    table_id = scalars_df_index._query_job.destination.table_id
-    assert table_id.startswith("bqdf")
+    with bigframes.option_context("bigquery.allow_large_results", True):
 
-    # When allow_large_results=False, a query_job object should not be created.
-    # Therefore, the table_id should remain unchanged.
-    scalars_df_index.to_arrow(allow_large_results=False)
-    assert scalars_df_index._query_job.destination.table_id == table_id
+        scalars_df_index.to_arrow()
+        table_id = scalars_df_index._query_job.destination.table_id
+        assert table_id is not None
 
-
-def test_load_json_w_json_string_items(session):
-    sql = """
-        SELECT 0 AS id, JSON_OBJECT('boolean', True) AS json_col,
-        UNION ALL
-        SELECT 1, JSON_OBJECT('int', 100),
-        UNION ALL
-        SELECT 2, JSON_OBJECT('float', 0.98),
-        UNION ALL
-        SELECT 3, JSON_OBJECT('string', 'hello world'),
-        UNION ALL
-        SELECT 4, JSON_OBJECT('array', [8, 9, 10]),
-        UNION ALL
-        SELECT 5, JSON_OBJECT('null', null),
-        UNION ALL
-        SELECT 6, JSON_OBJECT('b', 2, 'a', 1),
-        UNION ALL
-        SELECT
-            7,
-            JSON_OBJECT(
-                'dict',
-                JSON_OBJECT(
-                    'int', 1,
-                    'array', [JSON_OBJECT('foo', 1), JSON_OBJECT('bar', 'hello')]
-                )
-            ),
-    """
-    df = session.read_gbq(sql, index_col="id")
-
-    assert df.dtypes["json_col"] == pd.ArrowDtype(db_dtypes.JSONArrowType())
-
-    assert df["json_col"][0] == '{"boolean":true}'
-    assert df["json_col"][1] == '{"int":100}'
-    assert df["json_col"][2] == '{"float":0.98}'
-    assert df["json_col"][3] == '{"string":"hello world"}'
-    assert df["json_col"][4] == '{"array":[8,9,10]}'
-    assert df["json_col"][5] == '{"null":null}'
-
-    # Verifies JSON strings preserve array order, regardless of dictionary key order.
-    assert df["json_col"][6] == '{"a":1,"b":2}'
-    assert df["json_col"][7] == '{"dict":{"array":[{"foo":1},{"bar":"hello"}],"int":1}}'
-
-
-def test_load_json_to_pandas_has_correct_result(session):
-    df = session.read_gbq("SELECT JSON_OBJECT('foo', 10, 'bar', TRUE) AS json_col")
-    assert df.dtypes["json_col"] == pd.ArrowDtype(db_dtypes.JSONArrowType())
-    result = df.to_pandas()
-
-    # These JSON strings are compatible with BigQuery's JSON storage,
-    pd_df = pd.DataFrame(
-        {"json_col": ['{"bar":true,"foo":10}']},
-        dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()),
-    )
-    pd_df.index = pd_df.index.astype("Int64")
-    pd.testing.assert_series_equal(result.dtypes, pd_df.dtypes)
-    pd.testing.assert_series_equal(result["json_col"], pd_df["json_col"])
-
-
-def test_load_json_in_struct(session):
-    """Avoid regressions for internal issue 381148539."""
-    sql = """
-        SELECT 0 AS id, STRUCT(JSON_OBJECT('boolean', True) AS data, 1 AS number) AS struct_col
-        UNION ALL
-        SELECT 1, STRUCT(JSON_OBJECT('int', 100), 2),
-        UNION ALL
-        SELECT 2, STRUCT(JSON_OBJECT('float', 0.98), 3),
-        UNION ALL
-        SELECT 3, STRUCT(JSON_OBJECT('string', 'hello world'), 4),
-        UNION ALL
-        SELECT 4, STRUCT(JSON_OBJECT('array', [8, 9, 10]), 5),
-        UNION ALL
-        SELECT 5, STRUCT(JSON_OBJECT('null', null), 6),
-        UNION ALL
-        SELECT
-            6,
-            STRUCT(JSON_OBJECT(
-                'dict',
-                JSON_OBJECT(
-                    'int', 1,
-                    'array', [JSON_OBJECT('foo', 1), JSON_OBJECT('bar', 'hello')]
-                )
-            ), 7),
-    """
-    df = session.read_gbq(sql, index_col="id")
-
-    assert isinstance(df.dtypes["struct_col"], pd.ArrowDtype)
-    assert isinstance(df.dtypes["struct_col"].pyarrow_dtype, pa.StructType)
-
-    data = df["struct_col"].struct.field("data")
-    assert data.dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
-
-    assert data[0] == '{"boolean":true}'
-    assert data[1] == '{"int":100}'
-    assert data[2] == '{"float":0.98}'
-    assert data[3] == '{"string":"hello world"}'
-    assert data[4] == '{"array":[8,9,10]}'
-    assert data[5] == '{"null":null}'
-    assert data[6] == '{"dict":{"array":[{"foo":1},{"bar":"hello"}],"int":1}}'
-
-
-def test_load_json_in_array(session):
-    sql = """
-        SELECT
-            0 AS id,
-            [
-                JSON_OBJECT('boolean', True),
-                JSON_OBJECT('int', 100),
-                JSON_OBJECT('float', 0.98),
-                JSON_OBJECT('string', 'hello world'),
-                JSON_OBJECT('array', [8, 9, 10]),
-                JSON_OBJECT('null', null),
-                JSON_OBJECT(
-                    'dict',
-                    JSON_OBJECT(
-                        'int', 1,
-                        'array', [JSON_OBJECT('bar', 'hello'), JSON_OBJECT('foo', 1)]
-                    )
-                )
-            ] AS array_col,
-    """
-    df = session.read_gbq(sql, index_col="id")
-
-    assert isinstance(df.dtypes["array_col"], pd.ArrowDtype)
-    assert isinstance(df.dtypes["array_col"].pyarrow_dtype, pa.ListType)
-
-    data = df["array_col"].list
-    assert data.len()[0] == 7
-    assert data[0].dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
-
-    assert data[0][0] == '{"boolean":true}'
-    assert data[1][0] == '{"int":100}'
-    assert data[2][0] == '{"float":0.98}'
-    assert data[3][0] == '{"string":"hello world"}'
-    assert data[4][0] == '{"array":[8,9,10]}'
-    assert data[5][0] == '{"null":null}'
-    assert data[6][0] == '{"dict":{"array":[{"bar":"hello"},{"foo":1}],"int":1}}'
+        # When allow_large_results=False, a query_job object should not be created.
+        # Therefore, the table_id should remain unchanged.
+        scalars_df_index.to_arrow(allow_large_results=False)
+        assert scalars_df_index._query_job.destination.table_id == table_id
 
 
 def test_to_pandas_batches_w_correct_dtypes(scalars_df_default_index):
@@ -420,6 +342,30 @@ def test_to_pandas_batches_w_correct_dtypes(scalars_df_default_index):
     for df in scalars_df_default_index.to_pandas_batches():
         actual = df.dtypes
         pd.testing.assert_series_equal(actual, expected)
+
+
+@pytest.mark.parametrize("allow_large_results", (True, False))
+def test_to_pandas_batches_w_page_size_and_max_results(session, allow_large_results):
+    """Verify to_pandas_batches() APIs returns the expected page size.
+
+    Regression test for b/407521010.
+    """
+    bf_df = session.read_gbq(
+        "bigquery-public-data.usa_names.usa_1910_2013",
+        index_col=bigframes.enums.DefaultIndexKind.NULL,
+    )
+    expected_column_count = len(bf_df.columns)
+
+    batch_count = 0
+    for pd_df in bf_df.to_pandas_batches(
+        page_size=42, allow_large_results=allow_large_results, max_results=42 * 3
+    ):
+        batch_row_count, batch_column_count = pd_df.shape
+        batch_count += 1
+        assert batch_column_count == expected_column_count
+        assert batch_row_count == 42
+
+    assert batch_count == 3
 
 
 @pytest.mark.parametrize(
@@ -604,6 +550,89 @@ def test_to_gbq_w_duplicate_column_names(
         bf_result["int64_col_1"],
         check_names=False,
     )
+
+
+def test_to_gbq_w_flexible_column_names(
+    scalars_df_index, dataset_id: str, bigquery_client
+):
+    """Test the `to_gbq` API when dealing with flexible column names.
+
+    This test is for BigQuery-backed storage nodes.
+
+    See: https://cloud.google.com/bigquery/docs/schemas#flexible-column-names
+    """
+    destination_table = f"{dataset_id}.test_to_gbq_w_flexible_column_names"
+    renamed_columns = {
+        # First column in Japanese (tests unicode).
+        "bool_col": "最初のカラム",
+        "bytes_col": "col with space",
+        # Dots aren't allowed in BigQuery column names, so these should be translated
+        "date_col": "col.with.dots",
+        "datetime_col": "col-with-hyphens",
+        "geography_col": "1start_with_number",
+        "int64_col": "col_with_underscore",
+        # Just numbers.
+        "int64_too": "123",
+    }
+    bf_df = scalars_df_index[renamed_columns.keys()].rename(columns=renamed_columns)
+    assert list(bf_df.columns) == list(renamed_columns.values())
+    bf_df.to_gbq(destination_table, index=False)
+
+    table = bigquery_client.get_table(destination_table)
+    columns = [field.name for field in table.schema]
+    assert columns == [
+        "最初のカラム",
+        "col with space",
+        # Dots aren't allowed in BigQuery column names, so these should be translated
+        "col_with_dots",
+        "col-with-hyphens",
+        "1start_with_number",
+        "col_with_underscore",
+        "123",
+    ]
+
+
+def test_to_gbq_w_flexible_column_names_local_node(
+    session, dataset_id: str, bigquery_client
+):
+    """Test the `to_gbq` API when dealing with flexible column names.
+
+    This test is for local nodes, e.g. read_pandas(), since those may go through
+    a different code path compared to data that starts in BigQuery.
+
+    See: https://cloud.google.com/bigquery/docs/schemas#flexible-column-names
+    """
+    destination_table = f"{dataset_id}.test_to_gbq_w_flexible_column_names_local_node"
+
+    data = {
+        # First column in Japanese (tests unicode).
+        "最初のカラム": [1, 2, 3],
+        "col with space": [4, 5, 6],
+        # Dots aren't allowed in BigQuery column names, so these should be translated
+        "col.with.dots": [7, 8, 9],
+        "col-with-hyphens": [10, 11, 12],
+        "1start_with_number": [13, 14, 15],
+        "col_with_underscore": [16, 17, 18],
+        "123": [19, 20, 21],
+    }
+    pd_df = pd.DataFrame(data)
+    assert list(pd_df.columns) == list(data.keys())
+    bf_df = session.read_pandas(pd_df)
+    assert list(bf_df.columns) == list(data.keys())
+    bf_df.to_gbq(destination_table, index=False)
+
+    table = bigquery_client.get_table(destination_table)
+    columns = [field.name for field in table.schema]
+    assert columns == [
+        "最初のカラム",
+        "col with space",
+        # Dots aren't allowed in BigQuery column names, so these should be translated
+        "col_with_dots",
+        "col-with-hyphens",
+        "1start_with_number",
+        "col_with_underscore",
+        "123",
+    ]
 
 
 def test_to_gbq_w_None_column_names(

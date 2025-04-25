@@ -21,18 +21,21 @@ from typing import Literal, Optional, Sequence
 import bigframes_vendored.ibis
 import bigframes_vendored.ibis.backends.bigquery.backend as ibis_bigquery
 import bigframes_vendored.ibis.common.deferred as ibis_deferred  # type: ignore
+from bigframes_vendored.ibis.expr import builders as ibis_expr_builders
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
+from bigframes_vendored.ibis.expr.operations import window as ibis_expr_window
 import bigframes_vendored.ibis.expr.operations as ibis_ops
 import bigframes_vendored.ibis.expr.types as ibis_types
-import pandas
+from google.cloud import bigquery
+import pyarrow as pa
 
+from bigframes.core import utils
 import bigframes.core.compile.aggregate_compiler as agg_compiler
 import bigframes.core.compile.googlesql
 import bigframes.core.compile.ibis_types
 import bigframes.core.compile.scalar_op_compiler as op_compilers
 import bigframes.core.compile.scalar_op_compiler as scalar_op_compiler
 import bigframes.core.expression as ex
-import bigframes.core.guid
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.sql
 from bigframes.core.window_spec import RangeWindowBounds, RowsWindowBounds, WindowSpec
@@ -66,23 +69,28 @@ class UnorderedIR:
 
     def to_sql(
         self,
-        *,
-        order_by: Sequence[OrderingExpression] = (),
-        limit: Optional[int] = None,
-        selections: Optional[Sequence[str]] = None,
+        order_by: Sequence[OrderingExpression],
+        limit: Optional[int],
+        selections: tuple[tuple[ex.DerefOp, str], ...],
     ) -> str:
         ibis_table = self._to_ibis_expr()
         # This set of output transforms maybe should be its own output node??
-        if (
-            order_by
-            or limit
-            or (selections and (tuple(selections) != tuple(self.column_ids)))
-        ):
+
+        selection_strings = tuple((ref.id.sql, name) for ref, name in selections)
+
+        names_preserved = tuple(name for _, name in selections) == tuple(
+            self.column_ids
+        )
+        is_noop_selection = (
+            all((i[0] == i[1] for i in selection_strings)) and names_preserved
+        )
+
+        if order_by or limit or not is_noop_selection:
             sql = ibis_bigquery.Backend().compile(ibis_table)
             sql = (
                 bigframes.core.compile.googlesql.Select()
                 .from_(sql)
-                .select(selections or self.column_ids)
+                .select(selection_strings)
                 .sql()
             )
 
@@ -229,7 +237,7 @@ class UnorderedIR:
             col_out: agg_compiler.compile_aggregate(
                 aggregate,
                 bindings,
-                order_by=_convert_ordering_to_table_values(table, order_by),
+                order_by=_convert_row_ordering_to_table_values(table, order_by),
             )
             for aggregate, col_out in aggregations
         }
@@ -277,11 +285,8 @@ class UnorderedIR:
         )
 
     @classmethod
-    def from_pandas(
-        cls,
-        pd_df: pandas.DataFrame,
-        scan_cols: bigframes.core.nodes.ScanList,
-        offsets: typing.Optional[str] = None,
+    def from_polars(
+        cls, pa_table: pa.Table, schema: Sequence[bigquery.SchemaField]
     ) -> UnorderedIR:
         # TODO: add offsets
         """
@@ -290,37 +295,16 @@ class UnorderedIR:
         Assumed that the dataframe has unique string column names and bigframes-suppported
         dtypes.
         """
+        import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
 
-        # ibis memtable cannot handle NA, must convert to None
-        # this destroys the schema however
-        ibis_values = pd_df.astype("object").where(pandas.notnull(pd_df), None)  # type: ignore
-        if offsets:
-            ibis_values = ibis_values.assign(**{offsets: range(len(pd_df))})
         # derive the ibis schema from the original pandas schema
-        ibis_schema = [
-            (
-                local_label,
-                bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype(dtype),
-            )
-            for id, dtype, local_label in scan_cols.items
-        ]
-        if offsets:
-            ibis_schema.append((offsets, ibis_dtypes.int64))
-
         keys_memtable = bigframes_vendored.ibis.memtable(
-            ibis_values, schema=bigframes_vendored.ibis.schema(ibis_schema)
+            pa_table,
+            schema=third_party_ibis_bqtypes.BigQuerySchema.to_ibis(list(schema)),
         )
-
-        columns = [
-            keys_memtable[local_label].name(col_id.sql)
-            for col_id, _, local_label in scan_cols.items
-        ]
-        if offsets:
-            columns.append(keys_memtable[offsets].name(offsets))
-
         return cls(
             keys_memtable,
-            columns=columns,
+            columns=tuple(keys_memtable[key] for key in keys_memtable.columns),
         )
 
     def join(
@@ -461,7 +445,7 @@ class UnorderedIR:
                 never_skip_nulls=never_skip_nulls,
             )
 
-        if expression.op.order_independent and not window_spec.row_bounded:
+        if expression.op.order_independent and window_spec.is_unbounded:
             # notably percentile_cont does not support ordering clause
             window_spec = window_spec.without_order()
         window = self._ibis_window_from_spec(window_spec)
@@ -539,32 +523,35 @@ class UnorderedIR:
         # 1. Order-independent op (aggregation, cut, rank) with unbound window - no ordering clause needed
         # 2. Order-independent op (aggregation, cut, rank) with range window - use ordering clause, ties allowed
         # 3. Order-depedenpent op (navigation functions, array_agg) or rows bounds - use total row order to break ties.
-        if window_spec.ordering:
-            order_by = _convert_ordering_to_table_values(
+        if window_spec.is_row_bounded:
+            if not window_spec.ordering:
+                # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
+                raise ValueError("No ordering provided for ordered analytic function")
+            order_by = _convert_row_ordering_to_table_values(
                 self._column_names,
                 window_spec.ordering,
             )
-        elif window_spec.row_bounded:
-            # If window spec has following or preceding bounds, we need to apply an unambiguous ordering.
-            raise ValueError("No ordering provided for ordered analytic function")
-        else:
+
+        elif window_spec.is_range_bounded:
+            order_by = [
+                _convert_range_ordering_to_table_value(
+                    self._column_names,
+                    window_spec.ordering[0],
+                )
+            ]
+        # The rest if branches are for unbounded windows
+        elif window_spec.ordering:
             # Unbound grouping window. Suitable for aggregations but not for analytic function application.
+            order_by = _convert_row_ordering_to_table_values(
+                self._column_names,
+                window_spec.ordering,
+            )
+        else:
             order_by = None
 
-        bounds = window_spec.bounds
         window = bigframes_vendored.ibis.window(order_by=order_by, group_by=group_by)
-        if bounds is not None:
-            if isinstance(bounds, RangeWindowBounds):
-                window = window.preceding_following(
-                    bounds.preceding, bounds.following, how="range"
-                )
-            if isinstance(bounds, RowsWindowBounds):
-                if bounds.preceding is not None or bounds.following is not None:
-                    window = window.preceding_following(
-                        bounds.preceding, bounds.following, how="rows"
-                    )
-            else:
-                raise ValueError(f"unrecognized window bounds {bounds}")
+        if window_spec.bounds is not None:
+            return _add_boundary(window_spec.bounds, window)
         return window
 
 
@@ -584,7 +571,7 @@ def is_window(column: ibis_types.Value) -> bool:
     return any(isinstance(op, ibis_ops.WindowFunction) for op in matches)
 
 
-def _convert_ordering_to_table_values(
+def _convert_row_ordering_to_table_values(
     value_lookup: typing.Mapping[str, ibis_types.Value],
     ordering_columns: typing.Sequence[OrderingExpression],
 ) -> typing.Sequence[ibis_types.Value]:
@@ -610,6 +597,30 @@ def _convert_ordering_to_table_values(
             ordering_values.append(bigframes_vendored.ibis.asc(is_null_val))
         ordering_values.append(ordering_value)
     return ordering_values
+
+
+def _convert_range_ordering_to_table_value(
+    value_lookup: typing.Mapping[str, ibis_types.Value],
+    ordering_column: OrderingExpression,
+) -> ibis_types.Value:
+    """Converts the ordering for range windows to Ibis references.
+
+    Note that this method is different from `_convert_row_ordering_to_table_values` in
+    that it does not arrange null values. There are two reasons:
+    1. Manipulating null positions requires more than one ordering key, which is forbidden
+       by SQL window syntax for range rolling.
+    2. Pandas does not allow range rolling on timeseries with nulls.
+
+    Therefore, we opt for the simplest approach here: generate the simplest SQL and follow
+    the BigQuery engine behavior.
+    """
+    expr = op_compiler.compile_expression(
+        ordering_column.scalar_expression, value_lookup
+    )
+
+    if ordering_column.direction.is_ascending:
+        return bigframes_vendored.ibis.asc(expr)  # type: ignore
+    return bigframes_vendored.ibis.desc(expr)  # type: ignore
 
 
 def _string_cast_join_cond(
@@ -674,10 +685,48 @@ def _join_condition(
 
 
 def _as_groupable(value: ibis_types.Value):
-    # Some types need to be converted to string to enable groupby
-    if value.type().is_float64() or value.type().is_geospatial():
+    # Some types need to be converted to another type to enable groupby
+    if value.type().is_float64():
         return value.cast(ibis_dtypes.str)
+    elif value.type().is_geospatial():
+        return typing.cast(ibis_types.GeoSpatialColumn, value).as_binary()
     elif value.type().is_json():
         return scalar_op_compiler.to_json_string(value)
     else:
         return value
+
+
+def _to_ibis_boundary(
+    boundary: Optional[int],
+) -> Optional[ibis_expr_window.WindowBoundary]:
+    if boundary is None:
+        return None
+    return ibis_expr_window.WindowBoundary(
+        abs(boundary), preceding=boundary <= 0  # type:ignore
+    )
+
+
+def _add_boundary(
+    bounds: typing.Union[RowsWindowBounds, RangeWindowBounds],
+    ibis_window: ibis_expr_builders.LegacyWindowBuilder,
+) -> ibis_expr_builders.LegacyWindowBuilder:
+    if isinstance(bounds, RangeWindowBounds):
+        return ibis_window.range(
+            start=_to_ibis_boundary(
+                None
+                if bounds.start is None
+                else utils.timedelta_to_micros(bounds.start)
+            ),
+            end=_to_ibis_boundary(
+                None if bounds.end is None else utils.timedelta_to_micros(bounds.end)
+            ),
+        )
+    if isinstance(bounds, RowsWindowBounds):
+        if bounds.start is not None or bounds.end is not None:
+            return ibis_window.rows(
+                start=_to_ibis_boundary(bounds.start),
+                end=_to_ibis_boundary(bounds.end),
+            )
+        return ibis_window
+    else:
+        raise ValueError(f"unrecognized window bounds {bounds}")

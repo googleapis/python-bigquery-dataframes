@@ -41,20 +41,19 @@ dependencies = [
     "google-auth >=2.15.0,<3.0",
     "google-cloud-bigtable >=2.24.0",
     "google-cloud-pubsub >=2.21.4",
-    "google-cloud-bigquery[bqstorage,pandas] >=3.18.0",
+    "google-cloud-bigquery[bqstorage,pandas] >=3.31.0",
     "google-cloud-functions >=1.12.0",
     "google-cloud-bigquery-connection >=1.12.0",
     "google-cloud-iam >=2.12.1",
     "google-cloud-resource-manager >=1.10.3",
     "google-cloud-storage >=2.0.0",
-    # Upper bound due to no windows build for 1.1.2
-    "jellyfish >=0.8.9,<1.1.2",
     "numpy >=1.24.0",
     "pandas >=1.5.3",
-    "pandas-gbq >=0.26.0",
+    "pandas-gbq >=0.26.1",
     "pyarrow >=15.0.2",
     "pydata-google-auth >=1.8.2",
     "requests >=2.27.1",
+    "shapely >=1.8.5",
     "sqlglot >=23.6.3",
     "tabulate >=0.9",
     "ipywidgets >=7.7.1",
@@ -63,7 +62,6 @@ dependencies = [
     "db-dtypes >=1.4.2",
     # For vendored ibis-framework.
     "atpublic>=2.3,<6",
-    "parsy>=2,<3",
     "python-dateutil>=2.8.2,<3",
     "pytz>=2022.7",
     "toolz>=0.11,<2",
@@ -79,10 +77,10 @@ extras = {
     # Packages required for basic development flow.
     "dev": [
         "pytest",
-        "pytest-mock",
         "pre-commit",
         "nox",
         "google-cloud-testutils",
+        "freezegun",
     ],
 }
 extras["all"] = list(sorted(frozenset(itertools.chain.from_iterable(extras.values()))))
@@ -117,6 +115,7 @@ setuptools.setup(
     version=version_id,
     description=description,
     long_description=readme,
+    long_description_content_type="text/x-rst",
     author="Google LLC",
     author_email="bigframes-feedback@google.com",
     license="Apache 2.0",

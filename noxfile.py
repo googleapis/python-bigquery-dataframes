@@ -29,7 +29,9 @@ import nox
 import nox.sessions
 
 BLACK_VERSION = "black==22.3.0"
+FLAKE8_VERSION = "flake8==7.1.2"
 ISORT_VERSION = "isort==5.12.0"
+MYPY_VERSION = "mypy==1.15.0"
 
 # TODO: switch to 3.13 once remote functions / cloud run adds a runtime for it (internal issue 333742751)
 LATEST_FULLY_SUPPORTED_PYTHON = "3.12"
@@ -61,15 +63,12 @@ DEFAULT_PYTHON_VERSION = "3.10"
 
 # Cloud Run Functions supports Python versions up to 3.12
 # https://cloud.google.com/run/docs/runtimes/python
-# Managed Python UDF is supported only in Python 3.11
-# Let's set the E2E tests version to 3.11 to cover most code paths.
-E2E_TEST_PYTHON_VERSION = "3.11"
+E2E_TEST_PYTHON_VERSION = "3.12"
 
 UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
-    "freezegun",
     PYTEST_VERSION,
     "pytest-cov",
     "pytest-asyncio",
@@ -137,7 +136,7 @@ def lint(session):
     Returns a failure if the linters find linting errors or sufficiently
     serious code quality issues.
     """
-    session.install("flake8", BLACK_VERSION, ISORT_VERSION)
+    session.install(FLAKE8_VERSION, BLACK_VERSION, ISORT_VERSION)
     session.run(
         "isort",
         "--check",
@@ -185,6 +184,14 @@ def lint_setup_py(session):
     """Verify that setup.py is valid (including RST check)."""
     session.install("docutils", "pygments")
     session.run("python", "setup.py", "check", "--restructuredtext", "--strict")
+
+    session.install("twine", "wheel")
+    shutil.rmtree("build", ignore_errors=True)
+    shutil.rmtree("dist", ignore_errors=True)
+    session.run("python", "setup.py", "sdist")
+    session.run(
+        "python", "-m", "twine", "check", *pathlib.Path("dist").glob("*.tar.gz")
+    )
 
 
 def install_unittest_dependencies(session, install_test_extra, *constraints):
@@ -258,7 +265,7 @@ def mypy(session):
     deps = (
         set(
             [
-                "mypy",
+                MYPY_VERSION,
                 # TODO: update to latest pandas-stubs once we resolve bigframes issues.
                 "pandas-stubs<=2.2.3.241126",
                 "types-protobuf",
@@ -341,6 +348,9 @@ def run_system(
         session.install("pyopenssl")
 
     install_systemtest_dependencies(session, install_test_extra, "-c", constraints_path)
+
+    # Print out package versions for debugging.
+    session.run("python", "-m", "pip", "freeze")
 
     # Run py.test against the system tests.
     pytest_cmd = [
@@ -757,12 +767,15 @@ def notebook(session: nox.Session):
         # our test infrastructure.
         "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",  # Needs DATASET.
         "notebooks/ml/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
+        "notebooks/ml/bq_dataframes_ml_linear_regression_big.ipynb",  # Needs DATASET_ID.
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
         # TODO(b/332737009): investigate why we get 404 errors, even though
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
         "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
         "notebooks/generative_ai/bq_dataframes_llm_gemini_2.ipynb",  # Gemini 2.0 backend hasn't ready in prod.
+        "notebooks/generative_ai/bq_dataframes_llm_vector_search.ipynb",  # Needs DATASET_ID.
+        "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
         # TODO(b/366290533): to protect BQML quota
         "notebooks/generative_ai/bq_dataframes_llm_claude3_museum_art.ipynb",
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
@@ -770,7 +783,8 @@ def notebook(session: nox.Session):
         "notebooks/vertex_sdk/sdk2_bigframes_tensorflow.ipynb",  # Needs BUCKET_URI.
         # The experimental notebooks imagine features that don't yet
         # exist or only exist as temporary prototypes.
-        "notebooks/experimental/longer_ml_demo.ipynb",
+        "notebooks/experimental/ai_operators.ipynb",
+        "notebooks/experimental/multimodal_dataframe.ipynb",
         "notebooks/experimental/semantic_operators.ipynb",
         # The notebooks that are added for more use cases, such as backing a
         # blog post, which may take longer to execute and need not be

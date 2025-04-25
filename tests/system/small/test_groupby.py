@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_df_equal, skip_legacy_pandas
+from tests.system.utils import assert_pandas_df_equal
 
 # =================
 # DataFrame.groupby
@@ -94,7 +94,6 @@ def test_dataframe_groupby_quantile(scalars_df_index, scalars_pandas_df_index, q
     )
 
 
-@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("na_option", "method", "ascending"),
     [
@@ -132,6 +131,8 @@ def test_dataframe_groupby_rank(
     method,
     ascending,
 ):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     col_names = ["int64_too", "float64_col", "int64_col", "string_col"]
     bf_result = (
         scalars_df_index[col_names]
@@ -546,8 +547,7 @@ def test_dataframe_groupby_nonnumeric_with_mean():
     )
     pd_result = df.groupby(["key1", "key2"]).mean()
 
-    with bpd.option_context("bigquery.location", "US"):
-        bf_result = bpd.DataFrame(df).groupby(["key1", "key2"]).mean().to_pandas()
+    bf_result = bpd.DataFrame(df).groupby(["key1", "key2"]).mean().to_pandas()
 
     pd.testing.assert_frame_equal(
         pd_result, bf_result, check_index_type=False, check_dtype=False
@@ -600,7 +600,6 @@ def test_series_groupby_agg_list(scalars_df_index, scalars_pandas_df_index):
     )
 
 
-@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("na_option", "method", "ascending"),
     [
@@ -638,6 +637,8 @@ def test_series_groupby_rank(
     method,
     ascending,
 ):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     col_names = ["int64_col", "string_col"]
     bf_result = (
         scalars_df_index[col_names]

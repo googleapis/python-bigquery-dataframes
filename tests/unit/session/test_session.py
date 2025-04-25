@@ -21,14 +21,14 @@ import warnings
 
 import google.api_core.exceptions
 import google.cloud.bigquery
-import google.cloud.bigquery.table
+import pandas as pd
 import pytest
 
 import bigframes
 from bigframes import version
 import bigframes.enums
 import bigframes.exceptions
-from tests.unit import resources
+from bigframes.testing import mocks
 
 TABLE_REFERENCE = {
     "projectId": "my-project",
@@ -119,11 +119,6 @@ CLUSTERED_OR_PARTITIONED_TABLES = [
             id="with_dtype",
         ),
         pytest.param(
-            {"engine": "bigquery", "index_col": 5},
-            "BigQuery engine only supports a single column name for `index_col`.",
-            id="with_index_col_not_str",
-        ),
-        pytest.param(
             {"engine": "bigquery", "usecols": [1, 2]},
             "BigQuery engine only supports an iterable of strings for `usecols`.",
             id="with_usecols_invalid",
@@ -135,8 +130,8 @@ CLUSTERED_OR_PARTITIONED_TABLES = [
         ),
     ],
 )
-def test_read_csv_bq_engine_throws_not_implemented_error(kwargs, match):
-    session = resources.create_bigquery_session()
+def test_read_csv_w_bq_engine_raises_error(kwargs, match):
+    session = mocks.create_bigquery_session()
 
     with pytest.raises(NotImplementedError, match=match):
         session.read_csv("", **kwargs)
@@ -148,10 +143,11 @@ def test_read_csv_bq_engine_throws_not_implemented_error(kwargs, match):
         ("c",),
         ("python",),
         ("pyarrow",),
+        ("python-fwf",),
     ),
 )
-def test_read_csv_pandas_engines_index_col_sequential_int64_not_supported(engine):
-    session = resources.create_bigquery_session()
+def test_read_csv_w_pandas_engines_raises_error_for_sequential_int64_index_col(engine):
+    session = mocks.create_bigquery_session()
 
     with pytest.raises(NotImplementedError, match="index_col"):
         session.read_csv(
@@ -159,6 +155,22 @@ def test_read_csv_pandas_engines_index_col_sequential_int64_not_supported(engine
             engine=engine,
             index_col=bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64,
         )
+
+
+@pytest.mark.parametrize(
+    ("kwargs"),
+    [
+        pytest.param({"chunksize": 5}, id="with_chunksize"),
+        pytest.param({"iterator": True}, id="with_iterator"),
+    ],
+)
+def test_read_csv_w_pandas_engines_raises_error_for_unsupported_args(kwargs):
+    session = mocks.create_bigquery_session()
+    with pytest.raises(
+        NotImplementedError,
+        match="'chunksize' and 'iterator' arguments are not supported.",
+    ):
+        session.read_csv("path/to/csv.csv", **kwargs)
 
 
 @pytest.mark.parametrize(
@@ -176,7 +188,7 @@ def test_read_csv_pandas_engines_index_col_sequential_int64_not_supported(engine
     ),
 )
 def test_read_csv_with_incompatible_write_engine(engine, write_engine):
-    session = resources.create_bigquery_session()
+    session = mocks.create_bigquery_session()
 
     with pytest.raises(
         NotImplementedError,
@@ -193,14 +205,14 @@ def test_read_csv_with_incompatible_write_engine(engine, write_engine):
 
 @pytest.mark.parametrize("missing_parts_table_id", [(""), ("table")])
 def test_read_gbq_missing_parts(missing_parts_table_id):
-    session = resources.create_bigquery_session()
+    session = mocks.create_bigquery_session()
 
     with pytest.raises(ValueError):
         session.read_gbq(missing_parts_table_id)
 
 
 def test_read_gbq_cached_table():
-    session = resources.create_bigquery_session()
+    session = mocks.create_bigquery_session()
     table_ref = google.cloud.bigquery.TableReference(
         google.cloud.bigquery.DatasetReference("my-project", "my_dataset"),
         "my_table",
@@ -243,7 +255,7 @@ def test_default_index_warning_raised_by_read_gbq(table):
     bqclient.project = "test-project"
     bqclient.get_table.return_value = table
     bqclient.query_and_wait.return_value = ({"total_count": 3, "distinct_count": 2},)
-    session = resources.create_bigquery_session(bqclient=bqclient)
+    session = mocks.create_bigquery_session(bqclient=bqclient)
     table._properties["location"] = session._location
 
     with pytest.warns(bigframes.exceptions.DefaultIndexWarning):
@@ -266,7 +278,7 @@ def test_default_index_warning_not_raised_by_read_gbq_index_col_sequential_int64
     bqclient.project = "test-project"
     bqclient.get_table.return_value = table
     bqclient.query_and_wait.return_value = ({"total_count": 4, "distinct_count": 3},)
-    session = resources.create_bigquery_session(bqclient=bqclient)
+    session = mocks.create_bigquery_session(bqclient=bqclient)
     table._properties["location"] = session._location
 
     # No warnings raised because we set the option allowing the default indexes.
@@ -313,7 +325,7 @@ def test_default_index_warning_not_raised_by_read_gbq_index_col_columns(
     bqclient.query_and_wait.return_value = (
         {"total_count": total_count, "distinct_count": distinct_count},
     )
-    session = resources.create_bigquery_session(
+    session = mocks.create_bigquery_session(
         bqclient=bqclient, table_schema=table.schema
     )
     table._properties["location"] = session._location
@@ -355,7 +367,7 @@ def test_default_index_warning_not_raised_by_read_gbq_primary_key(table):
     bqclient = mock.create_autospec(google.cloud.bigquery.Client, instance=True)
     bqclient.project = "test-project"
     bqclient.get_table.return_value = table
-    session = resources.create_bigquery_session(
+    session = mocks.create_bigquery_session(
         bqclient=bqclient, table_schema=table.schema
     )
     table._properties["location"] = session._location
@@ -380,7 +392,7 @@ def test_read_gbq_not_found_tables(not_found_table_id):
     bqclient.get_table.side_effect = google.api_core.exceptions.NotFound(
         "table not found"
     )
-    session = resources.create_bigquery_session(bqclient=bqclient)
+    session = mocks.create_bigquery_session(bqclient=bqclient)
 
     with pytest.raises(google.api_core.exceptions.NotFound):
         session.read_gbq(not_found_table_id)
@@ -402,7 +414,7 @@ def test_read_gbq_not_found_tables(not_found_table_id):
     ],
 )
 def test_read_gbq_external_table_no_drive_access(api_name, query_or_table):
-    session = resources.create_bigquery_session()
+    session = mocks.create_bigquery_session()
     session_query_mock = session.bqclient.query
 
     def query_mock(query, *args, **kwargs):
@@ -457,4 +469,22 @@ def test_session_init_warns_if_bf_version_is_too_old(monkeypatch):
     monkeypatch.setattr(datetime, "datetime", FakeDatetime)
 
     with pytest.warns(bigframes.exceptions.ObsoleteVersionWarning):
-        resources.create_bigquery_session()
+        mocks.create_bigquery_session()
+
+
+@mock.patch("bigframes.session.MAX_INLINE_DF_BYTES", 1)
+def test_read_pandas_inline_exceeds_limit_raises_error():
+    session = mocks.create_bigquery_session()
+    pd_df = pd.DataFrame([[1, 2, 3], [4, 5, 6]])
+    with pytest.raises(
+        ValueError,
+        match=r"DataFrame size \(.* bytes\) exceeds the maximum allowed for inline data \(1 bytes\)\.",
+    ):
+        session.read_pandas(pd_df, write_engine="bigquery_inline")
+
+
+def test_read_pandas_inline_w_interval_type_raises_error():
+    session = mocks.create_bigquery_session()
+    df = pd.DataFrame(pd.arrays.IntervalArray.from_breaks([0, 10, 20, 30, 40, 50]))
+    with pytest.raises(TypeError):
+        session.read_pandas(df, write_engine="bigquery_inline")

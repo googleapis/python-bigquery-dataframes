@@ -68,7 +68,9 @@ class TransformFunction:
 
     def _create_udf(self):
         """Create Python UDF in BQ. Return name of the UDF."""
-        udf_name = str(self._session._loader._storage_manager._random_table())
+        udf_name = str(
+            self._session._anon_dataset_manager.generate_unique_resource_id()
+        )
 
         func_body = inspect.getsource(self._func)
         func_name = self._func.__name__
@@ -100,6 +102,9 @@ AS r\"\"\"
     def udf(self):
         """Create and return the UDF object."""
         udf_name = self._create_udf()
+
+        # TODO(b/404605969): remove cleanups when UDF fixes dataset deletion.
+        self._session._function_session._update_temp_artifacts(udf_name, "")
         return self._session.read_gbq_function(udf_name)
 
 
@@ -396,32 +401,40 @@ image_normalize_to_bytes_def = FunctionDef(
 
 # Extracts all text from a PDF url
 def pdf_extract_func(src_obj_ref_rt: str) -> str:
-    import io
-    import json
+    try:
+        import io
+        import json
 
-    from pypdf import PdfReader  # type: ignore
-    import requests
-    from requests import adapters
+        from pypdf import PdfReader  # type: ignore
+        import requests
+        from requests import adapters
 
-    session = requests.Session()
-    session.mount("https://", adapters.HTTPAdapter(max_retries=3))
+        session = requests.Session()
+        session.mount("https://", adapters.HTTPAdapter(max_retries=3))
 
-    src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
-    src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
+        src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
+        src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
 
-    response = session.get(src_url, timeout=30, stream=True)
-    response.raise_for_status()
-    pdf_bytes = response.content
+        response = session.get(src_url, timeout=30, stream=True)
+        response.raise_for_status()
+        pdf_bytes = response.content
 
-    pdf_file = io.BytesIO(pdf_bytes)
-    reader = PdfReader(pdf_file, strict=False)
+        pdf_file = io.BytesIO(pdf_bytes)
+        reader = PdfReader(pdf_file, strict=False)
 
-    all_text = ""
-    for page in reader.pages:
-        page_extract_text = page.extract_text()
-        if page_extract_text:
-            all_text += page_extract_text
-    return all_text
+        all_text = ""
+        for page in reader.pages:
+            page_extract_text = page.extract_text()
+            if page_extract_text:
+                all_text += page_extract_text
+
+        result_dict = {"status": "", "content": all_text}
+
+    except Exception as e:
+        result_dict = {"status": str(e), "content": ""}
+
+    result_json = json.dumps(result_dict)
+    return result_json
 
 
 pdf_extract_def = FunctionDef(pdf_extract_func, ["pypdf", "requests", "pypdf[crypto]"])
@@ -429,48 +442,53 @@ pdf_extract_def = FunctionDef(pdf_extract_func, ["pypdf", "requests", "pypdf[cry
 
 # Extracts text from a PDF url and chunks it simultaneously
 def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> str:
-    import io
-    import json
+    try:
+        import io
+        import json
 
-    from pypdf import PdfReader  # type: ignore
-    import requests
-    from requests import adapters
+        from pypdf import PdfReader  # type: ignore
+        import requests
+        from requests import adapters
 
-    session = requests.Session()
-    session.mount("https://", adapters.HTTPAdapter(max_retries=3))
+        session = requests.Session()
+        session.mount("https://", adapters.HTTPAdapter(max_retries=3))
 
-    src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
-    src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
+        src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
+        src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
 
-    response = session.get(src_url, timeout=30, stream=True)
-    response.raise_for_status()
-    pdf_bytes = response.content
+        response = session.get(src_url, timeout=30, stream=True)
+        response.raise_for_status()
+        pdf_bytes = response.content
 
-    pdf_file = io.BytesIO(pdf_bytes)
-    reader = PdfReader(pdf_file, strict=False)
+        pdf_file = io.BytesIO(pdf_bytes)
+        reader = PdfReader(pdf_file, strict=False)
+        # extract and chunk text simultaneously
+        all_text_chunks = []
+        curr_chunk = ""
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                curr_chunk += page_text
+                # split the accumulated text into chunks of a specific size with overlaop
+                # this loop implements a sliding window approach to create chunks
+                while len(curr_chunk) >= chunk_size:
+                    split_idx = curr_chunk.rfind(" ", 0, chunk_size)
+                    if split_idx == -1:
+                        split_idx = chunk_size
+                    actual_chunk = curr_chunk[:split_idx]
+                    all_text_chunks.append(actual_chunk)
+                    overlap = curr_chunk[split_idx + 1 : split_idx + 1 + overlap_size]
+                    curr_chunk = overlap + curr_chunk[split_idx + 1 + overlap_size :]
+        if curr_chunk:
+            all_text_chunks.append(curr_chunk)
 
-    # extract and chunk text simultaneously
-    all_text_chunks = []
-    curr_chunk = ""
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            curr_chunk += page_text
-            # split the accumulated text into chunks of a specific size with overlaop
-            # this loop implements a sliding window approach to create chunks
-            while len(curr_chunk) >= chunk_size:
-                split_idx = curr_chunk.rfind(" ", 0, chunk_size)
-                if split_idx == -1:
-                    split_idx = chunk_size
-                actual_chunk = curr_chunk[:split_idx]
-                all_text_chunks.append(actual_chunk)
-                overlap = curr_chunk[split_idx + 1 : split_idx + 1 + overlap_size]
-                curr_chunk = overlap + curr_chunk[split_idx + 1 + overlap_size :]
-    if curr_chunk:
-        all_text_chunks.append(curr_chunk)
+        result_dict = {"status": "", "content": all_text_chunks}
 
-    all_text_json_string = json.dumps(all_text_chunks)
-    return all_text_json_string
+    except Exception as e:
+        result_dict = {"status": str(e), "content": []}
+
+    result_json = json.dumps(result_dict)
+    return result_json
 
 
 pdf_chunk_def = FunctionDef(pdf_chunk_func, ["pypdf", "requests", "pypdf[crypto]"])

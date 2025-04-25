@@ -339,28 +339,41 @@ class ArrayAggOp(UnaryAggregateOp):
 class CutOp(UnaryWindowOp):
     # TODO: Unintuitive, refactor into multiple ops?
     bins: typing.Union[int, Iterable]
-    labels: Optional[bool]
+    right: Optional[bool]
+    labels: typing.Union[bool, Iterable[str], None]
 
     @property
     def skips_nulls(self):
         return False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if isinstance(self.bins, int) and (self.labels is False):
+        if self.labels is False:
             return dtypes.INT_DTYPE
+        elif isinstance(self.labels, Iterable):
+            return dtypes.STRING_DTYPE
         else:
             # Assumption: buckets use same numeric type
-            interval_dtype = (
-                pa.float64()
-                if isinstance(self.bins, int)
-                else dtypes.infer_literal_arrow_type(list(self.bins)[0][0])
-            )
+            if isinstance(self.bins, int):
+                interval_dtype = pa.float64()
+            elif len(list(self.bins)) == 0:
+                interval_dtype = pa.int64()
+            else:
+                interval_dtype = dtypes.infer_literal_arrow_type(list(self.bins)[0][0])
             pa_type = pa.struct(
                 [
-                    pa.field("left_exclusive", interval_dtype, nullable=True),
-                    pa.field("right_inclusive", interval_dtype, nullable=True),
+                    pa.field(
+                        "left_exclusive" if self.right else "left_inclusive",
+                        interval_dtype,
+                        nullable=True,
+                    ),
+                    pa.field(
+                        "right_inclusive" if self.right else "right_exclusive",
+                        interval_dtype,
+                        nullable=True,
+                    ),
                 ]
             )
+
             return pd.ArrowDtype(pa_type)
 
     @property

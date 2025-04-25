@@ -84,6 +84,15 @@ def ephemera_penguins_linear_model(
     return bf_model
 
 
+@pytest.fixture(scope="function")
+def penguins_linear_model_w_global_explain(
+    penguins_bqml_linear_model: core.BqmlModel,
+) -> linear_model.LinearRegression:
+    bf_model = linear_model.LinearRegression(enable_global_explain=True)
+    bf_model._bqml_model = penguins_bqml_linear_model
+    return bf_model
+
+
 @pytest.fixture(scope="session")
 def penguins_logistic_model(
     session, penguins_logistic_model_name
@@ -191,64 +200,6 @@ def onnx_iris_df(session, onnx_iris_pandas_df):
 @pytest.fixture(scope="session")
 def xgboost_iris_df(session, xgboost_iris_pandas_df):
     return session.read_pandas(xgboost_iris_pandas_df)
-
-
-@pytest.fixture(scope="session")
-def bqml_palm2_text_generator_model(session, bq_connection) -> core.BqmlModel:
-    options = {
-        "remote_service_type": "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1",
-    }
-    return globals.bqml_model_factory().create_remote_model(
-        session=session, connection_name=bq_connection, options=options
-    )
-
-
-@pytest.fixture(scope="session")
-def palm2_text_generator_model(session, bq_connection) -> llm.PaLM2TextGenerator:
-    return llm.PaLM2TextGenerator(session=session, connection_name=bq_connection)
-
-
-@pytest.fixture(scope="session")
-def palm2_text_generator_32k_model(session, bq_connection) -> llm.PaLM2TextGenerator:
-    return llm.PaLM2TextGenerator(
-        model_name="text-bison-32k", session=session, connection_name=bq_connection
-    )
-
-
-@pytest.fixture(scope="function")
-def ephemera_palm2_text_generator_model(
-    session, bq_connection
-) -> llm.PaLM2TextGenerator:
-    return llm.PaLM2TextGenerator(session=session, connection_name=bq_connection)
-
-
-@pytest.fixture(scope="session")
-def palm2_embedding_generator_model(
-    session, bq_connection
-) -> llm.PaLM2TextEmbeddingGenerator:
-    return llm.PaLM2TextEmbeddingGenerator(
-        session=session, connection_name=bq_connection
-    )
-
-
-@pytest.fixture(scope="session")
-def palm2_embedding_generator_model_002(
-    session, bq_connection
-) -> llm.PaLM2TextEmbeddingGenerator:
-    return llm.PaLM2TextEmbeddingGenerator(
-        version="002", session=session, connection_name=bq_connection
-    )
-
-
-@pytest.fixture(scope="session")
-def palm2_embedding_generator_multilingual_model(
-    session, bq_connection
-) -> llm.PaLM2TextEmbeddingGenerator:
-    return llm.PaLM2TextEmbeddingGenerator(
-        model_name="textembedding-gecko-multilingual",
-        session=session,
-        connection_name=bq_connection,
-    )
 
 
 @pytest.fixture(scope="session")
@@ -387,4 +338,21 @@ def imported_xgboost_model(
         },
         output={"predicted_label": "float64"},
         model_path=imported_xgboost_array_model_path,
+    )
+
+
+@pytest.fixture(scope="session")
+def bqml_gemini_text_generator(bq_connection, session) -> llm.GeminiTextGenerator:
+    return llm.GeminiTextGenerator(
+        model_name="gemini-1.5-flash-002",
+        connection_name=bq_connection,
+        session=session,
+    )
+
+
+@pytest.fixture(scope="session")
+def bqml_claude3_text_generator(bq_connection, session) -> llm.Claude3TextGenerator:
+    return llm.Claude3TextGenerator(
+        connection_name=bq_connection,
+        session=session,
     )

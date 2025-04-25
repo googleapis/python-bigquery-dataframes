@@ -91,9 +91,12 @@ def gcs_folder(gcs_client: storage.Client):
     prefix = prefixer.create_prefix()
     path = f"gs://{bucket}/{prefix}/"
     yield path
-    for blob in gcs_client.list_blobs(bucket, prefix=prefix):
-        blob = typing.cast(storage.Blob, blob)
-        blob.delete()
+    try:
+        for blob in gcs_client.list_blobs(bucket, prefix=prefix):
+            blob = typing.cast(storage.Blob, blob)
+            blob.delete()
+    except Exception as exc:
+        traceback.print_exception(type(exc), exc, None)
 
 
 @pytest.fixture(scope="session")
@@ -139,9 +142,7 @@ def resourcemanager_client(
 
 @pytest.fixture(scope="session")
 def session() -> Generator[bigframes.Session, None, None]:
-    context = bigframes.BigQueryOptions(
-        location="US",
-    )
+    context = bigframes.BigQueryOptions(location="US", allow_large_results=False)
     session = bigframes.Session(context=context)
     yield session
     session.close()  # close generated session at cleanup time
@@ -157,7 +158,9 @@ def session_load() -> Generator[bigframes.Session, None, None]:
 
 @pytest.fixture(scope="session", params=["strict", "partial"])
 def maybe_ordered_session(request) -> Generator[bigframes.Session, None, None]:
-    context = bigframes.BigQueryOptions(location="US", ordering_mode=request.param)
+    context = bigframes.BigQueryOptions(
+        location="US", ordering_mode=request.param, allow_large_results=False
+    )
     session = bigframes.Session(context=context)
     yield session
     session.close()  # close generated session at cleanup type
@@ -165,7 +168,9 @@ def maybe_ordered_session(request) -> Generator[bigframes.Session, None, None]:
 
 @pytest.fixture(scope="session")
 def unordered_session() -> Generator[bigframes.Session, None, None]:
-    context = bigframes.BigQueryOptions(location="US", ordering_mode="partial")
+    context = bigframes.BigQueryOptions(
+        location="US", ordering_mode="partial", allow_large_results=False
+    )
     session = bigframes.Session(context=context)
     yield session
     session.close()  # close generated session at cleanup type
@@ -180,8 +185,27 @@ def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, Non
 
 
 @pytest.fixture(scope="session")
-def bq_connection(bigquery_client: bigquery.Client) -> str:
-    return f"{bigquery_client.project}.{bigquery_client.location}.bigframes-rf-conn"
+def test_session() -> Generator[bigframes.Session, None, None]:
+    context = bigframes.BigQueryOptions(
+        client_endpoints_override={
+            "bqclient": "https://test-bigquery.sandbox.google.com",
+            "bqconnectionclient": "test-bigqueryconnection.sandbox.googleapis.com",
+            "bqstoragereadclient": "test-bigquerystorage-grpc.sandbox.googleapis.com",
+        },
+    )
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()
+
+
+@pytest.fixture(scope="session")
+def bq_connection_name() -> str:
+    return "bigframes-rf-conn"
+
+
+@pytest.fixture(scope="session")
+def bq_connection(bigquery_client: bigquery.Client, bq_connection_name: str) -> str:
+    return f"{bigquery_client.project}.{bigquery_client.location}.{bq_connection_name}"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -310,6 +334,7 @@ def load_test_data_tables(
         ("repeated", "repeated_schema.json", "repeated.jsonl"),
         ("json", "json_schema.json", "json.jsonl"),
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
+        ("ratings", "ratings_schema.json", "ratings.jsonl"),
         ("time_series", "time_series_schema.json", "time_series.jsonl"),
         ("hockey_players", "hockey_players.json", "hockey_players.jsonl"),
         ("matrix_2by3", "matrix_2by3.json", "matrix_2by3.jsonl"),
@@ -407,6 +432,11 @@ def penguins_table_id(test_data_tables) -> str:
 
 
 @pytest.fixture(scope="session")
+def ratings_table_id(test_data_tables) -> str:
+    return test_data_tables["ratings"]
+
+
+@pytest.fixture(scope="session")
 def urban_areas_table_id(test_data_tables) -> str:
     return test_data_tables["urban_areas"]
 
@@ -455,7 +485,7 @@ def nested_structs_df(
 
 
 @pytest.fixture(scope="session")
-def nested_structs_pandas_df() -> pd.DataFrame:
+def nested_structs_pandas_df(nested_structs_pandas_type: pd.ArrowDtype) -> pd.DataFrame:
     """pd.DataFrame pointing at test data."""
 
     df = pd.read_json(
@@ -463,6 +493,7 @@ def nested_structs_pandas_df() -> pd.DataFrame:
         lines=True,
     )
     df = df.set_index("id")
+    df["person"] = df["person"].astype(nested_structs_pandas_type)
     return df
 
 
@@ -759,6 +790,14 @@ def penguins_df_null_index(
 
 
 @pytest.fixture(scope="session")
+def ratings_df_default_index(
+    ratings_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(ratings_table_id)
+
+
+@pytest.fixture(scope="session")
 def time_series_df_default_index(
     time_series_table_id: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
@@ -885,8 +924,8 @@ def llm_text_pandas_df():
 
 
 @pytest.fixture(scope="session")
-def llm_text_df(session, llm_text_pandas_df):
-    return session.read_pandas(llm_text_pandas_df)
+def llm_text_df(test_session, llm_text_pandas_df):
+    return test_session.read_pandas(llm_text_pandas_df)
 
 
 @pytest.fixture(scope="session")
@@ -1379,6 +1418,12 @@ def floats_product_bf(session, floats_product_pd):
 
 
 @pytest.fixture(scope="session", autouse=True)
+def use_fast_query_path():
+    with bpd.option_context("bigquery.allow_large_results", False):
+        yield
+
+
+@pytest.fixture(scope="session", autouse=True)
 def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent):
     """Clean up stale cloud functions."""
     permanent_endpoints = tests.system.utils.get_remote_function_endpoints(
@@ -1453,10 +1498,36 @@ def images_uris() -> list[str]:
 
 @pytest.fixture(scope="session")
 def images_mm_df(
-    images_gcs_path, session: bigframes.Session, bq_connection: str
+    images_uris, test_session: bigframes.Session, bq_connection: str
 ) -> bpd.DataFrame:
     bigframes.options.experiments.blob = True
 
-    return session.from_glob_path(
-        images_gcs_path, name="blob_col", connection=bq_connection
+    blob_series = bpd.Series(images_uris, session=test_session).str.to_blob(
+        connection=bq_connection
+    )
+    return blob_series.rename("blob_col").to_frame()
+
+
+@pytest.fixture()
+def reset_default_session_and_location():
+    bpd.close_session()
+    with bpd.option_context("bigquery.location", None):
+        yield
+    bpd.close_session()
+    bpd.options.bigquery.location = None
+
+
+@pytest.fixture(scope="session")
+def pdf_gcs_path() -> str:
+    return "gs://bigframes_blob_test/pdfs/*"
+
+
+@pytest.fixture(scope="session")
+def pdf_mm_df(
+    pdf_gcs_path, test_session: bigframes.Session, bq_connection: str
+) -> bpd.DataFrame:
+    bigframes.options.experiments.blob = True
+
+    return test_session.from_glob_path(
+        pdf_gcs_path, name="pdf", connection=bq_connection
     )

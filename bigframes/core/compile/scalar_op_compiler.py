@@ -747,12 +747,12 @@ def date_diff_op_impl(x: ibis_types.DateValue, y: ibis_types.DateValue):
 
 @scalar_op_compiler.register_binary_op(ops.date_add_op)
 def date_add_op_impl(x: ibis_types.DateValue, y: ibis_types.IntegerValue):
-    return x.cast("timestamp") + y.to_interval("us")  # type: ignore
+    return x.cast(ibis_dtypes.timestamp()) + y.to_interval("us")  # type: ignore
 
 
 @scalar_op_compiler.register_binary_op(ops.date_sub_op)
 def date_sub_op_impl(x: ibis_types.DateValue, y: ibis_types.IntegerValue):
-    return x.cast("timestamp") - y.to_interval("us")  # type: ignore
+    return x.cast(ibis_dtypes.timestamp()) - y.to_interval("us")  # type: ignore
 
 
 @scalar_op_compiler.register_unary_op(ops.FloorDtOp, pass_op=True)
@@ -1001,11 +1001,6 @@ def normalize_op_impl(x: ibis_types.Value):
 
 
 # Geo Ops
-@scalar_op_compiler.register_unary_op(ops.geo_st_boundary_op, pass_op=False)
-def geo_st_boundary_op_impl(x: ibis_types.Value):
-    return st_boundary(x)
-
-
 @scalar_op_compiler.register_unary_op(ops.geo_area_op)
 def geo_area_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).area()
@@ -1014,6 +1009,25 @@ def geo_area_op_impl(x: ibis_types.Value):
 @scalar_op_compiler.register_unary_op(ops.geo_st_astext_op)
 def geo_st_astext_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).as_text()
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_st_boundary_op, pass_op=False)
+def geo_st_boundary_op_impl(x: ibis_types.Value):
+    return st_boundary(x)
+
+
+@scalar_op_compiler.register_binary_op(ops.geo_st_difference_op, pass_op=False)
+def geo_st_difference_op_impl(x: ibis_types.Value, y: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).difference(
+        typing.cast(ibis_types.GeoSpatialValue, y)
+    )
+
+
+@scalar_op_compiler.register_binary_op(ops.GeoStDistanceOp, pass_op=True)
+def geo_st_distance_op_impl(
+    x: ibis_types.Value, y: ibis_types.Value, op: ops.GeoStDistanceOp
+):
+    return st_distance(x, y, op.use_spheroid)
 
 
 @scalar_op_compiler.register_unary_op(ops.geo_st_geogfromtext_op)
@@ -1027,6 +1041,13 @@ def geo_st_geogfromtext_op_impl(x: ibis_types.Value):
 def geo_st_geogpoint_op_impl(x: ibis_types.Value, y: ibis_types.Value):
     return typing.cast(ibis_types.NumericValue, x).point(
         typing.cast(ibis_types.NumericValue, y)
+    )
+
+
+@scalar_op_compiler.register_binary_op(ops.geo_st_intersection_op, pass_op=False)
+def geo_st_intersection_op_impl(x: ibis_types.Value, y: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).intersection(
+        typing.cast(ibis_types.GeoSpatialValue, y)
     )
 
 
@@ -1973,6 +1994,11 @@ def unix_millis(a: ibis_dtypes.timestamp) -> int:  # type: ignore
 @ibis_udf.scalar.builtin
 def st_boundary(a: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ignore
     """Find the boundary of a geography."""
+
+
+@ibis_udf.scalar.builtin
+def st_distance(a: ibis_dtypes.geography, b: ibis_dtypes.geography, use_spheroid: bool) -> ibis_dtypes.float:  # type: ignore
+    """Convert string to geography."""
 
 
 @ibis_udf.scalar.builtin

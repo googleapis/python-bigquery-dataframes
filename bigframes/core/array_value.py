@@ -16,7 +16,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import datetime
 import functools
-import io
 import typing
 from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
 import warnings
@@ -24,7 +23,6 @@ import warnings
 import google.cloud.bigquery
 import pandas
 import pyarrow as pa
-import pyarrow.feather as pa_feather
 
 import bigframes.core.expression as ex
 import bigframes.core.guid
@@ -60,24 +58,20 @@ class ArrayValue:
 
     @classmethod
     def from_pyarrow(cls, arrow_table: pa.Table, session: Session):
-        adapted_table = local_data.adapt_pa_table(arrow_table)
-        schema = local_data.arrow_schema_to_bigframes(adapted_table.schema)
+        data_source = local_data.ManagedArrowTable.from_pyarrow(arrow_table)
+        return cls.from_managed(source=data_source, session=session)
 
-        iobytes = io.BytesIO()
-        pa_feather.write_feather(adapted_table, iobytes)
-        # Scan all columns by default, we define this list as it can be pruned while preserving source_def
+    @classmethod
+    def from_managed(cls, source: local_data.ManagedArrowTable, session: Session):
         scan_list = nodes.ScanList(
             tuple(
                 nodes.ScanItem(ids.ColumnId(item.column), item.dtype, item.column)
-                for item in schema.items
+                for item in source.schema.items
             )
         )
-
         node = nodes.ReadLocalNode(
-            iobytes.getvalue(),
-            data_schema=schema,
+            source,
             session=session,
-            n_rows=arrow_table.num_rows,
             scan_list=scan_list,
         )
         return cls(node)
@@ -103,6 +97,7 @@ class ArrayValue:
         at_time: Optional[datetime.datetime] = None,
         primary_key: Sequence[str] = (),
         offsets_col: Optional[str] = None,
+        n_rows: Optional[int] = None,
     ):
         if offsets_col and primary_key:
             raise ValueError("must set at most one of 'offests', 'primary_key'")
@@ -132,7 +127,11 @@ class ArrayValue:
             )
         )
         source_def = nodes.BigqueryDataSource(
-            table=table_def, at_time=at_time, sql_predicate=predicate, ordering=ordering
+            table=table_def,
+            at_time=at_time,
+            sql_predicate=predicate,
+            ordering=ordering,
+            n_rows=n_rows,
         )
         node = nodes.ReadTableNode(
             source=source_def,
@@ -182,7 +181,9 @@ class ArrayValue:
         Replace the node with an equivalent one that references a table where the value has been materialized to.
         """
         table = nodes.GbqTable.from_table(cache_table)
-        source = nodes.BigqueryDataSource(table, ordering=ordering)
+        source = nodes.BigqueryDataSource(
+            table, ordering=ordering, n_rows=cache_table.num_rows
+        )
         # Assumption: GBQ cached table uses field name as bq column name
         scan_list = nodes.ScanList(
             tuple(
@@ -412,7 +413,7 @@ class ArrayValue:
         skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
         """
         # TODO: Support non-deterministic windowing
-        if window_spec.row_bounded or not op.order_independent:
+        if window_spec.is_row_bounded or not op.order_independent:
             if self.node.order_ambiguous and not self.session._strictly_ordered:
                 if not self.session._allows_ambiguity:
                     raise ValueError(

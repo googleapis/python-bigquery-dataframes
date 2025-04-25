@@ -26,16 +26,13 @@ import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 if TYPE_CHECKING:
     from bigframes.session import Session
 
-import bigframes_vendored.constants as constants
 import google.api_core.exceptions
-import google.api_core.retry
 from google.cloud import bigquery
-import google.iam.v1
 
 import bigframes.core.compile.ibis_types
 import bigframes.dtypes
 import bigframes.exceptions as bfe
-import bigframes.functions.function_template
+import bigframes.formatting_helpers as bf_formatting
 
 from . import _function_session as bff_session
 from . import _utils
@@ -69,16 +66,18 @@ def ibis_signature_from_routine(routine: bigquery.Routine) -> _utils.IbisSignatu
         routine.description
     ):
         if not isinstance(ibis_output_type, ibis_dtypes.String):
-            raise TypeError(
-                "An explicit output_type should be provided only for a BigQuery function with STRING output."
+            raise bf_formatting.create_exception_with_feedback_link(
+                TypeError,
+                "An explicit output_type should be provided only for a BigQuery function with STRING output.",
             )
         if typing.get_origin(python_output_type) is list:
             ibis_output_type_override = bigframes.core.compile.ibis_types.ibis_array_output_type_from_python_type(
                 cast(type, python_output_type)
             )
         else:
-            raise TypeError(
-                "Currently only list of a type is supported as python output type."
+            raise bf_formatting.create_exception_with_feedback_link(
+                TypeError,
+                "Currently only list of a type is supported as python output type.",
             )
 
     return _utils.IbisSignature(
@@ -153,33 +152,36 @@ def read_gbq_function(
     try:
         routine_ref = get_routine_reference(function_name, bigquery_client, session)
     except DatasetMissingError:
-        raise ValueError(
-            "Project and dataset must be provided, either directly or via session. "
-            f"{constants.FEEDBACK_LINK}"
+        raise bf_formatting.create_exception_with_feedback_link(
+            ValueError,
+            "Project and dataset must be provided, either directly or via session.",
         )
 
     # Find the routine and get its arguments.
     try:
         routine = bigquery_client.get_routine(routine_ref)
     except google.api_core.exceptions.NotFound:
-        raise ValueError(f"Unknown function '{routine_ref}'. {constants.FEEDBACK_LINK}")
+        raise bf_formatting.create_exception_with_feedback_link(
+            ValueError, f"Unknown function '{routine_ref}'."
+        )
 
     if is_row_processor and len(routine.arguments) > 1:
-        raise ValueError(
+        raise bf_formatting.create_exception_with_feedback_link(
+            ValueError,
             "A multi-input function cannot be a row processor. A row processor function "
-            "takes in a single input representing the row."
+            "takes in a single input representing the row.",
         )
 
     try:
         ibis_signature = ibis_signature_from_routine(routine)
     except ReturnTypeMissingError:
-        raise ValueError(
-            f"Function return type must be specified. {constants.FEEDBACK_LINK}"
+        raise bf_formatting.create_exception_with_feedback_link(
+            ValueError, "Function return type must be specified."
         )
     except bigframes.core.compile.ibis_types.UnsupportedTypeError as e:
-        raise ValueError(
-            f"Type {e.type} not supported, supported types are {e.supported_types}. "
-            f"{constants.FEEDBACK_LINK}"
+        raise bf_formatting.create_exception_with_feedback_link(
+            ValueError,
+            f"Type {e.type} not supported, supported types are {e.supported_types}.",
         )
 
     # The name "args" conflicts with the Ibis operator, so we use
@@ -214,7 +216,11 @@ def read_gbq_function(
         database=routine_ref.dataset_id,
         signature=(ibis_signature.input_types, ibis_signature.output_type),
     )  # type: ignore
-    func.bigframes_remote_function = str(routine_ref)  # type: ignore
+    func.bigframes_bigquery_function = str(routine_ref)  # type: ignore
+
+    # We will keep the "bigframes_remote_function" attr for remote function.
+    if hasattr(routine, "remote_function_options") and routine.remote_function_options:
+        func.bigframes_remote_function = func.bigframes_bigquery_function  # type: ignore
 
     # set input bigframes data types
     has_unknown_dtypes = False

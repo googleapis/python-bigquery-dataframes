@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 from typing import Callable, cast, Iterable, Mapping, Optional, Union
 import uuid
@@ -43,6 +44,11 @@ class BqmlModel(BaseBqml):
     Wraps the BQML API and SQL interface to expose the functionality needed for
     BigQuery DataFrames ML.
     """
+
+    @dataclasses.dataclass
+    class TvfDef:
+        tvf: Callable[[BqmlModel, bpd.DataFrame, dict], bpd.DataFrame]
+        status_col: str
 
     def __init__(self, session: bigframes.Session, model: bigquery.Model):
         self._session = session
@@ -117,6 +123,12 @@ class BqmlModel(BaseBqml):
         """Get the BQML model associated with this wrapper"""
         return self._model
 
+    def recommend(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
+        return self._apply_ml_tvf(
+            input_data,
+            self._model_manipulation_sql_generator.ml_recommend,
+        )
+
     def predict(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         return self._apply_ml_tvf(
             input_data,
@@ -134,6 +146,16 @@ class BqmlModel(BaseBqml):
             ),
         )
 
+    def global_explain(self, options: Mapping[str, bool]) -> bpd.DataFrame:
+        sql = self._model_manipulation_sql_generator.ml_global_explain(
+            struct_options=options
+        )
+        return (
+            self._session.read_gbq(sql)
+            .sort_values(by="attribution", ascending=False)
+            .set_index("feature")
+        )
+
     def transform(self, input_data: bpd.DataFrame) -> bpd.DataFrame:
         return self._apply_ml_tvf(
             input_data,
@@ -143,8 +165,9 @@ class BqmlModel(BaseBqml):
     def generate_text(
         self,
         input_data: bpd.DataFrame,
-        options: Mapping[str, int | float],
+        options: dict[str, Union[int, float, bool]],
     ) -> bpd.DataFrame:
+        options["flatten_json_output"] = True
         return self._apply_ml_tvf(
             input_data,
             lambda source_sql: self._model_manipulation_sql_generator.ml_generate_text(
@@ -153,11 +176,14 @@ class BqmlModel(BaseBqml):
             ),
         )
 
+    generate_text_tvf = TvfDef(generate_text, "ml_generate_text_status")
+
     def generate_embedding(
         self,
         input_data: bpd.DataFrame,
-        options: Mapping[str, int | float],
+        options: dict[str, Union[int, float, bool]],
     ) -> bpd.DataFrame:
+        options["flatten_json_output"] = True
         return self._apply_ml_tvf(
             input_data,
             lambda source_sql: self._model_manipulation_sql_generator.ml_generate_embedding(
@@ -165,6 +191,23 @@ class BqmlModel(BaseBqml):
                 struct_options=options,
             ),
         )
+
+    generate_embedding_tvf = TvfDef(generate_embedding, "ml_generate_embedding_status")
+
+    def generate_table(
+        self,
+        input_data: bpd.DataFrame,
+        options: dict[str, Union[int, float, bool, Mapping]],
+    ) -> bpd.DataFrame:
+        return self._apply_ml_tvf(
+            input_data,
+            lambda source_sql: self._model_manipulation_sql_generator.ai_generate_table(
+                source_sql=source_sql,
+                struct_options=options,
+            ),
+        )
+
+    generate_table_tvf = TvfDef(generate_table, "status")
 
     def detect_anomalies(
         self, input_data: bpd.DataFrame, options: Mapping[str, int | float]

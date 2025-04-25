@@ -27,7 +27,12 @@ from bigframes.bigquery._operations.datetime import (
     unix_millis,
     unix_seconds,
 )
-from bigframes.bigquery._operations.geo import st_area
+from bigframes.bigquery._operations.geo import (
+    st_area,
+    st_difference,
+    st_distance,
+    st_intersection,
+)
 from bigframes.bigquery._operations.json import (
     json_extract,
     json_extract_array,
@@ -48,6 +53,9 @@ __all__ = [
     "array_to_string",
     # geo ops
     "st_area",
+    "st_difference",
+    "st_distance",
+    "st_intersection",
     # json ops
     "json_set",
     "json_extract",
