@@ -170,7 +170,7 @@ def method_logger(method, /, *, custom_base_name: Optional[str] = None):
             if len(_call_stack) == 1:
                 submit_pandas_labels(
                     _get_bq_client(*args, **kwargs),
-                    class_name,
+                    base_name,
                     api_method_name,
                     args,
                     kwargs,
