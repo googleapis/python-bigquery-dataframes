@@ -31,7 +31,6 @@ import pyarrow as pa
 import pyarrow.parquet  # type: ignore
 
 import bigframes.core.schema as schemata
-import bigframes.core.utils as utils
 import bigframes.dtypes
 
 
@@ -79,7 +78,7 @@ class ManagedArrowTable:
         mat = ManagedArrowTable(
             pa.table(columns, names=column_names), schemata.ArraySchema(tuple(fields))
         )
-        mat.validate(include_content=True)
+        mat.validate()
         return mat
 
     @classmethod
@@ -98,6 +97,47 @@ class ManagedArrowTable:
         mat.validate()
         return mat
 
+    def to_arrow(
+        self,
+        *,
+        offsets_col: Optional[str] = None,
+        geo_format: Literal["wkb", "wkt"] = "wkt",
+        duration_type: Literal["int", "duration"] = "duration",
+        json_type: Literal["string"] = "string",
+    ) -> tuple[pa.Schema, Iterable[pa.RecordBatch]]:
+        if geo_format != "wkt":
+            raise NotImplementedError(f"geo format {geo_format} not yet implemented")
+        assert json_type == "string"
+
+        batches = self.data.to_batches()
+        schema = self.data.schema
+        if duration_type == "int":
+            schema = _schema_durations_to_ints(schema)
+            batches = map(functools.partial(_cast_pa_batch, schema=schema), batches)
+
+        if offsets_col is not None:
+            return schema.append(pa.field(offsets_col, pa.int64())), _append_offsets(
+                batches, offsets_col
+            )
+        else:
+            return schema, batches
+
+    def to_pyarrow_table(
+        self,
+        *,
+        offsets_col: Optional[str] = None,
+        geo_format: Literal["wkb", "wkt"] = "wkt",
+        duration_type: Literal["int", "duration"] = "duration",
+        json_type: Literal["string"] = "string",
+    ) -> pa.Table:
+        schema, batches = self.to_arrow(
+            offsets_col=offsets_col,
+            geo_format=geo_format,
+            duration_type=duration_type,
+            json_type=json_type,
+        )
+        return pa.Table.from_batches(batches, schema)
+
     def to_parquet(
         self,
         dst: Union[str, io.IOBase],
@@ -107,18 +147,12 @@ class ManagedArrowTable:
         duration_type: Literal["int", "duration"] = "duration",
         json_type: Literal["string"] = "string",
     ):
-        pa_table = self.data
-        if offsets_col is not None:
-            pa_table = pa_table.append_column(
-                offsets_col, pa.array(range(pa_table.num_rows), type=pa.int64())
-            )
-        if geo_format != "wkt":
-            raise NotImplementedError(f"geo format {geo_format} not yet implemented")
-        if duration_type != "duration":
-            raise NotImplementedError(
-                f"duration as {duration_type} not yet implemented"
-            )
-        assert json_type == "string"
+        pa_table = self.to_pyarrow_table(
+            offsets_col=offsets_col,
+            geo_format=geo_format,
+            duration_type=duration_type,
+            json_type=json_type,
+        )
         pyarrow.parquet.write_table(pa_table, where=dst)
 
     def itertuples(
@@ -142,7 +176,7 @@ class ManagedArrowTable:
         ):
             yield tuple(row_dict.values())
 
-    def validate(self, include_content: bool = False):
+    def validate(self):
         for bf_field, arrow_field in zip(self.schema.items, self.data.schema):
             expected_arrow_type = _get_managed_storage_type(bf_field.dtype)
             arrow_type = arrow_field.type
@@ -150,38 +184,6 @@ class ManagedArrowTable:
                 raise TypeError(
                     f"Field {bf_field} has arrow array type: {arrow_type}, expected type: {expected_arrow_type}"
                 )
-
-        if include_content:
-            for batch in self.data.to_batches():
-                for field in self.schema.items:
-                    _validate_content(batch.column(field.column), field.dtype)
-
-
-def _validate_content(array: pa.Array, dtype: bigframes.dtypes.Dtype):
-    """
-    Recursively validates the content of a PyArrow Array based on the
-    expected BigFrames dtype, focusing on complex types like JSON, structs,
-    and arrays where the Arrow type alone isn't sufficient.
-    """
-    # TODO: validate GEO data context.
-    if dtype == bigframes.dtypes.JSON_DTYPE:
-        values = array.to_pandas()
-        for data in values:
-            # Skip scalar null values to avoid `TypeError` from json.load.
-            if not utils.is_list_like(data) and pd.isna(data):
-                continue
-            try:
-                # Attempts JSON parsing.
-                json.loads(data)
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Invalid JSON format found: {data!r}") from e
-    elif bigframes.dtypes.is_struct_like(dtype):
-        for field_name, dtype in bigframes.dtypes.get_struct_fields(dtype).items():
-            _validate_content(array.field(field_name), dtype)
-    elif bigframes.dtypes.is_array_like(dtype):
-        return _validate_content(
-            array.flatten(), bigframes.dtypes.get_array_inner_type(dtype)
-        )
 
 
 # Sequential iterator, but could split into batches and leverage parallelism for speed
@@ -229,7 +231,7 @@ def _iter_table(
         value_generator = iter_array(
             array.flatten(), bigframes.dtypes.get_array_inner_type(dtype)
         )
-        for (start, end) in itertools.pairwise(array.offsets):
+        for (start, end) in _pairwise(array.offsets):
             arr_size = end.as_py() - start.as_py()
             yield list(itertools.islice(value_generator, arr_size))
 
@@ -280,6 +282,34 @@ def _adapt_pandas_series(
 def _adapt_arrow_array(
     array: Union[pa.ChunkedArray, pa.Array]
 ) -> tuple[Union[pa.ChunkedArray, pa.Array], bigframes.dtypes.Dtype]:
+    """Normalize the array to managed storage types. Preverse shapes, only transforms values."""
+    if pa.types.is_struct(array.type):
+        assert isinstance(array, pa.StructArray)
+        assert isinstance(array.type, pa.StructType)
+        arrays = []
+        dtypes = []
+        pa_fields = []
+        for i in range(array.type.num_fields):
+            field_array, field_type = _adapt_arrow_array(array.field(i))
+            arrays.append(field_array)
+            dtypes.append(field_type)
+            pa_fields.append(pa.field(array.type.field(i).name, field_array.type))
+        struct_array = pa.StructArray.from_arrays(
+            arrays=arrays, fields=pa_fields, mask=array.is_null()
+        )
+        dtype = bigframes.dtypes.struct_type(
+            [(field.name, dtype) for field, dtype in zip(pa_fields, dtypes)]
+        )
+        return struct_array, dtype
+    if pa.types.is_list(array.type):
+        assert isinstance(array, pa.ListArray)
+        values, values_type = _adapt_arrow_array(array.values)
+        new_value = pa.ListArray.from_arrays(
+            array.offsets, values, mask=array.is_null()
+        )
+        return new_value.fill_null([]), bigframes.dtypes.list_type(values_type)
+    if array.type == bigframes.dtypes.JSON_ARROW_TYPE:
+        return _canonicalize_json(array), bigframes.dtypes.JSON_DTYPE
     target_type = _logical_type_replacements(array.type)
     if target_type != array.type:
         # TODO: Maybe warn if lossy conversion?
@@ -290,6 +320,22 @@ def _adapt_arrow_array(
     if storage_type != array.type:
         array = array.cast(storage_type)
     return array, bf_type
+
+
+def _canonicalize_json(array: pa.Array) -> pa.Array:
+    def _canonicalize_scalar(json_string):
+        if json_string is None:
+            return None
+        # This is the canonical form that bq uses when emitting json
+        # The sorted keys and unambiguous whitespace ensures a 1:1 mapping
+        # between syntax and semantics.
+        return json.dumps(
+            json.loads(json_string), sort_keys=True, separators=(",", ":")
+        )
+
+    return pa.array(
+        [_canonicalize_scalar(value) for value in array.to_pylist()], type=pa.string()
+    )
 
 
 def _get_managed_storage_type(dtype: bigframes.dtypes.Dtype) -> pa.DataType:
@@ -362,3 +408,51 @@ def _physical_type_replacements(dtype: pa.DataType) -> pa.DataType:
     if dtype in _ARROW_MANAGED_STORAGE_OVERRIDES:
         return _ARROW_MANAGED_STORAGE_OVERRIDES[dtype]
     return dtype
+
+
+def _append_offsets(
+    batches: Iterable[pa.RecordBatch], offsets_col_name: str
+) -> Iterable[pa.RecordBatch]:
+    offset = 0
+    for batch in batches:
+        offsets = pa.array(range(offset, offset + batch.num_rows), type=pa.int64())
+        batch_w_offsets = pa.record_batch(
+            [*batch.columns, offsets],
+            schema=batch.schema.append(pa.field(offsets_col_name, pa.int64())),
+        )
+        offset += batch.num_rows
+        yield batch_w_offsets
+
+
+@_recursive_map_types
+def _durations_to_ints(type: pa.DataType) -> pa.DataType:
+    if pa.types.is_duration(type):
+        return pa.int64()
+    return type
+
+
+def _schema_durations_to_ints(schema: pa.Schema) -> pa.Schema:
+    return pa.schema(
+        pa.field(field.name, _durations_to_ints(field.type)) for field in schema
+    )
+
+
+# TODO: Use RecordBatch.cast once min pyarrow>=16.0
+def _cast_pa_batch(batch: pa.RecordBatch, schema: pa.Schema) -> pa.RecordBatch:
+    return pa.record_batch(
+        [arr.cast(type) for arr, type in zip(batch.columns, schema.types)],
+        schema=schema,
+    )
+
+
+def _pairwise(iterable):
+    do_yield = False
+    a = None
+    b = None
+    for item in iterable:
+        a = b
+        b = item
+        if do_yield:
+            yield (a, b)
+        else:
+            do_yield = True

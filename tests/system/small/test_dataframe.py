@@ -83,6 +83,7 @@ def test_df_construct_pandas_default(scalars_dfs):
         ("bigquery_inline"),
         ("bigquery_load"),
         ("bigquery_streaming"),
+        ("bigquery_write"),
     ],
 )
 def test_read_pandas_all_nice_types(
@@ -1772,7 +1773,7 @@ def test_len(scalars_dfs):
 )
 @pytest.mark.parametrize(
     "write_engine",
-    ["bigquery_load", "bigquery_streaming"],
+    ["bigquery_load", "bigquery_streaming", "bigquery_write"],
 )
 def test_df_len_local(session, n_rows, write_engine):
     assert (
@@ -5281,6 +5282,16 @@ def test_to_gbq_and_create_dataset(session, scalars_df_index, dataset_id_not_cre
 
     loaded_scalars_df_index = session.read_gbq(result_table)
     assert not loaded_scalars_df_index.empty
+
+
+def test_read_gbq_to_pandas_no_exec(unordered_session: bigframes.Session):
+    metrics = unordered_session._metrics
+    execs_pre = metrics.execution_count
+    df = unordered_session.read_gbq("bigquery-public-data.ml_datasets.penguins")
+    df.to_pandas()
+    execs_post = metrics.execution_count
+    assert df.shape == (344, 7)
+    assert execs_pre == execs_post
 
 
 def test_to_gbq_table_labels(scalars_df_index):

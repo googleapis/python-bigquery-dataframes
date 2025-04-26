@@ -33,10 +33,10 @@ from typing import (
 
 import google.cloud.bigquery as bq
 
-from bigframes.core import identifiers, local_data
+from bigframes.core import identifiers, local_data, sequences
 from bigframes.core.bigframe_node import BigFrameNode, COLUMN_SET, Field
 import bigframes.core.expression as ex
-from bigframes.core.ordering import OrderingExpression
+from bigframes.core.ordering import OrderingExpression, RowOrdering
 import bigframes.core.slices as slices
 import bigframes.core.window_spec as window
 import bigframes.dtypes
@@ -87,7 +87,7 @@ class UnaryNode(BigFrameNode):
         return (self.child,)
 
     @property
-    def fields(self) -> Iterable[Field]:
+    def fields(self) -> Sequence[Field]:
         return self.child.fields
 
     @property
@@ -226,8 +226,8 @@ class InNode(BigFrameNode, AdditiveNode):
         return (Field(self.indicator_col, bigframes.dtypes.BOOL_DTYPE, nullable=False),)
 
     @property
-    def fields(self) -> Iterable[Field]:
-        return itertools.chain(
+    def fields(self) -> Sequence[Field]:
+        return sequences.ChainedSequence(
             self.left_child.fields,
             self.added_fields,
         )
@@ -321,15 +321,15 @@ class JoinNode(BigFrameNode):
     def explicitly_ordered(self) -> bool:
         return self.propogate_order
 
-    @property
-    def fields(self) -> Iterable[Field]:
-        left_fields = self.left_child.fields
+    @functools.cached_property
+    def fields(self) -> Sequence[Field]:
+        left_fields: Iterable[Field] = self.left_child.fields
         if self.type in ("right", "outer"):
             left_fields = map(lambda x: x.with_nullable(), left_fields)
-        right_fields = self.right_child.fields
+        right_fields: Iterable[Field] = self.right_child.fields
         if self.type in ("left", "outer"):
             right_fields = map(lambda x: x.with_nullable(), right_fields)
-        return itertools.chain(left_fields, right_fields)
+        return (*left_fields, *right_fields)
 
     @property
     def joins_nulls(self) -> bool:
@@ -430,10 +430,10 @@ class ConcatNode(BigFrameNode):
         return True
 
     @property
-    def fields(self) -> Iterable[Field]:
+    def fields(self) -> Sequence[Field]:
         # TODO: Output names should probably be aligned beforehand or be part of concat definition
         # TODO: Handle nullability
-        return (
+        return tuple(
             Field(id, field.dtype)
             for id, field in zip(self.output_ids, self.children[0].fields)
         )
@@ -505,7 +505,7 @@ class FromRangeNode(BigFrameNode):
         return True
 
     @functools.cached_property
-    def fields(self) -> Iterable[Field]:
+    def fields(self) -> Sequence[Field]:
         return (
             Field(self.output_id, next(iter(self.start.fields)).dtype, nullable=False),
         )
@@ -626,12 +626,20 @@ class ReadLocalNode(LeafNode):
     session: typing.Optional[bigframes.session.Session] = None
 
     @property
-    def fields(self) -> Iterable[Field]:
-        fields = (Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items)
+    def fields(self) -> Sequence[Field]:
+        fields = tuple(
+            Field(col_id, dtype) for col_id, dtype, _ in self.scan_list.items
+        )
         if self.offsets_col is not None:
-            return itertools.chain(
-                fields,
-                (Field(self.offsets_col, bigframes.dtypes.INT_DTYPE, nullable=False),),
+            return tuple(
+                itertools.chain(
+                    fields,
+                    (
+                        Field(
+                            self.offsets_col, bigframes.dtypes.INT_DTYPE, nullable=False
+                        ),
+                    ),
+                )
             )
         return fields
 
@@ -767,8 +775,8 @@ class ReadTableNode(LeafNode):
         return self.table_session
 
     @property
-    def fields(self) -> Iterable[Field]:
-        return (
+    def fields(self) -> Sequence[Field]:
+        return tuple(
             Field(col_id, dtype, self.source.table.schema_by_id[source_id].is_nullable)
             for col_id, dtype, source_id in self.scan_list.items
         )
@@ -881,8 +889,8 @@ class PromoteOffsetsNode(UnaryNode, AdditiveNode):
         return True
 
     @property
-    def fields(self) -> Iterable[Field]:
-        return itertools.chain(self.child.fields, self.added_fields)
+    def fields(self) -> Sequence[Field]:
+        return sequences.ChainedSequence(self.child.fields, self.added_fields)
 
     @property
     def relation_ops_created(self) -> int:
@@ -1097,7 +1105,7 @@ class SelectionNode(UnaryNode):
                 raise ValueError(f"Reference to column not in child: {ref.id}")
 
     @functools.cached_property
-    def fields(self) -> Iterable[Field]:
+    def fields(self) -> Sequence[Field]:
         input_fields_by_id = {field.id: field for field in self.child.fields}
         return tuple(
             Field(
@@ -1192,8 +1200,8 @@ class ProjectionNode(UnaryNode, AdditiveNode):
         return tuple(fields)
 
     @property
-    def fields(self) -> Iterable[Field]:
-        return itertools.chain(self.child.fields, self.added_fields)
+    def fields(self) -> Sequence[Field]:
+        return sequences.ChainedSequence(self.child.fields, self.added_fields)
 
     @property
     def variables_introduced(self) -> int:
@@ -1263,7 +1271,7 @@ class RowCountNode(UnaryNode):
         return True
 
     @property
-    def fields(self) -> Iterable[Field]:
+    def fields(self) -> Sequence[Field]:
         return (Field(self.col_id, bigframes.dtypes.INT_DTYPE, nullable=False),)
 
     @property
@@ -1313,7 +1321,7 @@ class AggregateNode(UnaryNode):
         return True
 
     @functools.cached_property
-    def fields(self) -> Iterable[Field]:
+    def fields(self) -> Sequence[Field]:
         # TODO: Use child nullability to infer grouping key nullability
         by_fields = (self.child.field_by_id[ref.id] for ref in self.by_column_ids)
         if self.dropna:
@@ -1411,8 +1419,8 @@ class WindowOpNode(UnaryNode, AdditiveNode):
         return True
 
     @property
-    def fields(self) -> Iterable[Field]:
-        return itertools.chain(self.child.fields, [self.added_field])
+    def fields(self) -> Sequence[Field]:
+        return sequences.ChainedSequence(self.child.fields, (self.added_field,))
 
     @property
     def variables_introduced(self) -> int:
@@ -1547,7 +1555,7 @@ class ExplodeNode(UnaryNode):
         return False
 
     @property
-    def fields(self) -> Iterable[Field]:
+    def fields(self) -> Sequence[Field]:
         fields = (
             Field(
                 field.id,
@@ -1561,11 +1569,17 @@ class ExplodeNode(UnaryNode):
             for field in self.child.fields
         )
         if self.offsets_col is not None:
-            return itertools.chain(
-                fields,
-                (Field(self.offsets_col, bigframes.dtypes.INT_DTYPE, nullable=False),),
+            return tuple(
+                itertools.chain(
+                    fields,
+                    (
+                        Field(
+                            self.offsets_col, bigframes.dtypes.INT_DTYPE, nullable=False
+                        ),
+                    ),
+                )
             )
-        return fields
+        return tuple(fields)
 
     @property
     def relation_ops_created(self) -> int:
@@ -1602,11 +1616,50 @@ class ExplodeNode(UnaryNode):
 
 
 # Introduced during planing/compilation
+# TODO: Enforce more strictly that this should never be a child node
 @dataclasses.dataclass(frozen=True, eq=False)
 class ResultNode(UnaryNode):
-    output_names: tuple[str, ...]
-    order_by: Tuple[OrderingExpression, ...] = ()
+    output_cols: tuple[tuple[ex.DerefOp, str], ...]
+    order_by: Optional[RowOrdering] = None
     limit: Optional[int] = None
+    # TODO: CTE definitions
+
+    @property
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
+        return ()
+
+    def remap_vars(
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
+    ) -> ResultNode:
+        return self
+
+    def remap_refs(
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
+    ) -> ResultNode:
+        output_names = tuple(
+            (ref.remap_column_refs(mappings), name) for ref, name in self.output_cols
+        )
+        order_by = self.order_by.remap_column_refs(mappings) if self.order_by else None
+        return dataclasses.replace(self, output_names=output_names, order_by=order_by)  # type: ignore
+
+    @property
+    def consumed_ids(self) -> COLUMN_SET:
+        out_refs = frozenset(ref.id for ref, _ in self.output_cols)
+        order_refs = self.order_by.referenced_columns if self.order_by else frozenset()
+        return out_refs | order_refs
+
+    @property
+    def row_count(self) -> Optional[int]:
+        child_count = self.child.row_count
+        if child_count is None:
+            return None
+        if self.limit is None:
+            return child_count
+        return min(self.limit, child_count)
+
+    @property
+    def variables_introduced(self) -> int:
+        return 0
 
 
 # Tree operators
