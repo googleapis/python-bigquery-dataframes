@@ -232,7 +232,6 @@ def start_query_with_client(
         # Note: Ensure no additional labels are added to job_config after this point,
         # as `add_and_trim_labels` ensures the label count does not exceed 64.
         add_and_trim_labels(job_config)
-        print("aaaaaa", job_config.labels)
         if not query_with_job:
             results_iterator = bq_client.query_and_wait(
                 sql,
