@@ -101,7 +101,16 @@ def validate_table(
     # Anonymous dataset, does not support snapshot ever
     if table.dataset_id.startswith("_"):
         pass
+
     # Only true tables support time travel
+    elif table.table_id.endswith("*"):
+        msg = bfe.format_message(
+            "Wildcard tables do not support FOR SYSTEM_TIME AS OF queries. "
+            "Attempting query without time travel. Be aware that "
+            "modifications to the underlying data may result in errors or "
+            "unexpected behavior."
+        )
+        warnings.warn(msg, category=bfe.TimeTravelDisabledWarning)
     elif table.table_type != "TABLE":
         if table.table_type == "MATERIALIZED_VIEW":
             msg = bfe.format_message(

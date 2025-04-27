@@ -708,10 +708,12 @@ class GbqTable:
     @staticmethod
     def from_table(table: bq.Table, columns: Sequence[str] = ()) -> GbqTable:
         # Subsetting fields with columns can reduce cost of row-hash default ordering
+        table_schema = bigframes.core.tools.bigquery.get_schema_and_pseudocolumns(table)
+
         if columns:
-            schema = tuple(item for item in table.schema if item.name in columns)
+            schema = tuple(item for item in table_schema if item.name in columns)
         else:
-            schema = tuple(table.schema)
+            schema = tuple(table_schema)
         return GbqTable(
             project_id=table.project,
             dataset_id=table.dataset_id,

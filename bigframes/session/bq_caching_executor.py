@@ -174,6 +174,7 @@ class BigQueryCachingExecutor(executor.Executor):
             # Only update schema if this is not modifying an existing table, and the
             # new table contains timedelta columns.
             table = self.bqclient.get_table(destination)
+            # TODO(tswast): What to do with pseudocolumns?
             table.schema = array_value.schema.to_bigquery()
             self.bqclient.update_table(table, ["schema"])
 

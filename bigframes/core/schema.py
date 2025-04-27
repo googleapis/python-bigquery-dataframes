@@ -48,15 +48,19 @@ class ArraySchema:
             typing.Dict[str, bigframes.dtypes.Dtype]
         ] = None,
     ):
+        # Avoid circular imports.
+        import bigframes.core.tools.bigquery
+
         if column_type_overrides is None:
             column_type_overrides = {}
-        items = tuple(
+        items = [
             SchemaItem(name, column_type_overrides.get(name, dtype))
             for name, dtype in bigframes.dtypes.bf_type_from_type_kind(
-                table.schema
+                bigframes.core.tools.bigquery.get_schema_and_pseudocolumns(table)
             ).items()
-        )
-        return ArraySchema(items)
+        ]
+
+        return ArraySchema(tuple(items))
 
     @property
     def names(self) -> typing.Tuple[str, ...]:

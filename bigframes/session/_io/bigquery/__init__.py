@@ -393,6 +393,9 @@ def to_query(
     else:
         select_clause = "SELECT *"
 
+        if query_or_table.endswith("*"):
+            select_clause += ", _TABLE_SUFFIX"
+
     time_travel_clause = ""
     if time_travel_timestamp is not None:
         time_travel_literal = bigframes.core.sql.simple_literal(time_travel_timestamp)
