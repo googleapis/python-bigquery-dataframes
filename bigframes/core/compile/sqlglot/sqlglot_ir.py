@@ -42,13 +42,10 @@ class SQLGlotIR:
     pretty: bool = True
     """Whether to pretty-print the generated SQL."""
 
+    @property
     def sql(self) -> str:
         """Generate SQL string from the given expression."""
-        return (
-            ""
-            if self.expr is None
-            else self.expr.sql(dialect=self.dialect, pretty=self.pretty)
-        )
+        return self.expr.sql(dialect=self.dialect, pretty=self.pretty)
 
     @classmethod
     def from_pandas(

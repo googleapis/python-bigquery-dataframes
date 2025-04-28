@@ -103,7 +103,7 @@ class SQLGlotCompiler:
     def _compile_result_node(self, root: nodes.ResultNode) -> str:
         sqlglot_ir = compile_node(root.child)
         # TODO: add order_by, limit, and selections to sqlglot_expr
-        return sqlglot_ir.sql()
+        return sqlglot_ir.sql
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):

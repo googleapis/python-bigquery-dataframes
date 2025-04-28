@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import pandas as pd
+import pytest
 
 import bigframes
 import bigframes.pandas as bpd
+
+pytest.importorskip("pytest_snapshot")
 
 
 def test_compile_readlocal(
