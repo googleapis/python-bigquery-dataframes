@@ -188,4 +188,5 @@ def test_client_endpoints_override_set_shows_warning():
 def test_default_options():
     options = bigquery_options.BigQueryOptions()
 
+    assert options.allow_large_results is False
     assert options.ordering_mode == "strict"

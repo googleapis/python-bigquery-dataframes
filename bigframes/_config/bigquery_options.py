@@ -253,16 +253,16 @@ class BigQueryOptions:
     def allow_large_results(self, value: bool):
         """
         DEPRECATED: Setting ``allow_large_results`` via ``bpd.options.bigquery``
-        is deprecated and has no effect. Use
+        will be deprecated. Use
         ``bpd.options.compute.allow_large_results`` instead.
 
-        Warning: Setting this option here is deprecated, ignored, and this setter
+        Warning: Setting this option here will be deprecated, and this setter
         will be removed in a future version. The configuration for handling large
         results has moved.
         """
         warnings.warn(
             "Setting `bpd.options.bigquery.allow_large_results` is deprecated, ignored, "
-            "and will be removed soon. "
+            "and will be removed in the future. "
             "Please use `bpd.options.compute.allow_large_results = <value>` instead.",
             FutureWarning,
             stacklevel=2,

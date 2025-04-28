@@ -150,6 +150,12 @@ class Options:
         """
         return self._local.bigquery_options is not None
 
+    @property
+    def _allow_large_results(self) -> bool:
+        if self.compute.allow_large_results is None:
+            return self.bigquery.allow_large_results
+        return self.compute.allow_large_results
+
 
 options = Options()
 """Global options for default session."""

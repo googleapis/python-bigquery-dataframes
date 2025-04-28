@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import bigframes._config.compute_options as compute_options
+import bigframes._config as config
 
 
 def test_default_options():
-    options = compute_options.ComputeOptions()
+    options = config.compute_options.ComputeOptions()
 
-    assert options.allow_large_results is False
+    assert options.allow_large_results is None
+    assert config.options._allow_large_results is False

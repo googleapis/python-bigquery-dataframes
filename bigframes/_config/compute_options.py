@@ -105,7 +105,7 @@ class ComputeOptions:
     ai_ops_confirmation_threshold: Optional[int] = 0
     ai_ops_threshold_autofail: bool = False
 
-    allow_large_results: bool = False
+    allow_large_results: Optional[bool] = None
 
     def assign_extra_query_labels(self, **kwargs: Any) -> None:
         """
