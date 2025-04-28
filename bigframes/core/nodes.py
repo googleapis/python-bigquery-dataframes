@@ -1594,6 +1594,19 @@ class ResultNode(UnaryNode):
         return dataclasses.replace(self, output_names=output_names, order_by=order_by)  # type: ignore
 
     @property
+    def fields(self) -> Sequence[Field]:
+        # Fields property here is for output schema, not to be consumed by a parent node.
+        input_fields_by_id = {field.id: field for field in self.child.fields}
+        return tuple(
+            Field(
+                identifiers.ColumnId(output),
+                input_fields_by_id[ref.id].dtype,
+                input_fields_by_id[ref.id].nullable,
+            )
+            for ref, output in self.output_cols
+        )
+
+    @property
     def consumed_ids(self) -> COLUMN_SET:
         out_refs = frozenset(ref.id for ref, _ in self.output_cols)
         order_refs = self.order_by.referenced_columns if self.order_by else frozenset()
