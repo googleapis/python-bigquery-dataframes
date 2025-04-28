@@ -176,8 +176,7 @@ def method_logger(method, /, *, custom_base_name: Optional[str] = None):
             # Log method parameters that are implemented in pandas but either missing (TypeError)
             # or not fully supported (NotImplementedError) in BigFrames.
             # Logging is currently supported only when we can access the bqclient through
-            # self._block.expr.session.bqclient. Also, to avoid generating multiple queries
-            # because of internal calls, we log only when the method is directly invoked.
+            # _block.session.bqclient.
             if len(_call_stack) == 1:
                 submit_pandas_labels(
                     _get_bq_client(*args, **kwargs),
