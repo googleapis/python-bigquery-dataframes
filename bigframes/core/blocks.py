@@ -1571,8 +1571,9 @@ class Block:
         head_result = self.session._executor.head(self.expr, max_results)
         row_count = self.session._executor.execute(self.expr.row_count()).to_py_scalar()
 
-        arrow = head_result.to_arrow_table()
-        df = io_pandas.arrow_to_pandas(arrow, schema=self.expr.schema)
+        df = io_pandas.arrow_to_pandas(
+            head_result.to_arrow_table(), schema=head_result.schema
+        )
         self._copy_index_to_pandas(df)
         return df, row_count, head_result.query_job
 
