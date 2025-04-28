@@ -38,7 +38,7 @@ _call_stack: List = []
 
 def submit_pandas_labels(
     bq_client: Optional[bigquery.Client],
-    class_name: str,
+    base_name: str,
     method_name: str,
     args=(),
     kwargs={},
@@ -54,7 +54,7 @@ def submit_pandas_labels(
 
     Args:
         bq_client (bigquery.Client): The client used to interact with BigQuery.
-        class_name (str): The name of the pandas class being used.
+        base_name (str): The name of the pandas class/module being used.
         method_name (str): The name of the method being invoked.
         args (tuple): The positional arguments passed to the method.
         kwargs (dict): The keyword arguments passed to the method.
@@ -70,20 +70,22 @@ def submit_pandas_labels(
 
     labels_dict = {
         "task": task,
-        "class_name": class_name.lower(),
+        "class_name": base_name.lower(),
         "method_name": method_name.lower(),
         "args_count": len(args),
     }
 
-    if hasattr(pandas, class_name):
-        cls = getattr(pandas, class_name)
+    # getattr(pandas, "pandas") returns pandas
+    # so we can also use this for pandas.function
+    if hasattr(pandas, base_name):
+        base = getattr(pandas, base_name)
     else:
         return
 
     # Omit __call__, because its not implemented on the actual instances of
     # DataFrame/Series, only as the constructor.
-    if method_name != "__call__" and hasattr(cls, method_name):
-        method = getattr(cls, method_name)
+    if method_name != "__call__" and hasattr(base, method_name):
+        method = getattr(base, method_name)
     else:
         return
 
@@ -155,7 +157,9 @@ def method_logger(method, /, *, custom_base_name: Optional[str] = None):
         if custom_base_name is None:
             qualname_parts = getattr(method, "__qualname__", method.__name__).split(".")
             class_name = qualname_parts[-2] if len(qualname_parts) > 1 else ""
-            base_name = class_name if class_name else method.__module__
+            base_name = (
+                class_name if class_name else "_".join(method.__module__.split(".")[1:])
+            )
         else:
             base_name = custom_base_name
 
@@ -242,6 +246,8 @@ def get_and_reset_api_methods(dry_run: bool = False):
 
 
 def _get_bq_client(*args, **kwargs):
+    # Assumes that on BigFrames API errors (TypeError/NotImplementedError),
+    # an input arg (likely the first, e.g., 'self') has `_block.session.bqclient`
     for argv in args:
         if hasattr(argv, "_block"):
             return argv._block.session.bqclient

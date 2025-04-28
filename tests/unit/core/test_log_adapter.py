@@ -175,6 +175,20 @@ def test_get_and_reset_api_methods(test_instance):
                 "args_count": 0,
             },
         ),
+        (
+            "pandas",
+            "concat",
+            [[None, None]],
+            {"axis": 1},
+            log_adapter.PANDAS_API_TRACKING_TASK,
+            {
+                "task": log_adapter.PANDAS_API_TRACKING_TASK,
+                "class_name": "pandas",
+                "method_name": "concat",
+                "args_count": 1,
+                "kwargs_0": "axis",
+            },
+        ),
     ),
 )
 def test_submit_pandas_labels(
