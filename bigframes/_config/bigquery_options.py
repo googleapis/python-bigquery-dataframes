@@ -270,7 +270,7 @@ class BigQueryOptions:
             "Setting `bpd.options.bigquery.allow_large_results` is deprecated, ignored, "
             "and will be removed soon. "
             "Please use `bpd.options.compute.allow_large_results = <value>` instead.",
-            DeprecationWarning,
+            FutureWarning,
             stacklevel=2,
         )
         pass
