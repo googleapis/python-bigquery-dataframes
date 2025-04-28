@@ -118,11 +118,18 @@ def class_logger(decorated_cls=None):
     def wrap(cls):
         for attr_name, attr_value in cls.__dict__.items():
             if callable(attr_value) and (attr_name not in _excluded_methods):
-                setattr(
-                    cls,
-                    attr_name,
-                    method_logger(attr_value),
-                )
+                if isinstance(attr_value, staticmethod):
+                    setattr(
+                        cls,
+                        attr_name,
+                        staticmethod(method_logger(attr_value)),
+                    )
+                else:
+                    setattr(
+                        cls,
+                        attr_name,
+                        method_logger(attr_value),
+                    )
             elif isinstance(attr_value, property):
                 setattr(
                     cls,
