@@ -72,6 +72,8 @@ _GEMINI_PREVIEW_ENDPOINTS = (
 _GEMINI_FINE_TUNE_SCORE_ENDPOINTS = (
     _GEMINI_1P5_PRO_002_ENDPOINT,
     _GEMINI_1P5_FLASH_002_ENDPOINT,
+    _GEMINI_2_FLASH_001_ENDPOINT,
+    _GEMINI_2_FLASH_LITE_001_ENDPOINT,
 )
 _GEMINI_MULTIMODAL_ENDPOINTS = (
     _GEMINI_1P5_PRO_001_ENDPOINT,
@@ -538,7 +540,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         """
         if self.model_name not in _GEMINI_FINE_TUNE_SCORE_ENDPOINTS:
             raise NotImplementedError(
-                "fit() only supports gemini-1.5-pro-002, and gemini-1.5-flash-002."
+                "fit() only supports gemini-1.5-pro-002, or gemini-1.5-flash-002."
             )
 
         X, y = utils.batch_convert_to_dataframe(X, y)
