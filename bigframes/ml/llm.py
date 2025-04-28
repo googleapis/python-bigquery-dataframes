@@ -540,7 +540,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         """
         if self.model_name not in _GEMINI_FINE_TUNE_SCORE_ENDPOINTS:
             raise NotImplementedError(
-                "fit() only supports gemini-1.5-pro-002, or gemini-1.5-flash-002."
+                "fit() only supports gemini-1.5-pro-002, or gemini-1.5-flash-002 model."
             )
 
         X, y = utils.batch_convert_to_dataframe(X, y)
