@@ -219,7 +219,12 @@ def _table_to_ibis(
     physical_schema = ibis_bigquery.BigQuerySchema.to_ibis(
         list(source.table.physical_schema)
     )
-    if source.at_time is not None or source.sql_predicate is not None:
+    if (
+        source.at_time is not None
+        or source.sql_predicate is not None
+        # TODO(tswast): make a more general way to check if the table node has pseudocolumns.
+        or source.table.table_id.endswith("*")
+    ):
         import bigframes.session._io.bigquery
 
         sql = bigframes.session._io.bigquery.to_query(
