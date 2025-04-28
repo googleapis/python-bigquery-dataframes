@@ -16,14 +16,17 @@ from __future__ import annotations
 
 import abc
 import dataclasses
+import functools
 import itertools
 from typing import Callable, Iterator, Literal, Mapping, Optional, Sequence, Union
 
 from google.cloud import bigquery
+import pandas as pd
 import pyarrow
 
 import bigframes.core
 import bigframes.core.schema
+import bigframes.session._io.pandas as io_pandas
 
 
 @dataclasses.dataclass(frozen=True)
@@ -48,6 +51,15 @@ class ExecuteResult:
             )
         else:
             return self.schema.to_pyarrow().empty_table()
+
+    def to_pandas(self) -> pd.DataFrame:
+        return io_pandas.arrow_to_pandas(self.to_arrow_table(), self.schema)
+
+    def to_pandas_batches(self) -> Iterator[pd.DataFrame]:
+        yield from map(
+            functools.partial(io_pandas.arrow_to_pandas, schema=self.schema),
+            self.arrow_batches(),
+        )
 
     def to_py_scalar(self):
         columns = list(self.to_arrow_table().to_pydict().values())

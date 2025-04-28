@@ -39,7 +39,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    TYPE_CHECKING,
     Union,
 )
 import warnings
@@ -68,13 +67,8 @@ import bigframes.core.utils as utils
 import bigframes.core.window_spec as windows
 import bigframes.dtypes
 import bigframes.exceptions as bfe
-import bigframes.features
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
-import bigframes.session._io.pandas as io_pandas
-
-if TYPE_CHECKING:
-    import bigframes.session.executor
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -580,7 +574,7 @@ class Block:
             result = self.session._executor.peek(
                 self.expr, n, use_explicit_destination=allow_large_results
             )
-            df = io_pandas.arrow_to_pandas(result.to_arrow_table(), self.expr.schema)
+            df = result.to_pandas()
             self._copy_index_to_pandas(df)
             return df
         else:
@@ -604,8 +598,7 @@ class Block:
             page_size=page_size,
             max_results=max_results,
         )
-        for record_batch in execute_result.arrow_batches():
-            df = io_pandas.arrow_to_pandas(record_batch, self.expr.schema)
+        for df in execute_result.to_pandas_batches():
             self._copy_index_to_pandas(df)
             if squeeze:
                 yield df.squeeze(axis=1)
@@ -690,8 +683,7 @@ class Block:
                 MaterializationOptions(ordered=materialize_options.ordered)
             )
         else:
-            arrow = execute_result.to_arrow_table()
-            df = io_pandas.arrow_to_pandas(arrow, schema=self.expr.schema)
+            df = execute_result.to_pandas()
             self._copy_index_to_pandas(df)
 
         return df, execute_result.query_job
@@ -1571,9 +1563,7 @@ class Block:
         head_result = self.session._executor.head(self.expr, max_results)
         row_count = self.session._executor.execute(self.expr.row_count()).to_py_scalar()
 
-        df = io_pandas.arrow_to_pandas(
-            head_result.to_arrow_table(), schema=head_result.schema
-        )
+        df = head_result.to_pandas()
         self._copy_index_to_pandas(df)
         return df, row_count, head_result.query_job
 
