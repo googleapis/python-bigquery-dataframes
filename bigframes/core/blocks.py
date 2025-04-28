@@ -221,14 +221,7 @@ class Block:
             except Exception:
                 pass
 
-        row_count = next(
-            iter(
-                self.session._executor.execute(self.expr.row_count())
-                .to_arrow_table()
-                .to_pydict()
-                .values()
-            )
-        )[0]
+        row_count = self.session._executor.execute(self.expr.row_count()).to_py_scalar()
         return (row_count, len(self.value_columns))
 
     @property
@@ -1576,14 +1569,7 @@ class Block:
 
         # head caches full underlying expression, so row_count will be free after
         head_result = self.session._executor.head(self.expr, max_results)
-        row_count = next(
-            iter(
-                self.session._executor.execute(self.expr.row_count())
-                .to_arrow_table()
-                .to_pydict()
-                .values()
-            )
-        )[0]
+        row_count = self.session._executor.execute(self.expr.row_count()).to_py_scalar()
 
         arrow = head_result.to_arrow_table()
         df = io_pandas.arrow_to_pandas(arrow, schema=self.expr.schema)

@@ -49,6 +49,17 @@ class ExecuteResult:
         else:
             return self.schema.to_pyarrow().empty_table()
 
+    def to_py_scalar(self):
+        columns = list(self.to_arrow_table().to_pydict().values())
+        if len(columns) != 1:
+            raise ValueError(
+                f"Expected single column result, got {len(columns)} columns."
+            )
+        column = columns[0]
+        if len(column) != 1:
+            raise ValueError(f"Expected single row result, got {len(column)} rows.")
+        return column[0]
+
 
 class Executor(abc.ABC):
     """
