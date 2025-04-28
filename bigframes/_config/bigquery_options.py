@@ -267,7 +267,12 @@ class BigQueryOptions:
             FutureWarning,
             stacklevel=2,
         )
-        pass
+        if self._session_started and self._allow_large_results != value:
+            raise ValueError(
+                SESSION_STARTED_MESSAGE.format(attribute="allow_large_results")
+            )
+
+        self._allow_large_results = value
 
     @property
     def use_regional_endpoints(self) -> bool:
