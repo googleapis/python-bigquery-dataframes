@@ -15,12 +15,13 @@ from __future__ import annotations
 
 import dataclasses
 import functools
+import itertools
 import typing
 
 from google.cloud import bigquery
 import pyarrow as pa
 
-from bigframes.core import expression, nodes, rewrite
+from bigframes.core import expression, identifiers, nodes, rewrite
 from bigframes.core.compile import configs
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.core.ordering as bf_ordering
@@ -79,6 +80,7 @@ class SQLGlotCompiler:
             result_node = typing.cast(
                 nodes.ResultNode, rewrite.column_pruning(result_node)
             )
+            result_node = _remap_variables(result_node)
             sql = self._compile_result_node(result_node)
             return configs.CompileResult(
                 sql, result_node.schema.to_bigquery(), result_node.order_by
@@ -87,6 +89,8 @@ class SQLGlotCompiler:
         ordering: typing.Optional[bf_ordering.RowOrdering] = result_node.order_by
         result_node = dataclasses.replace(result_node, order_by=None)
         result_node = typing.cast(nodes.ResultNode, rewrite.column_pruning(result_node))
+
+        result_node = _remap_variables(result_node)
         sql = self._compile_result_node(result_node)
         # Return the ordering iff no extra columns are needed to define the row order
         if ordering is not None:
@@ -111,6 +115,17 @@ def _replace_unsupported_ops(node: nodes.BigFrameNode):
     node = nodes.bottom_up(node, rewrite.rewrite_timedelta_expressions)
     node = nodes.bottom_up(node, rewrite.rewrite_range_rolling)
     return node
+
+
+def _remap_variables(node: nodes.ResultNode) -> nodes.ResultNode:
+    """Remap all `ColumnId` in the BFET to ensure the uid generated are deterministic."""
+
+    def anonymous_column_ids() -> typing.Generator[identifiers.ColumnId, None, None]:
+        for i in itertools.count():
+            yield identifiers.ColumnId(name=f"bfcol_{i}")
+
+    result_node, _ = rewrite.remap_variables(node, anonymous_column_ids())
+    return typing.cast(nodes.ResultNode, result_node)
 
 
 @functools.lru_cache(maxsize=5000)
