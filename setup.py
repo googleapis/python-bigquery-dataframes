@@ -83,6 +83,7 @@ extras = {
         "nox",
         "google-cloud-testutils",
         "freezegun",
+        "pytest-snapshot",
     ],
 }
 extras["all"] = list(sorted(frozenset(itertools.chain.from_iterable(extras.values()))))

@@ -22,7 +22,6 @@ import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery
 import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.types as ibis_types
-import google.cloud.bigquery
 import pyarrow as pa
 
 from bigframes import dtypes, operations
@@ -178,7 +177,6 @@ def compile_readlocal(node: nodes.ReadLocalNode, *args):
         pa_table = pa_table.append_column(
             offsets, pa.array(range(pa_table.num_rows), type=pa.int64())
         )
-        bq_schema = (*bq_schema, google.cloud.bigquery.SchemaField(offsets, "INT64"))
     return compiled.UnorderedIR.from_polars(pa_table, bq_schema)
 
 
