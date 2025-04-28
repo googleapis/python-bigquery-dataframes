@@ -22,6 +22,7 @@ def test_kmeans_sample(project_id: str, random_model_id_eu: str) -> None:
     import pandas as pd
 
     import bigframes
+    import bigframes.bigquery as bbq
     import bigframes.pandas as bpd
 
     bigframes.options.bigquery.project = your_gcp_project_id
@@ -41,21 +42,30 @@ def test_kmeans_sample(project_id: str, random_model_id_eu: str) -> None:
         }
     )
 
-    s = bpd.read_gbq(
-        # Use ST_GEOPOINT and ST_DISTANCE to analyze geographical
-        # data. These functions determine spatial relationships between
-        # geographical features.
-        """
-        SELECT
-        id,
-        ST_DISTANCE(
-            ST_GEOGPOINT(s.longitude, s.latitude),
-            ST_GEOGPOINT(-0.1, 51.5)
-        ) / 1000 AS distance_from_city_center
-        FROM
-        `bigquery-public-data.london_bicycles.cycle_stations` s
-        """
+    # Use GeoSeries.from_xy and BigQuery.st_distance to analyze geographical
+    # data. These functions determine spatial relationships between
+    # geographical features.
+    # See, https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.geopandas.GeoSeries#bigframes_geopandas_GeoSeries_from_xy
+    # and https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.bigquery?_gl=1*zvtewl*_ga*MTQ0Mjc3NTA5NS4xNzQyOTI5NDMz*_ga_4LYFWVHBEB*MTc0NTg1OTY2Mi4zLjEuMTc0NTg2MDQ2Mi4wLjAuMA..#bigframes_bigquery_st_distance.
+    cycle_stations = bpd.read_gbq("bigquery-public-data.london_bicycles.cycle_stations")
+    s1 = bpd.DataFrame(
+        {
+            "id": cycle_stations["id"],
+            "xy": bigframes.geopandas.GeoSeries.from_xy(
+                cycle_stations["longitude"], cycle_stations["latitude"]
+            ),
+        }
     )
+    s2 = bpd.DataFrame(
+        {
+            "id": cycle_stations["id"],
+            "xy": bigframes.geopandas.GeoSeries.from_xy(
+                [-0.1] * len(s1), [51.5] * len(s1)
+            ),
+        }
+    )
+    s_distance = bbq.st_distance(s1["xy"], s2["xy"], use_spheroid=False)
+    s = bpd.DataFrame({"id": s1["id"], "distance_from_city_center": s_distance})
 
     # Define Python datetime objects in the UTC timezone for range comparison,
     # because BigQuery stores timestamp data in the UTC timezone.
@@ -97,9 +107,11 @@ def test_kmeans_sample(project_id: str, random_model_id_eu: str) -> None:
     stationstats.columns = pd.Index(
         ["duration", "num_trips", "distance_from_city_center"]
     )
-    stationstats = stationstats.sort_values(
-        by="distance_from_city_center", ascending=True
-    ).reset_index()
+    stationstats = (
+        bpd.DataFrame(stationstats)
+        .sort_values(by="distance_from_city_center", ascending=True)
+        .reset_index()
+    )
 
     # Expected output results: >>> stationstats.head(3)
     # station_name	isweekday duration  num_trips	distance_from_city_center
