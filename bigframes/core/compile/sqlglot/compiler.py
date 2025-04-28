@@ -17,20 +17,18 @@ import dataclasses
 import functools
 import typing
 
-import google.cloud.bigquery as bigquery
-import sqlglot.expressions as sge
+from google.cloud import bigquery
+import pyarrow as pa
 
 from bigframes.core import expression, nodes, rewrite
 from bigframes.core.compile import configs
-from bigframes.core.compile.sqlglot import sql_gen
+import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.core.ordering as bf_ordering
 
 
 @dataclasses.dataclass(frozen=True)
 class SQLGlotCompiler:
     """Compiles BigFrame nodes into SQL using SQLGlot."""
-
-    sql_gen = sql_gen.SQLGen()
 
     def compile(
         self,
@@ -103,9 +101,9 @@ class SQLGlotCompiler:
         )
 
     def _compile_result_node(self, root: nodes.ResultNode) -> str:
-        sqlglot_expr = compile_node(root.child)
+        sqlglot_ir = compile_node(root.child)
         # TODO: add order_by, limit, and selections to sqlglot_expr
-        return self.sql_gen.sql(sqlglot_expr)
+        return sqlglot_ir.sql()
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
@@ -116,26 +114,40 @@ def _replace_unsupported_ops(node: nodes.BigFrameNode):
 
 
 @functools.lru_cache(maxsize=5000)
-def compile_node(node: nodes.BigFrameNode) -> sge.Expression:
+def compile_node(node: nodes.BigFrameNode) -> ir.SQLGlotIR:
     """Compile node into CompileArrayValue. Caches result."""
     return node.reduce_up(lambda node, children: _compile_node(node, *children))
 
 
 @functools.singledispatch
 def _compile_node(
-    node: nodes.BigFrameNode, *compiled_children: sge.Expression
-) -> sge.Expression:
+    node: nodes.BigFrameNode, *compiled_children: ir.SQLGlotIR
+) -> ir.SQLGlotIR:
     """Defines transformation but isn't cached, always use compile_node instead"""
     raise ValueError(f"Can't compile unrecognized node: {node}")
 
 
 @_compile_node.register
-def compile_readlocal(node: nodes.ReadLocalNode, *args) -> sge.Expression:
-    # TODO: add support for reading from local files
-    return sge.select()
+def compile_readlocal(node: nodes.ReadLocalNode, *args) -> ir.SQLGlotIR:
+    offsets = node.offsets_col.sql if node.offsets_col else None
+    schema_names = node.schema.names
+    schema_dtypes = node.schema.dtypes
+
+    pa_table = node.local_data_source.data
+    pa_table = pa_table.select(list(item.source_id for item in node.scan_list.items))
+    pa_table = pa_table.rename_columns(
+        {item.source_id: item.id.sql for item in node.scan_list.items}
+    )
+
+    if offsets:
+        pa_table = pa_table.append_column(
+            offsets, pa.array(range(pa_table.num_rows), type=pa.int64())
+        )
+
+    return ir.SQLGlotIR.from_pandas(pa_table.to_pandas(), schema_names, schema_dtypes)
 
 
 @_compile_node.register
-def compile_selection(node: nodes.SelectionNode, child: sge.Expression):
+def compile_selection(node: nodes.SelectionNode, child: ir.SQLGlotIR):
     # TODO: add support for selection
     return child
