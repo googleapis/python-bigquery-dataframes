@@ -1055,6 +1055,13 @@ class Session(
         if engine == "bigquery":
             job_config = bigquery.LoadJobConfig()
             job_config.source_format = bigquery.SourceFormat.PARQUET
+
+            # Ensure we can load pyarrow.list_ / BQ ARRAY type.
+            # See internal issue 414374215.
+            parquet_options = bigquery.ParquetOptions()
+            parquet_options.enable_list_inference = True
+            job_config.parquet_options = parquet_options
+
             job_config.labels = {"bigframes-api": "read_parquet"}
 
             return self._loader.read_bigquery_load_job(path, job_config=job_config)
