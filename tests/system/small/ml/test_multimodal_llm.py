@@ -39,7 +39,6 @@ def test_multimodal_embedding_generator_predict_default_params_success(
     assert len(df["ml_generate_embedding_result"][0]) == 1408
 
 
-# TODO(b/413131111): wait for "gemini-2.0-flash-lite-001" quota support from BQML
 @pytest.mark.parametrize(
     "model_name",
     (

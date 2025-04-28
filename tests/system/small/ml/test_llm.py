@@ -772,8 +772,6 @@ def test_text_embedding_generator_retry_no_progress(session, bq_connection):
         "gemini-1.5-flash-002",
         "gemini-2.0-flash-001",
         "gemini-2.0-flash-lite-001",
-        "gemini-2.0-flash-001",
-        "gemini-2.0-flash-lite-001",
     ),
 )
 def test_llm_gemini_score(llm_fine_tune_df_default_index, model_name):
