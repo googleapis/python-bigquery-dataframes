@@ -119,6 +119,7 @@ def _replace_unsupported_ops(node: nodes.BigFrameNode):
 
 def _remap_variables(node: nodes.ResultNode) -> nodes.ResultNode:
     """Remaps `ColumnId`s in the BFET of a `ResultNode` to produce deterministic UIDs."""
+
     def anonymous_column_ids() -> typing.Generator[identifiers.ColumnId, None, None]:
         for i in itertools.count():
             yield identifiers.ColumnId(name=f"bfcol_{i}")
