@@ -556,11 +556,11 @@ class GbqDataLoader:
             index_cols = [sequential_index_col]
             index_names = [None]
 
-        value_columns = [col for col in array_value.column_ids if col not in index_cols]
+        value_names = [col for col in schema.names if col not in index_names]
         block = blocks.Block(
             array_value,
             index_columns=index_cols,
-            column_labels=value_columns,
+            column_labels=value_names,
             index_labels=index_names,
         )
         if max_results:

@@ -656,6 +656,26 @@ def test_to_gbq_w_None_column_names(
     )
 
 
+def test_to_gbq_w_wildcard_table(session, dataset_id):
+    """Test the `to_gbq` API with a DataFrame that contains pseudocolumns from wildcard tables
+
+    Regression test for internal issue b/405773140.
+    """
+    destination_table = f"{dataset_id}.test_to_gbq_w_wildcard_table"
+    df = session.read_gbq("bigquery-public-data.google_analytics_sample.ga_sessions_*")
+    df = df[df["_TABLE_SUFFIX"] == "20161204"][
+        ["visitorId", "visitNumber", "visitId", "_TABLE_SUFFIX"]
+    ]
+    df.to_gbq(destination_table, if_exists="replace")
+
+    bf_result = bpd.read_gbq(destination_table)
+    pd.testing.assert_index_equal(
+        bf_result.columns,
+        # Remove leading _ to allow serialization.
+        pd.Index(["visitorId", "visitNumber", "visitId", "TABLE_SUFFIX"]),
+    )
+
+
 @pytest.mark.parametrize(
     "clustering_columns",
     [

@@ -5051,6 +5051,23 @@ def test_df_cached(scalars_df_index):
     pandas.testing.assert_frame_equal(df.to_pandas(), df_cached_copy.to_pandas())
 
 
+def test_df_cached_w_wildcard_table(session):
+    """Test the `cache()` API with a DataFrame that contains pseudocolumns from wildcard tables
+
+    Regression test for internal issue b/405773140.
+    """
+    df = session.read_gbq("bigquery-public-data.google_analytics_sample.ga_sessions_*")
+    df = (
+        df[df["_TABLE_SUFFIX"] == "20161204"]
+        .groupby(
+            ["visitorId", "visitNumber", "visitId", "_TABLE_SUFFIX"], as_index=False
+        )
+        .size()
+    )
+    df_cached_copy = df.cache()
+    pandas.testing.assert_frame_equal(df.to_pandas(), df_cached_copy.to_pandas())
+
+
 def test_assign_after_binop_row_joins():
     pd_df = pd.DataFrame(
         {
