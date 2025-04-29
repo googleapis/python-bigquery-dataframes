@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import functools
+import itertools
 import typing
 from typing import Sequence
 
@@ -56,7 +57,12 @@ class ArraySchema:
         items = [
             SchemaItem(name, column_type_overrides.get(name, dtype))
             for name, dtype in bigframes.dtypes.bf_type_from_type_kind(
-                bigframes.core.tools.bigquery.get_schema_and_pseudocolumns(table)
+                list(
+                    itertools.chain(
+                        table.schema,
+                        bigframes.core.tools.bigquery.get_pseudocolumns(table),
+                    )
+                )
             ).items()
         ]
 

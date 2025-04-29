@@ -331,6 +331,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
         "filters",
         "max_results",
         "time_travel_timestamp",
+        "pseudocolumns",
         "expected_output",
     ),
     [
@@ -345,6 +346,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
             datetime.datetime(
                 2024, 5, 14, 12, 42, 36, 125125, tzinfo=datetime.timezone.utc
             ),
+            [],  # pseudocolumns
             (
                 "SELECT `row_index`, `string_col` FROM `test_table` "
                 "FOR SYSTEM_TIME AS OF TIMESTAMP('2024-05-14T12:42:36.125125+00:00') "
@@ -370,6 +372,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
             datetime.datetime(
                 2024, 5, 14, 12, 42, 36, 125125, tzinfo=datetime.timezone.utc
             ),
+            [],  # pseudocolumns
             (
                 """SELECT `rowindex`, `string_col` FROM (SELECT
                     rowindex,
@@ -388,6 +391,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
             [],
             None,  # max_results
             None,  # time_travel_timestamp
+            [],  # pseudocolumns
             "SELECT `col_a`, `col_b` FROM `test_table`",
             id="table-columns",
         ),
@@ -397,6 +401,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
             [("date_col", ">", "2022-10-20")],
             None,  # max_results
             None,  # time_travel_timestamp
+            [],  # pseudocolumns
             "SELECT * FROM `test_table` WHERE `date_col` > '2022-10-20'",
             id="table-filter",
         ),
@@ -406,6 +411,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
             [],
             None,  # max_results
             None,  # time_travel_timestamp
+            ["_TABLE_SUFFIX"],  # pseudocolumns
             "SELECT *, _TABLE_SUFFIX AS _BF_TABLE_SUFFIX FROM `test_table*`",
             id="wildcard-no_params",
         ),
@@ -415,6 +421,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
             [("_TABLE_SUFFIX", ">", "2022-10-20")],
             None,  # max_results
             None,  # time_travel_timestamp
+            ["_TABLE_SUFFIX"],  # pseudocolumns
             "SELECT *, _TABLE_SUFFIX AS _BF_TABLE_SUFFIX FROM `test_table*` WHERE `_TABLE_SUFFIX` > '2022-10-20'",
             id="wildcard-filter",
         ),

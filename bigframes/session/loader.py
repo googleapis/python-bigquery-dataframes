@@ -363,6 +363,7 @@ class GbqDataLoader:
         enable_snapshot: bool = True,
     ) -> dataframe.DataFrame:
         import bigframes._tools.strings
+        import bigframes.core.tools.bigquery
         import bigframes.dataframe as dataframe
 
         # ---------------------------------
@@ -446,15 +447,18 @@ class GbqDataLoader:
             all_columns: Iterable[str] = (
                 itertools.chain(index_cols, columns) if columns else ()
             )
+            pseudocolumns = bigframes.core.tools.bigquery.get_pseudocolumns(table)
             query = bf_io_bigquery.to_query(
                 query,
                 columns=all_columns,
                 sql_predicate=bf_io_bigquery.compile_filters(filters)
                 if filters
                 else None,
+                max_results=max_results,
                 # We're executing the query, so we don't need time travel for
                 # determinism.
                 time_travel_timestamp=None,
+                pseudocolumns=[field.name for field in pseudocolumns],
             )
 
             df = self.read_gbq_query(
@@ -465,9 +469,15 @@ class GbqDataLoader:
                 use_cache=use_cache,
             )
 
-            # TODO(tswast): Handle pseudocolumns more generally.
-            if "_BF_TABLE_SUFFIX" in df.columns:
-                df = df.rename(columns={"_BF_TABLE_SUFFIX": "_TABLE_SUFFIX"})
+            if pseudocolumns:
+                df = df.rename(
+                    columns=dict(
+                        zip(
+                            [f"_BF_{field.name}" for field in pseudocolumns],
+                            [field.name for field in pseudocolumns],
+                        )
+                    )
+                )
             return df
 
         # -----------------------------------------

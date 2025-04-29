@@ -21,10 +21,11 @@ from __future__ import annotations
 import google.cloud.bigquery as bigquery
 
 
-def get_schema_and_pseudocolumns(
+def get_pseudocolumns(
     table: bigquery.table.Table,
 ) -> list[bigquery.SchemaField]:
-    fields = list(table.schema)
+    """Which pseudocolumns are available for this table?"""
+    fields = []
 
     # TODO(tswast): Add _PARTITIONTIME and/or _PARTIONDATE for injestion
     # time partitioned tables.
