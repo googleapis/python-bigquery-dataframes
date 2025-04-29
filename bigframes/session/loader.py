@@ -463,7 +463,6 @@ class GbqDataLoader:
                 columns=columns,
                 api_name=api_name,
                 use_cache=use_cache,
-                max_results=max_results,
             )
 
             # TODO(tswast): Handle pseudocolumns more generally.
@@ -690,7 +689,6 @@ class GbqDataLoader:
             cluster_candidates=[],
             api_name=api_name,
             configuration=configuration,
-            max_results=max_results,
         )
 
         if self._metrics is not None:
@@ -729,7 +727,6 @@ class GbqDataLoader:
         api_name: str,
         configuration: dict = {"query": {"useQueryCache": True}},
         do_clustering=True,
-        max_results: Optional[int] = None,
     ) -> Tuple[Optional[bigquery.TableReference], bigquery.QueryJob]:
         # If a dry_run indicates this is not a query type job, then don't
         # bother trying to do a CREATE TEMP TABLE ... AS SELECT ... statement.
@@ -738,16 +735,7 @@ class GbqDataLoader:
         _, dry_run_job = self._start_query(
             query, job_config=dry_run_config, api_name=api_name
         )
-        if (
-            dry_run_job.statement_type != "SELECT"
-            # If max_results is set, we probably don't have > 10 GB of results,
-            # so avoid creating a destination table. This is necessary for
-            # handling max_results with wildcard tables, since those include a
-            # pseudocolumn that can only be materialized to anonymous results
-            # tables. See: b/405773140 for discussion about the _TABLE_SUFFIX
-            # pseudocolumn.
-            or max_results is not None
-        ):
+        if dry_run_job.statement_type != "SELECT":
             _, query_job = self._start_query(query, api_name=api_name)
             return query_job.destination, query_job
 

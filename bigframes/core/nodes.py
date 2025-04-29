@@ -704,6 +704,7 @@ class GbqTable:
     physical_schema: Tuple[bq.SchemaField, ...] = dataclasses.field()
     is_physically_stored: bool = dataclasses.field()
     cluster_cols: typing.Optional[Tuple[str, ...]]
+    has_pseudocolumns: bool
 
     @staticmethod
     def from_table(table: bq.Table, columns: Sequence[str] = ()) -> GbqTable:
@@ -725,6 +726,7 @@ class GbqTable:
             cluster_cols=None
             if table.clustering_fields is None
             else tuple(table.clustering_fields),
+            has_pseudocolumns=len(table_schema) > len(table.schema),
         )
 
     def get_table_ref(self) -> bq.TableReference:

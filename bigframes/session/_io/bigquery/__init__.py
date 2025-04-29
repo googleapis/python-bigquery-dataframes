@@ -378,6 +378,7 @@ def to_query(
     sql_predicate: Optional[str],
     max_results: Optional[int] = None,
     time_travel_timestamp: Optional[datetime.datetime] = None,
+    # pseudocolumns: Iterable[str] = (),
 ) -> str:
     """Compile query_or_table with conditions(filters, wildcards) to query."""
     sub_query = (
@@ -393,7 +394,7 @@ def to_query(
     else:
         select_clause = "SELECT *"
 
-        if query_or_table.endswith("*"):
+        if query_or_table.endswith("*"):  # TODO: get pseudocolumns here
             select_clause += ", _TABLE_SUFFIX AS _BF_TABLE_SUFFIX"
 
     time_travel_clause = ""

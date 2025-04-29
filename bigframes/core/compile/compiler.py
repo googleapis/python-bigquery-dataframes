@@ -218,8 +218,8 @@ def _table_to_ibis(
     if (
         source.at_time is not None
         or source.sql_predicate is not None
-        # TODO(tswast): make a more general way to check if the table node has pseudocolumns.
-        or source.table.table_id.endswith("*")
+        # ibis.table is not aware of pseudocolumns, so we compile to SQL ourselves.
+        or source.table.has_pseudocolumns
     ):
         import bigframes.session._io.bigquery
 
