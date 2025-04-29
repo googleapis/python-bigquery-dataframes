@@ -397,9 +397,7 @@ class BigQueryCachingExecutor(executor.Executor):
         new_col_ids, _ = utils.get_standardized_ids(prev_col_ids)
         renamed = w_offsets.rename_columns(dict(zip(prev_col_ids, new_col_ids)))
 
-        sql = self.compiler.compile(
-            self.logical_plan(w_offsets.node), ordered=False
-        )
+        sql = self.compiler.compile(self.logical_plan(w_offsets.node), ordered=False)
 
         tmp_table = self._sql_as_cached_temp_table(
             sql,
