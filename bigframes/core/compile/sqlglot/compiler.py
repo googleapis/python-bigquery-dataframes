@@ -118,8 +118,7 @@ def _replace_unsupported_ops(node: nodes.BigFrameNode):
 
 
 def _remap_variables(node: nodes.ResultNode) -> nodes.ResultNode:
-    """Remap all `ColumnId` in the BFET to ensure the uid generated are deterministic."""
-
+    """Remaps `ColumnId`s in the BFET of a `ResultNode` to produce deterministic UIDs."""
     def anonymous_column_ids() -> typing.Generator[identifiers.ColumnId, None, None]:
         for i in itertools.count():
             yield identifiers.ColumnId(name=f"bfcol_{i}")
@@ -130,7 +129,7 @@ def _remap_variables(node: nodes.ResultNode) -> nodes.ResultNode:
 
 @functools.lru_cache(maxsize=5000)
 def compile_node(node: nodes.BigFrameNode) -> ir.SQLGlotIR:
-    """Compile node into CompileArrayValue. Caches result."""
+    """Compiles node into CompileArrayValue. Caches result."""
     return node.reduce_up(lambda node, children: _compile_node(node, *children))
 
 
@@ -149,7 +148,7 @@ def compile_readlocal(node: nodes.ReadLocalNode, *args) -> ir.SQLGlotIR:
     schema_dtypes = node.schema.dtypes
 
     pa_table = node.local_data_source.data
-    pa_table = pa_table.select(list(item.source_id for item in node.scan_list.items))
+    pa_table = pa_table.select([item.source_id for item in node.scan_list.items])
     pa_table = pa_table.rename_columns(
         {item.source_id: item.id.sql for item in node.scan_list.items}
     )
