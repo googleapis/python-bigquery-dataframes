@@ -282,7 +282,12 @@ class BigQueryCachingExecutor(executor.Executor):
             row_count_plan = self.replace_cached_subtrees(
                 generate_row_count_plan(array_value.node)
             )
-            results = self._execute_plan(row_count_plan, ordered=True)
+            results = self._execute_plan(
+                row_count_plan,
+                ordered=True,
+                # We only expect a single integer, so don't create a destination table.
+                destination=None,
+            )
             pa_table = next(results.arrow_batches())
             pa_array = pa_table.column(0)
             return pa_array.tolist()[0]
@@ -381,10 +386,10 @@ class BigQueryCachingExecutor(executor.Executor):
         # _TABLE_SUFFIX pseudocolumn.
         prev_col_ids = array_value.column_ids
         new_col_ids, _ = utils.get_standardized_ids(prev_col_ids)
-        array_value = array_value.rename_columns(dict(zip(prev_col_ids, new_col_ids)))
+        renamed = array_value.rename_columns(dict(zip(prev_col_ids, new_col_ids)))
 
         sql, schema, ordering_info = self.compiler.compile_raw(
-            self.replace_cached_subtrees(array_value.node)
+            self.replace_cached_subtrees(renamed.node)
         )
         tmp_table = self._sql_as_cached_temp_table(
             sql,
@@ -392,7 +397,7 @@ class BigQueryCachingExecutor(executor.Executor):
             cluster_cols=bq_io.select_cluster_cols(schema, cluster_cols),
         )
         cached_replacement = (
-            array_value.as_cached(
+            renamed.as_cached(
                 cache_table=self.bqclient.get_table(tmp_table),
                 ordering=ordering_info,
             )
@@ -405,6 +410,16 @@ class BigQueryCachingExecutor(executor.Executor):
         """Executes the query and uses the resulting table to rewrite future executions."""
         offset_column = bigframes.core.guid.generate_guid("bigframes_offsets")
         w_offsets, offset_column = array_value.promote_offsets()
+
+        # Pseudocolumns can be queried and even written to anonymous query
+        # results tables, but they can't be materialized to an explicit
+        # destination table. Therefore, we rename the columns to all be writable
+        # before executing the SQL. See: b/405773140 for discussion about the
+        # _TABLE_SUFFIX pseudocolumn.
+        prev_col_ids = w_offsets.column_ids
+        new_col_ids, _ = utils.get_standardized_ids(prev_col_ids)
+        renamed = w_offsets.rename_columns(dict(zip(prev_col_ids, new_col_ids)))
+
         sql = self.compiler.compile(
             self.replace_cached_subtrees(w_offsets.node), ordered=False
         )
@@ -414,10 +429,14 @@ class BigQueryCachingExecutor(executor.Executor):
             w_offsets.schema.to_bigquery(),
             cluster_cols=[offset_column],
         )
-        cached_replacement = array_value.as_cached(
-            cache_table=self.bqclient.get_table(tmp_table),
-            ordering=order.TotalOrdering.from_offset_col(offset_column),
-        ).node
+        cached_replacement = (
+            renamed.as_cached(
+                cache_table=self.bqclient.get_table(tmp_table),
+                ordering=order.TotalOrdering.from_offset_col(offset_column),
+            )
+            .rename_columns(dict(zip(new_col_ids, prev_col_ids)))
+            .node
+        )
         self._cached_executions[array_value.node] = cached_replacement
 
     def _cache_with_session_awareness(

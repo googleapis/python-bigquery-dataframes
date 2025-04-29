@@ -146,7 +146,7 @@ def validate_table(
         sql_predicate=filter_str,
         time_travel_timestamp=None,
     )
-    # Any erorrs here should just be raised to user
+    # Any errors here should just be raised to user
     bqclient.query_and_wait(
         snapshot_sql, job_config=bigquery.QueryJobConfig(dry_run=True)
     )

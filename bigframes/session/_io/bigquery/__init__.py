@@ -394,7 +394,7 @@ def to_query(
         select_clause = "SELECT *"
 
         if query_or_table.endswith("*"):
-            select_clause += ", _TABLE_SUFFIX"
+            select_clause += ", _TABLE_SUFFIX AS _BF_TABLE_SUFFIX"
 
     time_travel_clause = ""
     if time_travel_timestamp is not None:
