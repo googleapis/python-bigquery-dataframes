@@ -435,6 +435,7 @@ class BigQueryCachingExecutor(executor.Executor):
                 ordering=order.TotalOrdering.from_offset_col(offset_column),
             )
             .rename_columns(dict(zip(new_col_ids, prev_col_ids)))
+            .drop_columns([offset_column])
             .node
         )
         self._cached_executions[array_value.node] = cached_replacement
