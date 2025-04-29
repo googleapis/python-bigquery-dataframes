@@ -122,11 +122,7 @@ class ArrayValue:
         # Scan all columns by default, we define this list as it can be pruned while preserving source_def
         scan_list = nodes.ScanList(
             tuple(
-                nodes.ScanItem(
-                    ids.ColumnId(bigframes.core.guid.generate_guid()),
-                    item.dtype,
-                    item.column,
-                )
+                nodes.ScanItem(ids.ColumnId(item.column), item.dtype, item.column)
                 for item in schema.items
             )
         )
@@ -147,7 +143,7 @@ class ArrayValue:
     @property
     def column_ids(self) -> typing.Sequence[str]:
         """Returns column ids as strings."""
-        return [id_.name for id_ in self.node.ids]
+        return self.schema.names
 
     @property
     def session(self) -> Session:

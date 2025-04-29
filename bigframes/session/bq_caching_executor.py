@@ -32,6 +32,7 @@ import bigframes.core.guid
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
 import bigframes.core.tree_properties as tree_properties
+import bigframes.core.utils as utils
 import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.features
@@ -374,6 +375,15 @@ class BigQueryCachingExecutor(executor.Executor):
     ):
         """Executes the query and uses the resulting table to rewrite future executions."""
 
+        # Pseudocolumns can be queried and even written to anonymous query
+        # results tables, but they can't be materialized to an explicit
+        # destination table. Therefore, we rename the columns to all be writable
+        # before executing the SQL. See: b/405773140 for discussion about the
+        # _TABLE_SUFFIX pseudocolumn.
+        prev_col_ids = array_value.column_ids
+        new_col_ids, _ = utils.get_standardized_ids(prev_col_ids)
+        array_value = array_value.rename_columns(dict(zip(prev_col_ids, new_col_ids)))
+
         sql, schema, ordering_info = self.compiler.compile_raw(
             self.replace_cached_subtrees(array_value.node)
         )
@@ -382,10 +392,14 @@ class BigQueryCachingExecutor(executor.Executor):
             schema,
             cluster_cols=bq_io.select_cluster_cols(schema, cluster_cols),
         )
-        cached_replacement = array_value.as_cached(
-            cache_table=self.bqclient.get_table(tmp_table),
-            ordering=ordering_info,
-        ).node
+        cached_replacement = (
+            array_value.as_cached(
+                cache_table=self.bqclient.get_table(tmp_table),
+                ordering=ordering_info,
+            )
+            .rename_columns(dict(zip(new_col_ids, prev_col_ids)))
+            .node
+        )
         self._cached_executions[array_value.node] = cached_replacement
 
     def _cache_with_offsets(self, array_value: bigframes.core.ArrayValue):

@@ -4143,6 +4143,16 @@ def test_apply_numpy_ufunc(scalars_dfs, ufunc):
     assert_series_equal(bf_result, pd_result)
 
 
+def test_series_cached_w_wildcard_table(unordered_session):
+    """Test the `cache()` API with a Series that contains pseudocolumns from wildcard tables
+
+    Regression test for internal issue b/405773140.
+    """
+    df = unordered_session.read_gbq("bigquery-public-data.usa_names.usa_1910_20*")
+    series_cached_copy = df["_TABLE_SUFFIX"].cache()
+    assert len(series_cached_copy) == len(df)
+
+
 @pytest.mark.parametrize(
     ("ufunc",),
     [
