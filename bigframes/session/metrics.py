@@ -49,9 +49,7 @@ class ExecutionMetrics:
             self.execution_count += 1
             self.query_char_count += query_char_count
             self.bytes_processed += bytes_processed
-            if LOGGING_NAME_ENV_VAR in os.environ:
-                # when running notebooks via pytest nbmake and running benchmarks
-                write_stats_to_disk(query_char_count, bytes_processed)
+            write_stats_to_disk(query_char_count, bytes_processed)
             return
 
         stats = get_performance_stats(query_job)
@@ -62,11 +60,9 @@ class ExecutionMetrics:
             self.bytes_processed += bytes_processed
             self.slot_millis += slot_millis
             self.execution_secs += execution_secs
-            if LOGGING_NAME_ENV_VAR in os.environ:
-                # when running notebooks via pytest nbmake and running benchmarks
-                write_stats_to_disk(
-                    query_char_count, bytes_processed, slot_millis, execution_secs
-                )
+            write_stats_to_disk(
+                query_char_count, bytes_processed, slot_millis, execution_secs
+            )
 
 
 def get_performance_stats(
@@ -107,11 +103,9 @@ def write_stats_to_disk(
     to a file in order to create a performance report.
     """
     if LOGGING_NAME_ENV_VAR not in os.environ:
-        raise EnvironmentError(
-            "Environment variable {env_var} is not set".format(
-                env_var=LOGGING_NAME_ENV_VAR
-            )
-        )
+        return
+
+    # when running notebooks via pytest nbmake and running benchmarks
     test_name = os.environ[LOGGING_NAME_ENV_VAR]
     current_directory = os.getcwd()
 
