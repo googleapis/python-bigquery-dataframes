@@ -36,15 +36,21 @@ class ExecutionMetrics:
     def count_job_stats(
         self,
         query_job: Optional[bq_job.QueryJob] = None,
-        row_iterator: bq_table.RowIterator = None,
+        row_iterator: Optional[bq_table.RowIterator] = None,
     ):
         if query_job is None:
+            assert row_iterator is not None
+            if (row_iterator.total_bytes_processed is None) or (
+                row_iterator.query is None
+            ):
+                return
             query_char_count = len(row_iterator.query)
             bytes_processed = row_iterator.total_bytes_processed
             self.execution_count += 1
             self.query_char_count += query_char_count
             self.bytes_processed += bytes_processed
             if LOGGING_NAME_ENV_VAR in os.environ:
+                # when running notebooks via pytest nbmake and running benchmarks
                 write_stats_to_disk(query_char_count, bytes_processed)
             return
 
@@ -57,7 +63,7 @@ class ExecutionMetrics:
             self.slot_millis += slot_millis
             self.execution_secs += execution_secs
             if LOGGING_NAME_ENV_VAR in os.environ:
-                # when running notebooks via pytest nbmake
+                # when running notebooks via pytest nbmake and running benchmarks
                 write_stats_to_disk(
                     query_char_count, bytes_processed, slot_millis, execution_secs
                 )
