@@ -15,6 +15,7 @@
 import pathlib
 
 import pandas as pd
+import pyarrow as pa
 import pytest
 
 import tests.system.utils
@@ -45,3 +46,33 @@ def scalars_types_pandas_df() -> pd.DataFrame:
     df = df.set_index("rowindex", drop=False)
     df.index.name = None
     return df
+
+
+@pytest.fixture(scope="session")
+def nested_structs_pandas_df(nested_structs_pandas_type: pd.ArrowDtype) -> pd.DataFrame:
+    """pd.DataFrame pointing at test data."""
+
+    df = pd.read_json(
+        DATA_DIR / "nested_structs.jsonl",
+        lines=True,
+    )
+    df = df.set_index("id")
+    df["person"] = df["person"].astype(nested_structs_pandas_type)
+    return df
+
+
+@pytest.fixture(scope="session")
+def nested_structs_pandas_type() -> pd.ArrowDtype:
+    address_struct_schema = pa.struct(
+        [pa.field("city", pa.string()), pa.field("country", pa.string())]
+    )
+
+    person_struct_schema = pa.struct(
+        [
+            pa.field("name", pa.string()),
+            pa.field("age", pa.int64()),
+            pa.field("address", address_struct_schema),
+        ]
+    )
+
+    return pd.ArrowDtype(person_struct_schema)

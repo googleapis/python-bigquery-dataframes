@@ -108,13 +108,14 @@ def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
     elif dtypes.is_geo_like(dtype):
         wkt = value if isinstance(value, str) else to_wkt(value)
         return sge.func("ST_GEOGFROMTEXT", sge.convert(wkt))
-
-        # elif dtype.is_geospatial():
-        #     wkt = value if isinstance(value, str) else value.wkt
-        #     return self.f.st_geogfromtext(wkt)
-
-        # elif dtype.is_timestamp() or dtype.is_time():
-        #     return self.cast(value.isoformat(), dtype)
+    elif dtypes.is_struct_like(dtype):
+        items = [
+            _literal(
+                ops.Literal(v, field_dtype), value=v, dtype=field_dtype
+            ).as_(k, quoted=True)
+            for field_dtype, (k, v) in zip(dtype.types, value.items())
+        ]
+        return sge.Struct.from_arg_list(items)
 
     # TODO: handle other types like visit_DefaultLiteral
     return sge.convert(value)
