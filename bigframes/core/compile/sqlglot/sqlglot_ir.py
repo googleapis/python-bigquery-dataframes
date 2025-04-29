@@ -74,7 +74,7 @@ class SQLGlotIR:
             nested=True,
         )
         data_expr = [
-            sge.Tuple(
+            sge.Struct(
                 expressions=tuple(
                     _literal(
                         value=value,
@@ -116,11 +116,15 @@ def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
     sqlglot_type = sgt.SQLGlotType.from_bigframes_dtype(dtype)
     if value is None:
         return _cast(sge.Null(), sqlglot_type)
-    elif dtype in (dtypes.TIME_DTYPE, dtypes.TIMESTAMP_DTYPE):
+    elif dtype == dtypes.BYTES_DTYPE:
+        return _cast(str(value), sqlglot_type)
+    elif dtypes.is_time_like(dtype):
         return _cast(sge.convert(value.isoformat()), sqlglot_type)
     elif dtypes.is_geo_like(dtype):
         wkt = value if isinstance(value, str) else to_wkt(value)
         return sge.func("ST_GEOGFROMTEXT", sge.convert(wkt))
+    elif dtype == dtypes.JSON_DTYPE:
+        return sge.ParseJSON(this=sge.convert(str(value)))
     elif dtypes.is_struct_like(dtype):
         items = [
             _literal(value=value[field_name], dtype=field_dtype).as_(
@@ -129,11 +133,15 @@ def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
             for field_name, field_dtype in dtypes.get_struct_fields(dtype).items()
         ]
         return sge.Struct.from_arg_list(items)
-    elif dtype == dtypes.JSON_DTYPE:
-        return sge.ParseJSON(this=sge.convert(str(value)))
+    elif dtypes.is_array_like(dtype):
+        value_type = dtypes.get_array_inner_type(dtype)
+        values = sge.Array(
+            expressions=[_literal(value=v, dtype=value_type) for v in value]
+        )
+        return values if len(value) > 0 else _cast(values, sqlglot_type)
     else:
         return sge.convert(value)
 
 
-def _cast(arg, to) -> sge.Cast:
+def _cast(arg: typing.Any, to: str) -> sge.Cast:
     return sge.Cast(this=arg, to=to)

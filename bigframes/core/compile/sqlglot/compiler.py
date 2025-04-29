@@ -148,9 +148,7 @@ def _compile_node(
 def compile_readlocal(node: nodes.ReadLocalNode, *args) -> ir.SQLGlotIR:
     pa_table = node.local_data_source.data
     pa_table = pa_table.select([item.source_id for item in node.scan_list.items])
-    pa_table = pa_table.rename_columns(
-        {item.source_id: item.id.sql for item in node.scan_list.items}
-    )
+    pa_table = pa_table.rename_columns([item.id.sql for item in node.scan_list.items])
 
     offsets = node.offsets_col.sql if node.offsets_col else None
     if offsets:

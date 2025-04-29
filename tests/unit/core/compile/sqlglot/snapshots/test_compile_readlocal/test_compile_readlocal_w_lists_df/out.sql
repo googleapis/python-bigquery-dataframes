@@ -1,6 +1,6 @@
 SELECT
   *
-FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` ARRAY<INT64>, `bfcol_2` ARRAY<BOOLEAN>, `bfcol_3` ARRAY<FLOAT64>, `bfcol_4` ARRAY<STRING>, `bfcol_5` ARRAY<STRING>, `bfcol_6` ARRAY<FLOAT64>, `bfcol_7` ARRAY<STRING>, `bfcol_8` INT64>>[(
+FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` ARRAY<INT64>, `bfcol_2` ARRAY<BOOLEAN>, `bfcol_3` ARRAY<FLOAT64>, `bfcol_4` ARRAY<STRING>, `bfcol_5` ARRAY<STRING>, `bfcol_6` ARRAY<FLOAT64>, `bfcol_7` ARRAY<STRING>, `bfcol_8` INT64>>[STRUCT(
   0,
   [1],
   [TRUE],
@@ -10,7 +10,7 @@ FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` ARRAY<INT64>, `bfcol_2` ARRA
   [1.2, 2.3, 3.4],
   ['abc', 'de', 'f'],
   0
-), (
+), STRUCT(
   1,
   [1, 2],
   [TRUE, FALSE],
@@ -20,7 +20,7 @@ FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` ARRAY<INT64>, `bfcol_2` ARRA
   [5.5, 2.3],
   ['a', 'bc', 'de'],
   1
-), (
+), STRUCT(
   2,
   [1, 2, 3],
   [TRUE],
