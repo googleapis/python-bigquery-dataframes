@@ -5403,13 +5403,13 @@ def test_dataframe_explode_xfail(col_names):
         ),
     ],
 )
-def test__resample_with_column(
+def test_resample_with_column(
     scalars_df_index, scalars_pandas_df_index, on, rule, origin
 ):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
     pytest.importorskip("pandas", minversion="2.0.0")
     bf_result = (
-        scalars_df_index._resample(rule=rule, on=on, origin=origin)[
+        scalars_df_index.resample(rule=rule, on=on, origin=origin)[
             ["int64_col", "int64_too"]
         ]
         .max()
@@ -5431,7 +5431,7 @@ def test__resample_with_column(
         pytest.param(False, None, "datetime_col", "100d"),
     ],
 )
-def test__resample_with_index(
+def test_resample_with_index(
     scalars_df_index, scalars_pandas_df_index, append, level, col, rule
 ):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
@@ -5440,7 +5440,7 @@ def test__resample_with_index(
     scalars_pandas_df_index = scalars_pandas_df_index.set_index(col, append=append)
     bf_result = (
         scalars_df_index[["int64_col", "int64_too"]]
-        ._resample(rule=rule, level=level)
+        .resample(rule=rule, level=level)
         .min()
         .to_pandas()
     )
@@ -5490,7 +5490,7 @@ def test__resample_with_index(
         ),
     ],
 )
-def test__resample_start_time(rule, origin, data):
+def test_resample_start_time(rule, origin, data):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
     pytest.importorskip("pandas", minversion="2.0.0")
     col = "timestamp_col"
@@ -5498,7 +5498,7 @@ def test__resample_start_time(rule, origin, data):
     scalars_pandas_df_index = pd.DataFrame(data).set_index(col)
     scalars_pandas_df_index.index.name = None
 
-    bf_result = scalars_df_index._resample(rule=rule, origin=origin).min().to_pandas()
+    bf_result = scalars_df_index.resample(rule=rule, origin=origin).min().to_pandas()
 
     pd_result = scalars_pandas_df_index.resample(rule=rule, origin=origin).min()
 
