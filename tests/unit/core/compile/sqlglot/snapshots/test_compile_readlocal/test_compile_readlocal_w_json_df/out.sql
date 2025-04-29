@@ -1,0 +1,3 @@
+SELECT
+  *
+FROM UNNEST(ARRAY<STRUCT<`bfcol_0` JSON, `bfcol_1` INT64>>[(PARSE_JSON('null'), 0), (PARSE_JSON('true'), 1), (PARSE_JSON('100'), 2), (PARSE_JSON('0.98'), 3), (PARSE_JSON('"a string"'), 4), (PARSE_JSON('[]'), 5), (PARSE_JSON('[1,2,3]'), 6), (PARSE_JSON('[{"a":1},{"a":2},{"a":null},{}]'), 7), (PARSE_JSON('"100"'), 8), (PARSE_JSON('{"date":"2024-07-16"}'), 9), (PARSE_JSON('{"int_value":2,"null_filed":null}'), 10), (PARSE_JSON('{"list_data":[10,20,30]}'), 11)])
