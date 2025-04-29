@@ -12,29 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pathlib
+
 import pandas as pd
 import pytest
 
+import tests.system.utils
 
-@pytest.fixture(scope="module")
+CURRENT_DIR = pathlib.Path(__file__).parent
+DATA_DIR = CURRENT_DIR.parent.parent.parent.parent / "data"
+
+
+@pytest.fixture(scope="session")
 def compiler_session():
     from . import compiler_session
 
     return compiler_session.SQLCompilerSession()
 
 
-@pytest.fixture(scope="module")
-def all_types_df() -> pd.DataFrame:
+@pytest.fixture(scope="session")
+def scalars_types_pandas_df() -> pd.DataFrame:
+    """pd.DataFrame with all scalar types and rowindex as index."""
     # TODO: all types pandas dataframes
     # TODO: add tests for empty dataframes
-    df = pd.DataFrame(
-        {
-            "int1": pd.Series([1, 2, 3], dtype="Int64"),
-            "int2": pd.Series([-10, 20, 30], dtype="Int64"),
-            "bools": pd.Series([True, None, False], dtype="boolean"),
-            "strings": pd.Series(["b", "aa", "ccc"], dtype="string[pyarrow]"),
-        },
+    df = pd.read_json(
+        DATA_DIR / "scalars.jsonl",
+        lines=True,
     )
+    tests.system.utils.convert_pandas_dtypes(df, bytes_col=True)
+
     # add more complexity index.
-    df.index = df.index.astype("Int64")
+    df = df.set_index("rowindex", drop=False)
+    df.index.name = None
     return df

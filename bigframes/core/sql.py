@@ -43,6 +43,7 @@ except ImportError:
 
 
 ### Writing SQL Values (literals, column references, table references, etc.)
+# TODO: replace this method.
 def simple_literal(
     value: bytes | str | int | bool | float | datetime.datetime | list | None,
 ):
