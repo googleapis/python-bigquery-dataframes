@@ -707,6 +707,8 @@ class GbqTable:
 
     @staticmethod
     def from_table(table: bq.Table, columns: Sequence[str] = ()) -> GbqTable:
+        import bigframes.core.tools.bigquery  # Avoid circular imports.
+
         # Subsetting fields with columns can reduce cost of row-hash default ordering
         table_schema = bigframes.core.tools.bigquery.get_schema_and_pseudocolumns(table)
 
