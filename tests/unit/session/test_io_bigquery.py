@@ -412,7 +412,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
             None,  # max_results
             None,  # time_travel_timestamp
             ["_TABLE_SUFFIX"],  # pseudocolumns
-            "SELECT *, _TABLE_SUFFIX AS _BF_TABLE_SUFFIX FROM `test_table*`",
+            "SELECT *, _TABLE_SUFFIX AS _BF__TABLE_SUFFIX FROM `test_table*`",
             id="wildcard-no_params",
         ),
         pytest.param(
@@ -422,7 +422,7 @@ def test_bq_schema_to_sql(schema: Iterable[bigquery.SchemaField], expected: str)
             None,  # max_results
             None,  # time_travel_timestamp
             ["_TABLE_SUFFIX"],  # pseudocolumns
-            "SELECT *, _TABLE_SUFFIX AS _BF_TABLE_SUFFIX FROM `test_table*` WHERE `_TABLE_SUFFIX` > '2022-10-20'",
+            "SELECT *, _TABLE_SUFFIX AS _BF__TABLE_SUFFIX FROM `test_table*` WHERE `_TABLE_SUFFIX` > '2022-10-20'",
             id="wildcard-filter",
         ),
     ],
