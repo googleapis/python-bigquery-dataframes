@@ -433,6 +433,7 @@ def test_to_query(
     filters,
     max_results,
     time_travel_timestamp,
+    pseudocolumns,
     expected_output,
 ):
     query = io_bq.to_query(
@@ -441,6 +442,7 @@ def test_to_query(
         sql_predicate=io_bq.compile_filters(filters),
         max_results=max_results,
         time_travel_timestamp=time_travel_timestamp,
+        pseudocolumns=pseudocolumns,
     )
     assert query == expected_output
 
