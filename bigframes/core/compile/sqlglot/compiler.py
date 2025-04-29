@@ -20,9 +20,11 @@ import typing
 
 from google.cloud import bigquery
 import pyarrow as pa
+import sqlglot.expressions as sge
 
 from bigframes.core import expression, identifiers, nodes, rewrite
 from bigframes.core.compile import configs
+import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.core.ordering as bf_ordering
 
@@ -163,6 +165,9 @@ def compile_readlocal(node: nodes.ReadLocalNode, *args) -> ir.SQLGlotIR:
 
 
 @_compile_node.register
-def compile_selection(node: nodes.SelectionNode, child: ir.SQLGlotIR):
-    # TODO: add support for selection
-    return child
+def compile_selection(node: nodes.SelectionNode, child: ir.SQLGlotIR) -> ir.SQLGlotIR:
+    select_cols: typing.Dict[str, sge.Expression] = {
+        id.name: scalar_compiler.compile_scalar_expression(expr)
+        for expr, id in node.input_output_pairs
+    }
+    return child.select(select_cols)
