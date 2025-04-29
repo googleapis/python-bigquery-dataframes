@@ -18,6 +18,7 @@ def test_kmeans_sample(project_id: str, random_model_id_eu: str) -> None:
     your_model_id = random_model_id_eu
     # [START bigquery_dataframes_bqml_kmeans]
     import datetime
+    import typing
 
     import pandas as pd
 
@@ -101,17 +102,18 @@ def test_kmeans_sample(project_id: str, random_model_id_eu: str) -> None:
 
     # Engineer features to cluster the stations. For each station, find the
     # average trip duration, number of trips, and distance from city center.
-    stationstats = merged_df.groupby(["station_name", "isweekday"]).agg(
-        {"duration": ["mean", "count"], "distance_from_city_center": "max"}
+    stationstats = typing.cast(
+        bpd.DataFrame,
+        merged_df.groupby(["station_name", "isweekday"]).agg(
+            {"duration": ["mean", "count"], "distance_from_city_center": "max"}
+        ),
     )
     stationstats.columns = pd.Index(
         ["duration", "num_trips", "distance_from_city_center"]
     )
-    stationstats = (
-        bpd.DataFrame(stationstats)
-        .sort_values(by="distance_from_city_center", ascending=True)
-        .reset_index()
-    )
+    stationstats = stationstats.sort_values(
+        by="distance_from_city_center", ascending=True
+    ).reset_index()
 
     # Expected output results: >>> stationstats.head(3)
     # station_name	isweekday duration  num_trips	distance_from_city_center
