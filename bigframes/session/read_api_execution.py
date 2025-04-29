@@ -91,7 +91,7 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
             )
             rowstream = reader.rows()
 
-            def process_page(page: bigquery_storage_v1.ReadRowsPage):
+            def process_page(page):
                 pa_batch = page.to_arrow()
                 return pa.RecordBatch.from_arrays(
                     pa_batch.columns, names=[id.sql for id in node.ids]
