@@ -25,7 +25,7 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 import pyarrow as pa
 
 from bigframes import dtypes, operations
-from bigframes.core import expression
+from bigframes.core import expression, identifiers
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
 import bigframes.core.compile.configs as configs
@@ -34,6 +34,7 @@ import bigframes.core.compile.scalar_op_compiler as compile_scalar
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as bf_ordering
 import bigframes.core.rewrite as rewrites
+import bigframes.core.utils as utils
 
 if typing.TYPE_CHECKING:
     import bigframes.core
@@ -73,7 +74,23 @@ def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
             ordering if ordering.referenced_columns.issubset(result_node.ids) else None
         )
     assert (not request.materialize_all_order_keys) or (output_order is not None)
-    return configs.CompileResult(sql, result_node.schema.to_bigquery(), output_order)
+
+    # Pseudocolumns can be queried and even written to anonymous query
+    # results tables, but they can't be materialized to an explicit
+    # destination table. Therefore, we rename the columns to all be writable
+    # before executing the SQL. See: b/405773140 for discussion about the
+    # _TABLE_SUFFIX pseudocolumn.
+    prev_col_ids = result_node.schema.names
+    new_col_ids, _ = utils.get_standardized_ids(prev_col_ids)
+    renamed_node = result_node.remap_refs(
+        dict(
+            zip(
+                (identifiers.ColumnId(name=name) for name in prev_col_ids),
+                (identifiers.ColumnId(name=name) for name in new_col_ids),
+            )
+        )
+    )
+    return configs.CompileResult(sql, renamed_node.schema.to_bigquery(), output_order)
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
