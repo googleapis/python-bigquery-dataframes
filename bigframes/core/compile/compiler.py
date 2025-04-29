@@ -170,9 +170,7 @@ def compile_readlocal(node: nodes.ReadLocalNode, *args):
     bq_schema = node.schema.to_bigquery()
 
     pa_table = pa_table.select(list(item.source_id for item in node.scan_list.items))
-    pa_table = pa_table.rename_columns(
-        {item.source_id: item.id.sql for item in node.scan_list.items}
-    )
+    pa_table = pa_table.rename_columns([item.id.sql for item in node.scan_list.items])
 
     if offsets:
         pa_table = pa_table.append_column(
