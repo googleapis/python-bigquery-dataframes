@@ -1713,14 +1713,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             if by_row:
                 raise ValueError(
                     "You have passed a function as-is. If your intention is to "
-                    "apply this function to the entire Series as a whole, and "
-                    "you are sure that it performs only the operations that "
-                    "are implemented for a Series (e.g. a chain of "
-                    "arithmatic/logical operations), please also specify "
-                    "by_row=False. If your function contains arbitrary code, "
-                    "it can only be applied to every element in the Series, in "
-                    "which case you must convert it to a BigFrames BigQuery "
-                    "function using `udf` or `remote_function` before passing."
+                    "apply this function in a vectorized way (i.e. to the "
+                    "entire Series as a whole, and you are sure that it "
+                    "performs only the operations that are implemented for a "
+                    "Series (e.g. a chain of arithmatic/logical operations, "
+                    "such as `def foo(s): return s % 2 == 1`), please also "
+                    "specify `by_row=False`. If your function contains "
+                    "arbitrary code, it can only be applied to every element "
+                    "in the Series individually, in which case you must "
+                    "convert it to a BigFrames BigQuery function using `udf`, "
+                    "or `remote_function` before passing."
                 )
 
             try:
