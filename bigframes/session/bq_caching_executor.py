@@ -390,7 +390,7 @@ class BigQueryCachingExecutor(executor.Executor):
 
         tmp_table = self._sql_as_cached_temp_table(
             sql,
-            w_offsets.schema.to_bigquery(),
+            renamed.schema.to_bigquery(),
             cluster_cols=[offset_column],
         )
         cached_replacement = array_value.as_cached(
