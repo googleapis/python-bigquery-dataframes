@@ -819,7 +819,9 @@ class Block:
             for col in self.column_labels
         }
         return (
-            dry_run_jobs.get_stats_with_dtypes(query_job, column_dtypes, self.index.dtypes),
+            dry_run_jobs.get_stats_with_dtypes(
+                query_job, column_dtypes, self.index.dtypes
+            ),
             query_job,
         )
 
