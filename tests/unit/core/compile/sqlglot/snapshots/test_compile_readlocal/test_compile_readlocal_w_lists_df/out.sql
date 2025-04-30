@@ -1,5 +1,13 @@
 SELECT
-  *
+  `bfcol_0` AS `bfcol_9`,
+  `bfcol_1` AS `bfcol_10`,
+  `bfcol_2` AS `bfcol_11`,
+  `bfcol_3` AS `bfcol_12`,
+  `bfcol_4` AS `bfcol_13`,
+  `bfcol_5` AS `bfcol_14`,
+  `bfcol_6` AS `bfcol_15`,
+  `bfcol_7` AS `bfcol_16`,
+  `bfcol_8` AS `bfcol_17`
 FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` ARRAY<INT64>, `bfcol_2` ARRAY<BOOLEAN>, `bfcol_3` ARRAY<FLOAT64>, `bfcol_4` ARRAY<STRING>, `bfcol_5` ARRAY<STRING>, `bfcol_6` ARRAY<FLOAT64>, `bfcol_7` ARRAY<STRING>, `bfcol_8` INT64>>[STRUCT(
   0,
   [1],

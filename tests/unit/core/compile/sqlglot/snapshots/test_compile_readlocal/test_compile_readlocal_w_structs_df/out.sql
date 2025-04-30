@@ -1,5 +1,7 @@
 SELECT
-  *
+  `bfcol_0` AS `bfcol_3`,
+  `bfcol_1` AS `bfcol_4`,
+  `bfcol_2` AS `bfcol_5`
 FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` STRUCT<name STRING, age INT64, address STRUCT<city STRING, country STRING>>, `bfcol_2` INT64>>[STRUCT(
   1,
   STRUCT(

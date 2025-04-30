@@ -1,8 +1,20 @@
 SELECT
-  *
-<<<<<<< HEAD
-FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` INT64, `bfcol_2` BOOLEAN, `bfcol_3` STRING, `bfcol_4` INT64>>[(1, -10, TRUE, 'b', 0), (2, 20, CAST(NULL AS BOOLEAN), 'aa', 1), (3, 30, FALSE, 'ccc', 2)])
-=======
+  `bfcol_0` AS `bfcol_16`,
+  `bfcol_1` AS `bfcol_17`,
+  `bfcol_2` AS `bfcol_18`,
+  `bfcol_3` AS `bfcol_19`,
+  `bfcol_4` AS `bfcol_20`,
+  `bfcol_5` AS `bfcol_21`,
+  `bfcol_6` AS `bfcol_22`,
+  `bfcol_7` AS `bfcol_23`,
+  `bfcol_8` AS `bfcol_24`,
+  `bfcol_9` AS `bfcol_25`,
+  `bfcol_10` AS `bfcol_26`,
+  `bfcol_11` AS `bfcol_27`,
+  `bfcol_12` AS `bfcol_28`,
+  `bfcol_13` AS `bfcol_29`,
+  `bfcol_14` AS `bfcol_30`,
+  `bfcol_15` AS `bfcol_31`
 FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` BOOLEAN, `bfcol_2` BYTES, `bfcol_3` DATE, `bfcol_4` DATETIME, `bfcol_5` GEOGRAPHY, `bfcol_6` INT64, `bfcol_7` INT64, `bfcol_8` NUMERIC, `bfcol_9` FLOAT64, `bfcol_10` INT64, `bfcol_11` INT64, `bfcol_12` STRING, `bfcol_13` TIME, `bfcol_14` TIMESTAMP, `bfcol_15` INT64>>[STRUCT(
   0,
   TRUE,
@@ -157,4 +169,3 @@ FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` BOOLEAN, `bfcol_2` BYTES, `b
   CAST(NULL AS TIMESTAMP),
   8
 )])
->>>>>>> ae89730e (support list and struct dtypes and fix tests)
