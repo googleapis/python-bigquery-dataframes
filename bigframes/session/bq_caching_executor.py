@@ -33,6 +33,7 @@ import bigframes.core.guid
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
 import bigframes.core.tree_properties as tree_properties
+import bigframes.core.utils as utils
 import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.features
@@ -354,8 +355,14 @@ class BigQueryCachingExecutor(executor.Executor):
         self, array_value: bigframes.core.ArrayValue, cluster_cols: Sequence[str]
     ):
         """Executes the query and uses the resulting table to rewrite future executions."""
+
+        prev_col_ids = array_value.column_ids
+        new_col_ids, _ = utils.get_standardized_ids(prev_col_ids)
+        renames = dict(zip(prev_col_ids, new_col_ids))
+        renamed = array_value.rename_columns(renames)
+
         sql, schema, ordering_info = self.compiler.compile_raw(
-            self.logical_plan(array_value.node)
+            self.logical_plan(renamed.node)
         )
         tmp_table = self._sql_as_cached_temp_table(
             sql,
@@ -365,6 +372,7 @@ class BigQueryCachingExecutor(executor.Executor):
         cached_replacement = array_value.as_cached(
             cache_table=self.bqclient.get_table(tmp_table),
             ordering=ordering_info,
+            renames=renames,
         ).node
         self._cached_executions[array_value.node] = cached_replacement
 
@@ -373,7 +381,12 @@ class BigQueryCachingExecutor(executor.Executor):
         offset_column = bigframes.core.guid.generate_guid("bigframes_offsets")
         w_offsets, offset_column = array_value.promote_offsets()
 
-        sql = self.compiler.compile(self.logical_plan(w_offsets.node), ordered=False)
+        prev_col_ids = w_offsets.column_ids
+        new_col_ids, _ = utils.get_standardized_ids(prev_col_ids)
+        renames = dict(zip(prev_col_ids, new_col_ids))
+        renamed = w_offsets.rename_columns(renames)
+
+        sql = self.compiler.compile(self.logical_plan(renamed.node), ordered=False)
 
         tmp_table = self._sql_as_cached_temp_table(
             sql,
@@ -383,6 +396,7 @@ class BigQueryCachingExecutor(executor.Executor):
         cached_replacement = array_value.as_cached(
             cache_table=self.bqclient.get_table(tmp_table),
             ordering=order.TotalOrdering.from_offset_col(offset_column),
+            renames=renames,
         ).node
         self._cached_executions[array_value.node] = cached_replacement
 
