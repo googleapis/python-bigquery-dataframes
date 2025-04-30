@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ from bigframes.core import expression
 def compile_scalar_expression(
     expression: expression.Expression,
 ) -> sge.Expression:
-    """Defines transformation but isn't cached, always use compile_node instead"""
+    """Compiles BigFrames scalar expression into SQLGlot expression."""
     raise ValueError(f"Can't compile unrecognized node: {expression}")
 
 

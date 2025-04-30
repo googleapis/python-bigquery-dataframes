@@ -40,7 +40,7 @@ class SQLGlotCompiler:
         ordered: bool = True,
         limit: typing.Optional[int] = None,
     ) -> str:
-        """Compile node into sql where rows are sorted with ORDER BY."""
+        """Compiles node into sql where rows are sorted with ORDER BY."""
         request = configs.CompileRequest(node, sort_rows=ordered, peek_count=limit)
         return self._compile_sql(request).sql
 
@@ -50,7 +50,7 @@ class SQLGlotCompiler:
     ) -> typing.Tuple[
         str, typing.Sequence[bigquery.SchemaField], bf_ordering.RowOrdering
     ]:
-        """Compile node into sql that exposes all columns, including hidden
+        """Compiles node into sql that exposes all columns, including hidden
         ordering-only columns."""
         request = configs.CompileRequest(
             node, sort_rows=False, materialize_all_order_keys=True
