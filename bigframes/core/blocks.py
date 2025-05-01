@@ -819,12 +819,11 @@ class Block:
             col: self.expr.get_column_type(self.resolve_label_exact_or_error(col))
             for col in self.column_labels
         }
-        return (
-            dry_runs.get_query_stats_with_dtypes(
-                query_job, column_dtypes, self.index.dtypes
-            ),
-            query_job,
+
+        dry_run_stats = dry_runs.get_query_stats_with_dtypes(
+            query_job, column_dtypes, self.index.dtypes
         )
+        return dry_run_stats, query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):
         expr = self._expr
