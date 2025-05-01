@@ -1343,6 +1343,6 @@ class NDFrame(indexing.IndexingMixin):
                 'start': origin is the first value of the timeseries
                 'start_day': origin is the first day at midnight of the timeseries
         Returns:
-            DataFrameGroupBy: DataFrameGroupBy object.
+            Resampler: Resampler object.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
