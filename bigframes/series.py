@@ -1721,8 +1721,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     "specify `by_row=False`. If your function contains "
                     "arbitrary code, it can only be applied to every element "
                     "in the Series individually, in which case you must "
-                    "convert it to a BigFrames BigQuery function using `udf`, "
-                    "or `remote_function` before passing."
+                    "convert it to a BigFrames BigQuery function using "
+                    "`bigframes.pandas.udf`, "
+                    "or `bigframes.pandas.remote_function` before passing."
                 )
 
             try:
