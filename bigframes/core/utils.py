@@ -41,8 +41,10 @@ def get_axis_number(axis: typing.Union[str, int]) -> typing.Literal[0, 1]:
     raise ValueError(f"Not a valid axis: {axis}")
 
 
-def is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
-    return pd.api.types.is_list_like(obj)
+def is_list_like(
+    obj: typing.Any, allow_sets: bool = True
+) -> typing_extensions.TypeGuard[typing.Sequence]:
+    return pd.api.types.is_list_like(obj, allow_sets=allow_sets)
 
 
 def is_dict_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Mapping]:
@@ -142,6 +144,9 @@ def label_to_identifier(label: typing.Hashable, strict: bool = False) -> str:
         identifier = re.sub(r"[^a-zA-Z0-9_]", "", identifier)
         if not identifier:
             identifier = "id"
+        elif identifier[0].isdigit():
+            # first character must be letter or underscore
+            identifier = "_" + identifier
     return identifier
 
 

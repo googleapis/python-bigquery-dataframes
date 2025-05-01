@@ -83,6 +83,7 @@ def test_df_construct_pandas_default(scalars_dfs):
         ("bigquery_inline"),
         ("bigquery_load"),
         ("bigquery_streaming"),
+        ("bigquery_write"),
     ],
 )
 def test_read_pandas_all_nice_types(
@@ -218,6 +219,21 @@ def test_get_column_nonstring(scalars_dfs):
     bf_result = series.to_pandas()
     pd_result = scalars_pandas_df.rename(columns={"int64_col": 123.1})[123.1]
     assert_series_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    "row_slice",
+    [
+        (slice(1, 7, 2)),
+        (slice(1, 7, None)),
+        (slice(None, -3, None)),
+    ],
+)
+def test_get_rows_with_slice(scalars_dfs, row_slice):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df[row_slice].to_pandas()
+    pd_result = scalars_pandas_df[row_slice]
+    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_hasattr(scalars_dfs):
@@ -1772,7 +1788,7 @@ def test_len(scalars_dfs):
 )
 @pytest.mark.parametrize(
     "write_engine",
-    ["bigquery_load", "bigquery_streaming"],
+    ["bigquery_load", "bigquery_streaming", "bigquery_write"],
 )
 def test_df_len_local(session, n_rows, write_engine):
     assert (

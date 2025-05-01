@@ -22,13 +22,13 @@ import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery
 import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.types as ibis_types
-import google.cloud.bigquery
 import pyarrow as pa
 
 from bigframes import dtypes, operations
 from bigframes.core import expression
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
+import bigframes.core.compile.configs as configs
 import bigframes.core.compile.explode
 import bigframes.core.compile.scalar_op_compiler as compile_scalar
 import bigframes.core.nodes as nodes
@@ -39,22 +39,7 @@ if typing.TYPE_CHECKING:
     import bigframes.core
 
 
-@dataclasses.dataclass(frozen=True)
-class CompileRequest:
-    node: nodes.BigFrameNode
-    sort_rows: bool
-    materialize_all_order_keys: bool = False
-    peek_count: typing.Optional[int] = None
-
-
-@dataclasses.dataclass(frozen=True)
-class CompileResult:
-    sql: str
-    sql_schema: typing.Sequence[google.cloud.bigquery.SchemaField]
-    row_order: Optional[bf_ordering.RowOrdering]
-
-
-def compile_sql(request: CompileRequest) -> CompileResult:
+def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
     output_names = tuple((expression.DerefOp(id), id.sql) for id in request.node.ids)
     result_node = nodes.ResultNode(
         request.node,
@@ -74,7 +59,7 @@ def compile_sql(request: CompileRequest) -> CompileResult:
     if request.sort_rows:
         result_node = cast(nodes.ResultNode, rewrites.column_pruning(result_node))
         sql = compile_result_node(result_node)
-        return CompileResult(
+        return configs.CompileResult(
             sql, result_node.schema.to_bigquery(), result_node.order_by
         )
 
@@ -88,7 +73,7 @@ def compile_sql(request: CompileRequest) -> CompileResult:
             ordering if ordering.referenced_columns.issubset(result_node.ids) else None
         )
     assert (not request.materialize_all_order_keys) or (output_order is not None)
-    return CompileResult(sql, result_node.schema.to_bigquery(), output_order)
+    return configs.CompileResult(sql, result_node.schema.to_bigquery(), output_order)
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
@@ -183,16 +168,13 @@ def compile_readlocal(node: nodes.ReadLocalNode, *args):
     pa_table = node.local_data_source.data
     bq_schema = node.schema.to_bigquery()
 
-    pa_table = pa_table.select(list(item.source_id for item in node.scan_list.items))
-    pa_table = pa_table.rename_columns(
-        {item.source_id: item.id.sql for item in node.scan_list.items}
-    )
+    pa_table = pa_table.select([item.source_id for item in node.scan_list.items])
+    pa_table = pa_table.rename_columns([item.id.sql for item in node.scan_list.items])
 
     if offsets:
         pa_table = pa_table.append_column(
             offsets, pa.array(range(pa_table.num_rows), type=pa.int64())
         )
-        bq_schema = (*bq_schema, google.cloud.bigquery.SchemaField(offsets, "INT64"))
     return compiled.UnorderedIR.from_polars(pa_table, bq_schema)
 
 
@@ -268,11 +250,6 @@ def compile_projection(node: nodes.ProjectionNode, child: compiled.UnorderedIR):
 def compile_concat(node: nodes.ConcatNode, *children: compiled.UnorderedIR):
     output_ids = [id.sql for id in node.output_ids]
     return concat_impl.concat_unordered(children, output_ids)
-
-
-@_compile_node.register
-def compile_rowcount(node: nodes.RowCountNode, child: compiled.UnorderedIR):
-    return child.row_count(name=node.col_id.sql)
 
 
 @_compile_node.register

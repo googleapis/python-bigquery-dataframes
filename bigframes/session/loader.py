@@ -23,6 +23,7 @@ import os
 import typing
 from typing import (
     Dict,
+    Generator,
     Hashable,
     IO,
     Iterable,
@@ -36,12 +37,13 @@ from typing import (
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
+from google.cloud import bigquery_storage_v1
 import google.cloud.bigquery as bigquery
-import google.cloud.bigquery.table
+from google.cloud.bigquery_storage_v1 import types as bq_storage_types
 import pandas
 import pyarrow as pa
 
-from bigframes.core import local_data, utils
+from bigframes.core import guid, local_data, utils
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.schema as schemata
@@ -142,6 +144,7 @@ class GbqDataLoader:
         self,
         session: bigframes.session.Session,
         bqclient: bigquery.Client,
+        write_client: bigquery_storage_v1.BigQueryWriteClient,
         storage_manager: bigframes.session.temporary_storage.TemporaryStorageManager,
         default_index_type: bigframes.enums.DefaultIndexKind,
         scan_index_uniqueness: bool,
@@ -149,6 +152,7 @@ class GbqDataLoader:
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
     ):
         self._bqclient = bqclient
+        self._write_client = write_client
         self._storage_manager = storage_manager
         self._default_index_type = default_index_type
         self._scan_index_uniqueness = scan_index_uniqueness
@@ -165,7 +169,7 @@ class GbqDataLoader:
     def read_pandas(
         self,
         pandas_dataframe: pandas.DataFrame,
-        method: Literal["load", "stream"],
+        method: Literal["load", "stream", "write"],
         api_name: str,
     ) -> dataframe.DataFrame:
         # TODO: Push this into from_pandas, along with index flag
@@ -183,6 +187,8 @@ class GbqDataLoader:
             array_value = self.load_data(managed_data, api_name=api_name)
         elif method == "stream":
             array_value = self.stream_data(managed_data)
+        elif method == "write":
+            array_value = self.write_data(managed_data)
         else:
             raise ValueError(f"Unsupported read method {method}")
 
@@ -198,7 +204,7 @@ class GbqDataLoader:
         self, data: local_data.ManagedArrowTable, api_name: Optional[str] = None
     ) -> core.ArrayValue:
         """Load managed data into bigquery"""
-        ordering_col = "bf_load_job_offsets"
+        ordering_col = guid.generate_guid("load_offsets_")
 
         # JSON support incomplete
         for item in data.schema.items:
@@ -244,7 +250,7 @@ class GbqDataLoader:
 
     def stream_data(self, data: local_data.ManagedArrowTable) -> core.ArrayValue:
         """Load managed data into bigquery"""
-        ordering_col = "bf_stream_job_offsets"
+        ordering_col = guid.generate_guid("stream_offsets_")
         schema_w_offsets = data.schema.append(
             schemata.SchemaItem(ordering_col, bigframes.dtypes.INT_DTYPE)
         )
@@ -277,6 +283,61 @@ class GbqDataLoader:
             n_rows=data.data.num_rows,
         ).drop_columns([ordering_col])
 
+    def write_data(self, data: local_data.ManagedArrowTable) -> core.ArrayValue:
+        """Load managed data into bigquery"""
+        ordering_col = guid.generate_guid("stream_offsets_")
+        schema_w_offsets = data.schema.append(
+            schemata.SchemaItem(ordering_col, bigframes.dtypes.INT_DTYPE)
+        )
+        bq_schema = schema_w_offsets.to_bigquery(_STREAM_JOB_TYPE_OVERRIDES)
+        bq_table_ref = self._storage_manager.create_temp_table(
+            bq_schema, [ordering_col]
+        )
+
+        requested_stream = bq_storage_types.stream.WriteStream()
+        requested_stream.type_ = bq_storage_types.stream.WriteStream.Type.COMMITTED  # type: ignore
+
+        stream_request = bq_storage_types.CreateWriteStreamRequest(
+            parent=bq_table_ref.to_bqstorage(), write_stream=requested_stream
+        )
+        stream = self._write_client.create_write_stream(request=stream_request)
+
+        def request_gen() -> Generator[bq_storage_types.AppendRowsRequest, None, None]:
+            schema, batches = data.to_arrow(
+                offsets_col=ordering_col, duration_type="int"
+            )
+            offset = 0
+            for batch in batches:
+                request = bq_storage_types.AppendRowsRequest(
+                    write_stream=stream.name, offset=offset
+                )
+                request.arrow_rows.writer_schema.serialized_schema = (
+                    schema.serialize().to_pybytes()
+                )
+                request.arrow_rows.rows.serialized_record_batch = (
+                    batch.serialize().to_pybytes()
+                )
+                offset += batch.num_rows
+                yield request
+
+        for response in self._write_client.append_rows(requests=request_gen()):
+            if response.row_errors:
+                raise ValueError(
+                    f"Problem loading at least one row from DataFrame: {response.row_errors}. {constants.FEEDBACK_LINK}"
+                )
+        # This step isn't strictly necessary in COMMITTED mode, but avoids max active stream limits
+        response = self._write_client.finalize_write_stream(name=stream.name)
+        assert response.row_count == data.data.num_rows
+
+        destination_table = self._bqclient.get_table(bq_table_ref)
+        return core.ArrayValue.from_table(
+            table=destination_table,
+            schema=schema_w_offsets,
+            session=self._session,
+            offsets_col=ordering_col,
+            n_rows=data.data.num_rows,
+        ).drop_columns([ordering_col])
+
     def _start_generic_job(self, job: formatting_helpers.GenericJob):
         if bigframes.options.display.progress_bar is not None:
             formatting_helpers.wait_for_job(
@@ -287,7 +348,7 @@ class GbqDataLoader:
 
     def read_gbq_table(
         self,
-        query: str,
+        table_id: str,
         *,
         index_col: Iterable[str]
         | str
@@ -295,6 +356,7 @@ class GbqDataLoader:
         | int
         | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
+        names: Optional[Iterable[str]] = None,
         max_results: Optional[int] = None,
         api_name: str = "read_gbq_table",
         use_cache: bool = True,
@@ -314,7 +376,7 @@ class GbqDataLoader:
             )
 
         table_ref = google.cloud.bigquery.table.TableReference.from_string(
-            query, default_project=self._bqclient.project
+            table_id, default_project=self._bqclient.project
         )
 
         columns = list(columns)
@@ -350,12 +412,37 @@ class GbqDataLoader:
                     f"Column '{key}' of `columns` not found in this table. Did you mean '{possibility}'?"
                 )
 
+        # TODO(b/408499371): check `names` work with `use_cols` for read_csv method.
+        if names is not None:
+            len_names = len(list(names))
+            len_columns = len(table.schema)
+            if len_names > len_columns:
+                raise ValueError(
+                    f"Too many columns specified: expected {len_columns}"
+                    f" and found {len_names}"
+                )
+            elif len_names < len_columns:
+                if (
+                    isinstance(index_col, bigframes.enums.DefaultIndexKind)
+                    or index_col != ()
+                ):
+                    raise KeyError(
+                        "When providing both `index_col` and `names`, ensure the "
+                        "number of `names` matches the number of columns in your "
+                        "data."
+                    )
+                index_col = range(len_columns - len_names)
+                names = [
+                    field.name for field in table.schema[: len_columns - len_names]
+                ] + list(names)
+
         # Converting index_col into a list of column names requires
         # the table metadata because we might use the primary keys
         # when constructing the index.
         index_cols = bf_read_gbq_table.get_index_cols(
             table=table,
             index_col=index_col,
+            names=names,
         )
         _check_column_duplicates(index_cols, columns)
 
@@ -382,7 +469,7 @@ class GbqDataLoader:
         # TODO(b/338419730): We don't need to fallback to a query for wildcard
         # tables if we allow some non-determinism when time travel isn't supported.
         if max_results is not None or bf_io_bigquery.is_table_with_wildcard_suffix(
-            query
+            table_id
         ):
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.
@@ -390,7 +477,7 @@ class GbqDataLoader:
                 itertools.chain(index_cols, columns) if columns else ()
             )
             query = bf_io_bigquery.to_query(
-                query,
+                table_id,
                 columns=all_columns,
                 sql_predicate=bf_io_bigquery.compile_filters(filters)
                 if filters
@@ -500,6 +587,15 @@ class GbqDataLoader:
             index_names = [None]
 
         value_columns = [col for col in array_value.column_ids if col not in index_cols]
+        if names is not None:
+            renamed_cols: Dict[str, str] = {
+                col: new_name for col, new_name in zip(array_value.column_ids, names)
+            }
+            index_names = [
+                renamed_cols.get(index_col, index_col) for index_col in index_cols
+            ]
+            value_columns = [renamed_cols.get(col, col) for col in value_columns]
+
         block = blocks.Block(
             array_value,
             index_columns=index_cols,
@@ -515,18 +611,12 @@ class GbqDataLoader:
             df.sort_index()
         return df
 
-    def read_bigquery_load_job(
+    def load_file(
         self,
         filepath_or_buffer: str | IO["bytes"],
         *,
         job_config: bigquery.LoadJobConfig,
-        index_col: Iterable[str]
-        | str
-        | Iterable[int]
-        | int
-        | bigframes.enums.DefaultIndexKind = (),
-        columns: Iterable[str] = (),
-    ) -> dataframe.DataFrame:
+    ) -> str:
         # Need to create session table beforehand
         table = self._storage_manager.create_temp_table(_PLACEHOLDER_SCHEMA)
         # but, we just overwrite the placeholder schema immediately with the load job
@@ -554,16 +644,7 @@ class GbqDataLoader:
 
         self._start_generic_job(load_job)
         table_id = f"{table.project}.{table.dataset_id}.{table.table_id}"
-
-        # The BigQuery REST API for tables.get doesn't take a session ID, so we
-        # can't get the schema for a temp table that way.
-
-        return self.read_gbq_table(
-            query=table_id,
-            index_col=index_col,
-            columns=columns,
-            api_name="read_gbq_table",
-        )
+        return table_id
 
     def read_gbq_query(
         self,
