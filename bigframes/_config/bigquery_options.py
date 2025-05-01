@@ -261,9 +261,11 @@ class BigQueryOptions:
         results has moved.
         """
         warnings.warn(
-            "Setting `bpd.options.bigquery.allow_large_results` is deprecated, ignored, "
+            "Setting `bpd.options.bigquery.allow_large_results` is deprecated, "
             "and will be removed in the future. "
-            "Please use `bpd.options.compute.allow_large_results = <value>` instead.",
+            "Please use `bpd.options.compute.allow_large_results = <value>` instead. "
+            "The `bpd.options.bigquery.allow_large_results` option is ignored if "
+            "`bpd.options.compute.allow_large_results` is set.",
             FutureWarning,
             stacklevel=2,
         )
