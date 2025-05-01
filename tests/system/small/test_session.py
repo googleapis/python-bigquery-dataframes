@@ -1922,7 +1922,7 @@ def _assert_table_dry_run_stats_are_valid(result: pd.Series):
             "location",
             "type",
             "creationTime",
-            "lastModifidTime",
+            "lastModifiedTime",
         ]
     )
 

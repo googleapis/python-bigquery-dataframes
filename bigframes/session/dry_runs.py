@@ -44,7 +44,7 @@ def get_table_stats(table: bigquery.Table) -> pandas.Series:
     index.append("creationTime")
     values.append(table.created)
 
-    index.append("lastModifidTime")
+    index.append("lastModifiedTime")
     values.append(table.modified)
 
     return pandas.Series(values, index=index)
