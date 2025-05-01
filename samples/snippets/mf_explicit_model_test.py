@@ -46,7 +46,8 @@ def test_explicit_matrix_factorization(random_model_id: str) -> None:
     # 0.485403	                0.395052	        0.025515	            0.390573	        0.68343	        0.68343
     # [END bigframes_dataframe_bqml_mf_explicit_evaluate]
     # [START bigframes_dataframe_bqml_mf_recommend_df]
-    subset = bq_df.head(6)
+    # Use predict() to get the predicted rating for each movie for 5 users
+    subset = bq_df.head(5)
     predicted = model.predict(subset)
     print(predicted)
     # Output:
