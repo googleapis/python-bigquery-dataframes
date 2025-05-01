@@ -65,7 +65,7 @@ def test_kmeans_sample(project_id: str, random_model_id_eu: str) -> None:
             ),
         }
     )
-    s_distance = bbq.st_distance(s1["xy"], s2["xy"], use_spheroid=False)
+    s_distance = bbq.st_distance(s1["xy"], s2["xy"], use_spheroid=False) / 1000
     s = bpd.DataFrame({"id": s1["id"], "distance_from_city_center": s_distance})
 
     # Define Python datetime objects in the UTC timezone for range comparison,
