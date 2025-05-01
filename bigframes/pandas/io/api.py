@@ -305,6 +305,36 @@ def read_gbq_query(
 read_gbq_query.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_query)
 
 
+@overload
+def read_gbq_table(  # type: ignore[overload-overlap]
+    query: str,
+    *,
+    index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+    columns: Iterable[str] = ...,
+    max_results: Optional[int] = ...,
+    filters: vendored_pandas_gbq.FiltersType = ...,
+    use_cache: bool = ...,
+    col_order: Iterable[str] = ...,
+    dry_run: Literal[False] = ...,
+) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+@overload
+def read_gbq_table(
+    query: str,
+    *,
+    index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+    columns: Iterable[str] = ...,
+    max_results: Optional[int] = ...,
+    filters: vendored_pandas_gbq.FiltersType = ...,
+    use_cache: bool = ...,
+    col_order: Iterable[str] = ...,
+    dry_run: Literal[True] = ...,
+) -> pandas.Series:
+    ...
+
+
 def read_gbq_table(
     query: str,
     *,
@@ -314,7 +344,8 @@ def read_gbq_table(
     filters: vendored_pandas_gbq.FiltersType = (),
     use_cache: bool = True,
     col_order: Iterable[str] = (),
-) -> bigframes.dataframe.DataFrame:
+    dry_run: bool = False,
+) -> bigframes.dataframe.DataFrame | pandas.Series:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq_table,
@@ -325,6 +356,7 @@ def read_gbq_table(
         filters=filters,
         use_cache=use_cache,
         col_order=col_order,
+        dry_run=dry_run,
     )
 
 

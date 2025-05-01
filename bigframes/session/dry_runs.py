@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Dict, Sequence
+from typing import Any, Dict, List, Sequence
 
 from google.cloud import bigquery
 import pandas
@@ -22,14 +22,42 @@ import pandas
 from bigframes import dtypes
 
 
-def get_stats_with_inferred_dtypes(
+def get_table_stats(table: bigquery.Table) -> pandas.Series:
+    values: List[Any] = []
+    index: List[Any] = []
+
+    # Indicate that no query is executed.
+    index.append("isQuery")
+    values.append(False)
+
+    # Populate column and index types
+    col_dtypes = dtypes.bf_type_from_type_kind(table.schema)
+    index.append("tableColumnCount")
+    values.append(len(col_dtypes))
+    index.append("tableColumnTypes")
+    values.append(col_dtypes)
+
+    for key in ("numBytes", "numRows", "location", "type"):
+        index.append(key)
+        values.append(table._properties[key])
+
+    index.append("creationTime")
+    values.append(table.created)
+
+    index.append("lastModifidTime")
+    values.append(table.modified)
+
+    return pandas.Series(values, index=index)
+
+
+def get_query_stats_with_inferred_dtypes(
     query_job: bigquery.QueryJob,
     value_cols: Sequence[str],
-    index_col: Sequence[str],
+    index_cols: Sequence[str],
 ) -> pandas.Series:
     if query_job.schema is None:
         # If the schema is not available, don't bother inferring dtypes.
-        return get_stats(query_job)
+        return get_query_stats(query_job)
 
     col_dtypes = dtypes.bf_type_from_type_kind(query_job.schema)
 
@@ -40,15 +68,17 @@ def get_stats_with_inferred_dtypes(
     else:
         # Use every column that is not mentioned as an index column
         value_col_dtypes = {
-            col: dtype for col, dtype in col_dtypes.items() if col not in set(index_col)
+            col: dtype
+            for col, dtype in col_dtypes.items()
+            if col not in set(index_cols)
         }
 
-    index_dtypes = [col_dtypes[col] for col in index_col]
+    index_dtypes = [col_dtypes[col] for col in index_cols]
 
-    return get_stats_with_dtypes(query_job, value_col_dtypes, index_dtypes)
+    return get_query_stats_with_dtypes(query_job, value_col_dtypes, index_dtypes)
 
 
-def get_stats_with_dtypes(
+def get_query_stats_with_dtypes(
     query_job: bigquery.QueryJob,
     column_dtypes: Dict[str, dtypes.Dtype],
     index_dtypes: Sequence[dtypes.Dtype],
@@ -58,10 +88,10 @@ def get_stats_with_dtypes(
 
     s = pandas.Series(values, index=index)
 
-    return pandas.concat([s, get_stats(query_job)])
+    return pandas.concat([s, get_query_stats(query_job)])
 
 
-def get_stats(
+def get_query_stats(
     query_job: bigquery.QueryJob,
 ) -> pandas.Series:
     """Returns important stats from the query job as a Pandas Series."""

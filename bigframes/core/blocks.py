@@ -58,7 +58,7 @@ import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
-from bigframes.session import dry_run_jobs
+from bigframes.session import dry_runs
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -819,7 +819,7 @@ class Block:
             for col in self.column_labels
         }
         return (
-            dry_run_jobs.get_stats_with_dtypes(
+            dry_runs.get_query_stats_with_dtypes(
                 query_job, column_dtypes, self.index.dtypes
             ),
             query_job,

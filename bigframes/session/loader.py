@@ -50,7 +50,7 @@ import bigframes.core.blocks as blocks
 import bigframes.core.schema as schemata
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatting_helpers
-from bigframes.session import dry_run_jobs
+from bigframes.session import dry_runs
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session.metrics
@@ -348,6 +348,48 @@ class GbqDataLoader:
         else:
             job.result()
 
+    @overload
+    def read_gbq_table(  # type: ignore[overload-overlap]
+        self,
+        table_id: str,
+        *,
+        index_col: Iterable[str]
+        | str
+        | Iterable[int]
+        | int
+        | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        names: Optional[Iterable[str]] = ...,
+        max_results: Optional[int] = ...,
+        api_name: str = ...,
+        use_cache: bool = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        enable_snapshot: bool = ...,
+        dry_run: Literal[False] = ...,
+    ) -> dataframe.DataFrame:
+        ...
+
+    @overload
+    def read_gbq_table(
+        self,
+        table_id: str,
+        *,
+        index_col: Iterable[str]
+        | str
+        | Iterable[int]
+        | int
+        | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        names: Optional[Iterable[str]] = ...,
+        max_results: Optional[int] = ...,
+        api_name: str = ...,
+        use_cache: bool = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        enable_snapshot: bool = ...,
+        dry_run: Literal[True] = ...,
+    ) -> pandas.Series:
+        ...
+
     def read_gbq_table(
         self,
         table_id: str,
@@ -364,7 +406,8 @@ class GbqDataLoader:
         use_cache: bool = True,
         filters: third_party_pandas_gbq.FiltersType = (),
         enable_snapshot: bool = True,
-    ) -> dataframe.DataFrame:
+        dry_run: bool = False,
+    ) -> dataframe.DataFrame | pandas.Series:
         import bigframes._tools.strings
         import bigframes.dataframe as dataframe
 
@@ -490,14 +533,17 @@ class GbqDataLoader:
                 time_travel_timestamp=None,
             )
 
-            return self.read_gbq_query(
+            return self.read_gbq_query(  # type: ignore # for dry_run overload
                 query,
                 index_col=index_cols,
                 columns=columns,
                 api_name=api_name,
                 use_cache=use_cache,
-                dry_run=False,
+                dry_run=dry_run,
             )
+
+        if dry_run:
+            return dry_runs.get_table_stats(table)
 
         # -----------------------------------------
         # Validate table access and features
@@ -650,7 +696,7 @@ class GbqDataLoader:
         return table_id
 
     @overload
-    def read_gbq_query(
+    def read_gbq_query( # type: ignore[overload-overlap]
         self,
         query: str,
         *,
@@ -746,7 +792,7 @@ class GbqDataLoader:
             )
             job_config.dry_run = True
             query_job = self._bqclient.query(query, job_config=job_config)
-            return dry_run_jobs.get_stats_with_inferred_dtypes(
+            return dry_runs.get_query_stats_with_inferred_dtypes(
                 query_job, list(columns), index_cols
             )
 

@@ -1837,7 +1837,7 @@ def test_read_gbq_with_table_ref_dry_run(scalars_table_id, session):
     result = session.read_gbq(scalars_table_id, dry_run=True)
 
     assert isinstance(result, pd.Series)
-    _assert_dry_run_stats_are_valid(result)
+    _assert_table_dry_run_stats_are_valid(result)
 
 
 def test_read_gbq_with_query_dry_run(scalars_table_id, session):
@@ -1845,7 +1845,7 @@ def test_read_gbq_with_query_dry_run(scalars_table_id, session):
     result = session.read_gbq(query, dry_run=True)
 
     assert isinstance(result, pd.Series)
-    _assert_dry_run_stats_are_valid(result)
+    _assert_query_dry_run_stats_are_valid(result)
 
 
 def test_read_gbq_dry_run_with_column_and_index(scalars_table_id, session):
@@ -1855,7 +1855,7 @@ def test_read_gbq_dry_run_with_column_and_index(scalars_table_id, session):
     )
 
     assert isinstance(result, pd.Series)
-    _assert_dry_run_stats_are_valid(result)
+    _assert_query_dry_run_stats_are_valid(result)
     assert result["columnCount"] == 2
     assert result["columnDtypes"] == {
         "int64_col": pd.Int64Dtype(),
@@ -1865,15 +1865,29 @@ def test_read_gbq_dry_run_with_column_and_index(scalars_table_id, session):
     assert result["indexDtypes"] == [pd.Int64Dtype()]
 
 
+def test_read_gbq_table_dry_run(scalars_table_id, session):
+    result = session.read_gbq_table(scalars_table_id, dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    _assert_table_dry_run_stats_are_valid(result)
+
+
+def test_read_gbq_table_dry_run_with_max_results(scalars_table_id, session):
+    result = session.read_gbq_table(scalars_table_id, dry_run=True, max_results=100)
+
+    assert isinstance(result, pd.Series)
+    _assert_query_dry_run_stats_are_valid(result)
+
+
 def test_read_gbq_query_dry_run(scalars_table_id, session):
     query = f"SELECT * FROM {scalars_table_id} LIMIT 10;"
     result = session.read_gbq_query(query, dry_run=True)
 
     assert isinstance(result, pd.Series)
-    _assert_dry_run_stats_are_valid(result)
+    _assert_query_dry_run_stats_are_valid(result)
 
 
-def _assert_dry_run_stats_are_valid(result: pd.Series):
+def _assert_query_dry_run_stats_are_valid(result: pd.Series):
     expected_index = pd.Index(
         [
             "columnCount",
@@ -1895,3 +1909,22 @@ def _assert_dry_run_stats_are_valid(result: pd.Series):
 
     pd.testing.assert_index_equal(result.index, expected_index)
     assert result["columnCount"] + result["indexLevel"] > 0
+
+
+def _assert_table_dry_run_stats_are_valid(result: pd.Series):
+    expected_index = pd.Index(
+        [
+            "isQuery",
+            "tableColumnCount",
+            "tableColumnTypes",
+            "numBytes",
+            "numRows",
+            "location",
+            "type",
+            "creationTime",
+            "lastModifidTime",
+        ]
+    )
+
+    pd.testing.assert_index_equal(result.index, expected_index)
+    assert result["tableColumnCount"] == len(result["tableColumnTypes"])
