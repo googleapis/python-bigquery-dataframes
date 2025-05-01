@@ -696,7 +696,7 @@ class GbqDataLoader:
         return table_id
 
     @overload
-    def read_gbq_query( # type: ignore[overload-overlap]
+    def read_gbq_query(  # type: ignore[overload-overlap]
         self,
         query: str,
         *,
