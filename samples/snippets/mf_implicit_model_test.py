@@ -41,9 +41,7 @@ def test_implicit_matrix_factorization(random_model_id: str) -> None:
     model.fit(bq_df)
     # [END bigframes_dataframe_mf_implicit_evaluate]
     # [START bigframes_dataframe_mf_implicit_subset]
-
     # [END bigframes_dataframe_mf_implicit_subset]
     # [START bigframes_dataframe_mf_implicit_recommend]
-    model.score()
     # [END bigframes_dataframe_mf_implicit_recommend]
     pass
