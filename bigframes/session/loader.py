@@ -809,7 +809,6 @@ class GbqDataLoader:
         self,
         sql: str,
         job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
-        max_results: Optional[int] = None,
         timeout: Optional[float] = None,
         api_name: Optional[str] = None,
     ) -> Tuple[google.cloud.bigquery.table.RowIterator, bigquery.QueryJob]:
@@ -828,7 +827,6 @@ class GbqDataLoader:
             self._bqclient,
             sql,
             job_config=job_config,
-            max_results=max_results,
             timeout=timeout,
             api_name=api_name,
         )
