@@ -13,22 +13,17 @@
 # limitations under the License.
 from __future__ import annotations
 
-from typing import Generator, Tuple
+from typing import Tuple
 
-import bigframes.core.identifiers
-import bigframes.core.nodes
+from bigframes.core import guid, identifiers, nodes
 
 
 # TODO: May as well just outright remove selection nodes in this process.
 def remap_variables(
-    root: bigframes.core.nodes.BigFrameNode,
-    id_generator: Generator[bigframes.core.identifiers.ColumnId, None, None],
-) -> Tuple[
-    bigframes.core.nodes.BigFrameNode,
-    dict[bigframes.core.identifiers.ColumnId, bigframes.core.identifiers.ColumnId],
-]:
-    """
-    Remap all variables in the BFET using the id_generator.
+    root: nodes.BigFrameNode,
+    uid_gen: guid.SequentialUIDGenerator,
+) -> Tuple[nodes.BigFrameNode, dict[identifiers.ColumnId, identifiers.ColumnId],]:
+    """Remaps `ColumnId`s in the BFET to produce deterministic and sequential UIDs.
 
     Note: this will convert a DAG to a tree.
     """
@@ -36,7 +31,7 @@ def remap_variables(
     ref_mapping = dict()
     # Sequential ids are assigned bottom-up left-to-right
     for child in root.child_nodes:
-        new_child, child_var_mapping = remap_variables(child, id_generator=id_generator)
+        new_child, child_var_mapping = remap_variables(child, uid_gen=uid_gen)
         child_replacement_map[child] = new_child
         ref_mapping.update(child_var_mapping)
 
@@ -47,7 +42,10 @@ def remap_variables(
 
     with_new_refs = with_new_children.remap_refs(ref_mapping)
 
-    node_var_mapping = {old_id: next(id_generator) for old_id in root.node_defined_ids}
+    node_var_mapping = {
+        old_id: identifiers.ColumnId(name=uid_gen.generate_sequential_uid("bfcol_"))
+        for old_id in root.node_defined_ids
+    }
     with_new_vars = with_new_refs.remap_vars(node_var_mapping)
     with_new_vars._validate()
 
