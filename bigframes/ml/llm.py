@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, cast, Iterable, Literal, Mapping, Optional, Union
+from typing import cast, Iterable, Literal, Mapping, Optional, Union
 import warnings
 
 import bigframes_vendored.constants as constants
@@ -72,6 +72,8 @@ _GEMINI_PREVIEW_ENDPOINTS = (
 _GEMINI_FINE_TUNE_SCORE_ENDPOINTS = (
     _GEMINI_1P5_PRO_002_ENDPOINT,
     _GEMINI_1P5_FLASH_002_ENDPOINT,
+    _GEMINI_2_FLASH_001_ENDPOINT,
+    _GEMINI_2_FLASH_LITE_001_ENDPOINT,
 )
 _GEMINI_MULTIMODAL_ENDPOINTS = (
     _GEMINI_1P5_PRO_001_ENDPOINT,
@@ -79,6 +81,7 @@ _GEMINI_MULTIMODAL_ENDPOINTS = (
     _GEMINI_1P5_FLASH_001_ENDPOINT,
     _GEMINI_1P5_FLASH_002_ENDPOINT,
     _GEMINI_2_FLASH_EXP_ENDPOINT,
+    _GEMINI_2_FLASH_001_ENDPOINT,
 )
 
 _CLAUDE_3_SONNET_ENDPOINT = "claude-3-sonnet"
@@ -91,10 +94,6 @@ _CLAUDE_3_ENDPOINTS = (
     _CLAUDE_3_5_SONNET_ENDPOINT,
     _CLAUDE_3_OPUS_ENDPOINT,
 )
-
-
-_ML_GENERATE_TEXT_STATUS = "ml_generate_text_status"
-_ML_GENERATE_EMBEDDING_STATUS = "ml_generate_embedding_status"
 
 _MODEL_NOT_SUPPORTED_WARNING = (
     "Model name '{model_name}' is not supported. "
@@ -193,18 +192,6 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    @property
-    def _predict_func(
-        self,
-    ) -> Callable[
-        [bigframes.dataframe.DataFrame, Mapping], bigframes.dataframe.DataFrame
-    ]:
-        return self._bqml_model.generate_embedding
-
-    @property
-    def _status_col(self) -> str:
-        return _ML_GENERATE_EMBEDDING_STATUS
-
     def predict(
         self, X: utils.ArrayType, *, max_retries: int = 0
     ) -> bigframes.dataframe.DataFrame:
@@ -233,11 +220,14 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
             col_label = cast(blocks.Label, X.columns[0])
             X = X.rename(columns={col_label: "content"})
 
-        options = {
-            "flatten_json_output": True,
-        }
+        options: dict = {}
 
-        return self._predict_and_retry(X, options=options, max_retries=max_retries)
+        return self._predict_and_retry(
+            core.BqmlModel.generate_embedding_tvf,
+            X,
+            options=options,
+            max_retries=max_retries,
+        )
 
     def to_gbq(self, model_name: str, replace: bool = False) -> TextEmbeddingGenerator:
         """Save the model to BigQuery.
@@ -339,18 +329,6 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    @property
-    def _predict_func(
-        self,
-    ) -> Callable[
-        [bigframes.dataframe.DataFrame, Mapping], bigframes.dataframe.DataFrame
-    ]:
-        return self._bqml_model.generate_embedding
-
-    @property
-    def _status_col(self) -> str:
-        return _ML_GENERATE_EMBEDDING_STATUS
-
     def predict(
         self, X: utils.ArrayType, *, max_retries: int = 0
     ) -> bigframes.dataframe.DataFrame:
@@ -384,11 +362,14 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
         if X["content"].dtype == dtypes.OBJ_REF_DTYPE:
             X["content"] = X["content"].blob._get_runtime("R", with_metadata=True)
 
-        options = {
-            "flatten_json_output": True,
-        }
+        options: dict = {}
 
-        return self._predict_and_retry(X, options=options, max_retries=max_retries)
+        return self._predict_and_retry(
+            core.BqmlModel.generate_embedding_tvf,
+            X,
+            options=options,
+            max_retries=max_retries,
+        )
 
     def to_gbq(
         self, model_name: str, replace: bool = False
@@ -533,18 +514,6 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         }
         return options
 
-    @property
-    def _predict_func(
-        self,
-    ) -> Callable[
-        [bigframes.dataframe.DataFrame, Mapping], bigframes.dataframe.DataFrame
-    ]:
-        return self._bqml_model.generate_text
-
-    @property
-    def _status_col(self) -> str:
-        return _ML_GENERATE_TEXT_STATUS
-
     def fit(
         self,
         X: utils.ArrayType,
@@ -596,6 +565,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         ground_with_google_search: bool = False,
         max_retries: int = 0,
         prompt: Optional[Iterable[Union[str, bigframes.series.Series]]] = None,
+        output_schema: Optional[Mapping[str, str]] = None,
     ) -> bigframes.dataframe.DataFrame:
         """Predict the result from input DataFrame.
 
@@ -645,6 +615,9 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
                 Construct a prompt struct column for prediction based on the input. The input must be an Iterable that can take string literals,
                 such as "summarize", string column(s) of X, such as X["str_col"], or blob column(s) of X, such as X["blob_col"].
                 It creates a struct column of the items of the iterable, and use the concatenated result as the input prompt. No-op if set to None.
+            output_schema (Mapping[str, str] or None, default None):
+                The schema used to generate structured output as a bigframes DataFrame. The schema is a string key-value pair of <column_name>:<type>.
+                Supported types are int64, float64, bool and string. If None, output text result.
         Returns:
             bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
         """
@@ -707,16 +680,31 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
             col_label = cast(blocks.Label, X.columns[0])
             X = X.rename(columns={col_label: "prompt"})
 
-        options = {
+        options: dict = {
             "temperature": temperature,
             "max_output_tokens": max_output_tokens,
-            "top_k": top_k,
+            # "top_k": top_k, # TODO(garrettwu): the option is deprecated in Gemini 1.5 forward.
             "top_p": top_p,
-            "flatten_json_output": True,
             "ground_with_google_search": ground_with_google_search,
         }
+        if output_schema:
+            output_schema = {
+                k: utils.standardize_type(v) for k, v in output_schema.items()
+            }
+            options["output_schema"] = output_schema
+            return self._predict_and_retry(
+                core.BqmlModel.generate_table_tvf,
+                X,
+                options=options,
+                max_retries=max_retries,
+            )
 
-        return self._predict_and_retry(X, options=options, max_retries=max_retries)
+        return self._predict_and_retry(
+            core.BqmlModel.generate_text_tvf,
+            X,
+            options=options,
+            max_retries=max_retries,
+        )
 
     def score(
         self,
@@ -727,7 +715,8 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         ] = "text_generation",
     ) -> bigframes.dataframe.DataFrame:
         """Calculate evaluation metrics of the model. Only support
-            "gemini-1.5-pro-002", and "gemini-1.5-flash-002".
+            "gemini-1.5-pro-002", "gemini-1.5-flash-002",
+            "gemini-2.0-flash-lite-001", and "gemini-2.0-flash-001".
 
         .. note::
 
@@ -761,7 +750,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
 
         if self.model_name not in _GEMINI_FINE_TUNE_SCORE_ENDPOINTS:
             raise NotImplementedError(
-                "score() only supports gemini-1.5-pro-002, and gemini-1.5-flash-2 model."
+                "score() only supports gemini-1.5-pro-002, gemini-1.5-flash-2, gemini-2.0-flash-001, and gemini-2.0-flash-lite-001 model."
             )
 
         X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
@@ -916,18 +905,6 @@ class Claude3TextGenerator(base.RetriableRemotePredictor):
         }
         return options
 
-    @property
-    def _predict_func(
-        self,
-    ) -> Callable[
-        [bigframes.dataframe.DataFrame, Mapping], bigframes.dataframe.DataFrame
-    ]:
-        return self._bqml_model.generate_text
-
-    @property
-    def _status_col(self) -> str:
-        return _ML_GENERATE_TEXT_STATUS
-
     def predict(
         self,
         X: utils.ArrayType,
@@ -1000,10 +977,14 @@ class Claude3TextGenerator(base.RetriableRemotePredictor):
             "max_output_tokens": max_output_tokens,
             "top_k": top_k,
             "top_p": top_p,
-            "flatten_json_output": True,
         }
 
-        return self._predict_and_retry(X, options=options, max_retries=max_retries)
+        return self._predict_and_retry(
+            core.BqmlModel.generate_text_tvf,
+            X,
+            options=options,
+            max_retries=max_retries,
+        )
 
     def to_gbq(self, model_name: str, replace: bool = False) -> Claude3TextGenerator:
         """Save the model to BigQuery.

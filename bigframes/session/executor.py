@@ -16,13 +16,17 @@ from __future__ import annotations
 
 import abc
 import dataclasses
+import functools
+import itertools
 from typing import Callable, Iterator, Literal, Mapping, Optional, Sequence, Union
 
 from google.cloud import bigquery
+import pandas as pd
 import pyarrow
 
 import bigframes.core
 import bigframes.core.schema
+import bigframes.session._io.pandas as io_pandas
 
 
 @dataclasses.dataclass(frozen=True)
@@ -37,10 +41,36 @@ class ExecuteResult:
         # Need to provide schema if no result rows, as arrow can't infer
         # If ther are rows, it is safest to infer schema from batches.
         # Any discrepencies between predicted schema and actual schema will produce errors.
-        return pyarrow.Table.from_batches(
+        batches = iter(self.arrow_batches())
+        peek_it = itertools.islice(batches, 0, 1)
+        peek_value = list(peek_it)
+        # TODO: Enforce our internal schema on the table for consistency
+        if len(peek_value) > 0:
+            return pyarrow.Table.from_batches(
+                itertools.chain(peek_value, batches),  # reconstruct
+            )
+        else:
+            return self.schema.to_pyarrow().empty_table()
+
+    def to_pandas(self) -> pd.DataFrame:
+        return io_pandas.arrow_to_pandas(self.to_arrow_table(), self.schema)
+
+    def to_pandas_batches(self) -> Iterator[pd.DataFrame]:
+        yield from map(
+            functools.partial(io_pandas.arrow_to_pandas, schema=self.schema),
             self.arrow_batches(),
-            self.schema.to_pyarrow() if not self.total_rows else None,
         )
+
+    def to_py_scalar(self):
+        columns = list(self.to_arrow_table().to_pydict().values())
+        if len(columns) != 1:
+            raise ValueError(
+                f"Expected single column result, got {len(columns)} columns."
+            )
+        column = columns[0]
+        if len(column) != 1:
+            raise ValueError(f"Expected single row result, got {len(column)} rows.")
+        return column[0]
 
 
 class Executor(abc.ABC):
@@ -68,7 +98,7 @@ class Executor(abc.ABC):
         use_explicit_destination: Optional[bool] = False,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
-    ):
+    ) -> ExecuteResult:
         """
         Execute the ArrayValue, storing the result to a temporary session-owned table.
         """
@@ -127,10 +157,6 @@ class Executor(abc.ABC):
         Preview the first n rows of the dataframe. This is less efficient than the unordered peek preview op.
         """
         raise NotImplementedError("head not implemented for this executor")
-
-    # TODO: This should be done through execute()
-    def get_row_count(self, array_value: bigframes.core.ArrayValue) -> int:
-        raise NotImplementedError("get_row_count not implemented for this executor")
 
     def cached(
         self,

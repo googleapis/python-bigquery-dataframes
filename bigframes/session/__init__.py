@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from collections import abc
 import datetime
 import logging
 import os
@@ -255,6 +256,7 @@ class Session(
             session=self,
             bqclient=self._clients_provider.bqclient,
             storage_manager=self._temp_storage_manager,
+            write_client=self._clients_provider.bqstoragewriteclient,
             default_index_type=self._default_index_type,
             scan_index_uniqueness=self._strictly_ordered,
             force_total_order=self._strictly_ordered,
@@ -335,13 +337,6 @@ class Session(
     @property
     def bytes_processed_sum(self):
         """The sum of all bytes processed by bigquery jobs using this session."""
-        msg = bfe.format_message(
-            "Queries executed with `allow_large_results=False` within the session will not "
-            "have their bytes processed counted in this sum. If you need precise "
-            "bytes processed information, query the `INFORMATION_SCHEMA` tables "
-            "to get relevant metrics.",
-        )
-        warnings.warn(msg, UserWarning)
         return self._metrics.bytes_processed
 
     @property
@@ -575,7 +570,7 @@ class Session(
             columns = col_order
 
         return self._loader.read_gbq_table(
-            query=query,
+            table_id=query,
             index_col=index_col,
             columns=columns,
             max_results=max_results,
@@ -731,7 +726,9 @@ class Session(
                   workload is such that you exhaust the BigQuery load job
                   quota and your data cannot be embedded in SQL due to size or
                   data type limitations.
-
+                * "bigquery_write":
+                  [Preview] Use the BigQuery Storage Write API. This feature
+                  is in public preview.
         Returns:
             An equivalent bigframes.pandas.(DataFrame/Series/Index) object
 
@@ -804,6 +801,10 @@ class Session(
         elif write_engine == "bigquery_streaming":
             return self._loader.read_pandas(
                 pandas_dataframe, method="stream", api_name=api_name
+            )
+        elif write_engine == "bigquery_write":
+            return self._loader.read_pandas(
+                pandas_dataframe, method="write", api_name=api_name
             )
         else:
             raise ValueError(f"Got unexpected write_engine '{write_engine}'")
@@ -953,44 +954,27 @@ class Session(
         native CSV loading capabilities, making it suitable for large datasets
         that may not fit into local memory.
         """
-
-        if any(param is not None for param in (dtype, names)):
-            not_supported = ("dtype", "names")
+        if dtype is not None:
             raise NotImplementedError(
-                f"BigQuery engine does not support these arguments: {not_supported}. "
+                f"BigQuery engine does not support the `dtype` argument."
                 f"{constants.FEEDBACK_LINK}"
             )
 
-        # TODO(b/338089659): Looks like we can relax this 1 column
-        # restriction if we check the contents of an iterable are strings
-        # not integers.
-        if (
-            # Empty tuples, None, and False are allowed and falsey.
-            index_col
-            and not isinstance(index_col, bigframes.enums.DefaultIndexKind)
-            and not isinstance(index_col, str)
-        ):
-            raise NotImplementedError(
-                "BigQuery engine only supports a single column name for `index_col`, "
-                f"got: {repr(index_col)}. {constants.FEEDBACK_LINK}"
-            )
+        if names is not None:
+            if len(names) != len(set(names)):
+                raise ValueError("Duplicated names are not allowed.")
+            if not (
+                bigframes.core.utils.is_list_like(names, allow_sets=False)
+                or isinstance(names, abc.KeysView)
+            ):
+                raise ValueError("Names should be an ordered collection.")
+
+        if index_col is True:
+            raise ValueError("The value of index_col couldn't be 'True'")
 
         # None and False cannot be passed to read_gbq.
-        # TODO(b/338400133): When index_col is None, we should be using the
-        # first column of the CSV as the index to be compatible with the
-        # pandas engine. According to the pandas docs, only "False"
-        # indicates a default sequential index.
-        if not index_col:
+        if index_col is None or index_col is False:
             index_col = ()
-
-        index_col = typing.cast(
-            Union[
-                Sequence[str],  # Falsey values
-                bigframes.enums.DefaultIndexKind,
-                str,
-            ],
-            index_col,
-        )
 
         # usecols should only be an iterable of strings (column names) for use as columns in read_gbq.
         columns: Tuple[Any, ...] = tuple()
@@ -1028,11 +1012,9 @@ class Session(
         elif header > 0:
             job_config.skip_leading_rows = header + 1
 
-        return self._loader.read_bigquery_load_job(
-            filepath_or_buffer,
-            job_config=job_config,
-            index_col=index_col,
-            columns=columns,
+        table_id = self._loader.load_file(filepath_or_buffer, job_config=job_config)
+        return self._loader.read_gbq_table(
+            table_id, index_col=index_col, columns=columns, names=names
         )
 
     def read_pickle(
@@ -1073,8 +1055,8 @@ class Session(
             job_config = bigquery.LoadJobConfig()
             job_config.source_format = bigquery.SourceFormat.PARQUET
             job_config.labels = {"bigframes-api": "read_parquet"}
-
-            return self._loader.read_bigquery_load_job(path, job_config=job_config)
+            table_id = self._loader.load_file(path, job_config=job_config)
+            return self._loader.read_gbq_table(table_id)
         else:
             if "*" in path:
                 raise ValueError(
@@ -1145,10 +1127,8 @@ class Session(
             job_config.encoding = encoding
             job_config.labels = {"bigframes-api": "read_json"}
 
-            return self._loader.read_bigquery_load_job(
-                path_or_buf,
-                job_config=job_config,
-            )
+            table_id = self._loader.load_file(path_or_buf, job_config=job_config)
+            return self._loader.read_gbq_table(table_id)
         else:
             if any(arg in kwargs for arg in ("chunksize", "iterator")):
                 raise NotImplementedError(
@@ -1447,17 +1427,81 @@ class Session(
         packages: Optional[Sequence[str]] = None,
     ):
         """Decorator to turn a Python user defined function (udf) into a
-        BigQuery managed function.
+        [BigQuery managed user-defined function](https://cloud.google.com/bigquery/docs/user-defined-functions-python).
 
         .. note::
-            The udf must be self-contained, i.e. it must not contain any
+            This feature is in preview. The code in the udf must be
+            (1) self-contained, i.e. it must not contain any
             references to an import or variable defined outside the function
-            body.
+            body, and
+            (2) Python 3.11 compatible, as that is the environment
+            in which the code is executed in the cloud.
 
         .. note::
-            Please have following IAM roles enabled for you:
+            Please have BigQuery Data Editor (roles/bigquery.dataEditor) IAM
+            role enabled for you.
 
-            * BigQuery Data Editor (roles/bigquery.dataEditor)
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import datetime
+            >>> bpd.options.display.progress_bar = None
+
+        Turning an arbitrary python function into a BigQuery managed python udf:
+
+            >>> bq_name = datetime.datetime.now().strftime("bigframes_%Y%m%d%H%M%S%f")
+            >>> @bpd.udf(dataset="bigfranes_testing", name=bq_name)
+            ... def minutes_to_hours(x: int) -> float:
+            ...     return x/60
+
+            >>> minutes = bpd.Series([0, 30, 60, 90, 120])
+            >>> minutes
+            0      0
+            1     30
+            2     60
+            3     90
+            4    120
+            dtype: Int64
+
+            >>> hours = minutes.apply(minutes_to_hours)
+            >>> hours
+            0    0.0
+            1    0.5
+            2    1.0
+            3    1.5
+            4    2.0
+            dtype: Float64
+
+        To turn a user defined function with external package dependencies into
+        a BigQuery managed python udf, you would provide the names of the
+        packages (optionally with the package version) via `packages` param.
+
+            >>> bq_name = datetime.datetime.now().strftime("bigframes_%Y%m%d%H%M%S%f")
+            >>> @bpd.udf(
+            ...     dataset="bigfranes_testing",
+            ...     name=bq_name,
+            ...     packages=["cryptography"]
+            ... )
+            ... def get_hash(input: str) -> str:
+            ...     from cryptography.fernet import Fernet
+            ...
+            ...     # handle missing value
+            ...     if input is None:
+            ...         input = ""
+            ...
+            ...     key = Fernet.generate_key()
+            ...     f = Fernet(key)
+            ...     return f.encrypt(input.encode()).decode()
+
+            >>> names = bpd.Series(["Alice", "Bob"])
+            >>> hashes = names.apply(get_hash)
+
+        You can clean-up the BigQuery functions created above using the BigQuery
+        client from the BigQuery DataFrames session:
+
+            >>> session = bpd.get_global_session()
+            >>> session.bqclient.delete_routine(minutes_to_hours.bigframes_bigquery_function)
+            >>> session.bqclient.delete_routine(get_hash.bigframes_bigquery_function)
 
         Args:
             input_types (type or sequence(type), Optional):
