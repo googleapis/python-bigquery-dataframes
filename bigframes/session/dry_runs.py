@@ -32,9 +32,9 @@ def get_table_stats(table: bigquery.Table) -> pandas.Series:
 
     # Populate column and index types
     col_dtypes = dtypes.bf_type_from_type_kind(table.schema)
-    index.append("tableColumnCount")
+    index.append("columnCount")
     values.append(len(col_dtypes))
-    index.append("tableColumnTypes")
+    index.append("columnDtypes")
     values.append(col_dtypes)
 
     for key in ("numBytes", "numRows", "location", "type"):

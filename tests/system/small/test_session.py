@@ -1915,8 +1915,8 @@ def _assert_table_dry_run_stats_are_valid(result: pd.Series):
     expected_index = pd.Index(
         [
             "isQuery",
-            "tableColumnCount",
-            "tableColumnTypes",
+            "columnCount",
+            "columnDtypes",
             "numBytes",
             "numRows",
             "location",
@@ -1927,4 +1927,4 @@ def _assert_table_dry_run_stats_are_valid(result: pd.Series):
     )
 
     pd.testing.assert_index_equal(result.index, expected_index)
-    assert result["tableColumnCount"] == len(result["tableColumnTypes"])
+    assert result["columnCount"] == len(result["columnDtypes"])
