@@ -17,7 +17,7 @@ import time
 from typing import Generator
 import uuid
 
-from google.cloud import bigtable, pubsub
+from google.cloud import bigtable, pubsub  # type: ignore
 from google.cloud.bigtable import column_family, instance, table
 import pytest
 
