@@ -274,8 +274,6 @@ def mypy(session):
                 "types-setuptools",
                 "types-tabulate",
                 "polars",
-                # "google-cloud-bigtable",
-                # "google-cloud-pubsub",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
