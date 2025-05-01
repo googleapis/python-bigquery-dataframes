@@ -248,8 +248,8 @@ class BigQueryCachingExecutor(executor.Executor):
     ) -> None:
         """Write the block to a session table."""
         # First, see if we can reuse the existing cache
-        # TODO: Provide feedback to user on whether new caching action was deemed necessary
-        # TODO: Make cached a deferred action
+        # TODO(b/415105423): Provide feedback to user on whether new caching action was deemed necessary
+        # TODO(b/415105218): Make cached a deferred action
         if config.if_cached == "reuse-any":
             if self._is_trivially_executable(array_value):
                 return

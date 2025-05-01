@@ -69,7 +69,7 @@ import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
-from bigframes.session import executor
+from bigframes.session import executor as executors
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -1561,10 +1561,10 @@ class Block:
         """
 
         # head caches full underlying expression, so row_count will be free after
-        excutr = self.session._executor
-        excutr.cached(
+        executor = self.session._executor
+        executor.cached(
             array_value=self.expr,
-            config=executor.CacheConfig(optimize_for="head", if_cached="reuse-strict"),
+            config=executors.CacheConfig(optimize_for="head", if_cached="reuse-strict"),
         )
         head_result = self.session._executor.execute(
             self.expr.slice(start=None, stop=max_results, step=None)
@@ -2543,10 +2543,10 @@ class Block:
         # use a heuristic for whether something needs to be cached
         self.session._executor.cached(
             self.expr,
-            config=executor.CacheConfig(
+            config=executors.CacheConfig(
                 optimize_for="auto"
                 if session_aware
-                else executor.HierarchicalKey(tuple(self.index_columns)),
+                else executors.HierarchicalKey(tuple(self.index_columns)),
                 if_cached="replace" if force else "reuse-any",
             ),
         )
