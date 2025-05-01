@@ -27,6 +27,8 @@ import bigframes.core.compile.sqlglot.sqlglot_types as sgt
 import bigframes.core.local_data as local_data
 import bigframes.core.schema as schemata
 
+from bigframes.core import guid
+
 # shapely.wkt.dumps was moved to shapely.io.to_wkt in 2.0.
 try:
     from shapely.io import to_wkt  # type: ignore
@@ -52,6 +54,9 @@ class SQLGlotIR:
     pretty: bool = True
     """Whether to pretty-print the generated SQL."""
 
+    uid_gen: guid.SequentialUIDGenerator = guid.SequentialUIDGenerator()
+    """Generator for unique identifiers."""
+
     @property
     def sql(self) -> str:
         """Generate SQL string from the given expression."""
@@ -59,7 +64,7 @@ class SQLGlotIR:
 
     @classmethod
     def from_pyarrow(
-        cls, pa_table: pa.Table, schema: schemata.ArraySchema
+        cls, pa_table: pa.Table, schema: schemata.ArraySchema, uid_gen: guid.SequentialUIDGenerator
     ) -> SQLGlotIR:
         """Builds SQLGlot expression from pyarrow table."""
         dtype_expr = sge.DataType(
@@ -95,7 +100,7 @@ class SQLGlotIR:
                 ),
             ],
         )
-        return cls(expr=sg.select(sge.Star()).from_(expr))
+        return cls(expr=sg.select(sge.Star()).from_(expr), uid_gen=uid_gen)
 
     def select(
         self,

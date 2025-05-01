@@ -22,7 +22,7 @@ from google.cloud import bigquery
 import pyarrow as pa
 import sqlglot.expressions as sge
 
-from bigframes.core import expression, identifiers, nodes, rewrite
+from bigframes.core import expression, guid, identifiers, nodes, rewrite
 from bigframes.core.compile import configs
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
@@ -32,6 +32,9 @@ import bigframes.core.ordering as bf_ordering
 @dataclasses.dataclass(frozen=True)
 class SQLGlotCompiler:
     """Compiles BigFrame nodes into SQL using SQLGlot."""
+
+    uid_gen: guid.SequentialUIDGenerator = guid.SequentialUIDGenerator()
+    """Generator for unique identifiers."""
 
     def compile(
         self,
@@ -107,9 +110,47 @@ class SQLGlotCompiler:
         )
 
     def _compile_result_node(self, root: nodes.ResultNode) -> str:
-        sqlglot_ir = compile_node(root.child)
+        sqlglot_ir = self.compile_node(root.child)
         # TODO: add order_by, limit, and selections to sqlglot_expr
         return sqlglot_ir.sql
+
+    @functools.lru_cache(maxsize=5000)
+    def compile_node(self, node: nodes.BigFrameNode) -> ir.SQLGlotIR:
+        """Compiles node into CompileArrayValue. Caches result."""
+        return node.reduce_up(lambda node, children: self._compile_node(node, *children))
+
+    @functools.singledispatchmethod
+    def _compile_node(
+        self, node: nodes.BigFrameNode, *compiled_children: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        """Defines transformation but isn't cached, always use compile_node instead"""
+        raise ValueError(f"Can't compile unrecognized node: {node}")
+
+    @_compile_node.register
+    def compile_readlocal(self, node: nodes.ReadLocalNode, *args) -> ir.SQLGlotIR:
+        pa_table = node.local_data_source.data
+        pa_table = pa_table.select([item.source_id for item in node.scan_list.items])
+        pa_table = pa_table.rename_columns(
+            [item.id.sql for item in node.scan_list.items]
+        )
+
+        offsets = node.offsets_col.sql if node.offsets_col else None
+        if offsets:
+            pa_table = pa_table.append_column(
+                offsets, pa.array(range(pa_table.num_rows), type=pa.int64())
+            )
+
+        return ir.SQLGlotIR.from_pyarrow(pa_table, node.schema, uid_gen=self.uid_gen)
+
+    @_compile_node.register
+    def compile_selection(
+        self, node: nodes.SelectionNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        select_cols: typing.Dict[str, sge.Expression] = {
+            id.name: scalar_compiler.compile_scalar_expression(expr)
+            for expr, id in node.input_output_pairs
+        }
+        return child.select(select_cols)
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
@@ -128,41 +169,3 @@ def _remap_variables(node: nodes.ResultNode) -> nodes.ResultNode:
 
     result_node, _ = rewrite.remap_variables(node, anonymous_column_ids())
     return typing.cast(nodes.ResultNode, result_node)
-
-
-@functools.lru_cache(maxsize=5000)
-def compile_node(node: nodes.BigFrameNode) -> ir.SQLGlotIR:
-    """Compiles node into CompileArrayValue. Caches result."""
-    return node.reduce_up(lambda node, children: _compile_node(node, *children))
-
-
-@functools.singledispatch
-def _compile_node(
-    node: nodes.BigFrameNode, *compiled_children: ir.SQLGlotIR
-) -> ir.SQLGlotIR:
-    """Defines transformation but isn't cached, always use compile_node instead"""
-    raise ValueError(f"Can't compile unrecognized node: {node}")
-
-
-@_compile_node.register
-def compile_readlocal(node: nodes.ReadLocalNode, *args) -> ir.SQLGlotIR:
-    pa_table = node.local_data_source.data
-    pa_table = pa_table.select([item.source_id for item in node.scan_list.items])
-    pa_table = pa_table.rename_columns([item.id.sql for item in node.scan_list.items])
-
-    offsets = node.offsets_col.sql if node.offsets_col else None
-    if offsets:
-        pa_table = pa_table.append_column(
-            offsets, pa.array(range(pa_table.num_rows), type=pa.int64())
-        )
-
-    return ir.SQLGlotIR.from_pyarrow(pa_table, node.schema)
-
-
-@_compile_node.register
-def compile_selection(node: nodes.SelectionNode, child: ir.SQLGlotIR) -> ir.SQLGlotIR:
-    select_cols: typing.Dict[str, sge.Expression] = {
-        id.name: scalar_compiler.compile_scalar_expression(expr)
-        for expr, id in node.input_output_pairs
-    }
-    return child.select(select_cols)
