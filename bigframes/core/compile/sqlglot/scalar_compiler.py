@@ -11,28 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from __future__ import annotations
 
-import dataclasses
+import functools
 
-import sqlglot.dialects.bigquery
 import sqlglot.expressions as sge
 
+from bigframes.core import expression
 
-@dataclasses.dataclass(frozen=True)
-class SQLGen:
-    """Helper class to build SQLGlot Query and generate SQL string."""
 
-    dialect = sqlglot.dialects.bigquery.BigQuery
-    """The SQL dialect used for generation."""
+@functools.singledispatch
+def compile_scalar_expression(
+    expression: expression.Expression,
+) -> sge.Expression:
+    """Compiles BigFrames scalar expression into SQLGlot expression."""
+    raise ValueError(f"Can't compile unrecognized node: {expression}")
 
-    quoted: bool = True
-    """Whether to quote identifiers in the generated SQL."""
 
-    pretty: bool = True
-    """Whether to pretty-print the generated SQL."""
-
-    def sql(self, expr: sge.Expression) -> str:
-        """Generate SQL string from the given expression."""
-        return expr.sql(dialect=self.dialect, pretty=self.pretty)
+@compile_scalar_expression.register
+def compile_deref_op(expr: expression.DerefOp):
+    return sge.ColumnDef(this=sge.to_identifier(expr.id.sql, quoted=True))
