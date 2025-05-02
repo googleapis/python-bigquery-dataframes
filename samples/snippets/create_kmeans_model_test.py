@@ -24,6 +24,7 @@ def test_kmeans_sample(project_id: str, random_model_id_eu: str) -> None:
 
     import bigframes
     import bigframes.bigquery as bbq
+    import bigframes.geopandas
     import bigframes.pandas as bpd
 
     bigframes.options.bigquery.project = your_gcp_project_id
