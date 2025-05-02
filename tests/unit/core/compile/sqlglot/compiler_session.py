@@ -18,7 +18,6 @@ import weakref
 
 import bigframes.core
 import bigframes.core.compile.sqlglot as sqlglot
-import bigframes.core.guid
 import bigframes.dataframe
 import bigframes.session.executor
 import bigframes.session.metrics
@@ -42,9 +41,9 @@ class SQLCompilerExecutor(bigframes.session.executor.Executor):
 
         # Compared with BigQueryCachingExecutor, SQLCompilerExecutor skips
         # caching the subtree.
-        return self.compiler.SQLGlotCompiler(
-            uid_gen=bigframes.core.guid.SequentialUIDGenerator()
-        ).compile(array_value.node, ordered=ordered)
+        return self.compiler.SQLGlotCompiler().compile(
+            array_value.node, ordered=ordered
+        )
 
 
 class SQLCompilerSession(bigframes.session.Session):

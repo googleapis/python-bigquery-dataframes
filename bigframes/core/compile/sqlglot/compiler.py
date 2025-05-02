@@ -21,19 +21,21 @@ from google.cloud import bigquery
 import pyarrow as pa
 import sqlglot.expressions as sge
 
-from bigframes.core import expression, guid, nodes, rewrite
+from bigframes.core import expression, guid, identifiers, nodes, rewrite
 from bigframes.core.compile import configs
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.core.ordering as bf_ordering
 
 
-@dataclasses.dataclass(frozen=True)
 class SQLGlotCompiler:
     """Compiles BigFrame nodes into SQL using SQLGlot."""
 
     uid_gen: guid.SequentialUIDGenerator
     """Generator for unique identifiers."""
+
+    def __init__(self):
+        self.uid_gen = guid.SequentialUIDGenerator()
 
     def compile(
         self,
@@ -84,8 +86,8 @@ class SQLGlotCompiler:
             result_node = typing.cast(
                 nodes.ResultNode, rewrite.column_pruning(result_node)
             )
-            remap_node, _ = rewrite.remap_variables(result_node, self.uid_gen)
-            sql = self._compile_result_node(typing.cast(nodes.ResultNode, remap_node))
+            result_node = self._remap_variables(result_node)
+            sql = self._compile_result_node(result_node)
             return configs.CompileResult(
                 sql, result_node.schema.to_bigquery(), result_node.order_by
             )
@@ -94,8 +96,8 @@ class SQLGlotCompiler:
         result_node = dataclasses.replace(result_node, order_by=None)
         result_node = typing.cast(nodes.ResultNode, rewrite.column_pruning(result_node))
 
-        remap_node, _ = rewrite.remap_variables(result_node, self.uid_gen)
-        sql = self._compile_result_node(typing.cast(nodes.ResultNode, remap_node))
+        result_node = self._remap_variables(result_node)
+        sql = self._compile_result_node(result_node)
         # Return the ordering iff no extra columns are needed to define the row order
         if ordering is not None:
             output_order = (
@@ -107,6 +109,14 @@ class SQLGlotCompiler:
         return configs.CompileResult(
             sql, result_node.schema.to_bigquery(), output_order
         )
+
+    def _remap_variables(self, node: nodes.ResultNode) -> nodes.ResultNode:
+        """Remaps `ColumnId`s in the BFET of a `ResultNode` to produce deterministic UIDs."""
+
+        result_node, _ = rewrite.remap_variables(
+            node, map(identifiers.ColumnId, self.uid_gen.get_uid_stream("bfcol_"))
+        )
+        return typing.cast(nodes.ResultNode, result_node)
 
     def _compile_result_node(self, root: nodes.ResultNode) -> str:
         sqlglot_ir = self.compile_node(root.child)

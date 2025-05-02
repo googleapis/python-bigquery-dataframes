@@ -128,7 +128,7 @@ class SQLGlotIR:
 
         existing_ctes = select_expr.args.pop("with", [])
         new_cte_name = sge.to_identifier(
-            self.uid_gen.generate_sequential_uid("bfcte_"), quoted=self.quoted
+            next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
         )
         new_cte = sge.CTE(
             this=select_expr,
