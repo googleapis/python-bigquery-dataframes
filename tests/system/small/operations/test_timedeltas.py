@@ -611,6 +611,11 @@ def test_timedelta_agg__int_result(temporal_dfs, agg_func):
 
 
 def test_timestamp_diff_after_type_casting(temporal_dfs):
+    if version.Version(pd.__version__) <= version.Version("2.1.0"):
+        pytest.skip(
+            "Temporal type casting is not well-supported in older verions of Pandas."
+        )
+
     bf_df, pd_df = temporal_dfs
     dtype = pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
 
