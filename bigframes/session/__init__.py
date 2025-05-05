@@ -440,6 +440,21 @@ class Session(
     ):
         self._objects.append(weakref.ref(object))
 
+    def _read_gbq_colab(
+        self,
+        query_or_table: str,
+        *,
+        # TODO: type for paramter: some kind of Event
+        callback: Callable = lambda _: None,
+        # TODO: add parameter for variables for string formatting.
+    ) -> dataframe.DataFrame:
+        """A version of read_gbq that has the necessary default values for use in colab integrations.
+
+        This includes, no ordering, no index, no progress bar, always use string
+        formatting for embedding local variables / dataframes.
+        """
+        return self.read_gbq(query_or_table)
+
     def read_gbq_query(
         self,
         query: str,
