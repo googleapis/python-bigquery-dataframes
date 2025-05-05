@@ -377,7 +377,6 @@ def to_query(
     sql_predicate: Optional[str],
     max_results: Optional[int] = None,
     time_travel_timestamp: Optional[datetime.datetime] = None,
-    pseudocolumns: Iterable[str] = (),
 ) -> str:
     """Compile query_or_table with conditions(filters, wildcards) to query."""
     sub_query = (
@@ -392,12 +391,6 @@ def to_query(
         select_clause = "SELECT " + ", ".join(f"`{column}`" for column in columns)
     else:
         select_clause = "SELECT *"
-
-        if pseudocolumns:
-            pseudo_sql = ", ".join(
-                f"{column} AS _BF_{column}" for column in pseudocolumns
-            )
-            select_clause += f", {pseudo_sql}"
 
     time_travel_clause = ""
     if time_travel_timestamp is not None:

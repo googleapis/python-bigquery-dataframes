@@ -213,14 +213,9 @@ def _table_to_ibis(
     )
     # Physical schema might include unused columns, unsupported datatypes like JSON
     physical_schema = ibis_bigquery.BigQuerySchema.to_ibis(
-        list(source.table.physical_schema) + list(source.table.pseudocolumns)
+        list(source.table.physical_schema)
     )
-    if (
-        source.at_time is not None
-        or source.sql_predicate is not None
-        # ibis.table is not aware of pseudocolumns, so we compile to SQL ourselves.
-        or source.table.pseudocolumns
-    ):
+    if source.at_time is not None or source.sql_predicate is not None:
         import bigframes.session._io.bigquery
 
         sql = bigframes.session._io.bigquery.to_query(
@@ -228,10 +223,6 @@ def _table_to_ibis(
             columns=scan_cols,
             sql_predicate=source.sql_predicate,
             time_travel_timestamp=source.at_time,
-            # Need to include pseudocolumns in case we're doing a SELECT *,
-            # as those wouldn't normally be included.
-            # TODO(tswast): Is scan_cols ever empty? If not, this might not be necessary.
-            pseudocolumns=[field.name for field in source.table.pseudocolumns],
         )
         return ibis_bigquery.Backend().sql(schema=physical_schema, query=sql)
     else:

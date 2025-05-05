@@ -22,7 +22,6 @@ import itertools
 import os
 import typing
 from typing import (
-    cast,
     Dict,
     Generator,
     Hashable,
@@ -526,7 +525,6 @@ class GbqDataLoader:
             all_columns: Iterable[str] = (
                 itertools.chain(index_cols, columns) if columns else ()
             )
-            pseudocolumns = bigframes.core.tools.bigquery.get_pseudocolumns(table)
             query = bf_io_bigquery.to_query(
                 table_id,
                 columns=all_columns,
@@ -537,7 +535,6 @@ class GbqDataLoader:
                 # We're executing the query, so we don't need time travel for
                 # determinism.
                 time_travel_timestamp=None,
-                pseudocolumns=[field.name for field in pseudocolumns],
             )
 
             df = self.read_gbq_query(  # type: ignore # for dry_run overload
@@ -548,16 +545,6 @@ class GbqDataLoader:
                 use_cache=use_cache,
                 dry_run=dry_run,
             )
-
-            if pseudocolumns and not dry_run:
-                df = cast(dataframe.DataFrame, df,).rename(
-                    columns=dict(
-                        zip(
-                            [f"_BF_{field.name}" for field in pseudocolumns],
-                            [field.name for field in pseudocolumns],
-                        )
-                    )
-                )
             return df
 
         if dry_run:

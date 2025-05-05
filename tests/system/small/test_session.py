@@ -575,8 +575,7 @@ def test_read_gbq_wildcard(
         if columns
         else [
             field.name
-            for field in list(table_metadata.schema)
-            + [bigquery.SchemaField("_TABLE_SUFFIX", "STRING")]
+            for field in table_metadata.schema
             if field.name not in index_col and field.name not in columns
         ]
     )

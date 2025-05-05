@@ -14,7 +14,6 @@
 
 import io
 import operator
-import re
 import sys
 import tempfile
 import typing
@@ -5066,27 +5065,6 @@ def test_df_cached(scalars_df_index):
     pandas.testing.assert_frame_equal(df.to_pandas(), df_cached_copy.to_pandas())
 
 
-def test_df_cached_w_wildcard_table(unordered_session):
-    """Test the `cache()` API with a DataFrame that contains pseudocolumns from wildcard tables
-
-    Regression test for internal issue b/405773140.
-
-    Uses unordered_session to avoid full table scan.
-    """
-    df = unordered_session.read_gbq(
-        "bigquery-public-data.google_analytics_sample.ga_sessions_*"
-    )
-    df = (
-        df[df["_TABLE_SUFFIX"] == "20161204"]
-        .groupby(
-            ["visitorId", "visitNumber", "visitId", "_TABLE_SUFFIX"], as_index=False
-        )
-        .size()
-    )
-    df_cached_copy = df.cache()
-    pandas.testing.assert_frame_equal(df.to_pandas(), df_cached_copy.to_pandas())
-
-
 def test_assign_after_binop_row_joins():
     pd_df = pd.DataFrame(
         {
@@ -5319,19 +5297,6 @@ def test_to_gbq_and_create_dataset(session, scalars_df_index, dataset_id_not_cre
 
     loaded_scalars_df_index = session.read_gbq(result_table)
     assert not loaded_scalars_df_index.empty
-
-
-def test_read_gbq_to_pandas_wildcard(unordered_session: bigframes.Session):
-    with pytest.warns(
-        bigframes.exceptions.TimeTravelDisabledWarning,
-        match=re.escape("Wildcard tables do not support FOR SYSTEM_TIME"),
-    ):
-        df = unordered_session.read_gbq("bigquery-public-data.noaa_gsod.gsod*")
-    df = df[df["_TABLE_SUFFIX"] == "1929"][["da", "mo", "year", "max"]]
-    df.to_pandas()
-    rows, columns = df.shape
-    assert rows > 0
-    assert columns == 4
 
 
 def test_read_gbq_to_pandas_no_exec(unordered_session: bigframes.Session):
