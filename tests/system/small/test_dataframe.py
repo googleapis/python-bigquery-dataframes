@@ -5056,8 +5056,24 @@ def test_query_job_setters(scalars_df_default_index: dataframe.DataFrame):
 
 
 def test_df_cached(scalars_df_index):
-    df = scalars_df_index.set_index(["int64_too", "int64_col"]).sort_values(
-        "string_col"
+    df = (
+        scalars_df_index.rename(
+            columns={
+                # Column names can't use any of the following prefixes:
+                #
+                # * _TABLE_
+                # * _FILE_
+                # * _PARTITION
+                # * _ROW_TIMESTAMP
+                # * __ROOT__
+                # * _COLIDENTIFIER
+                #
+                # See: https://cloud.google.com/bigquery/docs/schemas#column_names
+                "date_col": "_PARTITIONDATE",
+            }
+        )
+        .set_index(["int64_too", "int64_col"])
+        .sort_values("string_col")
     )
     df = df[df["rowindex_2"] % 2 == 0]
 
