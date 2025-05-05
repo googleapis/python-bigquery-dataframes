@@ -48,7 +48,6 @@ from bigframes.core import guid, local_data, utils
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.schema as schemata
-import bigframes.core.tools.bigquery
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.session import dry_runs
