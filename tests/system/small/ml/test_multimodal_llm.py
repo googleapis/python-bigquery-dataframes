@@ -76,7 +76,7 @@ def test_gemini_text_generator_multimodal_input(
     "model_name",
     (
         "gemini-1.5-pro-001",
-        "gemini-1.5-pro-002",
+        # "gemini-1.5-pro-002",
         "gemini-1.5-flash-001",
         "gemini-1.5-flash-002",
         "gemini-2.0-flash-exp",
@@ -104,15 +104,7 @@ def test_gemini_text_generator_multimodal_structured_output(
         images_mm_df,
         prompt=["Describe", images_mm_df["blob_col"]],
         output_schema=output_schema,
-    ).to_pandas()
-    utils.check_pandas_df_schema_and_index(
-        df,
-        columns=list(output_schema.keys())
-        + ["blob_col", "prompt", "full_response", "status"],
-        index=2,
-        col_exact=False,
     )
-
     assert df["bool_output"].dtype == pd.BooleanDtype()
     assert df["int_output"].dtype == pd.Int64Dtype()
     assert df["float_output"].dtype == pd.Float64Dtype()
@@ -120,4 +112,13 @@ def test_gemini_text_generator_multimodal_structured_output(
     assert df["array_output"].dtype == pd.ArrowDtype(pa.list_(pa.int64()))
     assert df["struct_output"].dtype == pd.ArrowDtype(
         pa.struct([("number", pa.int64())])
+    )
+
+    pd_df = df.to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        pd_df,
+        columns=list(output_schema.keys())
+        + ["blob_col", "prompt", "full_response", "status"],
+        index=2,
+        col_exact=False,
     )

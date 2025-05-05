@@ -257,16 +257,7 @@ def test_gemini_text_generator_predict_output_schema_success(
         "array_output": "array<int64>",
         "struct_output": "struct<number int64>",
     }
-    df = gemini_text_generator_model.predict(
-        llm_text_df, output_schema=output_schema
-    ).to_pandas()
-    utils.check_pandas_df_schema_and_index(
-        df,
-        columns=list(output_schema.keys()) + ["prompt", "full_response", "status"],
-        index=3,
-        col_exact=False,
-    )
-
+    df = gemini_text_generator_model.predict(llm_text_df, output_schema=output_schema)
     assert df["bool_output"].dtype == pd.BooleanDtype()
     assert df["int_output"].dtype == pd.Int64Dtype()
     assert df["float_output"].dtype == pd.Float64Dtype()
@@ -274,6 +265,14 @@ def test_gemini_text_generator_predict_output_schema_success(
     assert df["array_output"].dtype == pd.ArrowDtype(pa.list_(pa.int64()))
     assert df["struct_output"].dtype == pd.ArrowDtype(
         pa.struct([("number", pa.int64())])
+    )
+
+    pd_df = df.to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        pd_df,
+        columns=list(output_schema.keys()) + ["prompt", "full_response", "status"],
+        index=3,
+        col_exact=False,
     )
 
 
