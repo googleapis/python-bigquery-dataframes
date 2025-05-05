@@ -618,7 +618,9 @@ def test_timestamp_diff_after_type_casting(temporal_dfs):
         bf_df["timestamp_col"] - bf_df["positive_int_col"].astype(dtype)
     ).to_pandas()
 
-    expected_result = pd_df["timestamp_col"] - pd_df["positive_int_col"].astype(dtype)
+    expected_result = pd_df["timestamp_col"] - pd_df["positive_int_col"].astype(
+        "datetime64[us, UTC]"
+    )
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False, check_dtype=False
     )
