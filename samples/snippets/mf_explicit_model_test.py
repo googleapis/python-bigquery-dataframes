@@ -61,21 +61,40 @@ def test_explicit_matrix_factorization(random_model_id: str) -> None:
     # [START bigframes_dataframe_bqml_mf_explicit_recommend_model]
     # import bigframes.bigquery as bbq
 
-    # TODO: implement right_index parameter for DataFrame.merge()
-    # # Load movie data from BigQuery
-    # movies = bpd.read_gbq("bqml_tutorial.movies")
-    # # Merge movie data with rating data
-    # merged_df = bpd.merge(predicted, movies, left_on='item_id', right_on='movie_id')
-    # # separate users from data to call struct on data
-    # users = merged_df[['user_id', 'item_id']]
-    # user_data = merged_df[['movie_title', 'genre', 'predicted_rating', 'movie_id']].set_index('movie_id')
-    # struct_data = bbq.struct(user_data).to_frame()
-    # # Merge data to groupby predicted_rating and sort
-    # merged_user = bpd.merge(users, struct_data, left_on='item_id', right_index=True).drop('item_id', axis=1)
-    # desc_pred = merged_user.sort_values(by='predicted_rating', ascending=False)
-    # grouped = desc_pred.groupby('predicted_rating')
-    # result = bbq.array_agg(grouped)
-    # result.head(5)
+    # Load movies
+    movies = bpd.read_gbq("bqml_tutorial.movies")
+
+    # Merge the movies df with the previously created predicted df
+    merged_df = bpd.merge(predicted, movies, left_on="item_id", right_on="movie_id")
+
+    # Separate users and predicted data, setting the index to 'movie_id'
+    users = merged_df[["user_id", "movie_id"]].set_index("movie_id")
+
+    # Take the predicted data and sort it in descending order by 'predicted_rating', setting the index to 'movie_id'
+    sort_data = (
+        merged_df[["movie_title", "genre", "predicted_rating", "movie_id"]]
+        .sort_values(by="predicted_rating", ascending=False)
+        .set_index("movie_id")
+    )
+
+    # re-merge the separated dfs by index
+    merged_user = sort_data.join(users, how="outer")
+
+    # group the users and set the user_id as the index
+    merged_user.groupby("user_id").head(5).set_index("user_id").sort_index()
+    print(merged_user)
     # Output:
+    # 	            movie_title	                genre	        predicted_rating
+    # user_id
+    #   1	    Saving Private Ryan (1998)	Action|Drama|War	    5.19326
+    #   1	        Fargo (1996)	       Crime|Drama|Thriller	    4.996954
+    #   1	    Driving Miss Daisy (1989)	    Drama	            4.983671
+    #   1	        Ben-Hur (1959)	       Action|Adventure|Drama	4.877622
+    #   1	     Schindler's List (1993)	   Drama|War	        4.802336
+    #   2	    Saving Private Ryan (1998)	Action|Drama|War	    5.19326
+    #   2	        Braveheart (1995)	    Action|Drama|War	    5.174145
+    #   2	        Gladiator (2000)	      Action|Drama	        5.066372
+    #   2	        On Golden Pond (1981)	     Drama	            5.01198
+    #   2	    Driving Miss Daisy (1989)	     Drama	            4.983671
     # [END bigframes_dataframe_bqml_mf_explicit_recommend_model]
     pass
