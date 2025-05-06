@@ -14,4 +14,19 @@
 
 """Unit tests for read_gbq_colab helper functions."""
 
-# TODO: Make sure job label is set.
+from bigframes.testing import mocks
+
+
+def test_read_gbq_colab_includes_label():
+    """Make sure we can tell direct colab usage apart from regular read_gbq usage."""
+    session = mocks.create_bigquery_session()
+    _ = session._read_gbq_colab("SELECT 'read-gbq-colab-test'")
+    configs = session._job_configs  # type: ignore
+
+    label_values = []
+    for config in configs:
+        if config is None:
+            continue
+        label_values.extend(config.labels.values())
+
+    assert "read_gbq_colab" in label_values

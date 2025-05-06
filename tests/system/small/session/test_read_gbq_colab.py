@@ -16,7 +16,6 @@
 
 
 def test_read_gbq_colab_to_pandas_batches_preserves_order_by(maybe_ordered_session):
-    # TODO: why is the order destroyed in strict order mode?
     df = maybe_ordered_session._read_gbq_colab(
         """
         SELECT
@@ -30,7 +29,12 @@ def test_read_gbq_colab_to_pandas_batches_preserves_order_by(maybe_ordered_sessi
         LIMIT 300
         """
     )
-    batches = df.to_pandas_batches(page_size=100, ordered=False)
+    batches = df.to_pandas_batches(
+        page_size=100,
+        # In the real app, this will need to be set to False for the raw query
+        # results and to True if any subsequent ordering has been applied.
+        ordered=False,
+    )
 
     total_rows = 0
     for batch in batches:
