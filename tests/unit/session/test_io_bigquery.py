@@ -199,11 +199,11 @@ def test_add_and_trim_labels_length_limit_met():
 
 
 @pytest.mark.parametrize(
-    ("max_results", "timeout", "api_name"),
-    [(None, None, None), (100, 30.0, "test_api")],
+    ("max_results", "timeout"),
+    [(None, None), (100, 30.0)],
 )
 def test_start_query_with_client_labels_length_limit_met(
-    mock_bq_client, max_results, timeout, api_name
+    mock_bq_client, max_results, timeout
 ):
     sql = "select * from abc"
     cur_labels = {
@@ -232,7 +232,6 @@ def test_start_query_with_client_labels_length_limit_met(
         job_config,
         max_results=max_results,
         timeout=timeout,
-        api_name=api_name,
     )
 
     assert job_config.labels is not None
