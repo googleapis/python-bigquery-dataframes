@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 import os
-from typing import cast, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import cast, Iterator, Literal, Mapping, Optional, Sequence, Tuple, Union
 import warnings
 import weakref
 
@@ -350,16 +350,14 @@ class BigQueryCachingExecutor(executor.Executor):
                 plan, sort_rows=False, materialize_all_order_keys=True
             )
         )
-        tmp_table = self._sql_as_cached_temp_table(
+        tmp_table_ref = self._sql_as_cached_temp_table(
             compiled.sql,
             compiled.sql_schema,
             cluster_cols=bq_io.select_cluster_cols(compiled.sql_schema, cluster_cols),
         )
-        cached_replacement = array_value.as_cached(
-            cache_table=self.bqclient.get_table(tmp_table),
-            ordering=compiled.row_order,
-        ).node
-        self._cached_executions[array_value.node] = cached_replacement
+        tmp_table = self.bqclient.get_table(tmp_table_ref)
+        assert compiled.row_order is not None
+        self._cache_results_table(array_value.node, tmp_table, compiled.row_order)
 
     def _cache_with_offsets(self, array_value: bigframes.core.ArrayValue):
         """Executes the query and uses the resulting table to rewrite future executions."""
@@ -370,17 +368,14 @@ class BigQueryCachingExecutor(executor.Executor):
                 array_value.node, sort_rows=False, materialize_all_order_keys=True
             )
         )
-
-        tmp_table = self._sql_as_cached_temp_table(
+        tmp_table_ref = self._sql_as_cached_temp_table(
             compiled.sql,
             w_offsets.schema.to_bigquery(),
             cluster_cols=[offset_column],
         )
-        cached_replacement = array_value.as_cached(
-            cache_table=self.bqclient.get_table(tmp_table),
-            ordering=order.TotalOrdering.from_offset_col(offset_column),
-        ).node
-        self._cached_executions[array_value.node] = cached_replacement
+        tmp_table = self.bqclient.get_table(tmp_table_ref)
+        assert compiled.row_order is not None
+        self._cache_results_table(array_value.node, tmp_table, compiled.row_order)
 
     def _cache_with_session_awareness(
         self,
@@ -534,14 +529,6 @@ class BigQueryCachingExecutor(executor.Executor):
         else:
             table = None
 
-        if (table is not None) and (table.num_bytes or 0) >= MAX_SMALL_RESULT_BYTES:
-            msg = bfe.format_message(
-                "The query result size has exceeded 10 GB. In BigFrames 2.0 and "
-                "later, you might need to manually set `allow_large_results=True` in "
-                "the IO method or adjust the BigFrames option: "
-                "`bigframes.options.bigquery.allow_large_results=True`."
-            )
-            warnings.warn(msg, FutureWarning)
         # Runs strict validations to ensure internal type predictions and ibis are completely in sync
         # Do not execute these validations outside of testing suite.
         if "PYTEST_CURRENT_TEST" in os.environ:
@@ -549,54 +536,16 @@ class BigQueryCachingExecutor(executor.Executor):
                 bigframes.core.ArrayValue(root), iterator.schema
             )
 
-        # if destination is set, this is an externally managed table, which may mutated, cannot use as cache
-        if (
-            (destination is not None)
-            and (table is not None)
-            and (compiled.row_order is not None)
-            and (peek is None)
-        ):
-            # Assumption: GBQ cached table uses field name as bq column name
-            scan_list = nodes.ScanList(
-                tuple(
-                    nodes.ScanItem(field.id, field.dtype, field.id.name)
-                    for field in root.fields
-                )
-            )
-            cached_replacement = nodes.CachedTableNode(
-                source=nodes.BigqueryDataSource(
-                    nodes.GbqTable.from_table(
-                        table, columns=tuple(f.id.name for f in root.fields)
-                    ),
-                    ordering=compiled.row_order,
-                    n_rows=table.num_rows,
-                ),
-                scan_list=scan_list,
-                table_session=root.session,
-                original_node=root,
-            )
-            self._cached_executions[root] = cached_replacement
-        else:  # no explicit destination, can maybe peek iterator
-            # Assumption: GBQ cached table uses field name as bq column name
-            scan_list = nodes.ScanList(
-                tuple(
-                    nodes.ScanItem(field.id, field.dtype, field.id.name)
-                    for field in root.fields
-                )
-            )
-            # Will increase when have auto-upload, 5000 is most want to inline
-            batch_iterator, batches = pyarrow_utils.peek_batches(
-                batch_iterator, max_bytes=5000
-            )
-            if batches:
-                local_cached = nodes.ReadLocalNode(
-                    local_data_source=local_data.ManagedArrowTable.from_pyarrow(
-                        pa.Table.from_batches(batches)
-                    ),
-                    scan_list=scan_list,
-                    session=root.session,
-                )
-                self._cached_executions[root] = local_cached
+        if peek is None:  # peek is lossy, don't cache
+            if (destination is not None) and (table is not None):
+                if compiled.row_order is not None:
+                    # Assumption: GBQ cached table uses field name as bq column name
+                    self._cache_results_table(root, table, compiled.row_order)
+            elif (
+                ordered
+            ):  # no explicit destination, can maybe peek iterator, but rows need to be ordered
+                # need to reassign batch_iterator since this method consumes the head of the original
+                batch_iterator = self._try_cache_results_iterator(root, batch_iterator)
 
         return executor.ExecuteResult(
             arrow_batches=batch_iterator,
@@ -605,6 +554,62 @@ class BigQueryCachingExecutor(executor.Executor):
             total_bytes=table.num_bytes if table else None,
             total_rows=iterator.total_rows,
         )
+
+    def _cache_results_table(
+        self,
+        original_root: nodes.BigFrameNode,
+        table: bigquery.Table,
+        ordering: order.RowOrdering,
+    ):
+        # if destination is set, this is an externally managed table, which may mutated, cannot use as cache
+        # Assumption: GBQ cached table uses field name as bq column name
+        scan_list = nodes.ScanList(
+            tuple(
+                nodes.ScanItem(field.id, field.dtype, field.id.sql)
+                for field in original_root.fields
+            )
+        )
+        cached_replacement = nodes.CachedTableNode(
+            source=nodes.BigqueryDataSource(
+                nodes.GbqTable.from_table(
+                    table, columns=tuple(f.id.name for f in original_root.fields)
+                ),
+                ordering=ordering,
+                n_rows=table.num_rows,
+            ),
+            scan_list=scan_list,
+            table_session=original_root.session,
+            original_node=original_root,
+        )
+        assert original_root.schema == cached_replacement.schema
+        self._cached_executions[original_root] = cached_replacement
+
+    def _try_cache_results_iterator(
+        self,
+        original_root: nodes.BigFrameNode,
+        batch_iterator: Iterator[pa.RecordBatch],
+    ) -> Iterator[pa.RecordBatch]:
+        # Assumption: GBQ cached table uses field name as bq column name
+        scan_list = nodes.ScanList(
+            tuple(
+                nodes.ScanItem(field.id, field.dtype, field.id.name)
+                for field in original_root.fields
+            )
+        )
+        # Will increase when have auto-upload, 5000 is most want to inline
+        batch_iterator, batches = pyarrow_utils.peek_batches(
+            batch_iterator, max_bytes=5000
+        )
+        if batches:
+            local_cached = nodes.ReadLocalNode(
+                local_data_source=local_data.ManagedArrowTable.from_pyarrow(
+                    pa.Table.from_batches(batches)
+                ),
+                scan_list=scan_list,
+                session=original_root.session,
+            )
+            self._cached_executions[original_root] = local_cached
+        return batch_iterator
 
 
 def _sanitize(
