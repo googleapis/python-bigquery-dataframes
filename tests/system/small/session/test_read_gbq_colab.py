@@ -16,5 +16,25 @@
 
 
 def test_read_gbq_colab_to_pandas_batches_preserves_order_by(maybe_ordered_session):
-    _ = maybe_ordered_session._read_gbq_colab("""""")
-    # TODO: check that order by is preserved in to_pandas_batches()
+    # TODO: why is the order destroyed in strict order mode?
+    df = maybe_ordered_session._read_gbq_colab(
+        """
+        SELECT
+            name,
+            SUM(number) AS total
+        FROM
+            `bigquery-public-data.usa_names.usa_1910_2013`
+        WHERE state LIKE 'W%'
+        GROUP BY name
+        ORDER BY total DESC
+        LIMIT 300
+        """
+    )
+    batches = df.to_pandas_batches(page_size=100)
+
+    total_rows = 0
+    for batch in batches:
+        assert batch["total"].is_monotonic_decreasing
+        total_rows += len(batch.index)
+
+    assert total_rows > 0
