@@ -369,6 +369,7 @@ class GbqDataLoader:
         use_cache: bool = True,
         filters: third_party_pandas_gbq.FiltersType = (),
         enable_snapshot: bool = True,
+        force_total_order: Optional[bool] = None,
     ) -> dataframe.DataFrame:
         import bigframes._tools.strings
         import bigframes.dataframe as dataframe
@@ -562,7 +563,14 @@ class GbqDataLoader:
             session=self._session,
         )
         # if we don't have a unique index, we order by row hash if we are in strict mode
-        if self._force_total_order:
+        if (
+            # If the user has explicitly selected or disabled total ordering for
+            # this API call, respect that choice.
+            (force_total_order is not None and force_total_order)
+            # If the user has not explicitly selected or disabled total ordering
+            # for this API call, respect the default choice for the session.
+            or (force_total_order is None and self._force_total_order)
+        ):
             if not primary_key:
                 array_value = array_value.order_by(
                     [
@@ -664,6 +672,7 @@ class GbqDataLoader:
         api_name: str = "read_gbq_query",
         use_cache: Optional[bool] = None,
         filters: third_party_pandas_gbq.FiltersType = (),
+        force_total_order: Optional[bool] = None,
     ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
@@ -743,6 +752,7 @@ class GbqDataLoader:
             columns=columns,
             use_cache=configuration["query"]["useQueryCache"],
             api_name=api_name,
+            force_total_order=force_total_order,
             # max_results and filters are omitted because they are already
             # handled by to_query(), above.
         )

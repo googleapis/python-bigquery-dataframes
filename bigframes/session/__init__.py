@@ -442,10 +442,8 @@ class Session(
 
     def _read_gbq_colab(
         self,
-        query_or_table: str,
-        *,
-        # TODO: type for paramter: some kind of Event
-        callback: Callable = lambda _: None,
+        query: str,
+        # TODO: Add a callback parameter that takes some kind of Event object.
         # TODO: add parameter for variables for string formatting.
     ) -> dataframe.DataFrame:
         """A version of read_gbq that has the necessary default values for use in colab integrations.
@@ -453,7 +451,13 @@ class Session(
         This includes, no ordering, no index, no progress bar, always use string
         formatting for embedding local variables / dataframes.
         """
-        return self.read_gbq(query_or_table)
+
+        # TODO: Allow for a table ID to avoid queries like read_gbq?
+        return self._loader.read_gbq_query(
+            query=query,
+            index_col=bigframes.enums.DefaultIndexKind.NULL,
+            api_name="read_gbq_colab",
+        )
 
     def read_gbq_query(
         self,
