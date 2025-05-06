@@ -22,7 +22,6 @@ circular dependencies.
 from __future__ import annotations
 
 import ast
-import copy
 import dataclasses
 import datetime
 import functools
@@ -30,17 +29,7 @@ import itertools
 import random
 import textwrap
 import typing
-from typing import (
-    Any,
-    Iterable,
-    List,
-    Literal,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 import warnings
 
 import bigframes_vendored.constants as constants
@@ -69,6 +58,8 @@ import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+from bigframes.session import dry_runs
+from bigframes.session import executor as executors
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -821,59 +812,18 @@ class Block:
         if sampling.enable_downsampling:
             raise NotImplementedError("Dry run with sampling is not supported")
 
-        index: List[Any] = []
-        values: List[Any] = []
-
-        index.append("columnCount")
-        values.append(len(self.value_columns))
-        index.append("columnDtypes")
-        values.append(
-            {
-                col: self.expr.get_column_type(self.resolve_label_exact_or_error(col))
-                for col in self.column_labels
-            }
-        )
-
-        index.append("indexLevel")
-        values.append(self.index.nlevels)
-        index.append("indexDtypes")
-        values.append(self.index.dtypes)
-
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
         query_job = self.session._executor.dry_run(expr, ordered)
-        job_api_repr = copy.deepcopy(query_job._properties)
 
-        job_ref = job_api_repr["jobReference"]
-        for key, val in job_ref.items():
-            index.append(key)
-            values.append(val)
+        column_dtypes = {
+            col: self.expr.get_column_type(self.resolve_label_exact_or_error(col))
+            for col in self.column_labels
+        }
 
-        index.append("jobType")
-        values.append(job_api_repr["configuration"]["jobType"])
-
-        query_config = job_api_repr["configuration"]["query"]
-        for key in ("destinationTable", "useLegacySql"):
-            index.append(key)
-            values.append(query_config.get(key))
-
-        query_stats = job_api_repr["statistics"]["query"]
-        for key in (
-            "referencedTables",
-            "totalBytesProcessed",
-            "cacheHit",
-            "statementType",
-        ):
-            index.append(key)
-            values.append(query_stats.get(key))
-
-        index.append("creationTime")
-        values.append(
-            pd.Timestamp(
-                job_api_repr["statistics"]["creationTime"], unit="ms", tz="UTC"
-            )
+        dry_run_stats = dry_runs.get_query_stats_with_dtypes(
+            query_job, column_dtypes, self.index.dtypes
         )
-
-        return pd.Series(values, index=index), query_job
+        return dry_run_stats, query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):
         expr = self._expr
@@ -1560,12 +1510,19 @@ class Block:
         """
 
         # head caches full underlying expression, so row_count will be free after
-        head_result = self.session._executor.head(self.expr, max_results)
+        executor = self.session._executor
+        executor.cached(
+            array_value=self.expr,
+            config=executors.CacheConfig(optimize_for="head", if_cached="reuse-strict"),
+        )
+        head_result = self.session._executor.execute(
+            self.expr.slice(start=None, stop=max_results, step=None)
+        )
         row_count = self.session._executor.execute(self.expr.row_count()).to_py_scalar()
 
-        df = head_result.to_pandas()
-        self._copy_index_to_pandas(df)
-        return df, row_count, head_result.query_job
+        head_df = head_result.to_pandas()
+        self._copy_index_to_pandas(head_df)
+        return head_df, row_count, head_result.query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
         expr, result_id = self._expr.promote_offsets()
@@ -2535,9 +2492,12 @@ class Block:
         # use a heuristic for whether something needs to be cached
         self.session._executor.cached(
             self.expr,
-            force=force,
-            use_session=session_aware,
-            cluster_cols=self.index_columns,
+            config=executors.CacheConfig(
+                optimize_for="auto"
+                if session_aware
+                else executors.HierarchicalKey(tuple(self.index_columns)),
+                if_cached="replace" if force else "reuse-any",
+            ),
         )
 
     def _is_monotonic(
