@@ -82,8 +82,6 @@ def test_gemini_text_generator_multimodal_input(
 def test_gemini_text_generator_multimodal_structured_output(
     images_mm_df: bpd.DataFrame, model_name, test_session, bq_connection
 ):
-    bigframes.options.experiments.blob = True
-
     gemini_text_generator_model = llm.GeminiTextGenerator(
         model_name=model_name, connection_name=bq_connection, session=test_session
     )
