@@ -25,10 +25,10 @@ from google.cloud import bigquery
 import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
+import pyarrow as pa
 
 import bigframes.core
-from bigframes.core import rewrite
-import bigframes.core.compile
+from bigframes.core import compile, local_data, pyarrow_utils, rewrite
 import bigframes.core.guid
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
@@ -70,9 +70,6 @@ class BigQueryCachingExecutor(executor.Executor):
     ):
         self.bqclient = bqclient
         self.storage_manager = storage_manager
-        self.compiler: bigframes.core.compile.SQLCompiler = (
-            bigframes.core.compile.SQLCompiler()
-        )
         self.strictly_ordered: bool = strictly_ordered
         self._cached_executions: weakref.WeakKeyDictionary[
             nodes.BigFrameNode, nodes.BigFrameNode
@@ -97,8 +94,11 @@ class BigQueryCachingExecutor(executor.Executor):
     ) -> str:
         if offset_column:
             array_value, _ = array_value.promote_offsets()
-        node = self.logical_plan(array_value.node) if enable_cache else array_value.node
-        return self.compiler.compile(node, ordered=ordered)
+        node = (
+            self.simplify_plan(array_value.node) if enable_cache else array_value.node
+        )
+        compiled = compile.compile_sql(compile.CompileRequest(node, sort_rows=ordered))
+        return compiled.sql
 
     def execute(
         self,
@@ -115,7 +115,6 @@ class BigQueryCachingExecutor(executor.Executor):
         if bigframes.options.compute.enable_multi_query_execution:
             self._simplify_with_caching(array_value)
 
-        plan = self.logical_plan(array_value.node)
         # Use explicit destination to avoid 10GB limit of temporary table
         destination_table = (
             self.storage_manager.create_temp_table(
@@ -125,7 +124,7 @@ class BigQueryCachingExecutor(executor.Executor):
             else None
         )
         return self._execute_plan(
-            plan,
+            array_value.node,
             ordered=ordered,
             page_size=page_size,
             max_results=max_results,
@@ -224,7 +223,7 @@ class BigQueryCachingExecutor(executor.Executor):
         """
         A 'peek' efficiently accesses a small number of rows in the dataframe.
         """
-        plan = self.logical_plan(array_value.node)
+        plan = self.simplify_plan(array_value.node)
         if not tree_properties.can_fast_peek(plan):
             msg = bfe.format_message("Peeking this value cannot be done efficiently.")
             warnings.warn(msg)
@@ -240,7 +239,7 @@ class BigQueryCachingExecutor(executor.Executor):
         )
 
         return self._execute_plan(
-            plan, ordered=False, destination=destination_table, peek=n_rows
+            array_value.node, ordered=False, destination=destination_table, peek=n_rows
         )
 
     def cached(
@@ -329,10 +328,10 @@ class BigQueryCachingExecutor(executor.Executor):
         # Once rewriting is available, will want to rewrite before
         # evaluating execution cost.
         return tree_properties.is_trivially_executable(
-            self.logical_plan(array_value.node)
+            self.simplify_plan(array_value.node)
         )
 
-    def logical_plan(self, root: nodes.BigFrameNode) -> nodes.BigFrameNode:
+    def simplify_plan(self, root: nodes.BigFrameNode) -> nodes.BigFrameNode:
         """
         Apply universal logical simplifications that are helpful regardless of engine.
         """
@@ -345,18 +344,20 @@ class BigQueryCachingExecutor(executor.Executor):
         self, array_value: bigframes.core.ArrayValue, cluster_cols: Sequence[str]
     ):
         """Executes the query and uses the resulting table to rewrite future executions."""
-
-        sql, schema, ordering_info = self.compiler.compile_raw(
-            self.logical_plan(array_value.node)
+        plan = self.simplify_plan(array_value.node)
+        compiled = compile.compile_sql(
+            compile.CompileRequest(
+                plan, sort_rows=False, materialize_all_order_keys=True
+            )
         )
         tmp_table = self._sql_as_cached_temp_table(
-            sql,
-            schema,
-            cluster_cols=bq_io.select_cluster_cols(schema, cluster_cols),
+            compiled.sql,
+            compiled.sql_schema,
+            cluster_cols=bq_io.select_cluster_cols(compiled.sql_schema, cluster_cols),
         )
         cached_replacement = array_value.as_cached(
             cache_table=self.bqclient.get_table(tmp_table),
-            ordering=ordering_info,
+            ordering=compiled.row_order,
         ).node
         self._cached_executions[array_value.node] = cached_replacement
 
@@ -364,10 +365,14 @@ class BigQueryCachingExecutor(executor.Executor):
         """Executes the query and uses the resulting table to rewrite future executions."""
         offset_column = bigframes.core.guid.generate_guid("bigframes_offsets")
         w_offsets, offset_column = array_value.promote_offsets()
-        sql = self.compiler.compile(self.logical_plan(w_offsets.node), ordered=False)
+        compiled = compile.compile_sql(
+            compile.CompileRequest(
+                array_value.node, sort_rows=False, materialize_all_order_keys=True
+            )
+        )
 
         tmp_table = self._sql_as_cached_temp_table(
-            sql,
+            compiled.sql,
             w_offsets.schema.to_bigquery(),
             cluster_cols=[offset_column],
         )
@@ -401,7 +406,7 @@ class BigQueryCachingExecutor(executor.Executor):
         # Apply existing caching first
         for _ in range(MAX_SUBTREE_FACTORINGS):
             if (
-                self.logical_plan(array_value.node).planning_complexity
+                self.simplify_plan(array_value.node).planning_complexity
                 < QUERY_COMPLEXITY_LIMIT
             ):
                 return
@@ -458,8 +463,8 @@ class BigQueryCachingExecutor(executor.Executor):
         bq_schema: list[bigquery.SchemaField],
     ):
         actual_schema = _sanitize(tuple(bq_schema))
-        ibis_schema = bigframes.core.compile.test_only_ibis_inferred_schema(
-            self.logical_plan(array_value.node)
+        ibis_schema = compile.test_only_ibis_inferred_schema(
+            self.simplify_plan(array_value.node)
         ).to_bigquery()
         internal_schema = _sanitize(array_value.schema.to_bigquery())
         if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
@@ -477,7 +482,7 @@ class BigQueryCachingExecutor(executor.Executor):
 
     def _execute_plan(
         self,
-        plan: nodes.BigFrameNode,
+        root: nodes.BigFrameNode,
         ordered: bool,
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
@@ -490,7 +495,9 @@ class BigQueryCachingExecutor(executor.Executor):
         # TODO: Allow page_size and max_results by rechunking/truncating results
         if (not page_size) and (not max_results) and (not destination) and (not peek):
             for semi_executor in self._semi_executors:
-                maybe_result = semi_executor.execute(plan, ordered=ordered)
+                maybe_result = semi_executor.execute(
+                    self.simplify_plan(root), ordered=ordered
+                )
                 if maybe_result:
                     return maybe_result
 
@@ -500,9 +507,13 @@ class BigQueryCachingExecutor(executor.Executor):
         # Use explicit destination to avoid 10GB limit of temporary table
         if destination is not None:
             job_config.destination = destination
-        sql = self.compiler.compile(plan, ordered=ordered, limit=peek)
+        compiled = compile.compile_sql(
+            compile.CompileRequest(
+                self.simplify_plan(root), sort_rows=ordered, peek_count=peek
+            )
+        )
         iterator, query_job = self._run_execute_query(
-            sql=sql,
+            sql=compiled.sql,
             job_config=job_config,
             page_size=page_size,
             max_results=max_results,
@@ -510,21 +521,20 @@ class BigQueryCachingExecutor(executor.Executor):
         )
 
         # Though we provide the read client, iterator may or may not use it based on what is efficient for the result
-        def iterator_supplier():
-            # Workaround issue fixed by: https://github.com/googleapis/python-bigquery/pull/2154
-            if iterator._page_size is not None or iterator.max_results is not None:
-                return iterator.to_arrow_iterable(bqstorage_client=None)
-            else:
-                return iterator.to_arrow_iterable(
-                    bqstorage_client=self.bqstoragereadclient
-                )
+        # Workaround issue fixed by: https://github.com/googleapis/python-bigquery/pull/2154
+        if iterator._page_size is not None or iterator.max_results is not None:
+            batch_iterator = iterator.to_arrow_iterable(bqstorage_client=None)
+        else:
+            batch_iterator = iterator.to_arrow_iterable(
+                bqstorage_client=self.bqstoragereadclient
+            )
 
         if query_job:
-            size_bytes = self.bqclient.get_table(query_job.destination).num_bytes
+            table = self.bqclient.get_table(query_job.destination)
         else:
-            size_bytes = None
+            table = None
 
-        if size_bytes is not None and size_bytes >= MAX_SMALL_RESULT_BYTES:
+        if (table is not None) and (table.num_bytes or 0) >= MAX_SMALL_RESULT_BYTES:
             msg = bfe.format_message(
                 "The query result size has exceeded 10 GB. In BigFrames 2.0 and "
                 "later, you might need to manually set `allow_large_results=True` in "
@@ -536,14 +546,63 @@ class BigQueryCachingExecutor(executor.Executor):
         # Do not execute these validations outside of testing suite.
         if "PYTEST_CURRENT_TEST" in os.environ:
             self._validate_result_schema(
-                bigframes.core.ArrayValue(plan), iterator.schema
+                bigframes.core.ArrayValue(root), iterator.schema
             )
 
+        # if destination is set, this is an externally managed table, which may mutated, cannot use as cache
+        if (
+            (destination is not None)
+            and (table is not None)
+            and (compiled.row_order is not None)
+            and (peek is None)
+        ):
+            # Assumption: GBQ cached table uses field name as bq column name
+            scan_list = nodes.ScanList(
+                tuple(
+                    nodes.ScanItem(field.id, field.dtype, field.id.name)
+                    for field in root.fields
+                )
+            )
+            cached_replacement = nodes.CachedTableNode(
+                source=nodes.BigqueryDataSource(
+                    nodes.GbqTable.from_table(
+                        table, columns=tuple(f.id.name for f in root.fields)
+                    ),
+                    ordering=compiled.row_order,
+                    n_rows=table.num_rows,
+                ),
+                scan_list=scan_list,
+                table_session=root.session,
+                original_node=root,
+            )
+            self._cached_executions[root] = cached_replacement
+        else:  # no explicit destination, can maybe peek iterator
+            # Assumption: GBQ cached table uses field name as bq column name
+            scan_list = nodes.ScanList(
+                tuple(
+                    nodes.ScanItem(field.id, field.dtype, field.id.name)
+                    for field in root.fields
+                )
+            )
+            # Will increase when have auto-upload, 5000 is most want to inline
+            batch_iterator, batches = pyarrow_utils.peek_batches(
+                batch_iterator, max_bytes=5000
+            )
+            if batches:
+                local_cached = nodes.ReadLocalNode(
+                    local_data_source=local_data.ManagedArrowTable.from_pyarrow(
+                        pa.Table.from_batches(batches)
+                    ),
+                    scan_list=scan_list,
+                    session=root.session,
+                )
+                self._cached_executions[root] = local_cached
+
         return executor.ExecuteResult(
-            arrow_batches=iterator_supplier,
-            schema=plan.schema,
+            arrow_batches=batch_iterator,
+            schema=root.schema,
             query_job=query_job,
-            total_bytes=size_bytes,
+            total_bytes=table.num_bytes if table else None,
             total_rows=iterator.total_rows,
         )
 
