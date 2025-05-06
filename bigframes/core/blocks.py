@@ -587,6 +587,8 @@ class Block:
         max_results: Optional[int] = None,
         allow_large_results: Optional[bool] = None,
         squeeze: Optional[bool] = False,
+        *,
+        ordered: bool = True,
     ):
         """Download results one message at a time.
 
@@ -594,7 +596,7 @@ class Block:
         see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob#google_cloud_bigquery_job_QueryJob_result"""
         execute_result = self.session._executor.execute(
             self.expr,
-            ordered=True,
+            ordered=ordered,
             use_explicit_destination=allow_large_results,
             page_size=page_size,
             max_results=max_results,

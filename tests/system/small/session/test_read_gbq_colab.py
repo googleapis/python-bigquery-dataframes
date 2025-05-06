@@ -30,7 +30,7 @@ def test_read_gbq_colab_to_pandas_batches_preserves_order_by(maybe_ordered_sessi
         LIMIT 300
         """
     )
-    batches = df.to_pandas_batches(page_size=100)
+    batches = df.to_pandas_batches(page_size=100, ordered=False)
 
     total_rows = 0
     for batch in batches:
