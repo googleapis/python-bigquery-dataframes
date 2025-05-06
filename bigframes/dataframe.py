@@ -770,9 +770,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         df = self.copy()
         if bigframes.options.display.blob_display:
             blob_cols = [
-                col
-                for col in df.columns
-                if df[col].dtype == bigframes.dtypes.OBJ_REF_DTYPE
+                series_name
+                for series_name, series in df.items()
+                if series.dtype == bigframes.dtypes.OBJ_REF_DTYPE
             ]
             for col in blob_cols:
                 # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
@@ -791,7 +791,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         with display_options.pandas_repr(opts):
             # Allows to preview images in the DataFrame. The implementation changes the string repr as well, that it doesn't truncate strings or escape html charaters such as "<" and ">". We may need to implement a full-fledged repr module to better support types not in pandas.
-            if bigframes.options.display.blob_display:
+            if bigframes.options.display.blob_display and blob_cols:
 
                 def obj_ref_rt_to_html(obj_ref_rt) -> str:
                     obj_ref_rt_json = json.loads(obj_ref_rt)
