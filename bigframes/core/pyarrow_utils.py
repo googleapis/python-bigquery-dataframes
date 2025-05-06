@@ -17,6 +17,77 @@ from typing import Iterable, Iterator, Optional
 import pyarrow as pa
 
 
+class BatchBuffer:
+    """
+    FIFO buffer of pyarrow Record batches
+
+    Not thread-safe.
+    """
+
+    def __init__(self):
+        self._buffer: list[pa.RecordBatch] = []
+        self._buffer_size: int = 0
+
+    def __len__(self):
+        return self._buffer_size
+
+    def append_batch(self, batch: pa.RecordBatch) -> None:
+        self._buffer.append(batch)
+        self._buffer_size += batch.num_rows
+
+    def take_as_batches(self, n: int) -> tuple[pa.RecordBatch, ...]:
+        if n > len(self):
+            raise ValueError(f"Cannot take {n} rows, only {len(self)} rows in buffer.")
+        rows_taken = 0
+        sub_batches: list[pa.RecordBatch] = []
+        while rows_taken < n:
+            batch = self._buffer.pop(0)
+            if batch.num_rows > (n - rows_taken):
+                sub_batches.append(batch.slice(length=n - rows_taken))
+                self._buffer.insert(0, batch.slice(offset=n - rows_taken))
+                rows_taken += n - rows_taken
+            else:
+                sub_batches.append(batch)
+                rows_taken += batch.num_rows
+
+        self._buffer_size -= n
+        return tuple(sub_batches)
+
+    def take_rechunked(self, n: int) -> pa.RecordBatch:
+        return (
+            pa.Table.from_batches(self.take_as_batches(n))
+            .combine_chunks()
+            .to_batches()[0]
+        )
+
+
+def chunk_by_row_count(
+    batches: Iterable[pa.RecordBatch], page_size: int
+) -> Iterator[tuple[pa.RecordBatch, ...]]:
+    buffer = BatchBuffer()
+    for batch in batches:
+        buffer.append_batch(batch)
+        while len(buffer) >= page_size:
+            yield buffer.take_as_batches(page_size)
+
+    # emit final page, maybe smaller
+    if len(buffer) > 0:
+        yield buffer.take_as_batches(len(buffer))
+
+
+def truncate_pyarrow_iterable(
+    batches: Iterable[pa.RecordBatch], max_results: int
+) -> Iterator[pa.RecordBatch]:
+    total_yielded = 0
+    for batch in batches:
+        if batch.num_rows >= (max_results - total_yielded):
+            yield batch.slice(length=max_results - total_yielded)
+            return
+        else:
+            yield batch
+            total_yielded += batch.num_rows
+
+
 def peek_batches(
     batch_iter: Iterable[pa.RecordBatch], max_bytes: int
 ) -> tuple[Iterator[pa.RecordBatch], Optional[tuple[pa.RecordBatch, ...]]]:
