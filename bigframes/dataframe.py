@@ -768,10 +768,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return formatter.repr_query_job(self._compute_dry_run())
 
         df = self.copy()
-        if (
-            bigframes.options.experiments.blob
-            and bigframes.options.experiments.blob_display
-        ):
+        if bigframes.options.display.blob_display:
             blob_cols = [
                 col
                 for col in df.columns
@@ -794,10 +791,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         with display_options.pandas_repr(opts):
             # Allows to preview images in the DataFrame. The implementation changes the string repr as well, that it doesn't truncate strings or escape html charaters such as "<" and ">". We may need to implement a full-fledged repr module to better support types not in pandas.
-            if (
-                bigframes.options.experiments.blob
-                and bigframes.options.experiments.blob_display
-            ):
+            if bigframes.options.display.blob_display:
 
                 def obj_ref_rt_to_html(obj_ref_rt) -> str:
                     obj_ref_rt_json = json.loads(obj_ref_rt)
@@ -809,12 +803,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                         )
                         if content_type.startswith("image"):
                             size_str = ""
-                            if bigframes.options.experiments.blob_display_width:
-                                size_str = f' width="{bigframes.options.experiments.blob_display_width}"'
-                            if bigframes.options.experiments.blob_display_height:
+                            if bigframes.options.display.blob_display_width:
+                                size_str = f' width="{bigframes.options.display.blob_display_width}"'
+                            if bigframes.options.display.blob_display_height:
                                 size_str = (
                                     size_str
-                                    + f' height="{bigframes.options.experiments.blob_display_height}"'
+                                    + f' height="{bigframes.options.display.blob_display_height}"'
                                 )
                             url = obj_ref_rt_json["access_urls"]["read_url"]
                             return f'<img src="{url}"{size_str}>'
