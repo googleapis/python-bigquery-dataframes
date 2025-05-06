@@ -115,8 +115,6 @@ def run_udf_and_read_gbq_function(
     # If the BigQuery routine is no longer needed, we can clean it up
     # to free up any cloud quota
     session = bpd.get_global_session()
-    session.bqclient.delete_routine(
-        f"{your_bq_dataset_id}.{your_bq_routine_id}"
-    )
+    session.bqclient.delete_routine(f"{your_bq_dataset_id}.{your_bq_routine_id}")
 
     # [END bigquery_dataframes_udf]
