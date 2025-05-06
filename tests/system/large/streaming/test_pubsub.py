@@ -21,7 +21,7 @@ import pytest
 import bigframes
 
 pytest.importorskip("google.cloud.pubsub")
-from google.cloud import pubsub  # noqa
+from google.cloud import pubsub  # type: ignore # noqa
 
 
 def resource_name_full(project_id: str, resource_type: str, resource_id: str):
