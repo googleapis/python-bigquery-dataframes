@@ -118,7 +118,7 @@ def create_bigquery_session(
     session._bq_connection_manager = mock.create_autospec(
         bigframes.clients.BqConnectionManager, instance=True
     )
-    session._job_configs = job_configs
+    session._job_configs = job_configs  # type: ignore
     return session
 
 
