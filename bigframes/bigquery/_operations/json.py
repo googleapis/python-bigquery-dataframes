@@ -247,9 +247,10 @@ def json_value(
         >>> import bigframes.bigquery as bbq
         >>> bpd.options.display.progress_bar = None
 
-        >>> s = bpd.Series(['{"name": "Jakob", "age": "6"}'])
+        >>> s = bpd.Series(['{"name": "Jakob", "age": "6"}', '{"name": "Jakob", "age": []}'])
         >>> bbq.json_value(s, json_path="$.age")
         0    6
+        1  <NA>
         dtype: string
 
     Args:
