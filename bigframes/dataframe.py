@@ -1779,7 +1779,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         max_results: Optional[int] = None,
         *,
         allow_large_results: Optional[bool] = None,
-        ordered: bool = True,
     ) -> Iterable[pandas.DataFrame]:
         """Stream DataFrame results to an iterable of pandas DataFrame.
 
@@ -1823,9 +1822,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             allow_large_results (bool, default None):
                 If not None, overrides the global setting to allow or disallow large query results
                 over the default size limit of 10 GB.
-            ordered (bool, default True):
-                Determines whether the resulting pandas dataframes will be ordered.
-                In some cases, unordered may result in a faster-executing query.
 
         Returns:
             Iterable[pandas.DataFrame]:
@@ -1837,7 +1833,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             page_size=page_size,
             max_results=max_results,
             allow_large_results=allow_large_results,
-            ordered=ordered,
         )
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
