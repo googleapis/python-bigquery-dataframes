@@ -16,14 +16,14 @@
 def test_explicit_matrix_factorization(random_model_id: str) -> None:
     your_model_id = random_model_id
 
-    # [START bigframes_dataframes_bqml_mf_explicit_create_dataset]
+    # [START bigquery_dataframes_bqml_mf_explicit_create_dataset]
     import google.cloud.bigquery
 
     bqclient = google.cloud.bigquery.Client()
     bqclient.create_dataset("bqml_tutorial", exists_ok=True)
-    # [END bigframes_dataframes_bqml_mf_explicit_create_dataset]
+    # [END bigquery_dataframes_bqml_mf_explicit_create_dataset]
 
-    # [START bigframes_dataframes_bqml_mf_explicit_upload_movielens]
+    # [START bigquery_dataframes_bqml_mf_explicit_upload_movielens]
     import io
     import zipfile
 
@@ -76,9 +76,9 @@ def test_explicit_matrix_factorization(random_model_id: str) -> None:
         bqclient.load_table_from_file(
             movies_csv, "bqml_tutorial.movies", job_config=movies_config
         ).result()
-    # [END bigframes_dataframes_bqml_mf_explicit_upload_movielens]
+    # [END bigquery_dataframes_bqml_mf_explicit_upload_movielens]
 
-    # [START bigframes_dataframes_bqml_mf_explicit_create]
+    # [START bigquery_dataframes_bqml_mf_explicit_create]
     from bigframes.ml import decomposition
     import bigframes.pandas as bpd
 
@@ -100,7 +100,7 @@ def test_explicit_matrix_factorization(random_model_id: str) -> None:
     model.to_gbq(
         your_model_id, replace=True  # For example: "bqml_tutorial.mf_explicit"
     )
-    # [END bigframes_dataframes_bqml_mf_explicit_create]
+    # [END bigquery_dataframes_bqml_mf_explicit_create]
     # [START bigframes_dataframe_bqml_mf_explicit_evaluate]
     # Evaluate the model using the score() function
     model.score()
