@@ -250,7 +250,10 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
     """Multimodal embedding generator LLM model.
 
     .. note::
-        BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+        BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
 
     Args:
         model_name (str, Default to "multimodalembedding@001"):
@@ -271,8 +274,6 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
-        if not bigframes.options.experiments.blob:
-            raise NotImplementedError()
         if model_name is None:
             model_name = "multimodalembedding@001"
             msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
@@ -610,14 +611,17 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
 
             prompt (Iterable of str or bigframes.series.Series, or None, default None):
                 .. note::
-                    BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+                    BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+                    Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+                    and might have limited support. For more information, see the launch stage descriptions
+                    (https://cloud.google.com/products#product-launch-stages).
 
                 Construct a prompt struct column for prediction based on the input. The input must be an Iterable that can take string literals,
                 such as "summarize", string column(s) of X, such as X["str_col"], or blob column(s) of X, such as X["blob_col"].
                 It creates a struct column of the items of the iterable, and use the concatenated result as the input prompt. No-op if set to None.
             output_schema (Mapping[str, str] or None, default None):
                 The schema used to generate structured output as a bigframes DataFrame. The schema is a string key-value pair of <column_name>:<type>.
-                Supported types are int64, float64, bool and string. If None, output text result.
+                Supported types are int64, float64, bool, string, array<type> and struct<column type>. If None, output text result.
         Returns:
             bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
         """
@@ -646,9 +650,6 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         (X,) = utils.batch_convert_to_dataframe(X, session=session)
 
         if prompt:
-            if not bigframes.options.experiments.blob:
-                raise NotImplementedError()
-
             if self.model_name not in _GEMINI_MULTIMODAL_ENDPOINTS:
                 raise NotImplementedError(
                     f"GeminiTextGenerator only supports model_name {', '.join(_GEMINI_MULTIMODAL_ENDPOINTS)} for Multimodal prompt."
