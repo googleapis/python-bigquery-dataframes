@@ -52,7 +52,9 @@ def compile_op_expression(expr: expression.OpExpression):
     method_name = f"compile_{op_name.lower()}"
     method = globals().get(method_name, None)
     if method is None:
-        raise NotImplementedError(f"Cannot compile operator {method_name}")
+        raise ValueError(
+            f"Compilation method '{method_name}' not found for operator '{op_name}'."
+        )
 
     if isinstance(op, ops.UnaryOp):
         return method(op, args[0])
@@ -63,7 +65,10 @@ def compile_op_expression(expr: expression.OpExpression):
     elif isinstance(op, ops.NaryOp):
         return method(op, *args)
     else:
-        raise NotImplementedError(f"Cannot compile operator {method_name}")
+        raise TypeError(
+            f"Operator '{op_name}' has an unrecognized arity or type "
+            "and cannot be compiled."
+        )
 
 
 # TODO: add parenthesize for operators
