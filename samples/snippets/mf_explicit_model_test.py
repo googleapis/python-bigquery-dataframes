@@ -45,7 +45,7 @@ def test_explicit_matrix_factorization(random_model_id: str) -> None:
     # mean_absolute_error	mean_squared_error	mean_squared_log_error	median_absolute_error	r2_score	explained_variance
     # 0.485403	                0.395052	        0.025515	            0.390573	        0.68343	        0.68343
     # [END bigframes_dataframe_bqml_mf_explicit_evaluate]
-    # [START bigframes_dataframe_bqml_mf_recommend_df]
+    # [START bigframes_dataframe_bqml_mf_explicit_recommend_df]
     # Use predict() to get the predicted rating for each movie for 5 users
     subset = bq_df.head(5)
     predicted = model.predict(subset)
