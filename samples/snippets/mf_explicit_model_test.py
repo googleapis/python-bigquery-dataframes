@@ -103,7 +103,7 @@ def test_explicit_matrix_factorization(random_model_id: str) -> None:
     # [END bigquery_dataframes_bqml_mf_explicit_create]
     # [START bigquery_dataframes_bqml_mf_explicit_evaluate]
     # Evaluate the model using the score() function
-    model.score()
+    model.score(bq_df)
     # Output:
     # mean_absolute_error	mean_squared_error	mean_squared_log_error	median_absolute_error	r2_score	explained_variance
     # 0.485403	                0.395052	        0.025515	            0.390573	        0.68343	        0.68343
