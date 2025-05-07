@@ -1716,7 +1716,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                     "apply this function in a vectorized way (i.e. to the "
                     "entire Series as a whole, and you are sure that it "
                     "performs only the operations that are implemented for a "
-                    "Series (e.g. a chain of arithmatic/logical operations, "
+                    "Series (e.g. a chain of arithmetic/logical operations, "
                     "such as `def foo(s): return s % 2 == 1`), please also "
                     "specify `by_row=False`. If your function contains "
                     "arbitrary code, it can only be applied to every element "
