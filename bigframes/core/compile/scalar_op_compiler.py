@@ -676,6 +676,13 @@ def dayofweek_op_impl(x: ibis_types.Value):
     )
 
 
+@scalar_op_compiler.register_unary_op(ops.dayofyear_op)
+def dayofyear_op_impl(x: ibis_types.Value):
+    return (
+        typing.cast(ibis_types.TimestampValue, x).day_of_year().cast(ibis_dtypes.int64)
+    )
+
+
 @scalar_op_compiler.register_unary_op(ops.hour_op)
 def hour_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.TimestampValue, x).hour().cast(ibis_dtypes.int64)
@@ -747,12 +754,12 @@ def date_diff_op_impl(x: ibis_types.DateValue, y: ibis_types.DateValue):
 
 @scalar_op_compiler.register_binary_op(ops.date_add_op)
 def date_add_op_impl(x: ibis_types.DateValue, y: ibis_types.IntegerValue):
-    return x.cast("timestamp") + y.to_interval("us")  # type: ignore
+    return x.cast(ibis_dtypes.timestamp()) + y.to_interval("us")  # type: ignore
 
 
 @scalar_op_compiler.register_binary_op(ops.date_sub_op)
 def date_sub_op_impl(x: ibis_types.DateValue, y: ibis_types.IntegerValue):
-    return x.cast("timestamp") - y.to_interval("us")  # type: ignore
+    return x.cast(ibis_dtypes.timestamp()) - y.to_interval("us")  # type: ignore
 
 
 @scalar_op_compiler.register_unary_op(ops.FloorDtOp, pass_op=True)
@@ -1021,6 +1028,13 @@ def geo_st_difference_op_impl(x: ibis_types.Value, y: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).difference(
         typing.cast(ibis_types.GeoSpatialValue, y)
     )
+
+
+@scalar_op_compiler.register_binary_op(ops.GeoStDistanceOp, pass_op=True)
+def geo_st_distance_op_impl(
+    x: ibis_types.Value, y: ibis_types.Value, op: ops.GeoStDistanceOp
+):
+    return st_distance(x, y, op.use_spheroid)
 
 
 @scalar_op_compiler.register_unary_op(ops.geo_st_geogfromtext_op)
@@ -1987,6 +2001,11 @@ def unix_millis(a: ibis_dtypes.timestamp) -> int:  # type: ignore
 @ibis_udf.scalar.builtin
 def st_boundary(a: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ignore
     """Find the boundary of a geography."""
+
+
+@ibis_udf.scalar.builtin
+def st_distance(a: ibis_dtypes.geography, b: ibis_dtypes.geography, use_spheroid: bool) -> ibis_dtypes.float:  # type: ignore
+    """Convert string to geography."""
 
 
 @ibis_udf.scalar.builtin

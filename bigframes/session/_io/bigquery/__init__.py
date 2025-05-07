@@ -27,7 +27,6 @@ from typing import Dict, Iterable, Mapping, Optional, Tuple, Union
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
-import google.cloud.bigquery.table
 
 from bigframes.core import log_adapter
 import bigframes.core.compile.googlesql as googlesql
@@ -223,8 +222,6 @@ def start_query_with_client(
     job_config: bigquery.job.QueryJobConfig,
     location: Optional[str] = None,
     project: Optional[str] = None,
-    max_results: Optional[int] = None,
-    page_size: Optional[int] = None,
     timeout: Optional[float] = None,
     api_name: Optional[str] = None,
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
@@ -245,11 +242,9 @@ def start_query_with_client(
                 location=location,
                 project=project,
                 api_timeout=timeout,
-                page_size=page_size,
-                max_results=max_results,
             )
             if metrics is not None:
-                metrics.count_job_stats(query=sql)
+                metrics.count_job_stats(row_iterator=results_iterator)
             return results_iterator, None
 
         query_job = bq_client.query(
@@ -268,17 +263,13 @@ def start_query_with_client(
     if opts.progress_bar is not None and not query_job.configuration.dry_run:
         results_iterator = formatting_helpers.wait_for_query_job(
             query_job,
-            max_results=max_results,
             progress_bar=opts.progress_bar,
-            page_size=page_size,
         )
     else:
-        results_iterator = query_job.result(
-            max_results=max_results, page_size=page_size
-        )
+        results_iterator = query_job.result()
 
     if metrics is not None:
-        metrics.count_job_stats(query_job)
+        metrics.count_job_stats(query_job=query_job)
     return results_iterator, query_job
 
 

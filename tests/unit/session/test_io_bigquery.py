@@ -15,6 +15,7 @@
 import datetime
 import re
 from typing import Iterable
+from unittest import mock
 
 import google.cloud.bigquery as bigquery
 import pytest
@@ -23,14 +24,14 @@ import bigframes
 from bigframes.core import log_adapter
 import bigframes.pandas as bpd
 import bigframes.session._io.bigquery as io_bq
-from tests.unit import resources
+from bigframes.testing import mocks
 
 
 @pytest.fixture(scope="function")
-def mock_bq_client(mocker):
-    mock_client = mocker.Mock(spec=bigquery.Client)
-    mock_query_job = mocker.Mock(spec=bigquery.QueryJob)
-    mock_row_iterator = mocker.Mock(spec=bigquery.table.RowIterator)
+def mock_bq_client():
+    mock_client = mock.create_autospec(bigquery.Client)
+    mock_query_job = mock.create_autospec(bigquery.QueryJob)
+    mock_row_iterator = mock.create_autospec(bigquery.table.RowIterator)
 
     mock_query_job.result.return_value = mock_row_iterator
 
@@ -97,7 +98,7 @@ def test_create_job_configs_labels_log_adaptor_call_method_under_length_limit():
         "source": "bigquery-dataframes-temp",
     }
     df = bpd.DataFrame(
-        {"col1": [1, 2], "col2": [3, 4]}, session=resources.create_bigquery_session()
+        {"col1": [1, 2], "col2": [3, 4]}, session=mocks.create_bigquery_session()
     )
     # Test running two methods
     df.head()
@@ -121,7 +122,7 @@ def test_create_job_configs_labels_log_adaptor_call_method_under_length_limit():
 def test_create_job_configs_labels_length_limit_met_and_labels_is_none():
     log_adapter.get_and_reset_api_methods()
     df = bpd.DataFrame(
-        {"col1": [1, 2], "col2": [3, 4]}, session=resources.create_bigquery_session()
+        {"col1": [1, 2], "col2": [3, 4]}, session=mocks.create_bigquery_session()
     )
     # Test running methods more than the labels' length limit
     for i in range(100):
@@ -148,7 +149,7 @@ def test_create_job_configs_labels_length_limit_met():
         cur_labels[key] = value
     # If cur_labels length is 62, we can only add one label from api_methods
     df = bpd.DataFrame(
-        {"col1": [1, 2], "col2": [3, 4]}, session=resources.create_bigquery_session()
+        {"col1": [1, 2], "col2": [3, 4]}, session=mocks.create_bigquery_session()
     )
     # Test running two methods
     df.head()
@@ -178,7 +179,7 @@ def test_add_and_trim_labels_length_limit_met():
         cur_labels[key] = value
 
     df = bpd.DataFrame(
-        {"col1": [1, 2], "col2": [3, 4]}, session=resources.create_bigquery_session()
+        {"col1": [1, 2], "col2": [3, 4]}, session=mocks.create_bigquery_session()
     )
 
     job_config = bigquery.job.QueryJobConfig()
@@ -198,11 +199,11 @@ def test_add_and_trim_labels_length_limit_met():
 
 
 @pytest.mark.parametrize(
-    ("max_results", "timeout", "api_name"),
-    [(None, None, None), (100, 30.0, "test_api")],
+    ("timeout", "api_name"),
+    [(None, None), (30.0, "test_api")],
 )
 def test_start_query_with_client_labels_length_limit_met(
-    mock_bq_client, max_results, timeout, api_name
+    mock_bq_client, timeout, api_name
 ):
     sql = "select * from abc"
     cur_labels = {
@@ -215,7 +216,7 @@ def test_start_query_with_client_labels_length_limit_met(
         cur_labels[key] = value
 
     df = bpd.DataFrame(
-        {"col1": [1, 2], "col2": [3, 4]}, session=resources.create_bigquery_session()
+        {"col1": [1, 2], "col2": [3, 4]}, session=mocks.create_bigquery_session()
     )
 
     job_config = bigquery.job.QueryJobConfig()
@@ -229,7 +230,6 @@ def test_start_query_with_client_labels_length_limit_met(
         mock_bq_client,
         sql,
         job_config,
-        max_results=max_results,
         timeout=timeout,
         api_name=api_name,
     )
@@ -248,7 +248,7 @@ def test_create_temp_table_default_expiration():
         2023, 11, 2, 13, 44, 55, 678901, datetime.timezone.utc
     )
 
-    session = resources.create_bigquery_session()
+    session = mocks.create_bigquery_session()
     table_ref = bigquery.TableReference.from_string(
         "test-project.test_dataset.bqdf_new_random_table"
     )

@@ -97,6 +97,7 @@ class ArrayValue:
         at_time: Optional[datetime.datetime] = None,
         primary_key: Sequence[str] = (),
         offsets_col: Optional[str] = None,
+        n_rows: Optional[int] = None,
     ):
         if offsets_col and primary_key:
             raise ValueError("must set at most one of 'offests', 'primary_key'")
@@ -126,7 +127,11 @@ class ArrayValue:
             )
         )
         source_def = nodes.BigqueryDataSource(
-            table=table_def, at_time=at_time, sql_predicate=predicate, ordering=ordering
+            table=table_def,
+            at_time=at_time,
+            sql_predicate=predicate,
+            ordering=ordering,
+            n_rows=n_rows,
         )
         node = nodes.ReadTableNode(
             source=source_def,
@@ -176,7 +181,9 @@ class ArrayValue:
         Replace the node with an equivalent one that references a table where the value has been materialized to.
         """
         table = nodes.GbqTable.from_table(cache_table)
-        source = nodes.BigqueryDataSource(table, ordering=ordering)
+        source = nodes.BigqueryDataSource(
+            table, ordering=ordering, n_rows=cache_table.num_rows
+        )
         # Assumption: GBQ cached table uses field name as bq column name
         scan_list = nodes.ScanList(
             tuple(
@@ -197,7 +204,17 @@ class ArrayValue:
 
     def row_count(self) -> ArrayValue:
         """Get number of rows in ArrayValue as a single-entry ArrayValue."""
-        return ArrayValue(nodes.RowCountNode(child=self.node))
+        return ArrayValue(
+            nodes.AggregateNode(
+                child=self.node,
+                aggregations=(
+                    (
+                        ex.NullaryAggregation(agg_ops.size_op),
+                        ids.ColumnId(bigframes.core.guid.generate_guid()),
+                    ),
+                ),
+            )
+        )
 
     # Operations
     def filter_by_id(self, predicate_id: str, keep_null: bool = False) -> ArrayValue:

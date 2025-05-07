@@ -42,6 +42,7 @@ from bigframes.operations.date_ops import (
     date_diff_op,
     day_op,
     dayofweek_op,
+    dayofyear_op,
     month_op,
     quarter_op,
     year_op,
@@ -96,6 +97,7 @@ from bigframes.operations.geo_ops import (
     geo_st_intersection_op,
     geo_x_op,
     geo_y_op,
+    GeoStDistanceOp,
 )
 from bigframes.operations.json_ops import (
     JSONExtract,
@@ -260,6 +262,7 @@ __all__ = [
     "month_op",
     "year_op",
     "dayofweek_op",
+    "dayofyear_op",
     "quarter_op",
     # Time ops
     "hour_op",
@@ -375,6 +378,7 @@ __all__ = [
     "geo_st_intersection_op",
     "geo_x_op",
     "geo_y_op",
+    "GeoStDistanceOp",
     # Numpy ops mapping
     "NUMPY_TO_BINOP",
     "NUMPY_TO_OP",

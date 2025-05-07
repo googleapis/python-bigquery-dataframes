@@ -76,7 +76,7 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
 ]
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
-UNIT_TEST_EXTRAS: List[str] = []
+UNIT_TEST_EXTRAS: List[str] = ["tests"]
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     "3.12": ["polars", "scikit-learn"],
 }
@@ -203,7 +203,7 @@ def install_unittest_dependencies(session, install_test_extra, *constraints):
 
     if install_test_extra and UNIT_TEST_EXTRAS_BY_PYTHON:
         extras = UNIT_TEST_EXTRAS_BY_PYTHON.get(session.python, [])
-    elif install_test_extra and UNIT_TEST_EXTRAS:
+    if install_test_extra and UNIT_TEST_EXTRAS:
         extras = UNIT_TEST_EXTRAS
     else:
         extras = []
@@ -767,6 +767,7 @@ def notebook(session: nox.Session):
         # our test infrastructure.
         "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",  # Needs DATASET.
         "notebooks/ml/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
+        "notebooks/ml/bq_dataframes_ml_linear_regression_big.ipynb",  # Needs DATASET_ID.
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
         # TODO(b/332737009): investigate why we get 404 errors, even though
         # bq_dataframes_llm_code_generation creates a bucket in the sample.

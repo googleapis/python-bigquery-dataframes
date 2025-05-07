@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, cast, Iterable, Literal, Mapping, Optional, Union
+from typing import cast, Iterable, Literal, Mapping, Optional, Union
 import warnings
 
 import bigframes_vendored.constants as constants
@@ -72,6 +72,8 @@ _GEMINI_PREVIEW_ENDPOINTS = (
 _GEMINI_FINE_TUNE_SCORE_ENDPOINTS = (
     _GEMINI_1P5_PRO_002_ENDPOINT,
     _GEMINI_1P5_FLASH_002_ENDPOINT,
+    _GEMINI_2_FLASH_001_ENDPOINT,
+    _GEMINI_2_FLASH_LITE_001_ENDPOINT,
 )
 _GEMINI_MULTIMODAL_ENDPOINTS = (
     _GEMINI_1P5_PRO_001_ENDPOINT,
@@ -79,6 +81,7 @@ _GEMINI_MULTIMODAL_ENDPOINTS = (
     _GEMINI_1P5_FLASH_001_ENDPOINT,
     _GEMINI_1P5_FLASH_002_ENDPOINT,
     _GEMINI_2_FLASH_EXP_ENDPOINT,
+    _GEMINI_2_FLASH_001_ENDPOINT,
 )
 
 _CLAUDE_3_SONNET_ENDPOINT = "claude-3-sonnet"
@@ -92,16 +95,14 @@ _CLAUDE_3_ENDPOINTS = (
     _CLAUDE_3_OPUS_ENDPOINT,
 )
 
-
-_ML_GENERATE_TEXT_STATUS = "ml_generate_text_status"
-_ML_GENERATE_EMBEDDING_STATUS = "ml_generate_embedding_status"
-
 _MODEL_NOT_SUPPORTED_WARNING = (
     "Model name '{model_name}' is not supported. "
     "We are currently aware of the following models: {known_models}. "
     "However, model names can change, and the supported models may be outdated. "
     "You should use this model name only if you are sure that it is supported in BigQuery."
 )
+
+_REMOVE_DEFAULT_MODEL_WARNING = "Since upgrading the default model can cause unintended breakages, the default model will be removed in BigFrames 3.0. Please supply an explicit model to avoid this message."
 
 
 @log_adapter.class_logger
@@ -113,7 +114,8 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
             The model for text embedding. Possible values are "text-embedding-005", "text-embedding-004"
             or "text-multilingual-embedding-002". text-embedding models returns model embeddings for text inputs.
             text-multilingual-embedding models returns model embeddings for text inputs which support over 100 languages.
-            Default to "text-embedding-004".
+            If no setting is provided, "text-embedding-004" will be used by
+            default and a warning will be issued.
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
@@ -124,14 +126,20 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
     def __init__(
         self,
         *,
-        model_name: Literal[
-            "text-embedding-005",
-            "text-embedding-004",
-            "text-multilingual-embedding-002",
-        ] = "text-embedding-004",
+        model_name: Optional[
+            Literal[
+                "text-embedding-005",
+                "text-embedding-004",
+                "text-multilingual-embedding-002",
+            ]
+        ] = None,
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
+        if model_name is None:
+            model_name = "text-embedding-004"
+            msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
         self.model_name = model_name
         self.session = session or global_session.get_global_session()
         self.connection_name = connection_name
@@ -184,18 +192,6 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    @property
-    def _predict_func(
-        self,
-    ) -> Callable[
-        [bigframes.dataframe.DataFrame, Mapping], bigframes.dataframe.DataFrame
-    ]:
-        return self._bqml_model.generate_embedding
-
-    @property
-    def _status_col(self) -> str:
-        return _ML_GENERATE_EMBEDDING_STATUS
-
     def predict(
         self, X: utils.ArrayType, *, max_retries: int = 0
     ) -> bigframes.dataframe.DataFrame:
@@ -224,11 +220,14 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
             col_label = cast(blocks.Label, X.columns[0])
             X = X.rename(columns={col_label: "content"})
 
-        options = {
-            "flatten_json_output": True,
-        }
+        options: dict = {}
 
-        return self._predict_and_retry(X, options=options, max_retries=max_retries)
+        return self._predict_and_retry(
+            core.BqmlModel.generate_embedding_tvf,
+            X,
+            options=options,
+            max_retries=max_retries,
+        )
 
     def to_gbq(self, model_name: str, replace: bool = False) -> TextEmbeddingGenerator:
         """Save the model to BigQuery.
@@ -251,12 +250,16 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
     """Multimodal embedding generator LLM model.
 
     .. note::
-        BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+        BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
 
     Args:
         model_name (str, Default to "multimodalembedding@001"):
             The model for multimodal embedding. Can set to "multimodalembedding@001". Multimodal-embedding models returns model embeddings for text, image and video inputs.
-            Default to "multimodalembedding@001".
+            If no setting is provided, "multimodalembedding@001" will be used by
+            default and a warning will be issued.
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
@@ -267,12 +270,14 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
     def __init__(
         self,
         *,
-        model_name: Literal["multimodalembedding@001"] = "multimodalembedding@001",
+        model_name: Optional[Literal["multimodalembedding@001"]] = None,
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
-        if not bigframes.options.experiments.blob:
-            raise NotImplementedError()
+        if model_name is None:
+            model_name = "multimodalembedding@001"
+            msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
         self.model_name = model_name
         self.session = session or global_session.get_global_session()
         self.connection_name = connection_name
@@ -325,18 +330,6 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
         model._bqml_model = core.BqmlModel(session, bq_model)
         return model
 
-    @property
-    def _predict_func(
-        self,
-    ) -> Callable[
-        [bigframes.dataframe.DataFrame, Mapping], bigframes.dataframe.DataFrame
-    ]:
-        return self._bqml_model.generate_embedding
-
-    @property
-    def _status_col(self) -> str:
-        return _ML_GENERATE_EMBEDDING_STATUS
-
     def predict(
         self, X: utils.ArrayType, *, max_retries: int = 0
     ) -> bigframes.dataframe.DataFrame:
@@ -370,11 +363,14 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
         if X["content"].dtype == dtypes.OBJ_REF_DTYPE:
             X["content"] = X["content"].blob._get_runtime("R", with_metadata=True)
 
-        options = {
-            "flatten_json_output": True,
-        }
+        options: dict = {}
 
-        return self._predict_and_retry(X, options=options, max_retries=max_retries)
+        return self._predict_and_retry(
+            core.BqmlModel.generate_embedding_tvf,
+            X,
+            options=options,
+            max_retries=max_retries,
+        )
 
     def to_gbq(
         self, model_name: str, replace: bool = False
@@ -408,7 +404,8 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
             "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-1.5-flash-001",
             "gemini-1.5-flash-002", "gemini-2.0-flash-exp",
             "gemini-2.0-flash-lite-001", and "gemini-2.0-flash-001".
-            Default to "gemini-2.0-flash-001".
+            If no setting is provided, "gemini-2.0-flash-001" will be used by
+            default and a warning will be issued.
 
         .. note::
             "gemini-2.0-flash-exp", "gemini-1.5-pro-preview-0514" and "gemini-1.5-flash-preview-0514" is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
@@ -429,17 +426,19 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
     def __init__(
         self,
         *,
-        model_name: Literal[
-            "gemini-1.5-pro-preview-0514",
-            "gemini-1.5-flash-preview-0514",
-            "gemini-1.5-pro-001",
-            "gemini-1.5-pro-002",
-            "gemini-1.5-flash-001",
-            "gemini-1.5-flash-002",
-            "gemini-2.0-flash-exp",
-            "gemini-2.0-flash-001",
-            "gemini-2.0-flash-lite-001",
-        ] = "gemini-2.0-flash-001",
+        model_name: Optional[
+            Literal[
+                "gemini-1.5-pro-preview-0514",
+                "gemini-1.5-flash-preview-0514",
+                "gemini-1.5-pro-001",
+                "gemini-1.5-pro-002",
+                "gemini-1.5-flash-001",
+                "gemini-1.5-flash-002",
+                "gemini-2.0-flash-exp",
+                "gemini-2.0-flash-001",
+                "gemini-2.0-flash-lite-001",
+            ]
+        ] = None,
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
         max_iterations: int = 300,
@@ -454,6 +453,10 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
                 "(https://cloud.google.com/products#product-launch-stages)."
             )
             warnings.warn(msg, category=exceptions.PreviewWarning)
+        if model_name is None:
+            model_name = "gemini-2.0-flash-001"
+            msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
         self.model_name = model_name
         self.session = session or global_session.get_global_session()
         self.max_iterations = max_iterations
@@ -512,18 +515,6 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         }
         return options
 
-    @property
-    def _predict_func(
-        self,
-    ) -> Callable[
-        [bigframes.dataframe.DataFrame, Mapping], bigframes.dataframe.DataFrame
-    ]:
-        return self._bqml_model.generate_text
-
-    @property
-    def _status_col(self) -> str:
-        return _ML_GENERATE_TEXT_STATUS
-
     def fit(
         self,
         X: utils.ArrayType,
@@ -575,6 +566,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         ground_with_google_search: bool = False,
         max_retries: int = 0,
         prompt: Optional[Iterable[Union[str, bigframes.series.Series]]] = None,
+        output_schema: Optional[Mapping[str, str]] = None,
     ) -> bigframes.dataframe.DataFrame:
         """Predict the result from input DataFrame.
 
@@ -619,11 +611,17 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
 
             prompt (Iterable of str or bigframes.series.Series, or None, default None):
                 .. note::
-                    BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+                    BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+                    Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+                    and might have limited support. For more information, see the launch stage descriptions
+                    (https://cloud.google.com/products#product-launch-stages).
 
                 Construct a prompt struct column for prediction based on the input. The input must be an Iterable that can take string literals,
                 such as "summarize", string column(s) of X, such as X["str_col"], or blob column(s) of X, such as X["blob_col"].
                 It creates a struct column of the items of the iterable, and use the concatenated result as the input prompt. No-op if set to None.
+            output_schema (Mapping[str, str] or None, default None):
+                The schema used to generate structured output as a bigframes DataFrame. The schema is a string key-value pair of <column_name>:<type>.
+                Supported types are int64, float64, bool, string, array<type> and struct<column type>. If None, output text result.
         Returns:
             bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_input_columns + n_prediction_columns). Returns predicted values.
         """
@@ -652,9 +650,6 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         (X,) = utils.batch_convert_to_dataframe(X, session=session)
 
         if prompt:
-            if not bigframes.options.experiments.blob:
-                raise NotImplementedError()
-
             if self.model_name not in _GEMINI_MULTIMODAL_ENDPOINTS:
                 raise NotImplementedError(
                     f"GeminiTextGenerator only supports model_name {', '.join(_GEMINI_MULTIMODAL_ENDPOINTS)} for Multimodal prompt."
@@ -686,16 +681,31 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
             col_label = cast(blocks.Label, X.columns[0])
             X = X.rename(columns={col_label: "prompt"})
 
-        options = {
+        options: dict = {
             "temperature": temperature,
             "max_output_tokens": max_output_tokens,
-            "top_k": top_k,
+            # "top_k": top_k, # TODO(garrettwu): the option is deprecated in Gemini 1.5 forward.
             "top_p": top_p,
-            "flatten_json_output": True,
             "ground_with_google_search": ground_with_google_search,
         }
+        if output_schema:
+            output_schema = {
+                k: utils.standardize_type(v) for k, v in output_schema.items()
+            }
+            options["output_schema"] = output_schema
+            return self._predict_and_retry(
+                core.BqmlModel.generate_table_tvf,
+                X,
+                options=options,
+                max_retries=max_retries,
+            )
 
-        return self._predict_and_retry(X, options=options, max_retries=max_retries)
+        return self._predict_and_retry(
+            core.BqmlModel.generate_text_tvf,
+            X,
+            options=options,
+            max_retries=max_retries,
+        )
 
     def score(
         self,
@@ -706,7 +716,8 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         ] = "text_generation",
     ) -> bigframes.dataframe.DataFrame:
         """Calculate evaluation metrics of the model. Only support
-            "gemini-1.5-pro-002", and "gemini-1.5-flash-002".
+            "gemini-1.5-pro-002", "gemini-1.5-flash-002",
+            "gemini-2.0-flash-lite-001", and "gemini-2.0-flash-001".
 
         .. note::
 
@@ -740,7 +751,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
 
         if self.model_name not in _GEMINI_FINE_TUNE_SCORE_ENDPOINTS:
             raise NotImplementedError(
-                "score() only supports gemini-1.5-pro-002, and gemini-1.5-flash-2 model."
+                "score() only supports gemini-1.5-pro-002, gemini-1.5-flash-2, gemini-2.0-flash-001, and gemini-2.0-flash-lite-001 model."
             )
 
         X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
@@ -803,7 +814,8 @@ class Claude3TextGenerator(base.RetriableRemotePredictor):
             "claude-3-5-sonnet" is Anthropic's most powerful AI model and maintains the speed and cost of Claude 3 Sonnet, which is a mid-tier model.
             "claude-3-opus" is Anthropic's second-most powerful AI model, with strong performance on highly complex tasks.
             https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#available-claude-models
-            Default to "claude-3-sonnet".
+            If no setting is provided, "claude-3-sonnet" will be used by default
+            and a warning will be issued.
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
@@ -815,12 +827,21 @@ class Claude3TextGenerator(base.RetriableRemotePredictor):
     def __init__(
         self,
         *,
-        model_name: Literal[
-            "claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet", "claude-3-opus"
-        ] = "claude-3-sonnet",
+        model_name: Optional[
+            Literal[
+                "claude-3-sonnet",
+                "claude-3-haiku",
+                "claude-3-5-sonnet",
+                "claude-3-opus",
+            ]
+        ] = None,
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
+        if model_name is None:
+            model_name = "claude-3-sonnet"
+            msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
         self.model_name = model_name
         self.session = session or global_session.get_global_session()
         self.connection_name = connection_name
@@ -884,18 +905,6 @@ class Claude3TextGenerator(base.RetriableRemotePredictor):
             "data_split_method": "NO_SPLIT",
         }
         return options
-
-    @property
-    def _predict_func(
-        self,
-    ) -> Callable[
-        [bigframes.dataframe.DataFrame, Mapping], bigframes.dataframe.DataFrame
-    ]:
-        return self._bqml_model.generate_text
-
-    @property
-    def _status_col(self) -> str:
-        return _ML_GENERATE_TEXT_STATUS
 
     def predict(
         self,
@@ -969,10 +978,14 @@ class Claude3TextGenerator(base.RetriableRemotePredictor):
             "max_output_tokens": max_output_tokens,
             "top_k": top_k,
             "top_p": top_p,
-            "flatten_json_output": True,
         }
 
-        return self._predict_and_retry(X, options=options, max_retries=max_retries)
+        return self._predict_and_retry(
+            core.BqmlModel.generate_text_tvf,
+            X,
+            options=options,
+            max_retries=max_retries,
+        )
 
     def to_gbq(self, model_name: str, replace: bool = False) -> Claude3TextGenerator:
         """Save the model to BigQuery.

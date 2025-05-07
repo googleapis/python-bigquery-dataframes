@@ -42,6 +42,8 @@ templated_files = common.py_library(
 s.move(
     templated_files,
     excludes=[
+        # Need a combined LICENSE for all vendored packages.
+        "LICENSE",
         # Multi-processing note isn't relevant, as bigframes is responsible for
         # creating clients, not the end user.
         "docs/multiprocessing.rst",
@@ -63,13 +65,6 @@ s.move(
 # ----------------------------------------------------------------------------
 # Fixup files
 # ----------------------------------------------------------------------------
-
-# Add scratch space for experimentation to .gitignore.
-assert 1 == s.replace(
-    [".gitignore"],
-    re.escape("# Make sure a generated file isn't accidentally committed.\n"),
-    "# Make sure a generated file isn't accidentally committed.\ndemo.ipynb\n",
-)
 
 # Encourage sharring all relevant versions in bug reports.
 assert 1 == s.replace(  # bug_report.md

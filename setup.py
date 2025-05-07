@@ -38,10 +38,12 @@ dependencies = [
     "fsspec >=2023.3.0",
     "gcsfs >=2023.3.0",
     "geopandas >=0.12.2",
-    "google-auth >=2.15.0,<3.0dev",
+    "google-auth >=2.15.0,<3.0",
     "google-cloud-bigtable >=2.24.0",
     "google-cloud-pubsub >=2.21.4",
     "google-cloud-bigquery[bqstorage,pandas] >=3.31.0",
+    # 2.30 needed for arrow support.
+    "google-cloud-bigquery-storage >= 2.30.0, < 3.0.0",
     "google-cloud-functions >=1.12.0",
     "google-cloud-bigquery-connection >=1.12.0",
     "google-cloud-iam >=2.12.1",
@@ -53,6 +55,7 @@ dependencies = [
     "pyarrow >=15.0.2",
     "pydata-google-auth >=1.8.2",
     "requests >=2.27.1",
+    "shapely >=1.8.5",
     "sqlglot >=23.6.3",
     "tabulate >=0.9",
     "ipywidgets >=7.7.1",
@@ -61,7 +64,6 @@ dependencies = [
     "db-dtypes >=1.4.2",
     # For vendored ibis-framework.
     "atpublic>=2.3,<6",
-    "parsy>=2,<3",
     "python-dateutil>=2.8.2,<3",
     "pytz>=2022.7",
     "toolz>=0.11,<2",
@@ -70,18 +72,16 @@ dependencies = [
 ]
 extras = {
     # Optional test dependencies packages. If they're missed, may skip some tests.
-    "tests": [],
+    "tests": ["freezegun", "pytest-snapshot"],
     # used for local engine, which is only needed for unit tests at present.
     "polars": ["polars >= 1.7.0"],
     "scikit-learn": ["scikit-learn>=1.2.2"],
     # Packages required for basic development flow.
     "dev": [
         "pytest",
-        "pytest-mock",
         "pre-commit",
         "nox",
         "google-cloud-testutils",
-        "freezegun",
     ],
 }
 extras["all"] = list(sorted(frozenset(itertools.chain.from_iterable(extras.values()))))

@@ -740,9 +740,12 @@ class FunctionSession:
         BigQuery managed function.
 
         .. note::
-            The udf must be self-contained, i.e. it must not contain any
+            This feature is in preview. The code in the udf must be
+            (1) self-contained, i.e. it must not contain any
             references to an import or variable defined outside the function
-            body.
+            body, and
+            (2) Python 3.11 compatible, as that is the environment
+            in which the code is executed in the cloud.
 
         .. note::
             Please have following IAM roles enabled for you:
@@ -775,6 +778,13 @@ class FunctionSession:
                 Name of the BigQuery connection. It is used to provide an
                 identity to the serverless instances running the user code. It
                 helps BigQuery manage and track the resources used by the udf.
+                This connection is required for internet access and for
+                interacting with other GCP services. To access GCP services, the
+                appropriate IAM permissions must also be granted to the
+                connection's Service Account. When it defaults to None, the udf
+                will be created without any connection. A udf without a
+                connection has no internet access and no access to other GCP
+                services.
             name (str, Optional):
                 Explicit name of the persisted BigQuery managed function. Use it
                 with caution, because more than one users working in the same
@@ -786,7 +796,7 @@ class FunctionSession:
                 ``bigframes.pandas.reset_session``/
                 ``bigframes.pandas.clean_up_by_session_id``) does not clean up
                 the function, and leaves it for the user to manage the function
-                and the associated cloud function directly.
+                directly.
             packages (str[], Optional):
                 Explicit name of the external package dependencies. Each
                 dependency is added to the `requirements.txt` as is, and can be
@@ -794,7 +804,7 @@ class FunctionSession:
                 https://pip.pypa.io/en/stable/reference/requirements-file-format/.
         """
 
-        warnings.warn("udf is in preview.", category=bfe.PreviewWarning)
+        warnings.warn("udf is in preview.", category=bfe.PreviewWarning, stacklevel=5)
 
         # Some defaults may be used from the session if not provided otherwise.
         session = self._resolve_session(session)
@@ -828,9 +838,18 @@ class FunctionSession:
                     TypeError, f"func must be a callable, got {func}"
                 )
 
-            # Managed function supports version >= 3.11.
-            signature_kwargs: Mapping[str, Any] = {"eval_str": True}
-            signature = inspect.signature(func, **signature_kwargs)
+            if sys.version_info >= (3, 10):
+                # Add `eval_str = True` so that deferred annotations are turned into their
+                # corresponding type objects. Need Python 3.10 for eval_str parameter.
+                # https://docs.python.org/3/library/inspect.html#inspect.signature
+                signature_kwargs: Mapping[str, Any] = {"eval_str": True}
+            else:
+                signature_kwargs = {}  # type: ignore
+
+            signature = inspect.signature(
+                func,
+                **signature_kwargs,
+            )
 
             # Try to get input types via type annotations.
             if input_types is None:
@@ -879,7 +898,7 @@ class FunctionSession:
                 signature, input_types, output_type  # type: ignore
             )
 
-            remote_function_client = _function_client.FunctionClient(
+            managed_function_client = _function_client.FunctionClient(
                 dataset_ref.project,
                 bq_location,
                 dataset_ref.dataset_id,
@@ -898,7 +917,7 @@ class FunctionSession:
             self._try_delattr(func, "is_row_processor")
             self._try_delattr(func, "ibis_node")
 
-            bq_function_name = remote_function_client.provision_bq_managed_function(
+            bq_function_name = managed_function_client.provision_bq_managed_function(
                 func=func,
                 input_types=tuple(
                     third_party_ibis_bqtypes.BigQueryType.from_ibis(type_)
@@ -935,7 +954,7 @@ class FunctionSession:
                 signature=(ibis_signature.input_types, ibis_signature.output_type),
             )  # type: ignore
             func.bigframes_bigquery_function = (
-                remote_function_client.get_remote_function_fully_qualilfied_name(
+                managed_function_client.get_remote_function_fully_qualilfied_name(
                     bq_function_name
                 )
             )

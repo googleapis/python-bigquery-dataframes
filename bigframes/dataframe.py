@@ -67,12 +67,12 @@ import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
 import bigframes.core.window
+from bigframes.core.window import rolling
 import bigframes.core.window_spec as windows
 import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
-import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.ai
 import bigframes.operations.plotting as plotting
@@ -419,11 +419,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             str:
                 string representing the compiled SQL.
         """
-        include_index = self._has_index and (
-            self.index.name is not None or len(self.index.names) > 1
-        )
-        sql, _, _ = self._to_sql_query(include_index=include_index)
-        return sql
+        try:
+            include_index = self._has_index and (
+                self.index.name is not None or len(self.index.names) > 1
+            )
+            sql, _, _ = self._to_sql_query(include_index=include_index)
+            return sql
+        except AttributeError as e:
+            # Workaround for a development-mode debugging issue:
+            # An `AttributeError` originating *inside* this @property getter (e.g., due to
+            # a typo or referencing a non-existent attribute) can be mistakenly intercepted
+            # by the class's __getattr__ method if one is defined.
+            # We catch the AttributeError and raise SyntaxError instead to make it clear
+            # the error originates *here* in the property implementation.
+            # See: https://stackoverflow.com/questions/50542177/correct-handling-of-attributeerror-in-getattr-when-using-property
+            raise SyntaxError(
+                "AttributeError encountered. Please check the implementation for incorrect attribute access."
+            ) from e
 
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
@@ -563,6 +575,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if isinstance(key, bigframes.series.Series):
             return self._getitem_bool_series(key)
+
+        if isinstance(key, slice):
+            return self.iloc[key]
 
         if isinstance(key, typing.Hashable):
             return self._getitem_label(key)
@@ -753,11 +768,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return formatter.repr_query_job(self._compute_dry_run())
 
         df = self.copy()
-        if bigframes.options.experiments.blob:
+        if bigframes.options.display.blob_display:
             blob_cols = [
-                col
-                for col in df.columns
-                if df[col].dtype == bigframes.dtypes.OBJ_REF_DTYPE
+                series_name
+                for series_name, series in df.items()
+                if series.dtype == bigframes.dtypes.OBJ_REF_DTYPE
             ]
             for col in blob_cols:
                 # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
@@ -776,7 +791,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         with display_options.pandas_repr(opts):
             # Allows to preview images in the DataFrame. The implementation changes the string repr as well, that it doesn't truncate strings or escape html charaters such as "<" and ">". We may need to implement a full-fledged repr module to better support types not in pandas.
-            if bigframes.options.experiments.blob:
+            if bigframes.options.display.blob_display and blob_cols:
 
                 def obj_ref_rt_to_html(obj_ref_rt) -> str:
                     obj_ref_rt_json = json.loads(obj_ref_rt)
@@ -787,8 +802,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                             str, gcs_metadata.get("content_type", "")
                         )
                         if content_type.startswith("image"):
+                            size_str = ""
+                            if bigframes.options.display.blob_display_width:
+                                size_str = f' width="{bigframes.options.display.blob_display_width}"'
+                            if bigframes.options.display.blob_display_height:
+                                size_str = (
+                                    size_str
+                                    + f' height="{bigframes.options.display.blob_display_height}"'
+                                )
                             url = obj_ref_rt_json["access_urls"]["read_url"]
-                            return f'<img src="{url}">'
+                            return f'<img src="{url}"{size_str}>'
 
                     return f'uri: {obj_ref_rt_json["objectref"]["uri"]}, authorizer: {obj_ref_rt_json["objectref"]["authorizer"]}'
 
@@ -3393,23 +3416,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @validations.requires_ordering()
     def rolling(
         self,
-        window: int,
+        window: int | pandas.Timedelta | numpy.timedelta64 | datetime.timedelta | str,
         min_periods=None,
         on: str | None = None,
         closed: Literal["right", "left", "both", "neither"] = "right",
     ) -> bigframes.core.window.Window:
-        window_def = windows.WindowSpec(
-            bounds=windows.RowsWindowBounds.from_window_size(window, closed),
-            min_periods=min_periods if min_periods is not None else window,
-        )
-        skip_agg_col_id = (
-            None if on is None else self._block.resolve_label_exact_or_error(on)
-        )
-        return bigframes.core.window.Window(
+        if isinstance(window, int):
+            window_def = windows.WindowSpec(
+                bounds=windows.RowsWindowBounds.from_window_size(window, closed),
+                min_periods=min_periods if min_periods is not None else window,
+            )
+            skip_agg_col_id = (
+                None if on is None else self._block.resolve_label_exact_or_error(on)
+            )
+            return bigframes.core.window.Window(
+                self._block,
+                window_def,
+                self._block.value_columns,
+                skip_agg_column_id=skip_agg_col_id,
+            )
+
+        return rolling.create_range_window(
             self._block,
-            window_def,
-            self._block.value_columns,
-            skip_agg_column_id=skip_agg_col_id,
+            window,
+            min_periods=min_periods,
+            on=on,
+            closed=closed,
+            is_series=False,
         )
 
     @validations.requires_ordering()

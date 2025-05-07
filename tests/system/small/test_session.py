@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
+import json
 import random
 import re
 import tempfile
@@ -32,11 +33,21 @@ import pyarrow as pa
 import pytest
 
 import bigframes
-import bigframes.core.indexes.base
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.ml.linear_model
 from tests.system import utils
+
+all_write_engines = pytest.mark.parametrize(
+    "write_engine",
+    [
+        "default",
+        "bigquery_inline",
+        "bigquery_load",
+        "bigquery_streaming",
+        "bigquery_write",
+    ],
+)
 
 
 @pytest.fixture(scope="module")
@@ -48,7 +59,7 @@ def df_and_local_csv(scalars_df_index):
 
     with tempfile.TemporaryDirectory() as dir:
         # Prepares local CSV file for reading
-        path = dir + "/write_df_to_local_csv_file.csv"
+        path = dir + "/test_read_csv_w_local_csv.csv"
         scalars_df_index.to_csv(path, index=True)
         yield scalars_df_index, path
 
@@ -60,7 +71,19 @@ def df_and_gcs_csv(scalars_df_index, gcs_folder):
     drop_columns = ["bytes_col", "datetime_col", "numeric_col", "geography_col"]
     scalars_df_index = scalars_df_index.drop(columns=drop_columns)
 
-    path = gcs_folder + "test_read_csv_w_write_engine*.csv"
+    path = gcs_folder + "test_read_csv_w_gcs_csv*.csv"
+    read_path = utils.get_first_file_from_wildcard(path)
+    scalars_df_index.to_csv(path, index=True)
+    return scalars_df_index, read_path
+
+
+@pytest.fixture(scope="module")
+def df_and_gcs_csv_for_two_columns(scalars_df_index, gcs_folder):
+    # Some tests require only two columns to be present in the CSV file.
+    selected_cols = ["bool_col", "int64_col"]
+    scalars_df_index = scalars_df_index[selected_cols]
+
+    path = gcs_folder + "df_and_gcs_csv_for_two_columns*.csv"
     read_path = utils.get_first_file_from_wildcard(path)
     scalars_df_index.to_csv(path, index=True)
     return scalars_df_index, read_path
@@ -426,11 +449,15 @@ def test_read_gbq_twice_with_same_timestamp(session, penguins_table_id):
 @pytest.mark.parametrize(
     "source_table",
     [
+        # Wildcard tables
+        "bigquery-public-data.noaa_gsod.gsod194*",
+        # Linked datasets
         "bigframes-dev.thelook_ecommerce.orders",
+        # Materialized views
         "bigframes-dev.bigframes_tests_sys.base_table_mat_view",
     ],
 )
-def test_read_gbq_on_linked_dataset_warns(session, source_table):
+def test_read_gbq_warns_time_travel_disabled(session, source_table):
     with warnings.catch_warnings(record=True) as warned:
         session.read_gbq(source_table, use_cache=False)
         assert len(warned) == 1
@@ -860,31 +887,31 @@ def test_read_pandas_tokyo(
     result = session_tokyo._executor.execute(
         df._block.expr, use_explicit_destination=True
     )
+    assert result.query_job is not None
     assert result.query_job.location == tokyo_location
 
     assert len(expected) == result.total_rows
 
 
-@pytest.mark.parametrize(
-    "write_engine",
-    ["default", "bigquery_inline", "bigquery_load", "bigquery_streaming"],
-)
+@all_write_engines
 def test_read_pandas_timedelta_dataframes(session, write_engine):
-    expected_df = pd.DataFrame({"my_col": pd.to_timedelta([1, 2, 3], unit="d")})
-
-    actual_result = (
-        session.read_pandas(expected_df, write_engine=write_engine)
-        .to_pandas()
-        .astype("timedelta64[ns]")
+    pytest.importorskip(
+        "pandas",
+        minversion="2.0.0",
+        reason="old versions don't support local casting to arrow duration",
     )
+    pandas_df = pd.DataFrame({"my_col": pd.to_timedelta([1, 2, 3], unit="d")})
 
-    pd.testing.assert_frame_equal(actual_result, expected_df, check_index_type=False)
+    actual_result = session.read_pandas(
+        pandas_df, write_engine=write_engine
+    ).to_pandas()
+    expected_result = pandas_df.astype(bigframes.dtypes.TIMEDELTA_DTYPE)
+    expected_result.index = expected_result.index.astype(bigframes.dtypes.INT_DTYPE)
+
+    pd.testing.assert_frame_equal(actual_result, expected_result)
 
 
-@pytest.mark.parametrize(
-    "write_engine",
-    ["default", "bigquery_inline", "bigquery_load", "bigquery_streaming"],
-)
+@all_write_engines
 def test_read_pandas_timedelta_series(session, write_engine):
     expected_series = pd.Series(pd.to_timedelta([1, 2, 3], unit="d"))
 
@@ -899,10 +926,7 @@ def test_read_pandas_timedelta_series(session, write_engine):
     )
 
 
-@pytest.mark.parametrize(
-    "write_engine",
-    ["default", "bigquery_inline", "bigquery_load", "bigquery_streaming"],
-)
+@all_write_engines
 def test_read_pandas_timedelta_index(session, write_engine):
     expected_index = pd.to_timedelta(
         [1, 2, 3], unit="d"
@@ -917,15 +941,7 @@ def test_read_pandas_timedelta_index(session, write_engine):
     pd.testing.assert_index_equal(actual_result, expected_index)
 
 
-@pytest.mark.parametrize(
-    ("write_engine"),
-    [
-        pytest.param("default"),
-        pytest.param("bigquery_load"),
-        pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
-    ],
-)
+@all_write_engines
 def test_read_pandas_json_dataframes(session, write_engine):
     json_data = [
         "1",
@@ -944,21 +960,13 @@ def test_read_pandas_json_dataframes(session, write_engine):
     pd.testing.assert_frame_equal(actual_result, expected_df, check_index_type=False)
 
 
-@pytest.mark.parametrize(
-    ("write_engine"),
-    [
-        pytest.param("default"),
-        pytest.param("bigquery_load"),
-        pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
-    ],
-)
+@all_write_engines
 def test_read_pandas_json_series(session, write_engine):
     json_data = [
         "1",
         None,
-        '["1","3","5"]',
-        '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}',
+        '[1,"3",null,{"a":null}]',
+        '{"a":1,"b":["x","y"],"c":{"x":[],"y":null,"z":false}}',
     ]
     expected_series = pd.Series(json_data, dtype=bigframes.dtypes.JSON_DTYPE)
 
@@ -970,15 +978,18 @@ def test_read_pandas_json_series(session, write_engine):
     )
 
 
-@pytest.mark.parametrize(
-    ("write_engine"),
-    [
-        pytest.param("default"),
-        pytest.param("bigquery_load"),
-        pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_inline", marks=pytest.mark.xfail(raises=ValueError)),
-    ],
-)
+@all_write_engines
+def test_read_pandas_json_series_w_invalid_json(session, write_engine):
+    json_data = [
+        "False",  # Should be "false"
+    ]
+    pd_s = pd.Series(json_data, dtype=bigframes.dtypes.JSON_DTYPE)
+
+    with pytest.raises(json.JSONDecodeError):
+        session.read_pandas(pd_s, write_engine=write_engine)
+
+
+@all_write_engines
 def test_read_pandas_json_index(session, write_engine):
     json_data = [
         "1",
@@ -997,7 +1008,6 @@ def test_read_pandas_json_index(session, write_engine):
     ("write_engine"),
     [
         pytest.param("bigquery_load"),
-        pytest.param("bigquery_streaming"),
     ],
 )
 def test_read_pandas_w_nested_json_fails(session, write_engine):
@@ -1009,37 +1019,40 @@ def test_read_pandas_w_nested_json_fails(session, write_engine):
     ]
     # PyArrow currently lacks support for creating structs or lists containing extension types.
     # See issue: https://github.com/apache/arrow/issues/45262
-    pa_array = pa.array(data, type=pa.list_(pa.struct([("name", pa.string())])))
+    pa_array = pa.array(data, type=pa.list_(pa.struct([("json_field", pa.string())])))
     pd_s = pd.Series(
         arrays.ArrowExtensionArray(pa_array),  # type: ignore
         dtype=pd.ArrowDtype(
-            pa.list_(pa.struct([("name", bigframes.dtypes.JSON_ARROW_TYPE)]))
+            pa.list_(pa.struct([("json_field", bigframes.dtypes.JSON_ARROW_TYPE)]))
         ),
     )
     with pytest.raises(NotImplementedError, match="Nested JSON types, found in column"):
         session.read_pandas(pd_s, write_engine=write_engine)
 
 
-@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     ("write_engine"),
     [
         pytest.param("default"),
         pytest.param("bigquery_inline"),
+        pytest.param("bigquery_streaming"),
+        pytest.param("bigquery_write"),
     ],
 )
-def test_read_pandas_inline_w_nested_json(session, write_engine):
+def test_read_pandas_w_nested_json(session, write_engine):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     data = [
         [{"json_field": "1"}],
         [{"json_field": None}],
         [{"json_field": '["1","3","5"]'}],
         [{"json_field": '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}'}],
     ]
-    pa_array = pa.array(data, type=pa.list_(pa.struct([("name", pa.string())])))
+    pa_array = pa.array(data, type=pa.list_(pa.struct([("json_field", pa.string())])))
     pd_s = pd.Series(
         arrays.ArrowExtensionArray(pa_array),  # type: ignore
         dtype=pd.ArrowDtype(
-            pa.list_(pa.struct([("name", bigframes.dtypes.JSON_ARROW_TYPE)]))
+            pa.list_(pa.struct([("json_field", bigframes.dtypes.JSON_ARROW_TYPE)]))
         ),
     )
     bq_s = (
@@ -1053,11 +1066,37 @@ def test_read_pandas_inline_w_nested_json(session, write_engine):
 @pytest.mark.parametrize(
     ("write_engine"),
     [
+        pytest.param("default"),
+        pytest.param("bigquery_inline"),
         pytest.param("bigquery_load"),
         pytest.param("bigquery_streaming"),
     ],
 )
-def test_read_pandas_inline_w_nested_json_index_fails(session, write_engine):
+def test_read_pandas_w_nested_invalid_json(session, write_engine):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
+    data = [
+        [{"json_field": "NULL"}],  # Should be "null"
+    ]
+    pa_array = pa.array(data, type=pa.list_(pa.struct([("json_field", pa.string())])))
+    pd_s = pd.Series(
+        arrays.ArrowExtensionArray(pa_array),  # type: ignore
+        dtype=pd.ArrowDtype(
+            pa.list_(pa.struct([("json_field", bigframes.dtypes.JSON_ARROW_TYPE)]))
+        ),
+    )
+
+    with pytest.raises(json.JSONDecodeError):
+        session.read_pandas(pd_s, write_engine=write_engine)
+
+
+@pytest.mark.parametrize(
+    ("write_engine"),
+    [
+        pytest.param("bigquery_load"),
+    ],
+)
+def test_read_pandas_w_nested_json_index_fails(session, write_engine):
     data = [
         [{"json_field": "1"}],
         [{"json_field": None}],
@@ -1066,28 +1105,29 @@ def test_read_pandas_inline_w_nested_json_index_fails(session, write_engine):
     ]
     # PyArrow currently lacks support for creating structs or lists containing extension types.
     # See issue: https://github.com/apache/arrow/issues/45262
-    pa_array = pa.array(data, type=pa.list_(pa.struct([("name", pa.string())])))
+    pa_array = pa.array(data, type=pa.list_(pa.struct([("json_field", pa.string())])))
     pd_idx: pd.Index = pd.Index(
         arrays.ArrowExtensionArray(pa_array),  # type: ignore
         dtype=pd.ArrowDtype(
-            pa.list_(pa.struct([("name", bigframes.dtypes.JSON_ARROW_TYPE)]))
+            pa.list_(pa.struct([("json_field", bigframes.dtypes.JSON_ARROW_TYPE)]))
         ),
     )
-    with pytest.raises(
-        NotImplementedError, match="Nested JSON types, found in the index"
-    ):
+    with pytest.raises(NotImplementedError, match="Nested JSON types, found in"):
         session.read_pandas(pd_idx, write_engine=write_engine)
 
 
-@utils.skip_legacy_pandas
 @pytest.mark.parametrize(
     ("write_engine"),
     [
         pytest.param("default"),
         pytest.param("bigquery_inline"),
+        pytest.param("bigquery_streaming"),
+        pytest.param("bigquery_write"),
     ],
 )
 def test_read_pandas_w_nested_json_index(session, write_engine):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     data = [
         [{"json_field": "1"}],
         [{"json_field": None}],
@@ -1105,15 +1145,7 @@ def test_read_pandas_w_nested_json_index(session, write_engine):
     pd.testing.assert_index_equal(bq_idx, pd_idx)
 
 
-@pytest.mark.parametrize(
-    ("write_engine",),
-    (
-        ("default",),
-        ("bigquery_inline",),
-        ("bigquery_load",),
-        ("bigquery_streaming",),
-    ),
-)
+@all_write_engines
 def test_read_csv_for_gcs_file_w_write_engine(session, df_and_gcs_csv, write_engine):
     scalars_df, path = df_and_gcs_csv
 
@@ -1162,55 +1194,178 @@ def test_read_csv_for_local_file_w_sep(session, df_and_local_csv, sep):
         pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
-def test_read_csv_w_index_col_false(session, df_and_local_csv):
+@pytest.mark.parametrize(
+    "index_col",
+    [
+        pytest.param(None, id="none"),
+        pytest.param(False, id="false"),
+        pytest.param([], id="empty_list"),
+    ],
+)
+def test_read_csv_for_index_col_w_false(session, df_and_local_csv, index_col):
     # Compares results for pandas and bigframes engines
     scalars_df, path = df_and_local_csv
     with open(path, "rb") as buffer:
         bf_df = session.read_csv(
             buffer,
             engine="bigquery",
-            index_col=False,
+            index_col=index_col,
         )
     with open(path, "rb") as buffer:
         # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
         pd_df = session.read_csv(
-            buffer, index_col=False, dtype=scalars_df.dtypes.to_dict()
+            buffer, index_col=index_col, dtype=scalars_df.dtypes.to_dict()
         )
 
-    assert bf_df.shape[0] == scalars_df.shape[0]
-    assert bf_df.shape[0] == pd_df.shape[0]
-
-    # We use a default index because of index_col=False, so the previous index
-    # column is just loaded as a column.
-    assert len(bf_df.columns) == len(scalars_df.columns) + 1
-    assert len(bf_df.columns) == len(pd_df.columns)
+    assert bf_df.shape == pd_df.shape
 
     # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
     # (b/280889935) or guarantee row ordering.
     bf_df = bf_df.set_index("rowindex").sort_index()
     pd_df = pd_df.set_index("rowindex")
-
-    pd.testing.assert_frame_equal(bf_df.to_pandas(), scalars_df.to_pandas())
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
-def test_read_csv_w_index_col_column_label(session, df_and_gcs_csv):
-    scalars_df, path = df_and_gcs_csv
-    bf_df = session.read_csv(path, engine="bigquery", index_col="rowindex")
+@pytest.mark.parametrize(
+    "index_col",
+    [
+        pytest.param("rowindex", id="single_str"),
+        pytest.param(["rowindex", "bool_col"], id="multi_str"),
+        pytest.param(0, id="single_int"),
+        pytest.param([0, 2], id="multi_int"),
+        pytest.param([0, "bool_col"], id="mix_types"),
+    ],
+)
+def test_read_csv_for_index_col(session, df_and_gcs_csv, index_col):
+    scalars_pandas_df, path = df_and_gcs_csv
+    bf_df = session.read_csv(path, engine="bigquery", index_col=index_col)
 
     # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
     pd_df = session.read_csv(
-        path, index_col="rowindex", dtype=scalars_df.dtypes.to_dict()
+        path, index_col=index_col, dtype=scalars_pandas_df.dtypes.to_dict()
     )
 
-    assert bf_df.shape == scalars_df.shape
     assert bf_df.shape == pd_df.shape
-
-    assert len(bf_df.columns) == len(scalars_df.columns)
-    assert len(bf_df.columns) == len(pd_df.columns)
-
-    pd.testing.assert_frame_equal(bf_df.to_pandas(), scalars_df.to_pandas())
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+@pytest.mark.parametrize(
+    ("index_col", "error_type", "error_msg"),
+    [
+        pytest.param(
+            True, ValueError, "The value of index_col couldn't be 'True'", id="true"
+        ),
+        pytest.param(100, ValueError, "out of bounds", id="single_int"),
+        pytest.param([0, 200], ValueError, "out of bounds", id="multi_int"),
+        pytest.param(
+            [0.1], TypeError, "it must contain either strings", id="invalid_iterable"
+        ),
+        pytest.param(
+            3.14, TypeError, "Unsupported type for index_col", id="unsupported_type"
+        ),
+    ],
+)
+def test_read_csv_raises_error_for_invalid_index_col(
+    session, df_and_gcs_csv, index_col, error_type, error_msg
+):
+    _, path = df_and_gcs_csv
+    with pytest.raises(
+        error_type,
+        match=error_msg,
+    ):
+        session.read_csv(path, engine="bigquery", index_col=index_col)
+
+
+def test_read_csv_for_names(session, df_and_gcs_csv_for_two_columns):
+    _, path = df_and_gcs_csv_for_two_columns
+
+    names = ["a", "b", "c"]
+    bf_df = session.read_csv(path, engine="bigquery", names=names)
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    pd_df = session.read_csv(path, names=names, dtype=bf_df.dtypes.to_dict())
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.set_index(names[0]).sort_index()
+    pd_df = pd_df.set_index(names[0])
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+def test_read_csv_for_names_more_than_columns_can_raise_error(
+    session, df_and_gcs_csv_for_two_columns
+):
+    _, path = df_and_gcs_csv_for_two_columns
+    names = ["a", "b", "c", "d"]
+    with pytest.raises(
+        ValueError,
+        match="Too many columns specified: expected 3 and found 4",
+    ):
+        session.read_csv(path, engine="bigquery", names=names)
+
+
+def test_read_csv_for_names_less_than_columns(session, df_and_gcs_csv_for_two_columns):
+    _, path = df_and_gcs_csv_for_two_columns
+
+    names = ["b", "c"]
+    bf_df = session.read_csv(path, engine="bigquery", names=names)
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    pd_df = session.read_csv(path, names=names, dtype=bf_df.dtypes.to_dict())
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.sort_index()
+
+    # Pandas's index name is None, while BigFrames's index name is "rowindex".
+    pd_df.index.name = "rowindex"
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+def test_read_csv_for_names_less_than_columns_raise_error_when_index_col_set(
+    session, df_and_gcs_csv_for_two_columns
+):
+    _, path = df_and_gcs_csv_for_two_columns
+
+    names = ["b", "c"]
+    with pytest.raises(
+        KeyError,
+        match="ensure the number of `names` matches the number of columns in your data.",
+    ):
+        session.read_csv(path, engine="bigquery", names=names, index_col="rowindex")
+
+
+@pytest.mark.parametrize(
+    "index_col",
+    [
+        pytest.param("a", id="single_str"),
+        pytest.param(["a", "b"], id="multi_str"),
+        pytest.param(0, id="single_int"),
+    ],
+)
+def test_read_csv_for_names_and_index_col(
+    session, df_and_gcs_csv_for_two_columns, index_col
+):
+    _, path = df_and_gcs_csv_for_two_columns
+    names = ["a", "b", "c"]
+    bf_df = session.read_csv(path, engine="bigquery", index_col=index_col, names=names)
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    pd_df = session.read_csv(
+        path, index_col=index_col, names=names, dtype=bf_df.dtypes.to_dict()
+    )
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+    pd.testing.assert_frame_equal(
+        bf_df.to_pandas(), pd_df.to_pandas(), check_index_type=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -1617,3 +1772,163 @@ def test_read_json_gcs_default_engine(session, scalars_dfs, gcs_folder):
 
     assert df.shape[0] == scalars_df.shape[0]
     pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
+
+
+def test_read_gbq_test(test_session: bigframes.Session):
+    test_project_id = "bigframes-dev"
+    test_dataset_id = "test_env_only"
+    test_table_id = "one_table"
+    table_id = f"{test_project_id}.{test_dataset_id}.{test_table_id}"
+    actual = test_session.read_gbq(table_id).to_pandas()
+
+    assert actual.shape == (1, 1)
+
+
+@pytest.mark.parametrize(
+    ("query_or_table", "index_col", "columns"),
+    [
+        pytest.param(
+            "{scalars_table_id}",
+            ("int64_col", "string_col", "int64_col"),
+            ("float64_col", "bool_col"),
+            id="table_input_index_col_dup",
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+                reason="ValueError: Duplicate names within 'index_col'.",
+                strict=True,
+            ),
+        ),
+        pytest.param(
+            """SELECT int64_col, string_col, float64_col, bool_col
+               FROM `{scalars_table_id}`""",
+            ("int64_col",),
+            ("string_col", "float64_col", "string_col"),
+            id="query_input_columns_dup",
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+                reason="ValueError: Duplicate names within 'columns'.",
+                strict=True,
+            ),
+        ),
+        pytest.param(
+            "{scalars_table_id}",
+            ("int64_col", "string_col"),
+            ("float64_col", "string_col", "bool_col"),
+            id="table_input_cross_dup",
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+                reason="ValueError: Overlap between 'index_col' and 'columns'.",
+                strict=True,
+            ),
+        ),
+    ],
+)
+def test_read_gbq_duplicate_columns_xfail(
+    session: bigframes.Session,
+    scalars_table_id: str,
+    query_or_table: str,
+    index_col: tuple,
+    columns: tuple,
+):
+    session.read_gbq(
+        query_or_table.format(scalars_table_id=scalars_table_id),
+        index_col=index_col,
+        columns=columns,
+    )
+
+
+def test_read_gbq_with_table_ref_dry_run(scalars_table_id, session):
+    result = session.read_gbq(scalars_table_id, dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    _assert_table_dry_run_stats_are_valid(result)
+
+
+def test_read_gbq_with_query_dry_run(scalars_table_id, session):
+    query = f"SELECT * FROM {scalars_table_id} LIMIT 10;"
+    result = session.read_gbq(query, dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    _assert_query_dry_run_stats_are_valid(result)
+
+
+def test_read_gbq_dry_run_with_column_and_index(scalars_table_id, session):
+    query = f"SELECT * FROM {scalars_table_id} LIMIT 10;"
+    result = session.read_gbq(
+        query, dry_run=True, columns=["int64_col", "float64_col"], index_col="int64_too"
+    )
+
+    assert isinstance(result, pd.Series)
+    _assert_query_dry_run_stats_are_valid(result)
+    assert result["columnCount"] == 2
+    assert result["columnDtypes"] == {
+        "int64_col": pd.Int64Dtype(),
+        "float64_col": pd.Float64Dtype(),
+    }
+    assert result["indexLevel"] == 1
+    assert result["indexDtypes"] == [pd.Int64Dtype()]
+
+
+def test_read_gbq_table_dry_run(scalars_table_id, session):
+    result = session.read_gbq_table(scalars_table_id, dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    _assert_table_dry_run_stats_are_valid(result)
+
+
+def test_read_gbq_table_dry_run_with_max_results(scalars_table_id, session):
+    result = session.read_gbq_table(scalars_table_id, dry_run=True, max_results=100)
+
+    assert isinstance(result, pd.Series)
+    _assert_query_dry_run_stats_are_valid(result)
+
+
+def test_read_gbq_query_dry_run(scalars_table_id, session):
+    query = f"SELECT * FROM {scalars_table_id} LIMIT 10;"
+    result = session.read_gbq_query(query, dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    _assert_query_dry_run_stats_are_valid(result)
+
+
+def _assert_query_dry_run_stats_are_valid(result: pd.Series):
+    expected_index = pd.Index(
+        [
+            "columnCount",
+            "columnDtypes",
+            "indexLevel",
+            "indexDtypes",
+            "projectId",
+            "location",
+            "jobType",
+            "destinationTable",
+            "useLegacySql",
+            "referencedTables",
+            "totalBytesProcessed",
+            "cacheHit",
+            "statementType",
+            "creationTime",
+        ]
+    )
+
+    pd.testing.assert_index_equal(result.index, expected_index)
+    assert result["columnCount"] + result["indexLevel"] > 0
+
+
+def _assert_table_dry_run_stats_are_valid(result: pd.Series):
+    expected_index = pd.Index(
+        [
+            "isQuery",
+            "columnCount",
+            "columnDtypes",
+            "numBytes",
+            "numRows",
+            "location",
+            "type",
+            "creationTime",
+            "lastModifiedTime",
+        ]
+    )
+
+    pd.testing.assert_index_equal(result.index, expected_index)
+    assert result["columnCount"] == len(result["columnDtypes"])

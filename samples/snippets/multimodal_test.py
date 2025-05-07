@@ -13,12 +13,14 @@
 # limitations under the License.
 
 
-def test_multimodal_dataframe() -> None:
+def test_multimodal_dataframe(gcs_dst_bucket: str) -> None:
+    # destination folder must be in a GCS bucket that the BQ connection service account (default or user provided) has write access to.
+    dst_bucket = gcs_dst_bucket
     # [START bigquery_dataframes_multimodal_dataframe_create]
     import bigframes
 
-    # Flag to enable the feature
-    bigframes.options.experiments.blob = True
+    # Flags to control preview image/video preview size
+    bigframes.options.experiments.blob_display_width = 300
 
     import bigframes.pandas as bpd
 
@@ -45,33 +47,35 @@ def test_multimodal_dataframe() -> None:
     df_image["size"] = df_image["image"].blob.size()
     df_image["updated"] = df_image["image"].blob.updated()
     df_image
-
-    # Filter images and display, you can also display audio and video types
-    df_image[df_image["author"] == "alice"]["image"].blob.display()
     # [END bigquery_dataframes_multimodal_dataframe_merge]
+
+    # [START bigquery_dataframes_multimodal_dataframe_filter]
+    # Filter images and display, you can also display audio and video types. Use width/height parameters to constrain window sizes.
+    df_image[df_image["author"] == "alice"]["image"].blob.display()
+    # [END bigquery_dataframes_multimodal_dataframe_filter]
 
     # [START bigquery_dataframes_multimodal_dataframe_image_transform]
     df_image["blurred"] = df_image["image"].blob.image_blur(
-        (20, 20), dst="gs://bigframes_blob_test/image_blur_transformed/"
+        (20, 20), dst=f"{dst_bucket}/image_blur_transformed/"
     )
     df_image["resized"] = df_image["image"].blob.image_resize(
-        (300, 200), dst="gs://bigframes_blob_test/image_resize_transformed/"
+        (300, 200), dst=f"{dst_bucket}/image_resize_transformed/"
     )
     df_image["normalized"] = df_image["image"].blob.image_normalize(
         alpha=50.0,
         beta=150.0,
         norm_type="minmax",
-        dst="gs://bigframes_blob_test/image_normalize_transformed/",
+        dst=f"{dst_bucket}/image_normalize_transformed/",
     )
 
     # You can also chain functions together
     df_image["blur_resized"] = df_image["blurred"].blob.image_resize(
-        (300, 200), dst="gs://bigframes_blob_test/image_blur_resize_transformed/"
+        (300, 200), dst=f"{dst_bucket}/image_blur_resize_transformed/"
     )
     df_image
     # [END bigquery_dataframes_multimodal_dataframe_image_transform]
 
-    # [START bigquery_dataframes_multimodal_dataframe_ai]
+    # [START bigquery_dataframes_multimodal_dataframe_ml_text]
     from bigframes.ml import llm
 
     gemini = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-002")
@@ -83,7 +87,9 @@ def test_multimodal_dataframe() -> None:
     df_image = df_image.head(2)
     answer = gemini.predict(df_image, prompt=["what item is it?", df_image["image"]])
     answer[["ml_generate_text_llm_result", "image"]]
+    # [END bigquery_dataframes_multimodal_dataframe_ml_text]
 
+    # [START bigquery_dataframes_multimodal_dataframe_ml_text_alt]
     # Ask different questions
     df_image["question"] = [  # type: ignore
         "what item is it?",
@@ -93,12 +99,14 @@ def test_multimodal_dataframe() -> None:
         df_image, prompt=[df_image["question"], df_image["image"]]
     )
     answer_alt[["ml_generate_text_llm_result", "image"]]
+    # [END bigquery_dataframes_multimodal_dataframe_ml_text_alt]
 
+    # [START bigquery_dataframes_multimodal_dataframe_ml_embed]
     # Generate embeddings on images
     embed_model = llm.MultimodalEmbeddingGenerator()
     embeddings = embed_model.predict(df_image["image"])
     embeddings
-    # [END bigquery_dataframes_multimodal_dataframe_ai]
+    # [END bigquery_dataframes_multimodal_dataframe_ml_embed]
 
     # [START bigquery_dataframes_multimodal_dataframe_pdf_chunk]
     # PDF chunking

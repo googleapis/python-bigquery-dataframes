@@ -17,64 +17,66 @@ from __future__ import annotations
 import copy
 import dataclasses
 import datetime
+import io
 import itertools
 import os
 import typing
-from typing import Dict, Hashable, IO, Iterable, List, Optional, Sequence, Tuple
+from typing import (
+    Dict,
+    Generator,
+    Hashable,
+    IO,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    overload,
+    Sequence,
+    Tuple,
+)
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
-import google.auth.credentials
+from google.cloud import bigquery_storage_v1
 import google.cloud.bigquery as bigquery
-import google.cloud.bigquery.job
-import google.cloud.bigquery.table
-import google.cloud.bigquery_connection_v1
-import google.cloud.bigquery_storage_v1
-import google.cloud.functions_v2
-import google.cloud.resourcemanager_v3
+from google.cloud.bigquery_storage_v1 import types as bq_storage_types
 import pandas
-import pandas_gbq.schema.pandas_to_bigquery  # type: ignore
+import pyarrow as pa
 
-import bigframes.clients
-import bigframes.constants
+from bigframes.core import guid, local_data, utils
 import bigframes.core as core
 import bigframes.core.blocks as blocks
-import bigframes.core.compile
-import bigframes.core.expression as expression
-import bigframes.core.guid
-import bigframes.core.ordering
-import bigframes.core.pruning
 import bigframes.core.schema as schemata
-import bigframes.dataframe
 import bigframes.dtypes
-import bigframes.exceptions
 import bigframes.formatting_helpers as formatting_helpers
-import bigframes.operations
-import bigframes.operations.aggregations as agg_ops
+from bigframes.session import dry_runs
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
-import bigframes.session._io.pandas as bf_io_pandas
-import bigframes.session.anonymous_dataset
-import bigframes.session.clients
-import bigframes.session.executor
 import bigframes.session.metrics
-import bigframes.session.planner
 import bigframes.session.temporary_storage
 import bigframes.session.time as session_time
-import bigframes.version
 
 # Avoid circular imports.
 if typing.TYPE_CHECKING:
-    import bigframes.core.indexes
     import bigframes.dataframe as dataframe
-    import bigframes.series
     import bigframes.session
 
-_MAX_CLUSTER_COLUMNS = 4
 _PLACEHOLDER_SCHEMA = (
     google.cloud.bigquery.SchemaField("bf_loader_placeholder", "INTEGER"),
 )
+
+_LOAD_JOB_TYPE_OVERRIDES = {
+    # Json load jobs not supported yet: b/271321143
+    bigframes.dtypes.JSON_DTYPE: "STRING",
+    # Timedelta is emulated using integer in bq type system
+    bigframes.dtypes.TIMEDELTA_DTYPE: "INTEGER",
+}
+
+_STREAM_JOB_TYPE_OVERRIDES = {
+    # Timedelta is emulated using integer in bq type system
+    bigframes.dtypes.TIMEDELTA_DTYPE: "INTEGER",
+}
 
 
 def _to_index_cols(
@@ -89,6 +91,31 @@ def _to_index_cols(
         index_cols = list(index_col)
 
     return index_cols
+
+
+def _check_column_duplicates(index_cols: Iterable[str], columns: Iterable[str]):
+    index_cols_list = list(index_cols) if index_cols is not None else []
+    columns_list = list(columns) if columns is not None else []
+    set_index = set(index_cols_list)
+    set_columns = set(columns_list)
+
+    if len(index_cols_list) > len(set_index):
+        raise ValueError(
+            "The 'index_col' argument contains duplicate names. "
+            "All column names specified in 'index_col' must be unique."
+        )
+
+    if len(columns_list) > len(set_columns):
+        raise ValueError(
+            "The 'columns' argument contains duplicate names. "
+            "All column names specified in 'columns' must be unique."
+        )
+
+    if not set_index.isdisjoint(set_columns):
+        raise ValueError(
+            "Found column names that exist in both 'index_col' and 'columns' arguments. "
+            "These arguments must specify distinct sets of columns."
+        )
 
 
 @dataclasses.dataclass
@@ -119,6 +146,7 @@ class GbqDataLoader:
         self,
         session: bigframes.session.Session,
         bqclient: bigquery.Client,
+        write_client: bigquery_storage_v1.BigQueryWriteClient,
         storage_manager: bigframes.session.temporary_storage.TemporaryStorageManager,
         default_index_type: bigframes.enums.DefaultIndexKind,
         scan_index_uniqueness: bool,
@@ -126,6 +154,7 @@ class GbqDataLoader:
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
     ):
         self._bqclient = bqclient
+        self._write_client = write_client
         self._storage_manager = storage_manager
         self._default_index_type = default_index_type
         self._scan_index_uniqueness = scan_index_uniqueness
@@ -139,141 +168,184 @@ class GbqDataLoader:
         self._clock = session_time.BigQuerySyncedClock(bqclient)
         self._clock.sync()
 
-    def read_pandas_load_job(
-        self, pandas_dataframe: pandas.DataFrame, api_name: str
+    def read_pandas(
+        self,
+        pandas_dataframe: pandas.DataFrame,
+        method: Literal["load", "stream", "write"],
+        api_name: str,
     ) -> dataframe.DataFrame:
-        import bigframes.dataframe as dataframe
+        # TODO: Push this into from_pandas, along with index flag
+        from bigframes import dataframe
 
-        df_and_labels = bf_io_pandas.pandas_to_bq_compatible(pandas_dataframe)
-        pandas_dataframe_copy = df_and_labels.df
-        new_idx_ids = pandas_dataframe_copy.index.names
-        ordering_col = df_and_labels.ordering_col
-
-        # TODO(https://github.com/googleapis/python-bigquery-pandas/issues/760):
-        # Once pandas-gbq can show a link to the running load job like
-        # bigframes does, switch to using pandas-gbq to load the
-        # bigquery-compatible pandas DataFrame.
-        schema: list[
-            bigquery.SchemaField
-        ] = pandas_gbq.schema.pandas_to_bigquery.dataframe_to_bigquery_fields(
-            pandas_dataframe_copy,
-            index=True,
+        val_cols, idx_cols = utils.get_standardized_ids(
+            pandas_dataframe.columns, pandas_dataframe.index.names, strict=True
         )
-
-        job_config = bigquery.LoadJobConfig()
-        job_config.schema = schema
-
-        cluster_cols = [ordering_col]
-        job_config.clustering_fields = cluster_cols
-
-        job_config.labels = {"bigframes-api": api_name}
-        # Allow field addition, as we want to keep the clustered ordering_col field we already created
-        job_config.schema_update_options = [
-            google.cloud.bigquery.job.SchemaUpdateOption.ALLOW_FIELD_ADDITION
-        ]
-
-        load_table_destination = self._storage_manager.create_temp_table(
-            [google.cloud.bigquery.SchemaField(ordering_col, "INTEGER")], [ordering_col]
+        prepared_df = pandas_dataframe.reset_index(drop=False).set_axis(
+            [*idx_cols, *val_cols], axis="columns"
         )
-        load_job = self._bqclient.load_table_from_dataframe(
-            pandas_dataframe_copy,
-            load_table_destination,
-            job_config=job_config,
-        )
-        self._start_generic_job(load_job)
+        managed_data = local_data.ManagedArrowTable.from_pandas(prepared_df)
 
-        destination_table = self._bqclient.get_table(load_table_destination)
-        array_value = core.ArrayValue.from_table(
-            table=destination_table,
-            # TODO (b/394156190): Generate this directly from original pandas df.
-            schema=schemata.ArraySchema.from_bq_table(
-                destination_table, df_and_labels.col_type_overrides
-            ),
-            session=self._session,
-            offsets_col=ordering_col,
-        ).drop_columns([ordering_col])
+        if method == "load":
+            array_value = self.load_data(managed_data, api_name=api_name)
+        elif method == "stream":
+            array_value = self.stream_data(managed_data)
+        elif method == "write":
+            array_value = self.write_data(managed_data)
+        else:
+            raise ValueError(f"Unsupported read method {method}")
 
         block = blocks.Block(
             array_value,
-            index_columns=new_idx_ids,
-            column_labels=df_and_labels.column_labels,
-            index_labels=df_and_labels.index_labels,
+            index_columns=idx_cols,
+            column_labels=pandas_dataframe.columns,
+            index_labels=pandas_dataframe.index.names,
         )
         return dataframe.DataFrame(block)
 
-    def read_pandas_streaming(
-        self,
-        pandas_dataframe: pandas.DataFrame,
-    ) -> dataframe.DataFrame:
-        """Same as pandas_to_bigquery_load, but uses the BQ legacy streaming API."""
-        import bigframes.dataframe as dataframe
+    def load_data(
+        self, data: local_data.ManagedArrowTable, api_name: Optional[str] = None
+    ) -> core.ArrayValue:
+        """Load managed data into bigquery"""
+        ordering_col = guid.generate_guid("load_offsets_")
 
-        df_and_labels = bf_io_pandas.pandas_to_bq_compatible(pandas_dataframe)
-        pandas_dataframe_copy = df_and_labels.df
-        new_idx_ids = pandas_dataframe_copy.index.names
-        ordering_col = df_and_labels.ordering_col
+        # JSON support incomplete
+        for item in data.schema.items:
+            _validate_dtype_can_load(item.column, item.dtype)
 
-        # TODO(https://github.com/googleapis/python-bigquery-pandas/issues/300):
-        # Once pandas-gbq can do streaming inserts (again), switch to using
-        # pandas-gbq to write the bigquery-compatible pandas DataFrame.
-        schema: list[
-            bigquery.SchemaField
-        ] = pandas_gbq.schema.pandas_to_bigquery.dataframe_to_bigquery_fields(
-            pandas_dataframe_copy,
-            index=True,
+        schema_w_offsets = data.schema.append(
+            schemata.SchemaItem(ordering_col, bigframes.dtypes.INT_DTYPE)
+        )
+        bq_schema = schema_w_offsets.to_bigquery(_LOAD_JOB_TYPE_OVERRIDES)
+
+        job_config = bigquery.LoadJobConfig()
+        job_config.source_format = bigquery.SourceFormat.PARQUET
+
+        # Ensure we can load pyarrow.list_ / BQ ARRAY type.
+        # See internal issue 414374215.
+        parquet_options = bigquery.ParquetOptions()
+        parquet_options.enable_list_inference = True
+        job_config.parquet_options = parquet_options
+
+        job_config.schema = bq_schema
+        if api_name:
+            job_config.labels = {"bigframes-api": api_name}
+
+        load_table_destination = self._storage_manager.create_temp_table(
+            bq_schema, [ordering_col]
         )
 
-        destination = self._storage_manager.create_temp_table(
-            schema,
-            [ordering_col],
+        buffer = io.BytesIO()
+        data.to_parquet(
+            buffer,
+            offsets_col=ordering_col,
+            geo_format="wkt",
+            duration_type="duration",
+            json_type="string",
         )
-        destination_table = bigquery.Table(destination, schema=schema)
+        buffer.seek(0)
+        load_job = self._bqclient.load_table_from_file(
+            buffer, destination=load_table_destination, job_config=job_config
+        )
+        self._start_generic_job(load_job)
+        # must get table metadata after load job for accurate metadata
+        destination_table = self._bqclient.get_table(load_table_destination)
+        return core.ArrayValue.from_table(
+            table=destination_table,
+            schema=schema_w_offsets,
+            session=self._session,
+            offsets_col=ordering_col,
+            n_rows=data.data.num_rows,
+        ).drop_columns([ordering_col])
 
-        # `insert_rows_from_dataframe` does not include the DataFrame's index,
-        # so reset_index() is called first.
-        for errors in self._bqclient.insert_rows_from_dataframe(
-            destination_table,
-            pandas_dataframe_copy.reset_index(),
+    def stream_data(self, data: local_data.ManagedArrowTable) -> core.ArrayValue:
+        """Load managed data into bigquery"""
+        ordering_col = guid.generate_guid("stream_offsets_")
+        schema_w_offsets = data.schema.append(
+            schemata.SchemaItem(ordering_col, bigframes.dtypes.INT_DTYPE)
+        )
+        bq_schema = schema_w_offsets.to_bigquery(_STREAM_JOB_TYPE_OVERRIDES)
+        load_table_destination = self._storage_manager.create_temp_table(
+            bq_schema, [ordering_col]
+        )
+
+        rows = data.itertuples(
+            geo_format="wkt", duration_type="int", json_type="object"
+        )
+        rows_w_offsets = ((*row, offset) for offset, row in enumerate(rows))
+
+        for errors in self._bqclient.insert_rows(
+            load_table_destination,
+            rows_w_offsets,
+            selected_fields=bq_schema,
+            row_ids=map(str, itertools.count()),  # used to ensure only-once insertion
         ):
             if errors:
                 raise ValueError(
                     f"Problem loading at least one row from DataFrame: {errors}. {constants.FEEDBACK_LINK}"
                 )
-        array_value = (
-            core.ArrayValue.from_table(
-                table=destination_table,
-                schema=schemata.ArraySchema.from_bq_table(
-                    destination_table, df_and_labels.col_type_overrides
-                ),
-                session=self._session,
-                # Don't set the offsets column because we want to group by it.
+        destination_table = self._bqclient.get_table(load_table_destination)
+        return core.ArrayValue.from_table(
+            table=destination_table,
+            schema=schema_w_offsets,
+            session=self._session,
+            offsets_col=ordering_col,
+            n_rows=data.data.num_rows,
+        ).drop_columns([ordering_col])
+
+    def write_data(self, data: local_data.ManagedArrowTable) -> core.ArrayValue:
+        """Load managed data into bigquery"""
+        ordering_col = guid.generate_guid("stream_offsets_")
+        schema_w_offsets = data.schema.append(
+            schemata.SchemaItem(ordering_col, bigframes.dtypes.INT_DTYPE)
+        )
+        bq_schema = schema_w_offsets.to_bigquery(_STREAM_JOB_TYPE_OVERRIDES)
+        bq_table_ref = self._storage_manager.create_temp_table(
+            bq_schema, [ordering_col]
+        )
+
+        requested_stream = bq_storage_types.stream.WriteStream()
+        requested_stream.type_ = bq_storage_types.stream.WriteStream.Type.COMMITTED  # type: ignore
+
+        stream_request = bq_storage_types.CreateWriteStreamRequest(
+            parent=bq_table_ref.to_bqstorage(), write_stream=requested_stream
+        )
+        stream = self._write_client.create_write_stream(request=stream_request)
+
+        def request_gen() -> Generator[bq_storage_types.AppendRowsRequest, None, None]:
+            schema, batches = data.to_arrow(
+                offsets_col=ordering_col, duration_type="int"
             )
-            # There may be duplicate rows because of hidden retries, so use a query to
-            # deduplicate based on the ordering ID, which is guaranteed to be unique.
-            # We know that rows with same ordering ID are duplicates,
-            # so ANY_VALUE() is deterministic.
-            .aggregate(
-                by_column_ids=[ordering_col],
-                aggregations=[
-                    (
-                        expression.UnaryAggregation(
-                            agg_ops.AnyValueOp(),
-                            expression.deref(field.name),
-                        ),
-                        field.name,
-                    )
-                    for field in destination_table.schema
-                    if field.name != ordering_col
-                ],
-            ).drop_columns([ordering_col])
-        )
-        block = blocks.Block(
-            array_value,
-            index_columns=new_idx_ids,
-            column_labels=df_and_labels.column_labels,
-            index_labels=df_and_labels.index_labels,
-        )
-        return dataframe.DataFrame(block)
+            offset = 0
+            for batch in batches:
+                request = bq_storage_types.AppendRowsRequest(
+                    write_stream=stream.name, offset=offset
+                )
+                request.arrow_rows.writer_schema.serialized_schema = (
+                    schema.serialize().to_pybytes()
+                )
+                request.arrow_rows.rows.serialized_record_batch = (
+                    batch.serialize().to_pybytes()
+                )
+                offset += batch.num_rows
+                yield request
+
+        for response in self._write_client.append_rows(requests=request_gen()):
+            if response.row_errors:
+                raise ValueError(
+                    f"Problem loading at least one row from DataFrame: {response.row_errors}. {constants.FEEDBACK_LINK}"
+                )
+        # This step isn't strictly necessary in COMMITTED mode, but avoids max active stream limits
+        response = self._write_client.finalize_write_stream(name=stream.name)
+        assert response.row_count == data.data.num_rows
+
+        destination_table = self._bqclient.get_table(bq_table_ref)
+        return core.ArrayValue.from_table(
+            table=destination_table,
+            schema=schema_w_offsets,
+            session=self._session,
+            offsets_col=ordering_col,
+            n_rows=data.data.num_rows,
+        ).drop_columns([ordering_col])
 
     def _start_generic_job(self, job: formatting_helpers.GenericJob):
         if bigframes.options.display.progress_bar is not None:
@@ -283,18 +355,66 @@ class GbqDataLoader:
         else:
             job.result()
 
+    @overload
+    def read_gbq_table(  # type: ignore[overload-overlap]
+        self,
+        table_id: str,
+        *,
+        index_col: Iterable[str]
+        | str
+        | Iterable[int]
+        | int
+        | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        names: Optional[Iterable[str]] = ...,
+        max_results: Optional[int] = ...,
+        api_name: str = ...,
+        use_cache: bool = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        enable_snapshot: bool = ...,
+        dry_run: Literal[False] = ...,
+    ) -> dataframe.DataFrame:
+        ...
+
+    @overload
     def read_gbq_table(
         self,
-        query: str,
+        table_id: str,
         *,
-        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
+        index_col: Iterable[str]
+        | str
+        | Iterable[int]
+        | int
+        | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        names: Optional[Iterable[str]] = ...,
+        max_results: Optional[int] = ...,
+        api_name: str = ...,
+        use_cache: bool = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        enable_snapshot: bool = ...,
+        dry_run: Literal[True] = ...,
+    ) -> pandas.Series:
+        ...
+
+    def read_gbq_table(
+        self,
+        table_id: str,
+        *,
+        index_col: Iterable[str]
+        | str
+        | Iterable[int]
+        | int
+        | bigframes.enums.DefaultIndexKind = (),
         columns: Iterable[str] = (),
+        names: Optional[Iterable[str]] = None,
         max_results: Optional[int] = None,
-        api_name: str,
+        api_name: str = "read_gbq_table",
         use_cache: bool = True,
         filters: third_party_pandas_gbq.FiltersType = (),
         enable_snapshot: bool = True,
-    ) -> dataframe.DataFrame:
+        dry_run: bool = False,
+    ) -> dataframe.DataFrame | pandas.Series:
         import bigframes._tools.strings
         import bigframes.dataframe as dataframe
 
@@ -308,7 +428,7 @@ class GbqDataLoader:
             )
 
         table_ref = google.cloud.bigquery.table.TableReference.from_string(
-            query, default_project=self._bqclient.project
+            table_id, default_project=self._bqclient.project
         )
 
         columns = list(columns)
@@ -344,13 +464,39 @@ class GbqDataLoader:
                     f"Column '{key}' of `columns` not found in this table. Did you mean '{possibility}'?"
                 )
 
+        # TODO(b/408499371): check `names` work with `use_cols` for read_csv method.
+        if names is not None:
+            len_names = len(list(names))
+            len_columns = len(table.schema)
+            if len_names > len_columns:
+                raise ValueError(
+                    f"Too many columns specified: expected {len_columns}"
+                    f" and found {len_names}"
+                )
+            elif len_names < len_columns:
+                if (
+                    isinstance(index_col, bigframes.enums.DefaultIndexKind)
+                    or index_col != ()
+                ):
+                    raise KeyError(
+                        "When providing both `index_col` and `names`, ensure the "
+                        "number of `names` matches the number of columns in your "
+                        "data."
+                    )
+                index_col = range(len_columns - len_names)
+                names = [
+                    field.name for field in table.schema[: len_columns - len_names]
+                ] + list(names)
+
         # Converting index_col into a list of column names requires
         # the table metadata because we might use the primary keys
         # when constructing the index.
         index_cols = bf_read_gbq_table.get_index_cols(
             table=table,
             index_col=index_col,
+            names=names,
         )
+        _check_column_duplicates(index_cols, columns)
 
         for key in index_cols:
             if key not in table_column_names:
@@ -372,18 +518,14 @@ class GbqDataLoader:
         # clustered tables, so fallback to a query. We do this here so that
         # the index is consistent with tables that have primary keys, even
         # when max_results is set.
-        # TODO(b/338419730): We don't need to fallback to a query for wildcard
-        # tables if we allow some non-determinism when time travel isn't supported.
-        if max_results is not None or bf_io_bigquery.is_table_with_wildcard_suffix(
-            query
-        ):
+        if max_results is not None:
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.
             all_columns: Iterable[str] = (
                 itertools.chain(index_cols, columns) if columns else ()
             )
             query = bf_io_bigquery.to_query(
-                query,
+                table_id,
                 columns=all_columns,
                 sql_predicate=bf_io_bigquery.compile_filters(filters)
                 if filters
@@ -394,13 +536,18 @@ class GbqDataLoader:
                 time_travel_timestamp=None,
             )
 
-            return self.read_gbq_query(
+            df = self.read_gbq_query(  # type: ignore # for dry_run overload
                 query,
                 index_col=index_cols,
                 columns=columns,
-                api_name="read_gbq_table",
+                api_name=api_name,
                 use_cache=use_cache,
+                dry_run=dry_run,
             )
+            return df
+
+        if dry_run:
+            return dry_runs.get_table_stats(table)
 
         # -----------------------------------------
         # Validate table access and features
@@ -493,6 +640,15 @@ class GbqDataLoader:
             index_names = [None]
 
         value_columns = [col for col in array_value.column_ids if col not in index_cols]
+        if names is not None:
+            renamed_cols: Dict[str, str] = {
+                col: new_name for col, new_name in zip(array_value.column_ids, names)
+            }
+            index_names = [
+                renamed_cols.get(index_col, index_col) for index_col in index_cols
+            ]
+            value_columns = [renamed_cols.get(col, col) for col in value_columns]
+
         block = blocks.Block(
             array_value,
             index_columns=index_cols,
@@ -508,14 +664,12 @@ class GbqDataLoader:
             df.sort_index()
         return df
 
-    def read_bigquery_load_job(
+    def load_file(
         self,
         filepath_or_buffer: str | IO["bytes"],
         *,
         job_config: bigquery.LoadJobConfig,
-        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = (),
-        columns: Iterable[str] = (),
-    ) -> dataframe.DataFrame:
+    ) -> str:
         # Need to create session table beforehand
         table = self._storage_manager.create_temp_table(_PLACEHOLDER_SCHEMA)
         # but, we just overwrite the placeholder schema immediately with the load job
@@ -543,16 +697,39 @@ class GbqDataLoader:
 
         self._start_generic_job(load_job)
         table_id = f"{table.project}.{table.dataset_id}.{table.table_id}"
+        return table_id
 
-        # The BigQuery REST API for tables.get doesn't take a session ID, so we
-        # can't get the schema for a temp table that way.
+    @overload
+    def read_gbq_query(  # type: ignore[overload-overlap]
+        self,
+        query: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        configuration: Optional[Dict] = ...,
+        max_results: Optional[int] = ...,
+        api_name: str = ...,
+        use_cache: Optional[bool] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        dry_run: Literal[False] = ...,
+    ) -> dataframe.DataFrame:
+        ...
 
-        return self.read_gbq_table(
-            query=table_id,
-            index_col=index_col,
-            columns=columns,
-            api_name="read_gbq_table",
-        )
+    @overload
+    def read_gbq_query(
+        self,
+        query: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        configuration: Optional[Dict] = ...,
+        max_results: Optional[int] = ...,
+        api_name: str = ...,
+        use_cache: Optional[bool] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        dry_run: Literal[True] = ...,
+    ) -> pandas.Series:
+        ...
 
     def read_gbq_query(
         self,
@@ -565,7 +742,8 @@ class GbqDataLoader:
         api_name: str = "read_gbq_query",
         use_cache: Optional[bool] = None,
         filters: third_party_pandas_gbq.FiltersType = (),
-    ) -> dataframe.DataFrame:
+        dry_run: bool = False,
+    ) -> dataframe.DataFrame | pandas.Series:
         import bigframes.dataframe as dataframe
 
         configuration = _transform_read_gbq_configuration(configuration)
@@ -592,6 +770,7 @@ class GbqDataLoader:
             )
 
         index_cols = _to_index_cols(index_col)
+        _check_column_duplicates(index_cols, columns)
 
         filters_copy1, filters_copy2 = itertools.tee(filters)
         has_filters = len(list(filters_copy1)) != 0
@@ -608,6 +787,17 @@ class GbqDataLoader:
                 # We're executing the query, so we don't need time travel for
                 # determinism.
                 time_travel_timestamp=None,
+            )
+
+        if dry_run:
+            job_config = typing.cast(
+                bigquery.QueryJobConfig,
+                bigquery.QueryJobConfig.from_api_repr(configuration),
+            )
+            job_config.dry_run = True
+            query_job = self._bqclient.query(query, job_config=job_config)
+            return dry_runs.get_query_stats_with_inferred_dtypes(
+                query_job, list(columns), index_cols
             )
 
         # No cluster candidates as user query might not be clusterable (eg because of ORDER BY clause)
@@ -716,7 +906,6 @@ class GbqDataLoader:
         self,
         sql: str,
         job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
-        max_results: Optional[int] = None,
         timeout: Optional[float] = None,
         api_name: Optional[str] = None,
     ) -> Tuple[google.cloud.bigquery.table.RowIterator, bigquery.QueryJob]:
@@ -735,7 +924,6 @@ class GbqDataLoader:
             self._bqclient,
             sql,
             job_config=job_config,
-            max_results=max_results,
             timeout=timeout,
             api_name=api_name,
         )
@@ -763,3 +951,44 @@ def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:
         configuration["jobTimeoutMs"] = timeout_ms
 
     return configuration
+
+
+def _has_json_arrow_type(arrow_type: pa.DataType) -> bool:
+    """
+    Searches recursively for JSON array type within a PyArrow DataType.
+    """
+    if arrow_type == bigframes.dtypes.JSON_ARROW_TYPE:
+        return True
+    if pa.types.is_list(arrow_type):
+        return _has_json_arrow_type(arrow_type.value_type)
+    if pa.types.is_struct(arrow_type):
+        for i in range(arrow_type.num_fields):
+            if _has_json_arrow_type(arrow_type.field(i).type):
+                return True
+        return False
+    return False
+
+
+def _validate_dtype_can_load(name: str, column_type: bigframes.dtypes.Dtype):
+    """
+    Determines whether a datatype is supported by bq load jobs.
+
+    Due to a BigQuery IO limitation with loading JSON from Parquet files (b/374784249),
+    we're using a workaround: storing JSON as strings and then parsing them into JSON
+    objects.
+    TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
+
+    Raises:
+        NotImplementedError: Type is not yet supported by load jobs.
+    """
+    # we can handle top-level json, but not nested yet through string conversion
+    if column_type == bigframes.dtypes.JSON_DTYPE:
+        return
+
+    if isinstance(column_type, pandas.ArrowDtype) and _has_json_arrow_type(
+        column_type.pyarrow_dtype
+    ):
+        raise NotImplementedError(
+            f"Nested JSON types, found in column `{name}`: `{column_type}`', "
+            f"are currently unsupported for upload. {constants.FEEDBACK_LINK}"
+        )
