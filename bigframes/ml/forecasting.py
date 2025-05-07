@@ -81,14 +81,14 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
             Determines whether or not to perform automatic step change detection and adjustment in the model training pipeline.
 
         forecast_limit_upper_bound (float or None, default None):
-            The upper bound of the forecasting values. When you specify the FORECAST_LIMIT_UPPER_BOUND option, all of the forecast values must be less than the specified value.
-            For example, if you set FORECAST_LIMIT_UPPER_BOUND to 100, then all of the forecast values are less than 100.
-            Also, all values greater than or equal to the FORECAST_LIMIT_UPPER_BOUND value are excluded from modelling.
+            The upper bound of the forecasting values. When you specify the ``forecast_limit_upper_bound`` option, all of the forecast values must be less than the specified value.
+            For example, if you set ``forecast_limit_upper_bound`` to 100, then all of the forecast values are less than 100.
+            Also, all values greater than or equal to the ``forecast_limit_upper_bound`` value are excluded from modelling.
             The forecasting limit ensures that forecasts stay within limits.
 
         forecast_limit_lower_bound (float or None, default None):
-            The lower bound of the forecasting values where the minimum value allowed is 0. When you specify the FORECAST_LIMIT_LOWER_BOUND option, all of the forecast values must be greater than the specified value.
-            For example, if you set FORECAST_LIMIT_LOWER_BOUND to 0, then all of the forecast values are larger than 0. Also, all values less than or equal to the FORECAST_LIMIT_LOWER_BOUND value are excluded from modelling.
+            The lower bound of the forecasting values where the minimum value allowed is 0. When you specify the ``forecast_limit_lower_bound`` option, all of the forecast values must be greater than the specified value.
+            For example, if you set ``forecast_limit_lower_bound`` to 0, then all of the forecast values are larger than 0. Also, all values less than or equal to the ``forecast_limit_lower_bound`` value are excluded from modelling.
             The forecasting limit ensures that forecasts stay within limits.
 
         time_series_length_fraction (float or None, default None):
