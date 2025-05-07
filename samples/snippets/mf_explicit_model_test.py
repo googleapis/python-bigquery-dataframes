@@ -160,4 +160,3 @@ def test_explicit_matrix_factorization(random_model_id: str) -> None:
     #   2	        On Golden Pond (1981)	     Drama	            5.01198
     #   2	    Driving Miss Daisy (1989)	     Drama	            4.983671
     # [END bigquery_dataframes_bqml_mf_explicit_recommend_model]
-    pass
