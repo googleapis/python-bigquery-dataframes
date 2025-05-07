@@ -15,6 +15,69 @@
 
 def test_explicit_matrix_factorization(random_model_id: str) -> None:
     your_model_id = random_model_id
+
+    # [START bigframes_dataframes_bqml_mf_explicit_create_dataset]
+    import google.cloud.bigquery
+
+    bqclient = google.cloud.bigquery.Client()
+    bqclient.create_dataset("bqml_tutorial", exists_ok=True)
+    # [END bigframes_dataframes_bqml_mf_explicit_create_dataset]
+
+    # [START bigframes_dataframes_bqml_mf_explicit_upload_movielens]
+    import io
+    import zipfile
+
+    import google.api_core.exceptions
+    import requests
+
+    try:
+        # Check if you've already created the Movielens tables to avoid downloading
+        # and uploading the dataset unnecessarily.
+        bqclient.get_table("bqml_tutorial.ratings")
+        bqclient.get_table("bqml_tutorial.movies")
+    except google.api_core.exceptions.NotFound:
+        # Download the https://grouplens.org/datasets/movielens/1m/ dataset.
+        ml1m = requests.get("http://files.grouplens.org/datasets/movielens/ml-1m.zip")
+        ml1m_file = io.BytesIO(ml1m.content)
+        ml1m_zip = zipfile.ZipFile(ml1m_file)
+
+        # Upload the ratings data into the ratings table.
+        with ml1m_zip.open("ml-1m/ratings.dat") as ratings_file:
+            ratings_content = ratings_file.read()
+
+        ratings_csv = io.BytesIO(ratings_content.replace(b"::", b","))
+        ratings_config = google.cloud.bigquery.LoadJobConfig()
+        ratings_config.source_format = "CSV"
+        ratings_config.write_disposition = "WRITE_TRUNCATE"
+        ratings_config.schema = [
+            google.cloud.bigquery.SchemaField("user_id", "INT64"),
+            google.cloud.bigquery.SchemaField("item_id", "INT64"),
+            google.cloud.bigquery.SchemaField("rating", "FLOAT64"),
+            google.cloud.bigquery.SchemaField("timestamp", "TIMESTAMP"),
+        ]
+        bqclient.load_table_from_file(
+            ratings_csv, "bqml_tutorial.ratings", job_config=ratings_config
+        ).result()
+
+        # Upload the movie data into the movies table.
+        with ml1m_zip.open("ml-1m/movies.dat") as movies_file:
+            movies_content = movies_file.read()
+
+        movies_csv = io.BytesIO(movies_content.replace(b"::", b"@"))
+        movies_config = google.cloud.bigquery.LoadJobConfig()
+        movies_config.source_format = "CSV"
+        movies_config.field_delimiter = "@"
+        movies_config.write_disposition = "WRITE_TRUNCATE"
+        movies_config.schema = [
+            google.cloud.bigquery.SchemaField("movie_id", "INT64"),
+            google.cloud.bigquery.SchemaField("movie_title", "STRING"),
+            google.cloud.bigquery.SchemaField("genre", "STRING"),
+        ]
+        bqclient.load_table_from_file(
+            movies_csv, "bqml_tutorial.movies", job_config=movies_config
+        ).result()
+    # [END bigframes_dataframes_bqml_mf_explicit_upload_movielens]
+
     # [START bigframes_dataframes_bqml_mf_explicit_create]
     from bigframes.ml import decomposition
     import bigframes.pandas as bpd
