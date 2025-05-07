@@ -101,14 +101,14 @@ def test_explicit_matrix_factorization(random_model_id: str) -> None:
         your_model_id, replace=True  # For example: "bqml_tutorial.mf_explicit"
     )
     # [END bigquery_dataframes_bqml_mf_explicit_create]
-    # [START bigframes_dataframe_bqml_mf_explicit_evaluate]
+    # [START bigquery_dataframes_bqml_mf_explicit_evaluate]
     # Evaluate the model using the score() function
     model.score()
     # Output:
     # mean_absolute_error	mean_squared_error	mean_squared_log_error	median_absolute_error	r2_score	explained_variance
     # 0.485403	                0.395052	        0.025515	            0.390573	        0.68343	        0.68343
-    # [END bigframes_dataframe_bqml_mf_explicit_evaluate]
-    # [START bigframes_dataframe_bqml_mf_explicit_recommend_df]
+    # [END bigquery_dataframes_bqml_mf_explicit_evaluate]
+    # [START bigquery_dataframes_bqml_mf_explicit_recommend_df]
     # Use predict() to get the predicted rating for each movie for 5 users
     subset = bq_df.head(5)
     predicted = model.predict(subset)
@@ -120,8 +120,8 @@ def test_explicit_matrix_factorization(random_model_id: str) -> None:
     # 2	    2.679067	     5543	  920	     2.0
     # 3	    4.323458	     445	  3175	     5.0
     # 4	    3.476911	     5535	  235	     4.0
-    # [END bigframes_dataframe_bqml_mf_explicit_recommend_df]
-    # [START bigframes_dataframe_bqml_mf_explicit_recommend_model]
+    # [END bigquery_dataframes_bqml_mf_explicit_recommend_df]
+    # [START bigquery_dataframes_bqml_mf_explicit_recommend_model]
     # import bigframes.bigquery as bbq
 
     # Load movies
@@ -159,5 +159,5 @@ def test_explicit_matrix_factorization(random_model_id: str) -> None:
     #   2	        Gladiator (2000)	      Action|Drama	        5.066372
     #   2	        On Golden Pond (1981)	     Drama	            5.01198
     #   2	    Driving Miss Daisy (1989)	     Drama	            4.983671
-    # [END bigframes_dataframe_bqml_mf_explicit_recommend_model]
+    # [END bigquery_dataframes_bqml_mf_explicit_recommend_model]
     pass
