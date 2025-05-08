@@ -19,10 +19,11 @@
 
 from __future__ import annotations
 
-from typing import List
-from unittest import mock
+from typing import Any, Dict, List
 
 import pytest
+
+import bigframes.core.pyformat as pyformat
 
 
 @pytest.mark.parametrize(
@@ -39,87 +40,47 @@ import pytest
     ),
 )
 def test_parse_fields(sql_template: str, expected: List[str]):
-    import bigframes.core.pyformat
-
-    fields = bigframes.core.pyformat._parse_fields(sql_template)
+    fields = pyformat._parse_fields(sql_template)
     fields.sort()
     expected.sort()
     assert fields == expected
 
 
-@pytest.mark.usefixtures("mock_credentials")
-def test_pyformat_with_unsupported_type_raises_typeerror(ipython_ns_cleanup):
-    globalipapp.start_ipython()
-    ip = globalipapp.get_ipython()
-    ip.extension_manager.load_extension("bigquery_magics")
-    ipython_ns_cleanup.extend(
-        [
-            (ip, "my_object"),
-        ]
-    )
-    ip.user_ns["my_object"] = object()
-
+def test_pyformat_with_unsupported_type_raises_typeerror():
+    pyformat_args = {"my_object": object()}
     sql = "SELECT {my_object}"
 
     with pytest.raises(TypeError, match="my_object has unsupported type: "):
-        ip.run_cell_magic("bigquery", "--pyformat", sql)
+        pyformat.pyformat(sql, pyformat_args=pyformat_args)
 
 
-@pytest.mark.usefixtures("mock_credentials")
 def test_pyformat_with_missing_variable_raises_keyerror():
-    globalipapp.start_ipython()
-    ip = globalipapp.get_ipython()
-    ip.extension_manager.load_extension("bigquery_magics")
-
+    pyformat_args: Dict[str, Any] = {}
     sql = "SELECT {my_object}"
 
     with pytest.raises(KeyError, match="my_object"):
-        ip.run_cell_magic("bigquery", "--pyformat", sql)
+        pyformat.pyformat(sql, pyformat_args=pyformat_args)
 
 
-@pytest.mark.usefixtures("mock_credentials")
 def test_pyformat_with_no_variables():
-    globalipapp.start_ipython()
-    ip = globalipapp.get_ipython()
-    ip.extension_manager.load_extension("bigquery_magics")
-
-    run_query_patch = mock.patch("bigquery_magics.bigquery._run_query", autospec=True)
-
+    pyformat_args: Dict[str, Any] = {}
     sql = "SELECT '{{escaped curly brackets}}'"
     expected_sql = "SELECT '{escaped curly brackets}'"
-
-    with run_query_patch as run_query_mock:
-        ip.run_cell_magic("bigquery", "--pyformat", sql)
-        run_query_mock.assert_called_once_with(mock.ANY, expected_sql, mock.ANY)
+    got_sql = pyformat.pyformat(sql, pyformat_args=pyformat_args)
+    assert got_sql == expected_sql
 
 
-@pytest.mark.usefixtures("mock_credentials")
-def test_pyformat_with_query_string_replaces_variables(ipython_ns_cleanup):
-    globalipapp.start_ipython()
-    ip = globalipapp.get_ipython()
-    ip.extension_manager.load_extension("bigquery_magics")
-    ipython_ns_cleanup.extend(
-        [
-            # String
-            (ip, "project"),
-            (ip, "dataset"),
-            (ip, "table"),
-            (ip, "my_string"),
-            # Float
-            (ip, "max_value"),
-            # Integer
-            (ip, "year"),
-            # Unused, unsupported types shouldn't raise.
-            (ip, "my_object"),
-        ]
-    )
-    ip.user_ns["project"] = "pyformat-project"
-    ip.user_ns["dataset"] = "pyformat_dataset"
-    ip.user_ns["table"] = "pyformat_table"
-    ip.user_ns["my_string"] = "some string value"
-    ip.user_ns["max_value"] = 2.25
-    ip.user_ns["year"] = 2025
-    ip.user_ns["my_object"] = object()
+def test_pyformat_with_query_string_replaces_variables():
+    pyformat_args = {
+        "project": "pyformat-project",
+        "dataset": "pyformat_dataset",
+        "table": "pyformat_table",
+        "my_string": "some string value",
+        "max_value": 2.25,
+        "year": 2025,
+        # Unreferenced values of unsupported type shouldn't cause issues.
+        "my_object": object(),
+    }
 
     sql = """
     SELECT {year} - year  AS age,
@@ -127,7 +88,8 @@ def test_pyformat_with_query_string_replaces_variables(ipython_ns_cleanup):
     '{{my_string}}' AS escaped_string,
     FROM `{project}.{dataset}.{table}`
     WHERE height < {max_value}
-    """
+    """.strip()
+
     expected_sql = """
     SELECT 2025 - year  AS age,
     @myparam AS myparam,
@@ -136,56 +98,5 @@ def test_pyformat_with_query_string_replaces_variables(ipython_ns_cleanup):
     WHERE height < 2.25
     """.strip()
 
-    run_query_patch = mock.patch("bigquery_magics.bigquery._run_query", autospec=True)
-
-    with run_query_patch as run_query_mock:
-        ip.run_cell_magic("bigquery", "--pyformat --params {'myparam': 42}", sql)
-        run_query_mock.assert_called_once_with(mock.ANY, expected_sql, mock.ANY)
-
-
-@pytest.mark.usefixtures("mock_credentials")
-def test_pyformat_with_query_dollar_variable_replaces_variables(ipython_ns_cleanup):
-    globalipapp.start_ipython()
-    ip = globalipapp.get_ipython()
-    ip.extension_manager.load_extension("bigquery_magics")
-
-    ipython_ns_cleanup.extend(
-        [
-            (ip, "custom_query"),
-            (ip, "my_string"),
-        ]
-    )
-    run_query_patch = mock.patch("bigquery_magics.bigquery._run_query", autospec=True)
-
-    sql = "SELECT 42, '{my_string}'"
-    expected_sql = "SELECT 42, 'This is a test'"
-    ip.user_ns["my_string"] = "This is a test"
-    ip.user_ns["custom_query"] = sql
-
-    cell_body = "$custom_query"  # Referring to an existing variable name (custom_query)
-
-    with run_query_patch as run_query_mock:
-        ip.run_cell_magic("bigquery", "--pyformat", cell_body)
-        run_query_mock.assert_called_once_with(mock.ANY, expected_sql, mock.ANY)
-
-
-@pytest.mark.usefixtures("mock_credentials")
-def test_without_pyformat_doesnt_modify_curly_brackets(ipython_ns_cleanup):
-    globalipapp.start_ipython()
-    ip = globalipapp.get_ipython()
-    ip.extension_manager.load_extension("bigquery_magics")
-
-    ipython_ns_cleanup.extend(
-        [
-            (ip, "my_string"),
-        ]
-    )
-    run_query_patch = mock.patch("bigquery_magics.bigquery._run_query", autospec=True)
-
-    sql = "SELECT 42, '{my_string}'"
-    expected_sql = "SELECT 42, '{my_string}'"  # No pyformat means no escaping needed.
-    ip.user_ns["my_string"] = "This is a test"
-
-    with run_query_patch as run_query_mock:
-        ip.run_cell_magic("bigquery", "", sql)
-        run_query_mock.assert_called_once_with(mock.ANY, expected_sql, mock.ANY)
+    got_sql = pyformat.pyformat(sql, pyformat_args=pyformat_args)
+    assert got_sql == expected_sql

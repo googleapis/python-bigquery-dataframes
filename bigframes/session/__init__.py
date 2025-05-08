@@ -61,6 +61,7 @@ from bigframes import version
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
 from bigframes.core import blocks
+import bigframes.core.pyformat
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
 # to register new and replacement ops with the Ibis BigQuery backend.
@@ -500,10 +501,18 @@ class Session(
                 None, this function always assumes {var} refers to a variable
                 that is supposed to be supplied in this dictionary.
         """
+        # TODO: Allow for a table ID to avoid queries like with read_gbq?
+
         if pyformat_args is None:
             pyformat_args = {}
 
-        # TODO: Allow for a table ID to avoid queries like with read_gbq?
+        # TODO: move this to read_gbq_query if/when we expose this feature
+        # beyond in _read_gbq_colab.
+        query = bigframes.core.pyformat.pyformat(
+            query,
+            pyformat_args=pyformat_args,
+        )
+
         return self._loader.read_gbq_query(
             query=query,
             index_col=bigframes.enums.DefaultIndexKind.NULL,

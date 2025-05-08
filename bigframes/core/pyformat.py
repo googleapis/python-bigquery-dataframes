@@ -51,7 +51,13 @@ def _parse_fields(sql_template: str) -> list[str]:
     ]
 
 
-def pyformat(sql_template: str, pyformat_args: dict) -> str:
+def pyformat(
+    sql_template: str,
+    *,
+    pyformat_args: dict,
+    # TODO: add dry_run parameter to avoid expensive API calls in conversion
+    # TODO: and session to upload data / convert to table if necessary
+) -> str:
     """Unsafe Python-style string formatting of SQL string.
 
     Only some data types supported.
