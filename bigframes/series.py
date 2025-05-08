@@ -1538,7 +1538,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         return Series(block)
 
-    @typing.overload
+    @typing.overload  # type: ignore[override]
     def sort_values(
         self,
         *,
@@ -1588,7 +1588,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         else:
             return Series(block)
 
-    @typing.overload
+    @typing.overload  # type: ignore[override]
     def sort_index(
         self, *, axis=..., inplace: Literal[False] = ..., ascending=..., na_position=...
     ) -> Series:

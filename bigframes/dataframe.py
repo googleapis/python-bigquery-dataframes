@@ -2234,7 +2234,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         col_ids_strs: List[str] = [col_id for col_id in col_ids if col_id is not None]
         return DataFrame(self._block.set_index(col_ids_strs, append=append, drop=drop))
 
-    @overload
+    @overload  # type: ignore[override]
     def sort_index(
         self,
         *,
@@ -2279,7 +2279,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             return DataFrame(block)
 
-    @overload
+    @overload  # type: ignore[override]
     def sort_values(
         self,
         by: str | typing.Sequence[str],

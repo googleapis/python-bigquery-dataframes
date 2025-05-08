@@ -1508,7 +1508,7 @@ class Series(NDFrame):  # type: ignore[misc]
         ascending: bool | int | Sequence[bool] | Sequence[int] = True,
         kind: str = "quicksort",
         na_position: str = "last",
-    ) -> Series | None:
+    ):
         """
         Sort by the values.
 
@@ -1607,7 +1607,7 @@ class Series(NDFrame):  # type: ignore[misc]
         inplace: bool = False,
         ascending: bool | Sequence[bool] = True,
         na_position: NaPosition = "last",
-    ) -> Series | None:
+    ):
         """
         Sort Series by index labels.
 

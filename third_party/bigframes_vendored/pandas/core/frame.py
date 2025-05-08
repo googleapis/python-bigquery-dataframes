@@ -2216,8 +2216,8 @@ class DataFrame(generic.NDFrame):
         inplace: bool = False,
         ascending: bool | Sequence[bool] = True,
         kind: str = "quicksort",
-        na_position="last",
-    ) -> Optional[DataFrame]:
+        na_position: Literal["first", "last"] = "last",
+    ):
         """Sort by the values along row axis.
 
         **Examples:**
@@ -2327,7 +2327,7 @@ class DataFrame(generic.NDFrame):
         ascending: bool = True,
         inplace: bool = False,
         na_position: Literal["first", "last"] = "last",
-    ) -> Optional[DataFrame]:
+    ):
         """Sort object by labels (along an axis).
 
         Args:
