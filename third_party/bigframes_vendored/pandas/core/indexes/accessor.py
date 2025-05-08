@@ -336,7 +336,7 @@ class DatetimeProperties:
         """
 
     @property
-    def micrseconds(self):
+    def microseconds(self):
         """Number of microseconds (>= 0 and less than 1 second) for each element.
 
         **Examples:**
@@ -348,7 +348,7 @@ class DatetimeProperties:
             >>> s
             0    4 days 00:03:02.000001
             dtype: duration[us][pyarrow]
-            >>> s.dt.seconds
+            >>> s.dt.microseconds
             0    1
             dtype: Int64
         """
