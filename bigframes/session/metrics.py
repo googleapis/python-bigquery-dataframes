@@ -40,8 +40,11 @@ class ExecutionMetrics:
     ):
         if query_job is None:
             assert row_iterator is not None
-            if (row_iterator.total_bytes_processed is None) or (
-                row_iterator.query is None
+            if (
+                not hasattr(row_iterator, "total_bytes_processed")
+                or not hasattr(row_iterator, "query")
+                or (row_iterator.total_bytes_processed is None)
+                or (row_iterator.query is None)
             ):
                 return
             query_char_count = len(row_iterator.query)
