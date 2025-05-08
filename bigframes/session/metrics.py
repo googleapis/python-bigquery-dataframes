@@ -41,9 +41,10 @@ class ExecutionMetrics:
         if query_job is None:
             assert row_iterator is not None
             if (
-                (total_bytes_processed := getattr(row_iterator, "total_bytes_processed", None)) is None
-                or (query := getattr(row_iterator, "query", None)) is None
-            ):
+                total_bytes_processed := getattr(
+                    row_iterator, "total_bytes_processed", None
+                )
+            ) is None or (query := getattr(row_iterator, "query", None)) is None:
                 return
             query_char_count = len(row_iterator.query)
             bytes_processed = row_iterator.total_bytes_processed
