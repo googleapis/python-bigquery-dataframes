@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Iterable, Iterator
+import itertools
+from typing import Iterable, Iterator, Optional
 
 import pyarrow as pa
 
@@ -85,3 +86,23 @@ def truncate_pyarrow_iterable(
         else:
             yield batch
             total_yielded += batch.num_rows
+
+
+def peek_batches(
+    batch_iter: Iterable[pa.RecordBatch], max_bytes: int
+) -> tuple[Iterator[pa.RecordBatch], Optional[tuple[pa.RecordBatch, ...]]]:
+    """
+    Try to peek a pyarrow batch iterable. If greater than max_bytes, give up.
+
+    Will consume max_bytes + one batch of memory at worst.
+    """
+    batch_list = []
+    current_bytes = 0
+    for batch in batch_iter:
+        batch_list.append(batch)
+        current_bytes += batch.nbytes
+
+        if current_bytes > max_bytes:
+            return itertools.chain(batch_list, batch_iter), None
+
+    return iter(batch_list), tuple(batch_list)
