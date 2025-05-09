@@ -95,7 +95,7 @@ class Index(vendored_pandas_index.Index):
         if len(block._index_columns) > 1:
             from bigframes.core.indexes.multi import MultiIndex
 
-            klass = MultiIndex
+            klass: type[Index] = MultiIndex # type hint to make mypy happy
         elif dtypes.is_datetime_like(block.index.dtypes[0]):
             from bigframes.core.indexes.datetimes import DatetimeIndex
 
