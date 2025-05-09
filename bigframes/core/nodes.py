@@ -704,14 +704,19 @@ class GbqTable:
     physical_schema: Tuple[bq.SchemaField, ...] = dataclasses.field()
     is_physically_stored: bool = dataclasses.field()
     cluster_cols: typing.Optional[Tuple[str, ...]]
+    pseudocolumns: Tuple[bq.SchemaField, ...] = dataclasses.field()
 
     @staticmethod
     def from_table(table: bq.Table, columns: Sequence[str] = ()) -> GbqTable:
+        import bigframes.core.tools.bigquery  # Avoid circular imports.
+
         # Subsetting fields with columns can reduce cost of row-hash default ordering
+        table_schema = table.schema
+
         if columns:
-            schema = tuple(item for item in table.schema if item.name in columns)
+            schema = tuple(item for item in table_schema if item.name in columns)
         else:
-            schema = tuple(table.schema)
+            schema = tuple(table_schema)
         return GbqTable(
             project_id=table.project,
             dataset_id=table.dataset_id,
@@ -721,6 +726,7 @@ class GbqTable:
             cluster_cols=None
             if table.clustering_fields is None
             else tuple(table.clustering_fields),
+            pseudocolumns=tuple(bigframes.core.tools.bigquery.get_pseudocolumns(table)),
         )
 
     def get_table_ref(self) -> bq.TableReference:
@@ -731,7 +737,10 @@ class GbqTable:
     @property
     @functools.cache
     def schema_by_id(self):
-        return {col.name: col for col in self.physical_schema}
+        return {
+            col.name: col
+            for col in itertools.chain(self.physical_schema, self.pseudocolumns)
+        }
 
 
 @dataclasses.dataclass(frozen=True)
@@ -762,7 +771,14 @@ class ReadTableNode(LeafNode):
 
     def _validate(self):
         # enforce invariants
-        physical_names = set(map(lambda i: i.name, self.source.table.physical_schema))
+        physical_names = set(
+            map(
+                lambda i: i.name,
+                itertools.chain(
+                    self.source.table.physical_schema, self.source.table.pseudocolumns
+                ),
+            )
+        )
         if not set(scan.source_id for scan in self.scan_list.items).issubset(
             physical_names
         ):

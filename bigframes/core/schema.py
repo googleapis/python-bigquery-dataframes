@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import functools
+import itertools
 import typing
 from typing import Sequence
 
@@ -48,15 +49,24 @@ class ArraySchema:
             typing.Dict[str, bigframes.dtypes.Dtype]
         ] = None,
     ):
+        # Avoid circular imports.
+        import bigframes.core.tools.bigquery
+
         if column_type_overrides is None:
             column_type_overrides = {}
-        items = tuple(
+        items = [
             SchemaItem(name, column_type_overrides.get(name, dtype))
             for name, dtype in bigframes.dtypes.bf_type_from_type_kind(
-                table.schema
+                list(
+                    itertools.chain(
+                        table.schema,
+                        bigframes.core.tools.bigquery.get_pseudocolumns(table),
+                    )
+                )
             ).items()
-        )
-        return ArraySchema(items)
+        ]
+
+        return ArraySchema(tuple(items))
 
     @property
     def names(self) -> typing.Tuple[str, ...]:

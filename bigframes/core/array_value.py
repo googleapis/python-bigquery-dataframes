@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import datetime
 import functools
 import typing
-from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 import warnings
 
 import google.cloud.bigquery
@@ -176,10 +176,15 @@ class ArrayValue:
         self: ArrayValue,
         cache_table: google.cloud.bigquery.Table,
         ordering: Optional[orderings.RowOrdering],
+        *,
+        renames: Optional[Dict[str, str]] = None,
     ) -> ArrayValue:
         """
         Replace the node with an equivalent one that references a table where the value has been materialized to.
         """
+        if renames is None:
+            renames = {}
+
         table = nodes.GbqTable.from_table(cache_table)
         source = nodes.BigqueryDataSource(
             table, ordering=ordering, n_rows=cache_table.num_rows
@@ -187,7 +192,11 @@ class ArrayValue:
         # Assumption: GBQ cached table uses field name as bq column name
         scan_list = nodes.ScanList(
             tuple(
-                nodes.ScanItem(field.id, field.dtype, field.id.name)
+                nodes.ScanItem(
+                    field.id,
+                    field.dtype,
+                    renames.get(field.id.name, field.id.name),
+                )
                 for field in self.node.fields
             )
         )
