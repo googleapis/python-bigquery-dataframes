@@ -42,10 +42,23 @@ except ImportError:
     to_wkt = dumps
 
 
+SIMPLE_LITERAL_TYPES = Union[
+    None,
+    bytes,
+    str,
+    int,
+    bool,
+    float,
+    datetime.datetime,
+    datetime.date,
+    datetime.time,
+    decimal.Decimal,
+    list,
+]
+
+
 ### Writing SQL Values (literals, column references, table references, etc.)
-def simple_literal(
-    value: bytes | str | int | bool | float | datetime.datetime | list | None,
-):
+def simple_literal(value: SIMPLE_LITERAL_TYPES) -> str:
     """Return quoted input string."""
 
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#literals

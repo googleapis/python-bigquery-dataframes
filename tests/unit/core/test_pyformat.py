@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+import google.cloud.bigquery
+import google.cloud.bigquery.table
 import pytest
 
 import bigframes.core.pyformat as pyformat
@@ -72,9 +74,6 @@ def test_pyformat_with_no_variables():
 
 def test_pyformat_with_query_string_replaces_variables():
     pyformat_args = {
-        "project": "pyformat-project",
-        "dataset": "pyformat_dataset",
-        "table": "pyformat_table",
         "my_string": "some string value",
         "max_value": 2.25,
         "year": 2025,
@@ -86,7 +85,8 @@ def test_pyformat_with_query_string_replaces_variables():
     SELECT {year} - year  AS age,
     @myparam AS myparam,
     '{{my_string}}' AS escaped_string,
-    FROM `{project}.{dataset}.{table}`
+    {my_string} AS my_string,
+    FROM my_dataset.my_table
     WHERE height < {max_value}
     """.strip()
 
@@ -94,9 +94,49 @@ def test_pyformat_with_query_string_replaces_variables():
     SELECT 2025 - year  AS age,
     @myparam AS myparam,
     '{my_string}' AS escaped_string,
-    FROM `pyformat-project.pyformat_dataset.pyformat_table`
+    'some string value' AS my_string,
+    FROM my_dataset.my_table
     WHERE height < 2.25
     """.strip()
 
+    got_sql = pyformat.pyformat(sql, pyformat_args=pyformat_args)
+    assert got_sql == expected_sql
+
+
+@pytest.mark.parametrize(
+    ("table", "expected_sql"),
+    (
+        (
+            google.cloud.bigquery.Table("my-project.my_dataset.my_table"),
+            "SELECT * FROM `my-project`.`my_dataset`.`my_table`",
+        ),
+        (
+            google.cloud.bigquery.TableReference(
+                google.cloud.bigquery.DatasetReference("some-project", "some_dataset"),
+                "some_table",
+            ),
+            "SELECT * FROM `some-project`.`some_dataset`.`some_table`",
+        ),
+        (
+            google.cloud.bigquery.table.TableListItem(
+                {
+                    "tableReference": {
+                        "projectId": "ListedProject",
+                        "datasetId": "ListedDataset",
+                        "tableId": "ListedTable",
+                    }
+                }
+            ),
+            "SELECT * FROM `ListedProject`.`ListedDataset`.`ListedTable`",
+        ),
+    ),
+)
+def test_pyformat_with_table_replaces_variables(table, expected_sql):
+    pyformat_args = {
+        "table": table,
+        # Unreferenced values of unsupported type shouldn't cause issues.
+        "my_object": object(),
+    }
+    sql = "SELECT * FROM {table}"
     got_sql = pyformat.pyformat(sql, pyformat_args=pyformat_args)
     assert got_sql == expected_sql

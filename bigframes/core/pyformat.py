@@ -19,27 +19,49 @@
 
 from __future__ import annotations
 
-import numbers
 import string
-from typing import Any
+import typing
+from typing import Any, Union
+
+import google.cloud.bigquery
+import google.cloud.bigquery.table
+
+_BQ_TABLE_TYPES = Union[
+    google.cloud.bigquery.Table,
+    google.cloud.bigquery.TableReference,
+    google.cloud.bigquery.table.TableListItem,
+]
 
 
-def _field_to_template_value(name: str, value: Any) -> Any:
-    """Convert value to something embeddable in a SQL string.
+def _table_to_sql(table: _BQ_TABLE_TYPES) -> str:
+    return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
 
-    Does **not** escape strings.
-    """
+
+def _field_to_template_value(name: str, value: Any) -> str:
+    """Convert value to something embeddable in a SQL string."""
+    import bigframes.core.sql  # Avoid circular imports
+
     _validate_type(name, value)
+
+    table_types = typing.get_args(_BQ_TABLE_TYPES)
+    if isinstance(value, table_types):
+        return _table_to_sql(value)
+
     # TODO(tswast): convert DataFrame objects to gbq tables or a literals subquery.
-    return value
+    return bigframes.core.sql.simple_literal(value)
 
 
 def _validate_type(name: str, value: Any):
     """Raises TypeError if value is unsupported."""
-    if not isinstance(value, (str, numbers.Real)):
+    import bigframes.core.sql  # Avoid circular imports
+
+    supported_types = typing.get_args(_BQ_TABLE_TYPES) + typing.get_args(
+        bigframes.core.sql.SIMPLE_LITERAL_TYPES
+    )
+    if not isinstance(value, supported_types):
         raise TypeError(
             f"{name} has unsupported type: {type(value)}. "
-            "Only str, int, float are supported."
+            f"Only {supported_types} are supported."
         )
 
 
