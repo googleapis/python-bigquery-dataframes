@@ -29,6 +29,20 @@ def test_to_pandas_batches_raise_when_large_result_not_allowed(session):
         next(df.to_pandas_batches(page_size=500, max_results=1500))
 
 
+def test_to_pandas_batches_override_global_option(
+    session,
+):
+    with bigframes.option_context(LARGE_TABLE_OPTION, False):
+        df = session.read_gbq(WIKIPEDIA_TABLE)
+        pages = list(
+            df.to_pandas_batches(
+                page_size=500, max_results=1500, allow_large_results=True
+            )
+        )
+        assert all((len(page) <= 500) for page in pages)
+        assert sum(len(page) for page in pages) == 1500
+
+
 def test_to_pandas_raise_when_large_result_not_allowed(session):
     with bigframes.option_context(LARGE_TABLE_OPTION, False), pytest.raises(
         google.api_core.exceptions.Forbidden
