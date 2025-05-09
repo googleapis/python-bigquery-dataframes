@@ -444,7 +444,6 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
                 "gemini-2.0-flash-exp",
                 "gemini-2.0-flash-001",
                 "gemini-2.0-flash-lite-001",
-                "gemini-2.5-pro-preview-05-06",
             ]
         ] = None,
         session: Optional[bigframes.Session] = None,
