@@ -16,12 +16,21 @@
 
 from __future__ import annotations
 
+from bigframes_vendored.pandas.core.indexes import (
+    datetimes as vendored_pandas_datetime_index,
+)
+
 from bigframes.core import expression as ex
 from bigframes.core.indexes.base import Index
 from bigframes.operations import date_ops
 
 
-class DatetimeIndex(Index):
+class DatetimeIndex(Index, vendored_pandas_datetime_index.DatetimeIndex):
+    __doc__ = vendored_pandas_datetime_index.DatetimeIndex.__doc__
+
+    # Must be above 5000 for pandas to delegate to bigframes for binops
+    __pandas_priority__ = 12000
+
     @property
     def year(self) -> Index:
         return self._apply_unary_expr(date_ops.year_op.as_expr(ex.free_var("arg")))
