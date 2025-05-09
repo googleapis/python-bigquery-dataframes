@@ -55,6 +55,9 @@ def _validate_type(name: str, value: Any):
     """Raises TypeError if value is unsupported."""
     import bigframes.core.sql  # Avoid circular imports
 
+    if value is None:
+        return  # None can't be used in isinstance, but is a valid literal.
+
     supported_types = typing.get_args(_BQ_TABLE_TYPES) + typing.get_args(
         bigframes.core.sql.SIMPLE_LITERAL_TYPES
     )

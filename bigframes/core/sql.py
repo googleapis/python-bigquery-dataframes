@@ -43,7 +43,6 @@ except ImportError:
 
 
 SIMPLE_LITERAL_TYPES = Union[
-    None,
     bytes,
     str,
     int,
@@ -58,7 +57,7 @@ SIMPLE_LITERAL_TYPES = Union[
 
 
 ### Writing SQL Values (literals, column references, table references, etc.)
-def simple_literal(value: SIMPLE_LITERAL_TYPES) -> str:
+def simple_literal(value: Union[SIMPLE_LITERAL_TYPES, None]) -> str:
     """Return quoted input string."""
 
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#literals

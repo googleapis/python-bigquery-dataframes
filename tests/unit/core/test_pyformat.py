@@ -77,6 +77,7 @@ def test_pyformat_with_query_string_replaces_variables():
         "my_string": "some string value",
         "max_value": 2.25,
         "year": 2025,
+        "null_value": None,
         # Unreferenced values of unsupported type shouldn't cause issues.
         "my_object": object(),
     }
@@ -86,6 +87,7 @@ def test_pyformat_with_query_string_replaces_variables():
     @myparam AS myparam,
     '{{my_string}}' AS escaped_string,
     {my_string} AS my_string,
+    {null_value} AS null_value,
     FROM my_dataset.my_table
     WHERE height < {max_value}
     """.strip()
@@ -95,6 +97,7 @@ def test_pyformat_with_query_string_replaces_variables():
     @myparam AS myparam,
     '{my_string}' AS escaped_string,
     'some string value' AS my_string,
+    NULL AS null_value,
     FROM my_dataset.my_table
     WHERE height < 2.25
     """.strip()
