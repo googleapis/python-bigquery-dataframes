@@ -96,7 +96,7 @@ class Index(vendored_pandas_index.Index):
             from bigframes.core.indexes.multi import MultiIndex
 
             klass: type[Index] = MultiIndex  # type hint to make mypy happy
-        elif dtypes.is_datetime_like(block.index.dtypes[0]):
+        elif _should_create_datetime_index(block):
             from bigframes.core.indexes.datetimes import DatetimeIndex
 
             klass = DatetimeIndex
@@ -561,3 +561,10 @@ class Index(vendored_pandas_index.Index):
 
     def __len__(self):
         return self.shape[0]
+
+
+def _should_create_datetime_index(block: blocks.Block) -> bool:
+    if len(block.index.dtypes) != 1:
+        return False
+
+    return dtypes.is_datetime_like(block.index.dtypes[0])
