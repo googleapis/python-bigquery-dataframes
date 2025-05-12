@@ -21,6 +21,7 @@ import warnings
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
+import typing_extensions
 
 from bigframes import dtypes, exceptions
 import bigframes.bigquery as bbq
@@ -113,9 +114,16 @@ _GEMINI_MULTIMODAL_MODEL_NOT_SUPPORTED_WARNING = (
 )
 
 
+@typing_extensions.deprecated(
+    "text-embedding-004 is going to be deprecated. Use text-embedding-005 (https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead. ",
+    category=exceptions.ApiDeprecationWarning,
+)
 @log_adapter.class_logger
 class TextEmbeddingGenerator(base.RetriableRemotePredictor):
     """Text embedding generator LLM model.
+
+    .. note::
+        text-embedding-004 is going to be deprecated. Use text-embedding-005(    https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead.
 
     Args:
         model_name (str, Default to "text-embedding-004"):
@@ -124,6 +132,10 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
             text-multilingual-embedding models returns model embeddings for text inputs which support over 100 languages.
             If no setting is provided, "text-embedding-004" will be used by
             default and a warning will be issued.
+
+            .. note::
+            "text-embedding-004" is going to be deprecated. Bigframes 3 will transition to using text-embedding-004.
+
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
@@ -398,6 +410,10 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
         return new_model.session.read_gbq_model(model_name)
 
 
+@typing_extensions.deprecated(
+    "gemini-1.5-X are going to be deprecated. Use gemini-2.0-X (https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.GeminiTextGenerator) instead. ",
+    category=exceptions.ApiDeprecationWarning,
+)
 @log_adapter.class_logger
 class GeminiTextGenerator(base.RetriableRemotePredictor):
     """Gemini text generator LLM model.
@@ -416,6 +432,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
             default and a warning will be issued.
 
         .. note::
+            "gemini-1.5-X" is going to be deprecated. Bigframes 2 will transition to using gemini-2.0-X.
             "gemini-2.0-flash-exp", "gemini-1.5-pro-preview-0514" and "gemini-1.5-flash-preview-0514" is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
             Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
             and might have limited support. For more information, see the launch stage descriptions
