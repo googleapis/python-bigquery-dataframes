@@ -157,9 +157,6 @@ class BigQueryCachingExecutor(executor.Executor):
         ordered: bool = True,
         use_explicit_destination: Optional[bool] = None,
     ) -> executor.ExecuteResult:
-        if use_explicit_destination is None:
-            use_explicit_destination = bigframes.options._allow_large_results
-
         if bigframes.options.compute.enable_multi_query_execution:
             self._simplify_with_caching(array_value)
 
