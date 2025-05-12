@@ -40,20 +40,17 @@ class BlobAccessor(base.SeriesMethods):
     Blob functions for Series and Index.
 
     .. note::
-        BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+        BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
     """
 
     def __init__(self, *args, **kwargs):
-        if not bigframes.options.experiments.blob:
-            raise NotImplementedError()
-
         super().__init__(*args, **kwargs)
 
     def uri(self) -> bigframes.series.Series:
         """URIs of the Blob.
-
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
         Returns:
             bigframes.series.Series: URIs as string."""
@@ -64,9 +61,6 @@ class BlobAccessor(base.SeriesMethods):
     def authorizer(self) -> bigframes.series.Series:
         """Authorizers of the Blob.
 
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
-
         Returns:
             bigframes.series.Series: Autorithers(connection) as string."""
         s = bigframes.series.Series(self._block)
@@ -76,9 +70,6 @@ class BlobAccessor(base.SeriesMethods):
     def version(self) -> bigframes.series.Series:
         """Versions of the Blob.
 
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
-
         Returns:
             bigframes.series.Series: Version as string."""
         # version must be retrieved after fetching metadata
@@ -86,9 +77,6 @@ class BlobAccessor(base.SeriesMethods):
 
     def metadata(self) -> bigframes.series.Series:
         """Retrieve the metadata of the Blob.
-
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
         Returns:
             bigframes.series.Series: JSON metadata of the Blob. Contains fields: content_type, md5_hash, size and updated(time)."""
@@ -102,9 +90,6 @@ class BlobAccessor(base.SeriesMethods):
     def content_type(self) -> bigframes.series.Series:
         """Retrieve the content type of the Blob.
 
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
-
         Returns:
             bigframes.series.Series: string of the content type."""
         return (
@@ -115,9 +100,6 @@ class BlobAccessor(base.SeriesMethods):
 
     def md5_hash(self) -> bigframes.series.Series:
         """Retrieve the md5 hash of the Blob.
-
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
         Returns:
             bigframes.series.Series: string of the md5 hash."""
@@ -130,9 +112,6 @@ class BlobAccessor(base.SeriesMethods):
     def size(self) -> bigframes.series.Series:
         """Retrieve the file size of the Blob.
 
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
-
         Returns:
             bigframes.series.Series: file size in bytes."""
         return (
@@ -144,9 +123,6 @@ class BlobAccessor(base.SeriesMethods):
 
     def updated(self) -> bigframes.series.Series:
         """Retrieve the updated time of the Blob.
-
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
         Returns:
             bigframes.series.Series: updated time as UTC datetime."""
@@ -204,9 +180,6 @@ class BlobAccessor(base.SeriesMethods):
     def read_url(self) -> bigframes.series.Series:
         """Retrieve the read URL of the Blob.
 
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
-
         Returns:
             bigframes.series.Series: Read only URLs."""
         return self._get_runtime(mode="R")._apply_unary_op(
@@ -215,9 +188,6 @@ class BlobAccessor(base.SeriesMethods):
 
     def write_url(self) -> bigframes.series.Series:
         """Retrieve the write URL of the Blob.
-
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
         Returns:
             bigframes.series.Series: Writable URLs."""
@@ -235,17 +205,14 @@ class BlobAccessor(base.SeriesMethods):
     ):
         """Display the blob content in the IPython Notebook environment. Only works for image type now.
 
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
-
         Args:
             n (int, default 3): number of sample blob objects to display.
             content_type (str, default ""): content type of the blob. If unset, use the blob metadata of the storage. Possible values are "image", "audio" and "video".
-            width (int or None, default None): width in pixels that the image/video are constrained to. If unset, use the global setting in bigframes.options.experiments.blob_display_width, otherwise image/video's original size or ratio is used. No-op for other content types.
-            height (int or None, default None): height in pixels that the image/video are constrained to. If unset, use the global setting in bigframes.options.experiments.blob_display_height, otherwise image/video's original size or ratio is used. No-op for other content types.
+            width (int or None, default None): width in pixels that the image/video are constrained to. If unset, use the global setting in bigframes.options.display.blob_display_width, otherwise image/video's original size or ratio is used. No-op for other content types.
+            height (int or None, default None): height in pixels that the image/video are constrained to. If unset, use the global setting in bigframes.options.display.blob_display_height, otherwise image/video's original size or ratio is used. No-op for other content types.
         """
-        width = width or bigframes.options.experiments.blob_display_width
-        height = height or bigframes.options.experiments.blob_display_height
+        width = width or bigframes.options.display.blob_display_width
+        height = height or bigframes.options.display.blob_display_height
 
         # col name doesn't matter here. Rename to avoid column name conflicts
         df = bigframes.series.Series(self._block).rename("blob_col").to_frame()
@@ -296,10 +263,6 @@ class BlobAccessor(base.SeriesMethods):
     def _resolve_connection(self, connection: Optional[str] = None) -> str:
         """Resovle the BigQuery connection.
 
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and
-            subject to change in the future.
-
         Args:
             connection (str or None, default None): BQ connection used for
                 function internet transactions, and the output blob if "dst" is
@@ -324,10 +287,6 @@ class BlobAccessor(base.SeriesMethods):
     ) -> bigframes.series.Series:
         """Get the runtime (contains signed URL to access gcs data) and apply the ToJSONSTring transformation.
 
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and
-            subject to change in the future.
-
         Args:
             mode(str or str, default "R"): the mode for accessing the runtime.
                 Default to "R". Possible values are "R" (read-only) and
@@ -341,6 +300,46 @@ class BlobAccessor(base.SeriesMethods):
         runtime = self._get_runtime(mode=mode, with_metadata=with_metadata)
         return runtime._apply_unary_op(ops.ToJSONString())
 
+    def exif(
+        self,
+        *,
+        connection: Optional[str] = None,
+        max_batching_rows: int = 8192,
+        container_cpu: Union[float, int] = 0.33,
+        container_memory: str = "512Mi",
+    ) -> bigframes.series.Series:
+        """Extract EXIF data. Now only support image types.
+
+        Args:
+            connection (str or None, default None): BQ connection used for function internet transactions, and the output blob if "dst" is str. If None, uses default connection of the session.
+            max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
+            container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
+            container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+
+        Returns:
+            bigframes.series.Series: JSON series of key-value pairs.
+        """
+
+        import bigframes.bigquery as bbq
+        import bigframes.blob._functions as blob_func
+
+        connection = self._resolve_connection(connection)
+        df = self.get_runtime_json_str(mode="R").to_frame()
+
+        exif_udf = blob_func.TransformFunction(
+            blob_func.exif_func_def,
+            session=self._block.session,
+            connection=connection,
+            max_batching_rows=max_batching_rows,
+            container_cpu=container_cpu,
+            container_memory=container_memory,
+        ).udf()
+
+        res = self._df_apply_udf(df, exif_udf)
+        res = bbq.parse_json(res)
+
+        return res
+
     def image_blur(
         self,
         ksize: tuple[int, int],
@@ -352,9 +351,6 @@ class BlobAccessor(base.SeriesMethods):
         container_memory: str = "512Mi",
     ) -> bigframes.series.Series:
         """Blurs images.
-
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
         Args:
             ksize (tuple(int, int)): Kernel size.
@@ -437,9 +433,6 @@ class BlobAccessor(base.SeriesMethods):
         container_memory: str = "512Mi",
     ):
         """Resize images.
-
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
         Args:
             dsize (tuple(int, int), default (0, 0)): Destination size. If set to 0, fx and fy parameters determine the size.
@@ -534,9 +527,6 @@ class BlobAccessor(base.SeriesMethods):
     ) -> bigframes.series.Series:
         """Normalize images.
 
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
-
         Args:
             alpha (float, default 1.0): Norm value to normalize to or the lower range boundary in case of the range normalization.
             beta (float, default 0.0): Upper range boundary in case of the range normalization; it is not used for the norm normalization.
@@ -622,10 +612,6 @@ class BlobAccessor(base.SeriesMethods):
     ) -> bigframes.series.Series:
         """Extracts text from PDF URLs and saves the text as string.
 
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and
-            subject to change in the future.
-
         Args:
             connection (str or None, default None): BQ connection used for
                 function internet transactions, and the output blob if "dst"
@@ -687,9 +673,6 @@ class BlobAccessor(base.SeriesMethods):
     ) -> bigframes.series.Series:
         """Extracts and chunks text from PDF URLs and saves the text as
            arrays of strings.
-
-        .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
 
         Args:
             connection (str or None, default None): BQ connection used for
