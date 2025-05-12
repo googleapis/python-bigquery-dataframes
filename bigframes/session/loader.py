@@ -275,7 +275,7 @@ class GbqDataLoader:
         return nodes.BigqueryDataSource(
             nodes.GbqTable.from_table(destination_table),
             ordering=ordering.TotalOrdering.from_offset_col(offsets_col),
-            n_rows=destination_table.num_rows,
+            n_rows=data.metadata.row_count,
         )
 
     def stream_data(
@@ -311,7 +311,7 @@ class GbqDataLoader:
         return nodes.BigqueryDataSource(
             nodes.GbqTable.from_table(destination_table),
             ordering=ordering.TotalOrdering.from_offset_col(offsets_col),
-            n_rows=destination_table.num_rows,
+            n_rows=data.metadata.row_count,
         )
 
     def write_data(
@@ -365,7 +365,7 @@ class GbqDataLoader:
         return nodes.BigqueryDataSource(
             nodes.GbqTable.from_table(destination_table),
             ordering=ordering.TotalOrdering.from_offset_col(offsets_col),
-            n_rows=destination_table.num_rows,
+            n_rows=data.metadata.row_count,
         )
 
     def _start_generic_job(self, job: formatting_helpers.GenericJob):

@@ -14,6 +14,7 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 import bigframes
 from tests.system.utils import assert_pandas_df_equal
@@ -23,12 +24,14 @@ large_dataframe.index = large_dataframe.index.astype("Int64")
 
 
 def test_read_pandas_defer_noop(session: bigframes.Session):
+    pytest.importorskip("pandas", minversion="2.0.0")
     bf_df = session.read_pandas(large_dataframe, write_engine="_deferred")
 
     assert_pandas_df_equal(large_dataframe, bf_df.to_pandas())
 
 
 def test_read_pandas_defer_cumsum(session: bigframes.Session):
+    pytest.importorskip("pandas", minversion="2.0.0")
     bf_df = session.read_pandas(large_dataframe, write_engine="_deferred")
     bf_df = bf_df.cumsum()
 
@@ -36,6 +39,7 @@ def test_read_pandas_defer_cumsum(session: bigframes.Session):
 
 
 def test_read_pandas_defer_cache_cumsum_cumsum(session: bigframes.Session):
+    pytest.importorskip("pandas", minversion="2.0.0")
     bf_df = session.read_pandas(large_dataframe, write_engine="_deferred")
     bf_df = bf_df.cumsum().cache().cumsum()
 
@@ -43,6 +47,7 @@ def test_read_pandas_defer_cache_cumsum_cumsum(session: bigframes.Session):
 
 
 def test_read_pandas_defer_peek(session: bigframes.Session):
+    pytest.importorskip("pandas", minversion="2.0.0")
     bf_df = session.read_pandas(large_dataframe, write_engine="_deferred")
     bf_result = bf_df.peek(15)
 
