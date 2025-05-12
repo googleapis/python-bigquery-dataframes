@@ -49,7 +49,6 @@ def test_bigquery_dataframes_examples() -> None:
     # dtype: struct[pyarrow]
     # [END bigquery_dataframes_bigquery_methods_struct]
 
-
     # [START bigquery_dataframes_bigquery_methods_unix_micros]
     import bigframes.bigquery as bbq
     import bigframes.pandas as bpd
