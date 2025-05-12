@@ -85,7 +85,7 @@ def test_class_attribute_logging(test_instance):
 def test_method_logging(test_method):
     test_method()
     api_methods = log_adapter.get_and_reset_api_methods()
-    assert "<locals>-method1" in api_methods
+    assert "locals-method1" in api_methods
 
 
 def test_method_logging_with_custom_base_name(test_method_w_custom_base):

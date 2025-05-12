@@ -228,7 +228,7 @@ def add_api_method(api_method_name):
     global _api_methods
     with _lock:
         # Push the method to the front of the _api_methods list
-        _api_methods.insert(0, api_method_name)
+        _api_methods.insert(0, api_method_name.replace("<", "").replace(">", ""))
         # Keep the list length within the maximum limit (adjust MAX_LABELS_COUNT as needed)
         _api_methods = _api_methods[:MAX_LABELS_COUNT]
 
