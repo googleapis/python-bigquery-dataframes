@@ -30,6 +30,14 @@ DATE_COLUMNS = [
 ]
 
 
+@pytest.fixture
+def timedelta_series(session):
+    pd_s = pd.Series(pd.to_timedelta([1.1010101, 2.2020102, 3.3030103], unit="d"))
+    bf_s = session.read_pandas(pd_s)
+
+    return bf_s, pd_s
+
+
 @pytest.mark.parametrize(
     ("col_name",),
     DATE_COLUMNS,
@@ -218,6 +226,21 @@ def test_dt_year(scalars_dfs, col_name):
     assert_series_equal(
         pd_result.astype(pd.Int64Dtype()),
         bf_result,
+    )
+
+
+def test_dt_isocalendar(session):
+    # We don't re-use the exisintg scalars_dfs fixture because iso calendar
+    # get tricky when a new year starts, but the dataset `scalars_dfs` does not cover
+    # this case.
+    pd_s = pd.Series(pd.date_range("2009-12-25", "2010-01-07", freq="d"))
+    bf_s = session.read_pandas(pd_s)
+
+    actual_result = bf_s.dt.isocalendar().to_pandas()
+
+    expected_result = pd_s.dt.isocalendar()
+    testing.assert_frame_equal(
+        actual_result, expected_result, check_dtype=False, check_index_type=False
     )
 
 
@@ -489,3 +512,39 @@ def test_timestamp_series_diff_agg(scalars_dfs, column):
 
     expected_result = pd_series.diff()
     assert_series_equal(actual_result, expected_result)
+
+
+@pytest.mark.parametrize(
+    "access",
+    [
+        pytest.param(lambda x: x.dt.days, id="dt.days"),
+        pytest.param(lambda x: x.dt.seconds, id="dt.seconds"),
+        pytest.param(lambda x: x.dt.microseconds, id="dt.microseconds"),
+        pytest.param(lambda x: x.dt.total_seconds(), id="dt.total_seconds()"),
+    ],
+)
+def test_timedelta_dt_accessors(timedelta_series, access):
+    bf_s, pd_s = timedelta_series
+
+    actual_result = access(bf_s).to_pandas()
+
+    expected_result = access(pd_s)
+    assert_series_equal(
+        actual_result, expected_result, check_dtype=False, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
+    "access",
+    [
+        pytest.param(lambda x: x.dt.days, id="dt.days"),
+        pytest.param(lambda x: x.dt.seconds, id="dt.seconds"),
+        pytest.param(lambda x: x.dt.microseconds, id="dt.microseconds"),
+        pytest.param(lambda x: x.dt.total_seconds(), id="dt.total_seconds()"),
+    ],
+)
+def test_timedelta_dt_accessors_on_wrong_type_raise_exception(scalars_dfs, access):
+    bf_df, _ = scalars_dfs
+
+    with pytest.raises(TypeError):
+        access(bf_df["timestamp_col"])

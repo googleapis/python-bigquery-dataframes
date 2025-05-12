@@ -199,6 +199,38 @@ class DatetimeProperties:
 
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def isocalendar(self):
+        """
+        Calculate year, week, and day according to the ISO 8601 standard.
+
+        **Examples:**
+            >>> import pandas as pd
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series(
+            ...     pd.date_range('2009-12-27', '2010-01-04', freq='d').to_series()
+            ... )
+            >>> s.dt.isocalendar()
+                                 year  week  day
+            2009-12-27 00:00:00  2009    52    7
+            2009-12-28 00:00:00  2009    53    1
+            2009-12-29 00:00:00  2009    53    2
+            2009-12-30 00:00:00  2009    53    3
+            2009-12-31 00:00:00  2009    53    4
+            2010-01-01 00:00:00  2009    53    5
+            2010-01-02 00:00:00  2009    53    6
+            2010-01-03 00:00:00  2009    53    7
+            2010-01-04 00:00:00  2010     1    1
+            <BLANKLINE>
+            [9 rows x 3 columns]
+
+
+        Returns: DataFrame
+            With columns year, week and day.
+
+
+        """
+
     @property
     def second(self):
         """The seconds of the datetime.
@@ -298,6 +330,77 @@ class DatetimeProperties:
         """
 
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    @property
+    def days(self):
+        """The numebr of days for each element
+
+        **Examples:**
+
+            >>> import pandas as pd
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([pd.Timedelta("4d3m2s1us")])
+            >>> s
+            0    4 days 00:03:02.000001
+            dtype: duration[us][pyarrow]
+            >>> s.dt.days
+            0    4
+            dtype: Int64
+        """
+
+    @property
+    def seconds(self):
+        """Number of seconds (>= 0 and less than 1 day) for each element.
+
+        **Examples:**
+
+            >>> import pandas as pd
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([pd.Timedelta("4d3m2s1us")])
+            >>> s
+            0    4 days 00:03:02.000001
+            dtype: duration[us][pyarrow]
+            >>> s.dt.seconds
+            0    182
+            dtype: Int64
+        """
+
+    @property
+    def microseconds(self):
+        """Number of microseconds (>= 0 and less than 1 second) for each element.
+
+        **Examples:**
+
+            >>> import pandas as pd
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([pd.Timedelta("4d3m2s1us")])
+            >>> s
+            0    4 days 00:03:02.000001
+            dtype: duration[us][pyarrow]
+            >>> s.dt.microseconds
+            0    1
+            dtype: Int64
+        """
+
+    def total_seconds(self):
+        """Return total duration of each element expressed in seconds.
+
+        **Examples:**
+
+            >>> import pandas as pd
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([pd.Timedelta("1d1m1s1us")])
+            >>> s
+            0    1 days 00:01:01.000001
+            dtype: duration[us][pyarrow]
+            >>> s.dt.total_seconds()
+            0    86461.000001
+            dtype: Float64
+        """
 
     @property
     def tz(self):

@@ -61,6 +61,7 @@ from bigframes import version
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
 from bigframes.core import blocks
+import bigframes.core.pyformat
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
 # to register new and replacement ops with the Ibis BigQuery backend.
@@ -476,25 +477,65 @@ class Session(
     ):
         self._objects.append(weakref.ref(object))
 
+    @overload
+    def _read_gbq_colab(
+        self,
+        query: str,
+        *,
+        pyformat_args: Optional[Dict[str, Any]] = None,
+        dry_run: Literal[False] = ...,
+    ) -> dataframe.DataFrame:
+        ...
+
+    @overload
+    def _read_gbq_colab(
+        self,
+        query: str,
+        *,
+        pyformat_args: Optional[Dict[str, Any]] = None,
+        dry_run: Literal[True] = ...,
+    ) -> pandas.Series:
+        ...
+
     def _read_gbq_colab(
         self,
         query: str,
         # TODO: Add a callback parameter that takes some kind of Event object.
-        # TODO: Add parameter for variables for string formatting.
-        # TODO: Add dry_run parameter.
-    ) -> dataframe.DataFrame:
+        *,
+        pyformat_args: Optional[Dict[str, Any]] = None,
+        dry_run: bool = False,
+    ) -> Union[dataframe.DataFrame, pandas.Series]:
         """A version of read_gbq that has the necessary default values for use in colab integrations.
 
         This includes, no ordering, no index, no progress bar, always use string
         formatting for embedding local variables / dataframes.
-        """
 
-        # TODO: Allow for a table ID to avoid queries like read_gbq?
+        Args:
+            query (str):
+                A SQL query string to execute. Results (if any) are turned into
+                a DataFrame.
+            pyformat_args (dict):
+                A dictionary of potential variables to replace in ``query``.
+                Note: strings are _not_ escaped. Use query parameters for these,
+                instead. Note: unlike read_gbq / read_gbq_query, even if set to
+                None, this function always assumes {var} refers to a variable
+                that is supposed to be supplied in this dictionary.
+        """
+        if pyformat_args is None:
+            pyformat_args = {}
+
+        query = bigframes.core.pyformat.pyformat(
+            query,
+            pyformat_args=pyformat_args,
+            # TODO: add dry_run parameter to avoid API calls for data in pyformat_args
+        )
+
         return self._loader.read_gbq_query(
             query=query,
             index_col=bigframes.enums.DefaultIndexKind.NULL,
             api_name="read_gbq_colab",
             force_total_order=False,
+            dry_run=typing.cast(Union[Literal[False], Literal[True]], dry_run),
         )
 
     @overload
