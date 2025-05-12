@@ -476,6 +476,7 @@ class Session(
     ):
         self._objects.append(weakref.ref(object))
 
+    @log_adapter.log_name_override("read_gbq_colab")
     def _read_gbq_colab(
         self,
         query: str,

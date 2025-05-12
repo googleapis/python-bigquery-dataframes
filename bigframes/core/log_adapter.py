@@ -28,6 +28,7 @@ _lock = threading.Lock()
 MAX_LABELS_COUNT = 64 - 8
 PANDAS_API_TRACKING_TASK = "pandas_api_tracking"
 PANDAS_PARAM_TRACKING_TASK = "pandas_param_tracking"
+LOG_OVERRIDE_NAME = "__log_override_name__"
 
 _api_methods: List = []
 _excluded_methods = ["__setattr__", "__getattr__"]
@@ -153,7 +154,7 @@ def method_logger(method, /, *, custom_base_name: Optional[str] = None):
 
     @functools.wraps(method)
     def wrapper(*args, **kwargs):
-        api_method_name = str(method.__name__)
+        api_method_name = getattr(method, LOG_OVERRIDE_NAME, method.__name__)
         if custom_base_name is None:
             qualname_parts = getattr(method, "__qualname__", method.__name__).split(".")
             class_name = qualname_parts[-2] if len(qualname_parts) > 1 else ""
@@ -221,6 +222,18 @@ def property_logger(prop):
         shared_wrapper(prop.fset) if prop.fset else None,
         shared_wrapper(prop.fdel) if prop.fdel else None,
     )
+
+
+def log_name_override(name: str):
+    """
+    Attaches a custom name to be used by logger.
+    """
+
+    def wrapper(func):
+        setattr(func, LOG_OVERRIDE_NAME, name)
+        return func
+
+    return wrapper
 
 
 def add_api_method(api_method_name):

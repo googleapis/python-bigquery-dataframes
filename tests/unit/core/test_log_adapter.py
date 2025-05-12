@@ -45,6 +45,10 @@ def test_instance():
         def method3(self):
             pass
 
+        @log_adapter.log_name_override("override_name")
+        def method4(self):
+            pass
+
         @property
         def my_field(self):
             return 0
@@ -74,12 +78,15 @@ def test_method_w_custom_base():
 def test_class_attribute_logging(test_instance):
     test_instance.method1()
     test_instance.method2()
+    test_instance.method4()
 
     # Check if the methods were added to the _api_methods list
     api_methods = log_adapter.get_and_reset_api_methods()
     assert "testclass-method1" in api_methods
     assert "testclass-method2" in api_methods
     assert "testclass-method3" not in api_methods
+    assert "testclass-method4" not in api_methods
+    assert "testclass-override_name" in api_methods
 
 
 def test_method_logging(test_method):
