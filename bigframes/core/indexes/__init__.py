@@ -13,9 +13,11 @@
 # limitations under the License.
 
 from bigframes.core.indexes.base import Index
+from bigframes.core.indexes.datetimes import DatetimeIndex
 from bigframes.core.indexes.multi import MultiIndex
 
 __all__ = [
     "Index",
     "MultiIndex",
+    "DatetimeIndex",
 ]
