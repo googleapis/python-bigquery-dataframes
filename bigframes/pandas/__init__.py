@@ -272,6 +272,7 @@ ArrowDtype = pandas.ArrowDtype
 DataFrame = bigframes.dataframe.DataFrame
 Index = bigframes.core.indexes.Index
 MultiIndex = bigframes.core.indexes.MultiIndex
+DatetimeIndex = bigframes.core.indexes.DatetimeIndex
 Series = bigframes.series.Series
 __version__ = bigframes.version.__version__
 
@@ -360,6 +361,7 @@ _other_names = [
     "DataFrame",
     "Index",
     "MultiIndex",
+    "DatetimeIndex",
     "Series",
     "__version__",
     # Other public pandas attributes
