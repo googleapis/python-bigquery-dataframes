@@ -31,6 +31,7 @@ from typing import (
     Literal,
     MutableSequence,
     Optional,
+    overload,
     Sequence,
     Tuple,
     Union,
@@ -60,6 +61,7 @@ from bigframes import version
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
 from bigframes.core import blocks
+import bigframes.core.pyformat
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
 # to register new and replacement ops with the Ibis BigQuery backend.
@@ -382,6 +384,38 @@ class Session(
                 self.bqclient, self.cloudfunctionsclient, self.session_id
             )
 
+    @overload
+    def read_gbq(  # type: ignore[overload-overlap]
+        self,
+        query_or_table: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        configuration: Optional[Dict] = ...,
+        max_results: Optional[int] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        use_cache: Optional[bool] = ...,
+        col_order: Iterable[str] = ...,
+        dry_run: Literal[False] = ...,
+    ) -> dataframe.DataFrame:
+        ...
+
+    @overload
+    def read_gbq(
+        self,
+        query_or_table: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        configuration: Optional[Dict] = ...,
+        max_results: Optional[int] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        use_cache: Optional[bool] = ...,
+        col_order: Iterable[str] = ...,
+        dry_run: Literal[True] = ...,
+    ) -> pandas.Series:
+        ...
+
     def read_gbq(
         self,
         query_or_table: str,
@@ -393,8 +427,9 @@ class Session(
         filters: third_party_pandas_gbq.FiltersType = (),
         use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
+        dry_run: bool = False
         # Add a verify index argument that fails if the index is not unique.
-    ) -> dataframe.DataFrame:
+    ) -> dataframe.DataFrame | pandas.Series:
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
         if columns and col_order:
             raise ValueError(
@@ -404,7 +439,7 @@ class Session(
             columns = col_order
 
         if bf_io_bigquery.is_query(query_or_table):
-            return self._loader.read_gbq_query(
+            return self._loader.read_gbq_query(  # type: ignore # for dry_run overload
                 query_or_table,
                 index_col=index_col,
                 columns=columns,
@@ -413,6 +448,7 @@ class Session(
                 api_name="read_gbq",
                 use_cache=use_cache,
                 filters=filters,
+                dry_run=dry_run,
             )
         else:
             if configuration is not None:
@@ -422,7 +458,7 @@ class Session(
                     "'configuration' or use a query."
                 )
 
-            return self._loader.read_gbq_table(
+            return self._loader.read_gbq_table(  # type: ignore # for dry_run overload
                 query_or_table,
                 index_col=index_col,
                 columns=columns,
@@ -430,6 +466,7 @@ class Session(
                 api_name="read_gbq",
                 use_cache=use_cache if use_cache is not None else True,
                 filters=filters,
+                dry_run=dry_run,
             )
 
     def _register_object(
@@ -439,6 +476,81 @@ class Session(
         ],
     ):
         self._objects.append(weakref.ref(object))
+
+    def _read_gbq_colab(
+        self,
+        query: str,
+        # TODO: Add a callback parameter that takes some kind of Event object.
+        # TODO: Add dry_run parameter.
+        *,
+        pyformat_args: Optional[Dict[str, Any]] = None,
+    ) -> dataframe.DataFrame:
+        """A version of read_gbq that has the necessary default values for use in colab integrations.
+
+        This includes, no ordering, no index, no progress bar, always use string
+        formatting for embedding local variables / dataframes.
+
+        Args:
+            query (str):
+                A SQL query string to execute. Results (if any) are turned into
+                a DataFrame.
+            pyformat_args (dict):
+                A dictionary of potential variables to replace in ``query``.
+                Note: strings are _not_ escaped. Use query parameters for these,
+                instead. Note: unlike read_gbq / read_gbq_query, even if set to
+                None, this function always assumes {var} refers to a variable
+                that is supposed to be supplied in this dictionary.
+        """
+        # TODO: Allow for a table ID to avoid queries like with read_gbq?
+
+        if pyformat_args is None:
+            pyformat_args = {}
+
+        # TODO: move this to read_gbq_query if/when we expose this feature
+        # beyond in _read_gbq_colab.
+        query = bigframes.core.pyformat.pyformat(
+            query,
+            pyformat_args=pyformat_args,
+        )
+
+        return self._loader.read_gbq_query(
+            query=query,
+            index_col=bigframes.enums.DefaultIndexKind.NULL,
+            api_name="read_gbq_colab",
+            force_total_order=False,
+        )
+
+    @overload
+    def read_gbq_query(  # type: ignore[overload-overlap]
+        self,
+        query: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        configuration: Optional[Dict] = ...,
+        max_results: Optional[int] = ...,
+        use_cache: Optional[bool] = ...,
+        col_order: Iterable[str] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        dry_run: Literal[False] = ...,
+    ) -> dataframe.DataFrame:
+        ...
+
+    @overload
+    def read_gbq_query(
+        self,
+        query: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        configuration: Optional[Dict] = ...,
+        max_results: Optional[int] = ...,
+        use_cache: Optional[bool] = ...,
+        col_order: Iterable[str] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        dry_run: Literal[True] = ...,
+    ) -> pandas.Series:
+        ...
 
     def read_gbq_query(
         self,
@@ -451,7 +563,8 @@ class Session(
         use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
         filters: third_party_pandas_gbq.FiltersType = (),
-    ) -> dataframe.DataFrame:
+        dry_run: bool = False,
+    ) -> dataframe.DataFrame | pandas.Series:
         """Turn a SQL query into a DataFrame.
 
         Note: Because the results are written to a temporary table, ordering by
@@ -517,7 +630,7 @@ class Session(
         elif col_order:
             columns = col_order
 
-        return self._loader.read_gbq_query(
+        return self._loader.read_gbq_query(  # type: ignore # for dry_run overload
             query=query,
             index_col=index_col,
             columns=columns,
@@ -526,7 +639,38 @@ class Session(
             api_name="read_gbq_query",
             use_cache=use_cache,
             filters=filters,
+            dry_run=dry_run,
         )
+
+    @overload
+    def read_gbq_table(  # type: ignore[overload-overlap]
+        self,
+        query: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        max_results: Optional[int] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        use_cache: bool = ...,
+        col_order: Iterable[str] = ...,
+        dry_run: Literal[False] = ...,
+    ) -> dataframe.DataFrame:
+        ...
+
+    @overload
+    def read_gbq_table(
+        self,
+        query: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        max_results: Optional[int] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        use_cache: bool = ...,
+        col_order: Iterable[str] = ...,
+        dry_run: Literal[True] = ...,
+    ) -> pandas.Series:
+        ...
 
     def read_gbq_table(
         self,
@@ -538,7 +682,8 @@ class Session(
         filters: third_party_pandas_gbq.FiltersType = (),
         use_cache: bool = True,
         col_order: Iterable[str] = (),
-    ) -> dataframe.DataFrame:
+        dry_run: bool = False,
+    ) -> dataframe.DataFrame | pandas.Series:
         """Turn a BigQuery table into a DataFrame.
 
         **Examples:**
@@ -569,7 +714,7 @@ class Session(
         elif col_order:
             columns = col_order
 
-        return self._loader.read_gbq_table(
+        return self._loader.read_gbq_table(  # type: ignore # for dry_run overload
             table_id=query,
             index_col=index_col,
             columns=columns,
@@ -577,6 +722,7 @@ class Session(
             api_name="read_gbq_table",
             use_cache=use_cache,
             filters=filters,
+            dry_run=dry_run,
         )
 
     def read_gbq_table_streaming(
@@ -1803,7 +1949,10 @@ class Session(
         If you have an existing BQ Object Table, use read_gbq_object_table().
 
         .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+            BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+            Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+            and might have limited support. For more information, see the launch stage descriptions
+            (https://cloud.google.com/products#product-launch-stages).
 
         Args:
             path (str):
@@ -1818,9 +1967,6 @@ class Session(
             bigframes.pandas.DataFrame:
                 Result BigFrames DataFrame.
         """
-        if not bigframes.options.experiments.blob:
-            raise NotImplementedError()
-
         # TODO(garrettwu): switch to pseudocolumn when b/374988109 is done.
         connection = self._create_bq_connection(connection=connection)
 
@@ -1864,7 +2010,10 @@ class Session(
         This function dosen't retrieve the object table data. If you want to read the data, use read_gbq() instead.
 
         .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+            BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+            Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+            and might have limited support. For more information, see the launch stage descriptions
+            (https://cloud.google.com/products#product-launch-stages).
 
         Args:
             object_table (str): name of the object table of form <PROJECT_ID>.<DATASET_ID>.<TABLE_ID>.
@@ -1874,9 +2023,6 @@ class Session(
             bigframes.pandas.DataFrame:
                 Result BigFrames DataFrame.
         """
-        if not bigframes.options.experiments.blob:
-            raise NotImplementedError()
-
         # TODO(garrettwu): switch to pseudocolumn when b/374988109 is done.
         table = self.bqclient.get_table(object_table)
         connection = table._properties["externalDataConfiguration"]["connectionId"]

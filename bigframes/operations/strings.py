@@ -91,8 +91,10 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
     ) -> series.Series:
         return self._apply_unary_op(ops.StrSliceOp(start=start, end=stop))
 
-    def strip(self) -> series.Series:
-        return self._apply_unary_op(ops.strip_op)
+    def strip(self, to_strip: Optional[str] = None) -> series.Series:
+        return self._apply_unary_op(
+            ops.StrStripOp(to_strip=" \n\t" if to_strip is None else to_strip)
+        )
 
     def upper(self) -> series.Series:
         return self._apply_unary_op(ops.upper_op)
@@ -135,11 +137,15 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
     ) -> series.Series:
         return self._apply_unary_op(ops.isupper_op)
 
-    def rstrip(self) -> series.Series:
-        return self._apply_unary_op(ops.rstrip_op)
+    def rstrip(self, to_strip: Optional[str] = None) -> series.Series:
+        return self._apply_unary_op(
+            ops.StrRstripOp(to_strip=" \n\t" if to_strip is None else to_strip)
+        )
 
-    def lstrip(self) -> series.Series:
-        return self._apply_unary_op(ops.lstrip_op)
+    def lstrip(self, to_strip: Optional[str] = None) -> series.Series:
+        return self._apply_unary_op(
+            ops.StrLstripOp(to_strip=" \n\t" if to_strip is None else to_strip)
+        )
 
     def repeat(self, repeats: int) -> series.Series:
         return self._apply_unary_op(ops.StrRepeatOp(repeats=repeats))
@@ -288,7 +294,10 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         """Create a BigFrames Blob series from a series of URIs.
 
         .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+            BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+            Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+            and might have limited support. For more information, see the launch stage descriptions
+            (https://cloud.google.com/products#product-launch-stages).
 
 
         Args:
@@ -301,9 +310,6 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
             bigframes.series.Series: Blob Series.
 
         """
-        if not bigframes.options.experiments.blob:
-            raise NotImplementedError()
-
         session = self._block.session
         connection = session._create_bq_connection(connection=connection)
         return self._apply_binary_op(connection, ops.obj_make_ref_op)

@@ -609,7 +609,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _getitem_label(self, key: blocks.Label):
         col_ids = self._block.cols_matching_label(key)
         if len(col_ids) == 0:
-            raise KeyError(key)
+            raise KeyError(
+                f"{key} not found in DataFrame columns: {self._block.column_labels}"
+            )
         block = self._block.select_columns(col_ids)
         if isinstance(self.columns, pandas.MultiIndex):
             # Multiindex should drop-level if not selecting entire
@@ -768,14 +770,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return formatter.repr_query_job(self._compute_dry_run())
 
         df = self.copy()
-        if (
-            bigframes.options.experiments.blob
-            and bigframes.options.experiments.blob_display
-        ):
+        if bigframes.options.display.blob_display:
             blob_cols = [
-                col
-                for col in df.columns
-                if df[col].dtype == bigframes.dtypes.OBJ_REF_DTYPE
+                series_name
+                for series_name, series in df.items()
+                if series.dtype == bigframes.dtypes.OBJ_REF_DTYPE
             ]
             for col in blob_cols:
                 # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
@@ -794,10 +793,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         with display_options.pandas_repr(opts):
             # Allows to preview images in the DataFrame. The implementation changes the string repr as well, that it doesn't truncate strings or escape html charaters such as "<" and ">". We may need to implement a full-fledged repr module to better support types not in pandas.
-            if (
-                bigframes.options.experiments.blob
-                and bigframes.options.experiments.blob_display
-            ):
+            if bigframes.options.display.blob_display and blob_cols:
 
                 def obj_ref_rt_to_html(obj_ref_rt) -> str:
                     obj_ref_rt_json = json.loads(obj_ref_rt)
@@ -809,12 +805,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                         )
                         if content_type.startswith("image"):
                             size_str = ""
-                            if bigframes.options.experiments.blob_display_width:
-                                size_str = f' width="{bigframes.options.experiments.blob_display_width}"'
-                            if bigframes.options.experiments.blob_display_height:
+                            if bigframes.options.display.blob_display_width:
+                                size_str = f' width="{bigframes.options.display.blob_display_width}"'
+                            if bigframes.options.display.blob_display_height:
                                 size_str = (
                                     size_str
-                                    + f' height="{bigframes.options.experiments.blob_display_height}"'
+                                    + f' height="{bigframes.options.display.blob_display_height}"'
                                 )
                             url = obj_ref_rt_json["access_urls"]["read_url"]
                             return f'<img src="{url}"{size_str}>'
@@ -2238,10 +2234,34 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         col_ids_strs: List[str] = [col_id for col_id in col_ids if col_id is not None]
         return DataFrame(self._block.set_index(col_ids_strs, append=append, drop=drop))
 
+    @overload  # type: ignore[override]
+    def sort_index(
+        self,
+        *,
+        ascending: bool = ...,
+        inplace: Literal[False] = ...,
+        na_position: Literal["first", "last"] = ...,
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def sort_index(
+        self,
+        *,
+        ascending: bool = ...,
+        inplace: Literal[True] = ...,
+        na_position: Literal["first", "last"] = ...,
+    ) -> None:
+        ...
+
     @validations.requires_index
     def sort_index(
-        self, ascending: bool = True, na_position: Literal["first", "last"] = "last"
-    ) -> DataFrame:
+        self,
+        *,
+        ascending: bool = True,
+        inplace: bool = False,
+        na_position: Literal["first", "last"] = "last",
+    ) -> Optional[DataFrame]:
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
         na_last = na_position == "last"
@@ -2252,16 +2272,46 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             else order.descending_over(column, na_last)
             for column in index_columns
         ]
-        return DataFrame(self._block.order_by(ordering))
+        block = self._block.order_by(ordering)
+        if inplace:
+            self._set_block(block)
+            return None
+        else:
+            return DataFrame(block)
+
+    @overload  # type: ignore[override]
+    def sort_values(
+        self,
+        by: str | typing.Sequence[str],
+        *,
+        inplace: Literal[False] = ...,
+        ascending: bool | typing.Sequence[bool] = ...,
+        kind: str = ...,
+        na_position: typing.Literal["first", "last"] = ...,
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def sort_values(
+        self,
+        by: str | typing.Sequence[str],
+        *,
+        inplace: Literal[True] = ...,
+        ascending: bool | typing.Sequence[bool] = ...,
+        kind: str = ...,
+        na_position: typing.Literal["first", "last"] = ...,
+    ) -> None:
+        ...
 
     def sort_values(
         self,
         by: str | typing.Sequence[str],
         *,
+        inplace: bool = False,
         ascending: bool | typing.Sequence[bool] = True,
         kind: str = "quicksort",
         na_position: typing.Literal["first", "last"] = "last",
-    ) -> DataFrame:
+    ) -> Optional[DataFrame]:
         if isinstance(by, (bigframes.series.Series, indexes.Index, DataFrame)):
             raise KeyError(
                 f"Invalid key type: {type(by).__name__}. Please provide valid column name(s)."
@@ -2291,7 +2341,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 if is_ascending
                 else order.descending_over(column_id, na_last)
             )
-        return DataFrame(self._block.order_by(ordering))
+        block = self._block.order_by(ordering)
+        if inplace:
+            self._set_block(block)
+            return None
+        else:
+            return DataFrame(block)
 
     def eval(self, expr: str) -> DataFrame:
         import bigframes.core.eval as bf_eval

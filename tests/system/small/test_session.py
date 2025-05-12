@@ -96,16 +96,17 @@ def test_read_gbq_tokyo(
     tokyo_location: str,
 ):
     df = session_tokyo.read_gbq(scalars_table_tokyo, index_col=["rowindex"])
-    result = df.sort_index().to_pandas()
+    df.sort_index(inplace=True)
     expected = scalars_pandas_df_index
 
     # use_explicit_destination=True, otherwise might use path with no query_job
-    result = session_tokyo._executor.execute(
+    exec_result = session_tokyo._executor.execute(
         df._block.expr, use_explicit_destination=True
     )
-    assert result.query_job.location == tokyo_location
+    assert exec_result.query_job is not None
+    assert exec_result.query_job.location == tokyo_location
 
-    assert len(expected) == result.total_rows
+    assert len(expected) == exec_result.total_rows
 
 
 @pytest.mark.parametrize(
@@ -449,11 +450,15 @@ def test_read_gbq_twice_with_same_timestamp(session, penguins_table_id):
 @pytest.mark.parametrize(
     "source_table",
     [
+        # Wildcard tables
+        "bigquery-public-data.noaa_gsod.gsod194*",
+        # Linked datasets
         "bigframes-dev.thelook_ecommerce.orders",
+        # Materialized views
         "bigframes-dev.bigframes_tests_sys.base_table_mat_view",
     ],
 )
-def test_read_gbq_on_linked_dataset_warns(session, source_table):
+def test_read_gbq_warns_time_travel_disabled(session, source_table):
     with warnings.catch_warnings(record=True) as warned:
         session.read_gbq(source_table, use_cache=False)
         assert len(warned) == 1
@@ -1831,3 +1836,100 @@ def test_read_gbq_duplicate_columns_xfail(
         index_col=index_col,
         columns=columns,
     )
+
+
+def test_read_gbq_with_table_ref_dry_run(scalars_table_id, session):
+    result = session.read_gbq(scalars_table_id, dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    _assert_table_dry_run_stats_are_valid(result)
+
+
+def test_read_gbq_with_query_dry_run(scalars_table_id, session):
+    query = f"SELECT * FROM {scalars_table_id} LIMIT 10;"
+    result = session.read_gbq(query, dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    _assert_query_dry_run_stats_are_valid(result)
+
+
+def test_read_gbq_dry_run_with_column_and_index(scalars_table_id, session):
+    query = f"SELECT * FROM {scalars_table_id} LIMIT 10;"
+    result = session.read_gbq(
+        query, dry_run=True, columns=["int64_col", "float64_col"], index_col="int64_too"
+    )
+
+    assert isinstance(result, pd.Series)
+    _assert_query_dry_run_stats_are_valid(result)
+    assert result["columnCount"] == 2
+    assert result["columnDtypes"] == {
+        "int64_col": pd.Int64Dtype(),
+        "float64_col": pd.Float64Dtype(),
+    }
+    assert result["indexLevel"] == 1
+    assert result["indexDtypes"] == [pd.Int64Dtype()]
+
+
+def test_read_gbq_table_dry_run(scalars_table_id, session):
+    result = session.read_gbq_table(scalars_table_id, dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    _assert_table_dry_run_stats_are_valid(result)
+
+
+def test_read_gbq_table_dry_run_with_max_results(scalars_table_id, session):
+    result = session.read_gbq_table(scalars_table_id, dry_run=True, max_results=100)
+
+    assert isinstance(result, pd.Series)
+    _assert_query_dry_run_stats_are_valid(result)
+
+
+def test_read_gbq_query_dry_run(scalars_table_id, session):
+    query = f"SELECT * FROM {scalars_table_id} LIMIT 10;"
+    result = session.read_gbq_query(query, dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    _assert_query_dry_run_stats_are_valid(result)
+
+
+def _assert_query_dry_run_stats_are_valid(result: pd.Series):
+    expected_index = pd.Index(
+        [
+            "columnCount",
+            "columnDtypes",
+            "indexLevel",
+            "indexDtypes",
+            "projectId",
+            "location",
+            "jobType",
+            "destinationTable",
+            "useLegacySql",
+            "referencedTables",
+            "totalBytesProcessed",
+            "cacheHit",
+            "statementType",
+            "creationTime",
+        ]
+    )
+
+    pd.testing.assert_index_equal(result.index, expected_index)
+    assert result["columnCount"] + result["indexLevel"] > 0
+
+
+def _assert_table_dry_run_stats_are_valid(result: pd.Series):
+    expected_index = pd.Index(
+        [
+            "isQuery",
+            "columnCount",
+            "columnDtypes",
+            "numBytes",
+            "numRows",
+            "location",
+            "type",
+            "creationTime",
+            "lastModifiedTime",
+        ]
+    )
+
+    pd.testing.assert_index_equal(result.index, expected_index)
+    assert result["columnCount"] == len(result["columnDtypes"])
