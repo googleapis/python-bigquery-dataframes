@@ -50,12 +50,13 @@ def test_bigquery_dataframes_examples() -> None:
     # [END bigquery_dataframes_bigquery_methods_struct]
 
     # [START bigquery_dataframes_bigquery_methods_unix_micros]
-    import bigframes.bigquery as bbq
-    import bigframes.pandas as bpd
     import pandas as pd
 
+    import bigframes.bigquery as bbq
+    import bigframes.pandas as bpd
+
     # Create a series that consists of three timestamps: [1970-01-01, 1970-01-02, 1970-01-03]
-    s = bpd.Series(pd.date_range('1970-01-01', periods=3, freq='d', tz='UTC'))
+    s = bpd.Series(pd.date_range("1970-01-01", periods=3, freq="d", tz="UTC"))
 
     bbq.unix_micros(s)
     # 0               0
