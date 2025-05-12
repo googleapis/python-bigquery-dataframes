@@ -51,14 +51,36 @@ def images_output_uris(images_output_folder: str) -> list[str]:
     ]
 
 
+def test_blob_exif(
+    bq_connection: str,
+    test_session: bigframes.Session,
+):
+    exif_image_df = test_session.from_glob_path(
+        "gs://bigframes_blob_test/images_exif/*",
+        name="blob_col",
+        connection=bq_connection,
+    )
+
+    actual = exif_image_df["blob_col"].blob.exif(connection=bq_connection)
+    expected = bpd.Series(
+        ['{"ExifOffset": 47, "Make": "MyCamera"}'],
+        session=test_session,
+        dtype=dtypes.JSON_DTYPE,
+    )
+    pd.testing.assert_series_equal(
+        actual.to_pandas(),
+        expected.to_pandas(),
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
 def test_blob_image_blur_to_series(
     images_mm_df: bpd.DataFrame,
     bq_connection: str,
     images_output_uris: list[str],
     test_session: bigframes.Session,
 ):
-    bigframes.options.experiments.blob = True
-
     series = bpd.Series(images_output_uris, session=test_session).str.to_blob(
         connection=bq_connection
     )
@@ -91,8 +113,6 @@ def test_blob_image_blur_to_folder(
     images_output_folder: str,
     images_output_uris: list[str],
 ):
-    bigframes.options.experiments.blob = True
-
     actual = images_mm_df["blob_col"].blob.image_blur(
         (8, 8), dst=images_output_folder, connection=bq_connection
     )
@@ -116,8 +136,6 @@ def test_blob_image_blur_to_folder(
 
 
 def test_blob_image_blur_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str):
-    bigframes.options.experiments.blob = True
-
     actual = images_mm_df["blob_col"].blob.image_blur((8, 8), connection=bq_connection)
 
     assert isinstance(actual, bpd.Series)
@@ -131,8 +149,6 @@ def test_blob_image_resize_to_series(
     images_output_uris: list[str],
     test_session: bigframes.Session,
 ):
-    bigframes.options.experiments.blob = True
-
     series = bpd.Series(images_output_uris, session=test_session).str.to_blob(
         connection=bq_connection
     )
@@ -165,8 +181,6 @@ def test_blob_image_resize_to_folder(
     images_output_folder: str,
     images_output_uris: list[str],
 ):
-    bigframes.options.experiments.blob = True
-
     actual = images_mm_df["blob_col"].blob.image_resize(
         (200, 300), dst=images_output_folder, connection=bq_connection
     )
@@ -190,8 +204,6 @@ def test_blob_image_resize_to_folder(
 
 
 def test_blob_image_resize_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str):
-    bigframes.options.experiments.blob = True
-
     actual = images_mm_df["blob_col"].blob.image_resize(
         (200, 300), connection=bq_connection
     )
@@ -207,8 +219,6 @@ def test_blob_image_normalize_to_series(
     images_output_uris: list[str],
     test_session: bigframes.Session,
 ):
-    bigframes.options.experiments.blob = True
-
     series = bpd.Series(images_output_uris, session=test_session).str.to_blob(
         connection=bq_connection
     )
@@ -241,8 +251,6 @@ def test_blob_image_normalize_to_folder(
     images_output_folder: str,
     images_output_uris: list[str],
 ):
-    bigframes.options.experiments.blob = True
-
     actual = images_mm_df["blob_col"].blob.image_normalize(
         alpha=50.0,
         beta=150.0,
@@ -270,8 +278,6 @@ def test_blob_image_normalize_to_folder(
 
 
 def test_blob_image_normalize_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str):
-    bigframes.options.experiments.blob = True
-
     actual = images_mm_df["blob_col"].blob.image_normalize(
         alpha=50.0, beta=150.0, norm_type="minmax", connection=bq_connection
     )
@@ -314,8 +320,6 @@ def test_blob_pdf_extract(
     bq_connection: str,
     expected: pd.Series,
 ):
-    bigframes.options.experiments.blob = True
-
     actual = (
         pdf_mm_df["pdf"]
         .blob.pdf_extract(connection=bq_connection, verbose=verbose)
@@ -366,8 +370,6 @@ def test_blob_pdf_extract(
 def test_blob_pdf_chunk(
     pdf_mm_df: bpd.DataFrame, verbose: bool, bq_connection: str, expected: pd.Series
 ):
-    bigframes.options.experiments.blob = True
-
     actual = (
         pdf_mm_df["pdf"]
         .blob.pdf_chunk(

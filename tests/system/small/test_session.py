@@ -96,16 +96,17 @@ def test_read_gbq_tokyo(
     tokyo_location: str,
 ):
     df = session_tokyo.read_gbq(scalars_table_tokyo, index_col=["rowindex"])
-    result = df.sort_index().to_pandas()
+    df.sort_index(inplace=True)
     expected = scalars_pandas_df_index
 
     # use_explicit_destination=True, otherwise might use path with no query_job
-    result = session_tokyo._executor.execute(
+    exec_result = session_tokyo._executor.execute(
         df._block.expr, use_explicit_destination=True
     )
-    assert result.query_job.location == tokyo_location
+    assert exec_result.query_job is not None
+    assert exec_result.query_job.location == tokyo_location
 
-    assert len(expected) == result.total_rows
+    assert len(expected) == exec_result.total_rows
 
 
 @pytest.mark.parametrize(
@@ -449,11 +450,15 @@ def test_read_gbq_twice_with_same_timestamp(session, penguins_table_id):
 @pytest.mark.parametrize(
     "source_table",
     [
+        # Wildcard tables
+        "bigquery-public-data.noaa_gsod.gsod194*",
+        # Linked datasets
         "bigframes-dev.thelook_ecommerce.orders",
+        # Materialized views
         "bigframes-dev.bigframes_tests_sys.base_table_mat_view",
     ],
 )
-def test_read_gbq_on_linked_dataset_warns(session, source_table):
+def test_read_gbq_warns_time_travel_disabled(session, source_table):
     with warnings.catch_warnings(record=True) as warned:
         session.read_gbq(source_table, use_cache=False)
         assert len(warned) == 1

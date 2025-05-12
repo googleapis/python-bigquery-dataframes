@@ -53,6 +53,7 @@ _GEMINI_1P5_FLASH_002_ENDPOINT = "gemini-1.5-flash-002"
 _GEMINI_2_FLASH_EXP_ENDPOINT = "gemini-2.0-flash-exp"
 _GEMINI_2_FLASH_001_ENDPOINT = "gemini-2.0-flash-001"
 _GEMINI_2_FLASH_LITE_001_ENDPOINT = "gemini-2.0-flash-lite-001"
+_GEMINI_2P5_PRO_PREVIEW_ENDPOINT = "gemini-2.5-pro-preview-05-06"
 _GEMINI_ENDPOINTS = (
     _GEMINI_1P5_PRO_PREVIEW_ENDPOINT,
     _GEMINI_1P5_PRO_FLASH_PREVIEW_ENDPOINT,
@@ -103,6 +104,12 @@ _MODEL_NOT_SUPPORTED_WARNING = (
 )
 
 _REMOVE_DEFAULT_MODEL_WARNING = "Since upgrading the default model can cause unintended breakages, the default model will be removed in BigFrames 3.0. Please supply an explicit model to avoid this message."
+
+_GEMINI_MULTIMODAL_MODEL_NOT_SUPPORTED_WARNING = (
+    "The model '{model_name}' may not be fully supported by GeminiTextGenerator for Multimodal prompts. "
+    "GeminiTextGenerator is known to support the following models for Multimodal prompts: {known_models}. "
+    "If you proceed with '{model_name}', it might not work as expected or could lead to errors with multimodal inputs."
+)
 
 
 @log_adapter.class_logger
@@ -250,7 +257,10 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
     """Multimodal embedding generator LLM model.
 
     .. note::
-        BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+        BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
 
     Args:
         model_name (str, Default to "multimodalembedding@001"):
@@ -271,8 +281,6 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
         session: Optional[bigframes.Session] = None,
         connection_name: Optional[str] = None,
     ):
-        if not bigframes.options.experiments.blob:
-            raise NotImplementedError()
         if model_name is None:
             model_name = "multimodalembedding@001"
             msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
@@ -539,9 +547,10 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
             GeminiTextGenerator: Fitted estimator.
         """
         if self.model_name not in _GEMINI_FINE_TUNE_SCORE_ENDPOINTS:
-            raise NotImplementedError(
+            msg = exceptions.format_message(
                 "fit() only supports gemini-1.5-pro-002, or gemini-1.5-flash-002 model."
             )
+            warnings.warn(msg)
 
         X, y = utils.batch_convert_to_dataframe(X, y)
 
@@ -610,7 +619,10 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
 
             prompt (Iterable of str or bigframes.series.Series, or None, default None):
                 .. note::
-                    BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+                    BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+                    Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+                    and might have limited support. For more information, see the launch stage descriptions
+                    (https://cloud.google.com/products#product-launch-stages).
 
                 Construct a prompt struct column for prediction based on the input. The input must be an Iterable that can take string literals,
                 such as "summarize", string column(s) of X, such as X["str_col"], or blob column(s) of X, such as X["blob_col"].
@@ -646,13 +658,14 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
         (X,) = utils.batch_convert_to_dataframe(X, session=session)
 
         if prompt:
-            if not bigframes.options.experiments.blob:
-                raise NotImplementedError()
-
             if self.model_name not in _GEMINI_MULTIMODAL_ENDPOINTS:
-                raise NotImplementedError(
-                    f"GeminiTextGenerator only supports model_name {', '.join(_GEMINI_MULTIMODAL_ENDPOINTS)} for Multimodal prompt."
+                msg = exceptions.format_message(
+                    _GEMINI_MULTIMODAL_MODEL_NOT_SUPPORTED_WARNING.format(
+                        model_name=self.model_name,
+                        known_models=", ".join(_GEMINI_MULTIMODAL_ENDPOINTS),
+                    )
                 )
+                warnings.warn(msg)
 
             df_prompt = X[[X.columns[0]]].rename(
                 columns={X.columns[0]: "bigframes_placeholder_col"}
@@ -749,9 +762,10 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
             raise RuntimeError("A model must be fitted before score")
 
         if self.model_name not in _GEMINI_FINE_TUNE_SCORE_ENDPOINTS:
-            raise NotImplementedError(
+            msg = exceptions.format_message(
                 "score() only supports gemini-1.5-pro-002, gemini-1.5-flash-2, gemini-2.0-flash-001, and gemini-2.0-flash-lite-001 model."
             )
+            warnings.warn(msg)
 
         X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 

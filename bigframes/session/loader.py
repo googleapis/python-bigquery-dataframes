@@ -373,6 +373,7 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = ...,
         enable_snapshot: bool = ...,
         dry_run: Literal[False] = ...,
+        force_total_order: Optional[bool] = ...,
     ) -> dataframe.DataFrame:
         ...
 
@@ -394,6 +395,7 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = ...,
         enable_snapshot: bool = ...,
         dry_run: Literal[True] = ...,
+        force_total_order: Optional[bool] = ...,
     ) -> pandas.Series:
         ...
 
@@ -414,6 +416,7 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = (),
         enable_snapshot: bool = True,
         dry_run: bool = False,
+        force_total_order: Optional[bool] = None,
     ) -> dataframe.DataFrame | pandas.Series:
         import bigframes._tools.strings
         import bigframes.dataframe as dataframe
@@ -518,11 +521,7 @@ class GbqDataLoader:
         # clustered tables, so fallback to a query. We do this here so that
         # the index is consistent with tables that have primary keys, even
         # when max_results is set.
-        # TODO(b/338419730): We don't need to fallback to a query for wildcard
-        # tables if we allow some non-determinism when time travel isn't supported.
-        if max_results is not None or bf_io_bigquery.is_table_with_wildcard_suffix(
-            table_id
-        ):
+        if max_results is not None:
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.
             all_columns: Iterable[str] = (
@@ -540,7 +539,7 @@ class GbqDataLoader:
                 time_travel_timestamp=None,
             )
 
-            return self.read_gbq_query(  # type: ignore # for dry_run overload
+            df = self.read_gbq_query(  # type: ignore # for dry_run overload
                 query,
                 index_col=index_cols,
                 columns=columns,
@@ -548,6 +547,7 @@ class GbqDataLoader:
                 use_cache=use_cache,
                 dry_run=dry_run,
             )
+            return df
 
         if dry_run:
             return dry_runs.get_table_stats(table)
@@ -611,7 +611,14 @@ class GbqDataLoader:
             session=self._session,
         )
         # if we don't have a unique index, we order by row hash if we are in strict mode
-        if self._force_total_order:
+        if (
+            # If the user has explicitly selected or disabled total ordering for
+            # this API call, respect that choice.
+            (force_total_order is not None and force_total_order)
+            # If the user has not explicitly selected or disabled total ordering
+            # for this API call, respect the default choice for the session.
+            or (force_total_order is None and self._force_total_order)
+        ):
             if not primary_key:
                 array_value = array_value.order_by(
                     [
@@ -715,6 +722,7 @@ class GbqDataLoader:
         use_cache: Optional[bool] = ...,
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[False] = ...,
+        force_total_order: Optional[bool] = ...,
     ) -> dataframe.DataFrame:
         ...
 
@@ -731,6 +739,7 @@ class GbqDataLoader:
         use_cache: Optional[bool] = ...,
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[True] = ...,
+        force_total_order: Optional[bool] = ...,
     ) -> pandas.Series:
         ...
 
@@ -746,6 +755,7 @@ class GbqDataLoader:
         use_cache: Optional[bool] = None,
         filters: third_party_pandas_gbq.FiltersType = (),
         dry_run: bool = False,
+        force_total_order: Optional[bool] = None,
     ) -> dataframe.DataFrame | pandas.Series:
         import bigframes.dataframe as dataframe
 
@@ -836,6 +846,7 @@ class GbqDataLoader:
             columns=columns,
             use_cache=configuration["query"]["useQueryCache"],
             api_name=api_name,
+            force_total_order=force_total_order,
             # max_results and filters are omitted because they are already
             # handled by to_query(), above.
         )
@@ -909,7 +920,6 @@ class GbqDataLoader:
         self,
         sql: str,
         job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
-        max_results: Optional[int] = None,
         timeout: Optional[float] = None,
         api_name: Optional[str] = None,
     ) -> Tuple[google.cloud.bigquery.table.RowIterator, bigquery.QueryJob]:
@@ -928,7 +938,6 @@ class GbqDataLoader:
             self._bqclient,
             sql,
             job_config=job_config,
-            max_results=max_results,
             timeout=timeout,
             api_name=api_name,
         )

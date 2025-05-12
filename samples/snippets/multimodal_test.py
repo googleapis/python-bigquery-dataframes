@@ -19,10 +19,8 @@ def test_multimodal_dataframe(gcs_dst_bucket: str) -> None:
     # [START bigquery_dataframes_multimodal_dataframe_create]
     import bigframes
 
-    # Flag to enable the feature
-    bigframes.options.experiments.blob = True
     # Flags to control preview image/video preview size
-    bigframes.options.experiments.blob_display_width = 300
+    bigframes.options.display.blob_display_width = 300
 
     import bigframes.pandas as bpd
 
