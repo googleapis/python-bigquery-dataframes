@@ -25,21 +25,7 @@ class ExperimentOptions:
     """
 
     def __init__(self):
-        self._semantic_operators: bool = False
         self._ai_operators: bool = False
-
-    @property
-    def semantic_operators(self) -> bool:
-        return self._semantic_operators
-
-    @semantic_operators.setter
-    def semantic_operators(self, value: bool):
-        if value is True:
-            msg = bfe.format_message(
-                "Semantic operators are deprecated, and will be removed in the future"
-            )
-            warnings.warn(msg, category=FutureWarning)
-        self._semantic_operators = value
 
     @property
     def ai_operators(self) -> bool:

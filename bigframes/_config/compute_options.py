@@ -69,14 +69,6 @@ class ComputeOptions:
         extra_query_labels (Dict[str, Any], Options):
             Stores additional custom labels for query configuration.
 
-        semantic_ops_confirmation_threshold (int, optional):
-            .. deprecated:: 1.42.0
-                Semantic operators are deprecated. Please use AI operators instead
-
-        semantic_ops_threshold_autofail (bool):
-            .. deprecated:: 1.42.0
-                Semantic operators are deprecated. Please use AI operators instead
-
         ai_ops_confirmation_threshold (int, optional):
             Guards against unexpected processing of large amount of rows by semantic operators.
             If the number of rows exceeds the threshold, the user will be asked to confirm
@@ -99,8 +91,6 @@ class ComputeOptions:
     extra_query_labels: Dict[str, Any] = dataclasses.field(
         default_factory=dict, init=False
     )
-    semantic_ops_confirmation_threshold: Optional[int] = 0
-    semantic_ops_threshold_autofail = False
 
     ai_ops_confirmation_threshold: Optional[int] = 0
     ai_ops_threshold_autofail: bool = False
