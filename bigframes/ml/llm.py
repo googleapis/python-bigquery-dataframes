@@ -432,7 +432,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
             default and a warning will be issued.
 
         .. note::
-            "gemini-1.5-X" is going to be deprecated. Bigframes 2 will transition to using gemini-2.0-X.
+            "gemini-1.5-X" is going to be deprecated. Please use gemini-2.0-X instead. For example, "gemini-2.0-flash-001".
             "gemini-2.0-flash-exp", "gemini-1.5-pro-preview-0514" and "gemini-1.5-flash-preview-0514" is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
             Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
             and might have limited support. For more information, see the launch stage descriptions
