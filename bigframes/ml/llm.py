@@ -115,7 +115,7 @@ _GEMINI_MULTIMODAL_MODEL_NOT_SUPPORTED_WARNING = (
 
 
 @typing_extensions.deprecated(
-    "text-embedding-004 is going to be deprecated. Use text-embedding-005 (https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead. ",
+    "text-embedding-004 is going to be deprecated. Use text-embedding-005 (https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead.",
     category=exceptions.ApiDeprecationWarning,
 )
 @log_adapter.class_logger
@@ -123,7 +123,7 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
     """Text embedding generator LLM model.
 
     .. note::
-        text-embedding-004 is going to be deprecated. Use text-embedding-005(    https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead.
+        text-embedding-004 is going to be deprecated. Use text-embedding-005(https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead.
 
     Args:
         model_name (str, Default to "text-embedding-004"):
@@ -134,7 +134,7 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
             default and a warning will be issued.
 
             .. note::
-            "text-embedding-004" is going to be deprecated. Bigframes 3 will transition to using text-embedding-004.
+                "text-embedding-004" is going to be deprecated. Bigframes 3 will transition to using text-embedding-004.
 
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
