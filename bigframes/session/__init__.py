@@ -527,7 +527,6 @@ class Session(
         query = bigframes.core.pyformat.pyformat(
             query,
             pyformat_args=pyformat_args,
-            # TODO: add dry_run parameter to avoid API calls for data in pyformat_args
         )
 
         return self._loader.read_gbq_query(
