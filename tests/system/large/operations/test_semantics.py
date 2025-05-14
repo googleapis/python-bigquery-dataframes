@@ -22,10 +22,10 @@ import pytest
 import bigframes
 from bigframes import dataframe, dtypes, exceptions, series
 
-# pytest.skip(
-#    "Semantics namespace is deprecated. ",
-#    allow_module_level=True,
-# )
+pytest.skip(
+    "Semantics namespace is deprecated. ",
+    allow_module_level=True,
+)
 
 SEM_OP_EXP_OPTION = "experiments.semantic_operators"
 BLOB_EXP_OPTION = "experiments.blob"
