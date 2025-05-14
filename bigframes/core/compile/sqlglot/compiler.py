@@ -65,7 +65,7 @@ class SQLGlotCompiler:
 
     def _compile_sql(self, request: configs.CompileRequest) -> configs.CompileResult:
         output_names = tuple(
-            (expression.DerefOp(id), id.sql) for id in request.node.ids
+            (expression.DerefOp(field), field.id.sql) for field in request.node.fields
         )
         result_node = nodes.ResultNode(
             request.node,

@@ -133,9 +133,9 @@ def drop_cols(
 ) -> nodes.SelectionNode:
     # adding a whole node that redefines the schema is a lot of overhead, should do something more efficient
     selections = tuple(
-        nodes.AliasedRef(scalar_exprs.DerefOp(id), id)
-        for id in node.ids
-        if id not in drop_cols
+        nodes.AliasedRef(scalar_exprs.DerefOp(field), field.id)
+        for field in node.fields
+        if field.id not in drop_cols
     )
     return nodes.SelectionNode(node, selections)
 

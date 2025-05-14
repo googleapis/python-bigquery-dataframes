@@ -50,7 +50,7 @@ def get_expression_spec(
     # TODO: While we chain expression fragments from different nodes
     # we could further normalize with constant folding and other scalar expression rewrites
     expression: bigframes.core.expression.Expression = (
-        bigframes.core.expression.DerefOp(id)
+        bigframes.core.expression.DerefOp(node.field_by_id[id])
     )
     curr_node = node
     while True:
@@ -205,7 +205,7 @@ def pull_up_selection(
             var_renames = {}
         assert isinstance(new_node, bigframes.core.nodes.AdditiveNode)
         added_selections = tuple(
-            bigframes.core.nodes.AliasedRef.identity(field.id).remap_refs(var_renames)
+            bigframes.core.nodes.AliasedRef.identity(field).remap_refs(var_renames)
             for field in node.added_fields
         )
         new_selection = child_selections + added_selections

@@ -32,7 +32,9 @@ def defer_order(
         else order
     )
     if output_hidden_row_keys:
-        output_names = tuple((expression.DerefOp(id), id.sql) for id in new_child.ids)
+        output_names = tuple(
+            (expression.DerefOp(field), field.id.sql) for field in new_child.fields
+        )
     else:
         output_names = root.output_cols
     return dataclasses.replace(
@@ -102,7 +104,7 @@ def _pull_up_order(
                     bigframes.core.ordering.TotalOrdering(
                         ordering_value_columns=tuple(new_by),
                         total_ordering_columns=frozenset(
-                            map(lambda x: bigframes.core.expression.DerefOp(x), ids)
+                            map(lambda x: expression.DerefOp(x), ids)
                         ),
                     )
                 )
@@ -203,7 +205,7 @@ def _pull_up_order(
                 col: identifiers.ColumnId.unique() for col in unselected_order_cols
             }
             all_selections = node.input_output_pairs + tuple(
-                bigframes.core.nodes.AliasedRef(bigframes.core.expression.DerefOp(k), v)
+                bigframes.core.nodes.AliasedRef(expression.DerefOp(k), v)
                 for k, v in new_selections.items()
             )
             new_select_node = dataclasses.replace(
@@ -287,9 +289,7 @@ def _pull_up_order(
                     new_source, ((order_expression.scalar_expression, offsets_id),)
                 )
             else:
-                agg = bigframes.core.expression.NullaryAggregation(
-                    agg_ops.RowNumberOp()
-                )
+                agg = expression.NullaryAggregation(agg_ops.RowNumberOp())
                 window_spec = bigframes.core.window_spec.unbound(
                     ordering=tuple(order.all_ordering_columns)
                 )
@@ -297,13 +297,23 @@ def _pull_up_order(
                     new_source, agg, window_spec, offsets_id
                 )
             new_source = bigframes.core.nodes.ProjectionNode(
-                new_source, ((bigframes.core.expression.const(i), table_id),)
+                new_source, ((expression.const(i), table_id),)
+            )
+            offsets_id_alias = bigframes.core.nodes.AliasedRef.identity(
+                new_source.field_by_id[offsets_id]
+            )
+            table_id_alias = bigframes.core.nodes.AliasedRef.identity(
+                new_source.field_by_id[table_id]
             )
             selection = tuple(
                 (
-                    bigframes.core.nodes.AliasedRef.identity(id)
-                    for id in (*source.ids, table_id, offsets_id)
+                    bigframes.core.nodes.AliasedRef.identity(field)
+                    for field in source.fields
                 )
+            )
+            selection = selection + (
+                offsets_id_alias,
+                table_id_alias,
             )
             new_source = bigframes.core.nodes.SelectionNode(new_source, selection)
             new_sources.append(new_source)
@@ -409,7 +419,10 @@ def _pull_up_order(
         if result.ids != node.ids:
             return bigframes.core.nodes.SelectionNode(
                 result,
-                tuple(bigframes.core.nodes.AliasedRef.identity(id) for id in node.ids),
+                tuple(
+                    bigframes.core.nodes.AliasedRef.identity(field)
+                    for field in node.fields
+                ),
             )
         return result
 
@@ -439,8 +452,8 @@ def rename_cols(
     result_node = bigframes.core.nodes.SelectionNode(
         node,
         tuple(
-            bigframes.core.nodes.AliasedRef.identity(id).remap_vars(mappings)
-            for id in node.ids
+            bigframes.core.nodes.AliasedRef.identity(field).remap_vars(mappings)
+            for field in node.fields
         ),
     )
 

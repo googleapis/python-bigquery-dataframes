@@ -22,6 +22,7 @@ from typing import Generator, Mapping, TypeVar, Union
 
 import pandas as pd
 
+import bigframes.core.bigframe_node as bigframe_node
 import bigframes.core.identifiers as ids
 import bigframes.dtypes as dtypes
 import bigframes.operations
@@ -342,7 +343,7 @@ class UnboundVariableExpression(Expression):
 class DerefOp(Expression):
     """A variable expression representing an unbound variable."""
 
-    id: ids.ColumnId
+    field: bigframe_node.Field
 
     @property
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
@@ -356,6 +357,11 @@ class DerefOp(Expression):
     def nullable(self) -> bool:
         # Safe default, need to actually bind input schema to determine
         return True
+
+    @property
+    def id(self) -> ids.ColumnId:
+        # Safe default, need to actually bind input schema to determine
+        return self.field.id
 
     def output_type(
         self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
