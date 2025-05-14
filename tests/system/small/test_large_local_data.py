@@ -52,4 +52,4 @@ def test_read_pandas_defer_peek(session: bigframes.Session):
     bf_result = bf_df.peek(15)
 
     assert len(bf_result) == 15
-    assert_pandas_df_equal(large_dataframe.loc[bf_df.index], bf_result)
+    assert_pandas_df_equal(large_dataframe.loc[bf_result.index], bf_result)
