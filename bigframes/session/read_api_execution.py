@@ -89,9 +89,12 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
 
             def process_page(page):
                 pa_batch = page.to_arrow()
-                return pa_batch.select(
+                pa_batch = pa_batch.select(
                     [item.source_id for item in node.scan_list.items]
-                ).rename_columns([id.sql for id in node.ids])
+                )
+                return pa.RecordBatch.from_arrays(
+                    pa_batch.columns, names=[id.sql for id in node.ids]
+                )
 
             batches = map(process_page, rowstream.pages)
 
