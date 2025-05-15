@@ -118,6 +118,9 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
         plan: bigframe_node.BigFrameNode,
         ordered: bool,
     ) -> Optional[nodes.ReadTableNode]:
+        """
+        Tries to simplify the plan to an equivalent single ReadTableNode. Otherwise, returns None.
+        """
         if not ordered:
             # gets rid of order_by ops
             plan = rewrite.bake_order(plan)
