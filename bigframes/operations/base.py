@@ -245,9 +245,9 @@ class SeriesMethods:
         )
         return (typing.cast(ex.DerefOp, values[0]), values[1], block)
 
-    def _align3(self, other1: series.Series | scalars.Scalar, other2: series.Series | scalars.Scalar, how="left") -> tuple[ex.DerefOp, AlignedExprT, AlignedExprT, blocks.Block]:  # type: ignore
+    def _align3(self, other1: series.Series | scalars.Scalar, other2: series.Series | scalars.Scalar, how="left", cast_scalars: bool = True) -> tuple[ex.DerefOp, AlignedExprT, AlignedExprT, blocks.Block]:  # type: ignore
         """Aligns the series value with 2 other scalars or series objects. Returns new values and joined tabled expression."""
-        values, index = self._align_n([other1, other2], how)
+        values, index = self._align_n([other1, other2], how, cast_scalars=cast_scalars)
         return (
             typing.cast(ex.DerefOp, values[0]),
             values[1],

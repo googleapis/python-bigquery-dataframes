@@ -1347,20 +1347,24 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 yield item
 
     def where(self, cond, other=None):
-        value_id, cond_id, other_id, block = self._align3(cond, other)
+        value_id, cond_id, other_id, block = self._align3(
+            cond, other, cast_scalars=False
+        )
         block, result_id = block.project_expr(
             ops.where_op.as_expr(value_id, cond_id, other_id)
         )
         return Series(block.select_column(result_id).with_column_labels([self.name]))
 
-    def clip(self, lower, upper):
+    def clip(self, lower=None, upper=None):
         if lower is None and upper is None:
             return self
         if lower is None:
             return self._apply_binary_op(upper, ops.minimum_op, alignment="left")
         if upper is None:
             return self._apply_binary_op(lower, ops.maximum_op, alignment="left")
-        value_id, lower_id, upper_id, block = self._align3(lower, upper)
+        value_id, lower_id, upper_id, block = self._align3(
+            lower, upper, cast_scalars=False
+        )
         block, result_id = block.project_expr(
             ops.clip_op.as_expr(value_id, lower_id, upper_id),
         )
