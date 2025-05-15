@@ -73,9 +73,20 @@ class ExecutionCache:
             nodes.BigFrameNode, nodes.BigFrameNode
         ] = weakref.WeakKeyDictionary()
 
+        # Avoid creating too many views for the same node. This is a concern
+        # since views may be created from _read_gbq_colab dry run, which could
+        # run quite frequently.
+        self._cached_views: weakref.WeakKeyDictionary[
+            nodes.BigFrameNode, bigquery.TableReference
+        ] = weakref.WeakKeyDictionary()
+
     @property
     def mapping(self) -> Mapping[nodes.BigFrameNode, nodes.BigFrameNode]:
         return self._cached_executions
+
+    @property
+    def view_mapping(self) -> Mapping[nodes.BigFrameNode, bigquery.TableReference]:
+        return self._cached_views
 
     def cache_results_table(
         self,
@@ -149,6 +160,25 @@ class BigQueryCachingExecutor(executor.Executor):
         node = self.logical_plan(array_value.node) if enable_cache else array_value.node
         compiled = compile.compile_sql(compile.CompileRequest(node, sort_rows=ordered))
         return compiled.sql
+
+    def to_view(
+        self,
+        array_value: bigframes.core.ArrayValue,
+    ) -> bigquery.TableReference:
+        """
+        Convert an ArrayValue to a temporary view that will yield its value.
+        """
+        # Have we created a view for this node before? If so, use that.
+        node = array_value.node
+        view_id = self.cache.view_mapping.get(node, None)
+        if view_id is not None:
+            return view_id
+
+        # No view exists, so let's create one in the anonymous dataset.
+        plan = self.logical_plan(node)
+        compiled = compile.compile_sql(compile.CompileRequest(plan, sort_rows=False))
+        sql = compiled.sql
+        return self.storage_manager.create_temp_view(sql)
 
     def execute(
         self,

@@ -2440,22 +2440,9 @@ class Block:
     ) -> bool:
         return self._is_monotonic(column_id, increasing=False)
 
-    def to_sql_query(
-        self, include_index: bool, enable_cache: bool = True
-    ) -> typing.Tuple[str, list[str], list[Label]]:
-        """
-        Compiles this DataFrame's expression tree to SQL, optionally
-        including index columns.
-
-        Args:
-            include_index (bool):
-                whether to include index columns.
-
-        Returns:
-            a tuple of (sql_string, index_column_id_list, index_column_label_list).
-                If include_index is set to False, index_column_id_list and index_column_label_list
-                return empty lists.
-        """
+    def _array_value_for_sql(
+        self, include_index: bool
+    ) -> Tuple[list[str], core.ArrayValue]:
         array_value = self._expr
         col_labels, idx_labels = list(self.column_labels), list(self.index.names)
         old_col_ids, old_idx_ids = list(self.value_columns), list(self.index_columns)
@@ -2475,17 +2462,40 @@ class Block:
             # the BigQuery unicode column name feature?
             substitutions[old_id] = new_id
 
+        return new_ids, array_value.rename_columns(substitutions)
+
+    def to_sql_query(
+        self, include_index: bool, enable_cache: bool = True
+    ) -> typing.Tuple[str, list[str], list[Label]]:
+        """
+        Compiles this DataFrame's expression tree to SQL, optionally
+        including index columns.
+
+        Args:
+            include_index (bool):
+                whether to include index columns.
+
+        Returns:
+            a tuple of (sql_string, index_column_id_list, index_column_label_list).
+                If include_index is set to False, index_column_id_list and index_column_label_list
+                return empty lists.
+        """
+        idx_labels = list(self.index.names)
+        new_ids, array_value = self._array_value_for_sql(include_index=include_index)
+
         # Note: this uses the sql from the executor, so is coupled tightly to execution
         # implementaton. It will reference cached tables instead of original data sources.
         # Maybe should just compile raw BFET? Depends on user intent.
-        sql = self.session._executor.to_sql(
-            array_value.rename_columns(substitutions), enable_cache=enable_cache
-        )
+        sql = self.session._executor.to_sql(array_value, enable_cache=enable_cache)
         return (
             sql,
             new_ids[: len(idx_labels)],
             idx_labels,
         )
+
+    def to_view(self, include_index: bool) -> bigquery.TableReference:
+        _, array_value = self._array_value_for_sql(include_index=include_index)
+        return self.session._executor.to_view(array_value)
 
     def cached(self, *, force: bool = False, session_aware: bool = False) -> None:
         """Write the block to a session table."""

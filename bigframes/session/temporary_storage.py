@@ -27,6 +27,9 @@ class TemporaryStorageManager(Protocol):
     ) -> bigquery.TableReference:
         ...
 
+    def create_temp_view(self, sql) -> bigquery.TableReference:
+        ...
+
     # implementations should be robust to repeatedly closing
     def close(self) -> None:
         ...

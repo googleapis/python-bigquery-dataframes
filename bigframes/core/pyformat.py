@@ -53,7 +53,7 @@ def _field_to_template_value(
 
     # TODO(tswast): convert pandas DataFrame objects to gbq tables or a literals subquery.
     if isinstance(value, bigframes.dataframe.DataFrame):
-        return f"( {value.sql} )"
+        return _table_to_sql(value._to_view())
 
     return bigframes.core.sql.simple_literal(value)
 
