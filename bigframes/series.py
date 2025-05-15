@@ -1347,9 +1347,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 yield item
 
     def where(self, cond, other=None):
-        value_id, cond_id, other_id, block = self._align3(
-            cond, other, cast_scalars=False
-        )
+        value_id, cond_id, other_id, block = self._align3(cond, other)
         block, result_id = block.project_expr(
             ops.where_op.as_expr(value_id, cond_id, other_id)
         )
@@ -1362,8 +1360,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return self._apply_binary_op(upper, ops.minimum_op, alignment="left")
         if upper is None:
             return self._apply_binary_op(lower, ops.maximum_op, alignment="left")
+        # special rule to coerce scalar string args to date
         value_id, lower_id, upper_id, block = self._align3(
-            lower, upper, cast_scalars=False
+            lower, upper, cast_scalars=(bigframes.dtypes.is_date_like(self.dtype))
         )
         block, result_id = block.project_expr(
             ops.clip_op.as_expr(value_id, lower_id, upper_id),

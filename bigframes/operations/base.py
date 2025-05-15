@@ -260,7 +260,7 @@ class SeriesMethods:
         others: typing.Sequence[typing.Union[series.Series, scalars.Scalar]],
         how="outer",
         ignore_self=False,
-        cast_scalars: bool = True,
+        cast_scalars: bool = False,
     ) -> tuple[
         typing.Sequence[Union[ex.ScalarConstantExpression, ex.DerefOp]],
         blocks.Block,
