@@ -34,6 +34,3 @@ def test_quickstart(
     quickstart.run_quickstart(your_project_id)
     out, _ = capsys.readouterr()
     assert "average_body_mass:" in out
-
-    # close session so not to affect other tests
-    bigframes.pandas.close_session()
