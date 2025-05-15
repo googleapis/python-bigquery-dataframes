@@ -240,8 +240,7 @@ class Session(
         self._session_resource_manager = (
             bigquery_session.SessionResourceManager(
                 self.bqclient,
-                location=self._location,
-                session_id=self._session_id,
+                self._location,
             )
             if (self._bq_kms_key_name is None)
             else None

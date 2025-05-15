@@ -15,7 +15,7 @@
 import datetime
 import logging
 import threading
-from typing import Callable, cast, Optional, Sequence
+from typing import Callable, Optional, Sequence
 import uuid
 
 # TODO: Non-ibis implementation
@@ -23,7 +23,7 @@ import bigframes_vendored.ibis.backends.bigquery.datatypes as ibis_bq
 import google.cloud.bigquery as bigquery
 
 from bigframes.core.compile import googlesql
-from bigframes.session import anonymous_dataset, temporary_storage
+from bigframes.session import temporary_storage
 
 KEEPALIVE_QUERY_TIMEOUT_SECONDS = 5.0
 
@@ -38,26 +38,12 @@ class SessionResourceManager(temporary_storage.TemporaryStorageManager):
     Responsible for allocating and cleaning up temporary gbq tables used by a BigFrames session.
     """
 
-    def __init__(
-        self,
-        bqclient: bigquery.Client,
-        location: str,
-        session_id: str,
-    ):
+    def __init__(self, bqclient: bigquery.Client, location: str):
         self.bqclient = bqclient
         self._location = location
-
-        # Keep a separate session ID that we get from creating a BQ Session.
         self._session_id: Optional[str] = None
-
         self._sessiondaemon: Optional[RecurringTaskDaemon] = None
         self._session_lock = threading.RLock()
-
-        # Some resources (views), can't be managed via the session, so we keep
-        # an anonymous dataset manager to manage such resources.
-        self._anonymous_dataset_manager = anonymous_dataset.AnonymousDatasetManager(
-            bqclient, location, session_id
-        )
 
     @property
     def location(self):
@@ -101,20 +87,11 @@ class SessionResourceManager(temporary_storage.TemporaryStorageManager):
             job = self.bqclient.query(ddl, job_config=job_config)
             job.result()
             # return the fully qualified table, so it can be used outside of the session
-            return cast(bigquery.TableReference, job.destination)
-
-    def create_temp_view(self, sql: str) -> bigquery.TableReference:
-        """
-        Allocates and and creates a view in the anonymous dataset.
-        The view will be cleaned up by clean_up_tables.
-        """
-        return self._anonymous_dataset_manager.create_temp_view(sql)
+            return job.destination
 
     def close(self):
         if self._sessiondaemon is not None:
             self._sessiondaemon.stop()
-
-        self._anonymous_dataset_manager.close()
 
         if self._session_id is not None and self.bqclient is not None:
             self.bqclient.query_and_wait(f"CALL BQ.ABORT_SESSION('{self._session_id}')")
