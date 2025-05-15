@@ -16,6 +16,8 @@
 
 import textwrap
 
+from google.cloud import bigquery
+
 from bigframes.testing import mocks
 
 
@@ -37,6 +39,7 @@ def test_read_gbq_colab_includes_label():
 def test_read_gbq_colab_includes_formatted_values_in_dry_run(monkeypatch):
     session = mocks.create_bigquery_session()
     bf_df = mocks.create_dataframe(monkeypatch, session=session)
+    bf_df._to_view = lambda: bigquery.TableReference.from_string("my-project.my_dataset.some_view")  # type: ignore
 
     pyformat_args = {
         "some_integer": 123,
@@ -45,6 +48,7 @@ def test_read_gbq_colab_includes_formatted_values_in_dry_run(monkeypatch):
         # This is not a supported type, but ignored if not referenced.
         "some_object": object(),
     }
+
     _ = session._read_gbq_colab(
         textwrap.dedent(
             """
@@ -62,13 +66,7 @@ def test_read_gbq_colab_includes_formatted_values_in_dry_run(monkeypatch):
         SELECT 123 as some_integer,
         'This could be dangerous, but we escape it' as some_string,
         '{escaped}' as escaped
-        FROM ( SELECT
-          `t0`.`column_0` AS `col`
-        FROM (
-          SELECT
-            *
-          FROM UNNEST(ARRAY<STRUCT<`column_0` FLOAT64>>[]) AS `column_0`
-        ) AS `t0` )
+        FROM `my-project`.`my_dataset`.`some_view`
         """
     )
     queries = session._queries  # type: ignore

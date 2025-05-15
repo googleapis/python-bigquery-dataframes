@@ -1938,6 +1938,10 @@ class Session(
 
         return table
 
+    def _create_temp_view(self, sql: str) -> bigquery.TableReference:
+        """Create a random id Object Table from the input path and connection."""
+        return self._anon_dataset_manager.create_temp_view(sql)
+
     def from_glob_path(
         self, path: str, *, connection: Optional[str] = None, name: Optional[str] = None
     ) -> dataframe.DataFrame:

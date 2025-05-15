@@ -120,15 +120,6 @@ class Executor(abc.ABC):
         """
         raise NotImplementedError("to_sql not implemented for this executor")
 
-    def to_view(
-        self,
-        array_value: bigframes.core.ArrayValue,
-    ) -> bigquery.TableReference:
-        """
-        Convert an ArrayValue to a temporary view that will yield its value.
-        """
-        raise NotImplementedError("to_view not implemented for this executor")
-
     def execute(
         self,
         array_value: bigframes.core.ArrayValue,
