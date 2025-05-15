@@ -21,7 +21,6 @@ import warnings
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
-import typing_extensions
 
 from bigframes import dtypes, exceptions
 import bigframes.bigquery as bbq
@@ -113,11 +112,11 @@ _GEMINI_MULTIMODAL_MODEL_NOT_SUPPORTED_WARNING = (
     "If you proceed with '{model_name}', it might not work as expected or could lead to errors with multimodal inputs."
 )
 
-
-@typing_extensions.deprecated(
-    "text-embedding-004 is going to be deprecated. Use text-embedding-005 (https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator) instead.",
-    category=exceptions.ApiDeprecationWarning,
+_MODEL_DEPRECATE_WARNING = (
+    "'{model_name}' is going to be deprecated. Use '{new_model_name}' ({link}) instead."
 )
+
+
 @log_adapter.class_logger
 class TextEmbeddingGenerator(base.RetriableRemotePredictor):
     """Text embedding generator LLM model.
@@ -178,6 +177,15 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
                 _MODEL_NOT_SUPPORTED_WARNING.format(
                     model_name=self.model_name,
                     known_models=", ".join(_TEXT_EMBEDDING_ENDPOINTS),
+                )
+            )
+            warnings.warn(msg)
+        if self.model_name == "text-embedding-004":
+            msg = exceptions.format_message(
+                _MODEL_DEPRECATE_WARNING.format(
+                    model_name=self.model_name,
+                    new_model_name="text-embedding-005",
+                    link="https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.TextEmbeddingGenerator",
                 )
             )
             warnings.warn(msg)
@@ -410,10 +418,6 @@ class MultimodalEmbeddingGenerator(base.RetriableRemotePredictor):
         return new_model.session.read_gbq_model(model_name)
 
 
-@typing_extensions.deprecated(
-    "gemini-1.5-X are going to be deprecated. Use gemini-2.0-X (https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.GeminiTextGenerator) instead. ",
-    category=exceptions.ApiDeprecationWarning,
-)
 @log_adapter.class_logger
 class GeminiTextGenerator(base.RetriableRemotePredictor):
     """Gemini text generator LLM model.
@@ -478,10 +482,12 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
                 "(https://cloud.google.com/products#product-launch-stages)."
             )
             warnings.warn(msg, category=exceptions.PreviewWarning)
+
         if model_name is None:
             model_name = "gemini-2.0-flash-001"
             msg = exceptions.format_message(_REMOVE_DEFAULT_MODEL_WARNING)
             warnings.warn(msg, category=FutureWarning, stacklevel=2)
+
         self.model_name = model_name
         self.session = session or global_session.get_global_session()
         self.max_iterations = max_iterations
@@ -501,6 +507,15 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
                 _MODEL_NOT_SUPPORTED_WARNING.format(
                     model_name=self.model_name,
                     known_models=", ".join(_GEMINI_ENDPOINTS),
+                )
+            )
+            warnings.warn(msg)
+        if self.model_name.startswith("gemini-1.5"):
+            msg = exceptions.format_message(
+                _MODEL_DEPRECATE_WARNING.format(
+                    model_name=self.model_name,
+                    new_model_name="gemini-2.0-X",
+                    link="https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.ml.llm.GeminiTextGenerator",
                 )
             )
             warnings.warn(msg)
