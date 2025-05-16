@@ -131,10 +131,6 @@ class TextEmbeddingGenerator(base.RetriableRemotePredictor):
             text-multilingual-embedding models returns model embeddings for text inputs which support over 100 languages.
             If no setting is provided, "text-embedding-004" will be used by
             default and a warning will be issued.
-
-            .. note::
-                "text-embedding-004" is going to be deprecated. Bigframes 3 will transition to using text-embedding-004.
-
         session (bigframes.Session or None):
             BQ session to create the model. If None, use the global default session.
         connection_name (str or None):
