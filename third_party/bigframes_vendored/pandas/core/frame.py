@@ -4858,7 +4858,7 @@ class DataFrame(generic.NDFrame):
                 ignored.
 
         Returns:
-            DataFrame:
+            bigframes.pandas.DataFrame:
                 A DataFrame with the affected columns rounded to the specified
                 number of decimal places.
 
