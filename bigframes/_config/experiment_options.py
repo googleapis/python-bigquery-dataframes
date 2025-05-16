@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import dataclasses
 from typing import Optional
 import warnings
 
@@ -20,7 +19,6 @@ import bigframes
 import bigframes.exceptions as bfe
 
 
-@dataclasses.dataclass
 class ExperimentOptions:
     """
     Encapsulates the configration for experiments
