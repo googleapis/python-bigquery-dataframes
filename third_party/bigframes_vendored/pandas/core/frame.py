@@ -11,7 +11,7 @@ labeling information
 """
 from __future__ import annotations
 
-from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
+from typing import Hashable, Iterable, Literal, Optional, Sequence, Union
 
 from bigframes_vendored import constants
 import bigframes_vendored.pandas.core.generic as generic
@@ -1391,9 +1391,9 @@ class DataFrame(generic.NDFrame):
     def rename(
         self,
         *,
-        columns: Mapping,
-        inplace: bool,
-    ) -> Optional[DataFrame]:
+        columns,
+        inplace,
+    ):
         """Rename columns.
 
         Dict values must be unique (1-to-1). Labels not contained in a dict
@@ -1439,9 +1439,7 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename_axis(
-        self, mapper: Optional[str], *, inplace: bool = False, **kwargs
-    ) -> Optional[DataFrame]:
+    def rename_axis(self, mapper, *, inplace, **kwargs):
         """
         Set the name of the axis for the index.
 

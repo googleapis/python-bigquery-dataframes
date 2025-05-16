@@ -5255,7 +5255,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename(self, index, *, inplace: bool = False, **kwargs) -> Series | None:
+    def rename(self, index, *, inplace, **kwargs):
         """
         Alter Series index labels or name.
 
@@ -5309,7 +5309,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename_axis(self, mapper, *, inplace: bool = False, **kwargs):
+    def rename_axis(self, mapper, *, inplace, **kwargs):
         """
         Set the name of the axis for the index or columns.
 

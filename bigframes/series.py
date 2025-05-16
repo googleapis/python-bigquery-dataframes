@@ -95,6 +95,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     # Must be above 5000 for pandas to delegate to bigframes for binops
     __pandas_priority__ = 13000
 
+    # Ensure mypy can more robustly determine the type of self._block since it
+    # gets set in various places.
+    _block: blocks.Block
+
     def __init__(self, *args, **kwargs):
         self._query_job: Optional[bigquery.QueryJob] = None
         super().__init__(*args, **kwargs)
