@@ -46,7 +46,7 @@ class TestExecutor(bigframes.session.executor.Executor):
         """
         Execute the ArrayValue, storing the result to a temporary session-owned table.
         """
-        lazy_frame: polars.LazyFrame = self.compiler.compile(array_value)
+        lazy_frame: polars.LazyFrame = self.compiler.compile(array_value.node)
         pa_table = lazy_frame.collect().to_arrow()
         # Currently, pyarrow types might not quite be exactly the ones in the bigframes schema.
         # Nullability may be different, and might use large versions of list, string datatypes.
