@@ -60,6 +60,7 @@ from bigframes import exceptions as bfe
 from bigframes import version
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
+import bigframes.constants
 from bigframes.core import blocks, log_adapter
 import bigframes.core.pyformat
 
@@ -939,15 +940,15 @@ class Session(
         if write_engine == "default":
             write_engine = (
                 "bigquery_load"
-                if mem_usage > MAX_INLINE_DF_BYTES
+                if mem_usage > bigframes.constants.MAX_INLINE_BYTES
                 else "bigquery_inline"
             )
 
         if write_engine == "bigquery_inline":
-            if mem_usage > MAX_INLINE_DF_BYTES:
+            if mem_usage > bigframes.constants.MAX_INLINE_BYTES:
                 raise ValueError(
                     f"DataFrame size ({mem_usage} bytes) exceeds the maximum allowed "
-                    f"for inline data ({MAX_INLINE_DF_BYTES} bytes)."
+                    f"for inline data ({bigframes.constants.MAX_INLINE_BYTES} bytes)."
                 )
             return self._read_pandas_inline(pandas_dataframe)
         elif write_engine == "bigquery_load":

@@ -116,6 +116,8 @@ class ExecutionCache:
         local_data: local_data.ManagedArrowTable,
         bq_data: nodes.BigqueryDataSource,
     ):
+        # bq table has one extra column for offsets, those are implicit for local data
+        assert len(local_data.schema.items) + 1 == len(bq_data.table.physical_schema)
         mapping = {
             local_data.schema.items[i].column: bq_data.table.physical_schema[i].name
             for i in range(len(local_data.schema))
@@ -546,7 +548,10 @@ class BigQueryCachingExecutor(executor.Executor):
                 node.local_data_source
             ]
             scan_list = node.scan_list.remap_source_ids(source_mapping)
+            # offsets_col isn't part of ReadTableNode, so emulate by adding to end of scan_list
             if node.offsets_col is not None:
+                # Offsets are always implicitly the final column of uploaded data
+                # See: Loader.load_data
                 scan_list = scan_list.append(
                     bq_source.table.physical_schema[-1].name,
                     bigframes.dtypes.INT_DTYPE,
