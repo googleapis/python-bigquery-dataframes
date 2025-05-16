@@ -4,6 +4,35 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.5.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.4.0...v2.5.0) (2025-05-16)
+
+
+### Features
+
+* Add DataFrame.round method ([#1742](https://github.com/googleapis/python-bigquery-dataframes/issues/1742)) ([3ea6043](https://github.com/googleapis/python-bigquery-dataframes/commit/3ea6043be7025fa7a11cca27b02f5505bbc9b129))
+* Add deprecation warning to Gemini-1.5-X, text-embedding-004, and remove remove legacy models in notebooks and docs ([#1723](https://github.com/googleapis/python-bigquery-dataframes/issues/1723)) ([80aad9a](https://github.com/googleapis/python-bigquery-dataframes/commit/80aad9af794c2e06d1608c879f459a836fd4448b))
+* Support astype conversions to and from JSON dtypes ([#1716](https://github.com/googleapis/python-bigquery-dataframes/issues/1716)) ([8ef4de1](https://github.com/googleapis/python-bigquery-dataframes/commit/8ef4de10151717f88364a909b29fa7600e959ada))
+* Use read api for some peek ops ([#1731](https://github.com/googleapis/python-bigquery-dataframes/issues/1731)) ([108f4d2](https://github.com/googleapis/python-bigquery-dataframes/commit/108f4d259e1bcfbe6c7aa3c3c3f8f605cf7615ee))
+
+
+### Bug Fixes
+
+* Reduce bigquery table modification via DML for to_gbq ([#1737](https://github.com/googleapis/python-bigquery-dataframes/issues/1737)) ([545cdca](https://github.com/googleapis/python-bigquery-dataframes/commit/545cdcac1361607678c2574f0f31eb43950073e5))
+* Stop ignoring arguments to `MatrixFactorization.score(X, y)` ([#1726](https://github.com/googleapis/python-bigquery-dataframes/issues/1726)) ([55c07e9](https://github.com/googleapis/python-bigquery-dataframes/commit/55c07e9d4315949c37ffa3e03c8fedc6daf17faf))
+* Support str.replace re.compile with flags ([#1736](https://github.com/googleapis/python-bigquery-dataframes/issues/1736)) ([f8d2cd2](https://github.com/googleapis/python-bigquery-dataframes/commit/f8d2cd24281415f4a8f9193b676f5483128cd173))
+
+
+### Performance Improvements
+
+* Faster local data comparison using idenitity ([#1738](https://github.com/googleapis/python-bigquery-dataframes/issues/1738)) ([2858b1e](https://github.com/googleapis/python-bigquery-dataframes/commit/2858b1efb4fe74097dcb17c086ee1dc18e53053c))
+
+
+### Documentation
+
+* Add llm output_schema notebook ([#1732](https://github.com/googleapis/python-bigquery-dataframes/issues/1732)) ([b2261cc](https://github.com/googleapis/python-bigquery-dataframes/commit/b2261cc07cd58b51d212f9bf495c5022e587f816))
+* Updated multimodal notebook instructions ([#1745](https://github.com/googleapis/python-bigquery-dataframes/issues/1745)) ([1df8ca6](https://github.com/googleapis/python-bigquery-dataframes/commit/1df8ca6312ee428d55c2091a00c73b13d9a6b193))
+* Use partial ordering mode in the quickstart sample ([#1734](https://github.com/googleapis/python-bigquery-dataframes/issues/1734)) ([476b7dd](https://github.com/googleapis/python-bigquery-dataframes/commit/476b7dd7c2639cb6804272d06aa5c1db666819da))
+
 ## [2.4.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.3.0...v2.4.0) (2025-05-12)
 
 
