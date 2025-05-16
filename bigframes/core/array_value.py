@@ -284,8 +284,14 @@ class ArrayValue:
         if destination_id in self.column_ids:  # Mutate case
             exprs = [
                 (
-                    bigframes.core.nodes.AliasedRef(
-                        ex.deref(source_id if (col_id == destination_id) else col_id),
+                    nodes.AliasedRef(
+                        ex.DerefOp(
+                            self.node.field_by_id[
+                                ids.ColumnId(
+                                    source_id if (col_id == destination_id) else col_id
+                                )
+                            ]
+                        ),
                         ids.ColumnId(col_id),
                     )
                 )
@@ -293,14 +299,15 @@ class ArrayValue:
             ]
         else:  # append case
             self_projection = (
-                bigframes.core.nodes.AliasedRef.identity(ids.ColumnId(col_id))
+                nodes.AliasedRef.identity(self.node.field_by_id[ids.ColumnId(col_id)])
                 for col_id in self.column_ids
             )
             exprs = [
                 *self_projection,
                 (
-                    bigframes.core.nodes.AliasedRef(
-                        ex.deref(source_id), ids.ColumnId(destination_id)
+                    nodes.AliasedRef(
+                        ex.DerefOp(self.node.field_by_id[ids.ColumnId(source_id)]),
+                        ids.ColumnId(destination_id),
                     )
                 ),
             ]
@@ -325,7 +332,7 @@ class ArrayValue:
     def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
         # This basically just drops and reorders columns - logically a no-op except as a final step
         selections = (
-            bigframes.core.nodes.AliasedRef.identity(ids.ColumnId(col_id))
+            nodes.AliasedRef.identity(self.node.field_by_id[ids.ColumnId(col_id)])
             for col_id in column_ids
         )
         return ArrayValue(
@@ -343,8 +350,8 @@ class ArrayValue:
             nodes.SelectionNode(
                 self.node,
                 tuple(
-                    nodes.AliasedRef(ex.DerefOp(old_id), ids.ColumnId(out_id))
-                    for old_id, out_id in zip(self.node.ids, output_ids)
+                    nodes.AliasedRef(ex.DerefOp(field), ids.ColumnId(out_id))
+                    for field, out_id in zip(self.node.fields, output_ids)
                 ),
             )
         )

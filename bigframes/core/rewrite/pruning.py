@@ -111,8 +111,10 @@ def prune_selection_child(
             return selection
         new_children = []
         for concat_node in child.child_nodes:
-            cc_ids = tuple(concat_node.ids)
-            sub_selection = tuple(nodes.AliasedRef.identity(cc_ids[i]) for i in indices)
+            cc_fields = tuple(concat_node.fields)
+            sub_selection = tuple(
+                nodes.AliasedRef.identity(cc_fields[i]) for i in indices
+            )
             new_children.append(nodes.SelectionNode(concat_node, sub_selection))
         return nodes.ConcatNode(
             children=tuple(new_children), output_ids=tuple(selection.ids)
@@ -151,7 +153,11 @@ def prune_node(
     else:
         return nodes.SelectionNode(
             node,
-            tuple(nodes.AliasedRef.identity(id) for id in node.ids if id in ids),
+            tuple(
+                nodes.AliasedRef.identity(field)
+                for field in node.fields
+                if field.id in ids
+            ),
         )
 
 

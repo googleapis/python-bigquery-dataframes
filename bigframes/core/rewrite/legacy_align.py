@@ -52,7 +52,9 @@ class SquashedSelect:
         cls, node: nodes.BigFrameNode, target: nodes.BigFrameNode
     ) -> SquashedSelect:
         if node == target:
-            selection = tuple((scalar_exprs.DerefOp(id), id) for id in node.ids)
+            selection = tuple(
+                (scalar_exprs.DerefOp(field), field.id) for field in node.fields
+            )
             return cls(node, selection, None, ())
 
         if isinstance(node, nodes.SelectionNode):
@@ -229,7 +231,8 @@ class SquashedSelect:
         if self.ordering:
             root = nodes.OrderByNode(child=root, by=self.ordering)
         selection = tuple(
-            bigframes.core.nodes.AliasedRef.identity(id) for _, id in self.columns
+            nodes.AliasedRef.identity(self.root.field_by_id[id])
+            for _, id in self.columns
         )
         return nodes.SelectionNode(
             child=nodes.ProjectionNode(child=root, assignments=self.columns),

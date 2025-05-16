@@ -1081,8 +1081,8 @@ class AliasedRef(typing.NamedTuple):
     id: identifiers.ColumnId
 
     @classmethod
-    def identity(cls, id: identifiers.ColumnId) -> AliasedRef:
-        return cls(ex.DerefOp(id), id)
+    def identity(cls, field: Field) -> AliasedRef:
+        return cls(ex.DerefOp(field), field.id)
 
     def remap_vars(
         self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]

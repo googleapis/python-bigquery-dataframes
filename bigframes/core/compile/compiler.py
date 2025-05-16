@@ -40,7 +40,9 @@ if typing.TYPE_CHECKING:
 
 
 def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
-    output_names = tuple((expression.DerefOp(id), id.sql) for id in request.node.ids)
+    output_names = tuple(
+        (expression.DerefOp(field), field.id.sql) for field in request.node.fields
+    )
     result_node = nodes.ResultNode(
         request.node,
         output_cols=output_names,
