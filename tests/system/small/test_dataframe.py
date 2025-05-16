@@ -1644,6 +1644,8 @@ def test_merge_left_on_right_on(scalars_dfs, merge_how):
     ],
 )
 def test_dataframe_round(scalars_dfs, decimals):
+    if pd.__version__.startswith("1."):
+        pytest.skip("Rounding doesn't work as expected in pandas 1.x")
     scalars_df, scalars_pandas_df = scalars_dfs
 
     bf_result = scalars_df.round(decimals).to_pandas()
