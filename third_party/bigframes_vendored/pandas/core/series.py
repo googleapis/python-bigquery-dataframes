@@ -5255,7 +5255,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename(self, index, **kwargs) -> Series | None:
+    def rename(self, index, *, inplace: bool = False, **kwargs) -> Series | None:
         """
         Alter Series index labels or name.
 
@@ -5299,15 +5299,17 @@ class Series(NDFrame):  # type: ignore[misc]
                 the index.
                 Scalar or hashable sequence-like will alter the ``Series.name``
                 attribute.
+            inplace (bool):
+                Default False. Whether to return a new Series.
 
         Returns:
-            bigframes.pandas.Series:
-                Series with index labels.
+            bigframes.pandas.Series | None:
+                Series with index labels or None if ``inplace=True``.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename_axis(self, mapper, **kwargs):
+    def rename_axis(self, mapper, *, inplace: bool = False, **kwargs):
         """
         Set the name of the axis for the index or columns.
 

@@ -1392,7 +1392,8 @@ class DataFrame(generic.NDFrame):
         self,
         *,
         columns: Mapping,
-    ) -> DataFrame:
+        inplace: bool,
+    ) -> Optional[DataFrame]:
         """Rename columns.
 
         Dict values must be unique (1-to-1). Labels not contained in a dict
@@ -1425,16 +1426,22 @@ class DataFrame(generic.NDFrame):
         Args:
             columns (Mapping):
                 Dict-like from old column labels to new column labels.
+            inplace (bool):
+                Default False. Whether to modify the DataFrame rather than
+                creating a new one.
 
         Returns:
-            bigframes.pandas.DataFrame: DataFrame with the renamed axis labels.
+            bigframes.pandas.DataFrame | None:
+                DataFrame with the renamed axis labels or None if ``inplace=True``.
 
         Raises:
             KeyError: If any of the labels is not found.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename_axis(self, mapper: Optional[str], **kwargs) -> DataFrame:
+    def rename_axis(
+        self, mapper: Optional[str], *, inplace: bool = False, **kwargs
+    ) -> Optional[DataFrame]:
         """
         Set the name of the axis for the index.
 
@@ -1442,11 +1449,15 @@ class DataFrame(generic.NDFrame):
             Currently only accepts a single string parameter (the new name of the index).
 
         Args:
-            mapper str:
+            mapper (str):
                 Value to set the axis name attribute.
+            inplace (bool):
+                Default False. Modifies the object directly, instead of
+                creating a new Series or DataFrame.
 
         Returns:
-            bigframes.pandas.DataFrame: DataFrame with the new index name
+            bigframes.pandas.DataFrame | None:
+                DataFrame with the new index name or None if ``inplace=True``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

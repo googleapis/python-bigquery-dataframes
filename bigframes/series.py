@@ -31,6 +31,7 @@ from typing import (
     Literal,
     Mapping,
     Optional,
+    overload,
     Sequence,
     Tuple,
     Union,
@@ -253,21 +254,44 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def copy(self) -> Series:
         return Series(self._block)
 
+    @overload
     def rename(
-        self, index: Union[blocks.Label, Mapping[Any, Any]] = None, **kwargs
+        self,
+        index: Union[blocks.Label, Mapping[Any, Any]] = None,
     ) -> Series:
+        ...
+
+    @overload
+    def rename(
+        self,
+        index: Union[blocks.Label, Mapping[Any, Any]] = None,
+        *,
+        inplace: Literal[False],
+        **kwargs,
+    ) -> Series:
+        ...
+
+    @overload
+    def rename(
+        self,
+        index: Union[blocks.Label, Mapping[Any, Any]] = None,
+        *,
+        inplace: Literal[True],
+        **kwargs,
+    ) -> None:
+        ...
+
+    def rename(
+        self,
+        index: Union[blocks.Label, Mapping[Any, Any]] = None,
+        *,
+        inplace: bool = False,
+        **kwargs,
+    ) -> Optional[Series]:
         if len(kwargs) != 0:
             raise NotImplementedError(
                 f"rename does not currently support any keyword arguments. {constants.FEEDBACK_LINK}"
             )
-
-        # rename the Series name
-        if index is None or isinstance(
-            index, str
-        ):  # Python 3.9 doesn't allow isinstance of Optional
-            index = typing.cast(Optional[str], index)
-            block = self._block.with_column_labels([index])
-            return Series(block)
 
         # rename the index
         if isinstance(index, Mapping):
@@ -293,22 +317,61 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
                 block = block.set_index(new_idx_ids, index_labels=block.index.names)
 
-            return Series(block)
+            if inplace:
+                self._block = block
+                return None
+            else:
+                return Series(block)
 
         # rename the Series name
         if isinstance(index, typing.Hashable):
+            # Python 3.9 doesn't allow isinstance of Optional
             index = typing.cast(Optional[str], index)
             block = self._block.with_column_labels([index])
-            return Series(block)
+
+            if inplace:
+                self._block = block
+                return None
+            else:
+                return Series(block)
 
         raise ValueError(f"Unsupported type of parameter index: {type(index)}")
+
+    @overload
+    def rename_axis(
+        self,
+        mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+    ) -> Series:
+        ...
+
+    @overload
+    def rename_axis(
+        self,
+        mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        *,
+        inplace: Literal[False],
+        **kwargs,
+    ) -> Series:
+        ...
+
+    @overload
+    def rename_axis(
+        self,
+        mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        *,
+        inplace: Literal[True],
+        **kwargs,
+    ) -> None:
+        ...
 
     @validations.requires_index
     def rename_axis(
         self,
         mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        *,
+        inplace: bool = False,
         **kwargs,
-    ) -> Series:
+    ) -> Optional[Series]:
         if len(kwargs) != 0:
             raise NotImplementedError(
                 f"rename_axis does not currently support any keyword arguments. {constants.FEEDBACK_LINK}"
@@ -318,7 +381,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             labels = mapper
         else:
             labels = [mapper]
-        return Series(self._block.with_index_labels(labels))
+
+        block = self._block.with_index_labels(labels)
+        if inplace:
+            self._block = block
+            return None
+        else:
+            return Series(block)
 
     def equals(
         self, other: typing.Union[Series, bigframes.dataframe.DataFrame]
