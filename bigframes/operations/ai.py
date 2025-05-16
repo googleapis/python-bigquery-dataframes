@@ -241,7 +241,7 @@ class AIAccessor:
 
         attach_columns = [results[col] for col, _ in output_schema.items()]
 
-        def extract_logprob(s: bigframes.dataframe.Series) -> bigframes.series.Series:
+        def extract_logprob(s: bigframes.series.Series) -> bigframes.series.Series:
             from bigframes import bigquery as bbq
 
             logprob_jsons = bbq.json_extract_array(s, "$.candidates").list[0]
