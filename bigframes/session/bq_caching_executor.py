@@ -224,7 +224,7 @@ class BigQueryCachingExecutor(executor.Executor):
                 )
 
         sql = self.to_sql(array_value, ordered=False)
-        if table_exists and _if_schama_match(table.schema, array_value.schema):
+        if table_exists and _if_schema_match(table.schema, array_value.schema):
             # b/409086472: Uses DML for table appends and replacements to avoid
             # BigQuery `RATE_LIMIT_EXCEEDED` errors, as per quota limits:
             # https://cloud.google.com/bigquery/quotas#standard_tables
@@ -602,7 +602,7 @@ class BigQueryCachingExecutor(executor.Executor):
         )
 
 
-def _if_schama_match(
+def _if_schema_match(
     table_schema: Tuple[bigquery.SchemaField, ...], schema: schemata.ArraySchema
 ) -> bool:
     if len(table_schema) != len(schema.items):
