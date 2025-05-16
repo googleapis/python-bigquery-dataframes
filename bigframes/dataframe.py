@@ -27,6 +27,7 @@ import typing
 from typing import (
     Callable,
     Dict,
+    Hashable,
     Iterable,
     List,
     Literal,
@@ -3608,7 +3609,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def abs(self) -> DataFrame:
         return self._apply_unary_op(ops.abs_op)
 
-    def round(self, decimals=0) -> DataFrame:
+    def round(self, decimals: Union[int, dict[Hashable, int]] = 0) -> DataFrame:
         is_mapping = utils.is_dict_like(decimals)
         if not (is_mapping or isinstance(decimals, int)):
             raise TypeError("'decimals' must be either a dict-like or integer.")
@@ -3621,12 +3622,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 bigframes.dtypes.BOOL_DTYPE
             }:
                 if is_mapping:
-                    if label in decimals:
+                    if label in decimals:  # type: ignore
                         exprs.append(
                             ops.round_op.as_expr(
                                 col_id,
                                 ex.const(
-                                    decimals[label], dtype=bigframes.dtypes.INT_DTYPE
+                                    decimals[label], dtype=bigframes.dtypes.INT_DTYPE  # type: ignore
                                 ),
                             )
                         )
