@@ -277,7 +277,6 @@ def test_map_attach_logprob(session, gemini_flash_model):
     ):
         actual_df = df.ai.map(
             "What is the {gluten-free} food made from {ingredient_1} and {ingredient_2}? One word only.",
-            "food",
             gemini_flash_model,
             attach_logprobs=True,
         ).to_pandas()
@@ -302,8 +301,8 @@ def test_map_multimodel(session, gemini_flash_model):
         )
         result = df.ai.map(
             "What is the object in {image} combined with {scenario}? One word only.",
-            "object",
             gemini_flash_model,
+            output_schema={"object": "string"},
         ).to_pandas()
 
     assert len(result) == len(df)
@@ -337,7 +336,6 @@ def test_map_with_confirmation(session, gemini_flash_model, reply, monkeypatch):
     ):
         df.ai.map(
             "What is the {gluten-free} food made from {ingredient_1} and {ingredient_2}? One word only.",
-            "food",
             gemini_flash_model,
         )
 
@@ -377,7 +375,7 @@ def test_map_invalid_instruction_raise_error(instruction, gemini_flash_model):
         THRESHOLD_OPTION,
         10,
     ), pytest.raises(ValueError):
-        df.ai.map(instruction, "food", gemini_flash_model)
+        df.ai.map(instruction, gemini_flash_model, output_schema={"food": "string"})
 
 
 def test_map_invalid_model_raise_error():
@@ -396,7 +394,6 @@ def test_map_invalid_model_raise_error():
     ), pytest.raises(TypeError):
         df.ai.map(
             "What is the food made from {ingredient_1} and {ingredient_2}? One word only.",
-            "food",
             None,
         )
 
