@@ -90,6 +90,7 @@ class BigQueryOptions:
         allow_large_results: bool = False,
         ordering_mode: Literal["strict", "partial"] = "strict",
         client_endpoints_override: Optional[dict] = None,
+        enable_polars_execution: bool = False,
     ):
         self._credentials = credentials
         self._project = project
@@ -108,6 +109,7 @@ class BigQueryOptions:
             client_endpoints_override = {}
 
         self._client_endpoints_override = client_endpoints_override
+        self._enable_polars_execution = enable_polars_execution
 
     @property
     def application_name(self) -> Optional[str]:
@@ -379,3 +381,17 @@ class BigQueryOptions:
             )
 
         self._client_endpoints_override = value
+
+    @property
+    def enable_polars_execution(self) -> bool:
+        """If True, will use polars to execute some simple query plans locally."""
+        return self._enable_polars_execution
+
+    @enable_polars_execution.setter
+    def enable_polars_execution(self, value: bool):
+        if value is True:
+            msg = bfe.format_message(
+                "Polars execution is an experimental feature, and may not be stable. Must have polars installed."
+            )
+            warnings.warn(msg, category=bfe.PreviewWarning)
+        self._enable_polars_execution = value

@@ -96,6 +96,10 @@ if polars_installed:
                 return args[0] % args[1]
             if isinstance(op, ops.coalesce_op.__class__):
                 return pl.coalesce(*args)
+            if isinstance(op, ops.isnull_op.__class__):
+                return args[0].is_null()
+            if isinstance(op, ops.notnull_op.__class__):
+                return args[0].is_not_null()
             if isinstance(op, ops.CaseWhenOp):
                 expr = pl.when(args[0]).then(args[1])
                 for pred, result in zip(args[2::2], args[3::2]):
@@ -184,7 +188,7 @@ class PolarsCompiler:
     expr_compiler = PolarsExpressionCompiler()
     agg_compiler = PolarsAggregateCompiler()
 
-    def compile(self, array_value: bigframes.core.ArrayValue) -> pl.LazyFrame:
+    def compile(self, plan: nodes.BigFrameNode) -> pl.LazyFrame:
         if not polars_installed:
             raise ValueError(
                 "Polars is not installed, cannot compile to polars engine."
@@ -192,7 +196,7 @@ class PolarsCompiler:
 
         # TODO: Create standard way to configure BFET -> BFET rewrites
         # Polars has incomplete slice support in lazy mode
-        node = nodes.bottom_up(array_value.node, bigframes.core.rewrite.rewrite_slice)
+        node = nodes.bottom_up(plan, bigframes.core.rewrite.rewrite_slice)
         return self.compile_node(node)
 
     @functools.singledispatchmethod
