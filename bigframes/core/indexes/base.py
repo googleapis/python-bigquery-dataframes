@@ -437,7 +437,17 @@ class Index(vendored_pandas_index.Index):
         *,
         inplace: bool = False,
     ) -> Optional[Index]:
-        names = [name] if isinstance(name, blocks.Label) else list(name)
+        # Tuples are allowed as a label, but we specifically exclude them here.
+        # This is because tuples are hashable, but we want to treat them as a
+        # sequence. If name is iterable, we want to assume we're working with a
+        # MultiIndex. Unfortunately, strings are iterable and we don't want a
+        # list of all the characters, so specifically exclude the non-tuple
+        # hashables.
+        if isinstance(name, blocks.Label) and not isinstance(name, tuple):
+            names = [name]
+        else:
+            names = list(name)
+
         if len(names) != self.nlevels:
             raise ValueError("'name' must be same length as levels")
 
