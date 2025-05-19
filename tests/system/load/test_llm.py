@@ -44,6 +44,7 @@ def llm_remote_text_df(session, llm_remote_text_pandas_df):
         "gemini-1.5-pro-002",
         "gemini-1.5-flash-002",
         "gemini-2.0-flash-001",
+        "gemini-2.0-flash-lite-001",
     ),
 )
 def test_llm_gemini_configure_fit(
@@ -80,7 +81,7 @@ def test_llm_gemini_configure_fit(
 
 @pytest.mark.flaky(retries=2)
 def test_llm_gemini_w_ground_with_google_search(llm_remote_text_df):
-    model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-002", max_iterations=1)
+    model = llm.GeminiTextGenerator(model_name="gemini-2.0-flash-001", max_iterations=1)
     df = model.predict(
         llm_remote_text_df["prompt"],
         ground_with_google_search=True,

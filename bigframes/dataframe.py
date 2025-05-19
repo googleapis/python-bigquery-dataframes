@@ -27,6 +27,7 @@ import typing
 from typing import (
     Callable,
     Dict,
+    Hashable,
     Iterable,
     List,
     Literal,
@@ -394,6 +395,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
 
+    def _should_sql_have_index(self) -> bool:
+        """Should the SQL we pass to BQML and other I/O include the index?"""
+
+        return self._has_index and (
+            self.index.name is not None or len(self.index.names) > 1
+        )
+
+    def _to_view(self) -> bigquery.TableReference:
+        """Compiles this DataFrame's expression tree to SQL and saves it to a
+        (temporary) view.
+        """
+        return self._block.to_view(include_index=self._should_sql_have_index())
+
     def _to_sql_query(
         self, include_index: bool, enable_cache: bool = True
     ) -> Tuple[str, list[str], list[blocks.Label]]:
@@ -420,9 +434,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 string representing the compiled SQL.
         """
         try:
-            include_index = self._has_index and (
-                self.index.name is not None or len(self.index.names) > 1
-            )
+            include_index = self._should_sql_have_index()
             sql, _, _ = self._to_sql_query(include_index=include_index)
             return sql
         except AttributeError as e:
@@ -3596,6 +3608,47 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def abs(self) -> DataFrame:
         return self._apply_unary_op(ops.abs_op)
+
+    def round(self, decimals: Union[int, dict[Hashable, int]] = 0) -> DataFrame:
+        is_mapping = utils.is_dict_like(decimals)
+        if not (is_mapping or isinstance(decimals, int)):
+            raise TypeError("'decimals' must be either a dict-like or integer.")
+        block = self._block
+        exprs = []
+        for label, col_id, dtype in zip(
+            block.column_labels, block.value_columns, block.dtypes
+        ):
+            if dtype in set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE) - {
+                bigframes.dtypes.BOOL_DTYPE
+            }:
+                if is_mapping:
+                    if label in decimals:  # type: ignore
+                        exprs.append(
+                            ops.round_op.as_expr(
+                                col_id,
+                                ex.const(
+                                    decimals[label], dtype=bigframes.dtypes.INT_DTYPE  # type: ignore
+                                ),
+                            )
+                        )
+                    else:
+                        exprs.append(ex.deref(col_id))
+                else:
+                    exprs.append(
+                        ops.round_op.as_expr(
+                            col_id,
+                            ex.const(
+                                typing.cast(int, decimals),
+                                dtype=bigframes.dtypes.INT_DTYPE,
+                            ),
+                        )
+                    )
+            else:
+                exprs.append(ex.deref(col_id))
+
+        return DataFrame(
+            block.project_exprs(exprs, labels=block.column_labels, drop=True)
+        )
 
     def isna(self) -> DataFrame:
         return self._apply_unary_op(ops.isnull_op)
