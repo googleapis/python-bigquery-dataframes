@@ -14,14 +14,13 @@
 
 import pandas as pd
 import pandas.testing
-import pyarrow as pa
 import pytest
 
 
 @pytest.mark.parametrize("level", [None, 0, 1, "level0", "level1"])
 def test_unique(session, level):
     arrays = [
-        pd.Series(["A", "A", "B", "B", "A"], dtype=pd.StringDtype(storage='pyarrow')),
+        pd.Series(["A", "A", "B", "B", "A"], dtype=pd.StringDtype(storage="pyarrow")),
         pd.Series([1, 2, 1, 2, 1], dtype=pd.Int64Dtype()),
     ]
     pd_idx = pd.MultiIndex.from_arrays(arrays, names=["level0", "level1"])
