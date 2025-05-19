@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from packaging import version
 import pandas as pd
 import pandas.testing
 import pytest
@@ -19,6 +20,8 @@ import pytest
 
 @pytest.mark.parametrize("level", [None, 0, 1, "level0", "level1"])
 def test_unique(session, level):
+    if version.Version(pd.__version__) < version.Version("2.0.0"):
+        pytest.skip("StringDtype for multi-index not supported until Pandas 2.0")
     arrays = [
         pd.Series(["A", "A", "B", "B", "A"], dtype=pd.StringDtype(storage="pyarrow")),
         pd.Series([1, 2, 1, 2, 1], dtype=pd.Int64Dtype()),
