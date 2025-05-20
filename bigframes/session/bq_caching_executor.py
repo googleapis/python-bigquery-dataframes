@@ -28,6 +28,7 @@ import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
 
+import bigframes.constants
 import bigframes.core
 from bigframes.core import compile, local_data, rewrite
 import bigframes.core.compile.sqlglot.sqlglot_ir as sqlglot_ir
@@ -565,7 +566,7 @@ class BigQueryCachingExecutor(executor.Executor):
         # Step 1: Upload all previously un-uploaded data
         for leaf in original_root.unique_nodes():
             if isinstance(leaf, nodes.ReadLocalNode):
-                if leaf.local_data_source.metadata.total_bytes > 5000:
+                if leaf.local_data_source.metadata.total_bytes > bigframes.constants.MAX_INLINE_BYTES:
                     self._upload_local_data(leaf.local_data_source)
 
         # Step 2: Replace local scans with remote scans
