@@ -566,7 +566,10 @@ class BigQueryCachingExecutor(executor.Executor):
         # Step 1: Upload all previously un-uploaded data
         for leaf in original_root.unique_nodes():
             if isinstance(leaf, nodes.ReadLocalNode):
-                if leaf.local_data_source.metadata.total_bytes > bigframes.constants.MAX_INLINE_BYTES:
+                if (
+                    leaf.local_data_source.metadata.total_bytes
+                    > bigframes.constants.MAX_INLINE_BYTES
+                ):
                     self._upload_local_data(leaf.local_data_source)
 
         # Step 2: Replace local scans with remote scans
