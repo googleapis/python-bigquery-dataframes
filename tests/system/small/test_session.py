@@ -1903,7 +1903,7 @@ def _assert_query_dry_run_stats_are_valid(result: pd.Series):
             "projectId",
             "location",
             "jobType",
-            "dispatchedSqlString",
+            "dispatchedSql",
             "destinationTable",
             "useLegacySql",
             "referencedTables",
