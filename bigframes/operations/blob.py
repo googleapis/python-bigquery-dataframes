@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import os
-from typing import cast, Optional, Union
+from typing import cast, Dict, Optional, Union
 import warnings
 
 import IPython.display as ipy_display
@@ -736,3 +736,84 @@ class BlobAccessor(base.SeriesMethods):
             return struct_series
         else:
             return content_series
+
+    def transcribe(
+        self,
+        *,
+        df: bigframes.dataframe.DataFrame,
+        audio_column: str,
+        # connection: Optional[str] = None,
+        # model_name: str,
+        prompt_text: str = "What is the content of this audio clip?",
+        temperature: float = 0.01,
+        output_schema: Dict[str, str] | None = None,
+        # verbose: bool = False,
+    ) -> bigframes.series.Series:
+        """
+        Transcribe audio content using a Gemini multimodal model.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.experiments.ai_operators = True # Renamed from transcribe_operators
+            >>> bpd.options.compute.transcribe_ops_confirmation_threshold = 25
+
+            >>> import bigframes.ml.llm as llm
+            >>> model = llm.GeminiTextGenerator(model_name="gemini-2.0-flash-001")
+
+            >>> df = bpd.read_gbq("project.dataset.audio_clips")
+            >>> # Assuming 'audio_column' is the name of the column containing audio blobs in df
+            >>> df.blob.transcribe("audio", model=model) # Access transcribe via .blob
+
+        Args:
+            connection (str or None, default None): BQ connection used for
+                function internet transactions, and the output blob if "dst"
+                is str. If None, uses default connection of the session.
+            df (bigframes.dataframe.DataFrame): dataframe stores input audio.
+            audio_column (str): Name of the column contatining audio blobs
+                (GCS or OBJ_REF_DTYPE).
+            model (llm.GeminiTextGenerator): A Gemini model that supports audio input.
+            prompt_text (str, default "What is the content of this audio clip?"):
+                Prompt sent to model. Defaults to
+                "What is the content of this audio clip?".
+            temperature (float, default 0.01): Decoding temperature.
+                Defaults to 0.01.
+            output_schema (dtct, optional): Output schema for result column.
+            verbose (bool, default "False"): controls the verbosity of the output.
+                When set to True, both error messages and the extracted content
+                are displayed. Conversely, when set to False, only the extracted
+                content is presented, suppressing error messages.
+
+        Returns:
+            bigframes.series.Series: str or struct[str, str],
+                depend on the "verbose" parameter.
+                Contains the transcribed text from the audio file.
+                Includes error messages if verbosity is enabled.
+        """
+        if audio_column not in df.columns:
+            raise ValueError(f"Column {audio_column} not found in DataFrame.")
+
+        from typing import cast
+
+        import bigframes.ml.llm as llm
+
+        # transcribe audio
+        df_prompt = df[[audio_column]].copy()
+        df_prompt["prompt"] = prompt_text
+
+        if output_schema is None:
+            output_schema = {"ml_generate_text_llm_result": "string"}
+
+        model = llm.GeminiTextGenerator(model_name="gemini-2.0-flash-001")
+
+        results = cast(
+            bigframes.series.Series,
+            model.predict(
+                df_prompt,
+                prompt=[df_prompt["prompt"], df_prompt[audio_column]],
+                temperature=temperature,
+                output_schema=output_schema,
+            ),
+        )
+
+        return results
