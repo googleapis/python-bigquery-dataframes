@@ -118,7 +118,7 @@ def get_query_stats(
     configuration = job_api_repr.get("configuration", {})
     index.append("jobType")
     values.append(configuration.get("jobType", None))
-    index.append("dispatchedSqlString")
+    index.append("dispatchedSql")
     values.append(configuration.get("query", {}).get("query", None))
 
     query_config = configuration.get("query", {})
