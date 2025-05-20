@@ -12,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import bigframes.bigquery
+import pandas as pd
+import pyarrow as pa
+
+import bigframes.bigquery as bbq
+import bigframes.dtypes as dtypes
+import bigframes.pandas as bpd
 
 
 def test_sql_scalar_on_scalars_null_index(scalars_df_null_index):
-    series = bigframes.bigquery.sql_scalar(
+    series = bbq.sql_scalar(
         """
         CAST({0} AS INT64)
         + BYTE_LENGTH({1})
@@ -48,3 +53,76 @@ def test_sql_scalar_on_scalars_null_index(scalars_df_null_index):
     )
     result = series.to_pandas()
     assert len(result) == len(scalars_df_null_index)
+
+
+def test_sql_scalar_w_bool_series(scalars_df_index):
+    series: bpd.Series = scalars_df_index["bool_col"]
+    result = bbq.sql_scalar("CAST({0} AS INT64)", [series])
+    expected = series.astype(dtypes.INT_DTYPE)
+    expected.name = None
+    pd.testing.assert_series_equal(result.to_pandas(), expected.to_pandas())
+
+
+def test_sql_scalar_w_array_series(repeated_df):
+    result = bbq.sql_scalar(
+        """
+        ARRAY_LENGTH({0}) + ARRAY_LENGTH({1}) + ARRAY_LENGTH({2})
+        + ARRAY_LENGTH({3}) + ARRAY_LENGTH({4}) + ARRAY_LENGTH({5})
+        + ARRAY_LENGTH({6})
+        """,
+        [
+            repeated_df["int_list_col"],
+            repeated_df["bool_list_col"],
+            repeated_df["float_list_col"],
+            repeated_df["date_list_col"],
+            repeated_df["date_time_list_col"],
+            repeated_df["numeric_list_col"],
+            repeated_df["string_list_col"],
+        ],
+    )
+
+    expected = (
+        repeated_df["int_list_col"].list.len()
+        + repeated_df["bool_list_col"].list.len()
+        + repeated_df["float_list_col"].list.len()
+        + repeated_df["date_list_col"].list.len()
+        + repeated_df["date_time_list_col"].list.len()
+        + repeated_df["numeric_list_col"].list.len()
+        + repeated_df["string_list_col"].list.len()
+    )
+    pd.testing.assert_series_equal(result.to_pandas(), expected.to_pandas())
+
+
+def test_sql_scalar_w_struct_series(nested_structs_df):
+    result = bbq.sql_scalar(
+        "CHAR_LENGTH({0}.name) + {0}.age",
+        [nested_structs_df["person"]],
+    )
+    expected = nested_structs_df["person"].struct.field(
+        "name"
+    ).str.len() + nested_structs_df["person"].struct.field("age")
+    pd.testing.assert_series_equal(result.to_pandas(), expected.to_pandas())
+
+
+def test_sql_scalar_w_json_series(json_df):
+    result = bbq.sql_scalar(
+        """JSON_VALUE({0}, '$.int_value')""",
+        [
+            json_df["json_col"],
+        ],
+    )
+    expected = bbq.json_value(json_df["json_col"], "$.int_value")
+    expected.name = None
+    pd.testing.assert_series_equal(result.to_pandas(), expected.to_pandas())
+
+
+def test_sql_scalar_w_array_output(json_df):
+    result = bbq.sql_scalar(
+        """JSON_VALUE_ARRAY({0}, '$.order.items')""",
+        [
+            json_df["json_col"],
+        ],
+    )
+    assert len(result) == len(json_df)
+    assert result.dtype == pd.ArrowDtype(pa.list_(pa.string()))
+    assert result[15] == ["book", "pen"]
