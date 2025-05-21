@@ -16,13 +16,15 @@ from __future__ import annotations
 
 import abc
 import dataclasses
+import functools
 import itertools
 import typing
-from typing import Generator, Mapping, TypeVar, Union
+from typing import Dict, Generator, Mapping, TypeVar, Union
 
 import pandas as pd
 
 import bigframes.core.identifiers as ids
+import bigframes.dtypes
 import bigframes.dtypes as dtypes
 import bigframes.operations
 import bigframes.operations.aggregations as agg_ops
@@ -34,8 +36,10 @@ def const(
     return ScalarConstantExpression(value, dtype or dtypes.infer_literal_type(value))
 
 
-def deref(name: str) -> DerefOp:
-    return DerefOp(ids.ColumnId(name))
+def deref(
+    name: str, dtype: dtypes.ExpressionType | dtypes.Deferred = dtypes.DEFERRED_DTYPE
+) -> DerefOp:
+    return DerefOp(ids.ColumnId(name), dtype)
 
 
 def free_var(id: str) -> UnboundVariableExpression:
@@ -86,13 +90,17 @@ class NullaryAggregation(Aggregation):
 
 @dataclasses.dataclass(frozen=True)
 class UnaryAggregation(Aggregation):
-    op: agg_ops.UnaryWindowOp = dataclasses.field()
-    arg: Union[DerefOp, ScalarConstantExpression] = dataclasses.field()
+    op: agg_ops.UnaryWindowOp
+    arg: Union[DerefOp, ScalarConstantExpression]
 
     def output_type(
         self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
     ) -> dtypes.ExpressionType:
-        return self.op.output_type(self.arg.output_type(input_types))
+        # TODO(b/419300717) Remove resolutions once defers are cleaned up.
+        arg_dtype = self.arg.resolve_deferred_types(input_types).output_type
+        assert arg_dtype != bigframes.dtypes.DEFERRED_DTYPE
+
+        return self.op.output_type(arg_dtype)
 
     @property
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
@@ -120,9 +128,12 @@ class BinaryAggregation(Aggregation):
     def output_type(
         self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
     ) -> dtypes.ExpressionType:
-        return self.op.output_type(
-            self.left.output_type(input_types), self.right.output_type(input_types)
-        )
+        # TODO(b/419300717) Remove resolutions once defers are cleaned up.
+        left_arg_dtype = self.left.resolve_deferred_types(input_types).output_type
+        assert left_arg_dtype != dtypes.DEFERRED_DTYPE
+        right_arg_dtype = self.right.resolve_deferred_types(input_types).output_type
+        assert right_arg_dtype != dtypes.DEFERRED_DTYPE
+        return self.op.output_type(left_arg_dtype, right_arg_dtype)
 
     @property
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
@@ -189,10 +200,15 @@ class Expression(abc.ABC):
     def is_const(self) -> bool:
         ...
 
+    @property
     @abc.abstractmethod
-    def output_type(
-        self, input_types: dict[ids.ColumnId, dtypes.ExpressionType]
-    ) -> dtypes.ExpressionType:
+    def output_type(self) -> dtypes.ExpressionType | dtypes.Deferred:
+        ...
+
+    @abc.abstractmethod
+    def resolve_deferred_types(
+        self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
+    ) -> Expression:
         ...
 
     @abc.abstractmethod
@@ -256,10 +272,16 @@ class ScalarConstantExpression(Expression):
     def nullable(self) -> bool:
         return pd.isna(self.value)  # type: ignore
 
+    @property
     def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
+        self,
+    ) -> dtypes.ExpressionType | dtypes.Deferred:
         return self.dtype
+
+    def resolve_deferred_types(
+        self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
+    ) -> Expression:
+        return self
 
     def bind_variables(
         self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
@@ -308,10 +330,14 @@ class UnboundVariableExpression(Expression):
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
         return ()
 
-    def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
+    @property
+    def output_type(self) -> dtypes.ExpressionType | dtypes.Deferred:
         raise ValueError(f"Type of variable {self.id} has not been fixed.")
+
+    def resolve_deferred_types(
+        self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
+    ) -> Expression:
+        return self
 
     def bind_refs(
         self,
@@ -340,9 +366,10 @@ class UnboundVariableExpression(Expression):
 
 @dataclasses.dataclass(frozen=True)
 class DerefOp(Expression):
-    """A variable expression representing an unbound variable."""
+    """A variable expression representing a column reference."""
 
     id: ids.ColumnId
+    dtype: dtypes.ExpressionType | dtypes.Deferred = dtypes.DEFERRED_DTYPE
 
     @property
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
@@ -357,13 +384,17 @@ class DerefOp(Expression):
         # Safe default, need to actually bind input schema to determine
         return True
 
-    def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
-        if self.id in input_types:
-            return input_types[self.id]
-        else:
-            raise ValueError(f"Type of variable {self.id} has not been fixed.")
+    @property
+    def output_type(self) -> dtypes.ExpressionType | dtypes.Deferred:
+        return self.dtype
+
+    def resolve_deferred_types(
+        self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
+    ) -> Expression:
+        if self.id in col_dtypes:
+            return dataclasses.replace(self, dtype=col_dtypes[self.id])
+
+        raise ValueError(f"Type of variable {self.id} has not been fixed.")
 
     def bind_variables(
         self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
@@ -429,13 +460,29 @@ class OpExpression(Expression):
         )
         return not null_free
 
-    def output_type(
-        self, input_types: dict[ids.ColumnId, dtypes.ExpressionType]
-    ) -> dtypes.ExpressionType:
-        operand_types = tuple(
-            map(lambda x: x.output_type(input_types=input_types), self.inputs)
+    @functools.cached_property
+    def output_type(self) -> dtypes.ExpressionType | dtypes.Deferred:
+        input_types = [input.output_type for input in self.inputs]
+
+        if any(t == dtypes.DEFERRED_DTYPE for t in input_types):
+            return dtypes.DEFERRED_DTYPE
+
+        return self.op.output_type(*input_types)
+
+    def resolve_deferred_types(
+        self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
+    ) -> Expression:
+        if self.output_type != dtypes.DEFERRED_DTYPE:
+            # The subtree's dtypes are already resolved.
+            return self
+
+        resolved_inputs = tuple(
+            expr.resolve_deferred_types(col_dtypes) for expr in self.inputs
         )
-        return self.op.output_type(*operand_types)
+
+        resolved_expr = dataclasses.replace(self, inputs=resolved_inputs)
+        assert resolved_expr.output_type != dtypes.DEFERRED_DTYPE
+        return resolved_expr
 
     def bind_variables(
         self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False

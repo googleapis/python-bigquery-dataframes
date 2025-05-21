@@ -24,6 +24,7 @@ from typing import (
     AbstractSet,
     Callable,
     cast,
+    Dict,
     Iterable,
     Mapping,
     Optional,
@@ -939,6 +940,13 @@ class FilterNode(UnaryNode):
     # TODO: Infer null constraints from predicate
     predicate: ex.Expression
 
+    def __post_init__(self):
+        # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
+        resolved_predicate = self.predicate.resolve_deferred_types(
+            self.child._dtype_lookup
+        )
+        object.__setattr__(self, "predicate", resolved_predicate)
+
     @property
     def row_preserving(self) -> bool:
         return False
@@ -985,6 +993,23 @@ class OrderByNode(UnaryNode):
     # This is an optimization, if true, can discard previous orderings.
     # might be a total ordering even if false
     is_total_order: bool = False
+
+    def __post_init__(self):
+        # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
+
+        type_resolved_bys = tuple(
+            self._resolve_type(expr, self.child._dtype_lookup) for expr in self.by
+        )
+
+        object.__setattr__(self, "by", type_resolved_bys)
+
+    def _resolve_type(
+        self,
+        expr: OrderingExpression,
+        col_dtypes: Dict[identifiers.ColumnId, bigframes.dtypes.ExpressionType],
+    ) -> OrderingExpression:
+        resolved_scalar_expr = expr.scalar_expression.resolve_deferred_types(col_dtypes)
+        return dataclasses.replace(expr, scalar_expression=resolved_scalar_expr)
 
     @property
     def variables_introduced(self) -> int:
@@ -1171,23 +1196,31 @@ class ProjectionNode(UnaryNode, AdditiveNode):
 
     assignments: typing.Tuple[typing.Tuple[ex.Expression, identifiers.ColumnId], ...]
 
+    def __post_init__(self):
+        # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
+        col_dtypes = self.child._dtype_lookup
+
+        type_resolved_assignments = tuple(
+            (expr.resolve_deferred_types(col_dtypes), id)
+            for expr, id in self.assignments
+        )
+
+        object.__setattr__(self, "assignments", type_resolved_assignments)
+
     def _validate(self):
-        input_types = self.child._dtype_lookup
         for expression, id in self.assignments:
             # throws TypeError if invalid
-            _ = expression.output_type(input_types)
+            assert expression.output_type != bigframes.dtypes.DEFERRED_DTYPE
         # Cannot assign to existing variables - append only!
         assert all(name not in self.child.schema.names for _, name in self.assignments)
 
     @functools.cached_property
     def added_fields(self) -> Tuple[Field, ...]:
-        input_types = self.child._dtype_lookup
-
         fields = []
         for expr, id in self.assignments:
             field = Field(
                 id,
-                bigframes.dtypes.dtype_for_etype(expr.output_type(input_types)),
+                bigframes.dtypes.dtype_for_etype(expr.output_type),
                 nullable=expr.nullable,
             )
             # Special case until we get better nullability inference in expression objects themselves

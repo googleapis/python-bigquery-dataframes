@@ -18,37 +18,69 @@ import bigframes.dtypes as dtypes
 import bigframes.operations as ops
 
 
-def test_expression_dtype_simple():
+def test_simple_expression_dtype():
     expression = ops.add_op.as_expr("a", "b")
-    result = expression.output_type(
+    result = expression.resolve_deferred_types(
         {ids.ColumnId("a"): dtypes.INT_DTYPE, ids.ColumnId("b"): dtypes.INT_DTYPE}
-    )
+    ).output_type
     assert result == dtypes.INT_DTYPE
 
 
-def test_expression_dtype_nested():
+def test_nested_expression_dtype():
     expression = ops.add_op.as_expr(
         "a", ops.abs_op.as_expr(ops.sub_op.as_expr("b", ex.const(3.14)))
     )
 
-    result = expression.output_type(
+    result = expression.resolve_deferred_types(
         {ids.ColumnId("a"): dtypes.INT_DTYPE, ids.ColumnId("b"): dtypes.INT_DTYPE}
-    )
+    ).output_type
 
     assert result == dtypes.FLOAT_DTYPE
 
 
-def test_expression_dtype_where():
+def test_where_op_dtype():
     expression = ops.where_op.as_expr(ex.const(3), ex.const(True), ex.const(None))
 
-    result = expression.output_type({})
+    result = expression.resolve_deferred_types({}).output_type
 
     assert result == dtypes.INT_DTYPE
 
 
-def test_expression_dtype_astype():
+def test_astype_op_dtype():
     expression = ops.AsTypeOp(dtypes.INT_DTYPE).as_expr(ex.const(3.14159))
 
-    result = expression.output_type({})
+    result = expression.resolve_deferred_types({}).output_type
 
     assert result == dtypes.INT_DTYPE
+
+
+def test_deref_op_default_dtype_is_deferred():
+    expression = ex.deref("mycol")
+
+    assert expression.output_type == dtypes.DEFERRED_DTYPE
+
+
+def test_deref_op_dtype_resolution():
+    expression = ex.deref("mycol")
+
+    result = expression.resolve_deferred_types(
+        {ids.ColumnId("mycol"): dtypes.STRING_DTYPE}
+    ).output_type
+
+    assert result == dtypes.STRING_DTYPE
+
+
+def test_nested_expression_dtypes_are_cached():
+    expression = ops.add_op.as_expr(ex.deref("left_col"), ex.deref("right_col"))
+
+    expression = expression.resolve_deferred_types(
+        {
+            ids.ColumnId("right_col"): dtypes.INT_DTYPE,
+            ids.ColumnId("left_col"): dtypes.FLOAT_DTYPE,
+        }
+    )
+
+    assert expression.output_type == dtypes.FLOAT_DTYPE
+    assert isinstance(expression, ex.OpExpression)
+    assert expression.inputs[0].output_type == dtypes.FLOAT_DTYPE
+    assert expression.inputs[1].output_type == dtypes.INT_DTYPE
