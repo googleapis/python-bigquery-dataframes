@@ -391,6 +391,9 @@ class DerefOp(Expression):
     def resolve_deferred_types(
         self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
     ) -> Expression:
+        if self.dtype != dtypes.DEFERRED_DTYPE:
+            return self
+
         if self.id in col_dtypes:
             return dataclasses.replace(self, dtype=col_dtypes[self.id])
 
