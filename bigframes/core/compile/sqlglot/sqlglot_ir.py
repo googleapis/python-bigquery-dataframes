@@ -199,7 +199,7 @@ class SQLGlotIR:
             this=select_expr,
             alias=new_cte_name,
         )
-        new_with_clause = sge.With(expressions=existing_ctes + [new_cte])
+        new_with_clause = sge.With(expressions=[*existing_ctes, new_cte])
         new_select_expr = (
             sge.Select().select(sge.Star()).from_(sge.Table(this=new_cte_name))
         )
