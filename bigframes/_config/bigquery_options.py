@@ -396,6 +396,17 @@ class BigQueryOptions:
         adapters
         <https://requests.readthedocs.io/en/latest/user/advanced/#transport-adapters>`_.
 
+        **Examples:**
+
+        Increase the connection pool size using the requests `HTTPAdapter
+        <https://requests.readthedocs.io/en/latest/api/#requests.adapters.HTTPAdapter>`_.
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.bigquery.requests_transport_adapters = (
+            ...     ("http://", requests.adapters.HTTPAdapter(pool_maxsize=100)),
+            ...     ("https://", requests.adapters.HTTPAdapter(pool_maxsize=100)),
+            ... )  # doctest: +SKIP
+
         Returns:
             Sequence[Tuple[str, requests.adapters.BaseAdapter]]:
                 Prefixes and corresponding transport adapters to `mount
