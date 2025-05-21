@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pandas as pd
-
 import bigframes
 
 
@@ -37,8 +35,7 @@ def test_to_pandas_dry_run(scalars_df_index):
 
     result = index.to_pandas(dry_run=True)
 
-    assert isinstance(result, pd.Series)
-    assert len(result) > 0
+    assert len(result) == 14
 
 
 def test_to_numpy_override_global_option(scalars_df_index):

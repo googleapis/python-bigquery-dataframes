@@ -319,8 +319,7 @@ def test_to_pandas_dry_run(session, scalars_pandas_df_multi_index):
 
     result = bf_df.to_pandas(dry_run=True)
 
-    assert isinstance(result, pd.Series)
-    assert len(result) > 0
+    assert len(result) == 14
 
 
 def test_to_arrow_override_global_option(scalars_df_index):

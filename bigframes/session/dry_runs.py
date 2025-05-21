@@ -37,10 +37,6 @@ def get_table_stats(table: bigquery.Table) -> pandas.Series:
     index.append("columnDtypes")
     values.append(col_dtypes)
 
-    # Add raw BQ schema
-    index.append("bigquerySchema")
-    values.append(table.schema)
-
     for key in ("numBytes", "numRows", "location", "type"):
         index.append(key)
         values.append(table._properties[key])
@@ -100,12 +96,8 @@ def get_query_stats(
 ) -> pandas.Series:
     """Returns important stats from the query job as a Pandas Series."""
 
-    index: List[Any] = []
-    values: List[Any] = []
-
-    # Add raw BQ schema
-    index.append("bigquerySchema")
-    values.append(query_job.schema)
+    index = []
+    values = []
 
     job_api_repr = copy.deepcopy(query_job._properties)
 
@@ -118,8 +110,6 @@ def get_query_stats(
     configuration = job_api_repr.get("configuration", {})
     index.append("jobType")
     values.append(configuration.get("jobType", None))
-    index.append("dispatchedSql")
-    values.append(configuration.get("query", {}).get("query", None))
 
     query_config = configuration.get("query", {})
     for key in ("destinationTable", "useLegacySql"):
