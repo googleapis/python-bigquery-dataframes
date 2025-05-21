@@ -70,6 +70,16 @@ def test_deref_op_dtype_resolution():
     assert result == dtypes.STRING_DTYPE
 
 
+def test_deref_op_dtype_resolution_short_circuit():
+    expression = ex.deref("myCol", dtypes.INT_DTYPE)
+
+    result = expression.resolve_deferred_types(
+        {ids.ColumnId("anotherCol"): dtypes.STRING_DTYPE}
+    ).output_type
+
+    assert result == dtypes.INT_DTYPE
+
+
 def test_nested_expression_dtypes_are_cached():
     expression = ops.add_op.as_expr(ex.deref("left_col"), ex.deref("right_col"))
 
