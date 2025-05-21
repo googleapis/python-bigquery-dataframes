@@ -74,7 +74,7 @@ def sql_scalar(
     # template, then this will fail with an error earlier in the process,
     # aiding users in debugging.
     literals_sql = [
-        sqlglot_ir._literal(column.values[0], column.dtype).sql(dialect="bigquery")
+        sqlglot_ir._literal(None, column.dtype).sql(dialect="bigquery")
         for column in columns
     ]
     select_sql = sql_template.format(*literals_sql)

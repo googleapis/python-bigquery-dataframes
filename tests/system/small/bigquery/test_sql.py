@@ -13,14 +13,14 @@
 # limitations under the License.
 
 import pandas as pd
-import pyarrow as pa
+import pytest
 
 import bigframes.bigquery as bbq
 import bigframes.dtypes as dtypes
 import bigframes.pandas as bpd
 
 
-def test_sql_scalar_on_scalars_null_index(scalars_df_null_index):
+def test_sql_scalar_for_all_scalar_types(scalars_df_null_index):
     series = bbq.sql_scalar(
         """
         CAST({0} AS INT64)
@@ -55,7 +55,7 @@ def test_sql_scalar_on_scalars_null_index(scalars_df_null_index):
     assert len(result) == len(scalars_df_null_index)
 
 
-def test_sql_scalar_w_bool_series(scalars_df_index):
+def test_sql_scalar_for_bool_series(scalars_df_index):
     series: bpd.Series = scalars_df_index["bool_col"]
     result = bbq.sql_scalar("CAST({0} AS INT64)", [series])
     expected = series.astype(dtypes.INT_DTYPE)
@@ -63,7 +63,31 @@ def test_sql_scalar_w_bool_series(scalars_df_index):
     pd.testing.assert_series_equal(result.to_pandas(), expected.to_pandas())
 
 
-def test_sql_scalar_w_array_series(repeated_df):
+@pytest.mark.parametrize(
+    ("column_name"),
+    [
+        pytest.param("bool_col"),
+        pytest.param("bytes_col"),
+        pytest.param("date_col"),
+        pytest.param("datetime_col"),
+        pytest.param("geography_col"),
+        pytest.param("int64_col"),
+        pytest.param("numeric_col"),
+        pytest.param("float64_col"),
+        pytest.param("string_col"),
+        pytest.param("time_col"),
+        pytest.param("timestamp_col"),
+    ],
+)
+def test_sql_scalar_outputs_all_scalar_types(scalars_df_index, column_name):
+    series: bpd.Series = scalars_df_index[column_name]
+    result = bbq.sql_scalar("{0}", [series])
+    expected = series
+    expected.name = None
+    pd.testing.assert_series_equal(result.to_pandas(), expected.to_pandas())
+
+
+def test_sql_scalar_for_array_series(repeated_df):
     result = bbq.sql_scalar(
         """
         ARRAY_LENGTH({0}) + ARRAY_LENGTH({1}) + ARRAY_LENGTH({2})
@@ -93,7 +117,14 @@ def test_sql_scalar_w_array_series(repeated_df):
     pd.testing.assert_series_equal(result.to_pandas(), expected.to_pandas())
 
 
-def test_sql_scalar_w_struct_series(nested_structs_df):
+def test_sql_scalar_outputs_array_series(repeated_df):
+    result = bbq.sql_scalar("{0}", [repeated_df["int_list_col"]])
+    expected = repeated_df["int_list_col"]
+    expected.name = None
+    pd.testing.assert_series_equal(result.to_pandas(), expected.to_pandas())
+
+
+def test_sql_scalar_for_struct_series(nested_structs_df):
     result = bbq.sql_scalar(
         "CHAR_LENGTH({0}.name) + {0}.age",
         [nested_structs_df["person"]],
@@ -104,7 +135,14 @@ def test_sql_scalar_w_struct_series(nested_structs_df):
     pd.testing.assert_series_equal(result.to_pandas(), expected.to_pandas())
 
 
-def test_sql_scalar_w_json_series(json_df):
+def test_sql_scalar_outputs_struct_series(nested_structs_df):
+    result = bbq.sql_scalar("{0}", [nested_structs_df["person"]])
+    expected = nested_structs_df["person"]
+    expected.name = None
+    pd.testing.assert_series_equal(result.to_pandas(), expected.to_pandas())
+
+
+def test_sql_scalar_for_json_series(json_df):
     result = bbq.sql_scalar(
         """JSON_VALUE({0}, '$.int_value')""",
         [
@@ -116,13 +154,8 @@ def test_sql_scalar_w_json_series(json_df):
     pd.testing.assert_series_equal(result.to_pandas(), expected.to_pandas())
 
 
-def test_sql_scalar_w_array_output(json_df):
-    result = bbq.sql_scalar(
-        """JSON_VALUE_ARRAY({0}, '$.order.items')""",
-        [
-            json_df["json_col"],
-        ],
-    )
-    assert len(result) == len(json_df)
-    assert result.dtype == pd.ArrowDtype(pa.list_(pa.string()))
-    assert result[15] == ["book", "pen"]
+def test_sql_scalar_outputs_json_series(json_df):
+    result = bbq.sql_scalar("{0}", [json_df["json_col"]])
+    expected = json_df["json_col"]
+    expected.name = None
+    pd.testing.assert_series_equal(result.to_pandas(), expected.to_pandas())
