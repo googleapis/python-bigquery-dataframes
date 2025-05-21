@@ -1210,7 +1210,7 @@ class ProjectionNode(UnaryNode, AdditiveNode):
     def _validate(self):
         for expression, id in self.assignments:
             # throws TypeError if invalid
-            assert expression.output_type != bigframes.dtypes.DEFERRED_DTYPE
+            assert expression.output_type != bigframes.dtypes.ABSENT_DTYPE
         # Cannot assign to existing variables - append only!
         assert all(name not in self.child.schema.names for _, name in self.assignments)
 

@@ -57,7 +57,7 @@ def test_astype_op_dtype():
 def test_deref_op_default_dtype_is_deferred():
     expression = ex.deref("mycol")
 
-    assert expression.output_type == dtypes.DEFERRED_DTYPE
+    assert expression.output_type == dtypes.ABSENT_DTYPE
 
 
 def test_deref_op_dtype_resolution():

@@ -37,7 +37,7 @@ def const(
 
 
 def deref(
-    name: str, dtype: dtypes.ExpressionType | dtypes.Deferred = dtypes.DEFERRED_DTYPE
+    name: str, dtype: dtypes.ExpressionType | dtypes.AbsentDtype = dtypes.ABSENT_DTYPE
 ) -> DerefOp:
     return DerefOp(ids.ColumnId(name), dtype)
 
@@ -98,7 +98,7 @@ class UnaryAggregation(Aggregation):
     ) -> dtypes.ExpressionType:
         # TODO(b/419300717) Remove resolutions once defers are cleaned up.
         arg_dtype = self.arg.resolve_deferred_types(input_types).output_type
-        assert arg_dtype != bigframes.dtypes.DEFERRED_DTYPE
+        assert arg_dtype != bigframes.dtypes.ABSENT_DTYPE
 
         return self.op.output_type(arg_dtype)
 
@@ -130,9 +130,9 @@ class BinaryAggregation(Aggregation):
     ) -> dtypes.ExpressionType:
         # TODO(b/419300717) Remove resolutions once defers are cleaned up.
         left_arg_dtype = self.left.resolve_deferred_types(input_types).output_type
-        assert left_arg_dtype != dtypes.DEFERRED_DTYPE
+        assert left_arg_dtype != dtypes.ABSENT_DTYPE
         right_arg_dtype = self.right.resolve_deferred_types(input_types).output_type
-        assert right_arg_dtype != dtypes.DEFERRED_DTYPE
+        assert right_arg_dtype != dtypes.ABSENT_DTYPE
         return self.op.output_type(left_arg_dtype, right_arg_dtype)
 
     @property
@@ -202,7 +202,7 @@ class Expression(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def output_type(self) -> dtypes.ExpressionType | dtypes.Deferred:
+    def output_type(self) -> dtypes.ExpressionType | dtypes.AbsentDtype:
         ...
 
     @abc.abstractmethod
@@ -275,7 +275,7 @@ class ScalarConstantExpression(Expression):
     @property
     def output_type(
         self,
-    ) -> dtypes.ExpressionType | dtypes.Deferred:
+    ) -> dtypes.ExpressionType | dtypes.AbsentDtype:
         return self.dtype
 
     def resolve_deferred_types(
@@ -331,7 +331,7 @@ class UnboundVariableExpression(Expression):
         return ()
 
     @property
-    def output_type(self) -> dtypes.ExpressionType | dtypes.Deferred:
+    def output_type(self) -> dtypes.ExpressionType | dtypes.AbsentDtype:
         raise ValueError(f"Type of variable {self.id} has not been fixed.")
 
     def resolve_deferred_types(
@@ -369,7 +369,7 @@ class DerefOp(Expression):
     """A variable expression representing a column reference."""
 
     id: ids.ColumnId
-    dtype: dtypes.ExpressionType | dtypes.Deferred = dtypes.DEFERRED_DTYPE
+    dtype: dtypes.ExpressionType | dtypes.AbsentDtype = dtypes.ABSENT_DTYPE
 
     @property
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
@@ -385,13 +385,13 @@ class DerefOp(Expression):
         return True
 
     @property
-    def output_type(self) -> dtypes.ExpressionType | dtypes.Deferred:
+    def output_type(self) -> dtypes.ExpressionType | dtypes.AbsentDtype:
         return self.dtype
 
     def resolve_deferred_types(
         self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
     ) -> Expression:
-        if self.dtype != dtypes.DEFERRED_DTYPE:
+        if self.dtype != dtypes.ABSENT_DTYPE:
             return self
 
         if self.id in col_dtypes:
@@ -464,18 +464,18 @@ class OpExpression(Expression):
         return not null_free
 
     @functools.cached_property
-    def output_type(self) -> dtypes.ExpressionType | dtypes.Deferred:
+    def output_type(self) -> dtypes.ExpressionType | dtypes.AbsentDtype:
         input_types = [input.output_type for input in self.inputs]
 
-        if any(t == dtypes.DEFERRED_DTYPE for t in input_types):
-            return dtypes.DEFERRED_DTYPE
+        if any(t == dtypes.ABSENT_DTYPE for t in input_types):
+            return dtypes.ABSENT_DTYPE
 
         return self.op.output_type(*input_types)
 
     def resolve_deferred_types(
         self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
     ) -> Expression:
-        if self.output_type != dtypes.DEFERRED_DTYPE:
+        if self.output_type != dtypes.ABSENT_DTYPE:
             # The subtree's dtypes are already resolved.
             return self
 
@@ -484,7 +484,7 @@ class OpExpression(Expression):
         )
 
         resolved_expr = dataclasses.replace(self, inputs=resolved_inputs)
-        assert resolved_expr.output_type != dtypes.DEFERRED_DTYPE
+        assert resolved_expr.output_type != dtypes.ABSENT_DTYPE
         return resolved_expr
 
     def bind_variables(
