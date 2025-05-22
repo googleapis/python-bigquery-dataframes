@@ -137,14 +137,12 @@ class SQLGlotIR:
         ]
         # Attempts to simplify selected columns when the original and new column
         # names are simply aliases of each other.
-        squashed_selections = _squash_select_cols(self.expr.expressions, selections)
+        squashed_selections = _squash_selections(self.expr.expressions, selections)
         if squashed_selections is not None:
             new_expr = self.expr.select(*squashed_selections, append=False)
             return SQLGlotIR(expr=new_expr)
         else:
-            new_expr = self._encapsulate_as_cte().select(
-                *selections, append=False
-            )
+            new_expr = self._encapsulate_as_cte().select(*selections, append=False)
             return SQLGlotIR(expr=new_expr)
 
     def project(
@@ -265,11 +263,11 @@ def _table(table: bigquery.TableReference) -> sge.Table:
     )
 
 
-def _squash_select_cols(
+def _squash_selections(
     old_expr: list[sge.Expression], new_expr: list[sge.Alias]
 ) -> typing.Optional[list[sge.Alias]]:
     """
-    Simplifies the select column expressions if existing (old_expr) and 
+    Simplifies the select column expressions if existing (old_expr) and
     new (new_expr) selected columns are both simple aliases of column definitions.
 
     Example:
@@ -277,45 +275,48 @@ def _squash_select_cols(
     new_expr: [X AS P, Y AS Q]
     Result:   [A AS P, B AS Q]
     """
-    old_alias_list = [_is_columndef_alias(selected) for selected in old_expr]
-    if any(alias is None for alias in old_alias_list):
-        return None
-    new_alias_list = [_is_columndef_alias(selected) for selected in new_expr]
-    if any(alias is None for alias in new_alias_list):
-        return None
-    old_alias_map = {}
-    old_alias_map = dict(old_alias_list)
-    new_selected_cols = [
-        sge.Alias(
-            this=sge.ColumnDef(
-                this=sge.to_identifier(old_alias_map[expr.this.this.this], quoted=True)
-            ),
-            alias=sg.to_identifier(expr.alias, quoted=True),
-        )
-        for expr in new_expr
-    ]
+    old_alias_map: typing.Dict[str, str] = {}
+    for selected in old_expr:
+        column_alias_pair = _try_get_column_alias_pair(selected)
+        if column_alias_pair is None:
+            return None
+        else:
+            old_alias_map[column_alias_pair[1]] = column_alias_pair[0]
+
+    new_selected_cols: typing.List[sge.Alias] = []
+    for selected in new_expr:
+        column_alias_pair = _try_get_column_alias_pair(selected)
+        if column_alias_pair is None or column_alias_pair[0] not in old_alias_map:
+            return None
+        else:
+            new_alias_expr = sge.Alias(
+                this=sge.ColumnDef(
+                    this=sge.to_identifier(
+                        old_alias_map[column_alias_pair[0]], quoted=True
+                    )
+                ),
+                alias=sg.to_identifier(column_alias_pair[1], quoted=True),
+            )
+            new_selected_cols.append(new_alias_expr)
     return new_selected_cols
 
-def _is_columndef_alias(
+
+def _try_get_column_alias_pair(
     expr: sge.Expression,
 ) -> typing.Optional[typing.Tuple[str, str]]:
-    """Checks if an expression is a simple alias of a column definition 
+    """Checks if an expression is a simple alias of a column definition
     (e.g., "column_name AS alias_name").
     If it is, returns a tuple containing the alias name and original column name.
     Returns `None` otherwise.
     """
     if not isinstance(expr, sge.Alias):
         return None
-
-    column_def_expr = expr.this
     if not isinstance(expr.this, sge.ColumnDef):
         return None
 
-    original_identifier_expr = column_def_expr.this
-    if not isinstance(original_identifier_expr, sge.Identifier):
+    column_def_expr: sge.ColumnDef = expr.this
+    if not isinstance(column_def_expr.this, sge.Identifier):
         return None
 
-    original_name = original_identifier_expr.this
-    alias_name = expr.alias
-    return (alias_name, original_name)
-
+    original_identifier: sge.Identifier = column_def_expr.this
+    return (original_identifier.this, expr.alias)
