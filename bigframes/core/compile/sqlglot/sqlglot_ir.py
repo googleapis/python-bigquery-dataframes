@@ -138,7 +138,7 @@ class SQLGlotIR:
         # Attempts to simplify selected columns when the original and new column
         # names are simply aliases of each other.
         squashed_selections = _squash_selections(self.expr.expressions, selections)
-        if squashed_selections is not None:
+        if squashed_selections != []:
             new_expr = self.expr.select(*squashed_selections, append=False)
             return SQLGlotIR(expr=new_expr)
         else:
@@ -265,7 +265,7 @@ def _table(table: bigquery.TableReference) -> sge.Table:
 
 def _squash_selections(
     old_expr: list[sge.Expression], new_expr: list[sge.Alias]
-) -> typing.Optional[list[sge.Alias]]:
+) -> list[sge.Alias]:
     """
     Simplifies the select column expressions if existing (old_expr) and
     new (new_expr) selected columns are both simple aliases of column definitions.
@@ -277,17 +277,17 @@ def _squash_selections(
     """
     old_alias_map: typing.Dict[str, str] = {}
     for selected in old_expr:
-        column_alias_pair = _try_get_column_alias_pair(selected)
+        column_alias_pair = _get_column_alias_pair(selected)
         if column_alias_pair is None:
-            return None
+            return []
         else:
             old_alias_map[column_alias_pair[1]] = column_alias_pair[0]
 
     new_selected_cols: typing.List[sge.Alias] = []
     for selected in new_expr:
-        column_alias_pair = _try_get_column_alias_pair(selected)
+        column_alias_pair = _get_column_alias_pair(selected)
         if column_alias_pair is None or column_alias_pair[0] not in old_alias_map:
-            return None
+            return []
         else:
             new_alias_expr = sge.Alias(
                 this=sge.ColumnDef(
@@ -301,7 +301,7 @@ def _squash_selections(
     return new_selected_cols
 
 
-def _try_get_column_alias_pair(
+def _get_column_alias_pair(
     expr: sge.Expression,
 ) -> typing.Optional[typing.Tuple[str, str]]:
     """Checks if an expression is a simple alias of a column definition
