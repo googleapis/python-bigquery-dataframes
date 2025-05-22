@@ -25,11 +25,11 @@ import bigframes.operations as ops
 
 def test_simple_expression_dtype():
     expression = ops.add_op.as_expr("a", "b")
-    deref_bindings = _create_deref_bindings(
+    field_bindings = _create_field_bindings(
         {"a": dtypes.INT_DTYPE, "b": dtypes.INT_DTYPE}
     )
 
-    result = expression.bind_refs(deref_bindings)
+    result = expression.resolve_refs(field_bindings)
 
     _assert_output_type(result, dtypes.INT_DTYPE)
 
@@ -38,11 +38,11 @@ def test_nested_expression_dtype():
     expression = ops.add_op.as_expr(
         "a", ops.abs_op.as_expr(ops.sub_op.as_expr("b", ex.const(3.14)))
     )
-    deref_bindings = _create_deref_bindings(
+    field_bindings = _create_field_bindings(
         {"a": dtypes.INT_DTYPE, "b": dtypes.INT_DTYPE}
     )
 
-    result = expression.bind_refs(deref_bindings)
+    result = expression.resolve_refs(field_bindings)
 
     _assert_output_type(result, dtypes.FLOAT_DTYPE)
 
@@ -69,32 +69,32 @@ def test_deref_op_default_dtype_is_deferred():
 
 def test_deref_op_dtype_resolution():
     expression = ex.deref("mycol")
-    deref_bindings = _create_deref_bindings({"mycol": dtypes.STRING_DTYPE})
+    field_bindings = _create_field_bindings({"mycol": dtypes.STRING_DTYPE})
 
-    result = expression.bind_refs(deref_bindings)
+    result = expression.resolve_refs(field_bindings)
 
     _assert_output_type(result, dtypes.STRING_DTYPE)
 
 
 def test_deref_op_dtype_resolution_short_circuit():
     expression = ex.DerefOp(field.Field(ids.ColumnId("mycol"), dtype=dtypes.INT_DTYPE))
-    deref_bindings = _create_deref_bindings({"anotherCol": dtypes.STRING_DTYPE})
+    field_bindings = _create_field_bindings({"anotherCol": dtypes.STRING_DTYPE})
 
-    result = expression.bind_refs(deref_bindings)
+    result = expression.resolve_refs(field_bindings)
 
     _assert_output_type(result, dtypes.INT_DTYPE)
 
 
 def test_nested_expression_dtypes_are_cached():
     expression = ops.add_op.as_expr(ex.deref("left_col"), ex.deref("right_col"))
-    deref_bindings = _create_deref_bindings(
+    field_bindings = _create_field_bindings(
         {
             "right_col": dtypes.INT_DTYPE,
             "left_col": dtypes.FLOAT_DTYPE,
         }
     )
 
-    expression = expression.bind_refs(deref_bindings)
+    expression = expression.resolve_refs(field_bindings)
 
     _assert_output_type(expression, dtypes.FLOAT_DTYPE)
     assert isinstance(expression, ex.OpExpression)
@@ -102,11 +102,11 @@ def test_nested_expression_dtypes_are_cached():
     _assert_output_type(expression.inputs[1], dtypes.INT_DTYPE)
 
 
-def _create_deref_bindings(
+def _create_field_bindings(
     col_dtypes: typing.Dict[str, dtypes.Dtype]
-) -> typing.Dict[ids.ColumnId, ex.DerefOp]:
+) -> typing.Dict[ids.ColumnId, field.Field]:
     return {
-        ids.ColumnId(col): ex.DerefOp(field.Field(ids.ColumnId(col), dtype))
+        ids.ColumnId(col): field.Field(ids.ColumnId(col), dtype)
         for col, dtype in col_dtypes.items()
     }
 

@@ -95,8 +95,7 @@ class UnaryAggregation(Aggregation):
         self, input_fields: Mapping[ids.ColumnId, field.Field]
     ) -> dtypes.ExpressionType:
         # TODO(b/419300717) Remove resolutions once defers are cleaned up.
-        deref_bindings = {id: DerefOp(field) for id, field in input_fields.items()}
-        resolved_expr = self.arg.bind_refs(deref_bindings)
+        resolved_expr = self.arg.resolve_refs(input_fields)
         assert resolved_expr.is_type_resolved
 
         return self.op.output_type(resolved_expr.output_type)
@@ -128,13 +127,11 @@ class BinaryAggregation(Aggregation):
         self, input_fields: Mapping[ids.ColumnId, field.Field]
     ) -> dtypes.ExpressionType:
         # TODO(b/419300717) Remove resolutions once defers are cleaned up.
-        deref_bindings = {id: DerefOp(field) for id, field in input_fields.items()}
-
-        left_resolved_expr = self.left.bind_refs(deref_bindings)
+        left_resolved_expr = self.left.resolve_refs(input_fields)
         assert left_resolved_expr.is_type_resolved
-        right_resolved_expr = self.right.bind_refs(deref_bindings)
+        right_resolved_expr = self.right.resolve_refs(input_fields)
         assert right_resolved_expr.is_type_resolved
-        
+
         return self.op.output_type(
             left_resolved_expr.output_type, left_resolved_expr.output_type
         )
@@ -230,6 +227,13 @@ class Expression(abc.ABC):
         ...
 
     @abc.abstractmethod
+    def resolve_refs(
+        self,
+        bindings: Mapping[ids.ColumnId, field.Field],
+    ) -> Expression:
+        """Resolves deref expressions with the field it refers to"""
+
+    @abc.abstractmethod
     def bind_variables(
         self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
     ) -> Expression:
@@ -298,6 +302,11 @@ class ScalarConstantExpression(Expression):
     ) -> ScalarConstantExpression:
         return self
 
+    def resolve_refs(
+        self, bindings: Mapping[ids.ColumnId, field.Field]
+    ) -> ScalarConstantExpression:
+        return self
+
     @property
     def is_bijective(self) -> bool:
         # () <-> value
@@ -345,6 +354,11 @@ class UnboundVariableExpression(Expression):
         self,
         bindings: Mapping[ids.ColumnId, Expression],
         allow_partial_bindings: bool = False,
+    ) -> UnboundVariableExpression:
+        return self
+
+    def resolve_refs(
+        self, bindings: Mapping[ids.ColumnId, field.Field]
     ) -> UnboundVariableExpression:
         return self
 
@@ -413,15 +427,23 @@ class DerefOp(Expression):
         bindings: Mapping[ids.ColumnId, Expression],
         allow_partial_bindings: bool = False,
     ) -> Expression:
-        if isinstance(self.id_or_field, field.Field):
-            # If the deref op is already bounded to a field, do nothing.
-            return self
-
         if self.id in bindings.keys():
             return bindings[self.id]
         elif not allow_partial_bindings:
             raise ValueError(f"Variable {self.id} remains unbound")
         return self
+
+    def resolve_refs(
+        self,
+        bindings: Mapping[ids.ColumnId, field.Field],
+    ) -> DerefOp:
+        if self.is_type_resolved:
+            return self
+
+        if self.id in bindings.keys():
+            return DerefOp(bindings[self.id])
+
+        raise ValueError(f"Variable {self.id} remains unresolved")
 
     @property
     def is_bijective(self) -> bool:
@@ -509,6 +531,12 @@ class OpExpression(Expression):
                 for input in self.inputs
             ),
         )
+
+    def resolve_refs(
+        self, bindings: Mapping[ids.ColumnId, field.Field]
+    ) -> OpExpression:
+        resolved_inputs = tuple(input.resolve_refs(bindings) for input in self.inputs)
+        return dataclasses.replace(self, inputs=resolved_inputs)
 
     @property
     def is_bijective(self) -> bool:

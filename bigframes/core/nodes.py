@@ -961,10 +961,7 @@ class FilterNode(UnaryNode):
 
     def __post_init__(self):
         # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
-        deref_by_id = {
-            id: ex.DerefOp(field) for id, field in self.child.field_by_id.items()
-        }
-        resolved_predicate = self.predicate.bind_refs(deref_by_id)
+        resolved_predicate = self.predicate.resolve_refs(self.child.field_by_id)
         object.__setattr__(self, "predicate", resolved_predicate)
 
     @property
@@ -1016,23 +1013,18 @@ class OrderByNode(UnaryNode):
 
     def __post_init__(self):
         # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
-        deref_by_id = {
-            id: typing.cast(ex.Expression, ex.DerefOp(field))
-            for id, field in self.child.field_by_id.items()
-        }
 
-        type_resolved_bys = tuple(
-            self._resolve_type(expr, deref_by_id) for expr in self.by
-        )
+        type_resolved_bys = tuple(self._resolve_type(expr) for expr in self.by)
 
         object.__setattr__(self, "by", type_resolved_bys)
 
     def _resolve_type(
         self,
         expr: OrderingExpression,
-        deref_by_id: Dict[identifiers.ColumnId, ex.Expression],
     ) -> OrderingExpression:
-        resolved_scalar_expr = expr.scalar_expression.bind_refs(deref_by_id)
+        resolved_scalar_expr = expr.scalar_expression.resolve_refs(
+            self.child.field_by_id
+        )
         return dataclasses.replace(expr, scalar_expression=resolved_scalar_expr)
 
     @property
@@ -1222,12 +1214,9 @@ class ProjectionNode(UnaryNode, AdditiveNode):
 
     def __post_init__(self):
         # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
-        deref_by_id = {
-            id: ex.DerefOp(field) for id, field in self.child.field_by_id.items()
-        }
-
         type_resolved_assignments = tuple(
-            (expr.bind_refs(deref_by_id), id) for expr, id in self.assignments
+            (expr.resolve_refs(self.child.field_by_id), id)
+            for expr, id in self.assignments
         )
 
         object.__setattr__(self, "assignments", type_resolved_assignments)
