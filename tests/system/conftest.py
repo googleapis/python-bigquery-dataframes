@@ -1523,3 +1523,17 @@ def pdf_mm_df(
     return test_session.from_glob_path(
         pdf_gcs_path, name="pdf", connection=bq_connection
     )
+
+
+@pytest.fixture(scope="session")
+def audio_gcs_path() -> str:
+    return "gs://bigframes_blob_test/audio/*"
+
+
+@pytest.fixture(scope="session")
+def audio_mm_df(
+    audio_gcs_path, test_session: bigframes.Session, bq_connection: str
+) -> bpd.DataFrame:
+    return test_session.from_glob_path(
+        audio_gcs_path, name="audio", connection=bq_connection
+    )
