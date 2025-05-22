@@ -179,7 +179,7 @@ if polars_installed:
             if isinstance(op, ops.CaseWhenOp):
                 expr = pl.when(args[0]).then(args[1])
                 for pred, result in zip(args[2::2], args[3::2]):
-                    expr = expr.when(pred).then(result)
+                    expr = expr.when(pred).then(result)  # type: ignore
                 return expr
             if isinstance(op, ops.where_op.__class__):
                 original, condition, otherwise = args
@@ -254,7 +254,7 @@ if polars_installed:
             if isinstance(op, agg_ops.AllOp):
                 return pl.all(*inputs)
             if isinstance(op, agg_ops.AnyOp):
-                return pl.any(*inputs)
+                return pl.any(*inputs)  # type: ignore
             if isinstance(op, agg_ops.NuniqueOp):
                 return pl.col(*inputs).drop_nulls().n_unique()
             if isinstance(op, agg_ops.MinOp):
@@ -443,11 +443,11 @@ class PolarsCompiler:
                 how=how,
                 left_on=left_on,
                 right_on=right_on,
-                join_nulls=join_nulls,
+                # Note: join_nulls renamed to nulls_equal for polars 1.24
+                join_nulls=join_nulls,  # type: ignore
                 coalesce=False,
             )
         else:
-            # Note: join_nulls renamed to nulls_equal for polars 1.24
             joined = left.join(right, how=how, coalesce=False)
 
         join_order = (
