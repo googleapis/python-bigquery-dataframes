@@ -175,7 +175,7 @@ if polars_installed:
             if isinstance(op, ops.CaseWhenOp):
                 expr = pl.when(args[0]).then(args[1])
                 for pred, result in zip(args[2::2], args[3::2]):
-                    return expr.when(pred).then(result)
+                    expr = expr.when(pred).then(result)
                 return expr
             if isinstance(op, ops.where_op.__class__):
                 original, condition, otherwise = args

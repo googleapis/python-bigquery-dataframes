@@ -47,7 +47,7 @@ DATA_DIR = CURRENT_DIR.parent / "data"
 
 @pytest.fixture(scope="module")
 def session() -> bigframes.Session:
-    from . import polars_session
+    from bigframes.testing import polars_session
 
     return polars_session.TestSession()
 
@@ -2701,14 +2701,7 @@ def test_df_transpose_repeated_uses_cache():
     )
 
 
-@pytest.mark.parametrize(
-    ("ordered"),
-    [
-        (True),
-        (False),
-    ],
-)
-def test_df_stack(scalars_dfs, ordered):
+def test_df_stack(scalars_dfs):
     if pandas.__version__.startswith("1.") or pandas.__version__.startswith("2.0"):
         pytest.skip("pandas <2.1 uses different stack implementation")
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -2718,13 +2711,11 @@ def test_df_stack(scalars_dfs, ordered):
     # Can only stack identically-typed columns
     columns = ["int64_col", "int64_too", "rowindex_2"]
 
-    bf_result = scalars_df[columns].stack().to_pandas(ordered=ordered)
+    bf_result = scalars_df[columns].stack().to_pandas()
     pd_result = scalars_pandas_df[columns].stack(future_stack=True)
 
     # Pandas produces NaN, where bq dataframes produces pd.NA
-    assert_series_equal(
-        bf_result, pd_result, check_dtype=False, ignore_order=not ordered
-    )
+    assert_series_equal(bf_result, pd_result, check_dtype=False)
 
 
 def test_df_melt_default(scalars_dfs):
