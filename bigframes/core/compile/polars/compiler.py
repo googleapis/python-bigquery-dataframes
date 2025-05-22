@@ -16,7 +16,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import itertools
-from typing import cast, Optional, Sequence, Tuple, TYPE_CHECKING
+from typing import cast, Literal, Optional, Sequence, Tuple, TYPE_CHECKING
 
 import pandas as pd
 
@@ -59,6 +59,27 @@ if polars_installed:
         bigframes.dtypes.JSON_DTYPE: pl.String(),
     }
 
+    def _bigframes_dtype_to_polars_dtype(
+        dtype: bigframes.dtypes.ExpressionType,
+    ) -> pl.DataType:
+        if dtype is None:
+            return pl.Null()
+        if bigframes.dtypes.is_struct_like(dtype):
+            return pl.Struct(
+                [
+                    pl.Field(name, _bigframes_dtype_to_polars_dtype(type))
+                    for name, type in bigframes.dtypes.get_struct_fields(dtype).items()
+                ]
+            )
+        if bigframes.dtypes.is_array_like(dtype):
+            return pl.Array(
+                inner=_bigframes_dtype_to_polars_dtype(
+                    bigframes.dtypes.get_array_inner_type(dtype)
+                )
+            )
+        else:
+            return _DTYPE_MAPPING[dtype]
+
     @dataclasses.dataclass(frozen=True)
     class PolarsExpressionCompiler:
         """
@@ -76,7 +97,10 @@ if polars_installed:
             self,
             expression: ex.ScalarConstantExpression,
         ) -> pl.Expr:
-            return pl.lit(expression.value)
+            value = expression.value
+            if not isinstance(value, float) and pd.isna(value):  # type: ignore
+                value = None
+            return pl.lit(value, _bigframes_dtype_to_polars_dtype(expression.dtype))
 
         @compile_expression.register
         def _(
@@ -109,7 +133,7 @@ if polars_installed:
                 return args[0] / args[1]
             if isinstance(op, ops.floordiv_op.__class__):
                 return args[0] // args[1]
-            if isinstance(op, ops.pow_op.__class__):
+            if isinstance(op, (ops.pow_op.__class__, ops.unsafe_pow_op.__class__)):
                 return args[0] ** args[1]
             if isinstance(op, ops.abs_op.__class__):
                 return args[0].abs()
@@ -127,9 +151,12 @@ if polars_installed:
                 return args[0] < args[1]
             if isinstance(op, ops.eq_op.__class__):
                 return args[0].eq(args[1])
+            if isinstance(op, ops.eq_null_match_op.__class__):
+                return args[0].eq_missing(args[1])
             if isinstance(op, ops.ne_op.__class__):
                 return args[0].ne(args[1])
             if isinstance(op, ops.IsInOp):
+                # TODO: Filter out types that can't be coerced to right type
                 if op.match_nulls or not any(map(pd.isna, op.values)):
                     # newer polars version have nulls_equal arg
                     return args[0].is_in(op.values)
@@ -161,6 +188,8 @@ if polars_installed:
         def astype(
             self, col: pl.Expr, dtype: bigframes.dtypes.Dtype, safe: bool
         ) -> pl.Expr:
+            # TODO: Polars casting works differently, need to lower instead to specific conversion ops.
+            # eg. We want "True" instead of "true" for bool to string.
             return col.cast(_DTYPE_MAPPING[dtype], strict=not safe)
 
     @dataclasses.dataclass(frozen=True)
@@ -229,13 +258,19 @@ if polars_installed:
             if isinstance(op, agg_ops.CountOp):
                 return pl.count(*inputs)
             if isinstance(op, agg_ops.CorrOp):
-                return pl.corr(*inputs)
+                return pl.corr(
+                    pl.col(inputs[0]).fill_nan(None), pl.col(inputs[1]).fill_nan(None)
+                )
             if isinstance(op, agg_ops.CovOp):
-                return pl.cov(*inputs)
+                return pl.cov(
+                    pl.col(inputs[0]).fill_nan(None), pl.col(inputs[1]).fill_nan(None)
+                )
             if isinstance(op, agg_ops.StdOp):
                 return pl.std(inputs[0])
             if isinstance(op, agg_ops.VarOp):
                 return pl.var(inputs[0])
+            if isinstance(op, agg_ops.PopVarOp):
+                return pl.var(inputs[0], ddof=0)
             if isinstance(op, agg_ops.FirstNonNullOp):
                 return pl.col(*inputs).drop_nulls().first()
             if isinstance(op, agg_ops.LastNonNullOp):
@@ -278,7 +313,9 @@ class PolarsCompiler:
 
         # TODO: Create standard way to configure BFET -> BFET rewrites
         # Polars has incomplete slice support in lazy mode
-        node = nodes.bottom_up(array_value.node, bigframes.core.rewrite.rewrite_slice)
+        node = array_value.node
+        node = bigframes.core.rewrite.column_pruning(node)
+        node = nodes.bottom_up(node, bigframes.core.rewrite.rewrite_slice)
         return self.compile_node(node)
 
     @functools.singledispatchmethod
@@ -351,35 +388,56 @@ class PolarsCompiler:
 
     @compile_node.register
     def compile_join(self, node: nodes.JoinNode):
-        # Always totally order this, as adding offsets is relatively cheap for in-memory columnar data
-        left = self.compile_node(node.left_child).with_columns(
+        left = self.compile_node(node.left_child)
+        right = self.compile_node(node.right_child)
+        left_on = [l_name.id.sql for l_name, _ in node.conditions]
+        right_on = [r_name.id.sql for _, r_name in node.conditions]
+        if node.type == "right":
+            return self._ordered_join(
+                right, left, "left", right_on, left_on, node.joins_nulls
+            ).select([id.sql for id in node.ids])
+        return self._ordered_join(
+            left, right, node.type, left_on, right_on, node.joins_nulls
+        )
+
+    def _ordered_join(
+        self,
+        left_frame: pl.LazyFrame,
+        right_frame: pl.LazyFrame,
+        how: Literal["inner", "outer", "left", "cross"],
+        left_on: Sequence[str],
+        right_on: Sequence[str],
+        join_nulls: bool,
+    ):
+        if how == "right":
+            # seems to cause seg faults as of v1.30 for no apparent reason
+            raise ValueError("right join not supported")
+        left = left_frame.with_columns(
             [
                 pl.int_range(pl.len()).alias("_bf_join_l"),
             ]
         )
-        right = self.compile_node(node.right_child).with_columns(
+        right = right_frame.with_columns(
             [
                 pl.int_range(pl.len()).alias("_bf_join_r"),
             ]
         )
-        if node.type != "cross":
-            left_on = [l_name.id.sql for l_name, _ in node.conditions]
-            right_on = [r_name.id.sql for _, r_name in node.conditions]
+        if how != "cross":
             joined = left.join(
                 right,
-                how=node.type,
+                how=how,
                 left_on=left_on,
                 right_on=right_on,
-                join_nulls=node.joins_nulls,
+                join_nulls=join_nulls,
                 coalesce=False,
             )
         else:
             # Note: join_nulls renamed to nulls_equal for polars 1.24
-            joined = left.join(right, how=node.type, coalesce=False)
+            joined = left.join(right, how=how, coalesce=False)
 
         join_order = (
             ["_bf_join_l", "_bf_join_r"]
-            if node.type != "right"
+            if how != "right"
             else ["_bf_join_r", "_bf_join_l"]
         )
         return joined.sort(join_order, nulls_last=True).drop(
@@ -504,7 +562,7 @@ class PolarsCompiler:
             indexed_df.rolling(
                 index_column=index_col_name,
                 period=f"{period_n}i",
-                offset=f"{offset_n}i" if offset_n else None,
+                offset=f"{offset_n}i" if (offset_n is not None) else None,
             )
             .agg(pl_agg_expr)
             .select(name)
@@ -517,11 +575,11 @@ def _get_period_and_offset(
 ) -> tuple[int, Optional[int]]:
     # fixed size window
     if (bounds.start is not None) and (bounds.end is not None):
-        return ((bounds.end - bounds.start + 1), bounds.start)
+        return ((bounds.end - bounds.start + 1), bounds.start - 1)
 
     LARGE_N = 1000
     if bounds.start is not None:
-        return (LARGE_N, bounds.start)
+        return (LARGE_N, bounds.start - 1)
     if bounds.end is not None:
         return (LARGE_N, None)
     raise ValueError("Not a bounded window")

@@ -114,3 +114,8 @@ class TestSession(bigframes.session.Session):
         # override read_pandas to always keep data local-only
         local_block = bigframes.core.blocks.Block.from_local(pandas_dataframe, self)
         return bigframes.dataframe.DataFrame(local_block)
+
+    @property
+    def bqclient(self):
+        # prevents logger from trying to call bq upon any errors
+        return None

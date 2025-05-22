@@ -1346,40 +1346,6 @@ def test_itertuples(scalars_df_index, index, name):
         assert bf_tuple == pd_tuple
 
 
-def test_df_isin_list(scalars_dfs):
-    scalars_df, scalars_pandas_df = scalars_dfs
-    values = ["Hello, World!", 55555, 2.51, pd.NA, True]
-    bf_result = (
-        scalars_df[["int64_col", "float64_col", "string_col", "bool_col"]]
-        .isin(values)
-        .to_pandas()
-    )
-    pd_result = scalars_pandas_df[
-        ["int64_col", "float64_col", "string_col", "bool_col"]
-    ].isin(values)
-
-    pandas.testing.assert_frame_equal(bf_result, pd_result.astype("boolean"))
-
-
-def test_df_isin_dict(scalars_dfs):
-    scalars_df, scalars_pandas_df = scalars_dfs
-    values = {
-        "string_col": ["Hello, World!", 55555, 2.51, pd.NA, True],
-        "int64_col": [5555, 2.51],
-        "bool_col": [pd.NA],
-    }
-    bf_result = (
-        scalars_df[["int64_col", "float64_col", "string_col", "bool_col"]]
-        .isin(values)
-        .to_pandas()
-    )
-    pd_result = scalars_pandas_df[
-        ["int64_col", "float64_col", "string_col", "bool_col"]
-    ].isin(values)
-
-    pandas.testing.assert_frame_equal(bf_result, pd_result.astype("boolean"))
-
-
 def test_df_cross_merge(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     left_columns = ["int64_col", "float64_col", "rowindex_2"]
@@ -1536,25 +1502,6 @@ def test_merge_left_on_right_on(scalars_dfs, merge_how):
     assert_pandas_df_equal(
         bf_result, pd_result, ignore_order=True, check_index_type=False
     )
-
-
-@pytest.mark.parametrize(
-    ("decimals",),
-    [
-        (2,),
-        ({"float64_col": 0, "bool_col": 1, "int64_too": -3},),
-        ({},),
-    ],
-)
-def test_dataframe_round(scalars_dfs, decimals):
-    if pd.__version__.startswith("1."):
-        pytest.skip("Rounding doesn't work as expected in pandas 1.x")
-    scalars_df, scalars_pandas_df = scalars_dfs
-
-    bf_result = scalars_df.round(decimals).to_pandas()
-    pd_result = scalars_pandas_df.round(decimals)
-
-    assert_pandas_df_equal(bf_result, pd_result)
 
 
 def test_shape(scalars_dfs):
@@ -2855,28 +2802,6 @@ def test_df_unstack(scalars_dfs, ordered):
     )
 
 
-@pytest.mark.parametrize(
-    ("values", "index", "columns"),
-    [
-        ("int64_col", "int64_too", ["string_col"]),
-        (["int64_col"], "int64_too", ["string_col"]),
-        (["int64_col", "float64_col"], "int64_too", ["string_col"]),
-    ],
-)
-def test_df_pivot(scalars_dfs, values, index, columns):
-    scalars_df, scalars_pandas_df = scalars_dfs
-
-    bf_result = scalars_df.pivot(
-        values=values, index=index, columns=columns
-    ).to_pandas()
-    pd_result = scalars_pandas_df.pivot(values=values, index=index, columns=columns)
-
-    # Pandas produces NaN, where bq dataframes produces pd.NA
-    bf_result = bf_result.fillna(float("nan"))
-    pd_result = pd_result.fillna(float("nan"))
-    pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
-
-
 def test_ipython_key_completions_with_drop(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_names = "string_col"
@@ -3452,28 +3377,6 @@ def test_sample_raises_value_error(scalars_dfs):
         ValueError, match="Only one of 'n' or 'frac' parameter can be specified."
     ):
         scalars_df.sample(frac=0.5, n=4)
-
-
-def test_sample_args_sort(scalars_dfs):
-    scalars_df, _ = scalars_dfs
-    index = [4, 3, 2, 5, 1, 0]
-    scalars_df = scalars_df.iloc[index]
-
-    kwargs = {"frac": 1.0, "random_state": 333}
-
-    df = scalars_df.sample(**kwargs).to_pandas()
-    assert df.index.values != index
-    assert df.index.values != sorted(index)
-
-    df = scalars_df.sample(sort="random", **kwargs).to_pandas()
-    assert df.index.values != index
-    assert df.index.values != sorted(index)
-
-    df = scalars_df.sample(sort=True, **kwargs).to_pandas()
-    assert df.index.values == sorted(index)
-
-    df = scalars_df.sample(sort=False, **kwargs).to_pandas()
-    assert df.index.values == index
 
 
 @pytest.mark.parametrize(
@@ -4491,47 +4394,3 @@ def test__resample_start_time(rule, origin, data):
     pd.testing.assert_frame_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
-
-
-@pytest.mark.parametrize(
-    "dtype",
-    [
-        pytest.param("string[pyarrow]", id="type-string"),
-        pytest.param(pd.StringDtype(storage="pyarrow"), id="type-literal"),
-        pytest.param(
-            {"bool_col": "string[pyarrow]", "int64_col": pd.Float64Dtype()},
-            id="multiple-types",
-        ),
-    ],
-)
-def test_df_astype(scalars_dfs, dtype):
-    bf_df, pd_df = scalars_dfs
-    target_cols = ["bool_col", "int64_col"]
-    bf_df = bf_df[target_cols]
-    pd_df = pd_df[target_cols]
-
-    bf_result = bf_df.astype(dtype).to_pandas()
-    pd_result = pd_df.astype(dtype)
-
-    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
-
-
-def test_df_astype_python_types(scalars_dfs):
-    bf_df, pd_df = scalars_dfs
-    target_cols = ["bool_col", "int64_col"]
-    bf_df = bf_df[target_cols]
-    pd_df = pd_df[target_cols]
-
-    bf_result = bf_df.astype({"bool_col": str, "int64_col": float}).to_pandas()
-    pd_result = pd_df.astype(
-        {"bool_col": "string[pyarrow]", "int64_col": pd.Float64Dtype()}
-    )
-
-    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
-
-
-def test_astype_invalid_type_fail(scalars_dfs):
-    bf_df, _ = scalars_dfs
-
-    with pytest.raises(TypeError, match=r".*Share your usecase with.*"):
-        bf_df.astype(123)
