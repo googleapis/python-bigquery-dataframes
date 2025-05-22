@@ -114,16 +114,6 @@ LOCAL_SCALAR_TYPE = Union[
 LOCAL_SCALAR_TYPES = typing.get_args(LOCAL_SCALAR_TYPE)
 
 
-# Indicates that the type is not available due to lack of inputs' type information.
-# TODO(b/419300717) Remove this class once deref dtypes are all cleaned up
-@dataclass(frozen=True)
-class AbsentDtype:
-    ...
-
-
-ABSENT_DTYPE = AbsentDtype()
-
-
 # Will have a few dtype variants: simple(eg. int, string, bool), complex (eg. list, struct), and virtual (eg. micro intervals, categorical)
 @dataclass(frozen=True)
 class SimpleDtypeInfo:

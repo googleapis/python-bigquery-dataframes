@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
+
+import pytest
+
+from bigframes.core import field
 import bigframes.core.expression as ex
 import bigframes.core.identifiers as ids
 import bigframes.dtypes as dtypes
@@ -20,77 +25,92 @@ import bigframes.operations as ops
 
 def test_simple_expression_dtype():
     expression = ops.add_op.as_expr("a", "b")
-    result = expression.resolve_deferred_types(
-        {ids.ColumnId("a"): dtypes.INT_DTYPE, ids.ColumnId("b"): dtypes.INT_DTYPE}
-    ).output_type
-    assert result == dtypes.INT_DTYPE
+    deref_bindings = _create_deref_bindings(
+        {"a": dtypes.INT_DTYPE, "b": dtypes.INT_DTYPE}
+    )
+
+    result = expression.bind_refs(deref_bindings)
+
+    _assert_output_type(result, dtypes.INT_DTYPE)
 
 
 def test_nested_expression_dtype():
     expression = ops.add_op.as_expr(
         "a", ops.abs_op.as_expr(ops.sub_op.as_expr("b", ex.const(3.14)))
     )
+    deref_bindings = _create_deref_bindings(
+        {"a": dtypes.INT_DTYPE, "b": dtypes.INT_DTYPE}
+    )
 
-    result = expression.resolve_deferred_types(
-        {ids.ColumnId("a"): dtypes.INT_DTYPE, ids.ColumnId("b"): dtypes.INT_DTYPE}
-    ).output_type
+    result = expression.bind_refs(deref_bindings)
 
-    assert result == dtypes.FLOAT_DTYPE
+    _assert_output_type(result, dtypes.FLOAT_DTYPE)
 
 
 def test_where_op_dtype():
     expression = ops.where_op.as_expr(ex.const(3), ex.const(True), ex.const(None))
 
-    result = expression.resolve_deferred_types({}).output_type
-
-    assert result == dtypes.INT_DTYPE
+    _assert_output_type(expression, dtypes.INT_DTYPE)
 
 
 def test_astype_op_dtype():
     expression = ops.AsTypeOp(dtypes.INT_DTYPE).as_expr(ex.const(3.14159))
 
-    result = expression.resolve_deferred_types({}).output_type
-
-    assert result == dtypes.INT_DTYPE
+    _assert_output_type(expression, dtypes.INT_DTYPE)
 
 
 def test_deref_op_default_dtype_is_deferred():
     expression = ex.deref("mycol")
 
-    assert expression.output_type == dtypes.ABSENT_DTYPE
+    assert not expression.is_type_resolved
+    with pytest.raises(ValueError):
+        expression.output_type
 
 
 def test_deref_op_dtype_resolution():
     expression = ex.deref("mycol")
+    deref_bindings = _create_deref_bindings({"mycol": dtypes.STRING_DTYPE})
 
-    result = expression.resolve_deferred_types(
-        {ids.ColumnId("mycol"): dtypes.STRING_DTYPE}
-    ).output_type
+    result = expression.bind_refs(deref_bindings)
 
-    assert result == dtypes.STRING_DTYPE
+    _assert_output_type(result, dtypes.STRING_DTYPE)
 
 
 def test_deref_op_dtype_resolution_short_circuit():
-    expression = ex.deref("myCol", dtypes.INT_DTYPE)
+    expression = ex.DerefOp(field.Field(ids.ColumnId("mycol"), dtype=dtypes.INT_DTYPE))
+    deref_bindings = _create_deref_bindings({"anotherCol": dtypes.STRING_DTYPE})
 
-    result = expression.resolve_deferred_types(
-        {ids.ColumnId("anotherCol"): dtypes.STRING_DTYPE}
-    ).output_type
+    result = expression.bind_refs(deref_bindings)
 
-    assert result == dtypes.INT_DTYPE
+    _assert_output_type(result, dtypes.INT_DTYPE)
 
 
 def test_nested_expression_dtypes_are_cached():
     expression = ops.add_op.as_expr(ex.deref("left_col"), ex.deref("right_col"))
-
-    expression = expression.resolve_deferred_types(
+    deref_bindings = _create_deref_bindings(
         {
-            ids.ColumnId("right_col"): dtypes.INT_DTYPE,
-            ids.ColumnId("left_col"): dtypes.FLOAT_DTYPE,
+            "right_col": dtypes.INT_DTYPE,
+            "left_col": dtypes.FLOAT_DTYPE,
         }
     )
 
-    assert expression.output_type == dtypes.FLOAT_DTYPE
+    expression = expression.bind_refs(deref_bindings)
+
+    _assert_output_type(expression, dtypes.FLOAT_DTYPE)
     assert isinstance(expression, ex.OpExpression)
-    assert expression.inputs[0].output_type == dtypes.FLOAT_DTYPE
-    assert expression.inputs[1].output_type == dtypes.INT_DTYPE
+    _assert_output_type(expression.inputs[0], dtypes.FLOAT_DTYPE)
+    _assert_output_type(expression.inputs[1], dtypes.INT_DTYPE)
+
+
+def _create_deref_bindings(
+    col_dtypes: typing.Dict[str, dtypes.Dtype]
+) -> typing.Dict[ids.ColumnId, ex.DerefOp]:
+    return {
+        ids.ColumnId(col): ex.DerefOp(field.Field(ids.ColumnId(col), dtype))
+        for col, dtype in col_dtypes.items()
+    }
+
+
+def _assert_output_type(expr: ex.Expression, dtype: dtypes.Dtype):
+    assert expr.is_type_resolved
+    assert expr.output_type == dtype

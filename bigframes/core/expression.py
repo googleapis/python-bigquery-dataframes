@@ -19,13 +19,13 @@ import dataclasses
 import functools
 import itertools
 import typing
-from typing import Dict, Generator, Mapping, TypeVar, Union
+from typing import Generator, Mapping, TypeVar, Union
 
 import pandas as pd
 
+from bigframes import dtypes
+from bigframes.core import field
 import bigframes.core.identifiers as ids
-import bigframes.dtypes
-import bigframes.dtypes as dtypes
 import bigframes.operations
 import bigframes.operations.aggregations as agg_ops
 
@@ -36,10 +36,8 @@ def const(
     return ScalarConstantExpression(value, dtype or dtypes.infer_literal_type(value))
 
 
-def deref(
-    name: str, dtype: dtypes.ExpressionType | dtypes.AbsentDtype = dtypes.ABSENT_DTYPE
-) -> DerefOp:
-    return DerefOp(ids.ColumnId(name), dtype)
+def deref(name: str) -> DerefOp:
+    return DerefOp(ids.ColumnId(name))
 
 
 def free_var(id: str) -> UnboundVariableExpression:
@@ -54,7 +52,7 @@ class Aggregation(abc.ABC):
 
     @abc.abstractmethod
     def output_type(
-        self, input_types: dict[ids.ColumnId, dtypes.ExpressionType]
+        self, input_fields: Mapping[ids.ColumnId, field.Field]
     ) -> dtypes.ExpressionType:
         ...
 
@@ -76,7 +74,7 @@ class NullaryAggregation(Aggregation):
     op: agg_ops.NullaryWindowOp = dataclasses.field()
 
     def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
+        self, input_fields: Mapping[ids.ColumnId, field.Field]
     ) -> dtypes.ExpressionType:
         return self.op.output_type()
 
@@ -94,13 +92,14 @@ class UnaryAggregation(Aggregation):
     arg: Union[DerefOp, ScalarConstantExpression]
 
     def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
+        self, input_fields: Mapping[ids.ColumnId, field.Field]
     ) -> dtypes.ExpressionType:
         # TODO(b/419300717) Remove resolutions once defers are cleaned up.
-        arg_dtype = self.arg.resolve_deferred_types(input_types).output_type
-        assert arg_dtype != bigframes.dtypes.ABSENT_DTYPE
+        deref_bindings = {id: DerefOp(field) for id, field in input_fields.items()}
+        resolved_expr = self.arg.bind_refs(deref_bindings)
+        assert resolved_expr.is_type_resolved
 
-        return self.op.output_type(arg_dtype)
+        return self.op.output_type(resolved_expr.output_type)
 
     @property
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
@@ -126,14 +125,19 @@ class BinaryAggregation(Aggregation):
     right: Union[DerefOp, ScalarConstantExpression] = dataclasses.field()
 
     def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
+        self, input_fields: Mapping[ids.ColumnId, field.Field]
     ) -> dtypes.ExpressionType:
         # TODO(b/419300717) Remove resolutions once defers are cleaned up.
-        left_arg_dtype = self.left.resolve_deferred_types(input_types).output_type
-        assert left_arg_dtype != dtypes.ABSENT_DTYPE
-        right_arg_dtype = self.right.resolve_deferred_types(input_types).output_type
-        assert right_arg_dtype != dtypes.ABSENT_DTYPE
-        return self.op.output_type(left_arg_dtype, right_arg_dtype)
+        deref_bindings = {id: DerefOp(field) for id, field in input_fields.items()}
+
+        left_resolved_expr = self.left.bind_refs(deref_bindings)
+        assert left_resolved_expr.is_type_resolved
+        right_resolved_expr = self.right.bind_refs(deref_bindings)
+        assert right_resolved_expr.is_type_resolved
+        
+        return self.op.output_type(
+            left_resolved_expr.output_type, left_resolved_expr.output_type
+        )
 
     @property
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
@@ -202,13 +206,15 @@ class Expression(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def output_type(self) -> dtypes.ExpressionType | dtypes.AbsentDtype:
+    def is_type_resolved(self) -> bool:
+        """Returns true if the expression output type is resolved.
+        Otherwise, getting output_type of the expression may lead to exceptions.
+        """
         ...
 
+    @property
     @abc.abstractmethod
-    def resolve_deferred_types(
-        self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
-    ) -> Expression:
+    def output_type(self) -> dtypes.ExpressionType:
         ...
 
     @abc.abstractmethod
@@ -273,15 +279,12 @@ class ScalarConstantExpression(Expression):
         return pd.isna(self.value)  # type: ignore
 
     @property
-    def output_type(
-        self,
-    ) -> dtypes.ExpressionType | dtypes.AbsentDtype:
-        return self.dtype
+    def is_type_resolved(self) -> bool:
+        return True
 
-    def resolve_deferred_types(
-        self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
-    ) -> Expression:
-        return self
+    @property
+    def output_type(self) -> dtypes.ExpressionType:
+        return self.dtype
 
     def bind_variables(
         self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
@@ -331,13 +334,12 @@ class UnboundVariableExpression(Expression):
         return ()
 
     @property
-    def output_type(self) -> dtypes.ExpressionType | dtypes.AbsentDtype:
-        raise ValueError(f"Type of variable {self.id} has not been fixed.")
+    def is_type_resolved(self):
+        return False
 
-    def resolve_deferred_types(
-        self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
-    ) -> Expression:
-        return self
+    @property
+    def output_type(self) -> dtypes.ExpressionType:
+        raise ValueError(f"Type of variable {self.id} has not been fixed.")
 
     def bind_refs(
         self,
@@ -368,8 +370,13 @@ class UnboundVariableExpression(Expression):
 class DerefOp(Expression):
     """A variable expression representing a column reference."""
 
-    id: ids.ColumnId
-    dtype: dtypes.ExpressionType | dtypes.AbsentDtype = dtypes.ABSENT_DTYPE
+    id_or_field: ids.ColumnId | field.Field
+
+    @property
+    def id(self) -> ids.ColumnId:
+        if isinstance(self.id_or_field, ids.ColumnId):
+            return self.id_or_field
+        return self.id_or_field.id
 
     @property
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
@@ -381,22 +388,19 @@ class DerefOp(Expression):
 
     @property
     def nullable(self) -> bool:
-        # Safe default, need to actually bind input schema to determine
-        return True
+        if isinstance(self.id_or_field, ids.ColumnId):
+            # Safe default, need to actually bind input schema to determine
+            return True
+        return self.id_or_field.nullable
 
     @property
-    def output_type(self) -> dtypes.ExpressionType | dtypes.AbsentDtype:
-        return self.dtype
+    def is_type_resolved(self) -> bool:
+        return isinstance(self.id_or_field, field.Field)
 
-    def resolve_deferred_types(
-        self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
-    ) -> Expression:
-        if self.dtype != dtypes.ABSENT_DTYPE:
-            return self
-
-        if self.id in col_dtypes:
-            return dataclasses.replace(self, dtype=col_dtypes[self.id])
-
+    @property
+    def output_type(self) -> dtypes.ExpressionType:
+        if isinstance(self.id_or_field, field.Field):
+            return self.id_or_field.dtype
         raise ValueError(f"Type of variable {self.id} has not been fixed.")
 
     def bind_variables(
@@ -409,6 +413,10 @@ class DerefOp(Expression):
         bindings: Mapping[ids.ColumnId, Expression],
         allow_partial_bindings: bool = False,
     ) -> Expression:
+        if isinstance(self.id_or_field, field.Field):
+            # If the deref op is already bounded to a field, do nothing.
+            return self
+
         if self.id in bindings.keys():
             return bindings[self.id]
         elif not allow_partial_bindings:
@@ -464,28 +472,17 @@ class OpExpression(Expression):
         return not null_free
 
     @functools.cached_property
-    def output_type(self) -> dtypes.ExpressionType | dtypes.AbsentDtype:
+    def is_type_resolved(self) -> bool:
+        return all(input.is_type_resolved for input in self.inputs)
+
+    @functools.cached_property
+    def output_type(self) -> dtypes.ExpressionType:
+        if not self.is_type_resolved:
+            raise ValueError(f"Type of expression {self.op.name} has not been fixed.")
+
         input_types = [input.output_type for input in self.inputs]
 
-        if any(t == dtypes.ABSENT_DTYPE for t in input_types):
-            return dtypes.ABSENT_DTYPE
-
         return self.op.output_type(*input_types)
-
-    def resolve_deferred_types(
-        self, col_dtypes: Dict[ids.ColumnId, dtypes.ExpressionType]
-    ) -> Expression:
-        if self.output_type != dtypes.ABSENT_DTYPE:
-            # The subtree's dtypes are already resolved.
-            return self
-
-        resolved_inputs = tuple(
-            expr.resolve_deferred_types(col_dtypes) for expr in self.inputs
-        )
-
-        resolved_expr = dataclasses.replace(self, inputs=resolved_inputs)
-        assert resolved_expr.output_type != dtypes.ABSENT_DTYPE
-        return resolved_expr
 
     def bind_variables(
         self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
