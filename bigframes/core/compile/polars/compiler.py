@@ -16,6 +16,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import itertools
+import operator
 from typing import cast, Literal, Optional, Sequence, Tuple, TYPE_CHECKING
 
 import pandas as pd
@@ -240,6 +241,7 @@ if polars_installed:
             self, op: agg_ops.WindowOp, inputs: Sequence[str] = []
         ) -> pl.Expr:
             if isinstance(op, agg_ops.ProductOp):
+                # TODO: Fix datatype inconsistency with float/int
                 return pl.col(*inputs).product()
             if isinstance(op, agg_ops.SumOp):
                 return pl.sum(*inputs)
@@ -279,6 +281,10 @@ if polars_installed:
                 return pl.col(*inputs).drop_nulls().first()
             if isinstance(op, agg_ops.LastNonNullOp):
                 return pl.col(*inputs).drop_nulls().last()
+            if isinstance(op, agg_ops.ShiftOp):
+                return pl.col(*inputs).shift(op.periods)
+            if isinstance(op, agg_ops.DiffOp):
+                return pl.col(*inputs) - pl.col(*inputs).shift(op.periods)
             if isinstance(op, agg_ops.AnyValueOp):
                 return pl.max(
                     *inputs
@@ -534,13 +540,34 @@ class PolarsCompiler:
                 agg_expr = agg_expr.over(
                     partition_by=[ref.id.sql for ref in window.grouping_keys]
                 )
-            return df.with_columns([agg_expr])
+            result = df.with_columns([agg_expr])
 
         else:  # row-bounded window
-            result = self._calc_row_analytic_func(
+            window_result = self._calc_row_analytic_func(
                 df, node.expression, node.window_spec, node.output_name.sql
             )
-            return pl.concat([df, result], how="horizontal")
+            result = pl.concat([df, window_result], how="horizontal")
+
+        # Probably easier just to pull this out as a rewriter
+        if (
+            node.expression.op.skips_nulls
+            and not node.never_skip_nulls
+            and node.expression.column_references
+        ):
+            nullity_expr = functools.reduce(
+                operator.or_,
+                (
+                    pl.col(column.sql).is_null()
+                    for column in node.expression.column_references
+                ),
+            )
+            result = result.with_columns(
+                pl.when(nullity_expr)
+                .then(None)
+                .otherwise(pl.col(node.output_name.sql))
+                .alias(node.output_name.sql)
+            )
+        return result
 
     def _calc_row_analytic_func(
         self,
@@ -594,7 +621,7 @@ def _get_period_and_offset(
     if (bounds.start is not None) and (bounds.end is not None):
         return ((bounds.end - bounds.start + 1), bounds.start - 1)
 
-    LARGE_N = 1000
+    LARGE_N = 1000000000
     if bounds.start is not None:
         return (LARGE_N, bounds.start - 1)
     if bounds.end is not None:

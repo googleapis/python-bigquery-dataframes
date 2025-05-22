@@ -30,8 +30,6 @@ PANDAS_API_TRACKING_TASK = "pandas_api_tracking"
 PANDAS_PARAM_TRACKING_TASK = "pandas_param_tracking"
 LOG_OVERRIDE_NAME = "__log_override_name__"
 
-_LOGGING_ENABLED = True
-
 _api_methods: List = []
 _excluded_methods = ["__setattr__", "__getattr__"]
 
@@ -180,7 +178,7 @@ def method_logger(method, /, *, custom_base_name: Optional[str] = None):
             # or not fully supported (NotImplementedError) in BigFrames.
             # Logging is currently supported only when we can access the bqclient through
             # _block.session.bqclient.
-            if _LOGGING_ENABLED and len(_call_stack) == 1:
+            if len(_call_stack) == 1:
                 submit_pandas_labels(
                     _get_bq_client(*args, **kwargs),
                     base_name,

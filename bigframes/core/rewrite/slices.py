@@ -83,9 +83,7 @@ def rewrite_slice(node: nodes.BigFrameNode):
 
     if node.child.row_count:
         slice_def = slices.to_forward_offsets(slice_def, node.child.row_count)
-    result = slice_as_filter(node.child, *slice_def)
-    assert result.schema == node.schema
-    return result
+    return slice_as_filter(node.child, *slice_def)
 
 
 def slice_as_filter(

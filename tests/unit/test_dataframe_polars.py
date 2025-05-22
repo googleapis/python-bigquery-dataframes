@@ -2571,6 +2571,99 @@ def test_dataframe_sort_values_stable(scalars_df_index, scalars_pandas_df_index)
     )
 
 
+@pytest.mark.parametrize(
+    ("operator", "columns"),
+    [
+        pytest.param(lambda x: x.cumsum(), ["float64_col", "int64_too"]),
+        # pytest.param(lambda x: x.cumprod(), ["float64_col", "int64_too"]),
+        pytest.param(
+            lambda x: x.cumprod(),
+            ["string_col"],
+            marks=pytest.mark.xfail(
+                raises=ValueError,
+            ),
+        ),
+    ],
+    ids=[
+        "cumsum",
+        # "cumprod",
+        "non-numeric",
+    ],
+)
+def test_dataframe_numeric_analytic_op(
+    scalars_df_index, scalars_pandas_df_index, operator, columns
+):
+    # TODO: Add nullable ints (pandas 1.x has poor behavior on these)
+    bf_series = operator(scalars_df_index[columns])
+    pd_series = operator(scalars_pandas_df_index[columns])
+    bf_result = bf_series.to_pandas()
+    pd.testing.assert_frame_equal(pd_series, bf_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("operator"),
+    [
+        (lambda x: x.cummin()),
+        (lambda x: x.cummax()),
+        (lambda x: x.shift(2)),
+        (lambda x: x.shift(-2)),
+    ],
+    ids=[
+        "cummin",
+        "cummax",
+        "shiftpostive",
+        "shiftnegative",
+    ],
+)
+def test_dataframe_general_analytic_op(
+    scalars_df_index, scalars_pandas_df_index, operator
+):
+    col_names = ["int64_too", "float64_col", "int64_col", "bool_col"]
+    bf_series = operator(scalars_df_index[col_names])
+    pd_series = operator(scalars_pandas_df_index[col_names])
+    bf_result = bf_series.to_pandas()
+    pd.testing.assert_frame_equal(
+        pd_series,
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("periods",),
+    [
+        (1,),
+        (2,),
+        (-1,),
+    ],
+)
+def test_dataframe_diff(scalars_df_index, scalars_pandas_df_index, periods):
+    col_names = ["int64_too", "float64_col", "int64_col"]
+    bf_result = scalars_df_index[col_names].diff(periods=periods).to_pandas()
+    pd_result = scalars_pandas_df_index[col_names].diff(periods=periods)
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("periods",),
+    [
+        (1,),
+        (2,),
+        (-1,),
+    ],
+)
+def test_dataframe_pct_change(scalars_df_index, scalars_pandas_df_index, periods):
+    col_names = ["int64_too", "float64_col", "int64_col"]
+    bf_result = scalars_df_index[col_names].pct_change(periods=periods).to_pandas()
+    pd_result = scalars_pandas_df_index[col_names].pct_change(periods=periods)
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
+    )
+
+
 def test_dataframe_agg_single_string(scalars_dfs):
     numeric_cols = ["int64_col", "int64_too", "float64_col"]
     scalars_df, scalars_pandas_df = scalars_dfs

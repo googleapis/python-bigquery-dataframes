@@ -517,7 +517,7 @@ def _iloc_getitem_series_or_dataframe(
             neg_block, size_col_id = block.apply_window_op(
                 offsets_id,
                 ops.aggregations.SizeUnaryOp(),
-                window_spec=windows.unbound(),
+                window_spec=windows.rows(),
             )
             neg_block, neg_index_id = neg_block.apply_binary_op(
                 offsets_id, size_col_id, ops.SubOp()
