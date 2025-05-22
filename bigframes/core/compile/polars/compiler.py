@@ -100,6 +100,8 @@ if polars_installed:
             value = expression.value
             if not isinstance(value, float) and pd.isna(value):  # type: ignore
                 value = None
+            if expression.dtype is None:
+                return pl.lit(None)
             return pl.lit(value, _bigframes_dtype_to_polars_dtype(expression.dtype))
 
         @compile_expression.register
@@ -132,6 +134,7 @@ if polars_installed:
             if isinstance(op, ops.div_op.__class__):
                 return args[0] / args[1]
             if isinstance(op, ops.floordiv_op.__class__):
+                # TODO: Handle int // 0
                 return args[0] // args[1]
             if isinstance(op, (ops.pow_op.__class__, ops.unsafe_pow_op.__class__)):
                 return args[0] ** args[1]
@@ -237,14 +240,15 @@ if polars_installed:
             self, op: agg_ops.WindowOp, inputs: Sequence[str] = []
         ) -> pl.Expr:
             if isinstance(op, agg_ops.ProductOp):
-                # TODO: Need schema to cast back to original type if posisble (eg float back to int)
-                return pl.col(*inputs).log().sum().exp()
+                return pl.col(*inputs).product()
             if isinstance(op, agg_ops.SumOp):
                 return pl.sum(*inputs)
             if isinstance(op, (agg_ops.SizeOp, agg_ops.SizeUnaryOp)):
                 return pl.len()
             if isinstance(op, agg_ops.MeanOp):
                 return pl.mean(*inputs)
+            if isinstance(op, agg_ops.MedianOp):
+                return pl.median(*inputs)
             if isinstance(op, agg_ops.AllOp):
                 return pl.all(*inputs)
             if isinstance(op, agg_ops.AnyOp):
@@ -351,7 +355,7 @@ class PolarsCompiler:
             # pragma: no cover
             return frame
 
-        frame = frame.sort(
+        sorted = frame.sort(
             [
                 self.expr_compiler.compile_expression(by.scalar_expression)
                 for by in node.by
@@ -360,7 +364,7 @@ class PolarsCompiler:
             nulls_last=[by.na_last for by in node.by],
             maintain_order=True,
         )
-        return frame
+        return sorted
 
     @compile_node.register
     def compile_reversed(self, node: nodes.ReversedNode):
@@ -374,10 +378,15 @@ class PolarsCompiler:
 
     @compile_node.register
     def compile_projection(self, node: nodes.ProjectionNode):
-        new_cols = [
-            self.expr_compiler.compile_expression(ex).alias(name.sql)
-            for ex, name in node.assignments
-        ]
+        new_cols = []
+        types_by_id = {field.id: field.dtype for field in node.fields}
+        for proj_expr, name in node.assignments:
+            new_col = self.expr_compiler.compile_expression(proj_expr).alias(name.sql)
+            if proj_expr.output_type(types_by_id) is None:
+                new_col = new_col.cast(
+                    _bigframes_dtype_to_polars_dtype(bigframes.dtypes.DEFAULT_DTYPE)
+                )
+            new_cols.append(new_col)
         return self.compile_node(node.child).with_columns(new_cols)
 
     @compile_node.register
@@ -487,7 +496,7 @@ class PolarsCompiler:
         if len(node.by_column_ids) > 0:
             group_exprs = [pl.col(ref.id.sql) for ref in node.by_column_ids]
             grouped_df = df_agg_inputs.group_by(group_exprs)
-            return grouped_df.agg(agg_exprs).sort(group_exprs)
+            return grouped_df.agg(agg_exprs).sort(group_exprs, nulls_last=True)
         else:
             return df_agg_inputs.select(agg_exprs)
 
@@ -542,32 +551,40 @@ class PolarsCompiler:
     ) -> pl.LazyFrame:
         if not isinstance(window.bounds, window_spec.RowsWindowBounds):
             raise NotImplementedError("Only row bounds supported by polars engine")
-        if len(window.ordering) > 0:
-            raise NotImplementedError(
-                "Polars engine does not support reordering in window ops"
-            )
+        groupby = None
         if len(window.grouping_keys) > 0:
-            raise NotImplementedError(
-                "Groupby rolling windows not yet implemented in polars engine"
-            )
+            groupby = [
+                self.expr_compiler.compile_expression(ref)
+                for ref in window.grouping_keys
+            ]
         # Polars API semi-bounded, and any grouped rolling window challenging
         # https://github.com/pola-rs/polars/issues/4799
         # https://github.com/pola-rs/polars/issues/8976
         pl_agg_expr = self.agg_compiler.compile_agg_expr(agg_expr).alias(name)
         index_col_name = "_bf_pl_engine_offsets"
         indexed_df = frame.with_row_index(index_col_name)
+        if len(window.ordering) > 0:
+            frame = frame.sort(
+                [
+                    self.expr_compiler.compile_expression(by.scalar_expression)
+                    for by in window.ordering
+                ],
+                descending=[not by.direction.is_ascending for by in window.ordering],
+                nulls_last=[by.na_last for by in window.ordering],
+                maintain_order=True,
+            )
+
         # https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.rolling.html
         period_n, offset_n = _get_period_and_offset(window.bounds)
-        results = (
-            indexed_df.rolling(
-                index_column=index_col_name,
-                period=f"{period_n}i",
-                offset=f"{offset_n}i" if (offset_n is not None) else None,
-            )
-            .agg(pl_agg_expr)
-            .select(name)
-        )
-        return results
+        results = indexed_df.rolling(
+            index_column=index_col_name,
+            period=f"{period_n}i",
+            offset=f"{offset_n}i" if (offset_n is not None) else None,
+            group_by=groupby,
+        ).agg(pl_agg_expr)
+        if len(window.ordering) > 0:
+            results = results.sort(pl.col(index_col_name))
+        return results.select(name)
 
 
 def _get_period_and_offset(
