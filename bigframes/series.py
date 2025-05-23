@@ -269,6 +269,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             block = self._block.with_column_labels([index])
             return Series(block)
 
+        # arbitrary comment
         # rename the index
         if isinstance(index, Mapping):
             index = typing.cast(Mapping[Any, Any], index)
@@ -294,7 +295,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 block = block.set_index(new_idx_ids, index_labels=block.index.names)
 
             return Series(block)
-
         # rename the Series name
         if isinstance(index, typing.Hashable):
             index = typing.cast(Optional[str], index)
