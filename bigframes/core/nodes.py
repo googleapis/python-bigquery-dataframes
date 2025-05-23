@@ -34,8 +34,9 @@ from typing import (
 import google.cloud.bigquery as bq
 
 from bigframes.core import identifiers, local_data, sequences
-from bigframes.core.bigframe_node import BigFrameNode, COLUMN_SET, Field
+from bigframes.core.bigframe_node import BigFrameNode, COLUMN_SET
 import bigframes.core.expression as ex
+from bigframes.core.field import Field
 from bigframes.core.ordering import OrderingExpression, RowOrdering
 import bigframes.core.slices as slices
 import bigframes.core.window_spec as window
@@ -957,6 +958,13 @@ class FilterNode(UnaryNode):
     # TODO: Infer null constraints from predicate
     predicate: ex.Expression
 
+    def __post_init__(self):
+        # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
+        resolved_predicate = ex.resolve_deref_fields(
+            self.predicate, self.child.field_by_id
+        )
+        object.__setattr__(self, "predicate", resolved_predicate)
+
     @property
     def row_preserving(self) -> bool:
         return False
@@ -1003,6 +1011,22 @@ class OrderByNode(UnaryNode):
     # This is an optimization, if true, can discard previous orderings.
     # might be a total ordering even if false
     is_total_order: bool = False
+
+    def __post_init__(self):
+        # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
+
+        type_resolved_bys = tuple(self._resolve_type(expr) for expr in self.by)
+
+        object.__setattr__(self, "by", type_resolved_bys)
+
+    def _resolve_type(
+        self,
+        expr: OrderingExpression,
+    ) -> OrderingExpression:
+        resolved_scalar_expr = ex.resolve_deref_fields(
+            expr.scalar_expression, self.child.field_by_id
+        )
+        return dataclasses.replace(expr, scalar_expression=resolved_scalar_expr)
 
     @property
     def variables_introduced(self) -> int:
@@ -1189,23 +1213,28 @@ class ProjectionNode(UnaryNode, AdditiveNode):
 
     assignments: typing.Tuple[typing.Tuple[ex.Expression, identifiers.ColumnId], ...]
 
+    def __post_init__(self):
+        # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
+        type_resolved_assignments = tuple(
+            (ex.resolve_deref_fields(expr, self.child.field_by_id), id)
+            for expr, id in self.assignments
+        )
+
+        object.__setattr__(self, "assignments", type_resolved_assignments)
+
     def _validate(self):
-        input_types = self.child._dtype_lookup
         for expression, id in self.assignments:
-            # throws TypeError if invalid
-            _ = expression.output_type(input_types)
+            assert expression.is_type_resolved
         # Cannot assign to existing variables - append only!
         assert all(name not in self.child.schema.names for _, name in self.assignments)
 
     @functools.cached_property
     def added_fields(self) -> Tuple[Field, ...]:
-        input_types = self.child._dtype_lookup
-
         fields = []
         for expr, id in self.assignments:
             field = Field(
                 id,
-                bigframes.dtypes.dtype_for_etype(expr.output_type(input_types)),
+                bigframes.dtypes.dtype_for_etype(expr.output_type),
                 nullable=expr.nullable,
             )
             # Special case until we get better nullability inference in expression objects themselves
@@ -1300,7 +1329,7 @@ class AggregateNode(UnaryNode):
             Field(
                 id,
                 bigframes.dtypes.dtype_for_etype(
-                    agg.output_type(self.child._dtype_lookup)
+                    agg.output_type(self.child.field_by_id)
                 ),
                 nullable=True,
             )
@@ -1410,11 +1439,11 @@ class WindowOpNode(UnaryNode, AdditiveNode):
 
     @functools.cached_property
     def added_field(self) -> Field:
-        input_types = self.child._dtype_lookup
+        input_fields = self.child.field_by_id
         # TODO: Determine if output could be non-null
         return Field(
             self.output_name,
-            bigframes.dtypes.dtype_for_etype(self.expression.output_type(input_types)),
+            bigframes.dtypes.dtype_for_etype(self.expression.output_type(input_fields)),
         )
 
     @property
