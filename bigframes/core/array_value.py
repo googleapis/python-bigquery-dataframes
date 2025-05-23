@@ -100,7 +100,7 @@ class ArrayValue:
         n_rows: Optional[int] = None,
     ):
         if offsets_col and primary_key:
-            raise ValueError("must set at most one of 'offests', 'primary_key'")
+            raise ValueError("must set at most one of 'offsets', 'primary_key'")
         if any(i.field_type == "JSON" for i in table.schema if i.name in schema.names):
             msg = bfe.format_message(
                 "JSON column interpretation as a custom PyArrow extention in `db_dtypes` "

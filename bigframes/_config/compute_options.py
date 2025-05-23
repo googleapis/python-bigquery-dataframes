@@ -64,7 +64,7 @@ class ComputeOptions:
         enable_multi_query_execution (bool, Options):
             If enabled, large queries may be factored into multiple smaller queries
             in order to avoid generating queries that are too complex for the query
-            engine to handle. However this comes at the cost of increase cost and latency.
+            engine to handle. However this comes at the cost of increased cost and latency.
 
         extra_query_labels (Dict[str, Any], Options):
             Stores additional custom labels for query configuration.

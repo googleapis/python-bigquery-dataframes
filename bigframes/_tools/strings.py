@@ -24,7 +24,7 @@ import numpy
 def levenshtein_distance(left: str, right: str) -> int:
     """Compute the edit distance between two strings.
 
-    This is the minumum number of substitutions, insertions, deletions
+    This is the minimum number of substitutions, insertions, deletions
     to get from left string to right string. See:
     https://en.wikipedia.org/wiki/Levenshtein_distance
     """
