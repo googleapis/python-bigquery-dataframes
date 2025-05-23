@@ -360,7 +360,7 @@ def run_system(
     # Run py.test against the system tests.
     pytest_cmd = [
         "py.test",
-        "--quiet",
+        "-v",
         f"-n={num_workers}",
         # Any individual test taking longer than 15 mins will be terminated.
         f"--timeout={timeout_seconds}",
