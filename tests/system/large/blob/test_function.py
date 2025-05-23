@@ -414,18 +414,17 @@ def test_blob_pdf_chunk(
 def test_blob_transcribe(
     audio_mm_df: bpd.DataFrame, verbose: bool, expected: pd.Series, audio_column="audio"
 ):
-    # print("Debugging audio_mm_df:")
-    # print(audio_mm_df)
-    try:
-        print(f"Debugging audio_mm_df['{audio_column}']:")
-        print(audio_mm_df[audio_column].to_pandas())  # Or another way to inspect
-    except Exception as e:
-        print(f"Error inspecting audio_column: {e}")
+    print("Debugging audio_mm_df:")
+    print(audio_mm_df.dtypes)
+    print(audio_mm_df.columns)
 
     actual = (
         audio_mm_df[audio_column]
         .blob.transcribe(
-            df=audio_mm_df, audio_column=audio_column, model_name="gemini-2.0-flash-001"
+            df=audio_mm_df,
+            audio_column=audio_column,
+            model_name="gemini-2.0-flash-001",
+            verbose=verbose,
         )
         .to_pandas()
     )
