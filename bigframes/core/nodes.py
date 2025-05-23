@@ -960,7 +960,9 @@ class FilterNode(UnaryNode):
 
     def __post_init__(self):
         # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
-        resolved_predicate = self.predicate.resolve_refs(self.child.field_by_id)
+        resolved_predicate = ex.resolve_deref_fields(
+            self.predicate, self.child.field_by_id
+        )
         object.__setattr__(self, "predicate", resolved_predicate)
 
     @property
@@ -1021,8 +1023,8 @@ class OrderByNode(UnaryNode):
         self,
         expr: OrderingExpression,
     ) -> OrderingExpression:
-        resolved_scalar_expr = expr.scalar_expression.resolve_refs(
-            self.child.field_by_id
+        resolved_scalar_expr = ex.resolve_deref_fields(
+            expr.scalar_expression, self.child.field_by_id
         )
         return dataclasses.replace(expr, scalar_expression=resolved_scalar_expr)
 
@@ -1214,7 +1216,7 @@ class ProjectionNode(UnaryNode, AdditiveNode):
     def __post_init__(self):
         # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
         type_resolved_assignments = tuple(
-            (expr.resolve_refs(self.child.field_by_id), id)
+            (ex.resolve_deref_fields(expr, self.child.field_by_id), id)
             for expr, id in self.assignments
         )
 
