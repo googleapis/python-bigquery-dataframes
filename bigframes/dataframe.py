@@ -1334,7 +1334,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block, _ = block.aggregate(aggregations=aggregations, column_labels=labels)
 
         block = block.stack(levels=orig_columns.nlevels + 1)
-        # The aggregate operation crated a index level with just 0, need to drop it
+        # The aggregate operation created an index level with just 0, need to drop it
         # Also, drop the last level of each index, which was created to guarantee uniqueness
         return DataFrame(block).droplevel(0).droplevel(-1, axis=0).droplevel(-1, axis=1)
 

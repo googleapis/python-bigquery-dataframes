@@ -558,7 +558,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
     ) -> GeminiTextGenerator:
         """Fine tune GeminiTextGenerator model. Only support "gemini-1.5-pro-002",
            "gemini-1.5-flash-002", "gemini-2.0-flash-001",
-           and "gemini-2.0-flash-lite-001"models for now.
+           and "gemini-2.0-flash-lite-001" models for now.
 
         .. note::
 
@@ -834,7 +834,7 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
 class Claude3TextGenerator(base.RetriableRemotePredictor):
     """Claude3 text generator LLM model.
 
-    Go to Google Cloud Console -> Vertex AI -> Model Garden page to enabe the models before use. Must have the Consumer Procurement Entitlement Manager Identity and Access Management (IAM) role to enable the models.
+    Go to Google Cloud Console -> Vertex AI -> Model Garden page to enable the models before use. Must have the Consumer Procurement Entitlement Manager Identity and Access Management (IAM) role to enable the models.
     https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models#grant-permissions
 
     .. note::
