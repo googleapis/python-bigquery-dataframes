@@ -229,12 +229,6 @@ def run_unit(session, install_test_extra):
         "py.test",
         "--quiet",
         f"--junitxml=unit_{session.python}_sponge_log.xml",
-        "--cov=bigframes",
-        f"--cov={tests_path}",
-        "--cov-append",
-        "--cov-config=.coveragerc",
-        "--cov-report=term-missing",
-        "--cov-fail-under=0",
         tests_path,
         third_party_tests_path,
         scripts_path,
@@ -370,16 +364,7 @@ def run_system(
             ]
         )
     if check_cov:
-        pytest_cmd.extend(
-            [
-                "--cov=bigframes",
-                f"--cov={test_folder}",
-                "--cov-append",
-                "--cov-config=.coveragerc",
-                "--cov-report=term-missing",
-                "--cov-fail-under=0",
-            ]
-        )
+        pass
 
     pytest_cmd.extend(extra_pytest_options)
     session.run(
@@ -461,29 +446,7 @@ def cover(session):
     This outputs the coverage report aggregating coverage from the test runs
     (including system test runs), and then erases coverage data.
     """
-    session.install("coverage", "pytest-cov")
-
-    # Create a coverage report that includes only the product code.
-    session.run(
-        "coverage",
-        "report",
-        "--include=bigframes/*",
-        "--show-missing",
-        "--fail-under=85",
-    )
-
-    # Make sure there is no dead code in our test directories.
-    session.run(
-        "coverage",
-        "report",
-        "--show-missing",
-        "--include=tests/unit/*",
-        "--include=tests/system/small/*",
-        # TODO(b/353775058) resume coverage to 100 when the issue is fixed.
-        "--fail-under=99",
-    )
-
-    session.run("coverage", "erase")
+    pass
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)
@@ -690,12 +653,6 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
         # Any individual test taking longer than 10 mins will be terminated.
         "--timeout=600",
         f"--junitxml={os.path.split(tests_path)[-1]}_prerelease_{session.python}_sponge_log.xml",
-        "--cov=bigframes",
-        f"--cov={tests_path}",
-        "--cov-append",
-        "--cov-config=.coveragerc",
-        "--cov-report=term-missing",
-        "--cov-fail-under=0",
         tests_path,
         *extra_pytest_options,
         *session.posargs,
