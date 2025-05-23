@@ -2931,7 +2931,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         | typing.Mapping[blocks.Label, typing.Sequence[str] | str],
     ) -> DataFrame | bigframes.series.Series:
         if utils.is_dict_like(func):
-            # Must check dict-like first because dictionaries are list-like 
+            # Must check dict-like first because dictionaries are list-like
             # according to Pandas.
             agg_cols = []
             for col_label, agg_func in func.items():
