@@ -16,6 +16,7 @@ import dataclasses
 import typing
 
 from bigframes import dtypes
+from bigframes.core import log_adapter
 from bigframes.operations import base_ops
 import bigframes.operations.type as op_typing
 
@@ -64,6 +65,7 @@ quarter_op = base_ops.create_unary_op(
 )
 
 
+@log_adapter.class_logger(include_internal_calls=True)
 @dataclasses.dataclass(frozen=True)
 class DateDiffOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "date_diff"
@@ -78,6 +80,3 @@ class DateDiffOp(base_ops.BinaryOp):
             raise TypeError("expected date input")
 
         return dtypes.TIMEDELTA_DTYPE
-
-
-date_diff_op = DateDiffOp()
