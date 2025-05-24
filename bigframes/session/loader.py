@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+from collections import abc
 import copy
 import dataclasses
 import datetime
@@ -22,6 +23,7 @@ import itertools
 import os
 import typing
 from typing import (
+    Any,
     Dict,
     Generator,
     Hashable,
@@ -763,6 +765,9 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = (),
         dry_run: bool = False,
         force_total_order: Optional[bool] = None,
+        callback: abc.Callable[
+            [Any], None
+        ] = lambda _: None,  # TODO: use an Event class not Any.
     ) -> dataframe.DataFrame | pandas.Series:
         import bigframes.dataframe as dataframe
 
