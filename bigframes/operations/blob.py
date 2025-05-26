@@ -749,7 +749,7 @@ class BlobAccessor(base.SeriesMethods):
                 "gemini-2.0-flash-lite-001",
             ]
         ] = None,
-        prompt_text: str = "What is the content of this audio clip?",
+        prompt_text: str = "Can you transcribe this audio clip?",
         temperature: float = 0.01,
         output_schema: Dict[str, str] | None = None,
         verbose: bool = False,
@@ -759,15 +759,14 @@ class BlobAccessor(base.SeriesMethods):
 
         Args:
             df (bigframes.dataframe.DataFrame): dataframe stores input audio.
-            audio_column (str): Name of the column contatining audio blobs
-                (GCS or OBJ_REF_DTYPE).
+            audio_column (str): Name of the column contatining audio blobs.
             model_name (str): The model for natural language tasks. Accepted
                 values are "gemini-2.0-flash-exp",  "gemini-2.0-flash-lite-001",
                 and "gemini-2.0-flash-001". See
                 "https://ai.google.dev/gemini-api/docs/models" for model choices.
-            prompt_text (str, default "What is the content of this audio clip?"):
+            prompt_text (str, default "Can you transcribe this audio clip"):
                 Prompt sent to model. Defaults to
-                "What is the content of this audio clip?".
+                "Can you transcribe this audio clip".
             temperature (float, default 0.01): Decoding temperature.
                 Defaults to 0.01.
             output_schema (Dict[str, str], optional): Output schema for result
@@ -776,8 +775,8 @@ class BlobAccessor(base.SeriesMethods):
                 The key of this dictionary will be used as the column name for
                 the transcription.
             verbose (bool, default "False"): controls the verbosity of the output.
-                When set to True, both error messages and the extracted content
-                are displayed. Conversely, when set to False, only the extracted
+                When set to True, both error messages and the transcribed content
+                are displayed. Conversely, when set to False, only the transcribed
                 content is presented, suppressing error messages.
 
         Returns:
@@ -816,7 +815,7 @@ class BlobAccessor(base.SeriesMethods):
 
             model = llm.GeminiTextGenerator(model_name=model_name)
 
-            # transcribe audio
+            # transcribe audio using ML.GENERATE_TEXT
             results = model.predict(
                 X=df_prompt,
                 prompt=[df_prompt["prompt"], df_prompt[audio_column]],
@@ -852,6 +851,7 @@ class BlobAccessor(base.SeriesMethods):
         if verbose:
             res_df = bpd.DataFrame({"status": status_series, "content": content_series})
             struct_series = bbq.struct(res_df)
+            struct_series.name = transcribe_col_name
             return struct_series
         else:
             return content_series

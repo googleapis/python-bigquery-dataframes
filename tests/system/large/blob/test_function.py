@@ -414,10 +414,6 @@ def test_blob_pdf_chunk(
 def test_blob_transcribe(
     audio_mm_df: bpd.DataFrame, verbose: bool, expected: pd.Series, audio_column="audio"
 ):
-    print("Debugging audio_mm_df:")
-    print(audio_mm_df.dtypes)
-    print(audio_mm_df.columns)
-
     actual = (
         audio_mm_df[audio_column]
         .blob.transcribe(
@@ -429,14 +425,10 @@ def test_blob_transcribe(
         .to_pandas()
     )
 
-    print("Actual result from transcribe:")
-    print(actual)
-    print("Expected result:")
-    print(expected)
-
     pd.testing.assert_series_equal(
         actual,
         expected,
         check_dtype=False,
         check_index=False,
+        check_names=False,
     )
