@@ -799,6 +799,7 @@ class BlobAccessor(base.SeriesMethods):
                 "The 'output_schema' for transcribe must be a dictionary with exactly one key-value pair, "
                 f"e.g., {{'transcription_text': 'string'}}. Got: {output_schema}"
             )
+        transcribe_col_name = list(output_schema.keys())[0]
 
         content_series: bpd.Series
         status_series: bpd.Series
@@ -823,7 +824,6 @@ class BlobAccessor(base.SeriesMethods):
                 output_schema=output_schema,
             )
 
-            transcribe_col_name = list(output_schema.keys())[0]
             content_series = cast(bpd.Series, results[transcribe_col_name])
 
             if verbose:
