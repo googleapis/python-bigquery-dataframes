@@ -234,7 +234,9 @@ class WindowSpec:
         This is relevant for determining whether the window requires a total order
         to calculate deterministically.
         """
-        return isinstance(self.bounds, RowsWindowBounds)
+        return isinstance(self.bounds, RowsWindowBounds) and (
+            (self.bounds.start is not None) or (self.bounds.end is not None)
+        )
 
     @property
     def is_range_bounded(self):
