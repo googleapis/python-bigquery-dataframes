@@ -958,11 +958,6 @@ class FilterNode(UnaryNode):
     # TODO: Infer null constraints from predicate
     predicate: ex.Expression
 
-    def __post_init__(self):
-        # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
-        bound_predicate = ex.bind_schema_fields(self.predicate, self.child.field_by_id)
-        object.__setattr__(self, "predicate", bound_predicate)
-
     @property
     def row_preserving(self) -> bool:
         return False
@@ -1009,22 +1004,6 @@ class OrderByNode(UnaryNode):
     # This is an optimization, if true, can discard previous orderings.
     # might be a total ordering even if false
     is_total_order: bool = False
-
-    def __post_init__(self):
-        # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
-
-        bound_exprs = tuple(self._bind_schema_fields(expr) for expr in self.by)
-
-        object.__setattr__(self, "by", bound_exprs)
-
-    def _bind_schema_fields(
-        self,
-        expr: OrderingExpression,
-    ) -> OrderingExpression:
-        resolved_scalar_expr = ex.bind_schema_fields(
-            expr.scalar_expression, self.child.field_by_id
-        )
-        return dataclasses.replace(expr, scalar_expression=resolved_scalar_expr)
 
     @property
     def variables_introduced(self) -> int:
@@ -1211,18 +1190,10 @@ class ProjectionNode(UnaryNode, AdditiveNode):
 
     assignments: typing.Tuple[typing.Tuple[ex.Expression, identifiers.ColumnId], ...]
 
-    def __post_init__(self):
-        # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
-        bound_assignments = tuple(
-            (ex.bind_schema_fields(expr, self.child.field_by_id), id)
-            for expr, id in self.assignments
-        )
-
-        object.__setattr__(self, "assignments", bound_assignments)
-
     def _validate(self):
-        for expression, id in self.assignments:
-            assert expression.is_type_resolved
+        for expression, _ in self.assignments:
+            # throws TypeError if invalid
+            _ = ex.bind_schema_fields(expression, self.child.field_by_id).output_type
         # Cannot assign to existing variables - append only!
         assert all(name not in self.child.schema.names for _, name in self.assignments)
 
@@ -1230,13 +1201,15 @@ class ProjectionNode(UnaryNode, AdditiveNode):
     def added_fields(self) -> Tuple[Field, ...]:
         fields = []
         for expr, id in self.assignments:
+            bound_expr = ex.bind_schema_fields(expr, self.child.field_by_id)
             field = Field(
                 id,
-                bigframes.dtypes.dtype_for_etype(expr.output_type),
-                nullable=expr.nullable,
+                bigframes.dtypes.dtype_for_etype(bound_expr.output_type),
+                nullable=bound_expr.nullable,
             )
+
             # Special case until we get better nullability inference in expression objects themselves
-            if expr.is_identity and not any(
+            if bound_expr.is_identity and not any(
                 self.child.field_by_id[id].nullable for id in expr.column_references
             ):
                 field = field.with_nonnull()

@@ -96,7 +96,7 @@ class UnaryAggregation(Aggregation):
     ) -> dtypes.ExpressionType:
         # TODO(b/419300717) Remove resolutions once defers are cleaned up.
         resolved_expr = bind_schema_fields(self.arg, input_fields)
-        assert resolved_expr.is_type_resolved
+        assert resolved_expr.is_resolved
 
         return self.op.output_type(resolved_expr.output_type)
 
@@ -128,9 +128,9 @@ class BinaryAggregation(Aggregation):
     ) -> dtypes.ExpressionType:
         # TODO(b/419300717) Remove resolutions once defers are cleaned up.
         left_resolved_expr = bind_schema_fields(self.left, input_fields)
-        assert left_resolved_expr.is_type_resolved
+        assert left_resolved_expr.is_resolved
         right_resolved_expr = bind_schema_fields(self.right, input_fields)
-        assert right_resolved_expr.is_type_resolved
+        assert right_resolved_expr.is_resolved
 
         return self.op.output_type(
             left_resolved_expr.output_type, left_resolved_expr.output_type
@@ -203,9 +203,9 @@ class Expression(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def is_type_resolved(self) -> bool:
-        """Returns true if the expression output type is resolved.
-        Otherwise, getting output_type of the expression may lead to exceptions.
+    def is_resolved(self) -> bool:
+        """
+        Returns true if and only if the expression's output type and nullability is available.
         """
         ...
 
@@ -276,7 +276,7 @@ class ScalarConstantExpression(Expression):
         return pd.isna(self.value)  # type: ignore
 
     @property
-    def is_type_resolved(self) -> bool:
+    def is_resolved(self) -> bool:
         return True
 
     @property
@@ -331,7 +331,7 @@ class UnboundVariableExpression(Expression):
         return ()
 
     @property
-    def is_type_resolved(self):
+    def is_resolved(self):
         return False
 
     @property
@@ -391,7 +391,7 @@ class DerefOp(Expression):
         return self.id_or_field.nullable
 
     @property
-    def is_type_resolved(self) -> bool:
+    def is_resolved(self) -> bool:
         return isinstance(self.id_or_field, field.Field)
 
     @property
@@ -465,12 +465,12 @@ class OpExpression(Expression):
         return not null_free
 
     @functools.cached_property
-    def is_type_resolved(self) -> bool:
-        return all(input.is_type_resolved for input in self.inputs)
+    def is_resolved(self) -> bool:
+        return all(input.is_resolved for input in self.inputs)
 
     @functools.cached_property
     def output_type(self) -> dtypes.ExpressionType:
-        if not self.is_type_resolved:
+        if not self.is_resolved:
             raise ValueError(f"Type of expression {self.op.name} has not been fixed.")
 
         input_types = [input.output_type for input in self.inputs]
@@ -524,7 +524,7 @@ def bind_schema_fields(
     We can only deduct an expression's output type and nullability after binding schema fields to
     all its deref expressions.
     """
-    if expr.is_type_resolved:
+    if expr.is_resolved:
         return expr
 
     expr_by_id = {id: DerefOp(field) for id, field in field_by_id.items()}

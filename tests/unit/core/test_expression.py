@@ -62,7 +62,7 @@ def test_astype_op_dtype():
 def test_deref_op_default_dtype_is_deferred():
     expression = ex.deref("mycol")
 
-    assert not expression.is_type_resolved
+    assert not expression.is_resolved
     with pytest.raises(ValueError):
         expression.output_type
 
@@ -112,5 +112,5 @@ def _create_field_bindings(
 
 
 def _assert_output_type(expr: ex.Expression, dtype: dtypes.Dtype):
-    assert expr.is_type_resolved
+    assert expr.is_resolved
     assert expr.output_type == dtype
