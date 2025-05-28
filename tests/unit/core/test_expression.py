@@ -29,7 +29,7 @@ def test_simple_expression_dtype():
         {"a": dtypes.INT_DTYPE, "b": dtypes.INT_DTYPE}
     )
 
-    result = ex.resolve_deref_ops(expression, field_bindings)
+    result = ex.bind_schema_fields(expression, field_bindings)
 
     _assert_output_type(result, dtypes.INT_DTYPE)
 
@@ -42,7 +42,7 @@ def test_nested_expression_dtype():
         {"a": dtypes.INT_DTYPE, "b": dtypes.INT_DTYPE}
     )
 
-    result = ex.resolve_deref_ops(expression, field_bindings)
+    result = ex.bind_schema_fields(expression, field_bindings)
 
     _assert_output_type(result, dtypes.FLOAT_DTYPE)
 
@@ -71,7 +71,7 @@ def test_deref_op_dtype_resolution():
     expression = ex.deref("mycol")
     field_bindings = _create_field_bindings({"mycol": dtypes.STRING_DTYPE})
 
-    result = ex.resolve_deref_ops(expression, field_bindings)
+    result = ex.bind_schema_fields(expression, field_bindings)
 
     _assert_output_type(result, dtypes.STRING_DTYPE)
 
@@ -80,7 +80,7 @@ def test_deref_op_dtype_resolution_short_circuit():
     expression = ex.DerefOp(field.Field(ids.ColumnId("mycol"), dtype=dtypes.INT_DTYPE))
     field_bindings = _create_field_bindings({"anotherCol": dtypes.STRING_DTYPE})
 
-    result = ex.resolve_deref_ops(expression, field_bindings)
+    result = ex.bind_schema_fields(expression, field_bindings)
 
     _assert_output_type(result, dtypes.INT_DTYPE)
 
@@ -94,7 +94,7 @@ def test_nested_expression_dtypes_are_cached():
         }
     )
 
-    result = ex.resolve_deref_ops(expression, field_bindings)
+    result = ex.bind_schema_fields(expression, field_bindings)
 
     _assert_output_type(result, dtypes.FLOAT_DTYPE)
     assert isinstance(result, ex.OpExpression)

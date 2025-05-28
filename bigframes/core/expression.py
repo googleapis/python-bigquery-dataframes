@@ -95,7 +95,7 @@ class UnaryAggregation(Aggregation):
         self, input_fields: Mapping[ids.ColumnId, field.Field]
     ) -> dtypes.ExpressionType:
         # TODO(b/419300717) Remove resolutions once defers are cleaned up.
-        resolved_expr = resolve_deref_ops(self.arg, input_fields)
+        resolved_expr = bind_schema_fields(self.arg, input_fields)
         assert resolved_expr.is_type_resolved
 
         return self.op.output_type(resolved_expr.output_type)
@@ -127,9 +127,9 @@ class BinaryAggregation(Aggregation):
         self, input_fields: Mapping[ids.ColumnId, field.Field]
     ) -> dtypes.ExpressionType:
         # TODO(b/419300717) Remove resolutions once defers are cleaned up.
-        left_resolved_expr = resolve_deref_ops(self.left, input_fields)
+        left_resolved_expr = bind_schema_fields(self.left, input_fields)
         assert left_resolved_expr.is_type_resolved
-        right_resolved_expr = resolve_deref_ops(self.right, input_fields)
+        right_resolved_expr = bind_schema_fields(self.right, input_fields)
         assert right_resolved_expr.is_type_resolved
 
         return self.op.output_type(
@@ -515,10 +515,15 @@ class OpExpression(Expression):
         )
 
 
-def resolve_deref_ops(
+def bind_schema_fields(
     expr: Expression, field_by_id: Mapping[ids.ColumnId, field.Field]
 ) -> Expression:
-    """Updates deref expressions by replacing column IDs with actual schema fields(columns)."""
+    """
+    Updates `DerefOp` expressions by replacing column IDs with actual schema fields(columns).
+
+    We can only deduct an expression's output type and nullability after binding schema fields to
+    all its deref expressions.
+    """
     if expr.is_type_resolved:
         return expr
 

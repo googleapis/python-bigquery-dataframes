@@ -960,10 +960,8 @@ class FilterNode(UnaryNode):
 
     def __post_init__(self):
         # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
-        resolved_predicate = ex.resolve_deref_ops(
-            self.predicate, self.child.field_by_id
-        )
-        object.__setattr__(self, "predicate", resolved_predicate)
+        bound_predicate = ex.bind_schema_fields(self.predicate, self.child.field_by_id)
+        object.__setattr__(self, "predicate", bound_predicate)
 
     @property
     def row_preserving(self) -> bool:
@@ -1015,15 +1013,15 @@ class OrderByNode(UnaryNode):
     def __post_init__(self):
         # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
 
-        type_resolved_bys = tuple(self._resolve_type(expr) for expr in self.by)
+        bound_exprs = tuple(self._bind_schema_fields(expr) for expr in self.by)
 
-        object.__setattr__(self, "by", type_resolved_bys)
+        object.__setattr__(self, "by", bound_exprs)
 
-    def _resolve_type(
+    def _bind_schema_fields(
         self,
         expr: OrderingExpression,
     ) -> OrderingExpression:
-        resolved_scalar_expr = ex.resolve_deref_ops(
+        resolved_scalar_expr = ex.bind_schema_fields(
             expr.scalar_expression, self.child.field_by_id
         )
         return dataclasses.replace(expr, scalar_expression=resolved_scalar_expr)
@@ -1215,12 +1213,12 @@ class ProjectionNode(UnaryNode, AdditiveNode):
 
     def __post_init__(self):
         # TODO(b/419300717) Remove this function once deref dtypes are all cleaned up
-        type_resolved_assignments = tuple(
-            (ex.resolve_deref_ops(expr, self.child.field_by_id), id)
+        bound_assignments = tuple(
+            (ex.bind_schema_fields(expr, self.child.field_by_id), id)
             for expr, id in self.assignments
         )
 
-        object.__setattr__(self, "assignments", type_resolved_assignments)
+        object.__setattr__(self, "assignments", bound_assignments)
 
     def _validate(self):
         for expression, id in self.assignments:
