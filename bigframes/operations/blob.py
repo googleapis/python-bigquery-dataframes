@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import os
-from typing import cast, Dict, Literal, Optional, Union
+from typing import cast, Literal, Optional, Union
 import warnings
 
 import IPython.display as ipy_display
@@ -740,40 +740,25 @@ class BlobAccessor(base.SeriesMethods):
     def transcribe(
         self,
         *,
-        df: bigframes.dataframe.DataFrame,
-        audio_column: str,
         model_name: Optional[
             Literal[
-                "gemini-2.0-flash-exp",
                 "gemini-2.0-flash-001",
                 "gemini-2.0-flash-lite-001",
             ]
         ] = None,
-        prompt_text: str = "Can you transcribe this audio clip?",
         temperature: float = 0.01,
-        output_schema: Dict[str, str] | None = None,
         verbose: bool = False,
     ) -> bigframes.series.Series:
         """
         Transcribe audio content using a Gemini multimodal model.
 
         Args:
-            df (bigframes.dataframe.DataFrame): dataframe stores input audio.
-            audio_column (str): Name of the column contatining audio blobs.
             model_name (str): The model for natural language tasks. Accepted
                 values are "gemini-2.0-flash-exp",  "gemini-2.0-flash-lite-001",
                 and "gemini-2.0-flash-001". See
                 "https://ai.google.dev/gemini-api/docs/models" for model choices.
-            prompt_text (str, default "Can you transcribe this audio clip"):
-                Prompt sent to model. Defaults to
-                "Can you transcribe this audio clip".
             temperature (float, default 0.01): Decoding temperature.
                 Defaults to 0.01.
-            output_schema (Dict[str, str], optional): Output schema for result
-                column. If None, defaults to
-                {"ml_generate_text_llm_result": "string"}.
-                The key of this dictionary will be used as the column name for
-                the transcription.
             verbose (bool, default "False"): controls the verbosity of the output.
                 When set to True, both error messages and the transcribed content
                 are displayed. Conversely, when set to False, only the transcribed
@@ -785,73 +770,33 @@ class BlobAccessor(base.SeriesMethods):
                 Contains the transcribed text from the audio file.
                 Includes error messages if verbosity is enabled.
         """
-        if audio_column not in df.columns:
-            raise ValueError(f"Column {audio_column} not found in DataFrame.")
+        from typing import cast
 
-        if output_schema is None:
-            output_schema = {"ml_generate_text_llm_result": "string"}
-        if (
-            not output_schema
-            or not isinstance(output_schema, dict)
-            or len(output_schema) != 1
-        ):
-            raise ValueError(
-                "The 'output_schema' for transcribe must be a dictionary with exactly one key-value pair, "
-                f"e.g., {{'transcription_text': 'string'}}. Got: {output_schema}"
-            )
-        transcribe_col_name = list(output_schema.keys())[0]
+        import bigframes.bigquery as bbq
+        import bigframes.ml.llm as llm
+        import bigframes.pandas as bpd
 
-        content_series: bpd.Series
-        status_series: bpd.Series
+        src_rt = self.get_runtime_json_str(mode="R")
+        df = src_rt.to_frame()
 
-        try:
-            from typing import cast
+        df_prompt = df[["audio"]].copy()
+        df_prompt["prompt"] = "Please transcribe this audio file."
 
-            import bigframes.bigquery as bbq
-            import bigframes.ml.llm as llm
-            import bigframes.pandas as bpd
+        model = llm.GeminiTextGenerator(model_name=model_name)
 
-            df_prompt = df[[audio_column]].copy()
-            df_prompt["prompt"] = prompt_text
+        # transcribe audio using ML.GENERATE_TEXT
+        results = model.predict(
+            X=df_prompt,
+            prompt=[df_prompt["prompt"], df_prompt["audio"]],
+            temperature=temperature,
+        )
 
-            model = llm.GeminiTextGenerator(model_name=model_name)
-
-            # transcribe audio using ML.GENERATE_TEXT
-            results = model.predict(
-                X=df_prompt,
-                prompt=[df_prompt["prompt"], df_prompt[audio_column]],
-                temperature=temperature,
-                output_schema=output_schema,
-            )
-
-            content_series = cast(bpd.Series, results[transcribe_col_name])
-
-            if verbose:
-                status_series = bpd.Series(
-                    [""] * len(df_prompt),
-                    index=df.index,
-                    session=df._session,
-                )
-
-        except Exception as e:
-            df_session = df._session
-            df_index = df.index
-
-            empty_list_for_content = [""] * len(df)
-            content_series = bpd.Series(
-                empty_list_for_content, index=df_index, session=df_session
-            )
-
-            if verbose:
-                error_list_for_status = [str(e)] * len(df)
-                status_series = bpd.Series(
-                    error_list_for_status, index=df_index, session=df_session
-                )
+        content_series = cast(bpd.Series, results["ml_generate_text_llm_result"])
 
         if verbose:
+            status_series = cast(bpd.Series, results["ml_generate_text_status"])
             res_df = bpd.DataFrame({"status": status_series, "content": content_series})
             struct_series = bbq.struct(res_df)
-            struct_series.name = transcribe_col_name
             return struct_series
         else:
             return content_series

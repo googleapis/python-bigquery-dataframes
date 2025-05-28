@@ -388,47 +388,51 @@ def test_blob_pdf_chunk(
 
 
 @pytest.mark.parametrize(
-    "verbose, expected",
+    "model_name, verbose",
     [
-        (
-            True,
-            pd.Series(
-                [
-                    {
-                        "status": "",
-                        "content": "The stale smell of old beer lingers. It takes heat to bring out the odor. A cold dip restores health and zest. A salt pickle tastes fine with ham. Tacos al pastor are my favorite. A zestful food is the hot cross bun.",
-                    },
-                ]
-            ),
-        ),
-        (
-            False,
-            pd.Series(
-                [
-                    "The stale smell of old beer lingers. It takes heat to bring out the odor. A cold dip restores health and zest. A salt pickle tastes fine with ham. Tacos al pastor are my favorite. A zestful food is the hot cross bun."
-                ],
-            ),
-        ),
+        ("gemini-2.0-flash-001", True),
+        ("gemini-2.0-flash-001", False),
+        ("gemini-2.0-flash-lite-001", True),
+        ("gemini-2.0-flash-lite-001", False),
     ],
 )
 def test_blob_transcribe(
-    audio_mm_df: bpd.DataFrame, verbose: bool, expected: pd.Series, audio_column="audio"
+    audio_mm_df: bpd.DataFrame,
+    model_name: str,
+    verbose: bool,
 ):
     actual = (
-        audio_mm_df[audio_column]
+        audio_mm_df["audio"]
         .blob.transcribe(
-            df=audio_mm_df,
-            audio_column=audio_column,
-            model_name="gemini-2.0-flash-001",
+            model_name=model_name,
             verbose=verbose,
         )
         .to_pandas()
     )
 
-    pd.testing.assert_series_equal(
-        actual,
-        expected,
-        check_dtype=False,
-        check_index=False,
-        check_names=False,
+    # check relative length
+    expected_text = "Many animals of even complex structure which live parasitically within others are wholly devoid of an alimentary cavity."
+    expected_len = len(expected_text)
+
+    actual_text = ""
+    if verbose:
+        actual_text = actual[0]["content"]
+    else:
+        actual_text = actual[0]
+    actual_len = len(actual_text)
+
+    relative_lenght_tolerance = 0.2
+    min_acceptable_len = expected_len * (1 - relative_lenght_tolerance)
+    max_acceptable_len = expected_len * (1 + relative_lenght_tolerance)
+    assert min_acceptable_len <= actual_len <= max_acceptable_len, (
+        f"Item (verbose={verbose}): Transcribed text length {actual_len} is outside the acceptable range "
+        f"[{min_acceptable_len:.0f}, {max_acceptable_len:.0f}]. "
+        f"Expected reference length was {expected_len}. "
     )
+
+    # check for major keywords
+    major_keywords = ["animals", "complex", "structure", "cavity"]
+    for keyword in major_keywords:
+        assert (
+            keyword.lower() in actual_text.lower()
+        ), f"Item (verbose={verbose}): Expected keyword '{keyword}' not found in transcribed text. "
