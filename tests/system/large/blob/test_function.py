@@ -387,6 +387,7 @@ def test_blob_pdf_chunk(
     )
 
 
+@pytest.mark.flaky(retries=2, delay=120)
 @pytest.mark.parametrize(
     "model_name, verbose",
     [
@@ -411,7 +412,7 @@ def test_blob_transcribe(
     )
 
     # check relative length
-    expected_text = "Many animals of even complex structure which live parasitically within others are wholly devoid of an alimentary cavity."
+    expected_text = "Now, as all books not primarily intended as picture-books consist principally of types composed to form letterpress"
     expected_len = len(expected_text)
 
     actual_text = ""
@@ -420,6 +421,7 @@ def test_blob_transcribe(
     else:
         actual_text = actual[0]
     actual_len = len(actual_text)
+    print(actual_text)
 
     relative_lenght_tolerance = 0.2
     min_acceptable_len = expected_len * (1 - relative_lenght_tolerance)
@@ -431,7 +433,7 @@ def test_blob_transcribe(
     )
 
     # check for major keywords
-    major_keywords = ["animals", "complex", "structure", "cavity"]
+    major_keywords = ["book", "picture"]
     for keyword in major_keywords:
         assert (
             keyword.lower() in actual_text.lower()

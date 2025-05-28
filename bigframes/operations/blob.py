@@ -746,7 +746,7 @@ class BlobAccessor(base.SeriesMethods):
                 "gemini-2.0-flash-lite-001",
             ]
         ] = None,
-        temperature: float = 0.01,
+        temperature: float = 0,
         verbose: bool = False,
     ) -> bigframes.series.Series:
         """
@@ -757,8 +757,8 @@ class BlobAccessor(base.SeriesMethods):
                 values are "gemini-2.0-flash-exp",  "gemini-2.0-flash-lite-001",
                 and "gemini-2.0-flash-001". See
                 "https://ai.google.dev/gemini-api/docs/models" for model choices.
-            temperature (float, default 0.01): Decoding temperature.
-                Defaults to 0.01.
+            temperature (float, default 0): Decoding temperature.
+                Defaults to 0.
             verbose (bool, default "False"): controls the verbosity of the output.
                 When set to True, both error messages and the transcribed content
                 are displayed. Conversely, when set to False, only the transcribed
@@ -780,7 +780,9 @@ class BlobAccessor(base.SeriesMethods):
         df = src_rt.to_frame()
 
         df_prompt = df[["audio"]].copy()
-        df_prompt["prompt"] = "Please transcribe this audio file."
+        df_prompt[
+            "prompt"
+        ] = "Transcribe the following audio. Your entire response must be only the verbatim text transcribed from the audio. Do not include any other words, phrases, or introductory sentences."
 
         model = llm.GeminiTextGenerator(model_name=model_name)
 
