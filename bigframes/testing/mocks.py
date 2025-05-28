@@ -14,7 +14,7 @@
 
 import copy
 import datetime
-from typing import Optional, Sequence
+from typing import Literal, Optional, Sequence
 import unittest.mock as mock
 
 import google.auth.credentials
@@ -23,12 +23,8 @@ import pytest
 
 import bigframes
 import bigframes.clients
-import bigframes.core.ordering
 import bigframes.dataframe
-import bigframes.series
 import bigframes.session.clients
-import bigframes.session.executor
-import bigframes.session.metrics
 
 """Utilities for creating test resources."""
 
@@ -43,6 +39,7 @@ def create_bigquery_session(
     table_schema: Sequence[google.cloud.bigquery.SchemaField] = TEST_SCHEMA,
     anonymous_dataset: Optional[google.cloud.bigquery.DatasetReference] = None,
     location: str = "test-region",
+    ordering_mode: Literal["strict", "partial"] = "partial"
 ) -> bigframes.Session:
     """[Experimental] Create a mock BigQuery DataFrames session that avoids making Google Cloud API calls.
 
@@ -82,20 +79,32 @@ def create_bigquery_session(
     queries = []
     job_configs = []
 
-    def query_mock(query, *args, job_config=None, **kwargs):
+    def query_mock(
+        query,
+        *args,
+        job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
+        **kwargs
+    ):
         queries.append(query)
         job_configs.append(copy.deepcopy(job_config))
-        query_job = mock.create_autospec(google.cloud.bigquery.QueryJob)
+        query_job = mock.create_autospec(google.cloud.bigquery.QueryJob, instance=True)
         query_job._properties = {}
         type(query_job).destination = mock.PropertyMock(
             return_value=anonymous_dataset.table("test_table"),
         )
-        type(query_job).session_info = google.cloud.bigquery.SessionInfo(
-            {"sessionInfo": {"sessionId": session_id}},
-        )
+        type(query_job).statement_type = mock.PropertyMock(return_value="SELECT")
+
+        if job_config is not None and job_config.create_session:
+            type(query_job).session_info = google.cloud.bigquery.SessionInfo(
+                {"sessionId": session_id},
+            )
 
         if query.startswith("SELECT CURRENT_TIMESTAMP()"):
             query_job.result = mock.MagicMock(return_value=[[bq_time]])
+        elif "CREATE TEMP TABLE".casefold() in query.casefold():
+            type(query_job).destination = mock.PropertyMock(
+                return_value=anonymous_dataset.table("temp_table_from_session"),
+            )
         else:
             type(query_job).schema = mock.PropertyMock(return_value=table_schema)
 
@@ -118,7 +127,11 @@ def create_bigquery_session(
     type(clients_provider).bqclient = mock.PropertyMock(return_value=bqclient)
     clients_provider._credentials = credentials
 
-    bqoptions = bigframes.BigQueryOptions(credentials=credentials, location=location)
+    bqoptions = bigframes.BigQueryOptions(
+        credentials=credentials,
+        location=location,
+        ordering_mode=ordering_mode,
+    )
     session = bigframes.Session(context=bqoptions, clients_provider=clients_provider)
     session._bq_connection_manager = mock.create_autospec(
         bigframes.clients.BqConnectionManager, instance=True

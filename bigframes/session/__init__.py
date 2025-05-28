@@ -534,6 +534,10 @@ class Session(
             index_col=bigframes.enums.DefaultIndexKind.NULL,
             force_total_order=False,
             dry_run=typing.cast(Union[Literal[False], Literal[True]], dry_run),
+            # TODO(tswast): we may need to allow allow_large_results to be overwritten
+            # or possibly a general configuration object for an explicit
+            # destination table and write disposition.
+            allow_large_results=False,
         )
 
     @overload

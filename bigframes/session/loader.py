@@ -38,7 +38,9 @@ from typing import (
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
+import google.cloud
 from google.cloud import bigquery_storage_v1
+import google.cloud.bigquery
 import google.cloud.bigquery as bigquery
 from google.cloud.bigquery_storage_v1 import types as bq_storage_types
 import pandas
@@ -712,6 +714,7 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[False] = ...,
         force_total_order: Optional[bool] = ...,
+        allow_large_results: bool = ...,
     ) -> dataframe.DataFrame:
         ...
 
@@ -728,6 +731,7 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[True] = ...,
         force_total_order: Optional[bool] = ...,
+        allow_large_results: bool = ...,
     ) -> pandas.Series:
         ...
 
@@ -743,6 +747,7 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = (),
         dry_run: bool = False,
         force_total_order: Optional[bool] = None,
+        allow_large_results: bool = True,
     ) -> dataframe.DataFrame | pandas.Series:
         import bigframes.dataframe as dataframe
 
@@ -800,18 +805,44 @@ class GbqDataLoader:
                 query_job, list(columns), index_cols
             )
 
-        # No cluster candidates as user query might not be clusterable (eg because of ORDER BY clause)
-        destination, query_job = self._query_to_destination(
-            query,
-            cluster_candidates=[],
-            configuration=configuration,
-        )
+        if (
+            destination_json := configuration.get("query", {}).get("destinationTable")
+        ) is not None:
+            # If an explicit destination table is set, make sure we respect that setting.
+            destination = google.cloud.bigquery.TableReference.from_api_repr(
+                destination_json
+            )
+            job_config = typing.cast(
+                bigquery.QueryJobConfig,
+                bigquery.QueryJobConfig.from_api_repr(configuration),
+            )
+            _, query_job = self._start_query(
+                query,
+                job_config=job_config,
+            )
+        elif allow_large_results:
+            destination, query_job = self._query_to_destination(
+                query,
+                # No cluster candidates as user query might not be clusterable
+                # (eg because of ORDER BY clause)
+                cluster_candidates=[],
+                configuration=configuration,
+            )
+        else:
+            destination = None
+            query_job = None
+            # TODO: Run a query. We might need to handle a local node.
+            assert False
+            # TODO(b/420984164): Tune the threshold for which we download to
+            # local node. Likely there are a wide range of sizes in which it
+            # makes sense to download the results beyond the first page.
 
-        if self._metrics is not None:
+        if self._metrics is not None and query_job is not None:
             self._metrics.count_job_stats(query_job)
 
-        # If there was no destination table, that means the query must have
-        # been DDL or DML. Return some job metadata, instead.
+        # If there was no destination table and we've made it this far, that
+        # means the query must have been DDL or DML. Return some job metadata,
+        # instead.
         if not destination:
             return dataframe.DataFrame(
                 data=pandas.DataFrame(
