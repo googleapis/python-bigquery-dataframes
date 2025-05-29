@@ -48,13 +48,21 @@ class ArraySchema:
             typing.Dict[str, bigframes.dtypes.Dtype]
         ] = None,
     ):
+        return ArraySchema.from_bq_schema(table.schema)
+
+    @classmethod
+    def from_bq_schema(
+        cls,
+        schema: Sequence[google.cloud.bigquery.SchemaField],
+        column_type_overrides: typing.Optional[
+            typing.Dict[str, bigframes.dtypes.Dtype]
+        ] = None,
+    ):
         if column_type_overrides is None:
             column_type_overrides = {}
         items = tuple(
             SchemaItem(name, column_type_overrides.get(name, dtype))
-            for name, dtype in bigframes.dtypes.bf_type_from_type_kind(
-                table.schema
-            ).items()
+            for name, dtype in bigframes.dtypes.bf_type_from_type_kind(schema).items()
         )
         return ArraySchema(items)
 

@@ -22,7 +22,7 @@ import re
 import textwrap
 import types
 import typing
-from typing import Dict, Iterable, Mapping, Optional, Tuple, Union
+from typing import Dict, Iterable, Literal, Mapping, Optional, overload, Tuple, Union
 
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
@@ -38,7 +38,6 @@ CHECK_DRIVE_PERMISSIONS = "\nCheck https://cloud.google.com/bigquery/docs/query-
 
 
 IO_ORDERING_ID = "bqdf_row_nums"
-MAX_LABELS_COUNT = 64 - 8
 _LIST_TABLES_LIMIT = 10000  # calls to bqclient.list_tables
 # will be limited to this many tables
 
@@ -73,7 +72,12 @@ def create_job_configs_labels(
         )
     )
     values = list(itertools.chain(job_configs_labels.values(), api_methods))
-    return dict(zip(labels[:MAX_LABELS_COUNT], values[:MAX_LABELS_COUNT]))
+    return dict(
+        zip(
+            labels[: log_adapter.MAX_LABELS_COUNT],
+            values[: log_adapter.MAX_LABELS_COUNT],
+        )
+    )
 
 
 def create_export_data_statement(
@@ -223,14 +227,28 @@ def format_option(key: str, value: Union[bool, str]) -> str:
 def add_and_trim_labels(job_config):
     """
     Add additional labels to the job configuration and trim the total number of labels
-    to ensure they do not exceed the maximum limit allowed by BigQuery, which is 64
-    labels per job.
+    to ensure they do not exceed MAX_LABELS_COUNT labels per job.
     """
     api_methods = log_adapter.get_and_reset_api_methods(dry_run=job_config.dry_run)
     job_config.labels = create_job_configs_labels(
         job_configs_labels=job_config.labels,
         api_methods=api_methods,
     )
+
+
+@overload
+def start_query_with_client(
+    bq_client: bigquery.Client,
+    sql: str,
+    job_config: bigquery.job.QueryJobConfig,
+    location: Optional[str] = None,
+    project: Optional[str] = None,
+    timeout: Optional[float] = None,
+    metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
+    *,
+    query_with_job: Literal[True],
+) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+    ...
 
 
 def start_query_with_client(
@@ -248,8 +266,9 @@ def start_query_with_client(
     Starts query job and waits for results.
     """
     try:
-        # Note: Ensure no additional labels are added to job_config after this point,
-        # as `add_and_trim_labels` ensures the label count does not exceed 64.
+        # Note: Ensure no additional labels are added to job_config after this
+        # point, as `add_and_trim_labels` ensures the label count does not
+        # exceed MAX_LABELS_COUNT.
         add_and_trim_labels(job_config)
         if not query_with_job:
             results_iterator = bq_client.query_and_wait(

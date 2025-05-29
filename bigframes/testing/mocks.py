@@ -19,6 +19,7 @@ import unittest.mock as mock
 
 import google.auth.credentials
 import google.cloud.bigquery
+import google.cloud.bigquery.table
 import pytest
 
 import bigframes
@@ -110,15 +111,23 @@ def create_bigquery_session(
 
         return query_job
 
-    existing_query_and_wait = bqclient.query_and_wait
-
     def query_and_wait_mock(query, *args, job_config=None, **kwargs):
         queries.append(query)
         job_configs.append(copy.deepcopy(job_config))
+
         if query.startswith("SELECT CURRENT_TIMESTAMP()"):
             return iter([[datetime.datetime.now()]])
-        else:
-            return existing_query_and_wait(query, *args, **kwargs)
+
+        rows = mock.create_autospec(
+            google.cloud.bigquery.table.RowIterator, instance=True
+        )
+        rows.__iter__.return_value = []
+
+        if job_config is not None and job_config.destination is None:
+            # Assume that the query finishes fast enough for jobless mode.
+            type(rows).job_id = mock.PropertyMock(return_value=None)
+
+        return rows
 
     bqclient.query = query_mock
     bqclient.query_and_wait = query_and_wait_mock

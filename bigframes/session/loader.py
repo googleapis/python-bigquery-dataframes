@@ -55,6 +55,7 @@ import bigframes.formatting_helpers as formatting_helpers
 from bigframes.session import dry_runs
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
+import bigframes.session._io.pandas as bf_io_pandas
 import bigframes.session.metrics
 import bigframes.session.temporary_storage
 import bigframes.session.time as session_time
@@ -805,22 +806,9 @@ class GbqDataLoader:
                 query_job, list(columns), index_cols
             )
 
-        if (
-            destination_json := configuration.get("query", {}).get("destinationTable")
-        ) is not None:
-            # If an explicit destination table is set, make sure we respect that setting.
-            destination = google.cloud.bigquery.TableReference.from_api_repr(
-                destination_json
-            )
-            job_config = typing.cast(
-                bigquery.QueryJobConfig,
-                bigquery.QueryJobConfig.from_api_repr(configuration),
-            )
-            _, query_job = self._start_query(
-                query,
-                job_config=job_config,
-            )
-        elif allow_large_results:
+        # TODO(b/421161077): If an explicit destination table is set in
+        # configuration, should we respect that setting?
+        if allow_large_results:
             destination, query_job = self._query_to_destination(
                 query,
                 # No cluster candidates as user query might not be clusterable
@@ -829,13 +817,39 @@ class GbqDataLoader:
                 configuration=configuration,
             )
         else:
+            job_config = typing.cast(
+                bigquery.QueryJobConfig,
+                bigquery.QueryJobConfig.from_api_repr(configuration),
+            )
+
             destination = None
-            query_job = None
-            # TODO: Run a query. We might need to handle a local node.
-            assert False
-            # TODO(b/420984164): Tune the threshold for which we download to
-            # local node. Likely there are a wide range of sizes in which it
-            # makes sense to download the results beyond the first page.
+            # TODO(b/420984164): We may want to set a page_size here to limit
+            # the number of results in the first jobs.query response.
+            rows, _ = self._start_query(
+                query, job_config=job_config, query_with_job=False
+            )
+
+            if rows.job_id and rows.location and rows.project:
+                query_job = self._bqclient.get_job(
+                    rows.job_id, project=rows.project, location=rows.location
+                )
+                destination = query_job.destination
+
+                # TODO(b/420984164): Tune the threshold for which we download to
+                # local node. Likely there are a wide range of sizes in which it
+                # makes sense to download the results beyond the first page, even if
+                # there is a job and destination table available.
+            else:
+                # It's possible that we've already downloaded all the results and
+                # there's no job. In this case, we must have a local node.
+                #
+                # This is somewhat wasteful, but we convert from Arrow to pandas
+                # to try to duplicate the same dtypes we'd have if this were a
+                # table node as best we can.
+                pd_df = bf_io_pandas.arrow_to_pandas(
+                    rows.to_arrow(), schemata.ArraySchema.from_bq_schema(rows.schema)
+                )
+                return dataframe.DataFrame(pd_df)
 
         if self._metrics is not None and query_job is not None:
             self._metrics.count_job_stats(query_job)
@@ -878,9 +892,11 @@ class GbqDataLoader:
         # bother trying to do a CREATE TEMP TABLE ... AS SELECT ... statement.
         dry_run_config = bigquery.QueryJobConfig()
         dry_run_config.dry_run = True
-        _, dry_run_job = self._start_query(query, job_config=dry_run_config)
+        _, dry_run_job = self._start_query(
+            query, job_config=dry_run_config, query_with_job=True
+        )
         if dry_run_job.statement_type != "SELECT":
-            _, query_job = self._start_query(query)
+            _, query_job = self._start_query(query, query_with_job=True)
             return query_job.destination, query_job
 
         # Create a table to workaround BigQuery 10 GB query results limit. See:
@@ -918,6 +934,7 @@ class GbqDataLoader:
                 query,
                 job_config=job_config,
                 timeout=timeout,
+                query_with_job=True,
             )
             return query_job.destination, query_job
         except google.api_core.exceptions.BadRequest:
@@ -925,15 +942,30 @@ class GbqDataLoader:
             # tables as the destination. For example, if the query has a
             # top-level ORDER BY, this conflicts with our ability to cluster
             # the table by the index column(s).
-            _, query_job = self._start_query(query, timeout=timeout)
+            _, query_job = self._start_query(
+                query, timeout=timeout, query_with_job=True
+            )
             return query_job.destination, query_job
+
+    @overload
+    def _start_query(
+        self,
+        sql: str,
+        job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
+        timeout: Optional[float] = None,
+        *,
+        query_with_job: Literal[True],
+    ) -> Tuple[google.cloud.bigquery.table.RowIterator, bigquery.QueryJob]:
+        ...
 
     def _start_query(
         self,
         sql: str,
         job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
         timeout: Optional[float] = None,
-    ) -> Tuple[google.cloud.bigquery.table.RowIterator, bigquery.QueryJob]:
+        *,
+        query_with_job: bool = True,
+    ) -> Tuple[google.cloud.bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
         """
         Starts BigQuery query job and waits for results.
 
@@ -950,8 +982,8 @@ class GbqDataLoader:
             sql,
             job_config=job_config,
             timeout=timeout,
+            query_with_job=query_with_job,
         )
-        assert query_job is not None
         return iterator, query_job
 
 
