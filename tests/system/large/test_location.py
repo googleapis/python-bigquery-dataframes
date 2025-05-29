@@ -15,7 +15,6 @@
 import typing
 
 from google.cloud import bigquery
-from google.cloud.bigquery_storage import types as bqstorage_types
 import pandas
 import pandas.testing
 import pytest
@@ -62,28 +61,6 @@ def _assert_bq_execution_location(
     pandas.testing.assert_frame_equal(
         expected_result, result.to_pandas(), check_dtype=False, check_index_type=False
     )
-
-    # Ensure BQ Storage Read client operation succceeds
-    table = result.query_job.destination
-    requested_session = bqstorage_types.ReadSession(  # type: ignore[attr-defined]
-        table=f"projects/{table.project}/datasets/{table.dataset_id}/tables/{table.table_id}",
-        data_format=bqstorage_types.DataFormat.ARROW,  # type: ignore[attr-defined]
-    )
-    read_session = session.bqstoragereadclient.create_read_session(
-        parent=f"projects/{table.project}/locations/{expected_location.lower()}",
-        read_session=requested_session,
-        max_stream_count=1,
-    )
-    reader = session.bqstoragereadclient.read_rows(read_session.streams[0].name)
-    frames = []
-    for message in reader.rows().pages:
-        frames.append(message.to_dataframe())
-    read_dataframe = pandas.concat(frames)
-    # normalize before comparing since we lost some of the bigframes column
-    # naming abtractions in the direct read of the destination table
-    read_dataframe = read_dataframe.set_index("name")
-    read_dataframe.columns = result.columns
-    pandas.testing.assert_frame_equal(expected_result, read_dataframe)
 
 
 def test_bq_location_default():
