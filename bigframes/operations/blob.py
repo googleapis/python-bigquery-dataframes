@@ -747,6 +747,7 @@ class BlobAccessor(base.SeriesMethods):
             ]
         ] = None,
         temperature: float = 0,
+        additional_instruction: Optional[str] = None,
         verbose: bool = False,
     ) -> bigframes.series.Series:
         """
@@ -759,6 +760,9 @@ class BlobAccessor(base.SeriesMethods):
                 "https://ai.google.dev/gemini-api/docs/models" for model choices.
             temperature (float, default 0): Decoding temperature.
                 Defaults to 0.
+            additional_instruction (str, optional): additional instrcution provided
+                by users. For example, "remove sensitive information like name,
+                phone number, email address, etc". Please be specific.
             verbose (bool, default "False"): controls the verbosity of the output.
                 When set to True, both error messages and the transcribed content
                 are displayed. Conversely, when set to False, only the transcribed
@@ -780,9 +784,15 @@ class BlobAccessor(base.SeriesMethods):
         df = src_rt.to_frame()
 
         df_prompt = df[["audio"]].copy()
-        df_prompt[
-            "prompt"
-        ] = "Transcribe the following audio. Your entire response must be only the verbatim text transcribed from the audio. Do not include any other words, phrases, or introductory sentences."
+
+        prompt_text = "Transcribe the following audio."
+        if additional_instruction is not None:
+            prompt_text += (
+                "Please also follow this additional instruction: "
+                + additional_instruction
+            )
+        prompt_text += "Your entire response must be only the verbatim text transcribed from the audio and follow additional insturctions if exist. Do not include any other words, phrases, or introductory sentences."
+        df_prompt["prompt"] = prompt_text
 
         model = llm.GeminiTextGenerator(model_name=model_name)
 
