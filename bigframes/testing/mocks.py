@@ -20,6 +20,7 @@ import unittest.mock as mock
 import google.auth.credentials
 import google.cloud.bigquery
 import google.cloud.bigquery.table
+import pyarrow
 import pytest
 
 import bigframes
@@ -123,6 +124,10 @@ def create_bigquery_session(
         )
         row = mock.create_autospec(google.cloud.bigquery.table.Row, instance=True)
         rows.__iter__.return_value = [row]
+        type(rows).schema = mock.PropertyMock(return_value=table_schema)
+        rows.to_arrow.return_value = pyarrow.Table.from_pydict(
+            {field.name: [None] for field in table_schema}
+        )
 
         if job_config is not None and job_config.destination is None:
             # Assume that the query finishes fast enough for jobless mode.
