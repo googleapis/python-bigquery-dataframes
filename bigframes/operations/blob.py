@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import os
-from typing import cast, Optional, Union
+from typing import cast, Literal, Optional, Union
 import warnings
 
 import IPython.display as ipy_display
@@ -731,6 +731,78 @@ class BlobAccessor(base.SeriesMethods):
         content_series = bbq.json_extract_string_array(res, "$.content")
         if verbose:
             status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
+            res_df = bpd.DataFrame({"status": status_series, "content": content_series})
+            struct_series = bbq.struct(res_df)
+            return struct_series
+        else:
+            return content_series
+
+    def transcribe(
+        self,
+        *,
+        model_name: Optional[
+            Literal[
+                "gemini-2.0-flash-001",
+                "gemini-2.0-flash-lite-001",
+            ]
+        ] = None,
+        temperature: float = 0,
+        additional_instruction: Optional[str] = None,
+        verbose: bool = False,
+    ) -> bigframes.series.Series:
+        """
+        Transcribe audio content using a Gemini multimodal model.
+
+        Args:
+            model_name (str): The model for natural language tasks. Accepted
+                values are "gemini-2.0-flash-exp",  "gemini-2.0-flash-lite-001",
+                and "gemini-2.0-flash-001". See
+                "https://ai.google.dev/gemini-api/docs/models" for model choices.
+            temperature (float, default 0): Decoding temperature.
+                Defaults to 0.
+            additional_instruction (str, optional): additional instrcution provided
+                by users. For example, "remove sensitive information like name,
+                phone number, email address, etc". Please be specific.
+            verbose (bool, default "False"): controls the verbosity of the output.
+                When set to True, both error messages and the transcribed content
+                are displayed. Conversely, when set to False, only the transcribed
+                content is presented, suppressing error messages.
+
+        Returns:
+            bigframes.series.Series: str or struct[str, str],
+                depend on the "verbose" parameter.
+                Contains the transcribed text from the audio file.
+                Includes error messages if verbosity is enabled.
+        """
+        from typing import cast
+
+        import bigframes.bigquery as bbq
+        import bigframes.ml.llm as llm
+        import bigframes.pandas as bpd
+
+        src_rt = self.get_runtime_json_str(mode="R")
+        df = src_rt.to_frame()
+
+        df_prompt = df[["audio"]].copy()
+
+        prompt_text = "**Task:** Transcribe the provided audio. **Instructions:** - Your response must contain only the verbatim transcription of the audio. - Do not include any introductory text, summaries, or conversational filler in your response. The output should begin directly with the first word of the audio."
+        if additional_instruction is not None:
+            prompt_text += " - " + additional_instruction
+        df_prompt["prompt"] = prompt_text
+
+        model = llm.GeminiTextGenerator(model_name=model_name)
+
+        # transcribe audio using ML.GENERATE_TEXT
+        results = model.predict(
+            X=df_prompt,
+            prompt=[df_prompt["prompt"], df_prompt["audio"]],
+            temperature=temperature,
+        )
+
+        content_series = cast(bpd.Series, results["ml_generate_text_llm_result"])
+
+        if verbose:
+            status_series = cast(bpd.Series, results["ml_generate_text_status"])
             res_df = bpd.DataFrame({"status": status_series, "content": content_series})
             struct_series = bbq.struct(res_df)
             return struct_series
