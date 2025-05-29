@@ -785,13 +785,9 @@ class BlobAccessor(base.SeriesMethods):
 
         df_prompt = df[["audio"]].copy()
 
-        prompt_text = "Transcribe the following audio."
+        prompt_text = "**Task:** Transcribe the provided audio. **Instructions:** - Your response must contain only the verbatim transcription of the audio. - Do not include any introductory text, summaries, or conversational filler in your response. The output should begin directly with the first word of the audio."
         if additional_instruction is not None:
-            prompt_text += (
-                "Please also follow this additional instruction: "
-                + additional_instruction
-            )
-        prompt_text += "Your entire response must be only the verbatim text transcribed from the audio and follow additional insturctions if exist. Do not include any other words, phrases, or introductory sentences."
+            prompt_text += " - " + additional_instruction
         df_prompt["prompt"] = prompt_text
 
         model = llm.GeminiTextGenerator(model_name=model_name)
