@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import os
+import pathlib
+import tempfile
 from typing import cast, Optional
 import unittest.mock as mock
 
@@ -44,6 +46,8 @@ def create_clients_provider(application_name: Optional[str] = None, **kwargs):
 def monkeypatch_client_constructors(monkeypatch):
     bqclient = mock.create_autospec(google.cloud.bigquery.Client)
     bqclient.return_value = bqclient
+    # Assume we have a new client library in the unit tests.
+    bqclient.default_job_creation_mode = None  # type: ignore
     monkeypatch.setattr(google.cloud.bigquery, "Client", bqclient)
 
     bqconnectionclient = mock.create_autospec(
@@ -79,6 +83,11 @@ def monkeypatch_client_constructors(monkeypatch):
     monkeypatch.setattr(
         google.cloud.resourcemanager_v3, "ProjectsClient", resourcemanagerclient
     )
+
+
+def assert_bqclient_sets_default_job_creation_mode(provider: clients.ClientsProvider):
+    bqclient = provider.bqclient
+    assert bqclient.default_job_creation_mode == "JOB_CREATION_OPTIONAL"
 
 
 def assert_constructed_w_user_agent(mock_client: mock.Mock, expected_user_agent: str):
@@ -164,6 +173,7 @@ def test_user_agent_not_in_vscode(monkeypatch):
     monkeypatch_client_constructors(monkeypatch)
     provider = create_clients_provider()
     assert_clients_wo_user_agent(provider, "vscode")
+    assert_clients_wo_user_agent(provider, "googlecloudtools.cloudcode")
 
     # We still need to include attribution to bigframes
     assert_clients_w_user_agent(provider, f"bigframes/{bigframes.version.__version__}")
@@ -174,9 +184,40 @@ def test_user_agent_in_vscode(monkeypatch):
     monkeypatch_client_constructors(monkeypatch)
     provider = create_clients_provider()
     assert_clients_w_user_agent(provider, "vscode")
+    assert_clients_wo_user_agent(provider, "googlecloudtools.cloudcode")
 
     # We still need to include attribution to bigframes
     assert_clients_w_user_agent(provider, f"bigframes/{bigframes.version.__version__}")
+
+
+@mock.patch.dict(os.environ, {"VSCODE_PID": "12345"}, clear=True)
+def test_user_agent_in_vscode_w_extension(monkeypatch):
+    monkeypatch_client_constructors(monkeypatch)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        user_home = pathlib.Path(tmpdir)
+        extension_dir = (
+            user_home / ".vscode" / "extensions" / "googlecloudtools.cloudcode-0.12"
+        )
+        extension_config = extension_dir / "package.json"
+
+        # originally extension config does not exist
+        assert not extension_config.exists()
+
+        # simulate extension installation by creating extension config on disk
+        extension_dir.mkdir(parents=True)
+        with open(extension_config, "w") as f:
+            f.write("{}")
+
+        with mock.patch("pathlib.Path.home", return_value=user_home):
+            provider = create_clients_provider()
+            assert_clients_w_user_agent(provider, "vscode")
+            assert_clients_w_user_agent(provider, "googlecloudtools.cloudcode")
+
+            # We still need to include attribution to bigframes
+            assert_clients_w_user_agent(
+                provider, f"bigframes/{bigframes.version.__version__}"
+            )
 
 
 @mock.patch.dict(os.environ, {}, clear=True)
@@ -184,6 +225,7 @@ def test_user_agent_not_in_jupyter(monkeypatch):
     monkeypatch_client_constructors(monkeypatch)
     provider = create_clients_provider()
     assert_clients_wo_user_agent(provider, "jupyter")
+    assert_clients_wo_user_agent(provider, "bigquery_jupyter_plugin")
 
     # We still need to include attribution to bigframes
     assert_clients_w_user_agent(provider, f"bigframes/{bigframes.version.__version__}")
@@ -194,6 +236,37 @@ def test_user_agent_in_jupyter(monkeypatch):
     monkeypatch_client_constructors(monkeypatch)
     provider = create_clients_provider()
     assert_clients_w_user_agent(provider, "jupyter")
+    assert_clients_wo_user_agent(provider, "bigquery_jupyter_plugin")
 
     # We still need to include attribution to bigframes
     assert_clients_w_user_agent(provider, f"bigframes/{bigframes.version.__version__}")
+
+
+@mock.patch.dict(os.environ, {"JPY_PARENT_PID": "12345"}, clear=True)
+def test_user_agent_in_jupyter_with_plugin(monkeypatch):
+    monkeypatch_client_constructors(monkeypatch)
+
+    def custom_import_module_side_effect(name, package=None):
+        if name == "bigquery_jupyter_plugin":
+            return mock.MagicMock()
+        else:
+            import importlib
+
+            return importlib.import_module(name, package)
+
+    assert isinstance(
+        custom_import_module_side_effect("bigquery_jupyter_plugin"), mock.MagicMock
+    )
+    assert custom_import_module_side_effect("bigframes") is bigframes
+
+    with mock.patch(
+        "importlib.import_module", side_effect=custom_import_module_side_effect
+    ):
+        provider = create_clients_provider()
+        assert_clients_w_user_agent(provider, "jupyter")
+        assert_clients_w_user_agent(provider, "bigquery_jupyter_plugin")
+
+        # We still need to include attribution to bigframes
+        assert_clients_w_user_agent(
+            provider, f"bigframes/{bigframes.version.__version__}"
+        )
