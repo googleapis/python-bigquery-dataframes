@@ -185,7 +185,5 @@ class SQLGlotCompiler:
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
     node = nodes.bottom_up(node, rewrite.rewrite_slice)
     node = nodes.bottom_up(node, schema_binding.bind_schema_to_expressions)
-    # TODO (b/419292655) Remove timedelta rewrite once we use dynamic dispatch at compile time.
-    node = nodes.bottom_up(node, rewrite.rewrite_timedelta_expressions)
     node = nodes.bottom_up(node, rewrite.rewrite_range_rolling)
     return node

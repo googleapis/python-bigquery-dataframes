@@ -59,7 +59,7 @@ def test_astype_op_dtype():
     _assert_output_type(expression, dtypes.INT_DTYPE)
 
 
-def test_deref_op_default_dtype_is_deferred():
+def test_deref_op_dtype_unavailable():
     expression = ex.deref("mycol")
 
     assert not expression.is_resolved
@@ -76,8 +76,10 @@ def test_deref_op_dtype_resolution():
     _assert_output_type(result, dtypes.STRING_DTYPE)
 
 
-def test_deref_op_dtype_resolution_short_circuit():
-    expression = ex.DerefOp(field.Field(ids.ColumnId("mycol"), dtype=dtypes.INT_DTYPE))
+def test_field_ref_expr_dtype_resolution_short_circuit():
+    expression = ex.SchemaFieldRefExpression(
+        field.Field(ids.ColumnId("mycol"), dtype=dtypes.INT_DTYPE)
+    )
     field_bindings = _create_field_bindings({"anotherCol": dtypes.STRING_DTYPE})
 
     result = ex.bind_schema_fields(expression, field_bindings)

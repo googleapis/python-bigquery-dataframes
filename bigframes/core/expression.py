@@ -365,15 +365,9 @@ class UnboundVariableExpression(Expression):
 
 @dataclasses.dataclass(frozen=True)
 class DerefOp(Expression):
-    """A variable expression representing a column reference."""
+    """An expression that refers to a column by ID."""
 
-    id_or_field: ids.ColumnId | field.Field
-
-    @property
-    def id(self) -> ids.ColumnId:
-        if isinstance(self.id_or_field, ids.ColumnId):
-            return self.id_or_field
-        return self.id_or_field.id
+    id: ids.ColumnId
 
     @property
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
@@ -385,19 +379,15 @@ class DerefOp(Expression):
 
     @property
     def nullable(self) -> bool:
-        if isinstance(self.id_or_field, ids.ColumnId):
-            # Safe default, need to actually bind input schema to determine
-            return True
-        return self.id_or_field.nullable
+        # Safe default, need to actually bind input schema to determine
+        return True
 
     @property
     def is_resolved(self) -> bool:
-        return isinstance(self.id_or_field, field.Field)
+        return False
 
     @property
     def output_type(self) -> dtypes.ExpressionType:
-        if isinstance(self.id_or_field, field.Field):
-            return self.id_or_field.dtype
         raise ValueError(f"Type of variable {self.id} has not been fixed.")
 
     def bind_variables(
@@ -414,6 +404,55 @@ class DerefOp(Expression):
             return bindings[self.id]
         elif not allow_partial_bindings:
             raise ValueError(f"Variable {self.id} remains unbound")
+        return self
+
+    @property
+    def is_bijective(self) -> bool:
+        return True
+
+    @property
+    def is_identity(self) -> bool:
+        return True
+
+
+@dataclasses.dataclass(frozen=True)
+class SchemaFieldRefExpression(Expression):
+    """An expression representing a schema field. This is essentially a DerefOp with input schema bound."""
+
+    field: field.Field
+
+    @property
+    def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
+        return (self.field.id,)
+
+    @property
+    def is_const(self) -> bool:
+        return False
+
+    @property
+    def nullable(self) -> bool:
+        return self.field.nullable
+
+    @property
+    def is_resolved(self) -> bool:
+        return True
+
+    @property
+    def output_type(self) -> dtypes.ExpressionType:
+        return self.field.dtype
+
+    def bind_variables(
+        self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
+    ) -> Expression:
+        return self
+
+    def bind_refs(
+        self,
+        bindings: Mapping[ids.ColumnId, Expression],
+        allow_partial_bindings: bool = False,
+    ) -> Expression:
+        if self.field.id in bindings.keys():
+            return bindings[self.field.id]
         return self
 
     @property
@@ -527,7 +566,9 @@ def bind_schema_fields(
     if expr.is_resolved:
         return expr
 
-    expr_by_id = {id: DerefOp(field) for id, field in field_by_id.items()}
+    expr_by_id = {
+        id: SchemaFieldRefExpression(field) for id, field in field_by_id.items()
+    }
     return expr.bind_refs(expr_by_id)
 
 
