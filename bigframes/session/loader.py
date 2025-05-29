@@ -93,7 +93,9 @@ def _to_index_cols(
     return index_cols
 
 
-def _check_column_duplicates(index_cols: Iterable[str], columns: Iterable[str]):
+def _check_column_duplicates(
+    index_cols: Iterable[str], columns: Iterable[str], is_index_in_columns: bool
+) -> List[str]:
     index_cols_list = list(index_cols) if index_cols is not None else []
     columns_list = list(columns) if columns is not None else []
     set_index = set(index_cols_list)
@@ -104,6 +106,9 @@ def _check_column_duplicates(index_cols: Iterable[str], columns: Iterable[str]):
             "The 'index_col' argument contains duplicate names. "
             "All column names specified in 'index_col' must be unique."
         )
+    
+    if columns is None:
+        return columns_list
 
     if len(columns_list) > len(set_columns):
         raise ValueError(
@@ -111,11 +116,20 @@ def _check_column_duplicates(index_cols: Iterable[str], columns: Iterable[str]):
             "All column names specified in 'columns' must be unique."
         )
 
-    if not set_index.isdisjoint(set_columns):
-        raise ValueError(
-            "Found column names that exist in both 'index_col' and 'columns' arguments. "
-            "These arguments must specify distinct sets of columns."
-        )
+    if is_index_in_columns:
+        if not set_index.issubset(set_columns):
+            raise ValueError(
+                f"The specified index column(s) were not found: {set_index - set_columns}. "
+                f"Available columns are: {set_columns}"
+            )
+        return list(set_columns - set_index)
+    else:
+        if not set_index.isdisjoint(set_columns):
+            raise ValueError(
+                "Found column names that exist in both 'index_col' and 'columns' arguments. "
+                "These arguments must specify distinct sets of columns."
+            )
+        return columns_list
 
 
 @dataclasses.dataclass
@@ -428,6 +442,7 @@ class GbqDataLoader:
         enable_snapshot: bool = True,
         dry_run: bool = False,
         force_total_order: Optional[bool] = None,
+        is_index_in_columns: bool = False,
     ) -> dataframe.DataFrame | pandas.Series:
         import bigframes._tools.strings
         import bigframes.dataframe as dataframe
@@ -510,7 +525,7 @@ class GbqDataLoader:
             index_col=index_col,
             names=names,
         )
-        _check_column_duplicates(index_cols, columns)
+        columns = _check_column_duplicates(index_cols, columns, is_index_in_columns)
 
         for key in index_cols:
             if key not in table_column_names:
@@ -790,7 +805,9 @@ class GbqDataLoader:
             )
 
         index_cols = _to_index_cols(index_col)
-        _check_column_duplicates(index_cols, columns)
+        columns = _check_column_duplicates(
+            index_cols, columns, is_index_in_columns=False
+        )
 
         filters_copy1, filters_copy2 = itertools.tee(filters)
         has_filters = len(list(filters_copy1)) != 0
