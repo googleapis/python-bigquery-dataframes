@@ -240,26 +240,41 @@ def add_and_trim_labels(job_config):
 def start_query_with_client(
     bq_client: bigquery.Client,
     sql: str,
-    job_config: bigquery.job.QueryJobConfig,
-    location: Optional[str] = None,
-    project: Optional[str] = None,
-    timeout: Optional[float] = None,
-    metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
     *,
+    job_config: bigquery.QueryJobConfig,
+    location: Optional[str],
+    project: Optional[str],
+    timeout: Optional[float],
+    metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
     query_with_job: Literal[True],
 ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+    ...
+
+
+@overload
+def start_query_with_client(
+    bq_client: bigquery.Client,
+    sql: str,
+    *,
+    job_config: bigquery.QueryJobConfig,
+    location: Optional[str],
+    project: Optional[str],
+    timeout: Optional[float],
+    metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
+    query_with_job: Literal[False],
+) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     ...
 
 
 def start_query_with_client(
     bq_client: bigquery.Client,
     sql: str,
-    job_config: bigquery.job.QueryJobConfig,
+    *,
+    job_config: bigquery.QueryJobConfig,
     location: Optional[str] = None,
     project: Optional[str] = None,
     timeout: Optional[float] = None,
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
-    *,
     query_with_job: bool = True,
 ) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     """
@@ -341,8 +356,8 @@ def delete_tables_matching_session_id(
 
 def create_bq_dataset_reference(
     bq_client: bigquery.Client,
-    location=None,
-    project=None,
+    location: Optional[str] = None,
+    project: Optional[str] = None,
 ) -> bigquery.DatasetReference:
     """Create and identify dataset(s) for temporary BQ resources.
 
@@ -371,6 +386,9 @@ def create_bq_dataset_reference(
         location=location,
         job_config=job_config,
         project=project,
+        timeout=None,
+        metrics=None,
+        query_with_job=True,
     )
 
     # The anonymous dataset is used by BigQuery to write query results and
@@ -378,7 +396,6 @@ def create_bq_dataset_reference(
     # to the dataset, no BigQuery Session required. Note: there is a
     # different anonymous dataset per location. See:
     # https://cloud.google.com/bigquery/docs/cached-results#how_cached_results_are_stored
-    assert query_job is not None
     query_destination = query_job.destination
     return bigquery.DatasetReference(
         query_destination.project,

@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import functools
 import typing
-from typing import Sequence
+from typing import Dict, List, Sequence
 
 import google.cloud.bigquery
 import pyarrow
@@ -48,14 +48,16 @@ class ArraySchema:
             typing.Dict[str, bigframes.dtypes.Dtype]
         ] = None,
     ):
-        return ArraySchema.from_bq_schema(table.schema)
+        return ArraySchema.from_bq_schema(
+            table.schema, column_type_overrides=column_type_overrides
+        )
 
     @classmethod
     def from_bq_schema(
         cls,
-        schema: Sequence[google.cloud.bigquery.SchemaField],
+        schema: List[google.cloud.bigquery.SchemaField],
         column_type_overrides: typing.Optional[
-            typing.Dict[str, bigframes.dtypes.Dtype]
+            Dict[str, bigframes.dtypes.Dtype]
         ] = None,
     ):
         if column_type_overrides is None:

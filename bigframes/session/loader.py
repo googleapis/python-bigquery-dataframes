@@ -22,6 +22,7 @@ import itertools
 import os
 import typing
 from typing import (
+    cast,
     Dict,
     Generator,
     Hashable,
@@ -850,8 +851,11 @@ class GbqDataLoader:
             )
 
             if rows.job_id and rows.location and rows.project:
-                query_job = self._bqclient.get_job(
-                    rows.job_id, project=rows.project, location=rows.location
+                query_job = cast(
+                    bigquery.QueryJob,
+                    self._bqclient.get_job(
+                        rows.job_id, project=rows.project, location=rows.location
+                    ),
                 )
                 destination = query_job.destination
 
@@ -978,6 +982,17 @@ class GbqDataLoader:
     ) -> Tuple[google.cloud.bigquery.table.RowIterator, bigquery.QueryJob]:
         ...
 
+    @overload
+    def _start_query(
+        self,
+        sql: str,
+        job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
+        timeout: Optional[float] = None,
+        *,
+        query_with_job: Literal[False],
+    ) -> Tuple[google.cloud.bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
+        ...
+
     def _start_query(
         self,
         sql: str,
@@ -997,14 +1012,30 @@ class GbqDataLoader:
             job_config.maximum_bytes_billed = (
                 bigframes.options.compute.maximum_bytes_billed
             )
-        iterator, query_job = bf_io_bigquery.start_query_with_client(
-            self._bqclient,
-            sql,
-            job_config=job_config,
-            timeout=timeout,
-            query_with_job=query_with_job,
-        )
-        return iterator, query_job
+
+        # Trick the type checker into thinking we're using literals.
+        if query_with_job:
+            return bf_io_bigquery.start_query_with_client(
+                self._bqclient,
+                sql,
+                job_config=job_config,
+                timeout=timeout,
+                location=None,
+                project=None,
+                metrics=None,
+                query_with_job=True,
+            )
+        else:
+            return bf_io_bigquery.start_query_with_client(
+                self._bqclient,
+                sql,
+                job_config=job_config,
+                timeout=timeout,
+                location=None,
+                project=None,
+                metrics=None,
+                query_with_job=False,
+            )
 
 
 def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:

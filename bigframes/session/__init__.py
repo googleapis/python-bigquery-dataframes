@@ -1920,10 +1920,15 @@ class Session(
         # https://cloud.google.com/bigquery/docs/customer-managed-encryption#encrypt-model
         job_config.destination_encryption_configuration = None
         iterator, query_job = bf_io_bigquery.start_query_with_client(
-            self.bqclient, sql, job_config=job_config, metrics=self._metrics
+            self.bqclient,
+            sql,
+            job_config=job_config,
+            metrics=self._metrics,
+            location=None,
+            project=None,
+            timeout=None,
+            query_with_job=True,
         )
-
-        assert query_job is not None
         return iterator, query_job
 
     def _create_object_table(self, path: str, connection: str) -> str:
@@ -1946,6 +1951,10 @@ class Session(
             sql,
             job_config=bigquery.QueryJobConfig(),
             metrics=self._metrics,
+            location=None,
+            project=None,
+            timeout=None,
+            query_with_job=True,
         )
 
         return table

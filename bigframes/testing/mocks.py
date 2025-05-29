@@ -17,6 +17,7 @@ import datetime
 from typing import Literal, Optional, Sequence
 import unittest.mock as mock
 
+from bigframes_vendored.google_cloud_bigquery import _pandas_helpers
 import google.auth.credentials
 import google.cloud.bigquery
 import google.cloud.bigquery.table
@@ -126,7 +127,10 @@ def create_bigquery_session(
         rows.__iter__.return_value = [row]
         type(rows).schema = mock.PropertyMock(return_value=table_schema)
         rows.to_arrow.return_value = pyarrow.Table.from_pydict(
-            {field.name: [None] for field in table_schema}
+            {field.name: [None] for field in table_schema},
+            schema=pyarrow.schema(
+                _pandas_helpers.bq_to_arrow_field(field) for field in table_schema
+            ),
         )
 
         if job_config is not None and job_config.destination is None:
