@@ -96,10 +96,10 @@ class SessionResourceManager(temporary_storage.TemporaryStorageManager):
             self._sessiondaemon.stop()
 
         if self._session_id is not None and self.bqclient is not None:
-        self.bqclient.query_and_wait(
-            f"CALL BQ.ABORT_SESSION('{self._session_id}')",
-            location=self.location,
-        )
+            self.bqclient.query_and_wait(
+                f"CALL BQ.ABORT_SESSION('{self._session_id}')",
+                location=self.location,
+            )
 
     def _get_session_id(self) -> str:
         if self._session_id:
