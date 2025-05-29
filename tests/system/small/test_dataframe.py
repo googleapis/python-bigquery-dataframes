@@ -1635,6 +1635,29 @@ def test_merge_left_on_right_on(scalars_dfs, merge_how):
     )
 
 
+def test_self_merge_self_w_on_args():
+    data = {
+        "A": pd.Series([1, 2, 3], dtype="Int64"),
+        "B": pd.Series([1, 2, 3], dtype="Int64"),
+        "C": pd.Series([100, 200, 300], dtype="Int64"),
+        "D": pd.Series(["alpha", "beta", "gamma"], dtype="string[pyarrow]"),
+    }
+    df = pd.DataFrame(data)
+
+    df1 = df[["A", "C"]]
+    df2 = df[["B", "C", "D"]]
+    pd_result = df1.merge(df2, left_on=["A", "C"], right_on=["B", "C"], how="inner")
+
+    bf_df = bpd.DataFrame(data)
+
+    bf_df1 = bf_df[["A", "C"]]
+    bf_df2 = bf_df[["B", "C", "D"]]
+    bf_result = bf_df1.merge(
+        bf_df2, left_on=["A", "C"], right_on=["B", "C"], how="inner"
+    ).to_pandas()
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
+
+
 @pytest.mark.parametrize(
     ("decimals",),
     [
@@ -5629,3 +5652,29 @@ def test_astype_invalid_type_fail(scalars_dfs):
 
     with pytest.raises(TypeError, match=r".*Share your usecase with.*"):
         bf_df.astype(123)
+
+
+def test_agg_with_dict(scalars_dfs):
+    bf_df, pd_df = scalars_dfs
+    agg_funcs = {
+        "int64_too": ["min", "max"],
+        "int64_col": ["min", "count"],
+    }
+
+    bf_result = bf_df.agg(agg_funcs).to_pandas()
+    pd_result = pd_df.agg(agg_funcs)
+
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_agg_with_dict_containing_non_existing_col_raise_key_error(scalars_dfs):
+    bf_df, _ = scalars_dfs
+    agg_funcs = {
+        "int64_too": ["min", "max"],
+        "nonexisting_col": ["count"],
+    }
+
+    with pytest.raises(KeyError):
+        bf_df.agg(agg_funcs)

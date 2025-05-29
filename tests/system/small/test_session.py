@@ -1369,6 +1369,45 @@ def test_read_csv_for_names_and_index_col(
     )
 
 
+def test_read_csv_for_dtype(session, df_and_gcs_csv_for_two_columns):
+    _, path = df_and_gcs_csv_for_two_columns
+
+    dtype = {"bool_col": pd.BooleanDtype(), "int64_col": pd.Float64Dtype()}
+    bf_df = session.read_csv(path, engine="bigquery", dtype=dtype)
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    pd_df = session.read_csv(path, dtype=dtype)
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.set_index("rowindex").sort_index()
+    pd_df = pd_df.set_index("rowindex")
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+def test_read_csv_for_dtype_w_names(session, df_and_gcs_csv_for_two_columns):
+    _, path = df_and_gcs_csv_for_two_columns
+
+    names = ["a", "b", "c"]
+    dtype = {"b": pd.BooleanDtype(), "c": pd.Float64Dtype()}
+    bf_df = session.read_csv(path, engine="bigquery", names=names, dtype=dtype)
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    pd_df = session.read_csv(path, names=names, dtype=dtype)
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.set_index("a").sort_index()
+    pd_df = pd_df.set_index("a")
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
@@ -1899,9 +1938,11 @@ def _assert_query_dry_run_stats_are_valid(result: pd.Series):
             "columnDtypes",
             "indexLevel",
             "indexDtypes",
+            "bigquerySchema",
             "projectId",
             "location",
             "jobType",
+            "dispatchedSql",
             "destinationTable",
             "useLegacySql",
             "referencedTables",
@@ -1922,6 +1963,7 @@ def _assert_table_dry_run_stats_are_valid(result: pd.Series):
             "isQuery",
             "columnCount",
             "columnDtypes",
+            "bigquerySchema",
             "numBytes",
             "numRows",
             "location",
