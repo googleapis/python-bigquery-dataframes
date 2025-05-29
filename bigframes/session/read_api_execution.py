@@ -36,7 +36,7 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
     ):
         self.bqstoragereadclient = bqstoragereadclient
         self.project = project
-        self.location = location
+        self.location = location.lower()  # "US" is invalid, but "us" is valid
 
     def execute(
         self,

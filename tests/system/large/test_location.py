@@ -70,7 +70,7 @@ def _assert_bq_execution_location(
         data_format=bqstorage_types.DataFormat.ARROW,  # type: ignore[attr-defined]
     )
     read_session = session.bqstoragereadclient.create_read_session(
-        parent=f"projects/{table.project}",
+        parent=f"projects/{table.project}/locations/{expected_location.lower()}",
         read_session=requested_session,
         max_stream_count=1,
     )
