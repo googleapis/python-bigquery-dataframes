@@ -28,10 +28,15 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
     """
 
     def __init__(
-        self, bqstoragereadclient: bigquery_storage_v1.BigQueryReadClient, project: str
+        self,
+        bqstoragereadclient: bigquery_storage_v1.BigQueryReadClient,
+        project: str,
+        *,
+        location: str,
     ):
         self.bqstoragereadclient = bqstoragereadclient
         self.project = project
+        self.location = location
 
     def execute(
         self,
@@ -71,7 +76,7 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
         )
         # Single stream to maintain ordering
         request = bq_storage_types.CreateReadSessionRequest(
-            parent=f"projects/{self.project}",
+            parent=f"projects/{self.project}/locations/{self.location}",
             read_session=requested_session,
             max_stream_count=1,
         )

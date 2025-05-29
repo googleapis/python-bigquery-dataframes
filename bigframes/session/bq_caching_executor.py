@@ -159,6 +159,7 @@ class BigQueryCachingExecutor(executor.Executor):
             read_api_execution.ReadApiSemiExecutor(
                 bqstoragereadclient=bqstoragereadclient,
                 project=self.bqclient.project,
+                location=self.bqclient.location or "US",
             ),
             local_scan_executor.LocalScanExecutor(),
         )
