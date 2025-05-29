@@ -121,7 +121,8 @@ def create_bigquery_session(
         rows = mock.create_autospec(
             google.cloud.bigquery.table.RowIterator, instance=True
         )
-        rows.__iter__.return_value = []
+        row = mock.create_autospec(google.cloud.bigquery.table.Row, instance=True)
+        rows.__iter__.return_value = [row]
 
         if job_config is not None and job_config.destination is None:
             # Assume that the query finishes fast enough for jobless mode.
@@ -129,8 +130,8 @@ def create_bigquery_session(
 
         return rows
 
-    bqclient.query = query_mock
-    bqclient.query_and_wait = query_and_wait_mock
+    bqclient.query.side_effect = query_mock
+    bqclient.query_and_wait.side_effect = query_and_wait_mock
 
     clients_provider = mock.create_autospec(bigframes.session.clients.ClientsProvider)
     type(clients_provider).bqclient = mock.PropertyMock(return_value=bqclient)
