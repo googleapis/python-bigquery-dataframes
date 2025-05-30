@@ -471,15 +471,22 @@ def cover(session):
     session.install("coverage", "pytest-cov")
 
     # Create a coverage report that includes only the product code.
+    omitted_paths = [
+        # non-prod, unit tested
+        "bigframes/core/compile/polars/*",
+        "bigframes/core/compile/sqlglot/*",
+        # untested
+        "bigframes/streaming/*",
+        # utils
+        "bigframes/testing/*",
+    ]
+
     session.run(
         "coverage",
         "report",
         "--include=bigframes/*",
         # Only unit tested
-        "--omit=bigframes/core/compile/polars/*",
-        "--omit=bigframes/core/compile/sqlglot/*",
-        # Non-prod utils
-        "--omit=bigframes/testing/*",
+        f"--omit={','.join(omitted_paths)}",
         "--show-missing",
         "--fail-under=85",
     )
