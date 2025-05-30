@@ -14,7 +14,7 @@
 
 import copy
 import datetime
-from typing import Literal, Optional, Sequence
+from typing import Any, Dict, Literal, Optional, Sequence
 import unittest.mock as mock
 
 from bigframes_vendored.google_cloud_bigquery import _pandas_helpers
@@ -26,6 +26,7 @@ import pytest
 
 import bigframes
 import bigframes.clients
+import bigframes.core.global_session
 import bigframes.dataframe
 import bigframes.session.clients
 
@@ -42,7 +43,7 @@ def create_bigquery_session(
     table_schema: Sequence[google.cloud.bigquery.SchemaField] = TEST_SCHEMA,
     anonymous_dataset: Optional[google.cloud.bigquery.DatasetReference] = None,
     location: str = "test-region",
-    ordering_mode: Literal["strict", "partial"] = "partial"
+    ordering_mode: Literal["strict", "partial"] = "partial",
 ) -> bigframes.Session:
     """[Experimental] Create a mock BigQuery DataFrames session that avoids making Google Cloud API calls.
 
@@ -86,7 +87,7 @@ def create_bigquery_session(
         query,
         *args,
         job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
-        **kwargs
+        **kwargs,
     ):
         queries.append(query)
         job_configs.append(copy.deepcopy(job_config))
@@ -161,7 +162,10 @@ def create_bigquery_session(
 
 
 def create_dataframe(
-    monkeypatch: pytest.MonkeyPatch, *, session: Optional[bigframes.Session] = None
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    session: Optional[bigframes.Session] = None,
+    data: Optional[Dict[str, Sequence[Any]]] = None,
 ) -> bigframes.dataframe.DataFrame:
     """[Experimental] Create a mock DataFrame that avoids making Google Cloud API calls.
 
@@ -170,8 +174,11 @@ def create_dataframe(
     if session is None:
         session = create_bigquery_session()
 
+    if data is None:
+        data = {"col": []}
+
     # Since this may create a ReadLocalNode, the session we explicitly pass in
     # might not actually be used. Mock out the global session, too.
     monkeypatch.setattr(bigframes.core.global_session, "_global_session", session)
     bigframes.options.bigquery._session_started = True
-    return bigframes.dataframe.DataFrame({"col": []}, session=session)
+    return bigframes.dataframe.DataFrame(data, session=session)
