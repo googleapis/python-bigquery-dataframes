@@ -841,6 +841,7 @@ class GbqDataLoader:
                 cluster_candidates=[],
                 configuration=configuration,
             )
+            rows = None
         else:
             job_config = typing.cast(
                 bigquery.QueryJobConfig,
@@ -862,25 +863,29 @@ class GbqDataLoader:
                     ),
                 )
                 destination = query_job.destination
-
-                # TODO(b/420984164): Tune the threshold for which we download to
-                # local node. Likely there are a wide range of sizes in which it
-                # makes sense to download the results beyond the first page, even if
-                # there is a job and destination table available.
             else:
-                # It's possible that we've already downloaded all the results and
-                # there's no job. In this case, we must have a local node.
-                #
-                # This is somewhat wasteful, but we convert from Arrow to pandas
-                # to try to duplicate the same dtypes we'd have if this were a
-                # table node as best we can.
-                pd_df = bf_io_pandas.arrow_to_pandas(
-                    rows.to_arrow(), schemata.ArraySchema.from_bq_schema(rows.schema)
-                )
-                return dataframe.DataFrame(pd_df)
+                query_job = None
 
-        if self._metrics is not None and query_job is not None:
-            self._metrics.count_job_stats(query_job)
+        # We split query execution from results fetching so that we can log
+        # metrics from either the query job, row iterator, or both.
+        if self._metrics is not None:
+            self._metrics.count_job_stats(query_job=query_job, row_iterator=rows)
+
+        # It's possible that there's no job and corresponding destination table.
+        # In this case, we must create a local node.
+        #
+        # TODO(b/420984164): Tune the threshold for which we download to
+        # local node. Likely there are a wide range of sizes in which it
+        # makes sense to download the results beyond the first page, even if
+        # there is a job and destination table available.
+        if rows is not None and destination is None:
+            # This is somewhat wasteful, but we convert from Arrow to pandas
+            # to try to duplicate the same dtypes we'd have if this were a
+            # table node as best we can.
+            pd_df = bf_io_pandas.arrow_to_pandas(
+                rows.to_arrow(), schemata.ArraySchema.from_bq_schema(rows.schema)
+            )
+            return dataframe.DataFrame(pd_df)
 
         # If there was no destination table and we've made it this far, that
         # means the query must have been DDL or DML. Return some job metadata,
