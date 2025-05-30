@@ -477,6 +477,9 @@ def cover(session):
         "--include=bigframes/*",
         # Only unit tested
         "--omit=bigframes/core/compile/polars/*",
+        "--omit=bigframes/core/compile/sqlglot/*",
+        # Non-prod utils
+        "--omit=bigframes/testing/*",
         "--show-missing",
         "--fail-under=85",
     )
