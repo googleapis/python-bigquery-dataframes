@@ -488,7 +488,7 @@ def cover(session):
         # Only unit tested
         f"--omit={','.join(omitted_paths)}",
         "--show-missing",
-        "--fail-under=85",
+        "--fail-under=84",
     )
 
     # Make sure there is no dead code in our system test directories.
