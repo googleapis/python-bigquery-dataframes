@@ -56,7 +56,6 @@ import bigframes.formatting_helpers as formatting_helpers
 from bigframes.session import dry_runs
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
-import bigframes.session._io.pandas as bf_io_pandas
 import bigframes.session.metrics
 import bigframes.session.temporary_storage
 import bigframes.session.time as session_time
@@ -831,6 +830,8 @@ class GbqDataLoader:
                 query_job, list(columns), index_cols
             )
 
+        query_job_for_metrics: Optional[bigquery.QueryJob] = None
+
         # TODO(b/421161077): If an explicit destination table is set in
         # configuration, should we respect that setting?
         if allow_large_results:
@@ -841,6 +842,7 @@ class GbqDataLoader:
                 cluster_candidates=[],
                 configuration=configuration,
             )
+            query_job_for_metrics = query_job
             rows = None
         else:
             job_config = typing.cast(
@@ -863,13 +865,14 @@ class GbqDataLoader:
                     ),
                 )
                 destination = query_job.destination
-            else:
-                query_job = None
+                query_job_for_metrics = query_job
 
         # We split query execution from results fetching so that we can log
         # metrics from either the query job, row iterator, or both.
         if self._metrics is not None:
-            self._metrics.count_job_stats(query_job=query_job, row_iterator=rows)
+            self._metrics.count_job_stats(
+                query_job=query_job_for_metrics, row_iterator=rows
+            )
 
         # It's possible that there's no job and corresponding destination table.
         # In this case, we must create a local node.
@@ -879,13 +882,25 @@ class GbqDataLoader:
         # makes sense to download the results beyond the first page, even if
         # there is a job and destination table available.
         if rows is not None and destination is None:
-            # This is somewhat wasteful, but we convert from Arrow to pandas
-            # to try to duplicate the same dtypes we'd have if this were a
-            # table node as best we can.
-            pd_df = bf_io_pandas.arrow_to_pandas(
-                rows.to_arrow(), schemata.ArraySchema.from_bq_schema(rows.schema)
+            # We use the ManagedArrowTable constructor directly, because the
+            # results of to_arrow() should be the source of truth with regards
+            # to canonical formats since it comes from either the BQ Storage
+            # Read API or has been transformed by google-cloud-bigquery to look
+            # like the output of the BQ Storage Read API.
+            pa_table = rows.to_arrow()
+            mat = local_data.ManagedArrowTable(
+                pa_table, schemata.ArraySchema.from_bq_schema(rows.schema)
             )
-            return dataframe.DataFrame(pd_df)
+            mat.validate()
+            array_value = core.ArrayValue.from_managed(mat, self._session)
+            array_with_offsets, offsets_col = array_value.promote_offsets()
+            block = blocks.Block(
+                array_with_offsets,
+                (offsets_col,),
+                [field.name for field in rows.schema],
+                (None,),
+            )
+            return dataframe.DataFrame(block)
 
         # If there was no destination table and we've made it this far, that
         # means the query must have been DDL or DML. Return some job metadata,
@@ -895,10 +910,20 @@ class GbqDataLoader:
                 data=pandas.DataFrame(
                     {
                         "statement_type": [
-                            query_job.statement_type if query_job else "unknown"
+                            query_job_for_metrics.statement_type
+                            if query_job_for_metrics
+                            else "unknown"
                         ],
-                        "job_id": [query_job.job_id if query_job else "unknown"],
-                        "location": [query_job.location if query_job else "unknown"],
+                        "job_id": [
+                            query_job_for_metrics.job_id
+                            if query_job_for_metrics
+                            else "unknown"
+                        ],
+                        "location": [
+                            query_job_for_metrics.location
+                            if query_job_for_metrics
+                            else "unknown"
+                        ],
                     }
                 ),
                 session=self._session,
