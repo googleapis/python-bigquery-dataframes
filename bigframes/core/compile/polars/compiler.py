@@ -115,6 +115,13 @@ if polars_installed:
         @compile_expression.register
         def _(
             self,
+            expression: ex.SchemaFieldRefExpression,
+        ) -> pl.Expr:
+            return pl.col(expression.field.id.sql)
+
+        @compile_expression.register
+        def _(
+            self,
             expression: ex.OpExpression,
         ) -> pl.Expr:
             # TODO: Complete the implementation, convert to hash dispatch
@@ -385,10 +392,10 @@ class PolarsCompiler:
     @compile_node.register
     def compile_projection(self, node: nodes.ProjectionNode):
         new_cols = []
-        types_by_id = {field.id: field.dtype for field in node.fields}
         for proj_expr, name in node.assignments:
-            new_col = self.expr_compiler.compile_expression(proj_expr).alias(name.sql)
-            if proj_expr.output_type(types_by_id) is None:
+            bound_expr = ex.bind_schema_fields(proj_expr, node.child.field_by_id)
+            new_col = self.expr_compiler.compile_expression(bound_expr).alias(name.sql)
+            if bound_expr.output_type is None:
                 new_col = new_col.cast(
                     _bigframes_dtype_to_polars_dtype(bigframes.dtypes.DEFAULT_DTYPE)
                 )
