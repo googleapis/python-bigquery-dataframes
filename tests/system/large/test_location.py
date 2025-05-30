@@ -14,7 +14,6 @@
 
 import typing
 
-from google.cloud import bigquery
 import pandas
 import pandas.testing
 import pytest
@@ -40,7 +39,15 @@ def _assert_bq_execution_location(
     if expected_location is None:
         expected_location = session._location
 
-    assert typing.cast(bigquery.QueryJob, df.query_job).location == expected_location
+    query_job = df.query_job
+    assert query_job is not None
+    assert query_job.location == expected_location
+    destination = query_job.destination
+    assert destination is not None
+    destination_dataset = session.bqclient.get_dataset(
+        f"{destination.project}.{destination.dataset_id}"
+    )
+    assert destination_dataset.location == expected_location
 
     # Ensure operation involving BQ client suceeds
     result = (
@@ -51,15 +58,27 @@ def _assert_bq_execution_location(
         .head()
     )
 
-    assert (
-        typing.cast(bigquery.QueryJob, result.query_job).location == expected_location
+    # Use allow_large_results = True to force a job to be created.
+    result_pd = result.to_pandas(allow_large_results=True)
+
+    query_job = df.query_job
+    assert query_job is not None
+    assert query_job.location == expected_location
+    destination = query_job.destination
+    assert destination is not None
+    destination_dataset = session.bqclient.get_dataset(
+        f"{destination.project}.{destination.dataset_id}"
     )
+    assert destination_dataset.location == expected_location
 
     expected_result = pandas.DataFrame(
         {"number": [444, 222]}, index=pandas.Index(["aaa", "bbb"], name="name")
     )
     pandas.testing.assert_frame_equal(
-        expected_result, result.to_pandas(), check_dtype=False, check_index_type=False
+        expected_result,
+        result_pd,
+        check_dtype=False,
+        check_index_type=False,
     )
 
 
