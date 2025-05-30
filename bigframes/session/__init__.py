@@ -24,7 +24,6 @@ import secrets
 import typing
 from typing import (
     Any,
-    Callable,
     Dict,
     IO,
     Iterable,
@@ -507,6 +506,9 @@ class Session(
         *,
         pyformat_args: Optional[Dict[str, Any]] = None,
         dry_run: bool = False,
+        callback: abc.Callable[
+            [Any], None
+        ] = lambda _: None,  # TODO: use an Event class not Any.
     ) -> Union[dataframe.DataFrame, pandas.Series]:
         """A version of read_gbq that has the necessary default values for use in colab integrations.
 
@@ -537,6 +539,7 @@ class Session(
             index_col=bigframes.enums.DefaultIndexKind.NULL,
             force_total_order=False,
             dry_run=typing.cast(Union[Literal[False], Literal[True]], dry_run),
+            callback=callback,
         )
 
     @overload
@@ -998,7 +1001,7 @@ class Session(
                 pandas.Series,
                 pandas.Index,
                 np.ndarray[Any, Any],
-                Callable[[Any], bool],
+                abc.Callable[[Any], bool],
             ]
         ] = None,
         dtype: Optional[Dict] = None,
