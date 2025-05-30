@@ -60,7 +60,8 @@ from bigframes import exceptions as bfe
 from bigframes import version
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
-from bigframes.core import blocks, log_adapter
+import bigframes.constants
+from bigframes.core import blocks, log_adapter, utils
 import bigframes.core.pyformat
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
@@ -248,13 +249,6 @@ class Session(
         self._temp_storage_manager = (
             self._session_resource_manager or self._anon_dataset_manager
         )
-        self._executor: executor.Executor = bq_caching_executor.BigQueryCachingExecutor(
-            bqclient=self._clients_provider.bqclient,
-            bqstoragereadclient=self._clients_provider.bqstoragereadclient,
-            storage_manager=self._temp_storage_manager,
-            strictly_ordered=self._strictly_ordered,
-            metrics=self._metrics,
-        )
         self._loader = bigframes.session.loader.GbqDataLoader(
             session=self,
             bqclient=self._clients_provider.bqclient,
@@ -263,6 +257,14 @@ class Session(
             default_index_type=self._default_index_type,
             scan_index_uniqueness=self._strictly_ordered,
             force_total_order=self._strictly_ordered,
+            metrics=self._metrics,
+        )
+        self._executor: executor.Executor = bq_caching_executor.BigQueryCachingExecutor(
+            bqclient=self._clients_provider.bqclient,
+            bqstoragereadclient=self._clients_provider.bqstoragereadclient,
+            loader=self._loader,
+            storage_manager=self._temp_storage_manager,
+            strictly_ordered=self._strictly_ordered,
             metrics=self._metrics,
         )
 
@@ -937,15 +939,15 @@ class Session(
         if write_engine == "default":
             write_engine = (
                 "bigquery_load"
-                if mem_usage > MAX_INLINE_DF_BYTES
+                if mem_usage > bigframes.constants.MAX_INLINE_BYTES
                 else "bigquery_inline"
             )
 
         if write_engine == "bigquery_inline":
-            if mem_usage > MAX_INLINE_DF_BYTES:
+            if mem_usage > bigframes.constants.MAX_INLINE_BYTES:
                 raise ValueError(
                     f"DataFrame size ({mem_usage} bytes) exceeds the maximum allowed "
-                    f"for inline data ({MAX_INLINE_DF_BYTES} bytes)."
+                    f"for inline data ({bigframes.constants.MAX_INLINE_BYTES} bytes)."
                 )
             return self._read_pandas_inline(pandas_dataframe)
         elif write_engine == "bigquery_load":
@@ -954,6 +956,10 @@ class Session(
             return self._loader.read_pandas(pandas_dataframe, method="stream")
         elif write_engine == "bigquery_write":
             return self._loader.read_pandas(pandas_dataframe, method="write")
+        elif write_engine == "_deferred":
+            import bigframes.dataframe as dataframe
+
+            return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe, self))
         else:
             raise ValueError(f"Got unexpected write_engine '{write_engine}'")
 
@@ -1102,11 +1108,8 @@ class Session(
         native CSV loading capabilities, making it suitable for large datasets
         that may not fit into local memory.
         """
-        if dtype is not None:
-            raise NotImplementedError(
-                f"BigQuery engine does not support the `dtype` argument."
-                f"{constants.FEEDBACK_LINK}"
-            )
+        if dtype is not None and not utils.is_dict_like(dtype):
+            raise ValueError("dtype should be a dict-like object.")
 
         if names is not None:
             if len(names) != len(set(names)):
@@ -1161,9 +1164,15 @@ class Session(
             job_config.skip_leading_rows = header + 1
 
         table_id = self._loader.load_file(filepath_or_buffer, job_config=job_config)
-        return self._loader.read_gbq_table(
+        df = self._loader.read_gbq_table(
             table_id, index_col=index_col, columns=columns, names=names
         )
+
+        if dtype is not None:
+            for column, dtype in dtype.items():
+                if column in df.columns:
+                    df[column] = df[column].astype(dtype)
+        return df
 
     def read_pickle(
         self,

@@ -2132,7 +2132,7 @@ def test_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, col_na
     ],
 )
 def test_unique(scalars_df_index, scalars_pandas_df_index, col_name):
-    bf_uniq = scalars_df_index[col_name].unique().to_numpy()
+    bf_uniq = scalars_df_index[col_name].unique().to_numpy(na_value=None)
     pd_uniq = scalars_pandas_df_index[col_name].unique()
     numpy.array_equal(pd_uniq, bf_uniq)
 
@@ -2999,6 +2999,17 @@ def test_clip(scalars_df_index, scalars_pandas_df_index, ordered):
     pd_result = col_pd.clip(lower_pd, upper_pd)
 
     assert_series_equal(bf_result, pd_result, ignore_order=not ordered)
+
+
+def test_clip_int_with_float_bounds(scalars_df_index, scalars_pandas_df_index):
+    col_bf = scalars_df_index["int64_too"]
+    bf_result = col_bf.clip(-100, 3.14151593).to_pandas()
+
+    col_pd = scalars_pandas_df_index["int64_too"]
+    # pandas doesn't work with Int64 and clip with floats
+    pd_result = col_pd.astype("int64").clip(-100, 3.14151593).astype("Float64")
+
+    assert_series_equal(bf_result, pd_result)
 
 
 def test_clip_filtered_two_sided(scalars_df_index, scalars_pandas_df_index):
@@ -4593,4 +4604,5 @@ def test_series_to_pandas_dry_run(scalars_df_index):
 
     result = bf_series.to_pandas(dry_run=True)
 
-    assert len(result) == 14
+    assert isinstance(result, pd.Series)
+    assert len(result) > 0

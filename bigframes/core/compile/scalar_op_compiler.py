@@ -1356,6 +1356,19 @@ def json_extract_string_array_op_impl(
     return json_extract_string_array(json_obj=x, json_path=op.json_path)
 
 
+@scalar_op_compiler.register_unary_op(ops.JSONQuery, pass_op=True)
+def json_query_op_impl(x: ibis_types.Value, op: ops.JSONQuery):
+    # Define a user-defined function whose returned type is dynamically matching the input.
+    def json_query(json_or_json_string, json_path: ibis_dtypes.str):  # type: ignore
+        """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
+        ...
+
+    return_type = x.type()
+    json_query.__annotations__["return"] = return_type
+    json_query_op = ibis_udf.scalar.builtin(json_query)
+    return json_query_op(json_or_json_string=x, json_path=op.json_path)
+
+
 @scalar_op_compiler.register_unary_op(ops.ParseJSON, pass_op=True)
 def parse_json_op_impl(x: ibis_types.Value, op: ops.ParseJSON):
     return parse_json(json_str=x)
@@ -1935,34 +1948,18 @@ def clip_op(
     if isinstance(lower, ibis_types.NullScalar) and (
         not isinstance(upper, ibis_types.NullScalar)
     ):
-        return (
-            ibis_api.case()  # type: ignore
-            .when(upper.isnull() | (original > upper), upper)
-            .else_(original)
-            .end()
-        )
+        return ibis_api.least(original, upper)
     elif (not isinstance(lower, ibis_types.NullScalar)) and isinstance(
         upper, ibis_types.NullScalar
     ):
-        return (
-            ibis_api.case()  # type: ignore
-            .when(lower.isnull() | (original < lower), lower)
-            .else_(original)
-            .end()
-        )
+        return ibis_api.greatest(original, lower)
     elif isinstance(lower, ibis_types.NullScalar) and (
         isinstance(upper, ibis_types.NullScalar)
     ):
         return original
     else:
         # Note: Pandas has unchanged behavior when upper bound and lower bound are flipped. This implementation requires that lower_bound < upper_bound
-        return (
-            ibis_api.case()  # type: ignore
-            .when(lower.isnull() | (original < lower), lower)
-            .when(upper.isnull() | (original > upper), upper)
-            .else_(original)
-            .end()
-        )
+        return ibis_api.greatest(ibis_api.least(original, upper), lower)
 
 
 # N-ary Operations
