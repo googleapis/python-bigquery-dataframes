@@ -15,10 +15,11 @@
 
 def test_type_system_examples() -> None:
     # [START bigquery_dataframes_type_sytem_local_type_conversion]
-    import bigframes.pandas as bpd
     import pandas as pd
 
-    s = pd.Series([pd.Timestamp('20250101')])
+    import bigframes.pandas as bpd
+
+    s = pd.Series([pd.Timestamp("20250101")])
     print(s.dtype)
     # datetime64[ns]
     print(bpd.read_pandas(s).dtype)
@@ -26,9 +27,11 @@ def test_type_system_examples() -> None:
     # [END bigquery_dataframes_type_sytem_local_type_conversion]
 
     # [START bigquery_dataframes_type_system_pyarrow_preference]
-    import bigframes.pandas as bpd
-    import pandas as pd
     import datetime
+
+    import pandas as pd
+
+    import bigframes.pandas as bpd
 
     s = pd.Series([datetime.date(2025, 1, 1)])
     s + pd.Timedelta(hours=12)
@@ -41,9 +44,10 @@ def test_type_system_examples() -> None:
     # [END bigquery_dataframes_type_system_pyarrow_preference]
 
     # [START bigquery_dataframes_type_system_simple_json]
-    import bigframes.pandas as bpd
     import db_dtypes
     import pandas as pd
+
+    import bigframes.pandas as bpd
 
     json_data = [
         "1",
@@ -64,10 +68,11 @@ def test_type_system_examples() -> None:
     # [END bigquery_dataframes_type_system_simple_json]
 
     # [START bigquery_dataframes_type_system_mixed_json]
-    import bigframes.pandas as bpd
     import db_dtypes
     import pandas as pd
     import pyarrow as pa
+
+    import bigframes.pandas as bpd
 
     list_data = [
         [{"key": "1"}],
@@ -90,10 +95,11 @@ def test_type_system_examples() -> None:
     # [END bigquery_dataframes_type_system_mixed_json]
 
     # [START bigquery_dataframes_type_system_load_timedelta]
-    import bigframes.pandas as bpd
     import pandas as pd
 
-    s = pd.Series([pd.Timedelta('1s'), pd.Timedelta('2m')])
+    import bigframes.pandas as bpd
+
+    s = pd.Series([pd.Timedelta("1s"), pd.Timedelta("2m")])
     bpd.read_pandas(s)
     # 0    0 days 00:00:01
     # 1    0 days 00:02:00
@@ -101,10 +107,11 @@ def test_type_system_examples() -> None:
     # [END bigquery_dataframes_type_system_load_timedelta]
 
     # [START bigquery_dataframes_type_system_timedelta_precision]
-    import bigframes.pandas as bpd
     import pandas as pd
 
-    s = pd.Series([pd.Timedelta('999ns')]).dt.round("us")
+    import bigframes.pandas as bpd
+
+    s = pd.Series([pd.Timedelta("999ns")]).dt.round("us")
     bpd.read_pandas(s)
     # 0    0 days 00:00:00.000001
     # dtype: duration[us][pyarrow]
@@ -113,7 +120,7 @@ def test_type_system_examples() -> None:
     # [START bigquery_dataframes_type_system_cast_timedelta]
     import bigframes.pandas as bpd
 
-    bpd.to_timedelta([1, 2, 3], unit='s')
+    bpd.to_timedelta([1, 2, 3], unit="s")
     # 0    0 days 00:00:01
     # 1    0 days 00:00:02
     # 2    0 days 00:00:03
@@ -144,13 +151,13 @@ def test_type_system_examples() -> None:
     import bigframes.pandas as bpd
 
     structs = [
-        {'id': 101, 'category': 'A'},
-        {'id': 102, 'category': 'B'},
-        {'id': 103, 'category': 'C'},
+        {"id": 101, "category": "A"},
+        {"id": 102, "category": "B"},
+        {"id": 103, "category": "C"},
     ]
     s = bpd.Series(structs)
     # Get the 'id' field of each struct
-    s.struct.field('id')
+    s.struct.field("id")
     # 0    101
     # 1    102
     # 2    103
@@ -161,9 +168,9 @@ def test_type_system_examples() -> None:
     import bigframes.pandas as bpd
 
     structs = [
-        {'id': 101, 'category': 'A'},
-        {'id': 102, 'category': 'B'},
-        {'id': 103, 'category': 'C'},
+        {"id": 101, "category": "A"},
+        {"id": 102, "category": "B"},
+        {"id": 103, "category": "C"},
     ]
     s = bpd.Series(structs)
 
@@ -203,8 +210,9 @@ def test_type_system_examples() -> None:
     # [END bigquery_dataframes_type_system_string_accessor]
 
     # [START bigquery_dataframes_type_system_geo_accessor]
-    import bigframes.pandas as bpd
     from shapely.geometry import Point
+
+    import bigframes.pandas as bpd
 
     s = bpd.Series([Point(1, 0), Point(2, 1)])  # dtype: geometry
 
@@ -215,11 +223,12 @@ def test_type_system_examples() -> None:
     # [END bigquery_dataframes_type_system_geo_accessor]
 
     # [START bigquery_dataframes_type_system_json_query]
-    import bigframes.pandas as bpd
-    import bigframes.bigquery as bbq
     import db_dtypes
     import pandas as pd
     import pyarrow as pa
+
+    import bigframes.bigquery as bbq
+    import bigframes.pandas as bpd
 
     fruits = [
         '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
@@ -234,11 +243,12 @@ def test_type_system_examples() -> None:
     # [END bigquery_dataframes_type_system_json_query]
 
     # [START bigquery_dataframes_type_system_json_query]
-    import bigframes.pandas as bpd
-    import bigframes.bigquery as bbq
     import db_dtypes
     import pandas as pd
     import pyarrow as pa
+
+    import bigframes.bigquery as bbq
+    import bigframes.pandas as bpd
 
     fruits = [
         '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
@@ -253,11 +263,12 @@ def test_type_system_examples() -> None:
     # [END bigquery_dataframes_type_system_json_query]
 
     # [START bigquery_dataframes_type_system_json_extract_array]
-    import bigframes.pandas as bpd
-    import bigframes.bigquery as bbq
     import db_dtypes
     import pandas as pd
     import pyarrow as pa
+
+    import bigframes.bigquery as bbq
+    import bigframes.pandas as bpd
 
     fruits = [
         '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
