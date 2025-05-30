@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import re
-from typing import cast, Literal, Optional, Union
+from typing import Literal, Optional, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.strings.accessor as vendorstr
@@ -91,8 +91,10 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
     ) -> series.Series:
         return self._apply_unary_op(ops.StrSliceOp(start=start, end=stop))
 
-    def strip(self) -> series.Series:
-        return self._apply_unary_op(ops.strip_op)
+    def strip(self, to_strip: Optional[str] = None) -> series.Series:
+        return self._apply_unary_op(
+            ops.StrStripOp(to_strip=" \n\t" if to_strip is None else to_strip)
+        )
 
     def upper(self) -> series.Series:
         return self._apply_unary_op(ops.upper_op)
@@ -135,11 +137,15 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
     ) -> series.Series:
         return self._apply_unary_op(ops.isupper_op)
 
-    def rstrip(self) -> series.Series:
-        return self._apply_unary_op(ops.rstrip_op)
+    def rstrip(self, to_strip: Optional[str] = None) -> series.Series:
+        return self._apply_unary_op(
+            ops.StrRstripOp(to_strip=" \n\t" if to_strip is None else to_strip)
+        )
 
-    def lstrip(self) -> series.Series:
-        return self._apply_unary_op(ops.lstrip_op)
+    def lstrip(self, to_strip: Optional[str] = None) -> series.Series:
+        return self._apply_unary_op(
+            ops.StrLstripOp(to_strip=" \n\t" if to_strip is None else to_strip)
+        )
 
     def repeat(self, repeats: int) -> series.Series:
         return self._apply_unary_op(ops.StrRepeatOp(repeats=repeats))
@@ -224,21 +230,26 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         flags: int = 0,
         regex: bool = False,
     ) -> series.Series:
-        is_compiled = isinstance(pat, re.Pattern)
-        patstr = cast(str, pat.pattern if is_compiled else pat)  # type: ignore
+        if isinstance(pat, re.Pattern):
+            assert isinstance(pat.pattern, str)
+            pat_str = pat.pattern
+            flags = pat.flags | flags
+        else:
+            pat_str = pat
+
         if case is False:
-            return self.replace(pat, repl, flags=flags | re.IGNORECASE, regex=True)
+            return self.replace(pat_str, repl, flags=flags | re.IGNORECASE, regex=True)
         if regex:
             re2flags = _parse_flags(flags)
             if re2flags:
-                patstr = re2flags + patstr
-            return self._apply_unary_op(ops.RegexReplaceStrOp(pat=patstr, repl=repl))
+                pat_str = re2flags + pat_str
+            return self._apply_unary_op(ops.RegexReplaceStrOp(pat=pat_str, repl=repl))
         else:
-            if is_compiled:
+            if isinstance(pat, re.Pattern):
                 raise ValueError(
                     "Must set 'regex'=True if using compiled regex pattern."
                 )
-            return self._apply_unary_op(ops.ReplaceStrOp(pat=patstr, repl=repl))
+            return self._apply_unary_op(ops.ReplaceStrOp(pat=pat_str, repl=repl))
 
     def startswith(
         self,
@@ -288,7 +299,10 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         """Create a BigFrames Blob series from a series of URIs.
 
         .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+            BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+            Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+            and might have limited support. For more information, see the launch stage descriptions
+            (https://cloud.google.com/products#product-launch-stages).
 
 
         Args:
@@ -301,22 +315,22 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
             bigframes.series.Series: Blob Series.
 
         """
-        if not bigframes.options.experiments.blob:
-            raise NotImplementedError()
-
         session = self._block.session
-        connection = session._create_bq_connection(
-            connection=connection, iam_role="storage.objectUser"
-        )
+        connection = session._create_bq_connection(connection=connection)
         return self._apply_binary_op(connection, ops.obj_make_ref_op)
 
 
 def _parse_flags(flags: int) -> Optional[str]:
     re2flags = []
     for reflag, re2flag in REGEXP_FLAGS.items():
-        if flags & flags:
+        if flags & reflag:
             re2flags.append(re2flag)
             flags = flags ^ reflag
+
+    # re2 handles unicode fine by default
+    # most compiled re in python will have unicode set
+    if re.U and flags:
+        flags = flags ^ re.U
 
     # Remaining flags couldn't be mapped to re2 engine
     if flags:

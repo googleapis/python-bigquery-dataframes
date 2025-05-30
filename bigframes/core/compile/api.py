@@ -13,39 +13,13 @@
 # limitations under the License.
 from __future__ import annotations
 
-from typing import Optional, Sequence, Tuple, TYPE_CHECKING
-
-import google.cloud.bigquery as bigquery
+from typing import TYPE_CHECKING
 
 from bigframes.core import rewrite
 from bigframes.core.compile import compiler
 
 if TYPE_CHECKING:
     import bigframes.core.nodes
-    import bigframes.core.ordering
-    import bigframes.core.schema
-
-
-class SQLCompiler:
-    def compile(
-        self,
-        node: bigframes.core.nodes.BigFrameNode,
-        *,
-        ordered: bool = True,
-        limit: Optional[int] = None,
-    ) -> str:
-        """Compile node into sql where rows are sorted with ORDER BY."""
-        # If we are ordering the query anyways, compiling the slice as a limit is probably a good idea.
-        return compiler.compile_sql(node, ordered=ordered, limit=limit)
-
-    def compile_raw(
-        self,
-        node: bigframes.core.nodes.BigFrameNode,
-    ) -> Tuple[
-        str, Sequence[bigquery.SchemaField], bigframes.core.ordering.RowOrdering
-    ]:
-        """Compile node into sql that exposes all columns, including hidden ordering-only columns."""
-        return compiler.compile_raw(node)
 
 
 def test_only_ibis_inferred_schema(node: bigframes.core.nodes.BigFrameNode):
@@ -53,7 +27,7 @@ def test_only_ibis_inferred_schema(node: bigframes.core.nodes.BigFrameNode):
     import bigframes.core.schema
 
     node = compiler._replace_unsupported_ops(node)
-    node, _ = rewrite.pull_up_order(node, order_root=False)
+    node = rewrite.bake_order(node)
     ir = compiler.compile_node(node)
     items = tuple(
         bigframes.core.schema.SchemaItem(name, ir.get_column_type(ibis_id))

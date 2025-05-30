@@ -19,11 +19,8 @@ from __future__ import annotations
 from typing import Literal, Optional
 import warnings
 
-import google.api_core.exceptions
 import google.auth.credentials
-import jellyfish
 
-import bigframes.constants
 import bigframes.enums
 import bigframes.exceptions as bfe
 
@@ -37,6 +34,7 @@ UNKNOWN_LOCATION_MESSAGE = "The location '{location}' is set to an unknown value
 
 
 def _get_validated_location(value: Optional[str]) -> Optional[str]:
+    import bigframes._tools.strings
 
     if value is None or value in bigframes.constants.ALL_BIGQUERY_LOCATIONS:
         return value
@@ -53,7 +51,7 @@ def _get_validated_location(value: Optional[str]) -> Optional[str]:
 
     possibility = min(
         bigframes.constants.ALL_BIGQUERY_LOCATIONS,
-        key=lambda item: jellyfish.levenshtein_distance(location, item),
+        key=lambda item: bigframes._tools.strings.levenshtein_distance(location, item),
     )
     # There are many layers before we get to (possibly) the user's code:
     # -> bpd.options.bigquery.location = "us-central-1"
@@ -89,7 +87,7 @@ class BigQueryOptions:
         kms_key_name: Optional[str] = None,
         skip_bq_connection_check: bool = False,
         *,
-        allow_large_results: bool = True,
+        allow_large_results: bool = False,
         ordering_mode: Literal["strict", "partial"] = "strict",
         client_endpoints_override: Optional[dict] = None,
     ):
@@ -239,26 +237,40 @@ class BigQueryOptions:
     @property
     def allow_large_results(self) -> bool:
         """
-        Sets the flag to allow or disallow query results larger than 10 GB.
+        DEPRECATED: Checks the legacy global setting for allowing large results.
+        Use ``bpd.options.compute.allow_large_results`` instead.
 
-        The default setting for this flag is True, which allows queries to return results
-        exceeding 10 GB by creating an explicit destination table. If set to False, it
-        restricts the result size to 10 GB, and BigQuery will raise an error if this limit
-        is exceeded.
+        Warning: Accessing ``bpd.options.bigquery.allow_large_results`` is deprecated
+        and this property will be removed in a future version. The configuration for
+        handling large results has moved.
 
         Returns:
-            bool: True if large results are allowed with an explicit destination table,
-            False if results are limited to 10 GB and errors are raised when exceeded.
+            bool: The value of the deprecated setting.
         """
         return self._allow_large_results
 
     @allow_large_results.setter
     def allow_large_results(self, value: bool):
+        warnings.warn(
+            "Setting `bpd.options.bigquery.allow_large_results` is deprecated, "
+            "and will be removed in the future. "
+            "Please use `bpd.options.compute.allow_large_results = <value>` instead. "
+            "The `bpd.options.bigquery.allow_large_results` option is ignored if "
+            "`bpd.options.compute.allow_large_results` is set.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        if self._session_started and self._allow_large_results != value:
+            raise ValueError(
+                SESSION_STARTED_MESSAGE.format(attribute="allow_large_results")
+            )
+
         self._allow_large_results = value
 
     @property
     def use_regional_endpoints(self) -> bool:
-        """Flag to connect to regional API endpoints.
+        """Flag to connect to regional API endpoints for BigQuery API and
+        BigQuery Storage API.
 
         .. note::
             Use of regional endpoints is a feature in Preview and available only
@@ -267,18 +279,16 @@ class BigQueryOptions:
             "us-east5", "us-east7", "us-south1", "us-west1", "us-west2", "us-west3"
             and "us-west4".
 
-        .. deprecated:: 0.13.0
-            Use of locational endpoints is available only in selected projects.
-
-        Requires that ``location`` is set. For supported regions, for example
-        ``europe-west3``, you need to specify ``location='europe-west3'`` and
-        ``use_regional_endpoints=True``, and then BigQuery DataFrames would
-        connect to the BigQuery endpoint ``bigquery.europe-west3.rep.googleapis.com``.
-        For not supported regions, for example ``asia-northeast1``, when you
-        specify ``location='asia-northeast1'`` and ``use_regional_endpoints=True``,
-        a different endpoint (called locational endpoint, now deprecated, used
-        to provide weaker promise on the request remaining within the location
-        during transit) ``europe-west3-bigquery.googleapis.com`` would be used.
+        Requires that ``location`` is set. For [supported regions](https://cloud.google.com/bigquery/docs/regional-endpoints),
+        for example ``europe-west3``, you need to specify
+        ``location='europe-west3'`` and ``use_regional_endpoints=True``, and
+        then BigQuery DataFrames would connect to the BigQuery endpoint
+        ``bigquery.europe-west3.rep.googleapis.com``. For not supported regions,
+        for example ``asia-northeast1``, when you specify
+        ``location='asia-northeast1'`` and ``use_regional_endpoints=True``,
+        the global endpoint ``bigquery.googleapis.com`` would be used, which
+        does not promise any guarantee on the request remaining within the
+        location during transit.
 
         Returns:
             bool:

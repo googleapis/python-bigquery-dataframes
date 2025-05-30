@@ -34,8 +34,27 @@ year_op = base_ops.create_unary_op(
     type_signature=op_typing.DATELIKE_ACCESSOR,
 )
 
+iso_day_op = base_ops.create_unary_op(
+    name="iso_day", type_signature=op_typing.DATELIKE_ACCESSOR
+)
+
+iso_week_op = base_ops.create_unary_op(
+    name="iso_weeek",
+    type_signature=op_typing.DATELIKE_ACCESSOR,
+)
+
+iso_year_op = base_ops.create_unary_op(
+    name="iso_year",
+    type_signature=op_typing.DATELIKE_ACCESSOR,
+)
+
 dayofweek_op = base_ops.create_unary_op(
     name="dayofweek",
+    type_signature=op_typing.DATELIKE_ACCESSOR,
+)
+
+dayofyear_op = base_ops.create_unary_op(
+    name="dayofyear",
     type_signature=op_typing.DATELIKE_ACCESSOR,
 )
 

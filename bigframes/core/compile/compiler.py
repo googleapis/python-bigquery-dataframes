@@ -13,80 +13,83 @@
 # limitations under the License.
 from __future__ import annotations
 
+import dataclasses
 import functools
-import io
 import typing
+from typing import cast, Optional
 
 import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery
 import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.types as ibis_types
-import google.cloud.bigquery
-import pandas as pd
+import pyarrow as pa
 
 from bigframes import dtypes, operations
-from bigframes.core import utils
+from bigframes.core import expression
 import bigframes.core.compile.compiled as compiled
 import bigframes.core.compile.concat as concat_impl
+import bigframes.core.compile.configs as configs
 import bigframes.core.compile.explode
-import bigframes.core.compile.ibis_types
 import bigframes.core.compile.scalar_op_compiler as compile_scalar
-import bigframes.core.compile.schema_translator
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as bf_ordering
 import bigframes.core.rewrite as rewrites
 
 if typing.TYPE_CHECKING:
     import bigframes.core
-    import bigframes.session
 
 
-def compile_sql(
-    node: nodes.BigFrameNode,
-    ordered: bool,
-    limit: typing.Optional[int] = None,
-) -> str:
-    # later steps might add ids, so snapshot before those steps.
-    output_ids = node.schema.names
-    if ordered:
-        # Need to do this before replacing unsupported ops, as that will rewrite slice ops
-        node, pulled_up_limit = rewrites.pullup_limit_from_slice(node)
-        if (pulled_up_limit is not None) and (
-            (limit is None) or limit > pulled_up_limit
-        ):
-            limit = pulled_up_limit
-
-    node = _replace_unsupported_ops(node)
-    # prune before pulling up order to avoid unnnecessary row_number() ops
-    node = rewrites.column_pruning(node)
-    node, ordering = rewrites.pull_up_order(node, order_root=ordered)
-    # final pruning to cleanup up any leftovers unused values
-    node = rewrites.column_pruning(node)
-    return compile_node(node).to_sql(
-        order_by=ordering.all_ordering_columns if ordered else (),
-        limit=limit,
-        selections=output_ids,
+def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
+    output_names = tuple((expression.DerefOp(id), id.sql) for id in request.node.ids)
+    result_node = nodes.ResultNode(
+        request.node,
+        output_cols=output_names,
+        limit=request.peek_count,
     )
+    if request.sort_rows:
+        # Can only pullup slice if we are doing ORDER BY in outermost SELECT
+        # Need to do this before replacing unsupported ops, as that will rewrite slice ops
+        result_node = rewrites.pull_up_limits(result_node)
+    result_node = _replace_unsupported_ops(result_node)
+    # prune before pulling up order to avoid unnnecessary row_number() ops
+    result_node = cast(nodes.ResultNode, rewrites.column_pruning(result_node))
+    result_node = rewrites.defer_order(
+        result_node, output_hidden_row_keys=request.materialize_all_order_keys
+    )
+    if request.sort_rows:
+        result_node = cast(nodes.ResultNode, rewrites.column_pruning(result_node))
+        sql = compile_result_node(result_node)
+        return configs.CompileResult(
+            sql, result_node.schema.to_bigquery(), result_node.order_by
+        )
 
-
-def compile_raw(
-    node: nodes.BigFrameNode,
-) -> typing.Tuple[
-    str, typing.Sequence[google.cloud.bigquery.SchemaField], bf_ordering.RowOrdering
-]:
-    node = _replace_unsupported_ops(node)
-    node = rewrites.column_pruning(node)
-    node, ordering = rewrites.pull_up_order(node, order_root=True)
-    node = rewrites.column_pruning(node)
-    sql = compile_node(node).to_sql()
-    return sql, node.schema.to_bigquery(), ordering
+    ordering: Optional[bf_ordering.RowOrdering] = result_node.order_by
+    result_node = dataclasses.replace(result_node, order_by=None)
+    result_node = cast(nodes.ResultNode, rewrites.column_pruning(result_node))
+    sql = compile_result_node(result_node)
+    # Return the ordering iff no extra columns are needed to define the row order
+    if ordering is not None:
+        output_order = (
+            ordering if ordering.referenced_columns.issubset(result_node.ids) else None
+        )
+    assert (not request.materialize_all_order_keys) or (output_order is not None)
+    return configs.CompileResult(sql, result_node.schema.to_bigquery(), output_order)
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
     # TODO: Run all replacement rules as single bottom-up pass
     node = nodes.bottom_up(node, rewrites.rewrite_slice)
     node = nodes.bottom_up(node, rewrites.rewrite_timedelta_expressions)
+    node = nodes.bottom_up(node, rewrites.rewrite_range_rolling)
     return node
+
+
+def compile_result_node(root: nodes.ResultNode) -> str:
+    return compile_node(root.child).to_sql(
+        order_by=root.order_by.all_ordering_columns if root.order_by else (),
+        limit=root.limit,
+        selections=root.output_cols,
+    )
 
 
 # TODO: Remove cache when schema no longer requires compilation to derive schema (and therefor only compiles for execution)
@@ -161,18 +164,18 @@ def compile_fromrange(
 
 @_compile_node.register
 def compile_readlocal(node: nodes.ReadLocalNode, *args):
-    array_as_pd = pd.read_feather(
-        io.BytesIO(node.feather_bytes),
-        columns=[item.source_id for item in node.scan_list.items],
-    )
-
-    # Convert timedeltas to microseconds for compatibility with BigQuery
-    _ = utils.replace_timedeltas_with_micros(array_as_pd)
-
     offsets = node.offsets_col.sql if node.offsets_col else None
-    return compiled.UnorderedIR.from_pandas(
-        array_as_pd, node.scan_list, offsets=offsets
-    )
+    pa_table = node.local_data_source.data
+    bq_schema = node.schema.to_bigquery()
+
+    pa_table = pa_table.select([item.source_id for item in node.scan_list.items])
+    pa_table = pa_table.rename_columns([item.id.sql for item in node.scan_list.items])
+
+    if offsets:
+        pa_table = pa_table.append_column(
+            offsets, pa.array(range(pa_table.num_rows), type=pa.int64())
+        )
+    return compiled.UnorderedIR.from_polars(pa_table, bq_schema)
 
 
 @_compile_node.register
@@ -247,11 +250,6 @@ def compile_projection(node: nodes.ProjectionNode, child: compiled.UnorderedIR):
 def compile_concat(node: nodes.ConcatNode, *children: compiled.UnorderedIR):
     output_ids = [id.sql for id in node.output_ids]
     return concat_impl.concat_unordered(children, output_ids)
-
-
-@_compile_node.register
-def compile_rowcount(node: nodes.RowCountNode, child: compiled.UnorderedIR):
-    return child.row_count(name=node.col_id.sql)
 
 
 @_compile_node.register

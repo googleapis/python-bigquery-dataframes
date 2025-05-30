@@ -47,6 +47,11 @@ WRITE_ENGINE_REQUIRES_BIGQUERY_ENGINE_TEMPLATE = (
 )
 
 WriteEngineType = Literal[
-    "default", "bigquery_inline", "bigquery_load", "bigquery_streaming"
+    "default",
+    "bigquery_inline",
+    "bigquery_load",
+    "bigquery_streaming",
+    "bigquery_write",
+    "_deferred",
 ]
 VALID_WRITE_ENGINES = typing.get_args(WriteEngineType)

@@ -27,12 +27,19 @@ from bigframes.bigquery._operations.datetime import (
     unix_millis,
     unix_seconds,
 )
-from bigframes.bigquery._operations.geo import st_area
+from bigframes.bigquery._operations.geo import (
+    st_area,
+    st_difference,
+    st_distance,
+    st_intersection,
+)
 from bigframes.bigquery._operations.json import (
     json_extract,
     json_extract_array,
     json_extract_string_array,
+    json_query,
     json_set,
+    json_value,
     parse_json,
 )
 from bigframes.bigquery._operations.search import create_vector_index, vector_search
@@ -48,11 +55,16 @@ __all__ = [
     "array_to_string",
     # geo ops
     "st_area",
+    "st_difference",
+    "st_distance",
+    "st_intersection",
     # json ops
-    "json_set",
     "json_extract",
     "json_extract_array",
     "json_extract_string_array",
+    "json_query",
+    "json_set",
+    "json_value",
     "parse_json",
     # search ops
     "create_vector_index",

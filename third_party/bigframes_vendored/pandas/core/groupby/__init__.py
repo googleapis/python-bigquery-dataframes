@@ -1025,15 +1025,36 @@ class GroupBy:
             dtype: Int64
 
         Args:
+            window (int, pandas.Timedelta, numpy.timedelta64, datetime.timedelta, str):
+                Size of the moving window.
+
+                If an integer, the fixed number of observations used for
+                each window.
+
+                If a string, the timedelta representation in string. This string
+                must be parsable by pandas.Timedelta().
+
+                Otherwise, the time range for each window.
+
             min_periods (int, default None):
                 Minimum number of observations in window required to have a value;
                 otherwise, result is ``np.nan``.
 
-                For a window that is specified by an offset,
-                ``min_periods`` will default to 1.
-
                 For a window that is specified by an integer, ``min_periods`` will default
                 to the size of the window.
+
+                For a window that is not spicified by an interger, ``min_periods`` will default
+                to 1.
+
+            on (str, optional):
+                For a DataFrame, a column label on which to calculate the rolling window,
+                rather than the DataFrame’s index.
+
+            closed (str, default 'right'):
+                If 'right', the first point in the window is excluded from calculations.
+                If 'left', the last point in the window is excluded from calculations.
+                If 'both', the no points in the window are excluded from calculations.
+                If 'neither', the first and last points in the window are excluded from calculations.
 
         Returns:
             bigframes.pandas.DataFrame or bigframes.pandas.Series:

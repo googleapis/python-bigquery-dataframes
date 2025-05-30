@@ -17,6 +17,7 @@ from bigframes_vendored import constants
 import bigframes_vendored.pandas.core.generic as generic
 import numpy as np
 import pandas as pd
+from pandas.api import extensions as pd_ext
 
 # -----------------------------------------------------------------------
 # DataFrame class
@@ -369,7 +370,7 @@ class DataFrame(generic.NDFrame):
         self,
         dtype=None,
         copy=False,
-        na_value=None,
+        na_value=pd_ext.no_default,
         *,
         allow_large_results=None,
         **kwargs,
@@ -2213,10 +2214,11 @@ class DataFrame(generic.NDFrame):
         self,
         by: str | Sequence[str],
         *,
+        inplace: bool = False,
         ascending: bool | Sequence[bool] = True,
         kind: str = "quicksort",
-        na_position="last",
-    ) -> DataFrame:
+        na_position: Literal["first", "last"] = "last",
+    ):
         """Sort by the values along row axis.
 
         **Examples:**
@@ -2300,6 +2302,8 @@ class DataFrame(generic.NDFrame):
                 Sort ascending vs. descending. Specify list for multiple sort
                 orders.  If this is a list of bools, must match the length of
                 the by.
+            inplace (bool, default False):
+                If True, perform operation in-place.
             kind (str, default 'quicksort'):
                 Choice of sorting algorithm. Accepts 'quicksort', 'mergesort',
                 'heapsort', 'stable'. Ignored except when determining whether to
@@ -2309,8 +2313,8 @@ class DataFrame(generic.NDFrame):
              if `first`; `last` puts NaNs at the end.
 
         Returns:
-            bigframes.pandas.DataFrame:
-                DataFrame with sorted values.
+            bigframes.pandas.DataFram or None:
+                DataFrame with sorted values or None if inplace=True.
 
         Raises:
             ValueError:
@@ -2320,12 +2324,25 @@ class DataFrame(generic.NDFrame):
 
     def sort_index(
         self,
-    ) -> DataFrame:
+        *,
+        ascending: bool = True,
+        inplace: bool = False,
+        na_position: Literal["first", "last"] = "last",
+    ):
         """Sort object by labels (along an axis).
+
+        Args:
+            ascending (bool, default True)
+                Sort ascending vs. descending.
+            inplace (bool, default False):
+                Whether to modify the DataFrame rather than creating a new one.
+            na_position ({'first', 'last'}, default 'last'):
+                Puts NaNs at the beginning if `first`; `last` puts NaNs at the end.
+                Not implemented for MultiIndex.
 
         Returns:
             bigframes.pandas.DataFrame:
-                The original DataFrame sorted by the labels.
+                DataFrame with sorted values or None if inplace=True.
 
         Raises:
             ValueError:
@@ -4433,7 +4450,7 @@ class DataFrame(generic.NDFrame):
         to potentially reuse a previously deployed ``remote_function`` from
         the same user defined function.
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def minutes_to_hours(x: int) -> float:
             ...     return x/60
 
@@ -4772,6 +4789,83 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def round(self, decimals):
+        """
+        Round a DataFrame to a variable number of decimal places.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame([(.21, .32), (.01, .67), (.66, .03), (.21, .18)],
+            ...                   columns=['dogs', 'cats'])
+            >>> df
+               dogs  cats
+            0  0.21  0.32
+            1  0.01  0.67
+            2  0.66  0.03
+            3  0.21  0.18
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+            By providing an integer each column is rounded to the same number
+            of decimal places
+
+            >>> df.round(1)
+                dogs  cats
+            0   0.2   0.3
+            1   0.0   0.7
+            2   0.7   0.0
+            3   0.2   0.2
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+            With a dict, the number of places for specific columns can be
+            specified with the column names as key and the number of decimal
+            places as value
+
+            >>> df.round({'dogs': 1, 'cats': 0})
+                dogs  cats
+            0   0.2   0.0
+            1   0.0   1.0
+            2   0.7   0.0
+            3   0.2   0.0
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+            Using a Series, the number of places for specific columns can be
+            specified with the column names as index and the number of
+            decimal places as value
+
+            >>> decimals = pd.Series([0, 1], index=['cats', 'dogs'])
+            >>> df.round(decimals)
+                dogs  cats
+            0   0.2   0.0
+            1   0.0   1.0
+            2   0.7   0.0
+            3   0.2   0.0
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+        Args:
+            decimals (int, dict, Series):
+                Number of decimal places to round each column to. If an int is
+                given, round each column to the same number of places.
+                Otherwise dict and Series round to variable numbers of places.
+                Column names should be in the keys if `decimals` is a
+                dict-like, or in the index if `decimals` is a Series. Any
+                columns not included in `decimals` will be left as is. Elements
+                of `decimals` which are not columns of the input will be
+                ignored.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                A DataFrame with the affected columns rounded to the specified
+                number of decimal places.
+
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def apply(self, func, *, axis=0, args=(), **kwargs):
         """Apply a function along an axis of the DataFrame.
 
@@ -4813,7 +4907,7 @@ class DataFrame(generic.NDFrame):
         to select only the necessary columns before calling `apply()`. Note: This
         feature is currently in **preview**.
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def foo(row: pd.Series) -> int:
             ...     result = 1
             ...     result += row["col1"]
@@ -4828,7 +4922,7 @@ class DataFrame(generic.NDFrame):
         You could return an array output for every input row from the remote
         function.
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def marks_analyzer(marks: pd.Series) -> list[float]:
             ...     import statistics
             ...     average = marks.mean()
@@ -4869,7 +4963,7 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [2 rows x 3 columns]
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def foo(x: int, y: int, z: int) -> float:
             ...     result = 1
             ...     result += x

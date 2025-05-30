@@ -16,9 +16,10 @@ from __future__ import annotations
 import dataclasses
 import functools
 import itertools
-from typing import cast, Sequence, Tuple, TYPE_CHECKING
+from typing import cast, Optional, Sequence, Tuple, TYPE_CHECKING
 
 import bigframes.core
+from bigframes.core import window_spec
 import bigframes.core.expression as ex
 import bigframes.core.guid as guid
 import bigframes.core.nodes as nodes
@@ -204,11 +205,10 @@ class PolarsCompiler:
         cols_to_read = {
             scan_item.source_id: scan_item.id.sql for scan_item in node.scan_list.items
         }
-        return (
-            pl.read_ipc(node.feather_bytes, columns=list(cols_to_read.keys()))
-            .lazy()
-            .rename(cols_to_read)
-        )
+        lazy_frame = cast(
+            pl.DataFrame, pl.from_arrow(node.local_data_source.data)
+        ).lazy()
+        return lazy_frame.select(cols_to_read.keys()).rename(cols_to_read)
 
     @compile_node.register
     def compile_filter(self, node: nodes.FilterNode):
@@ -251,11 +251,6 @@ class PolarsCompiler:
             for ex, name in node.assignments
         ]
         return self.compile_node(node.child).with_columns(new_cols)
-
-    @compile_node.register
-    def compile_rowcount(self, node: nodes.RowCountNode):
-        df = cast(pl.LazyFrame, self.compile_node(node.child))
-        return df.select(pl.len().alias(node.col_id.sql))
 
     @compile_node.register
     def compile_offsets(self, node: nodes.PromoteOffsetsNode):
@@ -359,6 +354,7 @@ class PolarsCompiler:
             return df.with_columns([agg_expr])
 
         else:  # row-bounded window
+            assert isinstance(window.bounds, window_spec.RowsWindowBounds)
             # Polars API semi-bounded, and any grouped rolling window challenging
             # https://github.com/pola-rs/polars/issues/4799
             # https://github.com/pola-rs/polars/issues/8976
@@ -366,23 +362,8 @@ class PolarsCompiler:
             indexed_df = df.with_row_index(index_col_name)
             if len(window.grouping_keys) == 0:  # rolling-only window
                 # https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.rolling.html
-                finite = (
-                    window.bounds.preceding is not None
-                    and window.bounds.following is not None
-                )
-                offset_n = (
-                    None
-                    if window.bounds.preceding is None
-                    else -window.bounds.preceding
-                )
-                # collecting height is a massive kludge
-                period_n = (
-                    df.collect().height
-                    if not finite
-                    else cast(int, window.bounds.preceding)
-                    + cast(int, window.bounds.following)
-                    + 1
-                )
+                offset_n = window.bounds.start
+                period_n = _get_period(window.bounds) or df.collect().height
                 results = indexed_df.rolling(
                     index_column=index_col_name,
                     period=f"{period_n}i",
@@ -395,3 +376,12 @@ class PolarsCompiler:
             # polars is columnar, so this is efficient
             # TODO: why can't just add columns?
             return pl.concat([df, results], how="horizontal")
+
+
+def _get_period(bounds: window_spec.RowsWindowBounds) -> Optional[int]:
+    """Returns None if the boundary is infinite."""
+    if bounds.start is None or bounds.end is None:
+        return None
+
+    # collecting height is a massive kludge
+    return bounds.end - bounds.start + 1

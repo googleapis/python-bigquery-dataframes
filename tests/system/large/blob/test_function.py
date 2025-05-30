@@ -51,14 +51,36 @@ def images_output_uris(images_output_folder: str) -> list[str]:
     ]
 
 
+def test_blob_exif(
+    bq_connection: str,
+    session: bigframes.Session,
+):
+    exif_image_df = session.from_glob_path(
+        "gs://bigframes_blob_test/images_exif/*",
+        name="blob_col",
+        connection=bq_connection,
+    )
+
+    actual = exif_image_df["blob_col"].blob.exif(connection=bq_connection)
+    expected = bpd.Series(
+        ['{"ExifOffset": 47, "Make": "MyCamera"}'],
+        session=session,
+        dtype=dtypes.JSON_DTYPE,
+    )
+    pd.testing.assert_series_equal(
+        actual.to_pandas(),
+        expected.to_pandas(),
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
 def test_blob_image_blur_to_series(
     images_mm_df: bpd.DataFrame,
     bq_connection: str,
     images_output_uris: list[str],
     session: bigframes.Session,
 ):
-    bigframes.options.experiments.blob = True
-
     series = bpd.Series(images_output_uris, session=session).str.to_blob(
         connection=bq_connection
     )
@@ -91,8 +113,6 @@ def test_blob_image_blur_to_folder(
     images_output_folder: str,
     images_output_uris: list[str],
 ):
-    bigframes.options.experiments.blob = True
-
     actual = images_mm_df["blob_col"].blob.image_blur(
         (8, 8), dst=images_output_folder, connection=bq_connection
     )
@@ -116,8 +136,6 @@ def test_blob_image_blur_to_folder(
 
 
 def test_blob_image_blur_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str):
-    bigframes.options.experiments.blob = True
-
     actual = images_mm_df["blob_col"].blob.image_blur((8, 8), connection=bq_connection)
 
     assert isinstance(actual, bpd.Series)
@@ -131,8 +149,6 @@ def test_blob_image_resize_to_series(
     images_output_uris: list[str],
     session: bigframes.Session,
 ):
-    bigframes.options.experiments.blob = True
-
     series = bpd.Series(images_output_uris, session=session).str.to_blob(
         connection=bq_connection
     )
@@ -165,8 +181,6 @@ def test_blob_image_resize_to_folder(
     images_output_folder: str,
     images_output_uris: list[str],
 ):
-    bigframes.options.experiments.blob = True
-
     actual = images_mm_df["blob_col"].blob.image_resize(
         (200, 300), dst=images_output_folder, connection=bq_connection
     )
@@ -190,8 +204,6 @@ def test_blob_image_resize_to_folder(
 
 
 def test_blob_image_resize_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str):
-    bigframes.options.experiments.blob = True
-
     actual = images_mm_df["blob_col"].blob.image_resize(
         (200, 300), connection=bq_connection
     )
@@ -207,8 +219,6 @@ def test_blob_image_normalize_to_series(
     images_output_uris: list[str],
     session: bigframes.Session,
 ):
-    bigframes.options.experiments.blob = True
-
     series = bpd.Series(images_output_uris, session=session).str.to_blob(
         connection=bq_connection
     )
@@ -241,8 +251,6 @@ def test_blob_image_normalize_to_folder(
     images_output_folder: str,
     images_output_uris: list[str],
 ):
-    bigframes.options.experiments.blob = True
-
     actual = images_mm_df["blob_col"].blob.image_normalize(
         alpha=50.0,
         beta=150.0,
@@ -270,8 +278,6 @@ def test_blob_image_normalize_to_folder(
 
 
 def test_blob_image_normalize_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str):
-    bigframes.options.experiments.blob = True
-
     actual = images_mm_df["blob_col"].blob.image_normalize(
         alpha=50.0, beta=150.0, norm_type="minmax", connection=bq_connection
     )
@@ -279,3 +285,103 @@ def test_blob_image_normalize_to_bq(images_mm_df: bpd.DataFrame, bq_connection: 
     assert isinstance(actual, bpd.Series)
     assert len(actual) == 2
     assert actual.dtype == dtypes.BYTES_DTYPE
+
+
+@pytest.mark.parametrize(
+    "verbose, expected",
+    [
+        (
+            True,
+            pd.Series(
+                [
+                    {"status": "File has not been decrypted", "content": ""},
+                    {
+                        "status": "",
+                        "content": "Sample  PDF    This  is  a  testing  file.  Some  dummy  messages  are  used  for  testing  purposes.   ",
+                    },
+                ]
+            ),
+        ),
+        (
+            False,
+            pd.Series(
+                [
+                    "",
+                    "Sample  PDF    This  is  a  testing  file.  Some  dummy  messages  are  used  for  testing  purposes.   ",
+                ],
+                name="pdf",
+            ),
+        ),
+    ],
+)
+def test_blob_pdf_extract(
+    pdf_mm_df: bpd.DataFrame,
+    verbose: bool,
+    bq_connection: str,
+    expected: pd.Series,
+):
+    actual = (
+        pdf_mm_df["pdf"]
+        .blob.pdf_extract(connection=bq_connection, verbose=verbose)
+        .explode()
+        .to_pandas()
+    )
+
+    pd.testing.assert_series_equal(
+        actual,
+        expected,
+        check_dtype=False,
+        check_index=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "verbose, expected",
+    [
+        (
+            True,
+            pd.Series(
+                [
+                    {"status": "File has not been decrypted", "content": []},
+                    {
+                        "status": "",
+                        "content": [
+                            "Sample  PDF    This  is  a  testing  file.  Some ",
+                            "dummy  messages  are  used  for  testing ",
+                            "purposes.   ",
+                        ],
+                    },
+                ]
+            ),
+        ),
+        (
+            False,
+            pd.Series(
+                [
+                    pd.NA,
+                    "Sample  PDF    This  is  a  testing  file.  Some ",
+                    "dummy  messages  are  used  for  testing ",
+                    "purposes.   ",
+                ],
+            ),
+        ),
+    ],
+)
+def test_blob_pdf_chunk(
+    pdf_mm_df: bpd.DataFrame, verbose: bool, bq_connection: str, expected: pd.Series
+):
+    actual = (
+        pdf_mm_df["pdf"]
+        .blob.pdf_chunk(
+            connection=bq_connection, chunk_size=50, overlap_size=10, verbose=verbose
+        )
+        .explode()
+        .to_pandas()
+    )
+
+    pd.testing.assert_series_equal(
+        actual,
+        expected,
+        check_dtype=False,
+        check_index=False,
+    )

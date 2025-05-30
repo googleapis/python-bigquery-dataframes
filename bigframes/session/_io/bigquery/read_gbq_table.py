@@ -101,7 +101,16 @@ def validate_table(
     # Anonymous dataset, does not support snapshot ever
     if table.dataset_id.startswith("_"):
         pass
+
     # Only true tables support time travel
+    elif table.table_id.endswith("*"):
+        msg = bfe.format_message(
+            "Wildcard tables do not support FOR SYSTEM_TIME AS OF queries. "
+            "Attempting query without time travel. Be aware that "
+            "modifications to the underlying data may result in errors or "
+            "unexpected behavior."
+        )
+        warnings.warn(msg, category=bfe.TimeTravelDisabledWarning)
     elif table.table_type != "TABLE":
         if table.table_type == "MATERIALIZED_VIEW":
             msg = bfe.format_message(
@@ -137,7 +146,7 @@ def validate_table(
         sql_predicate=filter_str,
         time_travel_timestamp=None,
     )
-    # Any erorrs here should just be raised to user
+    # Any errors here should just be raised to user
     bqclient.query_and_wait(
         snapshot_sql, job_config=bigquery.QueryJobConfig(dry_run=True)
     )
@@ -156,7 +165,6 @@ def infer_unique_columns(
     bqclient: bigquery.Client,
     table: bigquery.table.Table,
     index_cols: List[str],
-    api_name: str,
     metadata_only: bool = False,
 ) -> Tuple[str, ...]:
     """Return a set of columns that can provide a unique row key or empty if none can be inferred.
@@ -178,7 +186,6 @@ def infer_unique_columns(
     # table_expression only selects just index_cols.
     is_unique_sql = bigframes.core.sql.is_distinct_sql(index_cols, table.reference)
     job_config = bigquery.QueryJobConfig()
-    job_config.labels["bigframes-api"] = api_name
     results = bqclient.query_and_wait(is_unique_sql, job_config=job_config)
     row = next(iter(results))
 
@@ -230,7 +237,13 @@ def _is_table_clustered_or_partitioned(
 
 def get_index_cols(
     table: bigquery.table.Table,
-    index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind,
+    index_col: Iterable[str]
+    | str
+    | Iterable[int]
+    | int
+    | bigframes.enums.DefaultIndexKind,
+    *,
+    names: Optional[Iterable[str]] = None,
 ) -> List[str]:
     """
     If we can get a total ordering from the table, such as via primary key
@@ -240,6 +253,16 @@ def get_index_cols(
 
     # Transform index_col -> index_cols so we have a variable that is
     # always a list of column names (possibly empty).
+    schema_len = len(table.schema)
+
+    # If the `names` is provided, the index_col provided by the user is the new
+    # name, so we need to rename it to the original name in the table schema.
+    renamed_schema: Optional[Dict[str, str]] = None
+    if names is not None:
+        assert len(list(names)) == schema_len
+        renamed_schema = {name: field.name for name, field in zip(names, table.schema)}
+
+    index_cols: List[str] = []
     if isinstance(index_col, bigframes.enums.DefaultIndexKind):
         if index_col == bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64:
             # User has explicity asked for a default, sequential index.
@@ -255,9 +278,39 @@ def get_index_cols(
                 f"Got unexpected index_col {repr(index_col)}. {constants.FEEDBACK_LINK}"
             )
     elif isinstance(index_col, str):
-        index_cols: List[str] = [index_col]
+        if renamed_schema is not None:
+            index_col = renamed_schema.get(index_col, index_col)
+        index_cols = [index_col]
+    elif isinstance(index_col, int):
+        if not 0 <= index_col < schema_len:
+            raise ValueError(
+                f"Integer index {index_col} is out of bounds "
+                f"for table with {schema_len} columns (must be >= 0 and < {schema_len})."
+            )
+        index_cols = [table.schema[index_col].name]
+    elif isinstance(index_col, Iterable):
+        for item in index_col:
+            if isinstance(item, str):
+                if renamed_schema is not None:
+                    item = renamed_schema.get(item, item)
+                index_cols.append(item)
+            elif isinstance(item, int):
+                if not 0 <= item < schema_len:
+                    raise ValueError(
+                        f"Integer index {item} is out of bounds "
+                        f"for table with {schema_len} columns (must be >= 0 and < {schema_len})."
+                    )
+                index_cols.append(table.schema[item].name)
+            else:
+                raise TypeError(
+                    "If index_col is an iterable, it must contain either strings "
+                    "(column names) or integers (column positions)."
+                )
     else:
-        index_cols = list(index_col)
+        raise TypeError(
+            f"Unsupported type for index_col: {type(index_col).__name__}. Expected"
+            "an integer, an string, an iterable of strings, or an iterable of integers."
+        )
 
     # If the isn't an index selected, use the primary keys of the table as the
     # index. If there are no primary keys, we'll return an empty list.

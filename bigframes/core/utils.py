@@ -21,10 +21,8 @@ import warnings
 import bigframes_vendored.pandas.io.common as vendored_pandas_io_common
 import numpy as np
 import pandas as pd
-import pandas.api.types as pdtypes
 import typing_extensions
 
-import bigframes.dtypes as dtypes
 import bigframes.exceptions as bfe
 
 UNNAMED_COLUMN_ID = "bigframes_unnamed_column"
@@ -43,8 +41,10 @@ def get_axis_number(axis: typing.Union[str, int]) -> typing.Literal[0, 1]:
     raise ValueError(f"Not a valid axis: {axis}")
 
 
-def is_list_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Sequence]:
-    return pd.api.types.is_list_like(obj)
+def is_list_like(
+    obj: typing.Any, allow_sets: bool = True
+) -> typing_extensions.TypeGuard[typing.Sequence]:
+    return pd.api.types.is_list_like(obj, allow_sets=allow_sets)
 
 
 def is_dict_like(obj: typing.Any) -> typing_extensions.TypeGuard[typing.Mapping]:
@@ -144,6 +144,29 @@ def label_to_identifier(label: typing.Hashable, strict: bool = False) -> str:
         identifier = re.sub(r"[^a-zA-Z0-9_]", "", identifier)
         if not identifier:
             identifier = "id"
+        elif identifier[0].isdigit():
+            # first character must be letter or underscore
+            identifier = "_" + identifier
+
+    # Except in special circumstances (true anonymous query results tables),
+    # field names are not allowed to start with these (case-insensitive)
+    # prefixes.
+    # _PARTITION, _TABLE_, _FILE_, _ROW_TIMESTAMP, __ROOT__ and _COLIDENTIFIER
+    if any(
+        identifier.casefold().startswith(invalid_prefix.casefold())
+        for invalid_prefix in (
+            "_PARTITION",
+            "_TABLE_",
+            "_FILE_",
+            "_ROW_TIMESTAMP",
+            "__ROOT__",
+            "_COLIDENTIFIER",
+        )
+    ):
+        # Remove leading _ character(s) to avoid collisions with preserved
+        # prefixes.
+        identifier = re.sub("^_+", "", identifier)
+
     return identifier
 
 
@@ -220,45 +243,3 @@ def timedelta_to_micros(
         ) * 1_000_000 + timedelta.microseconds
 
     raise TypeError(f"Unrecognized input type: {type(timedelta)}")
-
-
-def replace_timedeltas_with_micros(dataframe: pd.DataFrame) -> List[str]:
-    """
-    Replaces in-place timedeltas to integer values in microseconds. Nanosecond part is ignored.
-
-    Returns:
-        The names of updated columns
-    """
-    updated_columns = []
-
-    for col in dataframe.columns:
-        if pdtypes.is_timedelta64_dtype(dataframe[col].dtype):
-            dataframe[col] = dataframe[col].apply(timedelta_to_micros)
-            updated_columns.append(col)
-
-    if pdtypes.is_timedelta64_dtype(dataframe.index.dtype):
-        dataframe.index = dataframe.index.map(timedelta_to_micros)
-        updated_columns.append(dataframe.index.name)
-
-    return updated_columns
-
-
-def replace_json_with_string(dataframe: pd.DataFrame) -> List[str]:
-    """
-    Due to a BigQuery IO limitation with loading JSON from Parquet files (b/374784249),
-    we're using a workaround: storing JSON as strings and then parsing them into JSON
-    objects.
-    TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
-    """
-    updated_columns = []
-
-    for col in dataframe.columns:
-        if dataframe[col].dtype == dtypes.JSON_DTYPE:
-            dataframe[col] = dataframe[col].astype(dtypes.STRING_DTYPE)
-            updated_columns.append(col)
-
-    if dataframe.index.dtype == dtypes.JSON_DTYPE:
-        dataframe.index = dataframe.index.astype(dtypes.STRING_DTYPE)
-        updated_columns.append(dataframe.index.name)
-
-    return updated_columns

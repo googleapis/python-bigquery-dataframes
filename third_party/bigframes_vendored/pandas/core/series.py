@@ -19,8 +19,8 @@ from typing import (
 from bigframes_vendored.pandas.core.generic import NDFrame
 import numpy
 import numpy as np
-from pandas._libs import lib
 from pandas._typing import Axis, FilePath, NaPosition, WriteBuffer
+from pandas.api import extensions as pd_ext
 
 from bigframes import constants
 
@@ -323,7 +323,7 @@ class Series(NDFrame):  # type: ignore[misc]
         self,
         *,
         drop: bool = False,
-        name=lib.no_default,
+        name=pd_ext.no_default,
     ) -> DataFrame | Series | None:
         """
         Generate a new DataFrame or Series with the index reset.
@@ -730,7 +730,9 @@ class Series(NDFrame):  # type: ignore[misc]
 
     to_list = tolist
 
-    def to_numpy(self, dtype, copy=False, na_value=None, *, allow_large_results=None):
+    def to_numpy(
+        self, dtype, copy=False, na_value=pd_ext.no_default, *, allow_large_results=None
+    ):
         """
         A NumPy ndarray representing the values in this Series or Index.
 
@@ -1504,10 +1506,11 @@ class Series(NDFrame):  # type: ignore[misc]
         self,
         *,
         axis: Axis = 0,
+        inplace: bool = False,
         ascending: bool | int | Sequence[bool] | Sequence[int] = True,
         kind: str = "quicksort",
         na_position: str = "last",
-    ) -> Series | None:
+    ):
         """
         Sort by the values.
 
@@ -1581,6 +1584,8 @@ class Series(NDFrame):  # type: ignore[misc]
         Args:
             axis (0 or 'index'):
                 Unused. Parameter needed for compatibility with DataFrame.
+            inplace (bool, default False):
+                Whether to modify the Series rather than creating a new one.
             ascending (bool or list of bools, default True):
                 If True, sort values in ascending order, otherwise descending.
             kind (str, default to 'quicksort'):
@@ -1601,9 +1606,10 @@ class Series(NDFrame):  # type: ignore[misc]
         self,
         *,
         axis: Axis = 0,
+        inplace: bool = False,
         ascending: bool | Sequence[bool] = True,
         na_position: NaPosition = "last",
-    ) -> Series | None:
+    ):
         """
         Sort Series by index labels.
 
@@ -1647,6 +1653,8 @@ class Series(NDFrame):  # type: ignore[misc]
         Args:
             axis ({0 or 'index'}):
                 Unused. Parameter needed for compatibility with DataFrame.
+            inplace (bool, default False):
+                Whether to modify the Series rather than creating a new one.
             ascending (bool or list-like of bools, default True):
                 Sort ascending vs. descending. When the index is a MultiIndex the
                 sort direction can be controlled for each level individually.
@@ -1854,7 +1862,7 @@ class Series(NDFrame):  # type: ignore[misc]
         to potentially reuse a previously deployed `remote_function` from
         the same user defined function.
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def minutes_to_hours(x: int) -> float:
             ...     return x/60
 
@@ -1883,6 +1891,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> @bpd.remote_function(
             ...     reuse=False,
             ...     packages=["cryptography"],
+            ...     cloud_function_service_account="default"
             ... )
             ... def get_hash(input: str) -> str:
             ...     from cryptography.fernet import Fernet
@@ -1900,7 +1909,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         You could return an array output from the remote function.
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def text_analyzer(text: str) -> list[int]:
             ...     words = text.count(" ") + 1
             ...     periods = text.count(".")
@@ -5069,7 +5078,7 @@ class Series(NDFrame):  # type: ignore[misc]
         condition is evaluated based on a complicated business logic which cannot
         be expressed in form of a Series.
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def should_mask(name: str) -> bool:
             ...     hash = 0
             ...     for char_ in name:
@@ -5665,7 +5674,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         It also accepts a remote function:
 
-            >>> @bpd.remote_function()
+            >>> @bpd.remote_function(cloud_function_service_account="default")
             ... def my_mapper(val: str) -> str:
             ...     vowels = ["a", "e", "i", "o", "u"]
             ...     if val:

@@ -29,17 +29,7 @@ import itertools
 import random
 import textwrap
 import typing
-from typing import (
-    Iterable,
-    List,
-    Literal,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 import warnings
 
 import bigframes_vendored.constants as constants
@@ -49,8 +39,9 @@ import pandas as pd
 import pyarrow as pa
 
 from bigframes import session
-import bigframes._config.sampling_options as sampling_options
+from bigframes._config import sampling_options
 import bigframes.constants
+from bigframes.core import local_data
 import bigframes.core as core
 import bigframes.core.compile.googlesql as googlesql
 import bigframes.core.expression as ex
@@ -65,13 +56,10 @@ import bigframes.core.utils as utils
 import bigframes.core.window_spec as windows
 import bigframes.dtypes
 import bigframes.exceptions as bfe
-import bigframes.features
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
-import bigframes.session._io.pandas as io_pandas
-
-if TYPE_CHECKING:
-    import bigframes.session.executor
+from bigframes.session import dry_runs
+from bigframes.session import executor as executors
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -165,6 +153,7 @@ class Block:
 
         self._stats_cache[" ".join(self.index_columns)] = {}
         self._transpose_cache: Optional[Block] = transpose_cache
+        self._view_ref: Optional[bigquery.TableReference] = None
 
     @classmethod
     def from_local(
@@ -185,8 +174,8 @@ class Block:
 
         pd_data = pd_data.set_axis(column_ids, axis=1)
         pd_data = pd_data.reset_index(names=index_ids)
-        as_pyarrow = pa.Table.from_pandas(pd_data, preserve_index=False)
-        array_value = core.ArrayValue.from_pyarrow(as_pyarrow, session=session)
+        managed_data = local_data.ManagedArrowTable.from_pandas(pd_data)
+        array_value = core.ArrayValue.from_managed(managed_data, session=session)
         block = cls(
             array_value,
             column_labels=column_labels,
@@ -218,7 +207,7 @@ class Block:
             except Exception:
                 pass
 
-        row_count = self.session._executor.get_row_count(self.expr)
+        row_count = self.session._executor.execute(self.expr.row_count()).to_py_scalar()
         return (row_count, len(self.value_columns))
 
     @property
@@ -482,7 +471,7 @@ class Block:
         *,
         ordered: bool = True,
         allow_large_results: Optional[bool] = None,
-    ) -> Tuple[pa.Table, bigquery.QueryJob]:
+    ) -> Tuple[pa.Table, Optional[bigquery.QueryJob]]:
         """Run query and download results as a pyarrow Table."""
         execute_result = self.session._executor.execute(
             self.expr, ordered=ordered, use_explicit_destination=allow_large_results
@@ -535,19 +524,9 @@ class Block:
         Returns:
             pandas.DataFrame, QueryJob
         """
-        if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
-            raise NotImplementedError(
-                f"The downsampling method {sampling_method} is not implemented, "
-                f"please choose from {','.join(_SAMPLING_METHODS)}."
-            )
-
-        sampling = bigframes.options.sampling.with_max_download_size(max_download_size)
-        if sampling_method is not None:
-            sampling = sampling.with_method(sampling_method).with_random_state(  # type: ignore
-                random_state
-            )
-        else:
-            sampling = sampling.with_disabled()
+        sampling = self._get_sampling_option(
+            max_download_size, sampling_method, random_state
+        )
 
         df, query_job = self._materialize_local(
             materialize_options=MaterializationOptions(
@@ -559,6 +538,27 @@ class Block:
         df.set_axis(self.column_labels, axis=1, copy=False)
         return df, query_job
 
+    def _get_sampling_option(
+        self,
+        max_download_size: Optional[int] = None,
+        sampling_method: Optional[str] = None,
+        random_state: Optional[int] = None,
+    ) -> sampling_options.SamplingOptions:
+
+        if (sampling_method is not None) and (sampling_method not in _SAMPLING_METHODS):
+            raise NotImplementedError(
+                f"The downsampling method {sampling_method} is not implemented, "
+                f"please choose from {','.join(_SAMPLING_METHODS)}."
+            )
+
+        sampling = bigframes.options.sampling.with_max_download_size(max_download_size)
+        if sampling_method is None:
+            return sampling.with_disabled()
+
+        return sampling.with_method(sampling_method).with_random_state(  # type: ignore
+            random_state
+        )
+
     def try_peek(
         self, n: int = 20, force: bool = False, allow_large_results=None
     ) -> typing.Optional[pd.DataFrame]:
@@ -566,7 +566,7 @@ class Block:
             result = self.session._executor.peek(
                 self.expr, n, use_explicit_destination=allow_large_results
             )
-            df = io_pandas.arrow_to_pandas(result.to_arrow_table(), self.expr.schema)
+            df = result.to_pandas()
             self._copy_index_to_pandas(df)
             return df
         else:
@@ -577,6 +577,7 @@ class Block:
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
         allow_large_results: Optional[bool] = None,
+        squeeze: Optional[bool] = False,
     ):
         """Download results one message at a time.
 
@@ -586,13 +587,15 @@ class Block:
             self.expr,
             ordered=True,
             use_explicit_destination=allow_large_results,
-            page_size=page_size,
-            max_results=max_results,
         )
-        for record_batch in execute_result.arrow_batches():
-            df = io_pandas.arrow_to_pandas(record_batch, self.expr.schema)
+        for df in execute_result.to_pandas_batches(
+            page_size=page_size, max_results=max_results
+        ):
             self._copy_index_to_pandas(df)
-            yield df
+            if squeeze:
+                yield df.squeeze(axis=1)
+            else:
+                yield df
 
     def _copy_index_to_pandas(self, df: pd.DataFrame):
         """Set the index on pandas DataFrame to match this block.
@@ -641,7 +644,7 @@ class Block:
 
         # TODO: Maybe materialize before downsampling
         # Some downsampling methods
-        if fraction < 1:
+        if fraction < 1 and (execute_result.total_rows is not None):
             if not sample_config.enable_downsampling:
                 raise RuntimeError(
                     f"The data size ({table_mb:.2f} MB) exceeds the maximum download limit of "
@@ -672,9 +675,7 @@ class Block:
                 MaterializationOptions(ordered=materialize_options.ordered)
             )
         else:
-            total_rows = execute_result.total_rows
-            arrow = execute_result.to_arrow_table()
-            df = io_pandas.arrow_to_pandas(arrow, schema=self.expr.schema)
+            df = execute_result.to_pandas()
             self._copy_index_to_pandas(df)
 
         return df, execute_result.query_job
@@ -798,11 +799,32 @@ class Block:
         return [sliced_block.drop_columns(drop_cols) for sliced_block in sliced_blocks]
 
     def _compute_dry_run(
-        self, value_keys: Optional[Iterable[str]] = None
-    ) -> bigquery.QueryJob:
+        self,
+        value_keys: Optional[Iterable[str]] = None,
+        *,
+        ordered: bool = True,
+        max_download_size: Optional[int] = None,
+        sampling_method: Optional[str] = None,
+        random_state: Optional[int] = None,
+    ) -> typing.Tuple[pd.Series, bigquery.QueryJob]:
+        sampling = self._get_sampling_option(
+            max_download_size, sampling_method, random_state
+        )
+        if sampling.enable_downsampling:
+            raise NotImplementedError("Dry run with sampling is not supported")
+
         expr = self._apply_value_keys_to_expr(value_keys=value_keys)
-        query_job = self.session._executor.dry_run(expr)
-        return query_job
+        query_job = self.session._executor.dry_run(expr, ordered)
+
+        column_dtypes = {
+            col: self.expr.get_column_type(self.resolve_label_exact_or_error(col))
+            for col in self.column_labels
+        }
+
+        dry_run_stats = dry_runs.get_query_stats_with_dtypes(
+            query_job, column_dtypes, self.index.dtypes
+        )
+        return dry_run_stats, query_job
 
     def _apply_value_keys_to_expr(self, value_keys: Optional[Iterable[str]] = None):
         expr = self._expr
@@ -912,7 +934,7 @@ class Block:
     def multi_apply_window_op(
         self,
         columns: typing.Sequence[str],
-        op: agg_ops.WindowOp,
+        op: agg_ops.UnaryWindowOp,
         window_spec: windows.WindowSpec,
         *,
         skip_null_groups: bool = False,
@@ -983,7 +1005,7 @@ class Block:
     def apply_window_op(
         self,
         column: str,
-        op: agg_ops.WindowOp,
+        op: agg_ops.UnaryWindowOp,
         window_spec: windows.WindowSpec,
         *,
         result_label: Label = None,
@@ -1489,13 +1511,19 @@ class Block:
         """
 
         # head caches full underlying expression, so row_count will be free after
-        head_result = self.session._executor.head(self.expr, max_results)
-        count = self.session._executor.get_row_count(self.expr)
+        executor = self.session._executor
+        executor.cached(
+            array_value=self.expr,
+            config=executors.CacheConfig(optimize_for="head", if_cached="reuse-strict"),
+        )
+        head_result = self.session._executor.execute(
+            self.expr.slice(start=None, stop=max_results, step=None)
+        )
+        row_count = self.session._executor.execute(self.expr.row_count()).to_py_scalar()
 
-        arrow = head_result.to_arrow_table()
-        df = io_pandas.arrow_to_pandas(arrow, schema=self.expr.schema)
-        self._copy_index_to_pandas(df)
-        return df, count, head_result.query_job
+        head_df = head_result.to_pandas()
+        self._copy_index_to_pandas(head_df)
+        return head_df, row_count, head_result.query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
         expr, result_id = self._expr.promote_offsets()
@@ -2138,7 +2166,7 @@ class Block:
                 result_columns.append(get_column_left[col_id])
         for col_id in other.value_columns:
             if col_id in right_join_ids:
-                if other.col_id_to_label[matching_right_id] in matching_join_labels:
+                if other.col_id_to_label[col_id] in matching_join_labels:
                     pass
                 else:
                     result_columns.append(get_column_right[col_id])
@@ -2460,14 +2488,28 @@ class Block:
             idx_labels,
         )
 
+    def to_view(self, include_index: bool) -> bigquery.TableReference:
+        """
+        Creates a temporary BigQuery VIEW with the SQL corresponding to this block.
+        """
+        if self._view_ref is not None:
+            return self._view_ref
+
+        sql, _, _ = self.to_sql_query(include_index=include_index)
+        self._view_ref = self.session._create_temp_view(sql)
+        return self._view_ref
+
     def cached(self, *, force: bool = False, session_aware: bool = False) -> None:
         """Write the block to a session table."""
         # use a heuristic for whether something needs to be cached
         self.session._executor.cached(
             self.expr,
-            force=force,
-            use_session=session_aware,
-            cluster_cols=self.index_columns,
+            config=executors.CacheConfig(
+                optimize_for="auto"
+                if session_aware
+                else executors.HierarchicalKey(tuple(self.index_columns)),
+                if_cached="replace" if force else "reuse-any",
+            ),
         )
 
     def _is_monotonic(
@@ -2614,9 +2656,8 @@ T1 AS (
 SELECT {select_columns_csv} FROM T1
 """
         # The only ways this code is used is through df.apply(axis=1) cope path
-        # TODO: Stop using internal API
         destination, query_job = self.session._loader._query_to_destination(
-            json_sql, cluster_candidates=[ordering_column_name], api_name="apply"
+            json_sql, cluster_candidates=[ordering_column_name]
         )
         if not destination:
             raise ValueError(f"Query job {query_job} did not produce result table")
@@ -2633,11 +2674,13 @@ SELECT {select_columns_csv} FROM T1
             )
         )
 
+        dest_table = self.session.bqclient.get_table(destination)
         expr = core.ArrayValue.from_table(
-            self.session.bqclient.get_table(destination),
+            dest_table,
             schema=new_schema,
             session=self.session,
             offsets_col=ordering_column_name,
+            n_rows=dest_table.num_rows,
         ).drop_columns([ordering_column_name])
         block = Block(
             expr,
@@ -2703,10 +2746,17 @@ class BlockIndexProperties:
                 "Cannot materialize index, as this object does not have an index. Set index column(s) using set_index."
             )
         ordered = ordered if ordered is not None else True
+
         df, query_job = self._block.select_columns([]).to_pandas(
-            ordered=ordered, allow_large_results=allow_large_results
+            ordered=ordered,
+            allow_large_results=allow_large_results,
         )
         return df.index, query_job
+
+    def _compute_dry_run(
+        self, *, ordered: bool = True
+    ) -> Tuple[pd.Series, bigquery.QueryJob]:
+        return self._block.select_columns([])._compute_dry_run(ordered=ordered)
 
     def resolve_level(self, level: LevelsType) -> typing.Sequence[str]:
         if utils.is_list_like(level):

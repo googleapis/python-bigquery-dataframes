@@ -20,7 +20,7 @@ import pandas as pd
 import pytest
 
 import bigframes.series
-from tests.system.utils import assert_series_equal, skip_legacy_pandas
+from tests.system.utils import assert_series_equal
 
 DATETIME_COL_NAMES = [("datetime_col",), ("timestamp_col",)]
 DATE_COLUMNS = [
@@ -30,12 +30,21 @@ DATE_COLUMNS = [
 ]
 
 
+@pytest.fixture
+def timedelta_series(session):
+    pd_s = pd.Series(pd.to_timedelta([1.1010101, 2.2020102, 3.3030103], unit="d"))
+    bf_s = session.read_pandas(pd_s)
+
+    return bf_s, pd_s
+
+
 @pytest.mark.parametrize(
     ("col_name",),
     DATE_COLUMNS,
 )
-@skip_legacy_pandas
 def test_dt_day(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.day.to_pandas()
@@ -51,8 +60,9 @@ def test_dt_day(scalars_dfs, col_name):
     ("col_name",),
     DATETIME_COL_NAMES,
 )
-@skip_legacy_pandas
 def test_dt_date(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.date.to_pandas()
@@ -68,8 +78,9 @@ def test_dt_date(scalars_dfs, col_name):
     ("col_name",),
     DATE_COLUMNS,
 )
-@skip_legacy_pandas
 def test_dt_dayofweek(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.dayofweek.to_pandas()
@@ -80,10 +91,25 @@ def test_dt_dayofweek(scalars_dfs, col_name):
 
 @pytest.mark.parametrize(
     ("col_name",),
+    DATE_COLUMNS,
+)
+def test_dt_dayofyear(scalars_dfs, col_name):
+    pytest.importorskip("pandas", minversion="2.0.0")
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_series: bigframes.series.Series = scalars_df[col_name]
+    bf_result = bf_series.dt.dayofyear.to_pandas()
+    pd_result = scalars_pandas_df[col_name].dt.dayofyear
+
+    assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("col_name",),
     DATETIME_COL_NAMES,
 )
-@skip_legacy_pandas
 def test_dt_hour(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.hour.to_pandas()
@@ -99,8 +125,9 @@ def test_dt_hour(scalars_dfs, col_name):
     ("col_name",),
     DATETIME_COL_NAMES,
 )
-@skip_legacy_pandas
 def test_dt_minute(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.minute.to_pandas()
@@ -116,8 +143,9 @@ def test_dt_minute(scalars_dfs, col_name):
     ("col_name",),
     DATE_COLUMNS,
 )
-@skip_legacy_pandas
 def test_dt_month(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.month.to_pandas()
@@ -133,8 +161,9 @@ def test_dt_month(scalars_dfs, col_name):
     ("col_name",),
     DATE_COLUMNS,
 )
-@skip_legacy_pandas
 def test_dt_quarter(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.quarter.to_pandas()
@@ -150,8 +179,9 @@ def test_dt_quarter(scalars_dfs, col_name):
     ("col_name",),
     DATETIME_COL_NAMES,
 )
-@skip_legacy_pandas
 def test_dt_second(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.second.to_pandas()
@@ -167,8 +197,9 @@ def test_dt_second(scalars_dfs, col_name):
     ("col_name",),
     DATETIME_COL_NAMES,
 )
-@skip_legacy_pandas
 def test_dt_time(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.time.to_pandas()
@@ -184,8 +215,9 @@ def test_dt_time(scalars_dfs, col_name):
     ("col_name",),
     DATE_COLUMNS,
 )
-@skip_legacy_pandas
 def test_dt_year(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.year.to_pandas()
@@ -197,12 +229,28 @@ def test_dt_year(scalars_dfs, col_name):
     )
 
 
+def test_dt_isocalendar(session):
+    # We don't re-use the exisintg scalars_dfs fixture because iso calendar
+    # get tricky when a new year starts, but the dataset `scalars_dfs` does not cover
+    # this case.
+    pd_s = pd.Series(pd.date_range("2009-12-25", "2010-01-07", freq="d"))
+    bf_s = session.read_pandas(pd_s)
+
+    actual_result = bf_s.dt.isocalendar().to_pandas()
+
+    expected_result = pd_s.dt.isocalendar()
+    testing.assert_frame_equal(
+        actual_result, expected_result, check_dtype=False, check_index_type=False
+    )
+
+
 @pytest.mark.parametrize(
     ("col_name",),
     DATETIME_COL_NAMES,
 )
-@skip_legacy_pandas
 def test_dt_tz(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.tz
@@ -215,8 +263,9 @@ def test_dt_tz(scalars_dfs, col_name):
     ("col_name",),
     DATETIME_COL_NAMES,
 )
-@skip_legacy_pandas
 def test_dt_unit(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
     bf_result = bf_series.dt.unit
@@ -234,8 +283,9 @@ def test_dt_unit(scalars_dfs, col_name):
         ("datetime_col", "%H:%M"),
     ],
 )
-@skip_legacy_pandas
 def test_dt_strftime(scalars_df_index, scalars_pandas_df_index, column, date_format):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     bf_result = scalars_df_index[column].dt.strftime(date_format).to_pandas()
     pd_result = scalars_pandas_df_index[column].dt.strftime(date_format)
     pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
@@ -276,8 +326,9 @@ def test_dt_strftime_time():
     ("col_name",),
     DATETIME_COL_NAMES,
 )
-@skip_legacy_pandas
 def test_dt_normalize(scalars_dfs, col_name):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[col_name].dt.normalize().to_pandas()
     pd_result = scalars_pandas_df[col_name].dt.normalize()
@@ -297,8 +348,9 @@ def test_dt_normalize(scalars_dfs, col_name):
         ("datetime_col", "us"),
     ],
 )
-@skip_legacy_pandas
 def test_dt_floor(scalars_dfs, col_name, freq):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[col_name].dt.floor(freq).to_pandas()
     pd_result = scalars_pandas_df[col_name].dt.floor(freq)
@@ -460,3 +512,39 @@ def test_timestamp_series_diff_agg(scalars_dfs, column):
 
     expected_result = pd_series.diff()
     assert_series_equal(actual_result, expected_result)
+
+
+@pytest.mark.parametrize(
+    "access",
+    [
+        pytest.param(lambda x: x.dt.days, id="dt.days"),
+        pytest.param(lambda x: x.dt.seconds, id="dt.seconds"),
+        pytest.param(lambda x: x.dt.microseconds, id="dt.microseconds"),
+        pytest.param(lambda x: x.dt.total_seconds(), id="dt.total_seconds()"),
+    ],
+)
+def test_timedelta_dt_accessors(timedelta_series, access):
+    bf_s, pd_s = timedelta_series
+
+    actual_result = access(bf_s).to_pandas()
+
+    expected_result = access(pd_s)
+    assert_series_equal(
+        actual_result, expected_result, check_dtype=False, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
+    "access",
+    [
+        pytest.param(lambda x: x.dt.days, id="dt.days"),
+        pytest.param(lambda x: x.dt.seconds, id="dt.seconds"),
+        pytest.param(lambda x: x.dt.microseconds, id="dt.microseconds"),
+        pytest.param(lambda x: x.dt.total_seconds(), id="dt.total_seconds()"),
+    ],
+)
+def test_timedelta_dt_accessors_on_wrong_type_raise_exception(scalars_dfs, access):
+    bf_df, _ = scalars_dfs
+
+    with pytest.raises(TypeError):
+        access(bf_df["timestamp_col"])

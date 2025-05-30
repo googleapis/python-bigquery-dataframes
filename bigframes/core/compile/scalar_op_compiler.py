@@ -456,9 +456,19 @@ def upper_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.StringValue, x).upper()
 
 
-@scalar_op_compiler.register_unary_op(ops.strip_op)
-def strip_op_impl(x: ibis_types.Value):
-    return typing.cast(ibis_types.StringValue, x).strip()
+@scalar_op_compiler.register_unary_op(ops.StrLstripOp, pass_op=True)
+def str_lstrip_op_impl(x: ibis_types.Value, op: ops.StrStripOp):
+    return str_lstrip_op(x, to_strip=op.to_strip)
+
+
+@scalar_op_compiler.register_unary_op(ops.StrRstripOp, pass_op=True)
+def str_rstrip_op_impl(x: ibis_types.Value, op: ops.StrRstripOp):
+    return str_rstrip_op(x, to_strip=op.to_strip)
+
+
+@scalar_op_compiler.register_unary_op(ops.StrStripOp, pass_op=True)
+def str_strip_op_impl(x: ibis_types.Value, op: ops.StrStripOp):
+    return str_strip_op(x, to_strip=op.to_strip)
 
 
 @scalar_op_compiler.register_unary_op(ops.isnumeric_op)
@@ -517,16 +527,6 @@ def isupper_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.StringValue, x).re_search(r"\p{Lu}") & ~typing.cast(
         ibis_types.StringValue, x
     ).re_search(r"\p{Ll}|\p{Lt}")
-
-
-@scalar_op_compiler.register_unary_op(ops.rstrip_op)
-def rstrip_op_impl(x: ibis_types.Value):
-    return typing.cast(ibis_types.StringValue, x).rstrip()
-
-
-@scalar_op_compiler.register_unary_op(ops.lstrip_op)
-def lstrip_op_impl(x: ibis_types.Value):
-    return typing.cast(ibis_types.StringValue, x).lstrip()
 
 
 @scalar_op_compiler.register_unary_op(ops.capitalize_op)
@@ -667,12 +667,35 @@ def date_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.TimestampValue, x).date()
 
 
+@scalar_op_compiler.register_unary_op(ops.iso_day_op)
+def iso_day_op_impl(x: ibis_types.Value):
+    # Plus 1 because iso day of week uses 1-based indexing
+    return dayofweek_op_impl(x) + 1
+
+
+@scalar_op_compiler.register_unary_op(ops.iso_week_op)
+def iso_week_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.TimestampValue, x).week_of_year()
+
+
+@scalar_op_compiler.register_unary_op(ops.iso_year_op)
+def iso_year_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.TimestampValue, x).iso_year()
+
+
 @scalar_op_compiler.register_unary_op(ops.dayofweek_op)
 def dayofweek_op_impl(x: ibis_types.Value):
     return (
         typing.cast(ibis_types.TimestampValue, x)
         .day_of_week.index()
         .cast(ibis_dtypes.int64)
+    )
+
+
+@scalar_op_compiler.register_unary_op(ops.dayofyear_op)
+def dayofyear_op_impl(x: ibis_types.Value):
+    return (
+        typing.cast(ibis_types.TimestampValue, x).day_of_year().cast(ibis_dtypes.int64)
     )
 
 
@@ -747,12 +770,12 @@ def date_diff_op_impl(x: ibis_types.DateValue, y: ibis_types.DateValue):
 
 @scalar_op_compiler.register_binary_op(ops.date_add_op)
 def date_add_op_impl(x: ibis_types.DateValue, y: ibis_types.IntegerValue):
-    return x.cast("timestamp") + y.to_interval("us")  # type: ignore
+    return x.cast(ibis_dtypes.timestamp()) + y.to_interval("us")  # type: ignore
 
 
 @scalar_op_compiler.register_binary_op(ops.date_sub_op)
 def date_sub_op_impl(x: ibis_types.DateValue, y: ibis_types.IntegerValue):
-    return x.cast("timestamp") - y.to_interval("us")  # type: ignore
+    return x.cast(ibis_dtypes.timestamp()) - y.to_interval("us")  # type: ignore
 
 
 @scalar_op_compiler.register_unary_op(ops.FloorDtOp, pass_op=True)
@@ -1001,11 +1024,6 @@ def normalize_op_impl(x: ibis_types.Value):
 
 
 # Geo Ops
-@scalar_op_compiler.register_unary_op(ops.geo_st_boundary_op, pass_op=False)
-def geo_st_boundary_op_impl(x: ibis_types.Value):
-    return st_boundary(x)
-
-
 @scalar_op_compiler.register_unary_op(ops.geo_area_op)
 def geo_area_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).area()
@@ -1014,6 +1032,25 @@ def geo_area_op_impl(x: ibis_types.Value):
 @scalar_op_compiler.register_unary_op(ops.geo_st_astext_op)
 def geo_st_astext_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).as_text()
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_st_boundary_op, pass_op=False)
+def geo_st_boundary_op_impl(x: ibis_types.Value):
+    return st_boundary(x)
+
+
+@scalar_op_compiler.register_binary_op(ops.geo_st_difference_op, pass_op=False)
+def geo_st_difference_op_impl(x: ibis_types.Value, y: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).difference(
+        typing.cast(ibis_types.GeoSpatialValue, y)
+    )
+
+
+@scalar_op_compiler.register_binary_op(ops.GeoStDistanceOp, pass_op=True)
+def geo_st_distance_op_impl(
+    x: ibis_types.Value, y: ibis_types.Value, op: ops.GeoStDistanceOp
+):
+    return st_distance(x, y, op.use_spheroid)
 
 
 @scalar_op_compiler.register_unary_op(ops.geo_st_geogfromtext_op)
@@ -1027,6 +1064,13 @@ def geo_st_geogfromtext_op_impl(x: ibis_types.Value):
 def geo_st_geogpoint_op_impl(x: ibis_types.Value, y: ibis_types.Value):
     return typing.cast(ibis_types.NumericValue, x).point(
         typing.cast(ibis_types.NumericValue, y)
+    )
+
+
+@scalar_op_compiler.register_binary_op(ops.geo_st_intersection_op, pass_op=False)
+def geo_st_intersection_op_impl(x: ibis_types.Value, y: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).intersection(
+        typing.cast(ibis_types.GeoSpatialValue, y)
     )
 
 
@@ -1119,6 +1163,35 @@ def astype_op_impl(x: ibis_types.Value, op: ops.AsTypeOp):
             return x_converted
         elif to_type == ibis_dtypes.time:
             return x_converted.time()
+
+    if to_type == ibis_dtypes.json:
+        if x.type() == ibis_dtypes.string:
+            return parse_json_in_safe(x) if op.safe else parse_json(x)
+        if x.type() == ibis_dtypes.bool:
+            x_bool = typing.cast(
+                ibis_types.StringValue,
+                bigframes.core.compile.ibis_types.cast_ibis_value(
+                    x, ibis_dtypes.string, safe=op.safe
+                ),
+            ).lower()
+            return parse_json_in_safe(x_bool) if op.safe else parse_json(x_bool)
+        if x.type() in (ibis_dtypes.int64, ibis_dtypes.float64):
+            x_str = bigframes.core.compile.ibis_types.cast_ibis_value(
+                x, ibis_dtypes.string, safe=op.safe
+            )
+            return parse_json_in_safe(x_str) if op.safe else parse_json(x_str)
+
+    if x.type() == ibis_dtypes.json:
+        if to_type == ibis_dtypes.int64:
+            return cast_json_to_int64_in_safe(x) if op.safe else cast_json_to_int64(x)
+        if to_type == ibis_dtypes.float64:
+            return (
+                cast_json_to_float64_in_safe(x) if op.safe else cast_json_to_float64(x)
+            )
+        if to_type == ibis_dtypes.bool:
+            return cast_json_to_bool_in_safe(x) if op.safe else cast_json_to_bool(x)
+        if to_type == ibis_dtypes.string:
+            return cast_json_to_string_in_safe(x) if op.safe else cast_json_to_string(x)
 
     # TODO: either inline this function, or push rest of this op into the function
     return bigframes.core.compile.ibis_types.cast_ibis_value(x, to_type, safe=op.safe)
@@ -1281,6 +1354,19 @@ def json_extract_string_array_op_impl(
     x: ibis_types.Value, op: ops.JSONExtractStringArray
 ):
     return json_extract_string_array(json_obj=x, json_path=op.json_path)
+
+
+@scalar_op_compiler.register_unary_op(ops.JSONQuery, pass_op=True)
+def json_query_op_impl(x: ibis_types.Value, op: ops.JSONQuery):
+    # Define a user-defined function whose returned type is dynamically matching the input.
+    def json_query(json_or_json_string, json_path: ibis_dtypes.str):  # type: ignore
+        """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
+        ...
+
+    return_type = x.type()
+    json_query.__annotations__["return"] = return_type
+    json_query_op = ibis_udf.scalar.builtin(json_query)
+    return json_query_op(json_or_json_string=x, json_path=op.json_path)
 
 
 @scalar_op_compiler.register_unary_op(ops.ParseJSON, pass_op=True)
@@ -1753,6 +1839,13 @@ def fillna_op(
 
 @scalar_op_compiler.register_binary_op(ops.round_op)
 def round_op(x: ibis_types.Value, y: ibis_types.Value):
+    if x.type().is_integer():
+        # bq produces float64, but pandas returns int
+        return (
+            typing.cast(ibis_types.NumericValue, x)
+            .round(digits=typing.cast(ibis_types.IntegerValue, y))
+            .cast(ibis_dtypes.int64)
+        )
     return typing.cast(ibis_types.NumericValue, x).round(
         digits=typing.cast(ibis_types.IntegerValue, y)
     )
@@ -1855,34 +1948,18 @@ def clip_op(
     if isinstance(lower, ibis_types.NullScalar) and (
         not isinstance(upper, ibis_types.NullScalar)
     ):
-        return (
-            ibis_api.case()  # type: ignore
-            .when(upper.isnull() | (original > upper), upper)
-            .else_(original)
-            .end()
-        )
+        return ibis_api.least(original, upper)
     elif (not isinstance(lower, ibis_types.NullScalar)) and isinstance(
         upper, ibis_types.NullScalar
     ):
-        return (
-            ibis_api.case()  # type: ignore
-            .when(lower.isnull() | (original < lower), lower)
-            .else_(original)
-            .end()
-        )
+        return ibis_api.greatest(original, lower)
     elif isinstance(lower, ibis_types.NullScalar) and (
         isinstance(upper, ibis_types.NullScalar)
     ):
         return original
     else:
         # Note: Pandas has unchanged behavior when upper bound and lower bound are flipped. This implementation requires that lower_bound < upper_bound
-        return (
-            ibis_api.case()  # type: ignore
-            .when(lower.isnull() | (original < lower), lower)
-            .when(upper.isnull() | (original > upper), upper)
-            .else_(original)
-            .end()
-        )
+        return ibis_api.greatest(ibis_api.least(original, upper), lower)
 
 
 # N-ary Operations
@@ -1976,6 +2053,11 @@ def st_boundary(a: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ign
 
 
 @ibis_udf.scalar.builtin
+def st_distance(a: ibis_dtypes.geography, b: ibis_dtypes.geography, use_spheroid: bool) -> ibis_dtypes.float:  # type: ignore
+    """Convert string to geography."""
+
+
+@ibis_udf.scalar.builtin
 def unix_micros(a: ibis_dtypes.timestamp) -> int:  # type: ignore
     """Convert a timestamp to microseconds"""
 
@@ -1996,6 +2078,11 @@ def float_ceil(a: float) -> float:
 @ibis_udf.scalar.builtin(name="parse_json")
 def parse_json(json_str: str) -> ibis_dtypes.JSON:  # type: ignore[empty-body]
     """Converts a JSON-formatted STRING value to a JSON value."""
+
+
+@ibis_udf.scalar.builtin(name="SAFE.PARSE_JSON")
+def parse_json_in_safe(json_str: str) -> ibis_dtypes.JSON:  # type: ignore[empty-body]
+    """Converts a JSON-formatted STRING value to a JSON value in the safe mode."""
 
 
 @ibis_udf.scalar.builtin(name="json_set")
@@ -2026,6 +2113,46 @@ def json_value(  # type: ignore[empty-body]
     """Retrieve value of a JSON field as plain STRING."""
 
 
+@ibis_udf.scalar.builtin(name="INT64")
+def cast_json_to_int64(json_str: ibis_dtypes.JSON) -> ibis_dtypes.Int64:  # type: ignore[empty-body]
+    """Converts a JSON number to a SQL INT64 value."""
+
+
+@ibis_udf.scalar.builtin(name="SAFE.INT64")
+def cast_json_to_int64_in_safe(json_str: ibis_dtypes.JSON) -> ibis_dtypes.Int64:  # type: ignore[empty-body]
+    """Converts a JSON number to a SQL INT64 value in the safe mode."""
+
+
+@ibis_udf.scalar.builtin(name="FLOAT64")
+def cast_json_to_float64(json_str: ibis_dtypes.JSON) -> ibis_dtypes.Float64:  # type: ignore[empty-body]
+    """Attempts to convert a JSON value to a SQL FLOAT64 value."""
+
+
+@ibis_udf.scalar.builtin(name="SAFE.FLOAT64")
+def cast_json_to_float64_in_safe(json_str: ibis_dtypes.JSON) -> ibis_dtypes.Float64:  # type: ignore[empty-body]
+    """Attempts to convert a JSON value to a SQL FLOAT64 value."""
+
+
+@ibis_udf.scalar.builtin(name="BOOL")
+def cast_json_to_bool(json_str: ibis_dtypes.JSON) -> ibis_dtypes.Boolean:  # type: ignore[empty-body]
+    """Attempts to convert a JSON value to a SQL BOOL value."""
+
+
+@ibis_udf.scalar.builtin(name="SAFE.BOOL")
+def cast_json_to_bool_in_safe(json_str: ibis_dtypes.JSON) -> ibis_dtypes.Boolean:  # type: ignore[empty-body]
+    """Attempts to convert a JSON value to a SQL BOOL value."""
+
+
+@ibis_udf.scalar.builtin(name="STRING")
+def cast_json_to_string(json_str: ibis_dtypes.JSON) -> ibis_dtypes.String:  # type: ignore[empty-body]
+    """Attempts to convert a JSON value to a SQL STRING value."""
+
+
+@ibis_udf.scalar.builtin(name="SAFE.STRING")
+def cast_json_to_string_in_safe(json_str: ibis_dtypes.JSON) -> ibis_dtypes.String:  # type: ignore[empty-body]
+    """Attempts to convert a JSON value to a SQL STRING value."""
+
+
 @ibis_udf.scalar.builtin(name="ML.DISTANCE")
 def vector_distance(vector1, vector2, type: str) -> ibis_dtypes.Float64:  # type: ignore[empty-body]
     """Computes the distance between two vectors using specified type ("EUCLIDEAN", "MANHATTAN", or "COSINE")"""
@@ -2044,3 +2171,24 @@ def obj_make_ref(uri: str, authorizer: str) -> _OBJ_REF_IBIS_DTYPE:  # type: ign
 @ibis_udf.scalar.builtin(name="OBJ.GET_ACCESS_URL")
 def obj_get_access_url(obj_ref: _OBJ_REF_IBIS_DTYPE, mode: ibis_dtypes.String) -> ibis_dtypes.JSON:  # type: ignore
     """Get access url (as ObjectRefRumtime JSON) from ObjectRef."""
+
+
+@ibis_udf.scalar.builtin(name="ltrim")
+def str_lstrip_op(  # type: ignore[empty-body]
+    x: ibis_dtypes.String, to_strip: ibis_dtypes.String
+) -> ibis_dtypes.String:
+    """Remove leading and trailing characters."""
+
+
+@ibis_udf.scalar.builtin(name="rtrim")
+def str_rstrip_op(  # type: ignore[empty-body]
+    x: ibis_dtypes.String, to_strip: ibis_dtypes.String
+) -> ibis_dtypes.String:
+    """Remove leading and trailing characters."""
+
+
+@ibis_udf.scalar.builtin(name="trim")
+def str_strip_op(  # type: ignore[empty-body]
+    x: ibis_dtypes.String, to_strip: ibis_dtypes.String
+) -> ibis_dtypes.String:
+    """Remove leading and trailing characters."""

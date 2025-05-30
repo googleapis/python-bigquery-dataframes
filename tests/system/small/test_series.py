@@ -13,18 +13,20 @@
 # limitations under the License.
 
 import datetime as dt
+import json
 import math
 import re
 import tempfile
 
 import db_dtypes  # type: ignore
 import geopandas as gpd  # type: ignore
+import google.api_core.exceptions
 import numpy
 from packaging.version import Version
 import pandas as pd
 import pyarrow as pa  # type: ignore
 import pytest
-import shapely  # type: ignore
+import shapely.geometry  # type: ignore
 
 import bigframes.dtypes as dtypes
 import bigframes.features
@@ -34,7 +36,6 @@ from tests.system.utils import (
     assert_pandas_df_equal,
     assert_series_equal,
     get_first_file_from_wildcard,
-    skip_legacy_pandas,
 )
 
 
@@ -140,7 +141,6 @@ def test_series_construct_reindex():
 
     # BigQuery DataFrame default indices use nullable Int64 always
     pd_result.index = pd_result.index.astype("Int64")
-
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
@@ -201,6 +201,17 @@ def test_series_construct_nan():
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 
+def test_series_construct_scalar_w_bf_index():
+    bf_result = series.Series(
+        "hello", index=bigframes.pandas.Index([1, 2, 3])
+    ).to_pandas()
+    pd_result = pd.Series("hello", index=pd.Index([1, 2, 3], dtype="Int64"))
+
+    pd_result = pd_result.astype("string[pyarrow]")
+
+    pd.testing.assert_series_equal(bf_result, pd_result)
+
+
 def test_series_construct_from_list_escaped_strings():
     """Check that special characters are supported."""
     strings = [
@@ -219,7 +230,11 @@ def test_series_construct_from_list_escaped_strings():
 
 def test_series_construct_geodata():
     pd_series = pd.Series(
-        [shapely.Point(1, 1), shapely.Point(2, 2), shapely.Point(3, 3)],
+        [
+            shapely.geometry.Point(1, 1),
+            shapely.geometry.Point(2, 2),
+            shapely.geometry.Point(3, 3),
+        ],
         dtype=gpd.array.GeometryDtype(),
     )
 
@@ -303,25 +318,31 @@ def test_series_construct_w_dtype_for_array_struct():
     )
 
 
-def test_series_construct_w_dtype_for_json():
-    # Until b/401630655 is resolved, json, not compatible with allow_large_results=False
-    with bigframes.option_context("bigquery.allow_large_results", True):
-        data = [
-            "1",
-            '"str"',
-            "false",
-            '["a", {"b": 1}, null]',
-            None,
-            '{"a": {"b": [1, 2, 3], "c": true}}',
-        ]
-        s = bigframes.pandas.Series(data, dtype=dtypes.JSON_DTYPE)
+def test_series_construct_local_unordered_has_sequential_index(unordered_session):
+    series = bigframes.pandas.Series(
+        ["Sun", "Mon", "Tues", "Wed", "Thurs", "Fri", "Sat"], session=unordered_session
+    )
+    expected: pd.Index = pd.Index([0, 1, 2, 3, 4, 5, 6], dtype=pd.Int64Dtype())
+    pd.testing.assert_index_equal(series.index.to_pandas(), expected)
 
-        assert s[0] == "1"
-        assert s[1] == '"str"'
-        assert s[2] == "false"
-        assert s[3] == '["a",{"b":1},null]'
-        assert pd.isna(s[4])
-        assert s[5] == '{"a":{"b":[1,2,3],"c":true}}'
+
+def test_series_construct_w_dtype_for_json():
+    data = [
+        "1",
+        '"str"',
+        "false",
+        '["a", {"b": 1}, null]',
+        None,
+        '{"a": {"b": [1, 2, 3], "c": true}}',
+    ]
+    s = bigframes.pandas.Series(data, dtype=dtypes.JSON_DTYPE)
+
+    assert s[0] == "1"
+    assert s[1] == '"str"'
+    assert s[2] == "false"
+    assert s[3] == '["a",{"b":1},null]'
+    assert pd.isna(s[4])
+    assert s[5] == '{"a":{"b":[1,2,3],"c":true}}'
 
 
 def test_series_keys(scalars_dfs):
@@ -384,8 +405,7 @@ def test_get_column(scalars_dfs, col_name, expected_dtype):
 
 def test_get_column_w_json(json_df, json_pandas_df):
     series = json_df["json_col"]
-    # Until b/401630655 is resolved, json not compatible with allow_large_results=False
-    series_pandas = series.to_pandas(allow_large_results=True)
+    series_pandas = series.to_pandas()
     assert series.dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
     assert series_pandas.shape[0] == json_pandas_df.shape[0]
 
@@ -1015,8 +1035,9 @@ def test_series_corr(scalars_dfs):
     assert math.isclose(pd_result, bf_result)
 
 
-@skip_legacy_pandas
 def test_series_autocorr(scalars_dfs):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df["float64_col"].autocorr(2)
     pd_result = scalars_pandas_df["float64_col"].autocorr(2)
@@ -1543,6 +1564,23 @@ def test_indexing_using_selected_series(scalars_dfs):
     )
 
 
+@pytest.mark.parametrize(
+    ("indices"),
+    [
+        ([1, 3, 5]),
+        ([5, -3, -5, -6]),
+        ([-2, -4, -6]),
+    ],
+)
+def test_take(scalars_dfs, indices):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df.take(indices).to_pandas()
+    pd_result = scalars_pandas_df.take(indices)
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
 def test_nested_filter(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     string_col = scalars_df["string_col"]
@@ -1648,8 +1686,9 @@ def test_binop_right_filtered(scalars_dfs):
         (pd.Series([-1.4, 2.3, None], index=[44, 2, 1]),),
     ],
 )
-@skip_legacy_pandas
 def test_series_binop_w_other_types(scalars_dfs, other):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
 
     bf_result = (scalars_df["int64_col"].head(3) + other).to_pandas()
@@ -1669,8 +1708,9 @@ def test_series_binop_w_other_types(scalars_dfs, other):
         (pd.Series([-1.4, 2.3, None], index=[44, 2, 1]),),
     ],
 )
-@skip_legacy_pandas
 def test_series_reverse_binop_w_other_types(scalars_dfs, other):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
 
     bf_result = (other + scalars_df["int64_col"].head(3)).to_pandas()
@@ -1682,8 +1722,9 @@ def test_series_reverse_binop_w_other_types(scalars_dfs, other):
     )
 
 
-@skip_legacy_pandas
 def test_series_combine_first(scalars_dfs):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     int64_col = scalars_df["int64_col"].head(7)
     float64_col = scalars_df["float64_col"].tail(7)
@@ -2091,7 +2132,7 @@ def test_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, col_na
     ],
 )
 def test_unique(scalars_df_index, scalars_pandas_df_index, col_name):
-    bf_uniq = scalars_df_index[col_name].unique().to_numpy()
+    bf_uniq = scalars_df_index[col_name].unique().to_numpy(na_value=None)
     pd_uniq = scalars_pandas_df_index[col_name].unique()
     numpy.array_equal(pd_uniq, bf_uniq)
 
@@ -2326,8 +2367,9 @@ def test_series_peek_filtered(scalars_dfs):
     )
 
 
-@skip_legacy_pandas
 def test_series_peek_force(scalars_dfs):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
 
     cumsum_df = scalars_df[["int64_col", "int64_too"]].cumsum()
@@ -2341,8 +2383,9 @@ def test_series_peek_force(scalars_dfs):
     )
 
 
-@skip_legacy_pandas
 def test_series_peek_force_float(scalars_dfs):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
 
     cumsum_df = scalars_df[["int64_col", "float64_col"]].cumsum()
@@ -2559,8 +2602,9 @@ def test_cumsum_nested(scalars_df_index, scalars_pandas_df_index):
     )
 
 
-@skip_legacy_pandas
 def test_nested_analytic_ops_align(scalars_df_index, scalars_pandas_df_index):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     col_name = "float64_col"
     # set non-unique index to check implicit alignment
     bf_series = scalars_df_index.set_index("bool_col")[col_name].fillna(0.0)
@@ -2957,6 +3001,17 @@ def test_clip(scalars_df_index, scalars_pandas_df_index, ordered):
     assert_series_equal(bf_result, pd_result, ignore_order=not ordered)
 
 
+def test_clip_int_with_float_bounds(scalars_df_index, scalars_pandas_df_index):
+    col_bf = scalars_df_index["int64_too"]
+    bf_result = col_bf.clip(-100, 3.14151593).to_pandas()
+
+    col_pd = scalars_pandas_df_index["int64_too"]
+    # pandas doesn't work with Int64 and clip with floats
+    pd_result = col_pd.astype("int64").clip(-100, 3.14151593).astype("Float64")
+
+    assert_series_equal(bf_result, pd_result)
+
+
 def test_clip_filtered_two_sided(scalars_df_index, scalars_pandas_df_index):
     col_bf = scalars_df_index["int64_col"].iloc[::2]
     lower_bf = scalars_df_index["int64_too"].iloc[2:] - 1
@@ -3151,8 +3206,9 @@ def test_series_to_json_local_str(scalars_df_index, scalars_pandas_df_index):
     assert bf_result == pd_result
 
 
-@skip_legacy_pandas
 def test_series_to_json_local_file(scalars_df_index, scalars_pandas_df_index):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     with tempfile.TemporaryFile() as bf_result_file, tempfile.TemporaryFile() as pd_result_file:
         scalars_df_index.int64_col.to_json(bf_result_file)
         scalars_pandas_df_index.int64_col.to_json(pd_result_file)
@@ -3296,6 +3352,19 @@ def test_sort_values(scalars_df_index, scalars_pandas_df_index, ascending, na_po
     )
 
 
+def test_series_sort_values_inplace(scalars_df_index, scalars_pandas_df_index):
+    # Test needs values to be unique
+    bf_series = scalars_df_index["int64_col"].copy()
+    bf_series.sort_values(ascending=False, inplace=True)
+    bf_result = bf_series.to_pandas()
+    pd_result = scalars_pandas_df_index["int64_col"].sort_values(ascending=False)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 @pytest.mark.parametrize(
     ("ascending"),
     [
@@ -3308,6 +3377,18 @@ def test_sort_index(scalars_df_index, scalars_pandas_df_index, ascending):
         scalars_df_index["int64_too"].sort_index(ascending=ascending).to_pandas()
     )
     pd_result = scalars_pandas_df_index["int64_too"].sort_index(ascending=ascending)
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+def test_series_sort_index_inplace(scalars_df_index, scalars_pandas_df_index):
+    bf_series = scalars_df_index["int64_too"].copy()
+    bf_series.sort_index(ascending=False, inplace=True)
+    bf_result = bf_series.to_pandas()
+    pd_result = scalars_pandas_df_index["int64_too"].sort_index(ascending=False)
 
     pd.testing.assert_series_equal(
         bf_result,
@@ -3406,9 +3487,11 @@ def test_mask_simple_udf(scalars_dfs):
         ("int64_col", pd.ArrowDtype(pa.timestamp("us"))),
         ("int64_col", pd.ArrowDtype(pa.timestamp("us", tz="UTC"))),
         ("int64_col", "time64[us][pyarrow]"),
+        ("int64_col", pd.ArrowDtype(db_dtypes.JSONArrowType())),
         ("bool_col", "Int64"),
         ("bool_col", "string[pyarrow]"),
         ("bool_col", "Float64"),
+        ("bool_col", pd.ArrowDtype(db_dtypes.JSONArrowType())),
         ("string_col", "binary[pyarrow]"),
         ("bytes_col", "string[pyarrow]"),
         # pandas actually doesn't let folks convert to/from naive timestamp and
@@ -3443,8 +3526,9 @@ def test_mask_simple_udf(scalars_dfs):
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/conversion_functions
     ],
 )
-@skip_legacy_pandas
 def test_astype(scalars_df_index, scalars_pandas_df_index, column, to_type, errors):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     bf_result = scalars_df_index[column].astype(to_type, errors=errors).to_pandas()
     pd_result = scalars_pandas_df_index[column].astype(to_type)
     pd.testing.assert_series_equal(bf_result, pd_result)
@@ -3472,14 +3556,15 @@ def test_astype_safe(session):
     pd.testing.assert_series_equal(result, exepcted)
 
 
-def test_series_astype_error_error(session):
+def test_series_astype_w_invalid_error(session):
     input = pd.Series(["hello", "world", "3.11", "4000"])
     with pytest.raises(ValueError):
         session.read_pandas(input).astype("Float64", errors="bad_value")
 
 
-@skip_legacy_pandas
 def test_astype_numeric_to_int(scalars_df_index, scalars_pandas_df_index):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     column = "numeric_col"
     to_type = "Int64"
     bf_result = scalars_df_index[column].astype(to_type).to_pandas()
@@ -3496,10 +3581,11 @@ def test_astype_numeric_to_int(scalars_df_index, scalars_pandas_df_index):
         ("time_col", "int64[pyarrow]"),
     ],
 )
-@skip_legacy_pandas
 def test_date_time_astype_int(
     scalars_df_index, scalars_pandas_df_index, column, to_type
 ):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     bf_result = scalars_df_index[column].astype(to_type).to_pandas()
     pd_result = scalars_pandas_df_index[column].astype(to_type)
     pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
@@ -3605,6 +3691,119 @@ def test_timestamp_astype_string():
     assert bf_result.dtype == "string[pyarrow]"
 
 
+@pytest.mark.parametrize("errors", ["raise", "null"])
+def test_float_astype_json(errors):
+    data = ["1.25", "2500000000", None, "-12323.24"]
+    bf_series = series.Series(data, dtype=dtypes.FLOAT_DTYPE)
+
+    bf_result = bf_series.astype(dtypes.JSON_DTYPE, errors=errors)
+    assert bf_result.dtype == dtypes.JSON_DTYPE
+
+    expected_result = pd.Series(data, dtype=dtypes.JSON_DTYPE)
+    expected_result.index = expected_result.index.astype("Int64")
+    pd.testing.assert_series_equal(bf_result.to_pandas(), expected_result)
+
+
+@pytest.mark.parametrize("errors", ["raise", "null"])
+def test_string_astype_json(errors):
+    data = [
+        "1",
+        None,
+        '["1","3","5"]',
+        '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}',
+    ]
+    bf_series = series.Series(data, dtype=dtypes.STRING_DTYPE)
+
+    bf_result = bf_series.astype(dtypes.JSON_DTYPE, errors=errors)
+    assert bf_result.dtype == dtypes.JSON_DTYPE
+
+    pd_result = bf_series.to_pandas().astype(dtypes.JSON_DTYPE)
+    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
+
+
+def test_string_astype_json_in_safe_mode():
+    data = ["this is not a valid json string"]
+    bf_series = series.Series(data, dtype=dtypes.STRING_DTYPE)
+    bf_result = bf_series.astype(dtypes.JSON_DTYPE, errors="null")
+    assert bf_result.dtype == dtypes.JSON_DTYPE
+
+    expected = pd.Series([None], dtype=dtypes.JSON_DTYPE)
+    expected.index = expected.index.astype("Int64")
+    pd.testing.assert_series_equal(bf_result.to_pandas(), expected)
+
+
+def test_string_astype_json_raise_error():
+    data = ["this is not a valid json string"]
+    bf_series = series.Series(data, dtype=dtypes.STRING_DTYPE)
+    with pytest.raises(
+        google.api_core.exceptions.BadRequest,
+        match="syntax error while parsing value",
+    ):
+        bf_series.astype(dtypes.JSON_DTYPE, errors="raise").to_pandas()
+
+
+@pytest.mark.parametrize("errors", ["raise", "null"])
+@pytest.mark.parametrize(
+    ("data", "to_type"),
+    [
+        pytest.param(["1", "10.0", None], dtypes.INT_DTYPE, id="to_int"),
+        pytest.param(["0.0001", "2500000000", None], dtypes.FLOAT_DTYPE, id="to_float"),
+        pytest.param(["true", "false", None], dtypes.BOOL_DTYPE, id="to_bool"),
+        pytest.param(['"str"', None], dtypes.STRING_DTYPE, id="to_string"),
+        pytest.param(
+            ['"str"', None],
+            dtypes.TIME_DTYPE,
+            id="invalid",
+            marks=pytest.mark.xfail(raises=TypeError),
+        ),
+    ],
+)
+def test_json_astype_others(data, to_type, errors):
+    bf_series = series.Series(data, dtype=dtypes.JSON_DTYPE)
+
+    bf_result = bf_series.astype(to_type, errors=errors)
+    assert bf_result.dtype == to_type
+
+    load_data = [json.loads(item) if item is not None else None for item in data]
+    expected = pd.Series(load_data, dtype=to_type)
+    expected.index = expected.index.astype("Int64")
+    pd.testing.assert_series_equal(bf_result.to_pandas(), expected)
+
+
+@pytest.mark.parametrize(
+    ("data", "to_type"),
+    [
+        pytest.param(["10.2", None], dtypes.INT_DTYPE, id="to_int"),
+        pytest.param(["false", None], dtypes.FLOAT_DTYPE, id="to_float"),
+        pytest.param(["10.2", None], dtypes.BOOL_DTYPE, id="to_bool"),
+        pytest.param(["true", None], dtypes.STRING_DTYPE, id="to_string"),
+    ],
+)
+def test_json_astype_others_raise_error(data, to_type):
+    bf_series = series.Series(data, dtype=dtypes.JSON_DTYPE)
+    with pytest.raises(google.api_core.exceptions.BadRequest):
+        bf_series.astype(to_type, errors="raise").to_pandas()
+
+
+@pytest.mark.parametrize(
+    ("data", "to_type"),
+    [
+        pytest.param(["10.2", None], dtypes.INT_DTYPE, id="to_int"),
+        pytest.param(["false", None], dtypes.FLOAT_DTYPE, id="to_float"),
+        pytest.param(["10.2", None], dtypes.BOOL_DTYPE, id="to_bool"),
+        pytest.param(["true", None], dtypes.STRING_DTYPE, id="to_string"),
+    ],
+)
+def test_json_astype_others_in_safe_mode(data, to_type):
+    bf_series = series.Series(data, dtype=dtypes.JSON_DTYPE)
+    bf_result = bf_series.astype(to_type, errors="null")
+    assert bf_result.dtype == to_type
+
+    expected = pd.Series([None, None], dtype=to_type)
+    expected.index = expected.index.astype("Int64")
+    pd.testing.assert_series_equal(bf_result.to_pandas(), expected)
+
+
 @pytest.mark.parametrize(
     "index",
     [0, 5, -2],
@@ -3616,9 +3815,7 @@ def test_iloc_single_integer(scalars_df_index, scalars_pandas_df_index, index):
     assert bf_result == pd_result
 
 
-def test_iloc_single_integer_out_of_bound_error(
-    scalars_df_index, scalars_pandas_df_index
-):
+def test_iloc_single_integer_out_of_bound_error(scalars_df_index):
     with pytest.raises(IndexError, match="single positional indexer is out-of-bounds"):
         scalars_df_index.string_col.iloc[99]
 
@@ -3889,7 +4086,7 @@ def test_series_bool_interpretation_error(scalars_df_index):
 
 def test_query_job_setters(scalars_dfs):
     # if allow_large_results=False, might not create query job
-    with bigframes.option_context("bigquery.allow_large_results", True):
+    with bigframes.option_context("compute.allow_large_results", True):
         job_ids = set()
         df, _ = scalars_dfs
         series = df["int64_col"]
@@ -4310,6 +4507,21 @@ def test_series_explode_w_aggregate():
     assert s.explode().sum() == pd_s.explode().sum()
 
 
+def test_series_construct_empty_array():
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
+    s = bigframes.pandas.Series([[]])
+    expected = pd.Series(
+        [[]],
+        dtype=pd.ArrowDtype(pa.list_(pa.float64())),
+        index=pd.Index([0], dtype=pd.Int64Dtype()),
+    )
+    pd.testing.assert_series_equal(
+        expected,
+        s.to_pandas(),
+    )
+
+
 @pytest.mark.parametrize(
     ("data"),
     [
@@ -4328,7 +4540,6 @@ def test_series_explode_null(data):
     )
 
 
-@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("append", "level", "col", "rule"),
     [
@@ -4339,6 +4550,8 @@ def test_series_explode_null(data):
     ],
 )
 def test__resample(scalars_df_index, scalars_pandas_df_index, append, level, col, rule):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df_index = scalars_df_index.set_index(col, append=append)["int64_col"]
     scalars_pandas_df_index = scalars_pandas_df_index.set_index(col, append=append)[
         "int64_col"
@@ -4349,13 +4562,13 @@ def test__resample(scalars_df_index, scalars_pandas_df_index, append, level, col
 
 
 def test_series_struct_get_field_by_attribute(
-    nested_structs_df, nested_structs_pandas_df, nested_structs_pandas_type
+    nested_structs_df, nested_structs_pandas_df
 ):
     if Version(pd.__version__) < Version("2.2.0"):
         pytest.skip("struct accessor is not supported before pandas 2.2")
 
     bf_series = nested_structs_df["person"]
-    df_series = nested_structs_pandas_df["person"].astype(nested_structs_pandas_type)
+    df_series = nested_structs_pandas_df["person"]
 
     pd.testing.assert_series_equal(
         bf_series.address.city.to_pandas(),
@@ -4384,3 +4597,12 @@ def test_series_struct_class_attributes_shadow_struct_fields(nested_structs_df):
     series = nested_structs_df["person"]
 
     assert series.name == "person"
+
+
+def test_series_to_pandas_dry_run(scalars_df_index):
+    bf_series = scalars_df_index["int64_col"]
+
+    result = bf_series.to_pandas(dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    assert len(result) > 0

@@ -15,13 +15,12 @@
 """Clients manages the connection to Google APIs."""
 
 import os
+import threading
 import typing
 from typing import Optional
-import warnings
 
 import google.api_core.client_info
 import google.api_core.client_options
-import google.api_core.exceptions
 import google.api_core.gapic_v1.client_info
 import google.auth.credentials
 import google.cloud.bigquery as bigquery
@@ -32,8 +31,9 @@ import google.cloud.resourcemanager_v3
 import pydata_google_auth
 
 import bigframes.constants
-import bigframes.exceptions as bfe
 import bigframes.version
+
+from . import environment
 
 _ENV_DEFAULT_PROJECT = "GOOGLE_CLOUD_PROJECT"
 _APPLICATION_NAME = f"bigframes/{bigframes.version.__version__} ibis/9.2.0"
@@ -41,20 +41,30 @@ _SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
 
 # BigQuery is a REST API, which requires the protocol as part of the URL.
-_BIGQUERY_LOCATIONAL_ENDPOINT = "https://{location}-bigquery.googleapis.com"
 _BIGQUERY_REGIONAL_ENDPOINT = "https://bigquery.{location}.rep.googleapis.com"
 
 # BigQuery Connection and Storage are gRPC APIs, which don't support the
 # https:// protocol in the API endpoint URL.
-_BIGQUERYCONNECTION_LOCATIONAL_ENDPOINT = "{location}-bigqueryconnection.googleapis.com"
-_BIGQUERYSTORAGE_LOCATIONAL_ENDPOINT = "{location}-bigquerystorage.googleapis.com"
-_BIGQUERYSTORAGE_REGIONAL_ENDPOINT = (
-    "https://bigquerystorage.{location}.rep.googleapis.com"
-)
+_BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "bigquerystorage.{location}.rep.googleapis.com"
 
 
 def _get_default_credentials_with_project():
     return pydata_google_auth.default(scopes=_SCOPES, use_local_webserver=False)
+
+
+def _get_application_names():
+    apps = [_APPLICATION_NAME]
+
+    if environment.is_vscode():
+        apps.append("vscode")
+        if environment.is_vscode_google_cloud_code_extension_installed():
+            apps.append(environment.GOOGLE_CLOUD_CODE_EXTENSION_NAME)
+    elif environment.is_jupyter():
+        apps.append("jupyter")
+        if environment.is_jupyter_bigquery_plugin_installed():
+            apps.append(environment.BIGQUERY_JUPYTER_PLUGIN_NAME)
+
+    return " ".join(apps)
 
 
 class ClientsProvider:
@@ -74,6 +84,9 @@ class ClientsProvider:
         if credentials is None:
             credentials, credentials_project = _get_default_credentials_with_project()
 
+            # Ensure an access token is available.
+            credentials.refresh(google.auth.transport.requests.Request())
+
         # Prefer the project in this order:
         # 1. Project explicitly specified by the user
         # 2. Project set in the environment
@@ -91,25 +104,24 @@ class ClientsProvider:
             )
 
         self._application_name = (
-            f"{_APPLICATION_NAME} {application_name}"
+            f"{_get_application_names()} {application_name}"
             if application_name
-            else _APPLICATION_NAME
+            else _get_application_names()
         )
         self._project = project
 
-        if (
-            use_regional_endpoints
-            and location is not None
-            and location.lower()
-            not in bigframes.constants.REP_ENABLED_BIGQUERY_LOCATIONS
-        ):
-            msg = bfe.format_message(
-                bigframes.constants.LEP_DEPRECATION_WARNING_MESSAGE.format(
-                    location=location
-                ),
-                fill=False,
-            )
-            warnings.warn(msg, category=FutureWarning)
+        if use_regional_endpoints:
+            if location is None:
+                raise ValueError(bigframes.constants.LOCATION_NEEDED_FOR_REP_MESSAGE)
+            elif (
+                location.lower()
+                not in bigframes.constants.REP_ENABLED_BIGQUERY_LOCATIONS
+            ):
+                raise ValueError(
+                    bigframes.constants.REP_NOT_SUPPORTED_MESSAGE.format(
+                        location=location
+                    )
+                )
         self._location = location
         self._use_regional_endpoints = use_regional_endpoints
 
@@ -118,16 +130,30 @@ class ClientsProvider:
         self._client_endpoints_override = client_endpoints_override
 
         # cloud clients initialized for lazy load
+        self._bqclient_lock = threading.Lock()
         self._bqclient = None
+
+        self._bqconnectionclient_lock = threading.Lock()
         self._bqconnectionclient: Optional[
             google.cloud.bigquery_connection_v1.ConnectionServiceClient
         ] = None
+
+        self._bqstoragereadclient_lock = threading.Lock()
         self._bqstoragereadclient: Optional[
             google.cloud.bigquery_storage_v1.BigQueryReadClient
         ] = None
+
+        self._bqstoragewriteclient_lock = threading.Lock()
+        self._bqstoragewriteclient: Optional[
+            google.cloud.bigquery_storage_v1.BigQueryWriteClient
+        ] = None
+
+        self._cloudfunctionsclient_lock = threading.Lock()
         self._cloudfunctionsclient: Optional[
             google.cloud.functions_v2.FunctionServiceClient
         ] = None
+
+        self._resourcemanagerclient_lock = threading.Lock()
         self._resourcemanagerclient: Optional[
             google.cloud.resourcemanager_v3.ProjectsClient
         ] = None
@@ -139,16 +165,8 @@ class ClientsProvider:
                 api_endpoint=self._client_endpoints_override["bqclient"]
             )
         elif self._use_regional_endpoints:
-            endpoint_template = _BIGQUERY_REGIONAL_ENDPOINT
-            if (
-                self._location is not None
-                and self._location.lower()
-                not in bigframes.constants.REP_ENABLED_BIGQUERY_LOCATIONS
-            ):
-                endpoint_template = _BIGQUERY_LOCATIONAL_ENDPOINT
-
             bq_options = google.api_core.client_options.ClientOptions(
-                api_endpoint=endpoint_template.format(location=self._location)
+                api_endpoint=_BIGQUERY_REGIONAL_ENDPOINT.format(location=self._location)
             )
 
         bq_info = google.api_core.client_info.ClientInfo(
@@ -162,6 +180,14 @@ class ClientsProvider:
             project=self._project,
             location=self._location,
         )
+
+        # If a new enough client library is available, we opt-in to the faster
+        # backend behavior. This only affects code paths where query_and_wait is
+        # used, which doesn't expose a query job directly. See internal issue
+        # b/417985981.
+        if hasattr(bq_client, "default_job_creation_mode"):
+            bq_client.default_job_creation_mode = "JOB_CREATION_OPTIONAL"
+
         if self._bq_kms_key_name:
             # Note: Key configuration only applies automatically to load and query jobs, not copy jobs.
             encryption_config = bigquery.EncryptionConfiguration(
@@ -182,98 +208,126 @@ class ClientsProvider:
 
     @property
     def bqclient(self):
-        if not self._bqclient:
-            self._bqclient = self._create_bigquery_client()
+        with self._bqclient_lock:
+            if not self._bqclient:
+                self._bqclient = self._create_bigquery_client()
 
         return self._bqclient
 
     @property
     def bqconnectionclient(self):
-        if not self._bqconnectionclient:
-            bqconnection_options = None
-            if "bqconnectionclient" in self._client_endpoints_override:
-                bqconnection_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=self._client_endpoints_override["bqconnectionclient"]
+        with self._bqconnectionclient_lock:
+            if not self._bqconnectionclient:
+                bqconnection_options = None
+                if "bqconnectionclient" in self._client_endpoints_override:
+                    bqconnection_options = google.api_core.client_options.ClientOptions(
+                        api_endpoint=self._client_endpoints_override[
+                            "bqconnectionclient"
+                        ]
+                    )
+
+                bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
+                    user_agent=self._application_name
                 )
-            elif self._use_regional_endpoints:
-                bqconnection_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=_BIGQUERYCONNECTION_LOCATIONAL_ENDPOINT.format(
-                        location=self._location
+                self._bqconnectionclient = (
+                    google.cloud.bigquery_connection_v1.ConnectionServiceClient(
+                        client_info=bqconnection_info,
+                        client_options=bqconnection_options,
+                        credentials=self._credentials,
                     )
                 )
-
-            bqconnection_info = google.api_core.gapic_v1.client_info.ClientInfo(
-                user_agent=self._application_name
-            )
-            self._bqconnectionclient = (
-                google.cloud.bigquery_connection_v1.ConnectionServiceClient(
-                    client_info=bqconnection_info,
-                    client_options=bqconnection_options,
-                    credentials=self._credentials,
-                )
-            )
 
         return self._bqconnectionclient
 
     @property
     def bqstoragereadclient(self):
-        if not self._bqstoragereadclient:
-            bqstorage_options = None
-            if "bqstoragereadclient" in self._client_endpoints_override:
-                bqstorage_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=self._client_endpoints_override["bqstoragereadclient"]
-                )
-            elif self._use_regional_endpoints:
-                endpoint_template = _BIGQUERYSTORAGE_REGIONAL_ENDPOINT
-                if (
-                    self._location is not None
-                    and self._location.lower()
-                    not in bigframes.constants.REP_ENABLED_BIGQUERY_LOCATIONS
-                ):
-                    endpoint_template = _BIGQUERYSTORAGE_LOCATIONAL_ENDPOINT
+        with self._bqstoragereadclient_lock:
+            if not self._bqstoragereadclient:
+                bqstorage_options = None
+                if "bqstoragereadclient" in self._client_endpoints_override:
+                    bqstorage_options = google.api_core.client_options.ClientOptions(
+                        api_endpoint=self._client_endpoints_override[
+                            "bqstoragereadclient"
+                        ]
+                    )
+                elif self._use_regional_endpoints:
+                    bqstorage_options = google.api_core.client_options.ClientOptions(
+                        api_endpoint=_BIGQUERYSTORAGE_REGIONAL_ENDPOINT.format(
+                            location=self._location
+                        )
+                    )
 
-                bqstorage_options = google.api_core.client_options.ClientOptions(
-                    api_endpoint=endpoint_template.format(location=self._location)
+                bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
+                    user_agent=self._application_name
                 )
-
-            bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
-                user_agent=self._application_name
-            )
-            self._bqstoragereadclient = (
-                google.cloud.bigquery_storage_v1.BigQueryReadClient(
-                    client_info=bqstorage_info,
-                    client_options=bqstorage_options,
-                    credentials=self._credentials,
+                self._bqstoragereadclient = (
+                    google.cloud.bigquery_storage_v1.BigQueryReadClient(
+                        client_info=bqstorage_info,
+                        client_options=bqstorage_options,
+                        credentials=self._credentials,
+                    )
                 )
-            )
 
         return self._bqstoragereadclient
 
     @property
-    def cloudfunctionsclient(self):
-        if not self._cloudfunctionsclient:
-            functions_info = google.api_core.gapic_v1.client_info.ClientInfo(
-                user_agent=self._application_name
-            )
-            self._cloudfunctionsclient = (
-                google.cloud.functions_v2.FunctionServiceClient(
-                    client_info=functions_info,
-                    credentials=self._credentials,
+    def bqstoragewriteclient(self):
+        with self._bqstoragewriteclient_lock:
+            if not self._bqstoragewriteclient:
+                bqstorage_options = None
+                if "bqstoragewriteclient" in self._client_endpoints_override:
+                    bqstorage_options = google.api_core.client_options.ClientOptions(
+                        api_endpoint=self._client_endpoints_override[
+                            "bqstoragewriteclient"
+                        ]
+                    )
+                elif self._use_regional_endpoints:
+                    bqstorage_options = google.api_core.client_options.ClientOptions(
+                        api_endpoint=_BIGQUERYSTORAGE_REGIONAL_ENDPOINT.format(
+                            location=self._location
+                        )
+                    )
+
+                bqstorage_info = google.api_core.gapic_v1.client_info.ClientInfo(
+                    user_agent=self._application_name
                 )
-            )
+                self._bqstoragewriteclient = (
+                    google.cloud.bigquery_storage_v1.BigQueryWriteClient(
+                        client_info=bqstorage_info,
+                        client_options=bqstorage_options,
+                        credentials=self._credentials,
+                    )
+                )
+
+        return self._bqstoragewriteclient
+
+    @property
+    def cloudfunctionsclient(self):
+        with self._cloudfunctionsclient_lock:
+            if not self._cloudfunctionsclient:
+                functions_info = google.api_core.gapic_v1.client_info.ClientInfo(
+                    user_agent=self._application_name
+                )
+                self._cloudfunctionsclient = (
+                    google.cloud.functions_v2.FunctionServiceClient(
+                        client_info=functions_info,
+                        credentials=self._credentials,
+                    )
+                )
 
         return self._cloudfunctionsclient
 
     @property
     def resourcemanagerclient(self):
-        if not self._resourcemanagerclient:
-            resourcemanager_info = google.api_core.gapic_v1.client_info.ClientInfo(
-                user_agent=self._application_name
-            )
-            self._resourcemanagerclient = (
-                google.cloud.resourcemanager_v3.ProjectsClient(
-                    credentials=self._credentials, client_info=resourcemanager_info
+        with self._resourcemanagerclient_lock:
+            if not self._resourcemanagerclient:
+                resourcemanager_info = google.api_core.gapic_v1.client_info.ClientInfo(
+                    user_agent=self._application_name
                 )
-            )
+                self._resourcemanagerclient = (
+                    google.cloud.resourcemanager_v3.ProjectsClient(
+                        credentials=self._credentials, client_info=resourcemanager_info
+                    )
+                )
 
         return self._resourcemanagerclient

@@ -40,20 +40,73 @@ def test_instance():
             pass
 
         def method2(self):
+            self.method3()
+
+        def method3(self):
             pass
+
+        @log_adapter.log_name_override("override_name")
+        def method4(self):
+            pass
+
+        @property
+        def my_field(self):
+            return 0
 
     return TestClass()
 
 
-def test_method_logging(test_instance):
+@pytest.fixture
+def test_method():
+    @log_adapter.method_logger
+    def method1():
+        pass
+
+    return method1
+
+
+@pytest.fixture
+def test_method_w_custom_base():
+    def method1():
+        pass
+
+    _decorated_method = log_adapter.method_logger(method1, custom_base_name="pandas")
+
+    return _decorated_method
+
+
+def test_class_attribute_logging(test_instance):
     test_instance.method1()
     test_instance.method2()
+    test_instance.method4()
 
     # Check if the methods were added to the _api_methods list
     api_methods = log_adapter.get_and_reset_api_methods()
-    assert api_methods is not None
     assert "testclass-method1" in api_methods
     assert "testclass-method2" in api_methods
+    assert "testclass-method3" not in api_methods
+    assert "testclass-method4" not in api_methods
+    assert "testclass-override_name" in api_methods
+
+
+def test_method_logging(test_method):
+    test_method()
+    api_methods = log_adapter.get_and_reset_api_methods()
+    assert "locals-method1" in api_methods
+
+
+def test_method_logging_with_custom_base_name(test_method_w_custom_base):
+    test_method_w_custom_base()
+    api_methods = log_adapter.get_and_reset_api_methods()
+    assert "pandas-method1" in api_methods
+
+
+def test_property_logging(test_instance):
+    test_instance.my_field
+
+    # Check if the properties were added to the _api_methods list
+    api_methods = log_adapter.get_and_reset_api_methods()
+    assert "testclass-my_field" in api_methods
 
 
 def test_add_api_method_limit(test_instance):
@@ -127,6 +180,20 @@ def test_get_and_reset_api_methods(test_instance):
                 "class_name": "dataframe",
                 "method_name": "resample",
                 "args_count": 0,
+            },
+        ),
+        (
+            "pandas",
+            "concat",
+            [[None, None]],
+            {"axis": 1},
+            log_adapter.PANDAS_API_TRACKING_TASK,
+            {
+                "task": log_adapter.PANDAS_API_TRACKING_TASK,
+                "class_name": "pandas",
+                "method_name": "concat",
+                "args_count": 1,
+                "kwargs_0": "axis",
             },
         ),
     ),

@@ -27,11 +27,13 @@ import typing
 from typing import (
     Callable,
     Dict,
+    Hashable,
     Iterable,
     List,
     Literal,
     Mapping,
     Optional,
+    overload,
     Sequence,
     Tuple,
     Union,
@@ -45,6 +47,7 @@ import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
+from pandas.api import extensions as pd_ext
 import pandas.io.formats.format
 import pyarrow
 import tabulate
@@ -66,13 +69,14 @@ import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
 import bigframes.core.window
+from bigframes.core.window import rolling
 import bigframes.core.window_spec as windows
 import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
-import bigframes.operations.aggregations
 import bigframes.operations.aggregations as agg_ops
+import bigframes.operations.ai
 import bigframes.operations.plotting as plotting
 import bigframes.operations.semantics
 import bigframes.operations.structs
@@ -392,6 +396,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return self._apply_unary_op(ops.AsTypeOp(dtype, safe_cast))
 
+    def _should_sql_have_index(self) -> bool:
+        """Should the SQL we pass to BQML and other I/O include the index?"""
+
+        return self._has_index and (
+            self.index.name is not None or len(self.index.names) > 1
+        )
+
+    def _to_view(self) -> bigquery.TableReference:
+        """Compiles this DataFrame's expression tree to SQL and saves it to a
+        (temporary) view.
+        """
+        return self._block.to_view(include_index=self._should_sql_have_index())
+
     def _to_sql_query(
         self, include_index: bool, enable_cache: bool = True
     ) -> Tuple[str, list[str], list[blocks.Label]]:
@@ -417,11 +434,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             str:
                 string representing the compiled SQL.
         """
-        include_index = self._has_index and (
-            self.index.name is not None or len(self.index.names) > 1
-        )
-        sql, _, _ = self._to_sql_query(include_index=include_index)
-        return sql
+        try:
+            include_index = self._should_sql_have_index()
+            sql, _, _ = self._to_sql_query(include_index=include_index)
+            return sql
+        except AttributeError as e:
+            # Workaround for a development-mode debugging issue:
+            # An `AttributeError` originating *inside* this @property getter (e.g., due to
+            # a typo or referencing a non-existent attribute) can be mistakenly intercepted
+            # by the class's __getattr__ method if one is defined.
+            # We catch the AttributeError and raise SyntaxError instead to make it clear
+            # the error originates *here* in the property implementation.
+            # See: https://stackoverflow.com/questions/50542177/correct-handling-of-attributeerror-in-getattr-when-using-property
+            raise SyntaxError(
+                "AttributeError encountered. Please check the implementation for incorrect attribute access."
+            ) from e
 
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
@@ -562,6 +589,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if isinstance(key, bigframes.series.Series):
             return self._getitem_bool_series(key)
 
+        if isinstance(key, slice):
+            return self.iloc[key]
+
         if isinstance(key, typing.Hashable):
             return self._getitem_label(key)
         # Select a subset of columns or re-order columns.
@@ -592,7 +622,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _getitem_label(self, key: blocks.Label):
         col_ids = self._block.cols_matching_label(key)
         if len(col_ids) == 0:
-            raise KeyError(key)
+            raise KeyError(
+                f"{key} not found in DataFrame columns: {self._block.column_labels}"
+            )
         block = self._block.select_columns(col_ids)
         if isinstance(self.columns, pandas.MultiIndex):
             # Multiindex should drop-level if not selecting entire
@@ -751,11 +783,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return formatter.repr_query_job(self._compute_dry_run())
 
         df = self.copy()
-        if bigframes.options.experiments.blob:
+        if bigframes.options.display.blob_display:
             blob_cols = [
-                col
-                for col in df.columns
-                if df[col].dtype == bigframes.dtypes.OBJ_REF_DTYPE
+                series_name
+                for series_name, series in df.items()
+                if series.dtype == bigframes.dtypes.OBJ_REF_DTYPE
             ]
             for col in blob_cols:
                 # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
@@ -774,7 +806,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         with display_options.pandas_repr(opts):
             # Allows to preview images in the DataFrame. The implementation changes the string repr as well, that it doesn't truncate strings or escape html charaters such as "<" and ">". We may need to implement a full-fledged repr module to better support types not in pandas.
-            if bigframes.options.experiments.blob:
+            if bigframes.options.display.blob_display and blob_cols:
 
                 def obj_ref_rt_to_html(obj_ref_rt) -> str:
                     obj_ref_rt_json = json.loads(obj_ref_rt)
@@ -785,8 +817,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                             str, gcs_metadata.get("content_type", "")
                         )
                         if content_type.startswith("image"):
+                            size_str = ""
+                            if bigframes.options.display.blob_display_width:
+                                size_str = f' width="{bigframes.options.display.blob_display_width}"'
+                            if bigframes.options.display.blob_display_height:
+                                size_str = (
+                                    size_str
+                                    + f' height="{bigframes.options.display.blob_display_height}"'
+                                )
                             url = obj_ref_rt_json["access_urls"]["read_url"]
-                            return f'<img src="{url}">'
+                            return f'<img src="{url}"{size_str}>'
 
                     return f'uri: {obj_ref_rt_json["objectref"]["uri"]}, authorizer: {obj_ref_rt_json["objectref"]["authorizer"]}'
 
@@ -1594,6 +1634,32 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._set_internal_query_job(query_job)
         return pa_table
 
+    @overload
+    def to_pandas(  # type: ignore[overload-overlap]
+        self,
+        max_download_size: Optional[int] = ...,
+        sampling_method: Optional[str] = ...,
+        random_state: Optional[int] = ...,
+        *,
+        ordered: bool = ...,
+        dry_run: Literal[False] = ...,
+        allow_large_results: Optional[bool] = ...,
+    ) -> pandas.DataFrame:
+        ...
+
+    @overload
+    def to_pandas(
+        self,
+        max_download_size: Optional[int] = ...,
+        sampling_method: Optional[str] = ...,
+        random_state: Optional[int] = ...,
+        *,
+        ordered: bool = ...,
+        dry_run: Literal[True] = ...,
+        allow_large_results: Optional[bool] = ...,
+    ) -> pandas.Series:
+        ...
+
     def to_pandas(
         self,
         max_download_size: Optional[int] = None,
@@ -1601,29 +1667,76 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        dry_run: bool = False,
         allow_large_results: Optional[bool] = None,
-    ) -> pandas.DataFrame:
+    ) -> pandas.DataFrame | pandas.Series:
         """Write DataFrame to pandas DataFrame.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame({'col': [4, 2, 2]})
+
+        Download the data from BigQuery and convert it into an in-memory pandas DataFrame.
+
+            >>> df.to_pandas()
+               col
+            0    4
+            1    2
+            2    2
+
+        Estimate job statistics without processing or downloading data by using `dry_run=True`.
+
+            >>> df.to_pandas(dry_run=True) # doctest: +SKIP
+            columnCount                                                            1
+            columnDtypes                                              {'col': Int64}
+            indexLevel                                                             1
+            indexDtypes                                                      [Int64]
+            projectId                                                  bigframes-dev
+            location                                                              US
+            jobType                                                            QUERY
+            destinationTable       {'projectId': 'bigframes-dev', 'datasetId': '_...
+            useLegacySql                                                       False
+            referencedTables                                                    None
+            totalBytesProcessed                                                    0
+            cacheHit                                                           False
+            statementType                                                     SELECT
+            creationTime                            2025-04-02 20:17:12.038000+00:00
+            dtype: object
 
         Args:
             max_download_size (int, default None):
-                Download size threshold in MB. If max_download_size is exceeded when downloading data
-                (e.g., to_pandas()), the data will be downsampled if
-                bigframes.options.sampling.enable_downsampling is True, otherwise, an error will be
-                raised. If set to a value other than None, this will supersede the global config.
+                .. deprecated:: 2.0.0
+                    ``max_download_size`` parameter is deprecated. Please use ``to_pandas_batches()``
+                    method instead.
+
+                Download size threshold in MB. If ``max_download_size`` is exceeded when downloading data,
+                the data will be downsampled if ``bigframes.options.sampling.enable_downsampling`` is
+                ``True``, otherwise, an error will be raised. If set to a value other than ``None``,
+                this will supersede the global config.
             sampling_method (str, default None):
+                .. deprecated:: 2.0.0
+                    ``sampling_method`` parameter is deprecated. Please use ``sample()`` method instead.
+
                 Downsampling algorithms to be chosen from, the choices are: "head": This algorithm
                 returns a portion of the data from the beginning. It is fast and requires minimal
                 computations to perform the downsampling; "uniform": This algorithm returns uniform
                 random samples of the data. If set to a value other than None, this will supersede
                 the global config.
             random_state (int, default None):
+                .. deprecated:: 2.0.0
+                    ``random_state`` parameter is deprecated. Please use ``sample()`` method instead.
+
                 The seed for the uniform downsampling algorithm. If provided, the uniform method may
                 take longer to execute and require more computation. If set to a value other than
                 None, this will supersede the global config.
             ordered (bool, default True):
                 Determines whether the resulting pandas dataframe will be ordered.
                 In some cases, unordered may result in a faster-executing query.
+            dry_run (bool, default False):
+                If this argument is true, this method will not process the data. Instead, it returns
+                a Pandas Series containing dry run statistics
             allow_large_results (bool, default None):
                 If not None, overrides the global setting to allow or disallow large query results
                 over the default size limit of 10 GB.
@@ -1631,9 +1744,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Returns:
             pandas.DataFrame: A pandas DataFrame with all rows and columns of this DataFrame if the
                 data_sampling_threshold_mb is not exceeded; otherwise, a pandas DataFrame with
-                downsampled rows and all columns of this DataFrame.
+                downsampled rows and all columns of this DataFrame. If dry_run is set, a pandas
+                Series containing dry run statistics will be returned.
         """
-        # TODO(orrbradford): Optimize this in future. Potentially some cases where we can return the stored query job
+        if max_download_size is not None:
+            msg = bfe.format_message(
+                "DEPRECATED: The `max_download_size` parameters for `DataFrame.to_pandas()` "
+                "are deprecated and will be removed soon. Please use `DataFrame.to_pandas_batches()`."
+            )
+            warnings.warn(msg, category=FutureWarning)
+        if sampling_method is not None or random_state is not None:
+            msg = bfe.format_message(
+                "DEPRECATED: The `sampling_method` and `random_state` parameters for "
+                "`DataFrame.to_pandas()` are deprecated and will be removed soon. "
+                "Please use `DataFrame.sample().to_pandas()` instead for sampling."
+            )
+            warnings.warn(msg, category=FutureWarning, stacklevel=2)
+
+        if dry_run:
+            dry_run_stats, dry_run_job = self._block._compute_dry_run(
+                max_download_size=max_download_size,
+                sampling_method=sampling_method,
+                random_state=random_state,
+                ordered=ordered,
+            )
+            self._set_internal_query_job(dry_run_job)
+            return dry_run_stats
+
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
@@ -1657,11 +1794,40 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         page_size and max_results determine the size and number of batches,
         see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob#google_cloud_bigquery_job_QueryJob_result
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame({'col': [4, 3, 2, 2, 3]})
+
+        Iterate through the results in batches, limiting the total rows yielded
+        across all batches via `max_results`:
+
+            >>> for df_batch in df.to_pandas_batches(max_results=3):
+            ...     print(df_batch)
+               col
+            0    4
+            1    3
+            2    2
+
+        Alternatively, control the approximate size of each batch using `page_size`
+        and fetch batches manually using `next()`:
+
+            >>> it = df.to_pandas_batches(page_size=2)
+            >>> next(it)
+               col
+            0    4
+            1    3
+            >>> next(it)
+               col
+            2    2
+            3    2
+
         Args:
             page_size (int, default None):
-                The size of each batch.
+                The maximum number of rows of each batch. Non-positive values are ignored.
             max_results (int, default None):
-                If given, only download this many rows at maximum.
+                The maximum total number of rows of all batches.
             allow_large_results (bool, default None):
                 If not None, overrides the global setting to allow or disallow large query results
                 over the default size limit of 10 GB.
@@ -1679,7 +1845,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def _compute_dry_run(self) -> bigquery.QueryJob:
-        return self._block._compute_dry_run()
+        _, query_job = self._block._compute_dry_run()
+        return query_job
 
     def copy(self) -> DataFrame:
         return DataFrame(self._block)
@@ -2080,10 +2247,34 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         col_ids_strs: List[str] = [col_id for col_id in col_ids if col_id is not None]
         return DataFrame(self._block.set_index(col_ids_strs, append=append, drop=drop))
 
+    @overload  # type: ignore[override]
+    def sort_index(
+        self,
+        *,
+        ascending: bool = ...,
+        inplace: Literal[False] = ...,
+        na_position: Literal["first", "last"] = ...,
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def sort_index(
+        self,
+        *,
+        ascending: bool = ...,
+        inplace: Literal[True] = ...,
+        na_position: Literal["first", "last"] = ...,
+    ) -> None:
+        ...
+
     @validations.requires_index
     def sort_index(
-        self, ascending: bool = True, na_position: Literal["first", "last"] = "last"
-    ) -> DataFrame:
+        self,
+        *,
+        ascending: bool = True,
+        inplace: bool = False,
+        na_position: Literal["first", "last"] = "last",
+    ) -> Optional[DataFrame]:
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
         na_last = na_position == "last"
@@ -2094,16 +2285,46 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             else order.descending_over(column, na_last)
             for column in index_columns
         ]
-        return DataFrame(self._block.order_by(ordering))
+        block = self._block.order_by(ordering)
+        if inplace:
+            self._set_block(block)
+            return None
+        else:
+            return DataFrame(block)
+
+    @overload  # type: ignore[override]
+    def sort_values(
+        self,
+        by: str | typing.Sequence[str],
+        *,
+        inplace: Literal[False] = ...,
+        ascending: bool | typing.Sequence[bool] = ...,
+        kind: str = ...,
+        na_position: typing.Literal["first", "last"] = ...,
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def sort_values(
+        self,
+        by: str | typing.Sequence[str],
+        *,
+        inplace: Literal[True] = ...,
+        ascending: bool | typing.Sequence[bool] = ...,
+        kind: str = ...,
+        na_position: typing.Literal["first", "last"] = ...,
+    ) -> None:
+        ...
 
     def sort_values(
         self,
         by: str | typing.Sequence[str],
         *,
+        inplace: bool = False,
         ascending: bool | typing.Sequence[bool] = True,
         kind: str = "quicksort",
         na_position: typing.Literal["first", "last"] = "last",
-    ) -> DataFrame:
+    ) -> Optional[DataFrame]:
         if isinstance(by, (bigframes.series.Series, indexes.Index, DataFrame)):
             raise KeyError(
                 f"Invalid key type: {type(by).__name__}. Please provide valid column name(s)."
@@ -2133,7 +2354,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 if is_ascending
                 else order.descending_over(column_id, na_last)
             )
-        return DataFrame(self._block.order_by(ordering))
+        block = self._block.order_by(ordering)
+        if inplace:
+            self._set_block(block)
+            return None
+        else:
+            return DataFrame(block)
 
     def eval(self, expr: str) -> DataFrame:
         import bigframes.core.eval as bf_eval
@@ -2173,6 +2399,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def add_suffix(self, suffix: str, axis: int | str | None = None) -> DataFrame:
         axis = 1 if axis is None else axis
         return DataFrame(self._get_block().add_suffix(suffix, axis))
+
+    def take(
+        self, indices: typing.Sequence[int], axis: int | str | None = 0, **kwargs
+    ) -> DataFrame:
+        if not utils.is_list_like(indices):
+            raise ValueError("indices should be a list-like object.")
+        if axis == 0 or axis == "index":
+            return self.iloc[indices]
+        elif axis == 1 or axis == "columns":
+            return self.iloc[:, indices]
+        else:
+            raise ValueError(f"No axis named {axis} for object type DataFrame")
 
     def filter(
         self,
@@ -2371,12 +2609,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @validations.requires_ordering()
     def ffill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
-        window = windows.rows(preceding=limit, following=0)
+        window = windows.rows(start=None if limit is None else -limit, end=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
     @validations.requires_ordering()
     def bfill(self, *, limit: typing.Optional[int] = None) -> DataFrame:
-        window = windows.rows(preceding=0, following=limit)
+        window = windows.rows(start=0, end=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
 
     def isin(self, values) -> DataFrame:
@@ -2688,9 +2926,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return bigframes.series.Series(block)
 
     def agg(
-        self, func: str | typing.Sequence[str]
+        self,
+        func: str
+        | typing.Sequence[str]
+        | typing.Mapping[blocks.Label, typing.Sequence[str] | str],
     ) -> DataFrame | bigframes.series.Series:
-        if utils.is_list_like(func):
+        if utils.is_dict_like(func):
+            # Must check dict-like first because dictionaries are list-like
+            # according to Pandas.
+            agg_cols = []
+            for col_label, agg_func in func.items():
+                agg_cols.append(self[col_label].agg(agg_func))
+
+            from bigframes.core.reshape import api as reshape
+
+            return reshape.concat(agg_cols, axis=1)
+
+        elif utils.is_list_like(func):
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
 
             for dtype, agg in itertools.product(self.dtypes, aggregations):
@@ -2704,6 +2956,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     aggregations,
                 )
             )
+
         else:
             return bigframes.series.Series(
                 self._block.aggregate_all_and_stack(
@@ -3250,13 +3503,35 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     @validations.requires_ordering()
-    def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
-        # To get n size window, need current row and n-1 preceding rows.
-        window_def = windows.rows(
-            preceding=window - 1, following=0, min_periods=min_periods or window
-        )
-        return bigframes.core.window.Window(
-            self._block, window_def, self._block.value_columns
+    def rolling(
+        self,
+        window: int | pandas.Timedelta | numpy.timedelta64 | datetime.timedelta | str,
+        min_periods=None,
+        on: str | None = None,
+        closed: Literal["right", "left", "both", "neither"] = "right",
+    ) -> bigframes.core.window.Window:
+        if isinstance(window, int):
+            window_def = windows.WindowSpec(
+                bounds=windows.RowsWindowBounds.from_window_size(window, closed),
+                min_periods=min_periods if min_periods is not None else window,
+            )
+            skip_agg_col_id = (
+                None if on is None else self._block.resolve_label_exact_or_error(on)
+            )
+            return bigframes.core.window.Window(
+                self._block,
+                window_def,
+                self._block.value_columns,
+                skip_agg_column_id=skip_agg_col_id,
+            )
+
+        return rolling.create_range_window(
+            self._block,
+            window,
+            min_periods=min_periods,
+            on=on,
+            closed=closed,
+            is_series=False,
         )
 
     @validations.requires_ordering()
@@ -3350,6 +3625,47 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def abs(self) -> DataFrame:
         return self._apply_unary_op(ops.abs_op)
 
+    def round(self, decimals: Union[int, dict[Hashable, int]] = 0) -> DataFrame:
+        is_mapping = utils.is_dict_like(decimals)
+        if not (is_mapping or isinstance(decimals, int)):
+            raise TypeError("'decimals' must be either a dict-like or integer.")
+        block = self._block
+        exprs = []
+        for label, col_id, dtype in zip(
+            block.column_labels, block.value_columns, block.dtypes
+        ):
+            if dtype in set(bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE) - {
+                bigframes.dtypes.BOOL_DTYPE
+            }:
+                if is_mapping:
+                    if label in decimals:  # type: ignore
+                        exprs.append(
+                            ops.round_op.as_expr(
+                                col_id,
+                                ex.const(
+                                    decimals[label], dtype=bigframes.dtypes.INT_DTYPE  # type: ignore
+                                ),
+                            )
+                        )
+                    else:
+                        exprs.append(ex.deref(col_id))
+                else:
+                    exprs.append(
+                        ops.round_op.as_expr(
+                            col_id,
+                            ex.const(
+                                typing.cast(int, decimals),
+                                dtype=bigframes.dtypes.INT_DTYPE,
+                            ),
+                        )
+                    )
+            else:
+                exprs.append(ex.deref(col_id))
+
+        return DataFrame(
+            block.project_exprs(exprs, labels=block.column_labels, drop=True)
+        )
+
     def isna(self) -> DataFrame:
         return self._apply_unary_op(ops.isnull_op)
 
@@ -3420,7 +3736,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _apply_window_op(
         self,
-        op: agg_ops.WindowOp,
+        op: agg_ops.UnaryWindowOp,
         window_spec: windows.WindowSpec,
     ):
         block, result_ids = self._block.multi_apply_window_op(
@@ -3703,10 +4019,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             if_exists = "replace"
 
-            temp_table_ref = self._session._temp_storage_manager._random_table(
-                # The client code owns this table reference now, so skip_cleanup=True
-                #  to not clean it up when we close the session.
-                skip_cleanup=True,
+            # The client code owns this table reference now
+            temp_table_ref = (
+                self._session._anon_dataset_manager.generate_unique_resource_id()
             )
             destination_table = f"{temp_table_ref.project}.{temp_table_ref.dataset_id}.{temp_table_ref.table_id}"
 
@@ -3783,7 +4098,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         dtype=None,
         copy=False,
-        na_value=None,
+        na_value=pd_ext.no_default,
         *,
         allow_large_results=None,
         **kwargs,
@@ -4113,8 +4428,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # to the applied function should be a Series, not a scalar.
 
         if utils.get_axis_number(axis) == 1:
-            msg = bfe.format_message("axis=1 scenario is in preview.")
-            warnings.warn(msg, category=bfe.PreviewWarning)
+            msg = bfe.format_message(
+                "DataFrame.apply with parameter axis=1 scenario is in preview."
+            )
+            warnings.warn(msg, category=bfe.FunctionAxisOnePreviewWarning)
 
             if not hasattr(func, "bigframes_bigquery_function"):
                 raise ValueError(
@@ -4518,4 +4835,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def semantics(self):
+        msg = bfe.format_message(
+            "The 'semantics' property will be removed. Please use 'ai' instead."
+        )
+        warnings.warn(msg, category=FutureWarning)
         return bigframes.operations.semantics.Semantics(self)
+
+    @property
+    def ai(self):
+        """Returns the accessor for AI operators."""
+        return bigframes.operations.ai.AIAccessor(self)

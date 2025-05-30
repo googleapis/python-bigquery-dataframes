@@ -24,6 +24,8 @@ prefixer = test_utils.prefixer.Prefixer(
     "python-bigquery-dataframes", "samples/snippets"
 )
 
+routine_prefixer = test_utils.prefixer.Prefixer("bigframes", "")
+
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_datasets(bigquery_client: bigquery.Client) -> None:
@@ -76,6 +78,11 @@ def dataset_id_eu(bigquery_client: bigquery.Client, project_id: str) -> Iterator
     bigquery_client.delete_dataset(dataset, delete_contents=True, not_found_ok=True)
 
 
+@pytest.fixture(scope="session")
+def gcs_dst_bucket() -> str:
+    return "gs://bigframes_blob_test"
+
+
 @pytest.fixture
 def random_model_id(
     bigquery_client: bigquery.Client, project_id: str, dataset_id: str
@@ -101,3 +108,12 @@ def random_model_id_eu(
     full_model_id = f"{project_id}.{dataset_id_eu}.{random_model_id_eu}"
     yield full_model_id
     bigquery_client.delete_model(full_model_id, not_found_ok=True)
+
+
+@pytest.fixture
+def routine_id() -> Iterator[str]:
+    """Create a new BQ routine ID each time, so random_routine_id can be used as
+    target for udf creation.
+    """
+    random_routine_id = routine_prefixer.create_prefix()
+    yield random_routine_id

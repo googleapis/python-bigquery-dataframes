@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import inspect
+import threading
 import typing
 from typing import (
     Any,
@@ -25,6 +26,7 @@ from typing import (
     Literal,
     MutableSequence,
     Optional,
+    overload,
     Sequence,
     Tuple,
     Union,
@@ -43,11 +45,8 @@ from pandas._typing import (
 )
 
 import bigframes._config as config
-import bigframes.core.blocks
 import bigframes.core.global_session as global_session
 import bigframes.core.indexes
-import bigframes.core.reshape
-import bigframes.core.tools
 import bigframes.dataframe
 import bigframes.enums
 import bigframes.series
@@ -155,6 +154,38 @@ def read_json(
 read_json.__doc__ = inspect.getdoc(bigframes.session.Session.read_json)
 
 
+@overload
+def read_gbq(  # type: ignore[overload-overlap]
+    query_or_table: str,
+    *,
+    index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+    columns: Iterable[str] = ...,
+    configuration: Optional[Dict] = ...,
+    max_results: Optional[int] = ...,
+    filters: vendored_pandas_gbq.FiltersType = ...,
+    use_cache: Optional[bool] = ...,
+    col_order: Iterable[str] = ...,
+    dry_run: Literal[False] = ...,
+) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+@overload
+def read_gbq(
+    query_or_table: str,
+    *,
+    index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+    columns: Iterable[str] = ...,
+    configuration: Optional[Dict] = ...,
+    max_results: Optional[int] = ...,
+    filters: vendored_pandas_gbq.FiltersType = ...,
+    use_cache: Optional[bool] = ...,
+    col_order: Iterable[str] = ...,
+    dry_run: Literal[True] = ...,
+) -> pandas.Series:
+    ...
+
+
 def read_gbq(
     query_or_table: str,
     *,
@@ -165,7 +196,8 @@ def read_gbq(
     filters: vendored_pandas_gbq.FiltersType = (),
     use_cache: Optional[bool] = None,
     col_order: Iterable[str] = (),
-) -> bigframes.dataframe.DataFrame:
+    dry_run: bool = False,
+) -> bigframes.dataframe.DataFrame | pandas.Series:
     _set_default_session_location_if_possible(query_or_table)
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq,
@@ -177,6 +209,7 @@ def read_gbq(
         filters=filters,
         use_cache=use_cache,
         col_order=col_order,
+        dry_run=dry_run,
     )
 
 
@@ -208,6 +241,38 @@ read_gbq_object_table.__doc__ = inspect.getdoc(
 )
 
 
+@overload
+def read_gbq_query(  # type: ignore[overload-overlap]
+    query: str,
+    *,
+    index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+    columns: Iterable[str] = ...,
+    configuration: Optional[Dict] = ...,
+    max_results: Optional[int] = ...,
+    use_cache: Optional[bool] = ...,
+    col_order: Iterable[str] = ...,
+    filters: vendored_pandas_gbq.FiltersType = ...,
+    dry_run: Literal[False] = ...,
+) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+@overload
+def read_gbq_query(
+    query: str,
+    *,
+    index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+    columns: Iterable[str] = ...,
+    configuration: Optional[Dict] = ...,
+    max_results: Optional[int] = ...,
+    use_cache: Optional[bool] = ...,
+    col_order: Iterable[str] = ...,
+    filters: vendored_pandas_gbq.FiltersType = ...,
+    dry_run: Literal[True] = ...,
+) -> pandas.Series:
+    ...
+
+
 def read_gbq_query(
     query: str,
     *,
@@ -218,7 +283,8 @@ def read_gbq_query(
     use_cache: Optional[bool] = None,
     col_order: Iterable[str] = (),
     filters: vendored_pandas_gbq.FiltersType = (),
-) -> bigframes.dataframe.DataFrame:
+    dry_run: bool = False,
+) -> bigframes.dataframe.DataFrame | pandas.Series:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq_query,
@@ -230,10 +296,41 @@ def read_gbq_query(
         use_cache=use_cache,
         col_order=col_order,
         filters=filters,
+        dry_run=dry_run,
     )
 
 
 read_gbq_query.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq_query)
+
+
+@overload
+def read_gbq_table(  # type: ignore[overload-overlap]
+    query: str,
+    *,
+    index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+    columns: Iterable[str] = ...,
+    max_results: Optional[int] = ...,
+    filters: vendored_pandas_gbq.FiltersType = ...,
+    use_cache: bool = ...,
+    col_order: Iterable[str] = ...,
+    dry_run: Literal[False] = ...,
+) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+@overload
+def read_gbq_table(
+    query: str,
+    *,
+    index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+    columns: Iterable[str] = ...,
+    max_results: Optional[int] = ...,
+    filters: vendored_pandas_gbq.FiltersType = ...,
+    use_cache: bool = ...,
+    col_order: Iterable[str] = ...,
+    dry_run: Literal[True] = ...,
+) -> pandas.Series:
+    ...
 
 
 def read_gbq_table(
@@ -245,7 +342,8 @@ def read_gbq_table(
     filters: vendored_pandas_gbq.FiltersType = (),
     use_cache: bool = True,
     col_order: Iterable[str] = (),
-) -> bigframes.dataframe.DataFrame:
+    dry_run: bool = False,
+) -> bigframes.dataframe.DataFrame | pandas.Series:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
         bigframes.session.Session.read_gbq_table,
@@ -256,6 +354,7 @@ def read_gbq_table(
         filters=filters,
         use_cache=use_cache,
         col_order=col_order,
+        dry_run=dry_run,
     )
 
 
@@ -367,6 +466,8 @@ def from_glob_path(
 
 from_glob_path.__doc__ = inspect.getdoc(bigframes.session.Session.from_glob_path)
 
+_default_location_lock = threading.Lock()
+
 
 def _set_default_session_location_if_possible(query):
     # Set the location as per the query if this is the first query the user is
@@ -377,31 +478,34 @@ def _set_default_session_location_if_possible(query):
     # If query is a table name, then it would be the location of the table.
     # If query is a SQL with a table, then it would be table's location.
     # If query is a SQL with no table, then it would be the BQ default location.
-    if (
-        config.options.bigquery._session_started
-        or config.options.bigquery.location
-        or config.options.bigquery.use_regional_endpoints
-    ):
-        return
+    global _default_location_lock
 
-    clients_provider = bigframes.session.clients.ClientsProvider(
-        project=config.options.bigquery.project,
-        location=config.options.bigquery.location,
-        use_regional_endpoints=config.options.bigquery.use_regional_endpoints,
-        credentials=config.options.bigquery.credentials,
-        application_name=config.options.bigquery.application_name,
-        bq_kms_key_name=config.options.bigquery.kms_key_name,
-        client_endpoints_override=config.options.bigquery.client_endpoints_override,
-    )
+    with _default_location_lock:
+        if (
+            config.options.bigquery._session_started
+            or config.options.bigquery.location
+            or config.options.bigquery.use_regional_endpoints
+        ):
+            return
 
-    bqclient = clients_provider.bqclient
+        clients_provider = bigframes.session.clients.ClientsProvider(
+            project=config.options.bigquery.project,
+            location=config.options.bigquery.location,
+            use_regional_endpoints=config.options.bigquery.use_regional_endpoints,
+            credentials=config.options.bigquery.credentials,
+            application_name=config.options.bigquery.application_name,
+            bq_kms_key_name=config.options.bigquery.kms_key_name,
+            client_endpoints_override=config.options.bigquery.client_endpoints_override,
+        )
 
-    if bigframes.session._io.bigquery.is_query(query):
-        # Intentionally run outside of the session so that we can detect the
-        # location before creating the session. Since it's a dry_run, labels
-        # aren't necessary.
-        job = bqclient.query(query, bigquery.QueryJobConfig(dry_run=True))
-        config.options.bigquery.location = job.location
-    else:
-        table = bqclient.get_table(query)
-        config.options.bigquery.location = table.location
+        bqclient = clients_provider.bqclient
+
+        if bigframes.session._io.bigquery.is_query(query):
+            # Intentionally run outside of the session so that we can detect the
+            # location before creating the session. Since it's a dry_run, labels
+            # aren't necessary.
+            job = bqclient.query(query, bigquery.QueryJobConfig(dry_run=True))
+            config.options.bigquery.location = job.location
+        else:
+            table = bqclient.get_table(query)
+            config.options.bigquery.location = table.location

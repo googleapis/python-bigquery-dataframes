@@ -14,7 +14,6 @@
 
 import base64
 import decimal
-import functools
 from typing import Iterable, Optional, Set, Union
 
 import geopandas as gpd  # type: ignore
@@ -64,16 +63,6 @@ ML_MULTIMODAL_GENERATE_EMBEDDING_OUTPUT = [
     "ml_generate_embedding_end_sec",
     "content",
 ]
-
-
-def skip_legacy_pandas(test):
-    @functools.wraps(test)
-    def wrapper(*args, **kwds):
-        if pd.__version__.startswith("1."):
-            pytest.skip("Skips pandas 1.x as not compatible with 2.x behavior.")
-        return test(*args, **kwds)
-
-    return wrapper
 
 
 # Prefer this function for tests that run in both ordered and unordered mode
@@ -401,7 +390,7 @@ def cleanup_function_assets(
 ) -> None:
     """Clean up the GCP assets behind a bigframess function."""
 
-    # Clean up bigframes function.
+    # Clean up bigframes bigquery function.
     try:
         bigquery_client.delete_routine(bigframes_func.bigframes_bigquery_function)
     except Exception:
@@ -409,6 +398,12 @@ def cleanup_function_assets(
         if not ignore_failures:
             raise
 
+    if not ignore_failures:
+        # Make sure that the BQ routins is actually deleted
+        with pytest.raises(google.api_core.exceptions.NotFound):
+            bigquery_client.get_routine(bigframes_func.bigframes_bigquery_function)
+
+    # Clean up bigframes cloud run function
     if cloudfunctions_client:
         # Clean up cloud function
         try:
@@ -419,6 +414,16 @@ def cleanup_function_assets(
             # By default don't raise exception in cleanup.
             if not ignore_failures:
                 raise
+
+        if not ignore_failures:
+            # Make sure the cloud run function is actually deleted
+            try:
+                gcf = cloudfunctions_client.get_function(
+                    name=bigframes_func.bigframes_cloud_function
+                )
+                assert gcf.state is functions_v2.Function.State.DELETING
+            except google.cloud.exceptions.NotFound:
+                pass
 
 
 def get_function_name(func, package_requirements=None, is_row_processor=False):

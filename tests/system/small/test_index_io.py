@@ -11,19 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pandas as pd
+
 import bigframes
 
 
 def test_to_pandas_override_global_option(scalars_df_index):
-    with bigframes.option_context("bigquery.allow_large_results", True):
+    with bigframes.option_context("compute.allow_large_results", True):
 
         bf_index = scalars_df_index.index
 
         # Direct call to_pandas uses global default setting (allow_large_results=True),
-        # table has 'bqdf' prefix.
         bf_index.to_pandas()
         table_id = bf_index._query_job.destination.table_id
-        assert table_id.startswith("bqdf")
+        assert table_id is not None
 
         # When allow_large_results=False, a query_job object should not be created.
         # Therefore, the table_id should remain unchanged.
@@ -31,8 +32,17 @@ def test_to_pandas_override_global_option(scalars_df_index):
         assert bf_index._query_job.destination.table_id == table_id
 
 
+def test_to_pandas_dry_run(scalars_df_index):
+    index = scalars_df_index.index
+
+    result = index.to_pandas(dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    assert len(result) > 0
+
+
 def test_to_numpy_override_global_option(scalars_df_index):
-    with bigframes.option_context("bigquery.allow_large_results", True):
+    with bigframes.option_context("compute.allow_large_results", True):
 
         bf_index = scalars_df_index.index
 
@@ -40,7 +50,7 @@ def test_to_numpy_override_global_option(scalars_df_index):
         # table has 'bqdf' prefix.
         bf_index.to_numpy()
         table_id = bf_index._query_job.destination.table_id
-        assert table_id.startswith("bqdf")
+        assert table_id is not None
 
         # When allow_large_results=False, a query_job object should not be created.
         # Therefore, the table_id should remain unchanged.

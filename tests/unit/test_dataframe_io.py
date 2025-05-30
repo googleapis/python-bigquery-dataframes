@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import Mock
+from unittest import mock
 
 import pytest
 
-from . import resources
+from bigframes.testing import mocks
 
 
 @pytest.fixture
 def mock_df(monkeypatch: pytest.MonkeyPatch):
-    dataframe = resources.create_dataframe(monkeypatch)
-    monkeypatch.setattr(dataframe, "to_pandas", Mock())
+    dataframe = mocks.create_dataframe(monkeypatch)
+    monkeypatch.setattr(dataframe, "to_pandas", mock.Mock())
     return dataframe
 
 
@@ -49,3 +49,8 @@ def test_dataframe_to_pandas(mock_df, api_name, kwargs):
     mock_df.to_pandas.assert_called_once_with(
         allow_large_results=kwargs["allow_large_results"]
     )
+
+
+def test_to_gbq_if_exists_invalid(mock_df):
+    with pytest.raises(ValueError, match="Got invalid value 'invalid' for if_exists."):
+        mock_df.to_gbq("a.b.c", if_exists="invalid")

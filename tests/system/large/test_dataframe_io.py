@@ -12,16 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import warnings
-
 import google.api_core.exceptions
 import pytest
 
 import bigframes
 
 WIKIPEDIA_TABLE = "bigquery-public-data.samples.wikipedia"
-LARGE_TABLE_OPTION = "bigquery.allow_large_results"
+LARGE_TABLE_OPTION = "compute.allow_large_results"
 
 
 def test_to_pandas_batches_raise_when_large_result_not_allowed(session):
@@ -32,21 +29,32 @@ def test_to_pandas_batches_raise_when_large_result_not_allowed(session):
         next(df.to_pandas_batches(page_size=500, max_results=1500))
 
 
+def test_large_df_peek_no_job(session):
+    execution_count_before = session._metrics.execution_count
+
+    # only works with null index, as sequential index requires row_number over full table scan.
+    df = session.read_gbq(
+        WIKIPEDIA_TABLE, index_col=bigframes.enums.DefaultIndexKind.NULL
+    )
+    result = df.peek(50)
+    execution_count_after = session._metrics.execution_count
+
+    assert len(result) == 50
+    assert execution_count_after == execution_count_before
+
+
 def test_to_pandas_batches_override_global_option(
     session,
 ):
     with bigframes.option_context(LARGE_TABLE_OPTION, False):
         df = session.read_gbq(WIKIPEDIA_TABLE)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            next(
-                df.to_pandas_batches(
-                    page_size=500, max_results=1500, allow_large_results=True
-                )
+        pages = list(
+            df.to_pandas_batches(
+                page_size=500, max_results=1500, allow_large_results=True
             )
-            assert len(w) == 2
-            assert issubclass(w[0].category, FutureWarning)
-            assert "The query result size has exceeded 10 GB." in str(w[0].message)
+        )
+        assert all((len(page) <= 500) for page in pages)
+        assert sum(len(page) for page in pages) == 1500
 
 
 def test_to_pandas_raise_when_large_result_not_allowed(session):

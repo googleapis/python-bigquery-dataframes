@@ -96,22 +96,27 @@ REP_ENABLED_BIGQUERY_LOCATIONS = frozenset(
     }
 )
 
-# https://cloud.google.com/storage/docs/locational-endpoints
-LEP_ENABLED_BIGQUERY_LOCATIONS = frozenset(
+REP_NOT_ENABLED_BIGQUERY_LOCATIONS = frozenset(
     ALL_BIGQUERY_LOCATIONS - REP_ENABLED_BIGQUERY_LOCATIONS
 )
 
-LEP_DEPRECATION_WARNING_MESSAGE = textwrap.dedent(
+LOCATION_NEEDED_FOR_REP_MESSAGE = textwrap.dedent(
     """
-    Support for regional endpoints is not yet available in the location
-    {location} for BigQuery and BigQuery Storage APIs. For the supported
-    locations and APIs see https://cloud.google.com/bigquery/docs/regional-endpoints.
-    For other locations and APIs, currently an older, now deprecated locational
-    endpoints are being used, which requires your project to be allowlisted. In
-    future version 2.0 onwards the locational endpoints will no longer be
-    supported automatically when you enable regional endpoints. However, if you
-    still need them, you will be able to override the endpoints directly by
-    doing the following:
+    Must set location to use regional endpoints.
+    You can do it via bigframaes.pandas.options.bigquery.location.
+    The supported locations can be found at
+    https://cloud.google.com/bigquery/docs/regional-endpoints#supported-locations.
+    """
+).strip()
+
+REP_NOT_SUPPORTED_MESSAGE = textwrap.dedent(
+    """
+    Support for regional endpoints for BigQuery and BigQuery Storage APIs may
+    not be available in the location {location}. For the supported APIs and
+    locations see https://cloud.google.com/bigquery/docs/regional-endpoints.
+    If you have the (deprecated) locational endpoints enabled in your project
+    (which requires your project to be allowlisted), you can override the
+    endpoints directly by doing the following:
         bigframes.pandas.options.bigquery.client_endpoints_override = {{
             "bqclient": "https://{location}-bigquery.googleapis.com",
             "bqconnectionclient": "{location}-bigqueryconnection.googleapis.com",
@@ -122,5 +127,9 @@ LEP_DEPRECATION_WARNING_MESSAGE = textwrap.dedent(
 
 # BigQuery default is 10000, leave 100 for overhead
 MAX_COLUMNS = 9900
+
+# BigQuery has 1 MB query size limit. Don't want to take up more than a few % of that inlining a table.
+# Also must assume that text encoding as literals is much less efficient than in-memory representation.
+MAX_INLINE_BYTES = 5000
 
 SUGGEST_PEEK_PREVIEW = "Use .peek(n) to preview n arbitrary rows."
