@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-def test_type_system_examples():
+def test_type_system_examples() -> None:
     # [START bigquery_dataframes_type_sytem_local_type_conversion]
     import bigframes.pandas as bpd
     import pandas as pd
@@ -21,17 +21,16 @@ def test_type_system_examples():
     s = pd.Series([pd.Timestamp('20250101')])
     print(s.dtype)
     # datetime64[ns]
-    print(bpd.read_pandas(s).dtype) 
+    print(bpd.read_pandas(s).dtype)
     # timestamp[us][pyarrow]
     # [END bigquery_dataframes_type_sytem_local_type_conversion]
-
 
     # [START bigquery_dataframes_type_system_pyarrow_preference]
     import bigframes.pandas as bpd
     import pandas as pd
     import datetime
 
-    s = pd.Series([datetime.date(2025,1,1)])
+    s = pd.Series([datetime.date(2025, 1, 1)])
     s + pd.Timedelta(hours=12)
     # 0	2025-01-01
     # dtype: object
@@ -40,7 +39,6 @@ def test_type_system_examples():
     # 0    2025-01-01 12:00:00
     # dtype: timestamp[us][pyarrow]
     # [END bigquery_dataframes_type_system_pyarrow_preference]
-
 
     # [START bigquery_dataframes_type_system_simple_json]
     import bigframes.pandas as bpd
@@ -64,7 +62,6 @@ def test_type_system_examples():
     # 5                            <NA>
     # dtype: extension<dbjson<JSONArrowType>>[pyarrow]
     # [END bigquery_dataframes_type_system_simple_json]
-
 
     # [START bigquery_dataframes_type_system_mixed_json]
     import bigframes.pandas as bpd
@@ -92,7 +89,6 @@ def test_type_system_examples():
     # dtype: list<item: struct<key: extension<dbjson<JSONArrowType>>>>[pyarrow]
     # [END bigquery_dataframes_type_system_mixed_json]
 
-
     # [START bigquery_dataframes_type_system_load_timedelta]
     import bigframes.pandas as bpd
     import pandas as pd
@@ -104,7 +100,6 @@ def test_type_system_examples():
     # dtype: duration[us][pyarrow]
     # [END bigquery_dataframes_type_system_load_timedelta]
 
-
     # [START bigquery_dataframes_type_system_timedelta_precision]
     import bigframes.pandas as bpd
     import pandas as pd
@@ -115,22 +110,20 @@ def test_type_system_examples():
     # dtype: duration[us][pyarrow]
     # [END bigquery_dataframes_type_system_timedelta_precision]
 
-
     # [START bigquery_dataframes_type_system_cast_timedelta]
     import bigframes.pandas as bpd
 
-    bpd.to_timedelta([1,2,3], unit='s')
+    bpd.to_timedelta([1, 2, 3], unit='s')
     # 0    0 days 00:00:01
     # 1    0 days 00:00:02
     # 2    0 days 00:00:03
     # dtype: duration[us][pyarrow]
     # [END bigquery_dataframes_type_system_cast_timedelta]
 
-
     # [START bigquery_dataframes_type_system_list_accessor]
     import bigframes.pandas as bpd
 
-    s = bpd.Series([[1,2,3],[4,5],[6]]) # dtype: list<item: int64>[pyarrow]
+    s = bpd.Series([[1, 2, 3],[4, 5],[6]])  # dtype: list<item: int64>[pyarrow]
 
     # Access the first elements of each list
     s.list[0]
@@ -146,7 +139,6 @@ def test_type_system_examples():
     # 2    1
     # dtype: Int64
     # [END bigquery_dataframes_type_system_list_accessor]
-
 
     # [START bigquery_dataframes_type_system_struct_accessor]
     import bigframes.pandas as bpd
@@ -165,7 +157,6 @@ def test_type_system_examples():
     # Name: id, dtype: Int64
     # [END bigquery_dataframes_type_system_struct_accessor]
 
-
     # [START bigquery_dataframes_type_system_struct_accessor_shortcut]
     import bigframes.pandas as bpd
 
@@ -176,13 +167,13 @@ def test_type_system_examples():
     ]
     s = bpd.Series(structs)
 
-    s.id # not explicitly using the "struct" property
+    # not explicitly using the "struct" property
+    s.id 
     # 0    101
     # 1    102
     # 2    103
     # Name: id, dtype: Int64
     # [END bigquery_dataframes_type_system_struct_accessor_shortcut]
-
 
     # [START bigquery_dataframes_type_system_string_accessor]
     import bigframes.pandas as bpd
@@ -211,12 +202,11 @@ def test_type_system_examples():
     # dtype: string
     # [END bigquery_dataframes_type_system_string_accessor]
 
-
     # [START bigquery_dataframes_type_system_geo_accessor]
     import bigframes.pandas as bpd
     from shapely.geometry import Point
 
-    s = bpd.Series([Point(1,0), Point(2,1)]) # dtype: geometry
+    s = bpd.Series([Point(1, 0), Point(2, 1)]) # dtype: geometry
 
     s.geo.y
     # 0    0.0
@@ -232,8 +222,8 @@ def test_type_system_examples():
     import pyarrow as pa
 
     fruits = [
-    '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
-    '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
+        '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
+        '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
     ]
 
     json_s = bpd.Series(fruits, dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()))
@@ -242,7 +232,6 @@ def test_type_system_examples():
     # 1    {"name":"guava"}
     # dtype: extension<dbjson<JSONArrowType>>[pyarrow]
     # [END bigquery_dataframes_type_system_json_query]
-
 
     # [START bigquery_dataframes_type_system_json_query]
     import bigframes.pandas as bpd
@@ -252,8 +241,8 @@ def test_type_system_examples():
     import pyarrow as pa
 
     fruits = [
-    '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
-    '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
+        '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
+        '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
     ]
 
     json_s = bpd.Series(fruits, dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()))
@@ -262,7 +251,6 @@ def test_type_system_examples():
     # 1    {"name":"guava"}
     # dtype: extension<dbjson<JSONArrowType>>[pyarrow]
     # [END bigquery_dataframes_type_system_json_query]
-
 
     # [START bigquery_dataframes_type_system_json_extract_array]
     import bigframes.pandas as bpd
