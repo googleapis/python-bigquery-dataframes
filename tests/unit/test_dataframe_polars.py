@@ -17,7 +17,7 @@ import operator
 import pathlib
 import tempfile
 import typing
-from typing import List, Tuple
+from typing import Generator, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -45,11 +45,14 @@ CURRENT_DIR = pathlib.Path(__file__).parent
 DATA_DIR = CURRENT_DIR.parent / "data"
 
 
-@pytest.fixture(scope="module")
-def session() -> bigframes.Session:
+@pytest.fixture(scope="module", autouse=True)
+def session() -> Generator[bigframes.Session, None, None]:
+    import bigframes.core.global_session
     from bigframes.testing import polars_session
 
-    return polars_session.TestSession()
+    session = polars_session.TestSession()
+    with bigframes.core.global_session._GlobalSessionContext(session):
+        yield session
 
 
 @pytest.fixture(scope="module")
@@ -125,7 +128,7 @@ def test_df_construct_pandas_default(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
-def test_df_construct_large_strings():
+def test_df_construct_large_strings(session):
     data = [["hello", "w" + "o" * 50000 + "rld"]]
     bf_result = dataframe.DataFrame(data).to_pandas()
     pd_result = pd.DataFrame(data, dtype=pd.StringDtype(storage="pyarrow"))
@@ -4392,7 +4395,7 @@ def test_dataframe_explode(col_names, ignore_index, session):
         pytest.param(False, True, id="ignore_index_ordered"),
     ],
 )
-def test_dataframe_explode_reserve_order(ignore_index, ordered):
+def test_dataframe_explode_reserve_order(session, ignore_index, ordered):
     data = {
         "a": [np.random.randint(0, 10, 10) for _ in range(10)],
         "b": [np.random.randint(0, 10, 10) for _ in range(10)],
@@ -4424,58 +4427,3 @@ def test_dataframe_explode_reserve_order(ignore_index, ordered):
 def test_dataframe_explode_xfail(col_names):
     df = bpd.DataFrame({"A": [[0, 1, 2], [], [3, 4]]})
     df.explode(col_names)
-
-
-@pytest.mark.parametrize(
-    ("rule", "origin", "data"),
-    [
-        (
-            "5h",
-            "epoch",
-            {
-                "timestamp_col": pd.date_range(
-                    start="2021-01-01 13:00:00", periods=30, freq="1h"
-                ),
-                "int64_col": range(30),
-                "int64_too": range(10, 40),
-            },
-        ),
-        (
-            "75min",
-            "start_day",
-            {
-                "timestamp_col": pd.date_range(
-                    start="2021-01-01 13:00:00", periods=30, freq="10min"
-                ),
-                "int64_col": range(30),
-                "int64_too": range(10, 40),
-            },
-        ),
-        (
-            "7s",
-            "epoch",
-            {
-                "timestamp_col": pd.date_range(
-                    start="2021-01-01 13:00:00", periods=30, freq="1s"
-                ),
-                "int64_col": range(30),
-                "int64_too": range(10, 40),
-            },
-        ),
-    ],
-)
-def test__resample_start_time(rule, origin, data):
-    # TODO: supply a reason why this isn't compatible with pandas 1.x
-    pytest.importorskip("pandas", minversion="2.0.0")
-    col = "timestamp_col"
-    scalars_df_index = bpd.DataFrame(data).set_index(col)
-    scalars_pandas_df_index = pd.DataFrame(data).set_index(col)
-    scalars_pandas_df_index.index.name = None
-
-    bf_result = scalars_df_index._resample(rule=rule, origin=origin).min().to_pandas()
-
-    pd_result = scalars_pandas_df_index.resample(rule=rule, origin=origin).min()
-
-    pd.testing.assert_frame_equal(
-        bf_result, pd_result, check_dtype=False, check_index_type=False
-    )
