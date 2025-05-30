@@ -39,7 +39,6 @@ from typing import (
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
-import google.cloud
 from google.cloud import bigquery_storage_v1
 import google.cloud.bigquery
 import google.cloud.bigquery as bigquery
