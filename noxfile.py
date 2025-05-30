@@ -478,8 +478,19 @@ def cover(session):
         # Only unit tested
         "--omit=bigframes/core/compile/polars/*",
         "--show-missing",
-        "--fail-under=83",
+        "--fail-under=85",
     )
+
+    # Make sure there is no dead code in our system test directories.
+    session.run(
+        "coverage",
+        "report",
+        "--show-missing",
+        "--include=tests/system/small/*",
+        # TODO(b/353775058) resume coverage to 100 when the issue is fixed.
+        "--fail-under=99",
+    )
+
     session.run("coverage", "erase")
 
 
