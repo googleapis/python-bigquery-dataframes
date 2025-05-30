@@ -123,7 +123,7 @@ def test_type_system_examples() -> None:
     # [START bigquery_dataframes_type_system_list_accessor]
     import bigframes.pandas as bpd
 
-    s = bpd.Series([[1, 2, 3],[4, 5],[6]])  # dtype: list<item: int64>[pyarrow]
+    s = bpd.Series([[1, 2, 3], [4, 5], [6]])  # dtype: list<item: int64>[pyarrow]
 
     # Access the first elements of each list
     s.list[0]
@@ -168,7 +168,7 @@ def test_type_system_examples() -> None:
     s = bpd.Series(structs)
 
     # not explicitly using the "struct" property
-    s.id 
+    s.id
     # 0    101
     # 1    102
     # 2    103
@@ -178,7 +178,7 @@ def test_type_system_examples() -> None:
     # [START bigquery_dataframes_type_system_string_accessor]
     import bigframes.pandas as bpd
 
-    s = bpd.Series(["abc", "de", "1"]) # dtype: string[pyarrow]
+    s = bpd.Series(["abc", "de", "1"])  # dtype: string[pyarrow]
 
     # Get the first character of each string
     s.str[0]
@@ -206,7 +206,7 @@ def test_type_system_examples() -> None:
     import bigframes.pandas as bpd
     from shapely.geometry import Point
 
-    s = bpd.Series([Point(1, 0), Point(2, 1)]) # dtype: geometry
+    s = bpd.Series([Point(1, 0), Point(2, 1)])  # dtype: geometry
 
     s.geo.y
     # 0    0.0
@@ -260,8 +260,8 @@ def test_type_system_examples() -> None:
     import pyarrow as pa
 
     fruits = [
-    '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
-    '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
+        '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
+        '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
     ]
 
     json_s = bpd.Series(fruits, dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()))
