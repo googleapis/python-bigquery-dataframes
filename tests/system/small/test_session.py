@@ -1369,6 +1369,41 @@ def test_read_csv_for_names_and_index_col(
     )
 
 
+def test_read_csv_for_names_and_usecols(session, df_and_gcs_csv_for_two_columns):
+    _, path = df_and_gcs_csv_for_two_columns
+
+    names = ["a", "b", "c"]
+    usecols = ["a", "b", "c"]
+    bf_df = session.read_csv(path, engine="bigquery", names=names, usecols=usecols)
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    pd_df = session.read_csv(
+        path, names=names, usecols=usecols, dtype=bf_df.dtypes.to_dict()
+    )
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.set_index(names[0]).sort_index()
+    pd_df = pd_df.set_index(names[0])
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+def test_read_csv_for_names_and_usecols_w_mismatched_length(
+    session, df_and_gcs_csv_for_two_columns
+):
+    _, path = df_and_gcs_csv_for_two_columns
+    names = ["a", "b", "c"]
+    usecols = ["a", "b"]
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Number of passed names did not match number"),
+    ):
+        session.read_csv(path, engine="bigquery", names=names, usecols=usecols)
+
+
 def test_read_csv_for_dtype(session, df_and_gcs_csv_for_two_columns):
     _, path = df_and_gcs_csv_for_two_columns
 

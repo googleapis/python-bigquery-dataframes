@@ -106,8 +106,8 @@ def _check_column_duplicates(
             "The 'index_col' argument contains duplicate names. "
             "All column names specified in 'index_col' must be unique."
         )
-    
-    if columns is None:
+
+    if len(columns_list) == 0:
         return columns_list
 
     if len(columns_list) > len(set_columns):
@@ -401,6 +401,7 @@ class GbqDataLoader:
         enable_snapshot: bool = ...,
         dry_run: Literal[False] = ...,
         force_total_order: Optional[bool] = ...,
+        is_index_in_columns: bool = False,
     ) -> dataframe.DataFrame:
         ...
 
@@ -422,6 +423,7 @@ class GbqDataLoader:
         enable_snapshot: bool = ...,
         dry_run: Literal[True] = ...,
         force_total_order: Optional[bool] = ...,
+        is_index_in_columns: bool = False,
     ) -> pandas.Series:
         ...
 
@@ -481,28 +483,16 @@ class GbqDataLoader:
                 f"Current session is in {self._storage_manager.location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
             )
 
-        for key in columns:
-            if key not in table_column_names:
-                possibility = min(
-                    table_column_names,
-                    key=lambda item: bigframes._tools.strings.levenshtein_distance(
-                        key, item
-                    ),
-                )
-                raise ValueError(
-                    f"Column '{key}' of `columns` not found in this table. Did you mean '{possibility}'?"
-                )
-
         # TODO(b/408499371): check `names` work with `use_cols` for read_csv method.
         if names is not None:
             len_names = len(list(names))
-            len_columns = len(table.schema)
-            if len_names > len_columns:
+            len_schema = len(table.schema)
+            if len_names > len_schema:
                 raise ValueError(
-                    f"Too many columns specified: expected {len_columns}"
+                    f"Too many columns specified: expected {len_schema}"
                     f" and found {len_names}"
                 )
-            elif len_names < len_columns:
+            elif len_names < len_schema:
                 if (
                     isinstance(index_col, bigframes.enums.DefaultIndexKind)
                     or index_col != ()
@@ -512,10 +502,47 @@ class GbqDataLoader:
                         "number of `names` matches the number of columns in your "
                         "data."
                     )
-                index_col = range(len_columns - len_names)
-                names = [
-                    field.name for field in table.schema[: len_columns - len_names]
-                ] + list(names)
+                if len(columns) != 0:
+                    if len(columns) != len_names:
+                        raise ValueError(
+                            "Number of passed names did not match number of header "
+                            "fields in the file"
+                        )
+                else:
+                    index_col = range(len_schema - len_names)
+                    names = [
+                        field.name for field in table.schema[: len_schema - len_names]
+                    ] + list(names)
+
+            if len(columns) != 0:
+                assert len(list(names)) == len(columns)
+                table_name = [field.name for field in table.schema[: len(names)]]
+                name_map = dict(zip(list(names), table_name))
+
+                if len(set(columns) - set(names)) != 0:
+                    raise ValueError(
+                        "Usecols do not match columns, columns expected but not "
+                        f"found: {set(columns) - set(names)}"
+                    )
+
+                columns = [name_map[renamed_name] for renamed_name in columns]
+
+        for column_name in columns:
+            # The column_name has been remapped and verified above. Skip here.
+            if names is not None:
+                continue
+
+            if column_name not in table_column_names:
+                possibility = min(
+                    table_column_names,
+                    key=lambda item: bigframes._tools.strings.levenshtein_distance(
+                        column_name, item
+                    ),
+                )
+                raise ValueError(
+                    f"Column '{column_name}' of `columns` not found in this table. "
+                    f"Did you mean '{possibility}'?"
+                )
 
         # Converting index_col into a list of column names requires
         # the table metadata because we might use the primary keys
