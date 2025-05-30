@@ -47,6 +47,7 @@ import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
+from pandas.api import extensions as pd_ext
 import pandas.io.formats.format
 import pyarrow
 import tabulate
@@ -2984,9 +2985,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return bigframes.series.Series(block)
 
     def agg(
-        self, func: str | typing.Sequence[str]
+        self,
+        func: str
+        | typing.Sequence[str]
+        | typing.Mapping[blocks.Label, typing.Sequence[str] | str],
     ) -> DataFrame | bigframes.series.Series:
-        if utils.is_list_like(func):
+        if utils.is_dict_like(func):
+            # Must check dict-like first because dictionaries are list-like
+            # according to Pandas.
+            agg_cols = []
+            for col_label, agg_func in func.items():
+                agg_cols.append(self[col_label].agg(agg_func))
+
+            from bigframes.core.reshape import api as reshape
+
+            return reshape.concat(agg_cols, axis=1)
+
+        elif utils.is_list_like(func):
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
 
             for dtype, agg in itertools.product(self.dtypes, aggregations):
@@ -3000,6 +3015,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     aggregations,
                 )
             )
+
         else:
             return bigframes.series.Series(
                 self._block.aggregate_all_and_stack(
@@ -4141,7 +4157,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         dtype=None,
         copy=False,
-        na_value=None,
+        na_value=pd_ext.no_default,
         *,
         allow_large_results=None,
         **kwargs,

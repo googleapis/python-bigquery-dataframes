@@ -70,9 +70,10 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
     PYTEST_VERSION,
-    "pytest-cov",
     "pytest-asyncio",
+    "pytest-cov",
     "pytest-mock",
+    "pytest-timeout",
 ]
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
@@ -228,6 +229,10 @@ def run_unit(session, install_test_extra):
     session.run(
         "py.test",
         "--quiet",
+        # Any individual test taking longer than 1 mins will be terminated.
+        "--timeout=60",
+        # Log 20 slowest tests
+        "--durations=20",
         f"--junitxml=unit_{session.python}_sponge_log.xml",
         "--cov=bigframes",
         f"--cov={tests_path}",
@@ -355,7 +360,7 @@ def run_system(
     # Run py.test against the system tests.
     pytest_cmd = [
         "py.test",
-        "--quiet",
+        "-v",
         f"-n={num_workers}",
         # Any individual test taking longer than 15 mins will be terminated.
         f"--timeout={timeout_seconds}",
@@ -424,6 +429,8 @@ def doctest(session: nox.sessions.Session):
             "third_party/bigframes_vendored/ibis",
             "--ignore",
             "bigframes/core/compile/polars",
+            "--ignore",
+            "bigframes/testing",
         ),
         test_folder="bigframes",
         check_cov=True,
