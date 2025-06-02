@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from bigframes.core import bigframe_node, rewrite
+from bigframes.core import bigframe_node, nodes, rewrite
 from bigframes.session import executor, semi_executor
 
 
@@ -30,7 +30,28 @@ class LocalScanExecutor(semi_executor.SemiExecutor):
         ordered: bool,
         peek: Optional[int] = None,
     ) -> Optional[executor.ExecuteResult]:
-        node = rewrite.try_reduce_to_local_scan(plan)
+        rewrite_node = plan
+
+        # Implement top-level slice here so that we don't have to implement
+        # slice in all ReadLocalNode compilers.
+        slice_start: Optional[int] = None
+        slice_stop: Optional[int] = None
+
+        if isinstance(plan, nodes.SliceNode):
+            # These slice features are not supported by pyarrow.Table.slice. Must
+            # have a non-negative start and stop and no custom step size.
+            if (
+                (plan.step is not None and plan.step != 1)
+                or (plan.start is not None and plan.start < 0)
+                or (plan.stop is not None and plan.stop < 0)
+            ):
+                return None
+
+            slice_start = plan.start
+            slice_stop = plan.stop
+            rewrite_node = plan.child
+
+        node = rewrite.try_reduce_to_local_scan(rewrite_node)
         if not node:
             return None
 
@@ -47,21 +68,23 @@ class LocalScanExecutor(semi_executor.SemiExecutor):
         arrow_table = arrow_table.select(needed_cols)
         arrow_table = arrow_table.rename_columns([id.sql for id in node.ids])
 
-        if node.slice_start is not None or node.slice_stop is not None:
+        if slice_start is not None or slice_stop is not None:
             slice_length: Optional[int] = None
 
-            if node.slice_stop is not None:
-                if node.slice_start is None:
-                    slice_length = node.slice_stop
+            if slice_stop is not None:
+                if slice_start is None:
+                    slice_length = slice_stop
                 else:
-                    slice_length = node.slice_stop - node.slice_start
+                    slice_length = slice_stop - slice_start
 
             arrow_table = arrow_table.slice(
-                offset=node.slice_start if node.slice_start is not None else 0,
+                offset=slice_start if slice_start is not None else 0,
                 length=slice_length,
             )
+            total_rows = arrow_table.num_rows
+        else:
+            total_rows = node.row_count
 
-        total_rows = node.row_count
         if (peek is not None) and (total_rows is not None):
             total_rows = min(peek, total_rows)
 

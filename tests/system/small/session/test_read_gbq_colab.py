@@ -136,6 +136,7 @@ def test_read_gbq_colab_includes_formatted_scalars(session):
                 "escaped": pandas.Series(["{escaped}"], dtype="string[pyarrow]"),
             }
         ),
+        check_index_type=False,  # int64 vs Int64
     )
 
 

@@ -29,24 +29,6 @@ def try_reduce_to_table_scan(root: nodes.BigFrameNode) -> Optional[nodes.ReadTab
 
 
 def try_reduce_to_local_scan(node: nodes.BigFrameNode) -> Optional[nodes.ReadLocalNode]:
-    # Top-level slice is supported.
-    start: Optional[int] = None
-    stop: Optional[int] = None
-
-    if isinstance(node, nodes.SliceNode):
-        # These slice features are not supported by pyarrow.Table.slice. Must
-        # have a non-negative start and stop and no custom step size.
-        if (
-            (node.step is not None and node.step != 1)
-            or (node.start is not None and node.start < 0)
-            or (node.stop is not None and node.stop < 0)
-        ):
-            return None
-
-        start = node.start
-        stop = node.stop
-        node = node.child
-
     if not all(
         map(
             lambda x: isinstance(x, (nodes.ReadLocalNode, nodes.SelectionNode)),
@@ -54,14 +36,9 @@ def try_reduce_to_local_scan(node: nodes.BigFrameNode) -> Optional[nodes.ReadLoc
         )
     ):
         return None
-
     result = node.bottom_up(merge_scan)
     if isinstance(result, nodes.ReadLocalNode):
-        return dataclasses.replace(
-            result,
-            slice_start=start,
-            slice_stop=stop,
-        )
+        return result
     return None
 
 
