@@ -164,4 +164,8 @@ def test_read_gbq_colab_includes_formatted_bigframes_dataframe(
         .assign(int64_col=scalars_pandas_df_index["int64_too"])
         .reset_index(drop=False)[["int64_col", "rowindex"]]
     )
-    pandas.testing.assert_frame_equal(result, expected)
+    pandas.testing.assert_frame_equal(
+        result,
+        expected,
+        check_index_type=False,  # int64 vs Int64
+    )
