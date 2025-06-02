@@ -13,14 +13,11 @@
 # limitations under the License.
 
 import pandas.testing
-import pyarrow as pa
 
 from bigframes import dtypes
 
 
 def test_type_system_examples() -> None:
-    global pa
-
     # [START bigquery_dataframes_type_sytem_timestamp_local_type_conversion]
     import pandas as pd
 
