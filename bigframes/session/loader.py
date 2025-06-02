@@ -54,6 +54,7 @@ import bigframes.dtypes
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.session import dry_runs
 import bigframes.session._io.bigquery as bf_io_bigquery
+import bigframes.session._io.bigquery.read_gbq_query as bf_read_gbq_query
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session.metrics
 import bigframes.session.temporary_storage
@@ -773,8 +774,6 @@ class GbqDataLoader:
         force_total_order: Optional[bool] = None,
         allow_large_results: bool = True,
     ) -> dataframe.DataFrame | pandas.Series:
-        import bigframes.dataframe as dataframe
-
         configuration = _transform_read_gbq_configuration(configuration)
 
         if "query" not in configuration:
@@ -830,6 +829,7 @@ class GbqDataLoader:
             )
 
         query_job_for_metrics: Optional[bigquery.QueryJob] = None
+        destination: Optional[bigquery.TableReference] = None
 
         # TODO(b/421161077): If an explicit destination table is set in
         # configuration, should we respect that setting?
@@ -849,13 +849,14 @@ class GbqDataLoader:
                 bigquery.QueryJobConfig.from_api_repr(configuration),
             )
 
-            destination = None
             # TODO(b/420984164): We may want to set a page_size here to limit
             # the number of results in the first jobs.query response.
             rows, _ = self._start_query(
                 query, job_config=job_config, query_with_job=False
             )
 
+            # If there is a query job, fetch it so that we can get the
+            # statistics and destination table, if needed.
             if rows.job_id and rows.location and rows.project:
                 query_job = cast(
                     bigquery.QueryJob,
@@ -881,50 +882,17 @@ class GbqDataLoader:
         # makes sense to download the results beyond the first page, even if
         # there is a job and destination table available.
         if rows is not None and destination is None:
-            # We use the ManagedArrowTable constructor directly, because the
-            # results of to_arrow() should be the source of truth with regards
-            # to canonical formats since it comes from either the BQ Storage
-            # Read API or has been transformed by google-cloud-bigquery to look
-            # like the output of the BQ Storage Read API.
-            pa_table = rows.to_arrow()
-            mat = local_data.ManagedArrowTable(
-                pa_table, schemata.ArraySchema.from_bq_schema(rows.schema)
+            return bf_read_gbq_query.create_dataframe_from_row_iterator(
+                rows,
+                session=self._session,
             )
-            mat.validate()
-            array_value = core.ArrayValue.from_managed(mat, self._session)
-            array_with_offsets, offsets_col = array_value.promote_offsets()
-            block = blocks.Block(
-                array_with_offsets,
-                (offsets_col,),
-                [field.name for field in rows.schema],
-                (None,),
-            )
-            return dataframe.DataFrame(block)
 
         # If there was no destination table and we've made it this far, that
         # means the query must have been DDL or DML. Return some job metadata,
         # instead.
         if not destination:
-            return dataframe.DataFrame(
-                data=pandas.DataFrame(
-                    {
-                        "statement_type": [
-                            query_job_for_metrics.statement_type
-                            if query_job_for_metrics
-                            else "unknown"
-                        ],
-                        "job_id": [
-                            query_job_for_metrics.job_id
-                            if query_job_for_metrics
-                            else "unknown"
-                        ],
-                        "location": [
-                            query_job_for_metrics.location
-                            if query_job_for_metrics
-                            else "unknown"
-                        ],
-                    }
-                ),
+            return bf_read_gbq_query.create_dataframe_from_query_job_stats(
+                query_job_for_metrics,
                 session=self._session,
             )
 
