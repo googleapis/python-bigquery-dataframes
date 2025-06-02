@@ -22,7 +22,7 @@ def test_bigquery_dataframes_set_options() -> None:
     # [START bigquery_dataframes_set_options]
     import bigframes.pandas as bpd
 
-    PROJECT_ID = "bigframes-dec"  # @param {type:"string"}
+    PROJECT_ID = "bigframes-dev"  # @param {type:"string"}
     REGION = "US"  # @param {type:"string"}
 
     # Set BigQuery DataFrames options
