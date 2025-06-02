@@ -139,7 +139,14 @@ def test_classify(session):
     )
 
 
-def test_classify_invalid_labels_raise_error(session):
+@pytest.mark.parametrize(
+    "labels",
+    [
+        pytest.param([], id="empty-label"),
+        pytest.param(["A", "A", "B"], id="duplicate-labels"),
+    ],
+)
+def test_classify_invalid_labels_raise_error(session, labels):
     df = dataframe.DataFrame({"col": ["A", "B"]}, session=session)
     model = FakeGeminiTextGenerator(
         dataframe.DataFrame(
@@ -157,7 +164,7 @@ def test_classify_invalid_labels_raise_error(session):
         THRESHOLD_OPTION,
         50,
     ), pytest.raises(ValueError):
-        df.ai.classify("classify {col}", model=model, labels=[])
+        df.ai.classify("classify {col}", model=model, labels=labels)
 
 
 def test_join(session):

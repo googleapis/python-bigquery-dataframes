@@ -307,6 +307,7 @@ class AIAccessor:
 
             labels (Sequence[str]):
                 A collection of labels (categories). It must contain at least two and at most 20 elements.
+                Labels are case sensitive. Duplicated labels are not allowed.
 
             output_column (str, default "result"):
                 The name of column for the output.
@@ -338,6 +339,9 @@ class AIAccessor:
             raise ValueError(
                 f"The number of labels should be between 2 and 20 (inclusive), but {len(labels)} labels are provided."
             )
+
+        if len(set(labels)) != len(labels):
+            raise ValueError("There are duplicate labels.")
 
         updated_instruction = f"Based on the user instruction {instruction}, you must provide an answer that must exist in the following list of labels: {labels}"
 
