@@ -12,19 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pandas.testing
+import pyarrow as pa
+
+from bigframes import dtypes
+
 
 def test_type_system_examples() -> None:
-    # [START bigquery_dataframes_type_sytem_local_type_conversion]
+    global pa
+
+    # [START bigquery_dataframes_type_sytem_timestamp_local_type_conversion]
     import pandas as pd
 
     import bigframes.pandas as bpd
 
     s = pd.Series([pd.Timestamp("20250101")])
-    print(s.dtype)
-    # datetime64[ns]
-    print(bpd.read_pandas(s).dtype)
-    # timestamp[us][pyarrow]
-    # [END bigquery_dataframes_type_sytem_local_type_conversion]
+    assert s.dtype == "datetime64[ns]"
+    assert bpd.read_pandas(s).dtype == "timestamp[us][pyarrow]"
+    # [END bigquery_dataframes_type_sytem_timestamp_local_type_conversion]
 
     # [START bigquery_dataframes_type_system_pyarrow_preference]
     import datetime
@@ -42,6 +47,14 @@ def test_type_system_examples() -> None:
     # 0    2025-01-01 12:00:00
     # dtype: timestamp[us][pyarrow]
     # [END bigquery_dataframes_type_system_pyarrow_preference]
+    pandas.testing.assert_series_equal(
+        s + pd.Timedelta(hours=12), pd.Series([datetime.date(2025, 1, 1)])
+    )
+    pandas.testing.assert_series_equal(
+        (bpd.read_pandas(s) + pd.Timedelta(hours=12)).to_pandas(),
+        pd.Series([pd.Timestamp(2025, 1, 1, 12)], dtype=dtypes.DATETIME_DTYPE),
+        check_index_type=False,
+    )
 
     # [START bigquery_dataframes_type_system_simple_json]
     import db_dtypes
@@ -53,8 +66,8 @@ def test_type_system_examples() -> None:
         "1",
         '"str"',
         "false",
-        '["a", {"b": 1}, null]',
-        '{"a": {"b": [1, 2, 3], "c": true}}',
+        '["a",{"b":1},null]',
+        '{"a":{"b":[1,2,3],"c":true}}',
         None,
     ]
     bpd.Series(json_data, dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()))
@@ -66,6 +79,13 @@ def test_type_system_examples() -> None:
     # 5                            <NA>
     # dtype: extension<dbjson<JSONArrowType>>[pyarrow]
     # [END bigquery_dataframes_type_system_simple_json]
+    pandas.testing.assert_series_equal(
+        bpd.Series(
+            json_data, dtype=pd.ArrowDtype(db_dtypes.JSONArrowType())
+        ).to_pandas(),
+        pd.Series(json_data, dtype=pd.ArrowDtype(db_dtypes.JSONArrowType())),
+        check_index_type=False,
+    )
 
     # [START bigquery_dataframes_type_system_mixed_json]
     import db_dtypes
@@ -93,6 +113,21 @@ def test_type_system_examples() -> None:
     # 3    [{'key': '{"a":1,"b":["x","y"],"c":{"x":[],"z"...
     # dtype: list<item: struct<key: extension<dbjson<JSONArrowType>>>>[pyarrow]
     # [END bigquery_dataframes_type_system_mixed_json]
+    pandas.testing.assert_series_equal(
+        bpd.Series(
+            pd.arrays.ArrowExtensionArray(pa_array),
+            dtype=pd.ArrowDtype(
+                pa.list_(pa.struct([("key", db_dtypes.JSONArrowType())])),
+            ),
+        ).to_pandas(),
+        pd.Series(
+            pd.arrays.ArrowExtensionArray(pa_array),
+            dtype=pd.ArrowDtype(
+                pa.list_(pa.struct([("key", db_dtypes.JSONArrowType())])),
+            ),
+        ),
+        check_index_type=False,
+    )
 
     # [START bigquery_dataframes_type_system_load_timedelta]
     import pandas as pd
@@ -105,17 +140,25 @@ def test_type_system_examples() -> None:
     # 1    0 days 00:02:00
     # dtype: duration[us][pyarrow]
     # [END bigquery_dataframes_type_system_load_timedelta]
+    pandas.testing.assert_series_equal(
+        bpd.read_pandas(s).to_pandas(),
+        s.astype(dtypes.TIMEDELTA_DTYPE),
+        check_index_type=False,
+    )
 
     # [START bigquery_dataframes_type_system_timedelta_precision]
     import pandas as pd
 
-    import bigframes.pandas as bpd
-
-    s = pd.Series([pd.Timedelta("999ns")]).dt.round("us")
-    bpd.read_pandas(s)
+    s = pd.Series([pd.Timedelta("999ns")])
+    bpd.read_pandas(s.dt.round("us"))
     # 0    0 days 00:00:00.000001
     # dtype: duration[us][pyarrow]
     # [END bigquery_dataframes_type_system_timedelta_precision]
+    pandas.testing.assert_series_equal(
+        bpd.read_pandas(s.dt.round("us")).to_pandas(),
+        s.dt.round("us").astype(dtypes.TIMEDELTA_DTYPE),
+        check_index_type=False,
+    )
 
     # [START bigquery_dataframes_type_system_cast_timedelta]
     import bigframes.pandas as bpd
@@ -126,6 +169,11 @@ def test_type_system_examples() -> None:
     # 2    0 days 00:00:03
     # dtype: duration[us][pyarrow]
     # [END bigquery_dataframes_type_system_cast_timedelta]
+    pandas.testing.assert_series_equal(
+        bpd.to_timedelta([1, 2, 3], unit="s").to_pandas(),
+        pd.Series(pd.to_timedelta([1, 2, 3], unit="s"), dtype=dtypes.TIMEDELTA_DTYPE),
+        check_index_type=False,
+    )
 
     # [START bigquery_dataframes_type_system_list_accessor]
     import bigframes.pandas as bpd
@@ -146,6 +194,16 @@ def test_type_system_examples() -> None:
     # 2    1
     # dtype: Int64
     # [END bigquery_dataframes_type_system_list_accessor]
+    pandas.testing.assert_series_equal(
+        s.list[0].to_pandas(),
+        pd.Series([1, 4, 6], dtype="Int64"),
+        check_index_type=False,
+    )
+    pandas.testing.assert_series_equal(
+        s.list.len().to_pandas(),
+        pd.Series([3, 2, 1], dtype="Int64"),
+        check_index_type=False,
+    )
 
     # [START bigquery_dataframes_type_system_struct_accessor]
     import bigframes.pandas as bpd
@@ -181,6 +239,16 @@ def test_type_system_examples() -> None:
     # 2    103
     # Name: id, dtype: Int64
     # [END bigquery_dataframes_type_system_struct_accessor_shortcut]
+    pandas.testing.assert_series_equal(
+        s.struct.field("id").to_pandas(),
+        pd.Series([101, 102, 103], dtype="Int64", name="id"),
+        check_index_type=False,
+    )
+    pandas.testing.assert_series_equal(
+        s.id.to_pandas(),
+        pd.Series([101, 102, 103], dtype="Int64", name="id"),
+        check_index_type=False,
+    )
 
     # [START bigquery_dataframes_type_system_string_accessor]
     import bigframes.pandas as bpd
@@ -208,6 +276,21 @@ def test_type_system_examples() -> None:
     # 2      1
     # dtype: string
     # [END bigquery_dataframes_type_system_string_accessor]
+    pandas.testing.assert_series_equal(
+        s.str[0].to_pandas(),
+        pd.Series(["a", "d", "1"], dtype=dtypes.STRING_DTYPE),
+        check_index_type=False,
+    )
+    pandas.testing.assert_series_equal(
+        s.str.isalpha().to_pandas(),
+        pd.Series([True, True, False], dtype=dtypes.BOOL_DTYPE),
+        check_index_type=False,
+    )
+    pandas.testing.assert_series_equal(
+        s.str.upper().to_pandas(),
+        pd.Series(["ABC", "DE", "1"], dtype=dtypes.STRING_DTYPE),
+        check_index_type=False,
+    )
 
     # [START bigquery_dataframes_type_system_geo_accessor]
     from shapely.geometry import Point
@@ -221,6 +304,11 @@ def test_type_system_examples() -> None:
     # 1    1.0
     # dtype: Float64
     # [END bigquery_dataframes_type_system_geo_accessor]
+    pandas.testing.assert_series_equal(
+        s.geo.y.to_pandas(),
+        pd.Series([0.0, 1.0], dtype=dtypes.FLOAT_DTYPE),
+        check_index_type=False,
+    )
 
     # [START bigquery_dataframes_type_system_json_query]
     import db_dtypes
@@ -241,26 +329,11 @@ def test_type_system_examples() -> None:
     # 1    {"name":"guava"}
     # dtype: extension<dbjson<JSONArrowType>>[pyarrow]
     # [END bigquery_dataframes_type_system_json_query]
-
-    # [START bigquery_dataframes_type_system_json_query]
-    import db_dtypes
-    import pandas as pd
-    import pyarrow as pa
-
-    import bigframes.bigquery as bbq
-    import bigframes.pandas as bpd
-
-    fruits = [
-        '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
-        '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
-    ]
-
-    json_s = bpd.Series(fruits, dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()))
-    bbq.json_query(json_s, "$.fruits[0]")
-    # 0    {"name":"apple"}
-    # 1    {"name":"guava"}
-    # dtype: extension<dbjson<JSONArrowType>>[pyarrow]
-    # [END bigquery_dataframes_type_system_json_query]
+    pandas.testing.assert_series_equal(
+        bbq.json_query(json_s, "$.fruits[0]").to_pandas(),
+        pd.Series(['{"name":"apple"}', '{"name":"guava"}'], dtype=dtypes.JSON_DTYPE),
+        check_index_type=False,
+    )
 
     # [START bigquery_dataframes_type_system_json_extract_array]
     import db_dtypes
@@ -282,3 +355,6 @@ def test_type_system_examples() -> None:
     # 1    ['{"name":"guava"}' '{"name":"grapes"}']
     # dtype: list<item: extension<dbjson<JSONArrowType>>>[pyarrow]
     # [END bigquery_dataframes_type_system_json_extract_array]
+
+    # Can't test literals due to format issues
+    assert len(bbq.json_extract_array(json_s, "$.fruits")) == 2
