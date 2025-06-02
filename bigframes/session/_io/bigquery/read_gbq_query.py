@@ -20,12 +20,15 @@ from typing import Optional
 
 from google.cloud import bigquery
 import google.cloud.bigquery.table
+import numpy
 import pandas
+import pyarrow
 
 from bigframes import dataframe
 from bigframes.core import local_data
 import bigframes.core as core
 import bigframes.core.blocks as blocks
+import bigframes.core.guid
 import bigframes.core.schema as schemata
 import bigframes.session
 
@@ -61,20 +64,30 @@ def create_dataframe_from_row_iterator(
     """
     pa_table = rows.to_arrow()
 
+    # TODO(tswast): Use array_value.promote_offsets() instead once that node is
+    # supported by the local engine.
+    offsets_col = bigframes.core.guid.generate_guid()
+    pa_table = pa_table.append_column(
+        pyarrow.field(offsets_col, pyarrow.int64()),
+        [numpy.arange(pa_table.num_rows)],
+    )
+
     # We use the ManagedArrowTable constructor directly, because the
     # results of to_arrow() should be the source of truth with regards
     # to canonical formats since it comes from either the BQ Storage
     # Read API or has been transformed by google-cloud-bigquery to look
     # like the output of the BQ Storage Read API.
     mat = local_data.ManagedArrowTable(
-        pa_table, schemata.ArraySchema.from_bq_schema(rows.schema)
+        pa_table,
+        schemata.ArraySchema.from_bq_schema(
+            list(rows.schema) + [bigquery.SchemaField(offsets_col, "INTEGER")]
+        ),
     )
     mat.validate()
 
     array_value = core.ArrayValue.from_managed(mat, session)
-    array_with_offsets, offsets_col = array_value.promote_offsets()
     block = blocks.Block(
-        array_with_offsets,
+        array_value,
         (offsets_col,),
         [field.name for field in rows.schema],
         (None,),

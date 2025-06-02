@@ -643,6 +643,8 @@ class ReadLocalNode(LeafNode):
     session: bigframes.session.Session
     # Offsets are generated only if this is non-null
     offsets_col: Optional[identifiers.ColumnId] = None
+    slice_start: Optional[int] = None
+    slice_stop: Optional[int] = None
 
     @property
     def fields(self) -> Sequence[Field]:

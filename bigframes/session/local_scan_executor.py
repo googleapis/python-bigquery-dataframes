@@ -34,7 +34,7 @@ class LocalScanExecutor(semi_executor.SemiExecutor):
         if not node:
             return None
 
-        # TODO: Can support some slicing, sorting
+        # TODO: Can support some sorting
         offsets_col = node.offsets_col.sql if (node.offsets_col is not None) else None
         arrow_table = node.local_data_source.to_pyarrow_table(offsets_col=offsets_col)
         if peek:
@@ -46,6 +46,20 @@ class LocalScanExecutor(semi_executor.SemiExecutor):
 
         arrow_table = arrow_table.select(needed_cols)
         arrow_table = arrow_table.rename_columns([id.sql for id in node.ids])
+
+        if node.slice_start is not None or node.slice_stop is not None:
+            slice_length: Optional[int] = None
+
+            if node.slice_stop is not None:
+                if node.slice_start is None:
+                    slice_length = node.slice_stop
+                else:
+                    slice_length = node.slice_stop - node.slice_start
+
+            arrow_table = arrow_table.slice(
+                offset=node.slice_start if node.slice_start is not None else 0,
+                length=slice_length,
+            )
 
         total_rows = node.row_count
         if (peek is not None) and (total_rows is not None):
