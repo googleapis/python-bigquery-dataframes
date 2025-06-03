@@ -20,12 +20,10 @@ from typing import Optional
 
 from google.cloud import bigquery
 import google.cloud.bigquery.table
-import numpy
 import pandas
-import pyarrow
 
 from bigframes import dataframe
-from bigframes.core import local_data
+from bigframes.core import local_data, pyarrow_utils
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.guid
@@ -67,10 +65,7 @@ def create_dataframe_from_row_iterator(
     # TODO(tswast): Use array_value.promote_offsets() instead once that node is
     # supported by the local engine.
     offsets_col = bigframes.core.guid.generate_guid()
-    pa_table = pa_table.append_column(
-        pyarrow.field(offsets_col, pyarrow.int64()),
-        [numpy.arange(pa_table.num_rows)],
-    )
+    pa_table = pyarrow_utils.append_offsets(pa_table, offsets_col=offsets_col)
 
     # We use the ManagedArrowTable constructor directly, because the
     # results of to_arrow() should be the source of truth with regards
