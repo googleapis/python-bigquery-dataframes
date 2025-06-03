@@ -851,8 +851,9 @@ class GbqDataLoader:
 
             # TODO(b/420984164): We may want to set a page_size here to limit
             # the number of results in the first jobs.query response.
-            rows, _ = self._start_query(
-                query, job_config=job_config, query_with_job=False
+            rows = self._start_query_with_job_optional(
+                query,
+                job_config=job_config,
             )
 
             # If there is a query job, fetch it so that we can get the
@@ -918,11 +919,12 @@ class GbqDataLoader:
         # bother trying to do a CREATE TEMP TABLE ... AS SELECT ... statement.
         dry_run_config = bigquery.QueryJobConfig()
         dry_run_config.dry_run = True
-        _, dry_run_job = self._start_query(
-            query, job_config=dry_run_config, query_with_job=True
+        dry_run_job = self._start_query_with_job(
+            query,
+            job_config=dry_run_config,
         )
         if dry_run_job.statement_type != "SELECT":
-            _, query_job = self._start_query(query, query_with_job=True)
+            query_job = self._start_query_with_job(query)
             return query_job.destination, query_job
 
         # Create a table to workaround BigQuery 10 GB query results limit. See:
@@ -956,11 +958,10 @@ class GbqDataLoader:
             # Write to temp table to workaround BigQuery 10 GB query results
             # limit. See: internal issue 303057336.
             job_config.labels["error_caught"] = "true"
-            _, query_job = self._start_query(
+            query_job = self._start_query_with_job(
                 query,
                 job_config=job_config,
                 timeout=timeout,
-                query_with_job=True,
             )
             return query_job.destination, query_job
         except google.api_core.exceptions.BadRequest:
@@ -968,76 +969,72 @@ class GbqDataLoader:
             # tables as the destination. For example, if the query has a
             # top-level ORDER BY, this conflicts with our ability to cluster
             # the table by the index column(s).
-            _, query_job = self._start_query(
-                query, timeout=timeout, query_with_job=True
-            )
+            query_job = self._start_query_with_job(query, timeout=timeout)
             return query_job.destination, query_job
 
-    @overload
-    def _start_query(
+    def _prepare_job_config(
         self,
-        sql: str,
         job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
-        timeout: Optional[float] = None,
-        *,
-        query_with_job: Literal[True],
-    ) -> Tuple[google.cloud.bigquery.table.RowIterator, bigquery.QueryJob]:
-        ...
-
-    @overload
-    def _start_query(
-        self,
-        sql: str,
-        job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
-        timeout: Optional[float] = None,
-        *,
-        query_with_job: Literal[False],
-    ) -> Tuple[google.cloud.bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
-        ...
-
-    def _start_query(
-        self,
-        sql: str,
-        job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
-        timeout: Optional[float] = None,
-        *,
-        query_with_job: bool = True,
-    ) -> Tuple[google.cloud.bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
-        """
-        Starts BigQuery query job and waits for results.
-
-        Do not execute dataframe through this API, instead use the executor.
-        """
+    ) -> google.cloud.bigquery.QueryJobConfig:
         job_config = bigquery.QueryJobConfig() if job_config is None else job_config
+
         if bigframes.options.compute.maximum_bytes_billed is not None:
             # Maybe this should be pushed down into start_query_with_client
             job_config.maximum_bytes_billed = (
                 bigframes.options.compute.maximum_bytes_billed
             )
 
-        # Trick the type checker into thinking we're using literals.
-        if query_with_job:
-            return bf_io_bigquery.start_query_with_client(
-                self._bqclient,
-                sql,
-                job_config=job_config,
-                timeout=timeout,
-                location=None,
-                project=None,
-                metrics=None,
-                query_with_job=True,
-            )
-        else:
-            return bf_io_bigquery.start_query_with_client(
-                self._bqclient,
-                sql,
-                job_config=job_config,
-                timeout=timeout,
-                location=None,
-                project=None,
-                metrics=None,
-                query_with_job=False,
-            )
+        return job_config
+
+    def _start_query_with_job_optional(
+        self,
+        sql: str,
+        *,
+        job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
+        timeout: Optional[float] = None,
+    ) -> google.cloud.bigquery.table.RowIterator:
+        """
+        Starts BigQuery query with job optional and waits for results.
+
+        Do not execute dataframe through this API, instead use the executor.
+        """
+        job_config = self._prepare_job_config(job_config)
+        rows, _ = bf_io_bigquery.start_query_with_client(
+            self._bqclient,
+            sql,
+            job_config=job_config,
+            timeout=timeout,
+            location=None,
+            project=None,
+            metrics=None,
+            query_with_job=False,
+        )
+        return rows
+
+    def _start_query_with_job(
+        self,
+        sql: str,
+        *,
+        job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
+        timeout: Optional[float] = None,
+    ) -> bigquery.QueryJob:
+        """
+        Starts BigQuery query job and waits for results.
+
+        Do not execute dataframe through this API, instead use the executor.
+        """
+        job_config = self._prepare_job_config(job_config)
+        _, query_job = bf_io_bigquery.start_query_with_client(
+            self._bqclient,
+            sql,
+            job_config=job_config,
+            timeout=timeout,
+            location=None,
+            project=None,
+            metrics=None,
+            query_with_job=True,
+        )
+        return query_job
 
 
 def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:
