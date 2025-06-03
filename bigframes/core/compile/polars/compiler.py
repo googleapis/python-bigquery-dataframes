@@ -22,10 +22,9 @@ from typing import cast, Literal, Optional, Sequence, Tuple, TYPE_CHECKING
 import pandas as pd
 
 import bigframes.core
-from bigframes.core import window_spec
+from bigframes.core import identifiers, nodes, ordering, window_spec
 import bigframes.core.expression as ex
 import bigframes.core.guid as guid
-import bigframes.core.nodes as nodes
 import bigframes.core.rewrite
 import bigframes.dtypes
 import bigframes.operations as ops
@@ -288,6 +287,10 @@ if polars_installed:
                 return pl.col(*inputs).drop_nulls().first()
             if isinstance(op, agg_ops.LastNonNullOp):
                 return pl.col(*inputs).drop_nulls().last()
+            if isinstance(op, agg_ops.FirstOp):
+                return pl.col(*inputs).first()
+            if isinstance(op, agg_ops.LastOp):
+                return pl.col(*inputs).last()
             if isinstance(op, agg_ops.ShiftOp):
                 return pl.col(*inputs).shift(op.periods)
             if isinstance(op, agg_ops.DiffOp):
@@ -367,14 +370,15 @@ class PolarsCompiler:
         if len(node.by) == 0:
             # pragma: no cover
             return frame
+        return self._sort(frame, node.by)
 
+    def _sort(
+        self, frame: pl.LazyFrame, by: Sequence[ordering.OrderingExpression]
+    ) -> pl.LazyFrame:
         sorted = frame.sort(
-            [
-                self.expr_compiler.compile_expression(by.scalar_expression)
-                for by in node.by
-            ],
-            descending=[not by.direction.is_ascending for by in node.by],
-            nulls_last=[by.na_last for by in node.by],
+            [self.expr_compiler.compile_expression(by.scalar_expression) for by in by],
+            descending=[not by.direction.is_ascending for by in by],
+            nulls_last=[by.na_last for by in by],
             maintain_order=True,
         )
         return sorted
@@ -485,7 +489,16 @@ class PolarsCompiler:
             df = df.filter(
                 [pl.col(ref.id.sql).is_not_null() for ref in node.by_column_ids]
             )
+        if node.order_by:
+            df = self._sort(df, node.order_by)
+        return self._aggregate(df, node.aggregations, node.by_column_ids)
 
+    def _aggregate(
+        self,
+        df: pl.LazyFrame,
+        aggregations: Sequence[Tuple[ex.Aggregation, identifiers.ColumnId]],
+        grouping_keys: Tuple[ex.DerefOp, ...],
+    ) -> pl.LazyFrame:
         # Need to materialize columns to broadcast constants
         agg_inputs = [
             list(
@@ -494,7 +507,7 @@ class PolarsCompiler:
                     self.agg_compiler.get_args(agg),
                 )
             )
-            for agg, _ in node.aggregations
+            for agg, _ in aggregations
         ]
 
         df_agg_inputs = df.with_columns(itertools.chain(*agg_inputs))
@@ -503,11 +516,11 @@ class PolarsCompiler:
             self.agg_compiler.compile_agg_op(
                 agg.op, list(map(lambda x: x.meta.output_name(), inputs))
             ).alias(id.sql)
-            for (agg, id), inputs in zip(node.aggregations, agg_inputs)
+            for (agg, id), inputs in zip(aggregations, agg_inputs)
         ]
 
-        if len(node.by_column_ids) > 0:
-            group_exprs = [pl.col(ref.id.sql) for ref in node.by_column_ids]
+        if len(grouping_keys) > 0:
+            group_exprs = [pl.col(ref.id.sql) for ref in grouping_keys]
             grouped_df = df_agg_inputs.group_by(group_exprs)
             return grouped_df.agg(agg_exprs).sort(group_exprs, nulls_last=True)
         else:
@@ -529,26 +542,26 @@ class PolarsCompiler:
     @compile_node.register
     def compile_window(self, node: nodes.WindowOpNode):
         df = self.compile_node(node.child)
-        agg_expr = self.agg_compiler.compile_agg_expr(node.expression).alias(
-            node.output_name.sql
-        )
-        # Three window types: completely unbound, grouped and row bounded
 
         window = node.window_spec
-
         if window.min_periods > 0:
             raise NotImplementedError("min_period not yet supported for polars engine")
 
         if (window.bounds is None) or (window.is_unbounded):
             # polars will automatically broadcast the aggregate to the matching input rows
-            if len(window.grouping_keys) == 0:  # unbound window
-                pass
-            else:  # partition-only window
-                agg_expr = agg_expr.over(
-                    partition_by=[ref.id.sql for ref in window.grouping_keys]
-                )
-            result = df.with_columns([agg_expr])
-
+            agg_input = df
+            if window.ordering:
+                agg_input = self._sort(agg_input, window.ordering)
+            agg_result = self._aggregate(
+                agg_input,
+                [(node.expression, node.output_name)],
+                node.window_spec.grouping_keys,
+            )
+            grouping_cols = [key.id.sql for key in node.window_spec.grouping_keys]
+            if node.window_spec.grouping_keys:
+                result = df.join(agg_result, grouping_cols, "left", join_nulls=True)
+            else:
+                result = df.join(agg_result, "cross")
         else:  # row-bounded window
             window_result = self._calc_row_analytic_func(
                 df, node.expression, node.window_spec, node.output_name.sql
@@ -598,6 +611,7 @@ class PolarsCompiler:
         index_col_name = "_bf_pl_engine_offsets"
         indexed_df = frame.with_row_index(index_col_name)
         if len(window.ordering) > 0:
+            raise NotImplementedError("Ordered windows not supported")
             frame = frame.sort(
                 [
                     self.expr_compiler.compile_expression(by.scalar_expression)
