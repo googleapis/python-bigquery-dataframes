@@ -17,6 +17,7 @@ def test_bigquery_dataframes_set_options() -> None:
     # Close the session before resetting the options
     import bigframes.pandas as bpd
 
+    old_project = bpd.options.bigquery.project
     bpd.close_session()
 
     # [START bigquery_dataframes_set_options]
@@ -39,3 +40,6 @@ def test_bigquery_dataframes_set_options() -> None:
     # [END bigquery_dataframes_set_options]
     assert bpd.options.bigquery.project == PROJECT_ID
     assert bpd.options.bigquery.location == REGION
+
+    bpd.close_session()
+    bpd.options.bigquery.project = old_project
