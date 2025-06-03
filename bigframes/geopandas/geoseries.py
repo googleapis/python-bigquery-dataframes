@@ -57,6 +57,26 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         series.name = None
         return series
 
+    @property
+    def is_closed(self) -> bigframes.series.Series:
+        """
+        Checks if each geometry is closed.
+
+        A point is closed.
+        A linestring is closed if its start and end points are the same.
+        A polygon is closed if it's a full polygon.
+        A collection is closed if and only if every element in the collection is closed.
+        An empty GEOGRAPHY isn't closed.
+
+        Returns:
+            bigframes.series.Series: A Series of booleans.
+        """
+        from bigframes.bigquery._operations import geo as geo_ops
+
+        series = geo_ops.st_isclosed(self)
+        series.name = None
+        return series
+
     @classmethod
     def from_wkt(cls, data, index=None) -> GeoSeries:
         series = bigframes.series.Series(data, index=index)

@@ -74,6 +74,11 @@ geo_st_intersection_op = base_ops.create_binary_op(
 
 
 @dataclasses.dataclass(frozen=True)
+class GeoIsClosedOp(base_ops.UnaryOp):
+    name = "st_isclosed"
+
+
+@dataclasses.dataclass(frozen=True)
 class GeoStDistanceOp(base_ops.BinaryOp):
     name = "st_distance"
     use_spheroid: bool
