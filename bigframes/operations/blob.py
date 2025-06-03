@@ -737,7 +737,7 @@ class BlobAccessor(base.SeriesMethods):
         else:
             return content_series
 
-    def transcribe(
+    def audio_transcribe(
         self,
         *,
         connection: Optional[str] = None,
@@ -758,9 +758,8 @@ class BlobAccessor(base.SeriesMethods):
                 function internet transactions, and the output blob if "dst"
                 is str. If None, uses default connection of the session.
             model_name (str): The model for natural language tasks. Accepted
-                values are "gemini-2.0-flash-exp",  "gemini-2.0-flash-lite-001",
-                and "gemini-2.0-flash-001". See
-                "https://ai.google.dev/gemini-api/docs/models" for model choices.
+                values are "gemini-2.0-flash-lite-001", and "gemini-2.0-flash-001".
+                See "https://ai.google.dev/gemini-api/docs/models" for model choices.
             additional_instruction (str, optional): additional instrcution provided
                 by users. For example, "remove sensitive information like name,
                 phone number, email address, etc". Please be specific.
@@ -775,8 +774,6 @@ class BlobAccessor(base.SeriesMethods):
                 Contains the transcribed text from the audio file.
                 Includes error messages if verbosity is enabled.
         """
-        from typing import cast
-
         import bigframes.bigquery as bbq
         import bigframes.ml.llm as llm
         import bigframes.pandas as bpd
@@ -807,7 +804,7 @@ class BlobAccessor(base.SeriesMethods):
         if verbose:
             status_series = cast(bpd.Series, results["ml_generate_text_status"])
             res_df = bpd.DataFrame({"status": status_series, "content": content_series})
-            struct_series = bbq.struct(res_df)
-            return struct_series
+            res_struct = bbq.struct(res_df)
+            return res_struct
         else:
             return content_series

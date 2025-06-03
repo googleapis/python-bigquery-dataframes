@@ -403,7 +403,7 @@ def test_blob_transcribe(
 ):
     actual = (
         audio_mm_df["audio"]
-        .blob.transcribe(
+        .blob.audio_transcribe(
             model_name=model_name,
             verbose=verbose,
         )
