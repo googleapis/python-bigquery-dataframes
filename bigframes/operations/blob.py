@@ -740,13 +740,13 @@ class BlobAccessor(base.SeriesMethods):
     def transcribe(
         self,
         *,
+        connection: Optional[str] = None,
         model_name: Optional[
             Literal[
                 "gemini-2.0-flash-001",
                 "gemini-2.0-flash-lite-001",
             ]
         ] = None,
-        temperature: float = 0,
         additional_instruction: Optional[str] = None,
         verbose: bool = False,
     ) -> bigframes.series.Series:
@@ -754,12 +754,13 @@ class BlobAccessor(base.SeriesMethods):
         Transcribe audio content using a Gemini multimodal model.
 
         Args:
+            connection (str or None, default None): BQ connection used for
+                function internet transactions, and the output blob if "dst"
+                is str. If None, uses default connection of the session.
             model_name (str): The model for natural language tasks. Accepted
                 values are "gemini-2.0-flash-exp",  "gemini-2.0-flash-lite-001",
                 and "gemini-2.0-flash-001". See
                 "https://ai.google.dev/gemini-api/docs/models" for model choices.
-            temperature (float, default 0): Decoding temperature.
-                Defaults to 0.
             additional_instruction (str, optional): additional instrcution provided
                 by users. For example, "remove sensitive information like name,
                 phone number, email address, etc". Please be specific.
@@ -780,23 +781,25 @@ class BlobAccessor(base.SeriesMethods):
         import bigframes.ml.llm as llm
         import bigframes.pandas as bpd
 
-        src_rt = self.get_runtime_json_str(mode="R")
-        df = src_rt.to_frame()
-
-        df_prompt = df[["audio"]].copy()
+        # col name doesn't matter here. Rename to avoid column name conflicts
+        df_prompt = bigframes.series.Series(self._block).rename("audio").to_frame()
 
         prompt_text = "**Task:** Transcribe the provided audio. **Instructions:** - Your response must contain only the verbatim transcription of the audio. - Do not include any introductory text, summaries, or conversational filler in your response. The output should begin directly with the first word of the audio."
         if additional_instruction is not None:
             prompt_text += " - " + additional_instruction
         df_prompt["prompt"] = prompt_text
 
-        model = llm.GeminiTextGenerator(model_name=model_name)
+        model = llm.GeminiTextGenerator(
+            model_name=model_name,
+            session=self._block.session,
+            connection_name=connection,
+        )
 
         # transcribe audio using ML.GENERATE_TEXT
         results = model.predict(
             X=df_prompt,
-            prompt=[df_prompt["prompt"], df_prompt["audio"]],
-            temperature=temperature,
+            prompt=[prompt_text, df_prompt["audio"]],
+            temperature=0.0,
         )
 
         content_series = cast(bpd.Series, results["ml_generate_text_llm_result"])

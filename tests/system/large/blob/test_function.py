@@ -387,7 +387,6 @@ def test_blob_pdf_chunk(
     )
 
 
-@pytest.mark.flaky(retries=2, delay=120)
 @pytest.mark.parametrize(
     "model_name, verbose",
     [
@@ -421,11 +420,10 @@ def test_blob_transcribe(
     else:
         actual_text = actual[0]
     actual_len = len(actual_text)
-    print(actual_text)
 
-    relative_lenght_tolerance = 0.2
-    min_acceptable_len = expected_len * (1 - relative_lenght_tolerance)
-    max_acceptable_len = expected_len * (1 + relative_lenght_tolerance)
+    relative_length_tolerance = 0.2
+    min_acceptable_len = expected_len * (1 - relative_length_tolerance)
+    max_acceptable_len = expected_len * (1 + relative_length_tolerance)
     assert min_acceptable_len <= actual_len <= max_acceptable_len, (
         f"Item (verbose={verbose}): Transcribed text length {actual_len} is outside the acceptable range "
         f"[{min_acceptable_len:.0f}, {max_acceptable_len:.0f}]. "

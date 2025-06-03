@@ -1529,5 +1529,9 @@ def audio_gcs_path() -> str:
 
 
 @pytest.fixture(scope="session")
-def audio_mm_df(audio_gcs_path) -> bpd.DataFrame:
-    return bpd.from_glob_path(audio_gcs_path, name="audio")
+def audio_mm_df(
+    audio_gcs_path, session: bigframes.Session, bq_connection: str
+) -> bpd.DataFrame:
+    return session.from_glob_path(
+        audio_gcs_path, name="audio", connection=bq_connection
+    )
