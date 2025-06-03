@@ -51,12 +51,13 @@ def create_read_local_node(arrow_table: pyarrow.Table):
 @pytest.mark.parametrize(
     ("start", "stop", "expected_rows"),
     (
+        # No-op slices.
         (None, None, 10),
         (0, None, 10),
-        (4, None, 6),
         (None, 10, 10),
+        # Slices equivalent to limits.
         (None, 7, 7),
-        (1, 9, 8),
+        (0, 3, 3),
     ),
 )
 def test_local_scan_executor_with_slice(start, stop, expected_rows, object_under_test):
@@ -87,6 +88,8 @@ def test_local_scan_executor_with_slice(start, stop, expected_rows, object_under
         (None, -1, 1),
         (None, None, 2),
         (None, None, -1),
+        (4, None, 6),
+        (1, 9, 8),
     ),
 )
 def test_local_scan_executor_with_slice_unsupported_inputs(
