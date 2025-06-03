@@ -368,8 +368,10 @@ def test_geo_is_closed():
             LineString([(0, 0), (1, 1)]),  # Open LineString
             LineString([(0, 0), (1, 1), (0, 1), (0, 0)]),  # Closed LineString
             Polygon([(0, 0), (1, 1), (0, 1), (0, 0)]),  # Polygon
-            GeometryCollection(), # Empty GeometryCollection
-            bigframes.geopandas.GeoSeries.from_wkt(["GEOMETRYCOLLECTION EMPTY"]).iloc[0], # Also empty
+            GeometryCollection(),  # Empty GeometryCollection
+            bigframes.geopandas.GeoSeries.from_wkt(["GEOMETRYCOLLECTION EMPTY"]).iloc[
+                0
+            ],  # Also empty
             None,  # Should be filtered out by dropna
         ],
         index=[0, 1, 2, 3, 4, 5, 6],
@@ -391,7 +393,7 @@ def test_geo_is_closed():
     bf_result = bf_gs.is_closed.to_pandas().dropna().astype(bool)
     pd_result = pd_gs.is_closed.dropna().astype(bool)
 
-    #Expected results based on ST_ISCLOSED documentation:
+    # Expected results based on ST_ISCLOSED documentation:
     # Point: True
     # Open LineString: False
     # Closed LineString: True
@@ -401,7 +403,9 @@ def test_geo_is_closed():
 
     expected_data = [True, False, True, True, False, False]
     expected_index = pd.Index([0, 1, 2, 3, 4, 5], dtype="Int64")
-    expected_series = pd.Series(data=expected_data, index=expected_index, name="is_closed", dtype=bool)
+    expected_series = pd.Series(
+        data=expected_data, index=expected_index, name="is_closed", dtype=bool
+    )
 
     # First check BigQuery DataFrames result against expected
     pd.testing.assert_series_equal(
@@ -410,17 +414,17 @@ def test_geo_is_closed():
         check_dtype=False,  # Pandas dtypes can be tricky with Nones involved before dropna
         check_index_type=False,
         check_series_type=False,
-        check_names=False, # Name might differ due to how it's set or not set in BQ vs Pandas
+        check_names=False,  # Name might differ due to how it's set or not set in BQ vs Pandas
     )
 
     # Then check BigQuery DataFrames result against pandas/geopandas result
     pd.testing.assert_series_equal(
         bf_result,
         pd_result,
-        check_dtype=False, # Pandas dtypes can be tricky
+        check_dtype=False,  # Pandas dtypes can be tricky
         check_index_type=False,
         check_series_type=False,
-        check_names=False, # Name might differ
+        check_names=False,  # Name might differ
     )
 
 
@@ -468,7 +472,10 @@ def test_geo_x(urban_areas_dfs):
 
     # We need to use the original assert_series_equal for this test as pd.testing.assert_series_equal
     # does not support the pd_result.astype(pd.Float64Dtype()), bf_result, combination
-    from tests.system.utils import assert_series_equal # noqa: F811 - Reimport for this specific case
+    from tests.system.utils import (  # noqa: F811 - Reimport for this specific case
+        assert_series_equal,
+    )
+
     assert_series_equal(
         pd_result.astype(pd.Float64Dtype()),
         bf_result,
@@ -489,7 +496,10 @@ def test_geo_y(urban_areas_dfs):
     pd_series: geopandas.GeoSeries = geopandas.GeoSeries(pd_ua["internal_point_geom"])
     bf_result = bf_series.y.to_pandas()
     pd_result = pd_series.y
-    from tests.system.utils import assert_series_equal # noqa: F811 - Reimport for this specific case
+    from tests.system.utils import (  # noqa: F811 - Reimport for this specific case
+        assert_series_equal,
+    )
+
     assert_series_equal(
         pd_result.astype(pd.Float64Dtype()),
         bf_result,
