@@ -54,6 +54,13 @@ geo_st_geogpoint_op = base_ops.create_binary_op(
     name="geo_st_geogpoint", type_signature=op_typing.BinaryNumericGeo()
 )
 
+geo_st_isclosed_op = base_ops.create_unary_op(
+    name="geo_st_isclosed",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.BOOL_DTYPE, description="geo-like"
+    ),
+)
+
 geo_x_op = base_ops.create_unary_op(
     name="geo_x",
     type_signature=op_typing.FixedOutputType(
@@ -71,11 +78,6 @@ geo_y_op = base_ops.create_unary_op(
 geo_st_intersection_op = base_ops.create_binary_op(
     name="geo_st_intersection", type_signature=op_typing.BinaryGeo()
 )
-
-
-@dataclasses.dataclass(frozen=True)
-class GeoIsClosedOp(base_ops.UnaryOp):
-    name = "st_isclosed"
 
 
 @dataclasses.dataclass(frozen=True)

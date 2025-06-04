@@ -436,6 +436,6 @@ def st_isclosed(
         bigframes.pandas.Series:
             Series of booleans indicating whether each geometry is closed.
     """
-    series = series._apply_unary_op(ops.GeoIsClosedOp())
+    series = series._apply_unary_op(ops.geo_st_isclosed_op)
     series.name = None
     return series

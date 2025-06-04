@@ -1074,7 +1074,7 @@ def geo_st_intersection_op_impl(x: ibis_types.Value, y: ibis_types.Value):
     )
 
 
-@scalar_op_compiler.register_unary_op(ops.GeoIsClosedOp, pass_op=False)
+@scalar_op_compiler.register_unary_op(ops.geo_st_isclosed_op, pass_op=False)
 def geo_st_isclosed_op_impl(x: ibis_types.Value):
     return st_isclosed(x)
 

@@ -354,3 +354,41 @@ def test_geo_st_intersection_with_similar_geometry_objects():
         check_exact=False,
         rtol=0.1,
     )
+
+
+def test_geo_st_isclosed():
+    bf_gs = bigframes.geopandas.GeoSeries(
+        [
+            Point(0, 0),  # Point
+            LineString([(0, 0), (1, 1)]),  # Open LineString
+            LineString([(0, 0), (1, 1), (0, 1), (0, 0)]),  # Closed LineString
+            Polygon([(0, 0), (1, 1), (0, 1)]),  # Open polygon
+            GeometryCollection(),  # Empty GeometryCollection
+            bigframes.geopandas.GeoSeries.from_wkt(["GEOMETRYCOLLECTION EMPTY"]).iloc[
+                0
+            ],  # Also empty
+            None,  # Should be filtered out by dropna
+        ],
+        index=[0, 1, 2, 3, 4, 5, 6],
+    )
+    bf_result = bbq.st_isclosed(bf_gs).to_pandas()
+
+    # Expected results based on ST_ISCLOSED documentation:
+    expected_data = [
+        True,  # Point: True
+        False,  # Open LineString: False
+        True,  # Closed LineString: True
+        False,  # Polygon: False (only True if it's a full polygon)
+        False,  # Empty GeometryCollection: False (An empty GEOGRAPHY isn't closed)
+        False,  # GEOMETRYCOLLECTION EMPTY: False
+        None,
+    ]
+    expected_index: pd.Index = pd.Index([0, 1, 2, 3, 4, 5, 6], dtype="Int64")
+    expected_series = pd.Series(
+        data=expected_data, index=expected_index, dtype="boolean"
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        expected_series,
+    )

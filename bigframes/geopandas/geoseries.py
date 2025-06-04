@@ -59,23 +59,12 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
 
     @property
     def is_closed(self) -> bigframes.series.Series:
-        """
-        Checks if each geometry is closed.
-
-        A point is closed.
-        A linestring is closed if its start and end points are the same.
-        A polygon is closed if it's a full polygon.
-        A collection is closed if and only if every element in the collection is closed.
-        An empty GEOGRAPHY isn't closed.
-
-        Returns:
-            bigframes.series.Series: A Series of booleans.
-        """
-        from bigframes.bigquery._operations import geo as geo_ops
-
-        series = geo_ops.st_isclosed(self)
-        series.name = None
-        return series
+        # TODO(tswast): GeoPandas doesn't treat Point as closed. Use ST_LENGTH
+        # when available to filter out "closed" shapes that return false in
+        # GeoPandas.
+        raise NotImplementedError(
+            f"GeoSeries.is_closed is not supported. Use bigframes.bigquery.st_isclosed(series), instead. {constants.FEEDBACK_LINK}"
+        )
 
     @classmethod
     def from_wkt(cls, data, index=None) -> GeoSeries:
