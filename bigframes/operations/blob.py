@@ -786,25 +786,34 @@ class BlobAccessor(base.SeriesMethods):
             prompt_text += " - " + additional_instruction
         df_prompt["prompt"] = prompt_text
 
-        model = llm.GeminiTextGenerator(
+        llm_model = llm.GeminiTextGenerator(
             model_name=model_name,
             session=self._block.session,
             connection_name=connection,
         )
 
         # transcribe audio using ML.GENERATE_TEXT
-        results = model.predict(
+        transcribed_results = llm_model.predict(
             X=df_prompt,
             prompt=[prompt_text, df_prompt["audio"]],
             temperature=0.0,
         )
 
-        content_series = cast(bpd.Series, results["ml_generate_text_llm_result"])
+        transcribed_content_series = cast(
+            bpd.Series, transcribed_results["ml_generate_text_llm_result"]
+        )
 
         if verbose:
-            status_series = cast(bpd.Series, results["ml_generate_text_status"])
-            res_df = bpd.DataFrame({"status": status_series, "content": content_series})
-            res_struct = bbq.struct(res_df)
-            return res_struct
+            transcribed_status_series = cast(
+                bpd.Series, transcribed_results["ml_generate_text_status"]
+            )
+            results_df = bpd.DataFrame(
+                {
+                    "status": transcribed_status_series,
+                    "content": transcribed_content_series,
+                }
+            )
+            results_struct = bbq.struct(results_df)
+            return results_struct
         else:
-            return content_series
+            return transcribed_content_series
