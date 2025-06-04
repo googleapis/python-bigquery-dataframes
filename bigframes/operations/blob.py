@@ -747,7 +747,6 @@ class BlobAccessor(base.SeriesMethods):
                 "gemini-2.0-flash-lite-001",
             ]
         ] = None,
-        additional_instruction: Optional[str] = None,
         verbose: bool = False,
     ) -> bigframes.series.Series:
         """
@@ -760,9 +759,6 @@ class BlobAccessor(base.SeriesMethods):
             model_name (str): The model for natural language tasks. Accepted
                 values are "gemini-2.0-flash-lite-001", and "gemini-2.0-flash-001".
                 See "https://ai.google.dev/gemini-api/docs/models" for model choices.
-            additional_instruction (str, optional): additional instrcution provided
-                by users. For example, "remove sensitive information like name,
-                phone number, email address, etc". Please be specific.
             verbose (bool, default "False"): controls the verbosity of the output.
                 When set to True, both error messages and the transcribed content
                 are displayed. Conversely, when set to False, only the transcribed
@@ -782,8 +778,6 @@ class BlobAccessor(base.SeriesMethods):
         df_prompt = bigframes.series.Series(self._block)
 
         prompt_text = "**Task:** Transcribe the provided audio. **Instructions:** - Your response must contain only the verbatim transcription of the audio. - Do not include any introductory text, summaries, or conversational filler in your response. The output should begin directly with the first word of the audio."
-        if additional_instruction is not None:
-            prompt_text += " - " + additional_instruction
 
         llm_model = llm.GeminiTextGenerator(
             model_name=model_name,
