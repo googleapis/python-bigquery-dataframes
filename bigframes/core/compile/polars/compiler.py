@@ -552,19 +552,10 @@ class PolarsCompiler:
 
         if (window.bounds is None) or (window.is_unbounded):
             # polars will automatically broadcast the aggregate to the matching input rows
-            agg_input = df
-            if window.ordering:
-                agg_input = self._sort(agg_input, window.ordering)
-            agg_result = self._aggregate(
-                agg_input,
-                [(node.expression, node.output_name)],
-                node.window_spec.grouping_keys,
-            )
-            grouping_cols = [key.id.sql for key in node.window_spec.grouping_keys]
-            if node.window_spec.grouping_keys:
-                result = df.join(agg_result, grouping_cols, "left", join_nulls=True)
-            else:
-                result = df.join(agg_result, how="cross")
+            agg_pl = self.agg_compiler.compile_agg_expr(node.expression)
+            if window.grouping_keys:
+                agg_pl = agg_pl.over(id.id.sql for id in window.grouping_keys)
+            result = df.with_columns(agg_pl.alias(node.output_name.sql))
         else:  # row-bounded window
             window_result = self._calc_row_analytic_func(
                 df, node.expression, node.window_spec, node.output_name.sql

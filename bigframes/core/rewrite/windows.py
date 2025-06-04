@@ -17,7 +17,7 @@ from __future__ import annotations
 import dataclasses
 
 from bigframes import operations as ops
-from bigframes.core import guid, identifiers, nodes
+from bigframes.core import guid, identifiers, nodes, ordering
 
 
 def rewrite_range_rolling(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
@@ -61,9 +61,16 @@ def rewrite_window_node(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         )
         sorted_child = nodes.OrderByNode(w_offsets, node.window_spec.ordering)
         new_window_node = dataclasses.replace(
-            node, child=sorted_child, window_spec=node.window_spec.without_order()
+            node,
+            child=sorted_child,
+            window_spec=node.window_spec.without_order(force=True),
+        )
+        w_resetted_order = nodes.OrderByNode(
+            new_window_node,
+            by=(ordering.ascending_over(identifiers.ColumnId(offsets_id)),),
+            is_total_order=True,
         )
         w_offsets_dropped = nodes.SelectionNode(
-            new_window_node, tuple(nodes.AliasedRef.identity(id) for id in node.ids)
+            w_resetted_order, tuple(nodes.AliasedRef.identity(id) for id in node.ids)
         )
         return w_offsets_dropped

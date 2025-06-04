@@ -270,9 +270,9 @@ class WindowSpec:
         )
         return set(itertools.chain((i.id for i in self.grouping_keys), ordering_vars))
 
-    def without_order(self) -> WindowSpec:
+    def without_order(self, force: bool = False) -> WindowSpec:
         """Removes ordering clause if ordering isn't required to define bounds."""
-        if self.is_row_bounded:
+        if self.is_row_bounded and not force:
             raise ValueError("Cannot remove order from row-bounded window")
         return replace(self, ordering=())
 
