@@ -380,3 +380,59 @@ def st_intersection(
             each aligned geometry with other.
     """
     return series._apply_binary_op(other, ops.geo_st_intersection_op)
+
+
+def st_length(
+    series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
+) -> bigframes.series.Series:
+    """
+    Computes the length of the input GEOGRAPHY.
+
+    For LINESTRING, MULTILINESTRING, POLYGON, MULTIPOLYGON the length is the
+    great-circle length of their boundaries on the WGS84 spheroid, in meters.
+    For POINT, MULTIPOINT, and empty GEOGRAPHYs, the length is 0.
+
+    .. note::
+        BigQuery's Geography functions, like `st_length`, interpret the geometry
+        data type as a point set on the Earth's surface. A point set is a set
+        of points, lines, and polygons on the WGS84 reference spheroid, with
+        geodesic edges. See: https://cloud.google.com/bigquery/docs/geospatial-data
+
+    **Examples:**
+
+        >>> import bigframes.geopandas
+        >>> import bigframes.pandas as bpd
+        >>> import bigframes.bigquery as bbq
+        >>> from shapely.geometry import Polygon, LineString, Point
+        >>> bpd.options.display.progress_bar = None
+
+        >>> series = bigframes.geopandas.GeoSeries(
+        ...         [
+        ...             LineString([(0, 0), (1, 1), (0, 1)]),
+        ...             Polygon([(0.0, 0.0), (0.1, 0.1), (0.0, 0.1)]),
+        ...             Point(0, 1),
+        ...         ]
+        ... )
+        >>> series
+        0                        LINESTRING (0 0, 1 1, 0 1)
+        1              POLYGON ((0 0, 0.1 0.1, 0 0.1, 0 0))
+        2                                       POINT (0 1)
+        dtype: geometry
+
+        >>> bbq.st_length(series)
+        0    314420.232042
+        1    374483.073393
+        2         0.0
+        dtype: Float64
+
+    Args:
+        series (bigframes.pandas.Series | bigframes.geopandas.GeoSeries):
+            A series containing geography objects.
+
+    Returns:
+      bigframes.pandas.Series:
+          Series of float representing the lengths in meters.
+    """
+    series = series._apply_unary_op(ops.geo_st_length_op)
+    series.name = None
+    return series
