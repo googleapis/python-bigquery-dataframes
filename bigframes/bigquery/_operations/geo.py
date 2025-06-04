@@ -408,8 +408,8 @@ def st_isclosed(
         ...         Point(0, 0),  # Point
         ...         LineString([(0, 0), (1, 1)]),  # Open LineString
         ...         LineString([(0, 0), (1, 1), (0, 1), (0, 0)]),  # Closed LineString
-        ...         Polygon([(0, 0), (1, 1), (0, 1), (0, 0)]),  # Polygon
-        ...         None, # geometry empty not supported by shapely use ST_GEOGFROMTEXT('GEOMETRYCOLLECTION EMPTY') instead
+        ...         Polygon([(0, 0), (1, 1), (0, 1), (0, 0)]),
+        ...         None,
         ...     ]
         ... )
         >>> series
@@ -424,8 +424,8 @@ def st_isclosed(
         0     True
         1    False
         2     True
-        3     True
-        4     None
+        3     False
+        4     <NA>
         dtype: boolean
 
     Args:
