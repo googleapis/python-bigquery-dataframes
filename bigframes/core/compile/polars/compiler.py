@@ -336,6 +336,7 @@ class PolarsCompiler:
         node = array_value.node
         node = bigframes.core.rewrite.column_pruning(node)
         node = nodes.bottom_up(node, bigframes.core.rewrite.rewrite_slice)
+        node = bigframes.core.rewrite.pull_out_window_order(node)
         return self.compile_node(node)
 
     @functools.singledispatchmethod
@@ -544,6 +545,8 @@ class PolarsCompiler:
         df = self.compile_node(node.child)
 
         window = node.window_spec
+        # Should have been handled by reweriter
+        assert len(window.ordering) == 0
         if window.min_periods > 0:
             raise NotImplementedError("min_period not yet supported for polars engine")
 
@@ -561,7 +564,7 @@ class PolarsCompiler:
             if node.window_spec.grouping_keys:
                 result = df.join(agg_result, grouping_cols, "left", join_nulls=True)
             else:
-                result = df.join(agg_result, "cross")
+                result = df.join(agg_result, how="cross")
         else:  # row-bounded window
             window_result = self._calc_row_analytic_func(
                 df, node.expression, node.window_spec, node.output_name.sql
@@ -604,35 +607,25 @@ class PolarsCompiler:
                 self.expr_compiler.compile_expression(ref)
                 for ref in window.grouping_keys
             ]
+
         # Polars API semi-bounded, and any grouped rolling window challenging
         # https://github.com/pola-rs/polars/issues/4799
         # https://github.com/pola-rs/polars/issues/8976
         pl_agg_expr = self.agg_compiler.compile_agg_expr(agg_expr).alias(name)
         index_col_name = "_bf_pl_engine_offsets"
         indexed_df = frame.with_row_index(index_col_name)
-        if len(window.ordering) > 0:
-            raise NotImplementedError("Ordered windows not supported")
-            frame = frame.sort(
-                [
-                    self.expr_compiler.compile_expression(by.scalar_expression)
-                    for by in window.ordering
-                ],
-                descending=[not by.direction.is_ascending for by in window.ordering],
-                nulls_last=[by.na_last for by in window.ordering],
-                maintain_order=True,
-            )
-
         # https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.rolling.html
         period_n, offset_n = _get_period_and_offset(window.bounds)
-        results = indexed_df.rolling(
-            index_column=index_col_name,
-            period=f"{period_n}i",
-            offset=f"{offset_n}i" if (offset_n is not None) else None,
-            group_by=groupby,
-        ).agg(pl_agg_expr)
-        if len(window.ordering) > 0:
-            results = results.sort(pl.col(index_col_name))
-        return results.select(name)
+        return (
+            indexed_df.rolling(
+                index_column=index_col_name,
+                period=f"{period_n}i",
+                offset=f"{offset_n}i" if (offset_n is not None) else None,
+                group_by=groupby,
+            )
+            .agg(pl_agg_expr)
+            .select(name)
+        )
 
 
 def _get_period_and_offset(
