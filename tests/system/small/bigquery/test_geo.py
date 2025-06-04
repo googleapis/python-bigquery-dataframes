@@ -19,6 +19,8 @@ import pytest
 from shapely.geometry import (  # type: ignore
     GeometryCollection,
     LineString,
+    GeometryCollection,
+    LineString,
     MultiLineString,
     MultiPoint,
     MultiPolygon,
@@ -80,6 +82,7 @@ def test_st_length_point(session):
         rtol=1e-3,
         atol=1e-3,  # For zero values, rtol is not effective
     )  # type: ignore
+    )
 
 
 def test_st_length_linestring(session):
@@ -95,6 +98,7 @@ def test_st_length_linestring(session):
         check_index_type=False,
         rtol=1e-3,
     )  # type: ignore
+    )
 
 
 def test_st_length_polygon(session):
@@ -122,6 +126,7 @@ def test_st_length_polygon(session):
         check_index_type=False,
         rtol=1e-3,  # Increased tolerance for complex polygon calculation
     )  # type: ignore
+    )
 
 
 def test_st_length_multipoint(session):
@@ -138,6 +143,7 @@ def test_st_length_multipoint(session):
         rtol=1e-3,
         atol=1e-3,
     )  # type: ignore
+    )
 
 
 def test_st_length_multilinestring(session):
@@ -156,6 +162,7 @@ def test_st_length_multilinestring(session):
         check_index_type=False,
         rtol=1e-3,
     )  # type: ignore
+    )
 
 
 def test_st_length_multipolygon(session):
@@ -187,6 +194,7 @@ def test_st_length_multipolygon(session):
         check_index_type=False,
         rtol=1e-3,
     )  # type: ignore
+    )
 
 
 def test_st_length_geometrycollection(session):
@@ -205,6 +213,7 @@ def test_st_length_geometrycollection(session):
         check_index_type=False,
         rtol=1e-3,
     )  # type: ignore
+    )
 
 
 def test_st_length_geometrycollection_polygon_line(session):
@@ -232,6 +241,7 @@ def test_st_length_geometrycollection_polygon_line(session):
         check_index_type=False,
         rtol=1e-3,
     )  # type: ignore
+    )
 
 
 def test_st_length_empty_geography(session):
@@ -267,6 +277,7 @@ def test_st_length_empty_geography(session):
         rtol=1e-3,
         atol=1e-3,
     )  # type: ignore
+    )
 
 
 def test_st_length_geometrycollection_only_points(session):
@@ -283,6 +294,7 @@ def test_st_length_geometrycollection_only_points(session):
         rtol=1e-3,
         atol=1e-3,
     )  # type: ignore
+    )
 
 
 def test_st_length_mixed_types_and_nulls(session):
@@ -323,6 +335,7 @@ def test_st_length_mixed_types_and_nulls(session):
         rtol=1e-3,
         atol=1e-2,  # For small values and None comparison
     )  # type: ignore
+    )
 
 
 def test_geo_st_difference_with_geometry_objects():
