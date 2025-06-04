@@ -579,8 +579,6 @@ class BlobAccessor(base.SeriesMethods):
                 data. Includes error messages if verbosity is enbled.
 
         """
-        import base64
-
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
         import bigframes.pandas as bpd
@@ -623,8 +621,8 @@ class BlobAccessor(base.SeriesMethods):
                 res_df = bpd.DataFrame(
                     {"status": status_series, "content": decoded_content_series}
                 )
-                struct_series = bbq.struct(res_df)
-                return struct_series
+                res_struct = bbq.struct(res_df)
+                return res_struct
             else:
                 return decoded_content_series
 
@@ -675,8 +673,8 @@ class BlobAccessor(base.SeriesMethods):
             res_df = bpd.DataFrame(
                 {"status": status_series, "content": decoded_content_series}
             )
-            struct_series = bbq.struct(res_df)
-            return struct_series
+            res_struct = bbq.struct(res_df)
+            return res_struct
         else:
             return decoded_content_series
 
@@ -739,8 +737,8 @@ class BlobAccessor(base.SeriesMethods):
         if verbose:
             status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
             res_df = bpd.DataFrame({"status": status_series, "content": content_series})
-            struct_series = bbq.struct(res_df)
-            return struct_series
+            res_struct = bbq.struct(res_df)
+            return res_struct
         else:
             return content_series
 
@@ -820,8 +818,8 @@ class BlobAccessor(base.SeriesMethods):
         if verbose:
             status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
             res_df = bpd.DataFrame({"status": status_series, "content": content_series})
-            struct_series = bbq.struct(res_df)
-            return struct_series
+            res_struct = bbq.struct(res_df)
+            return res_struct
         else:
             return content_series
 
