@@ -77,9 +77,6 @@ geo_st_intersection_op = base_ops.create_binary_op(
 class GeoIsClosedOp(base_ops.UnaryOp):
     name = "st_isclosed"
 
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return dtypes.BOOL_DTYPE
-
 
 @dataclasses.dataclass(frozen=True)
 class GeoStDistanceOp(base_ops.BinaryOp):
