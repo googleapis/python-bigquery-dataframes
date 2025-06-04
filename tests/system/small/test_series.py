@@ -4647,9 +4647,13 @@ def test_series_item(session):
     # Test with multiple items
     bf_s_multiple = bigframes.pandas.Series([1, 2, 3], session=session)
     pd_s_multiple = pd.Series([1, 2, 3])
-    with pytest.raises(ValueError, match="can only convert an array of size 1 to a Python scalar") as bf_excinfo:
+    with pytest.raises(
+        ValueError, match="can only convert an array of size 1 to a Python scalar"
+    ) as bf_excinfo:
         bf_s_multiple.item()
-    with pytest.raises(ValueError, match="can only convert an array of size 1 to a Python scalar") as pd_excinfo:
+    with pytest.raises(
+        ValueError, match="can only convert an array of size 1 to a Python scalar"
+    ) as pd_excinfo:
         pd_s_multiple.item()
     assert str(bf_excinfo.value) == str(pd_excinfo.value)
 
