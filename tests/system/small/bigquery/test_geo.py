@@ -71,7 +71,7 @@ DEG_LNG_EQUATOR_METERS = 111195.07973400292
 def test_st_length_point(session):
     geoseries = bigframes.geopandas.GeoSeries([Point(0, 0)], session=session)
     result = st_length(geoseries).to_pandas()
-    expected = bpd.Series([0.0], dtype="Float64")
+    expected = pd.Series([0.0], dtype="Float64")
     pd.testing.assert_series_equal(
         result,
         expected,
@@ -87,7 +87,7 @@ def test_st_length_linestring(session):
         [LineString([(0, 0), (1, 0)])], session=session
     )
     result = st_length(geoseries).to_pandas()
-    expected = bpd.Series([DEG_LNG_EQUATOR_METERS], dtype="Float64")
+    expected = pd.Series([DEG_LNG_EQUATOR_METERS], dtype="Float64")
     pd.testing.assert_series_equal(
         result,
         expected,
@@ -114,7 +114,7 @@ def test_st_length_polygon(session):
         [Polygon([(0, 0), (1, 0), (0, 1), (0, 0)])], session=session
     )
     result = st_length(geoseries).to_pandas()
-    expected = bpd.Series([333585.1992020086], dtype="Float64")
+    expected = pd.Series([333585.1992020086], dtype="Float64")
     pd.testing.assert_series_equal(
         result,
         expected,
@@ -129,7 +129,7 @@ def test_st_length_multipoint(session):
         [MultiPoint([Point(0, 0), Point(1, 1)])], session=session
     )
     result = st_length(geoseries).to_pandas()
-    expected = bpd.Series([0.0], dtype="Float64")
+    expected = pd.Series([0.0], dtype="Float64")
     pd.testing.assert_series_equal(
         result,
         expected,
@@ -148,7 +148,7 @@ def test_st_length_multilinestring(session):
     result = st_length(geoseries).to_pandas()
     # Sum of lengths of two lines, each 1 degree.
     # ST_Length(ST_GeogFromText('MultiLineString((0 0, 1 0), (0 0, 0 1))')) = 222390.15946800584
-    expected = bpd.Series([2 * DEG_LNG_EQUATOR_METERS], dtype="Float64")
+    expected = pd.Series([2 * DEG_LNG_EQUATOR_METERS], dtype="Float64")
     pd.testing.assert_series_equal(
         result,
         expected,
@@ -179,7 +179,7 @@ def test_st_length_multipolygon(session):
     )
     result = st_length(geoseries).to_pandas()
     expected_single_poly_length = 333585.1992020086
-    expected = bpd.Series([2 * expected_single_poly_length], dtype="Float64")
+    expected = pd.Series([2 * expected_single_poly_length], dtype="Float64")
     pd.testing.assert_series_equal(
         result,
         expected,
@@ -197,7 +197,7 @@ def test_st_length_geometrycollection(session):
         session=session,
     )
     result = st_length(geoseries).to_pandas()
-    expected = bpd.Series([DEG_LNG_EQUATOR_METERS], dtype="Float64")
+    expected = pd.Series([DEG_LNG_EQUATOR_METERS], dtype="Float64")
     pd.testing.assert_series_equal(
         result,
         expected,
@@ -224,7 +224,7 @@ def test_st_length_geometrycollection_polygon_line(session):
         session=session,
     )
     result = st_length(geoseries).to_pandas()
-    expected = bpd.Series([poly_length + line_length], dtype="Float64")
+    expected = pd.Series([poly_length + line_length], dtype="Float64")
     pd.testing.assert_series_equal(
         result,
         expected,
@@ -274,7 +274,7 @@ def test_st_length_geometrycollection_only_points(session):
         [GeometryCollection([Point(0, 0), Point(1, 1)])], session=session
     )
     result = st_length(geoseries).to_pandas()
-    expected = bpd.Series([0.0], dtype="Float64")
+    expected = pd.Series([0.0], dtype="Float64")
     pd.testing.assert_series_equal(
         result,
         expected,
@@ -314,7 +314,7 @@ def test_st_length_mixed_types_and_nulls(session):
         None,  # Representing NA for pandas/bigframes series
         0.00001 * DEG_LNG_EQUATOR_METERS,
     ]
-    expected = bpd.Series(expected_data, dtype="Float64")
+    expected = pd.Series(expected_data, dtype="Float64")
 
     pd.testing.assert_series_equal(
         result,
