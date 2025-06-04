@@ -4636,3 +4636,23 @@ def test_series_to_pandas_dry_run(scalars_df_index):
 
     assert isinstance(result, pd.Series)
     assert len(result) > 0
+
+
+def test_series_item(session):
+    # Test with a single item
+    s_single = bigframes.pandas.Series([42], session=session)
+    assert s_single.item() == 42
+
+    # Test with multiple items
+    s_multiple = bigframes.pandas.Series([1, 2, 3], session=session)
+    with pytest.raises(
+        ValueError, match="can only convert an array of size 1 to a Python scalar"
+    ):
+        s_multiple.item()
+
+    # Test with an empty Series
+    s_empty = bigframes.pandas.Series([], dtype="Int64", session=session)
+    with pytest.raises(
+        ValueError, match="can only convert an array of size 1 to a Python scalar"
+    ):
+        s_empty.item()

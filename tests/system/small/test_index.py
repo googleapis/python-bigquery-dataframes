@@ -458,3 +458,23 @@ def test_multiindex_repr_includes_all_names(session):
     )
     index = session.read_pandas(df).set_index(["A", "B"]).index
     assert "names=['A', 'B']" in repr(index)
+
+
+def test_index_item(session):
+    # Test with a single item
+    idx_single = bpd.Index([42], session=session)
+    assert idx_single.item() == 42
+
+    # Test with multiple items
+    idx_multiple = bpd.Index([1, 2, 3], session=session)
+    with pytest.raises(
+        ValueError, match="can only convert an array of size 1 to a Python scalar"
+    ):
+        idx_multiple.item()
+
+    # Test with an empty Index
+    idx_empty = bpd.Index([], dtype="Int64", session=session)
+    with pytest.raises(
+        ValueError, match="can only convert an array of size 1 to a Python scalar"
+    ):
+        idx_empty.item()

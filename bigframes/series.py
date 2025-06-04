@@ -960,6 +960,22 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         as_series.name = self.name
         return as_series
 
+    def item(self):
+        """
+        Return the first element of the underlying data as a Python scalar.
+
+        Returns:
+            scalar: The first element of the Series.
+
+        Raises:
+            ValueError: If the Series does not contain exactly one element.
+        """
+        peeked = self.peek(2)
+        if len(peeked) == 1:
+            return peeked.iloc[0]
+        else:
+            raise ValueError("can only convert an array of size 1 to a Python scalar")
+
     def nlargest(self, n: int = 5, keep: str = "first") -> Series:
         if keep not in ("first", "last", "all"):
             raise ValueError("'keep must be one of 'first', 'last', or 'all'")

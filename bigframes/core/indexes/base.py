@@ -618,6 +618,22 @@ class Index(vendored_pandas_index.Index):
     def __len__(self):
         return self.shape[0]
 
+    def item(self):
+        """
+        Return the first element of the underlying data as a Python scalar.
+
+        Returns:
+            scalar: The first element of the Index.
+
+        Raises:
+            ValueError: If the Index does not contain exactly one element.
+        """
+        peeked = self.to_series().peek(2)
+        if len(peeked) == 1:
+            return peeked.iloc[0]
+        else:
+            raise ValueError("can only convert an array of size 1 to a Python scalar")
+
 
 def _should_create_datetime_index(block: blocks.Block) -> bool:
     if len(block.index.dtypes) != 1:
