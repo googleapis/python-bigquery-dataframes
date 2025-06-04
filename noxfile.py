@@ -79,7 +79,7 @@ UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = ["tests"]
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
-    "3.12": ["polars", "scikit-learn"],
+    "3.12": ["tests", "polars", "scikit-learn"],
 }
 
 # 3.10 is needed for Windows tests as it is the only version installed in the
