@@ -961,15 +961,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return as_series
 
     def item(self):
-        """
-        Return the first element of the underlying data as a Python scalar.
-
-        Returns:
-            scalar: The first element of the Series.
-
-        Raises:
-            ValueError: If the Series does not contain exactly one element.
-        """
         peeked = self.peek(2)
         if len(peeked) == 1:
             return peeked.iloc[0]
