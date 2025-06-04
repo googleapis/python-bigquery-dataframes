@@ -462,19 +462,24 @@ def test_multiindex_repr_includes_all_names(session):
 
 def test_index_item(session):
     # Test with a single item
-    idx_single = bpd.Index([42], session=session)
-    assert idx_single.item() == 42
+    bf_idx_single = bpd.Index([42], session=session)
+    pd_idx_single = pd.Index([42])
+    assert bf_idx_single.item() == pd_idx_single.item()
 
     # Test with multiple items
-    idx_multiple = bpd.Index([1, 2, 3], session=session)
-    with pytest.raises(
-        ValueError, match="can only convert an array of size 1 to a Python scalar"
-    ):
-        idx_multiple.item()
+    bf_idx_multiple = bpd.Index([1, 2, 3], session=session)
+    pd_idx_multiple = pd.Index([1, 2, 3])
+    with pytest.raises(ValueError, match="can only convert an array of size 1 to a Python scalar") as bf_excinfo:
+        bf_idx_multiple.item()
+    with pytest.raises(ValueError, match="can only convert an array of size 1 to a Python scalar") as pd_excinfo:
+        pd_idx_multiple.item()
+    assert str(bf_excinfo.value) == str(pd_excinfo.value)
 
     # Test with an empty Index
-    idx_empty = bpd.Index([], dtype="Int64", session=session)
-    with pytest.raises(
-        ValueError, match="can only convert an array of size 1 to a Python scalar"
-    ):
-        idx_empty.item()
+    bf_idx_empty = bpd.Index([], dtype="Int64", session=session)
+    pd_idx_empty = pd.Index([], dtype="Int64")
+    with pytest.raises(ValueError) as bf_excinfo_empty:
+        bf_idx_empty.item()
+    with pytest.raises(ValueError) as pd_excinfo_empty:
+        pd_idx_empty.item()
+    assert str(bf_excinfo_empty.value) == str(pd_excinfo_empty.value)

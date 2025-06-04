@@ -4640,19 +4640,24 @@ def test_series_to_pandas_dry_run(scalars_df_index):
 
 def test_series_item(session):
     # Test with a single item
-    s_single = bigframes.pandas.Series([42], session=session)
-    assert s_single.item() == 42
+    bf_s_single = bigframes.pandas.Series([42], session=session)
+    pd_s_single = pd.Series([42])
+    assert bf_s_single.item() == pd_s_single.item()
 
     # Test with multiple items
-    s_multiple = bigframes.pandas.Series([1, 2, 3], session=session)
-    with pytest.raises(
-        ValueError, match="can only convert an array of size 1 to a Python scalar"
-    ):
-        s_multiple.item()
+    bf_s_multiple = bigframes.pandas.Series([1, 2, 3], session=session)
+    pd_s_multiple = pd.Series([1, 2, 3])
+    with pytest.raises(ValueError, match="can only convert an array of size 1 to a Python scalar") as bf_excinfo:
+        bf_s_multiple.item()
+    with pytest.raises(ValueError, match="can only convert an array of size 1 to a Python scalar") as pd_excinfo:
+        pd_s_multiple.item()
+    assert str(bf_excinfo.value) == str(pd_excinfo.value)
 
     # Test with an empty Series
-    s_empty = bigframes.pandas.Series([], dtype="Int64", session=session)
-    with pytest.raises(
-        ValueError, match="can only convert an array of size 1 to a Python scalar"
-    ):
-        s_empty.item()
+    bf_s_empty = bigframes.pandas.Series([], dtype="Int64", session=session)
+    pd_s_empty = pd.Series([], dtype="Int64")
+    with pytest.raises(ValueError) as bf_excinfo_empty:
+        bf_s_empty.item()
+    with pytest.raises(ValueError) as pd_excinfo_empty:
+        pd_s_empty.item()
+    assert str(bf_excinfo_empty.value) == str(pd_excinfo_empty.value)
