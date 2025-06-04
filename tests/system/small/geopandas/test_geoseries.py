@@ -394,15 +394,15 @@ def test_geo_is_closed():
     pd_result = pd_gs.is_closed.dropna().astype(bool)
 
     # Expected results based on ST_ISCLOSED documentation:
-    # Point: True
-    # Open LineString: False
-    # Closed LineString: True
-    # Polygon: True (assuming it's a full polygon, which it is)
-    # Empty GeometryCollection: False (An empty GEOGRAPHY isn't closed)
-    # GEOMETRYCOLLECTION EMPTY: False
-
-    expected_data = [True, False, True, True, False, False]
-    expected_index = pd.Index([0, 1, 2, 3, 4, 5], dtype="Int64")
+    expected_data = [
+        True,  # Point: True
+        False,  # Open LineString: False
+        True,  # Closed LineString: True
+        True,  # Polygon: True (assuming it's a full polygon, which it is)
+        False,  # Empty GeometryCollection: False (An empty GEOGRAPHY isn't closed)
+        False,  # GEOMETRYCOLLECTION EMPTY: False
+    ]
+    expected_index: pd.Index = pd.Index([0, 1, 2, 3, 4, 5], dtype="Int64")
     expected_series = pd.Series(
         data=expected_data, index=expected_index, name="is_closed", dtype=bool
     )
@@ -411,9 +411,6 @@ def test_geo_is_closed():
     pd.testing.assert_series_equal(
         bf_result,
         expected_series,
-        check_dtype=False,  # Pandas dtypes can be tricky with Nones involved before dropna
-        check_index_type=False,
-        check_series_type=False,
         check_names=False,  # Name might differ due to how it's set or not set in BQ vs Pandas
     )
 
