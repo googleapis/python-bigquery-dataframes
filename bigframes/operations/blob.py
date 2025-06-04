@@ -779,12 +779,11 @@ class BlobAccessor(base.SeriesMethods):
         import bigframes.pandas as bpd
 
         # col name doesn't matter here. Rename to avoid column name conflicts
-        df_prompt = bigframes.series.Series(self._block).rename("audio").to_frame()
+        df_prompt = bigframes.series.Series(self._block)
 
         prompt_text = "**Task:** Transcribe the provided audio. **Instructions:** - Your response must contain only the verbatim transcription of the audio. - Do not include any introductory text, summaries, or conversational filler in your response. The output should begin directly with the first word of the audio."
         if additional_instruction is not None:
             prompt_text += " - " + additional_instruction
-        df_prompt["prompt"] = prompt_text
 
         llm_model = llm.GeminiTextGenerator(
             model_name=model_name,
@@ -795,18 +794,18 @@ class BlobAccessor(base.SeriesMethods):
         # transcribe audio using ML.GENERATE_TEXT
         transcribed_results = llm_model.predict(
             X=df_prompt,
-            prompt=[prompt_text, df_prompt["audio"]],
+            prompt=[prompt_text, df_prompt],
             temperature=0.0,
         )
 
         transcribed_content_series = cast(
             bpd.Series, transcribed_results["ml_generate_text_llm_result"]
-        )
+        ).rename("transcribed_content")
 
         if verbose:
             transcribed_status_series = cast(
                 bpd.Series, transcribed_results["ml_generate_text_status"]
-            )
+            ).rename("transcribed_status")
             results_df = bpd.DataFrame(
                 {
                     "status": transcribed_status_series,
