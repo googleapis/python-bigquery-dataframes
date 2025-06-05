@@ -72,33 +72,56 @@ DEG_LNG_EQUATOR_METERS = 111195.07973400292
 
 def test_st_length_point(session):
     geoseries = bigframes.geopandas.GeoSeries([Point(0, 0)], session=session)
-    result = st_length(geoseries).to_pandas()
+    # Test default use_spheroid
+    result_default = st_length(geoseries).to_pandas()
+    # Test explicit use_spheroid=False
+    result_explicit_false = st_length(geoseries, use_spheroid=False).to_pandas()
+
     expected = pd.Series([0.0], dtype="Float64")
+
     pd.testing.assert_series_equal(
-        result,
+        result_default,
         expected,
         check_dtype=False,
         check_index_type=False,
         rtol=1e-3,
-        atol=1e-3,  # For zero values, rtol is not effective
+        atol=1e-3,
     )  # type: ignore
-    )
+    pd.testing.assert_series_equal(
+        result_explicit_false,
+        expected,
+        check_dtype=False,
+        check_index_type=False,
+        rtol=1e-3,
+        atol=1e-3,
+    )  # type: ignore
 
 
 def test_st_length_linestring(session):
     geoseries = bigframes.geopandas.GeoSeries(
         [LineString([(0, 0), (1, 0)])], session=session
     )
-    result = st_length(geoseries).to_pandas()
+    # Test default use_spheroid
+    result_default = st_length(geoseries).to_pandas()
+    # Test explicit use_spheroid=False
+    result_explicit_false = st_length(geoseries, use_spheroid=False).to_pandas()
+
     expected = pd.Series([DEG_LNG_EQUATOR_METERS], dtype="Float64")
+
     pd.testing.assert_series_equal(
-        result,
+        result_default,
         expected,
         check_dtype=False,
         check_index_type=False,
         rtol=1e-3,
     )  # type: ignore
-    )
+    pd.testing.assert_series_equal(
+        result_explicit_false,
+        expected,
+        check_dtype=False,
+        check_index_type=False,
+        rtol=1e-3,
+    )  # type: ignore
 
 
 def test_st_length_polygon(session):
@@ -114,36 +137,62 @@ def test_st_length_polygon(session):
     # This gets complicated due to earth curvature.
     # Let's test with a polygon known to BQ.
     # Example from BQ docs: ST_LENGTH(ST_GEOGFROMTEXT('POLYGON((0 0, 1 0, 0 1, 0 0))')) == 333585.1992020086
+    # However, ST_LENGTH for a polygon should be 0.0
     geoseries = bigframes.geopandas.GeoSeries(
         [Polygon([(0, 0), (1, 0), (0, 1), (0, 0)])], session=session
     )
-    result = st_length(geoseries).to_pandas()
-    expected = pd.Series([333585.1992020086], dtype="Float64")
-    pd.testing.assert_series_equal(
-        result,
-        expected,
-        check_dtype=False,
-        check_index_type=False,
-        rtol=1e-3,  # Increased tolerance for complex polygon calculation
-    )  # type: ignore
-    )
+    # Test default use_spheroid
+    result_default = st_length(geoseries).to_pandas()
+    # Test explicit use_spheroid=False
+    result_explicit_false = st_length(geoseries, use_spheroid=False).to_pandas()
 
-
-def test_st_length_multipoint(session):
-    geoseries = bigframes.geopandas.GeoSeries(
-        [MultiPoint([Point(0, 0), Point(1, 1)])], session=session
-    )
-    result = st_length(geoseries).to_pandas()
     expected = pd.Series([0.0], dtype="Float64")
+
     pd.testing.assert_series_equal(
-        result,
+        result_default,
         expected,
         check_dtype=False,
         check_index_type=False,
         rtol=1e-3,
         atol=1e-3,
     )  # type: ignore
+    pd.testing.assert_series_equal(
+        result_explicit_false,
+        expected,
+        check_dtype=False,
+        check_index_type=False,
+        rtol=1e-3,
+        atol=1e-3,
+    )  # type: ignore
+
+
+def test_st_length_multipoint(session):
+    geoseries = bigframes.geopandas.GeoSeries(
+        [MultiPoint([Point(0, 0), Point(1, 1)])], session=session
     )
+    # Test default use_spheroid
+    result_default = st_length(geoseries).to_pandas()
+    # Test explicit use_spheroid=False
+    result_explicit_false = st_length(geoseries, use_spheroid=False).to_pandas()
+
+    expected = pd.Series([0.0], dtype="Float64")
+
+    pd.testing.assert_series_equal(
+        result_default,
+        expected,
+        check_dtype=False,
+        check_index_type=False,
+        rtol=1e-3,
+        atol=1e-3,
+    )  # type: ignore
+    pd.testing.assert_series_equal(
+        result_explicit_false,
+        expected,
+        check_dtype=False,
+        check_index_type=False,
+        rtol=1e-3,
+        atol=1e-3,
+    )  # type: ignore
 
 
 def test_st_length_multilinestring(session):
@@ -151,18 +200,29 @@ def test_st_length_multilinestring(session):
         [MultiLineString([LineString([(0, 0), (1, 0)]), LineString([(0, 0), (0, 1)])])],
         session=session,
     )
-    result = st_length(geoseries).to_pandas()
+    # Test default use_spheroid
+    result_default = st_length(geoseries).to_pandas()
+    # Test explicit use_spheroid=False
+    result_explicit_false = st_length(geoseries, use_spheroid=False).to_pandas()
+
     # Sum of lengths of two lines, each 1 degree.
     # ST_Length(ST_GeogFromText('MultiLineString((0 0, 1 0), (0 0, 0 1))')) = 222390.15946800584
     expected = pd.Series([2 * DEG_LNG_EQUATOR_METERS], dtype="Float64")
+
     pd.testing.assert_series_equal(
-        result,
+        result_default,
         expected,
         check_dtype=False,
         check_index_type=False,
         rtol=1e-3,
     )  # type: ignore
-    )
+    pd.testing.assert_series_equal(
+        result_explicit_false,
+        expected,
+        check_dtype=False,
+        check_index_type=False,
+        rtol=1e-3,
+    )  # type: ignore
 
 
 def test_st_length_multipolygon(session):
@@ -184,17 +244,29 @@ def test_st_length_multipolygon(session):
         ],
         session=session,
     )
-    result = st_length(geoseries).to_pandas()
-    expected_single_poly_length = 333585.1992020086
-    expected = pd.Series([2 * expected_single_poly_length], dtype="Float64")
+    # Test default use_spheroid
+    result_default = st_length(geoseries).to_pandas()
+    # Test explicit use_spheroid=False
+    result_explicit_false = st_length(geoseries, use_spheroid=False).to_pandas()
+
+    expected = pd.Series([0.0], dtype="Float64") # Polygons have 0 length
+
     pd.testing.assert_series_equal(
-        result,
+        result_default,
         expected,
         check_dtype=False,
         check_index_type=False,
         rtol=1e-3,
+        atol=1e-3,
     )  # type: ignore
-    )
+    pd.testing.assert_series_equal(
+        result_explicit_false,
+        expected,
+        check_dtype=False,
+        check_index_type=False,
+        rtol=1e-3,
+        atol=1e-3,
+    )  # type: ignore
 
 
 def test_st_length_geometrycollection(session):
@@ -204,16 +276,27 @@ def test_st_length_geometrycollection(session):
         [GeometryCollection([Point(0, 0), LineString([(0, 0), (1, 0)])])],
         session=session,
     )
-    result = st_length(geoseries).to_pandas()
-    expected = pd.Series([DEG_LNG_EQUATOR_METERS], dtype="Float64")
+    # Test default use_spheroid
+    result_default = st_length(geoseries).to_pandas()
+    # Test explicit use_spheroid=False
+    result_explicit_false = st_length(geoseries, use_spheroid=False).to_pandas()
+
+    expected = pd.Series([DEG_LNG_EQUATOR_METERS], dtype="Float64") # Point length is 0
+
     pd.testing.assert_series_equal(
-        result,
+        result_default,
         expected,
         check_dtype=False,
         check_index_type=False,
         rtol=1e-3,
     )  # type: ignore
-    )
+    pd.testing.assert_series_equal(
+        result_explicit_false,
+        expected,
+        check_dtype=False,
+        check_index_type=False,
+        rtol=1e-3,
+    )  # type: ignore
 
 
 def test_st_length_geometrycollection_polygon_line(session):
@@ -232,16 +315,27 @@ def test_st_length_geometrycollection_polygon_line(session):
         ],
         session=session,
     )
-    result = st_length(geoseries).to_pandas()
-    expected = pd.Series([poly_length + line_length], dtype="Float64")
+    # Test default use_spheroid
+    result_default = st_length(geoseries).to_pandas()
+    # Test explicit use_spheroid=False
+    result_explicit_false = st_length(geoseries, use_spheroid=False).to_pandas()
+
+    expected = pd.Series([line_length], dtype="Float64") # Polygon length is 0
+
     pd.testing.assert_series_equal(
-        result,
+        result_default,
         expected,
         check_dtype=False,
         check_index_type=False,
         rtol=1e-3,
     )  # type: ignore
-    )
+    pd.testing.assert_series_equal(
+        result_explicit_false,
+        expected,
+        check_dtype=False,
+        check_index_type=False,
+        rtol=1e-3,
+    )  # type: ignore
 
 
 def test_st_length_empty_geography(session):
@@ -251,10 +345,25 @@ def test_st_length_empty_geography(session):
     geoseries_empty_collection = bigframes.geopandas.GeoSeries(
         [GeometryCollection([])], session=session
     )
-    result_empty_collection = st_length(geoseries_empty_collection)
-    expected_empty = bpd.Series([0.0], dtype="Float64")
+    expected_empty = pd.Series([0.0], dtype="Float64")
+
+    # Test default use_spheroid
+    result_default_collection = st_length(geoseries_empty_collection).to_pandas()
     pd.testing.assert_series_equal(
-        result_empty_collection,
+        result_default_collection,
+        expected_empty,
+        check_dtype=False,
+        check_index_type=False,
+        rtol=1e-3,
+        atol=1e-3,
+    )  # type: ignore
+
+    # Test explicit use_spheroid=False
+    result_explicit_false_collection = st_length(
+        geoseries_empty_collection, use_spheroid=False
+    ).to_pandas()
+    pd.testing.assert_series_equal(
+        result_explicit_false_collection,
         expected_empty,
         check_dtype=False,
         check_index_type=False,
@@ -268,33 +377,57 @@ def test_st_length_empty_geography(session):
     geoseries_empty_wkt = bigframes.geopandas.GeoSeries(
         ["GEOMETRYCOLLECTION EMPTY"], session=session
     )
-    result_empty_wkt = st_length(geoseries_empty_wkt)
+    # Test default use_spheroid
+    result_default_wkt = st_length(geoseries_empty_wkt).to_pandas()
     pd.testing.assert_series_equal(
-        result_empty_wkt,
+        result_default_wkt,
         expected_empty,  # Expect 0.0 for empty geometries
         check_dtype=False,
         check_index_type=False,
         rtol=1e-3,
         atol=1e-3,
     )  # type: ignore
-    )
+    # Test explicit use_spheroid=False
+    result_explicit_false_wkt = st_length(
+        geoseries_empty_wkt, use_spheroid=False
+    ).to_pandas()
+    pd.testing.assert_series_equal(
+        result_explicit_false_wkt,
+        expected_empty,  # Expect 0.0 for empty geometries
+        check_dtype=False,
+        check_index_type=False,
+        rtol=1e-3,
+        atol=1e-3,
+    )  # type: ignore
 
 
 def test_st_length_geometrycollection_only_points(session):
     geoseries = bigframes.geopandas.GeoSeries(
         [GeometryCollection([Point(0, 0), Point(1, 1)])], session=session
     )
-    result = st_length(geoseries).to_pandas()
+    # Test default use_spheroid
+    result_default = st_length(geoseries).to_pandas()
+    # Test explicit use_spheroid=False
+    result_explicit_false = st_length(geoseries, use_spheroid=False).to_pandas()
+
     expected = pd.Series([0.0], dtype="Float64")
+
     pd.testing.assert_series_equal(
-        result,
+        result_default,
         expected,
         check_dtype=False,
         check_index_type=False,
         rtol=1e-3,
         atol=1e-3,
     )  # type: ignore
-    )
+    pd.testing.assert_series_equal(
+        result_explicit_false,
+        expected,
+        check_dtype=False,
+        check_index_type=False,
+        rtol=1e-3,
+        atol=1e-3,
+    )  # type: ignore
 
 
 def test_st_length_mixed_types_and_nulls(session):
@@ -310,32 +443,51 @@ def test_st_length_mixed_types_and_nulls(session):
         ],
         session=session,
     )
-    result = st_length(geoseries).to_pandas()
+    # Test default use_spheroid
+    result_default = st_length(geoseries).to_pandas()
+    # Test explicit use_spheroid=False
+    result_explicit_false = st_length(geoseries, use_spheroid=False).to_pandas()
 
     # Expected:
     # Point: 0.0
     # LineString: DEG_LNG_EQUATOR_METERS
-    # Polygon: ST_Length(ST_GeogFromText('POLYGON((0 0, 0.0001 0, 0 0.0001, 0 0))')) approx 3 * 0.0001 * DEG_LNG_EQUATOR_METERS at small scale
-    # Using BQ value for this small polygon: ST_LENGTH(ST_GEOGFROMTEXT('POLYGON((0 0, 0.0001 0, 0 0.0001, 0 0))')) = 33.35851992020086
+    # Polygon: 0.0 (Polygons have 0 length as per ST_LENGTH definition)
     # None: NaN (since ST_LENGTH(NULL) is NULL)
-    # GeometryCollection: 0 + (0.00001 * DEG_LNG_EQUATOR_METERS) = 0 + 1.11195079734
+    # GeometryCollection: Length of LineString component only. 0 + (0.00001 * DEG_LNG_EQUATOR_METERS)
     expected_data = [
-        0.0,
-        DEG_LNG_EQUATOR_METERS,
-        33.35851992020086,
-        None,  # Representing NA for pandas/bigframes series
-        0.00001 * DEG_LNG_EQUATOR_METERS,
+        0.0,  # Point
+        DEG_LNG_EQUATOR_METERS,  # LineString
+        0.0,  # Polygon
+        None,  # None
+        0.00001 * DEG_LNG_EQUATOR_METERS,  # GeometryCollection
     ]
     expected = pd.Series(expected_data, dtype="Float64")
 
     pd.testing.assert_series_equal(
-        result,
+        result_default,
         expected,
         check_index_type=False,
         rtol=1e-3,
         atol=1e-2,  # For small values and None comparison
     )  # type: ignore
+    pd.testing.assert_series_equal(
+        result_explicit_false,
+        expected,
+        check_index_type=False,
+        rtol=1e-3,
+        atol=1e-2,  # For small values and None comparison
+    )  # type: ignore
+
+
+def test_st_length_use_spheroid_true_raises(session):
+    geoseries = bigframes.geopandas.GeoSeries(
+        [LineString([(0, 0), (1, 0)])], session=session
     )
+    with pytest.raises(
+        NotImplementedError,
+        match="GeoStLengthOp: use_spheroid=True is not supported. Please use use_spheroid=False.",
+    ):
+        st_length(geoseries, use_spheroid=True)
 
 
 def test_geo_st_difference_with_geometry_objects():

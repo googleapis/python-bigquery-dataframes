@@ -54,13 +54,6 @@ geo_st_geogpoint_op = base_ops.create_binary_op(
     name="geo_st_geogpoint", type_signature=op_typing.BinaryNumericGeo()
 )
 
-geo_st_length_op = base_ops.create_unary_op(
-    name="geo_st_length",
-    type_signature=op_typing.FixedOutputType(
-        dtypes.is_geo_like, dtypes.FLOAT_DTYPE, description="geo-like"
-    ),
-)
-
 geo_x_op = base_ops.create_unary_op(
     name="geo_x",
     type_signature=op_typing.FixedOutputType(
@@ -86,4 +79,22 @@ class GeoStDistanceOp(base_ops.BinaryOp):
     use_spheroid: bool
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return dtypes.FLOAT_DTYPE
+
+
+@dataclasses.dataclass(frozen=True)
+class GeoStLengthOp(base_ops.UnaryOp):
+    name = "geo_st_length"
+    use_spheroid: bool = False
+
+    def __post_init__(self):
+        if self.use_spheroid is not False:
+            # As per BigQuery documentation, use_spheroid currently only supports FALSE.
+            raise NotImplementedError(
+                "GeoStLengthOp: use_spheroid=True is not supported. Please use use_spheroid=False."
+            )
+
+    def output_type(self, input_type: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if not dtypes.is_geo_like(input_type):
+            raise TypeError(f"Input type {{input_type}} not geo-like for GeoStLengthOp")
         return dtypes.FLOAT_DTYPE
