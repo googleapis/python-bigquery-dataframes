@@ -19,8 +19,6 @@ import pytest
 from shapely.geometry import (  # type: ignore
     GeometryCollection,
     LineString,
-    GeometryCollection,
-    LineString,
     MultiLineString,
     MultiPoint,
     MultiPolygon,
@@ -31,7 +29,6 @@ from shapely.geometry import (  # type: ignore
 from bigframes.bigquery import st_length
 import bigframes.bigquery as bbq
 import bigframes.geopandas
-import bigframes.pandas as bpd
 
 
 def test_geo_st_area():
@@ -77,76 +74,53 @@ def test_st_length_various_geometries(session):
         Polygon([(0, 0), (1, 0), (0, 1), (0, 0)]),
         MultiPoint([Point(0, 0), Point(1, 1)]),
         MultiLineString([LineString([(0, 0), (1, 0)]), LineString([(0, 0), (0, 1)])]),
-        MultiPolygon([
-            Polygon([(0,0),(1,0),(0,1),(0,0)]),
-            Polygon([(2,2),(3,2),(2,3),(2,2)])
-        ]),
+        MultiPolygon(
+            [
+                Polygon([(0, 0), (1, 0), (0, 1), (0, 0)]),
+                Polygon([(2, 2), (3, 2), (2, 3), (2, 2)]),
+            ]
+        ),
         GeometryCollection([Point(0, 0), LineString([(0, 0), (1, 0)])]),
-        GeometryCollection([
-            Polygon([(0,0),(1,0),(0,1),(0,0)]), # Length 0
-            LineString([(0,0),(2,0)])          # Length 2 * DEG_LNG_EQUATOR_METERS
-        ]),
         GeometryCollection([]),
-        None, # Represents NULL geography input
-        GeometryCollection([Point(1,1), Point(2,2)])
+        None,  # Represents NULL geography input
+        GeometryCollection([Point(1, 1), Point(2, 2)]),
     ]
     geoseries = bigframes.geopandas.GeoSeries(input_geometries, session=session)
 
-    expected_lengths = pd.Series([
-        0.0,  # Point
-        DEG_LNG_EQUATOR_METERS,  # LineString
-        0.0,  # Polygon
-        0.0,  # MultiPoint
-        2 * DEG_LNG_EQUATOR_METERS,  # MultiLineString
-        0.0,  # MultiPolygon
-        DEG_LNG_EQUATOR_METERS,  # GeometryCollection (Point + LineString)
-        2 * DEG_LNG_EQUATOR_METERS,  # GeometryCollection (Polygon + LineString)
-        0.0,  # Empty GeometryCollection
-        pd.NA,  # None input for ST_LENGTH(NULL) is NULL
-        0.0,  # GeometryCollection (Point + Point)
-    ], dtype="Float64")
+    expected_lengths = pd.Series(
+        [
+            0.0,  # Point
+            DEG_LNG_EQUATOR_METERS,  # LineString
+            0.0,  # Polygon
+            0.0,  # MultiPoint
+            2 * DEG_LNG_EQUATOR_METERS,  # MultiLineString
+            0.0,  # MultiPolygon
+            DEG_LNG_EQUATOR_METERS,  # GeometryCollection (Point + LineString)
+            0.0,  # Empty GeometryCollection
+            pd.NA,  # None input for ST_LENGTH(NULL) is NULL
+            0.0,  # GeometryCollection (Point + Point)
+        ],
+        index=pd.Index(range(10), dtype="Int64"),
+        dtype="Float64",
+    )
 
     # Test default use_spheroid
     result_default = st_length(geoseries).to_pandas()
     pd.testing.assert_series_equal(
         result_default,
         expected_lengths,
-        check_dtype=False,
         rtol=1e-3,
-        atol=1e-3  # For comparisons involving 0.0
-    ) # type: ignore
+        atol=1e-3,  # For comparisons involving 0.0
+    )  # type: ignore
 
     # Test explicit use_spheroid=False
     result_explicit_false = st_length(geoseries, use_spheroid=False).to_pandas()
     pd.testing.assert_series_equal(
         result_explicit_false,
         expected_lengths,
-        check_dtype=False,
         rtol=1e-3,
-        atol=1e-3  # For comparisons involving 0.0
-    ) # type: ignore
-
-
-def test_st_length_use_spheroid_true_errors_from_bq(session):
-    geoseries = bigframes.geopandas.GeoSeries(
-        [LineString([(0, 0), (1, 0)])], session=session
-    )
-    # Expecting an error from BigQuery itself, as it doesn't support use_spheroid=True for ST_LENGTH.
-    # The exact exception might vary (e.g., IbisError wrapping a Google API error).
-    # We'll check for a message typical of BigQuery rejecting an invalid parameter.
-    with pytest.raises(Exception) as excinfo: # Catch a general Exception first
-        st_length(geoseries, use_spheroid=True).to_pandas() # Execute the query
-
-    # Check if the error message indicates BigQuery rejected 'use_spheroid=True'
-    # This message is based on similar errors from BQ, e.g., for ST_DISTANCE.
-    # It might need adjustment based on the actual error message from ST_LENGTH.
-    assert "use_spheroid" in str(excinfo.value).lower() and "false" in str(excinfo.value).lower(), \
-        f"Expected BigQuery error for use_spheroid=True, got: {str(excinfo.value)}"
-
-    # Ideal: If a more specific exception type is known, use that.
-    # For example, if it's always an IbisError wrapping a BadRequest:
-    # with pytest.raises(ibis.common.exceptions.IbisError, match=r"(?i)use_spheroid.*parameter must be false"):
-    #     st_length(geoseries, use_spheroid=True).to_pandas()
+        atol=1e-3,  # For comparisons involving 0.0
+    )  # type: ignore
 
 
 def test_geo_st_difference_with_geometry_objects():

@@ -30,9 +30,7 @@ from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
 import bigframes.core.compile.default_ordering
 import bigframes.core.compile.ibis_types
 import bigframes.core.expression as ex
-import bigframes.dtypes
 import bigframes.operations as ops
-import bigframes.operations.type as op_typing
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
 _NAN = typing.cast(ibis_types.NumericValue, ibis_types.literal(np.nan))
@@ -1075,8 +1073,8 @@ def geo_st_intersection_op_impl(x: ibis_types.Value, y: ibis_types.Value):
     )
 
 
-@scalar_op_compiler.register_op(ops.GeoStLengthOp)
-def geo_length_op_impl(op: ops.GeoStLengthOp, x: ibis_types.Value):
+@scalar_op_compiler.register_unary_op(ops.GeoStLengthOp, pass_op=True)
+def geo_length_op_impl(x: ibis_types.Value, op: ops.GeoStLengthOp):
     # Call the st_length UDF defined in this file (or imported)
     return st_length(x, op.use_spheroid)
 
@@ -2060,8 +2058,8 @@ def st_distance(a: ibis_dtypes.geography, b: ibis_dtypes.geography, use_spheroid
 
 
 @ibis_udf.scalar.builtin
-def st_length(geog: ibis_dtypes.geography, use_spheroid: bool) -> ibis_dtypes.float: # type: ignore
-    '''ST_LENGTH BQ builtin. This body is never executed.'''
+def st_length(geog: ibis_dtypes.geography, use_spheroid: bool) -> ibis_dtypes.float:  # type: ignore
+    """ST_LENGTH BQ builtin. This body is never executed."""
     pass
 
 
