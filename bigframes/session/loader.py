@@ -97,8 +97,30 @@ def _to_index_cols(
 
 
 def _check_column_duplicates(
-    index_cols: Iterable[str], columns: Iterable[str], is_index_in_columns: bool
+    index_cols: Iterable[str], columns: Iterable[str], index_col_in_columns: bool
 ) -> Iterable[str]:
+    """Validates and processes index and data columns for duplicates and overlap.
+
+    This function performs two main tasks:
+    1.  Ensures there are no duplicate column names within the `index_cols` list
+        or within the `columns` list.
+    2.  Based on the `index_col_in_columns` flag, it validates the relationship
+        between `index_cols` and `columns`.
+
+    Args:
+        index_cols (Iterable[str]):
+            An iterable of column names designated as the index.
+        columns (Iterable[str]):
+            An iterable of column names designated as the data columns.
+        index_col_in_columns (bool):
+            A flag indicating how to handle overlap between `index_cols` and
+            `columns`.
+            - If `False`, the two lists must be disjoint (contain no common
+              elements). An error is raised if any overlap is found.
+            - If `True`, `index_cols` is expected to be a subset of
+              `columns`. An error is raised if an index column is not found
+              in the `columns` list.
+    """
     index_cols_list = list(index_cols) if index_cols is not None else []
     columns_list = list(columns) if columns is not None else []
     set_index = set(index_cols_list)
@@ -119,7 +141,7 @@ def _check_column_duplicates(
             "All column names specified in 'columns' must be unique."
         )
 
-    if is_index_in_columns:
+    if index_col_in_columns:
         if not set_index.issubset(set_columns):
             raise ValueError(
                 f"The specified index column(s) were not found: {set_index - set_columns}. "
@@ -405,7 +427,7 @@ class GbqDataLoader:
         dry_run: Literal[False] = ...,
         force_total_order: Optional[bool] = ...,
         n_rows: Optional[int] = None,
-        is_index_in_columns: bool = False,
+        index_col_in_columns: bool = False,
     ) -> dataframe.DataFrame:
         ...
 
@@ -428,7 +450,7 @@ class GbqDataLoader:
         dry_run: Literal[True] = ...,
         force_total_order: Optional[bool] = ...,
         n_rows: Optional[int] = None,
-        is_index_in_columns: bool = False,
+        index_col_in_columns: bool = False,
     ) -> pandas.Series:
         ...
 
@@ -450,8 +472,67 @@ class GbqDataLoader:
         dry_run: bool = False,
         force_total_order: Optional[bool] = None,
         n_rows: Optional[int] = None,
-        is_index_in_columns: bool = False,
+        index_col_in_columns: bool = False,
     ) -> dataframe.DataFrame | pandas.Series:
+        """Read a BigQuery table into a BigQuery DataFrames DataFrame.
+
+        This method allows you to create a DataFrame from a BigQuery table.
+        You can specify the columns to load, an index column, and apply
+        filters.
+
+        Args:
+            table_id (str):
+                The identifier of the BigQuery table to read.
+            index_col (Iterable[str] | str | Iterable[int] | int | bigframes.enums.DefaultIndexKind, optional):
+                The column(s) to use as the index for the DataFrame. This can be
+                a single column name or a list of column names. If not provided,
+                a default index will be used based on the session's
+                ``default_index_type``.
+            columns (Iterable[str], optional):
+                The columns to read from the table. If not specified, all
+                columns will be read.
+            names (Optional[Iterable[str]], optional):
+                A list of column names to use for the resulting DataFrame. This
+                is useful if you want to rename the columns as you read the
+                data.
+            max_results (Optional[int], optional):
+                The maximum number of rows to retrieve from the table. If not
+                specified, all rows will be loaded.
+            use_cache (bool, optional):
+                Whether to use cached results for the query. Defaults to True.
+                Setting this to False will force a re-execution of the query.
+            filters (third_party_pandas_gbq.FiltersType, optional):
+                A list of filters to apply to the data. Filters are specified
+                as a list of tuples, where each tuple contains a column name,
+                an operator (e.g., '==', '!='), and a value.
+            enable_snapshot (bool, optional):
+                If True, a snapshot of the table is used to ensure that the
+                DataFrame is deterministic, even if the underlying table
+                changes. Defaults to True.
+            dry_run (bool, optional):
+                If True, the function will not actually execute the query but
+                will instead return statistics about the table. Defaults to False.
+            force_total_order (Optional[bool], optional):
+                If True, a total ordering is enforced on the DataFrame, which
+                can be useful for operations that require a stable row order.
+                If None, the session's default behavior is used.
+            n_rows (Optional[int], optional):
+                The number of rows to consider for type inference and other
+                metadata operations. This does not limit the number of rows
+                in the final DataFrame.
+            index_col_in_columns (bool, optional):
+                Specifies if the ``index_col`` is also present in the ``columns``
+                list. Defaults to ``False``.
+
+                * If ``False``, ``index_col`` and ``columns`` must specify
+                    distinct sets of columns. An error will be raised if any
+                    column is found in both.
+                * If ``True``, the column(s) in ``index_col`` are expected to
+                    also be present in the ``columns`` list. This is useful
+                    when the index is selected from the data columns (e.g., in a
+                    ``read_csv`` scenario). The column will be used as the
+                    DataFrame's index and removed from the list of value columns.
+        """
         import bigframes._tools.strings
         import bigframes.dataframe as dataframe
 
@@ -534,7 +615,7 @@ class GbqDataLoader:
             names=names,
         )
         columns = list(
-            _check_column_duplicates(index_cols, columns, is_index_in_columns)
+            _check_column_duplicates(index_cols, columns, index_col_in_columns)
         )
 
         for key in index_cols:
@@ -818,7 +899,7 @@ class GbqDataLoader:
 
         index_cols = _to_index_cols(index_col)
         columns = _check_column_duplicates(
-            index_cols, columns, is_index_in_columns=False
+            index_cols, columns, index_col_in_columns=False
         )
 
         filters_copy1, filters_copy2 = itertools.tee(filters)

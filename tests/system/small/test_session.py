@@ -1320,10 +1320,6 @@ def test_read_csv_for_names_less_than_columns(session, df_and_gcs_csv_for_two_co
     assert bf_df.shape == pd_df.shape
     assert bf_df.columns.tolist() == pd_df.columns.tolist()
 
-    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
-    # (b/280889935) or guarantee row ordering.
-    bf_df = bf_df.sort_index()
-
     # Pandas's index name is None, while BigFrames's index name is "rowindex".
     pd_df.index.name = "rowindex"
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
@@ -1527,9 +1523,6 @@ def test_read_csv_w_usecols_and_indexcol(session, df_and_local_csv):
     assert bf_df.shape == pd_df.shape
     assert bf_df.columns.tolist() == pd_df.columns.tolist()
 
-    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
-    # (b/280889935) or guarantee row ordering.
-    bf_df = bf_df.sort_index()
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
@@ -1585,9 +1578,6 @@ def test_read_csv_local_w_encoding(session, penguins_pandas_df_default_index):
         bf_df = session.read_csv(
             path, engine="bigquery", index_col="rowindex", encoding="ISO-8859-1"
         )
-        # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
-        # (b/280889935) or guarantee row ordering.
-        bf_df = bf_df.sort_index()
         pd.testing.assert_frame_equal(
             bf_df.to_pandas(), penguins_pandas_df_default_index
         )

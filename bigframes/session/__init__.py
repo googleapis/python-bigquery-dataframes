@@ -1174,7 +1174,7 @@ class Session(
             index_col=index_col,
             columns=columns,
             names=names,
-            is_index_in_columns=True,
+            index_col_in_columns=True,
         )
 
         if dtype is not None:
