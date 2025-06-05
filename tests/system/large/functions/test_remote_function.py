@@ -2114,10 +2114,10 @@ def test_remote_function_named_perists_w_session_cleanup():
         cleanup_function_assets(foo, session.bqclient, session.cloudfunctionsclient)
 
 
-@pytest.mark.flaky(retries=2, delay=120) # Added flaky marker
+@pytest.mark.flaky(retries=2, delay=120)  # Added flaky marker
 def test_remote_function_via_session_custom_build_sa(
-    scalars_dfs, # Use existing fixture
-    bq_cf_connection: str, # Still need this for the specific connection
+    scalars_dfs,  # Use existing fixture
+    bq_cf_connection: str,  # Still need this for the specific connection
 ):
     """
     Tests deploying and invoking a remote function specifying a cloud_build_service_account
@@ -2142,22 +2142,23 @@ def test_remote_function_via_session_custom_build_sa(
     square_num_remote = None
 
     try:
+
         @rf_session.remote_function(
             input_types=[int],
-            output_type=int, # Changed from float to int to match square_num logic
+            output_type=int,  # Changed from float to int to match square_num logic
             reuse=False,
             cloud_build_service_account=custom_build_sa,
             cloud_function_service_account=cf_runner_sa,
-            cloud_function_ingress_settings="all", # Explicitly set for test environments
-            bigquery_connection=bq_cf_connection, # Use the provided connection
-            packages=["pandas==2.0.3"], # Ensure a build step
+            cloud_function_ingress_settings="all",  # Explicitly set for test environments
+            bigquery_connection=bq_cf_connection,  # Use the provided connection
+            packages=["pandas==2.0.3"],  # Ensure a build step
         )
         def square_num(x):
             if x is None:
-                return x # Or handle appropriately, e.g. raise error or return specific value
+                return x  # Or handle appropriately, e.g. raise error or return specific value
             return x * x
 
-        square_num_remote = square_num # Assign for cleanup
+        square_num_remote = square_num  # Assign for cleanup
 
         # Assert that the GCF is created with the intended build SA
         gcf = rf_session.cloudfunctionsclient.get_function(
@@ -2168,20 +2169,24 @@ def test_remote_function_via_session_custom_build_sa(
         # Test the function execution
         scalars_df, scalars_pandas_df = scalars_dfs
 
-        bf_int64_col = scalars_df["int64_col"].dropna() # Drop NA to avoid type errors in UDF
+        bf_int64_col = scalars_df[
+            "int64_col"
+        ].dropna()  # Drop NA to avoid type errors in UDF
         bf_result_col = bf_int64_col.apply(square_num_remote)
-        bf_result = (
-            bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
-        )
+        bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
 
         pd_int64_col = scalars_pandas_df["int64_col"].dropna()
         pd_result_col = pd_int64_col.apply(lambda x: x * x)
-        pd_result_col = pd_result_col.astype(pandas.Int64Dtype()) # Match expected output type
+        pd_result_col = pd_result_col.astype(
+            pandas.Int64Dtype()
+        )  # Match expected output type
         pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
 
         assert_pandas_df_equal(bf_result, pd_result)
 
-        print(f"Successfully deployed and tested remote function with build SA: {custom_build_sa}")
+        print(
+            f"Successfully deployed and tested remote function with build SA: {custom_build_sa}"
+        )
         print(f"Function was run by SA: {cf_runner_sa}")
         if hasattr(square_num_remote, "bigframes_cloud_function"):
             print(f"Deployed GCF: {square_num_remote.bigframes_cloud_function}")

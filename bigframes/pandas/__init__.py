@@ -120,17 +120,30 @@ if remote_function.__doc__ is not None:
     # Find the end of the Args section
     args_end_index = -1
     for i, line in enumerate(doc_lines):
-        if line.strip() == "" and i > 0 and "Args:" in doc_lines[i-2]: # Heuristic: blank line after Args' last param
+        if (
+            line.strip() == "" and i > 0 and "Args:" in doc_lines[i - 2]
+        ):  # Heuristic: blank line after Args' last param
             # Check if previous non-blank lines were param descriptions
-            if any(doc_lines[j].strip().startswith(tuple(param.split(":")[0].strip() for param in doc_lines if ":" in param)[-4:])) : # check last few known params
-                 args_end_index = i
-                 break
-    if args_end_index == -1: # Fallback if heuristic fails, append before Returns or at end
+            if any(
+                doc_lines[j]
+                .strip()
+                .startswith(
+                    tuple(
+                        param.split(":")[0].strip()
+                        for param in doc_lines
+                        if ":" in param
+                    )[-4:]
+                )
+            ):  # check last few known params
+                args_end_index = i
+                break
+    if (
+        args_end_index == -1
+    ):  # Fallback if heuristic fails, append before Returns or at end
         try:
-            args_end_index = doc_lines.index("    Returns:") -1
+            args_end_index = doc_lines.index("    Returns:") - 1
         except ValueError:
             args_end_index = len(doc_lines)
-
 
     new_param_doc = [
         "            cloud_build_service_account (str, Optional):",
@@ -139,7 +152,6 @@ if remote_function.__doc__ is not None:
         "                default Cloud Build service account is used. See",
         "                https://cloud.google.com/build/docs/cloud-build-service-account",
         "                for more details. This parameter is passed to the underlying session's remote_function.",
-
     ]
     doc_lines[args_end_index:args_end_index] = new_param_doc
     remote_function.__doc__ = "\n".join(doc_lines)
