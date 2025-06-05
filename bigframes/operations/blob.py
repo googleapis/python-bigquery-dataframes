@@ -775,7 +775,7 @@ class BlobAccessor(base.SeriesMethods):
         import bigframes.pandas as bpd
 
         # col name doesn't matter here. Rename to avoid column name conflicts
-        df_prompt = bigframes.series.Series(self._block)
+        audio_series = bigframes.series.Series(self._block)
 
         prompt_text = "**Task:** Transcribe the provided audio. **Instructions:** - Your response must contain only the verbatim transcription of the audio. - Do not include any introductory text, summaries, or conversational filler in your response. The output should begin directly with the first word of the audio."
 
@@ -787,8 +787,8 @@ class BlobAccessor(base.SeriesMethods):
 
         # transcribe audio using ML.GENERATE_TEXT
         transcribed_results = llm_model.predict(
-            X=df_prompt,
-            prompt=[prompt_text, df_prompt],
+            X=audio_series,
+            prompt=[prompt_text, audio_series],
             temperature=0.0,
         )
 
@@ -799,11 +799,11 @@ class BlobAccessor(base.SeriesMethods):
         if verbose:
             transcribed_status_series = cast(
                 bpd.Series, transcribed_results["ml_generate_text_status"]
-            ).rename("transcribed_status")
+            )
             results_df = bpd.DataFrame(
                 {
-                    "status": transcribed_status_series,
-                    "content": transcribed_content_series,
+                    "transcribed_status": transcribed_status_series,
+                    "transcribed_content": transcribed_content_series,
                 }
             )
             results_struct = bbq.struct(results_df)
