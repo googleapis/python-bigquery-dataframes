@@ -1076,10 +1076,10 @@ def geo_st_intersection_op_impl(x: ibis_types.Value, y: ibis_types.Value):
 
 @scalar_op_compiler.register_op(ops.GeoStLengthOp)
 def geo_length_op_impl(op: ops.GeoStLengthOp, x: ibis_types.Value):
-    # op.use_spheroid is available here, but ibis.expr.types.GeoSpatialValue.length()
-    # does not have a use_spheroid parameter.
-    # The check for supported values of use_spheroid is done in GeoStLengthOp.__post_init__
-    return typing.cast(ibis_types.GeoSpatialValue, x).length()
+    # Always use the BigQuery ST_LENGTH function via UDF to pass use_spheroid.
+    # BigQuery will handle the use_spheroid argument itself.
+    # The output type of ST_LENGTH is FLOAT64, which matches GeoStLengthOp.output_type.
+    return ibis_udf.scalar.builtin('ST_LENGTH', x, op.use_spheroid)
 
 
 @scalar_op_compiler.register_unary_op(ops.geo_x_op)

@@ -87,13 +87,6 @@ class GeoStLengthOp(base_ops.UnaryOp):
     name = "geo_st_length"
     use_spheroid: bool = False
 
-    def __post_init__(self):
-        if self.use_spheroid is not False:
-            # As per BigQuery documentation, use_spheroid currently only supports FALSE.
-            raise NotImplementedError(
-                "GeoStLengthOp: use_spheroid=True is not supported. Please use use_spheroid=False."
-            )
-
     def output_type(self, input_type: dtypes.ExpressionType) -> dtypes.ExpressionType:
         if not dtypes.is_geo_like(input_type):
             raise TypeError(f"Input type {{input_type}} not geo-like for GeoStLengthOp")

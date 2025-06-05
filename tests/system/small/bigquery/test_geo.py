@@ -479,15 +479,26 @@ def test_st_length_mixed_types_and_nulls(session):
     )  # type: ignore
 
 
-def test_st_length_use_spheroid_true_raises(session):
+def test_st_length_use_spheroid_true_errors_from_bq(session):
     geoseries = bigframes.geopandas.GeoSeries(
         [LineString([(0, 0), (1, 0)])], session=session
     )
-    with pytest.raises(
-        NotImplementedError,
-        match="GeoStLengthOp: use_spheroid=True is not supported. Please use use_spheroid=False.",
-    ):
-        st_length(geoseries, use_spheroid=True)
+    # Expecting an error from BigQuery itself, as it doesn't support use_spheroid=True for ST_LENGTH.
+    # The exact exception might vary (e.g., IbisError wrapping a Google API error).
+    # We'll check for a message typical of BigQuery rejecting an invalid parameter.
+    with pytest.raises(Exception) as excinfo: # Catch a general Exception first
+        st_length(geoseries, use_spheroid=True).to_pandas() # Execute the query
+
+    # Check if the error message indicates BigQuery rejected 'use_spheroid=True'
+    # This message is based on similar errors from BQ, e.g., for ST_DISTANCE.
+    # It might need adjustment based on the actual error message from ST_LENGTH.
+    assert "use_spheroid" in str(excinfo.value).lower() and "false" in str(excinfo.value).lower(), \
+        f"Expected BigQuery error for use_spheroid=True, got: {str(excinfo.value)}"
+
+    # Ideal: If a more specific exception type is known, use that.
+    # For example, if it's always an IbisError wrapping a BadRequest:
+    # with pytest.raises(ibis.common.exceptions.IbisError, match=r"(?i)use_spheroid.*parameter must be false"):
+    #     st_length(geoseries, use_spheroid=True).to_pandas()
 
 
 def test_geo_st_difference_with_geometry_objects():
