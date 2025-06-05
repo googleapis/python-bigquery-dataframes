@@ -32,6 +32,7 @@ import bigframes.core.compile.ibis_types
 import bigframes.core.expression as ex
 import bigframes.dtypes
 import bigframes.operations as ops
+import bigframes.operations.type as op_typing
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
 _NAN = typing.cast(ibis_types.NumericValue, ibis_types.literal(np.nan))
@@ -1076,15 +1077,8 @@ def geo_st_intersection_op_impl(x: ibis_types.Value, y: ibis_types.Value):
 
 @scalar_op_compiler.register_op(ops.GeoStLengthOp)
 def geo_length_op_impl(op: ops.GeoStLengthOp, x: ibis_types.Value):
-    # Always use the BigQuery ST_LENGTH function via UDF to pass use_spheroid.
-    # BigQuery will handle the use_spheroid argument itself.
-    # The output type of ST_LENGTH is FLOAT64, which matches GeoStLengthOp.output_type.
-    return ibis_udf.scalar.builtin('ST_LENGTH', x, op.use_spheroid)
-
-
-@scalar_op_compiler.register_unary_op(ops.geo_x_op)
-def geo_x_op_impl(x: ibis_types.Value):
-    return typing.cast(ibis_types.GeoSpatialValue, x).x()
+    # Call the st_length UDF defined in this file (or imported)
+    return st_length(x, op.use_spheroid)
 
 
 @scalar_op_compiler.register_unary_op(ops.geo_y_op)
@@ -2063,6 +2057,12 @@ def st_boundary(a: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ign
 @ibis_udf.scalar.builtin
 def st_distance(a: ibis_dtypes.geography, b: ibis_dtypes.geography, use_spheroid: bool) -> ibis_dtypes.float:  # type: ignore
     """Convert string to geography."""
+
+
+@ibis_udf.scalar.builtin
+def st_length(geog: ibis_dtypes.geography, use_spheroid: bool) -> ibis_dtypes.float: # type: ignore
+    '''ST_LENGTH BQ builtin. This body is never executed.'''
+    pass
 
 
 @ibis_udf.scalar.builtin
