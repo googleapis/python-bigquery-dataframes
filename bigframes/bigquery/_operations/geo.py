@@ -387,26 +387,20 @@ def st_length(
     *,
     use_spheroid: bool = False,
 ) -> bigframes.series.Series:
-    """
-    ST_LENGTH(geography_expression[, use_spheroid])
+    """Returns the total length in meters of the lines in the input GEOGRAPHY.
 
-    Description
-        Returns the total length in meters of the lines in the input GEOGRAPHY.
+    If geography_expression is a point or a polygon, returns zero. If
+    geography_expression is a collection, returns the length of the lines
+    in the collection; if the collection doesn't contain lines, returns
+    zero.
 
-        If geography_expression is a point or a polygon, returns zero. If
-        geography_expression is a collection, returns the length of the lines
-        in the collection; if the collection doesn't contain lines, returns
-        zero.
+    The optional use_spheroid parameter determines how this function
+    measures distance. If use_spheroid is FALSE, the function measures
+    distance on the surface of a perfect sphere.
 
-        The optional use_spheroid parameter determines how this function
-        measures distance. If use_spheroid is FALSE, the function measures
-        distance on the surface of a perfect sphere.
-
-        The use_spheroid parameter currently only supports the value FALSE.
-        The default value of use_spheroid is FALSE.
-
-    Return type
-        FLOAT64
+    The use_spheroid parameter currently only supports the value FALSE.  The
+    default value of use_spheroid is FALSE. See:
+    https://cloud.google.com/bigquery/docs/reference/standard-sql/geography_functions#st_length
 
     **Examples:**
 
@@ -424,29 +418,15 @@ def st_length(
         ...             GeometryCollection([LineString([(0,0),(0,1)]), Point(1,1)]) # Length of LineString only
         ...         ]
         ... )
-        >>> series
-        0                               LINESTRING (0 0, 1 0)
-        1                   POLYGON ((0 0, 0.1 0.1, 0 0.1, 0 0))
-        2                                           POINT (0 1)
-        3    GEOMETRYCOLLECTION (LINESTRING (0 0, 0 1), POIN...
-        dtype: geometry
 
     Default behavior (use_spheroid=False):
+
         >>> result = bbq.st_length(series)
         >>> result
-        0    111195.079734
+        0    111195.101177
         1              0.0
         2              0.0
-        3    111195.079734
-        dtype: Float64
-
-    Explicitly setting use_spheroid=False:
-        >>> result_spheroid_false = bbq.st_length(series, use_spheroid=False)
-        >>> result_spheroid_false
-        0    111195.079734
-        1              0.0
-        2              0.0
-        3    111195.079734
+        3    111195.101177
         dtype: Float64
 
     Args:
