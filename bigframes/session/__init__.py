@@ -1374,6 +1374,7 @@ class Session(
         cloud_function_ingress_settings: Literal[
             "all", "internal-only", "internal-and-gclb"
         ] = "internal-only",
+    cloud_build_service_account: Optional[str] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1549,6 +1550,12 @@ class Session(
                 If no setting is provided, `internal-only` will be used by default.
                 See for more details
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
+            cloud_build_service_account (str, Optional):
+                Service account to be used by Cloud Build to build the function
+                source code into a deployable artifact. If not provided, the
+                default Cloud Build service account is used. See
+                https://cloud.google.com/build/docs/cloud-build-service-account
+                for more details.
         Returns:
             collections.abc.Callable:
                 A remote function object pointing to the cloud assets created
@@ -1577,6 +1584,7 @@ class Session(
             cloud_function_vpc_connector=cloud_function_vpc_connector,
             cloud_function_memory_mib=cloud_function_memory_mib,
             cloud_function_ingress_settings=cloud_function_ingress_settings,
+        cloud_build_service_account=cloud_build_service_account,
         )
 
     def udf(

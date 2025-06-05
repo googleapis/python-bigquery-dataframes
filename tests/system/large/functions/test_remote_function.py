@@ -2114,6 +2114,88 @@ def test_remote_function_named_perists_w_session_cleanup():
         cleanup_function_assets(foo, session.bqclient, session.cloudfunctionsclient)
 
 
+@pytest.mark.flaky(retries=2, delay=120) # Added flaky marker
+def test_remote_function_via_session_custom_build_sa(
+    scalars_dfs, # Use existing fixture
+    bq_cf_connection: str, # Still need this for the specific connection
+):
+    """
+    Tests deploying and invoking a remote function specifying a cloud_build_service_account
+    through a custom session, using the bigframes-dev-perf project.
+    """
+    project = "bigframes-dev-perf"
+    # This SA must exist in bigframes-dev-perf and have necessary permissions:
+    # - roles/cloudbuild.builds.builder
+    # - roles/iam.serviceAccountUser (on itself)
+    # - roles/storage.objectAdmin (on GCF source bucket)
+    # - roles/artifactregistry.writer (if using default AR repo)
+    custom_build_sa = f"bigframes-dev-perf-1@{project}.iam.gserviceaccount.com"
+
+    # For simplicity, using the same SA for running the function.
+    # This SA also needs roles/run.invoker if the BQ connection SA is different.
+    # The bq_cf_connection's associated SA must be able to invoke functions run by custom_build_sa.
+    # If bq_cf_connection uses a default SA, then custom_build_sa needs run.invoker for that default SA.
+    # Or, grant the bq_cf_connection's SA the Service Account User role on custom_build_sa.
+    cf_runner_sa = custom_build_sa
+
+    rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
+    square_num_remote = None
+
+    try:
+        @rf_session.remote_function(
+            input_types=[int],
+            output_type=int, # Changed from float to int to match square_num logic
+            reuse=False,
+            cloud_build_service_account=custom_build_sa,
+            cloud_function_service_account=cf_runner_sa,
+            cloud_function_ingress_settings="all", # Explicitly set for test environments
+            bigquery_connection=bq_cf_connection, # Use the provided connection
+            packages=["pandas==2.0.3"], # Ensure a build step
+        )
+        def square_num(x):
+            if x is None:
+                return x # Or handle appropriately, e.g. raise error or return specific value
+            return x * x
+
+        square_num_remote = square_num # Assign for cleanup
+
+        # Assert that the GCF is created with the intended build SA
+        gcf = rf_session.cloudfunctionsclient.get_function(
+            name=square_num_remote.bigframes_cloud_function
+        )
+        assert gcf.build_config.service_account == custom_build_sa
+
+        # Test the function execution
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_int64_col = scalars_df["int64_col"].dropna() # Drop NA to avoid type errors in UDF
+        bf_result_col = bf_int64_col.apply(square_num_remote)
+        bf_result = (
+            bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
+        )
+
+        pd_int64_col = scalars_pandas_df["int64_col"].dropna()
+        pd_result_col = pd_int64_col.apply(lambda x: x * x)
+        pd_result_col = pd_result_col.astype(pandas.Int64Dtype()) # Match expected output type
+        pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
+
+        assert_pandas_df_equal(bf_result, pd_result)
+
+        print(f"Successfully deployed and tested remote function with build SA: {custom_build_sa}")
+        print(f"Function was run by SA: {cf_runner_sa}")
+        if hasattr(square_num_remote, "bigframes_cloud_function"):
+            print(f"Deployed GCF: {square_num_remote.bigframes_cloud_function}")
+        if hasattr(square_num_remote, "bigframes_remote_function"):
+            print(f"Created BQ Routine: {square_num_remote.bigframes_remote_function}")
+
+    finally:
+        if square_num_remote is not None:
+            cleanup_function_assets(
+                square_num_remote, rf_session.bqclient, rf_session.cloudfunctionsclient
+            )
+        rf_session.close()
+
+
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_clean_up_by_session_id():
     # Use a brand new session to avoid conflict with other tests
