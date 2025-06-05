@@ -389,8 +389,8 @@ def st_length(
 ) -> bigframes.series.Series:
     """Returns the total length in meters of the lines in the input GEOGRAPHY.
 
-    If geography_expression is a point or a polygon, returns zero. If
-    geography_expression is a collection, returns the length of the lines
+    If a series element is a point or a polygon, returns zero for that row.
+    If a series element is a collection, returns the length of the lines
     in the collection; if the collection doesn't contain lines, returns
     zero.
 
