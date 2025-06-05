@@ -802,11 +802,11 @@ class BlobAccessor(base.SeriesMethods):
             )
             results_df = bpd.DataFrame(
                 {
-                    "transcribed_status": transcribed_status_series,
-                    "transcribed_content": transcribed_content_series,
+                    "status": transcribed_status_series,
+                    "content": transcribed_content_series,
                 }
             )
-            results_struct = bbq.struct(results_df)
+            results_struct = bbq.struct(results_df).rename("transcription_results")
             return results_struct
         else:
             return transcribed_content_series
