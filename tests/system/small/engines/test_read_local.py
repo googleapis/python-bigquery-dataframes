@@ -20,6 +20,7 @@ from bigframes.session import polars_executor, semi_executor
 
 pytest.importorskip("polars")
 
+# Polars used as reference as its fast and local. Generally though, prefer gbq engine where they disagree.
 REFERENCE_ENGINE = polars_executor.PolarsExecutor()
 
 

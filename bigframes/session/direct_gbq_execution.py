@@ -25,8 +25,9 @@ import bigframes.session._io.bigquery as bq_io
 
 
 # used only in testing right now, BigQueryCachingExecutor is the fully featured engine
-# simplified, doest not do large >10 gb result queries, error handling, respect global config
-# or record metrics
+# simplified, doesnt not do large >10 gb result queries, error handling, respect global config
+# or record metrics. Also avoids caching, and most pre-compile rewrites, to better serve as a
+# reference for validating more complex executors.
 class DirectGbqExecutor(semi_executor.SemiExecutor):
     def __init__(self, bqclient: bigquery.Client):
         self.bqclient = bqclient
