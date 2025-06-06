@@ -77,6 +77,7 @@ class FunctionClient:
         cloud_function_service_account=None,
         cloud_function_kms_key_name=None,
         cloud_function_docker_repository=None,
+        cloud_build_service_account=None,
         *,
         session: Session,
     ):
@@ -94,6 +95,7 @@ class FunctionClient:
         self._cloud_function_service_account = cloud_function_service_account
         self._cloud_function_kms_key_name = cloud_function_kms_key_name
         self._cloud_function_docker_repository = cloud_function_docker_repository
+        self._cloud_build_service_account = cloud_build_service_account
 
     def _create_bq_connection(self) -> None:
         if self._bq_connection_manager:
@@ -452,6 +454,7 @@ class FunctionClient:
             function.build_config.docker_repository = (
                 self._cloud_function_docker_repository
             )
+            function.build_config.service_account = self._cloud_build_service_account
             function.service_config = functions_v2.ServiceConfig()
             if memory_mib is not None:
                 function.service_config.available_memory = f"{memory_mib}Mi"
