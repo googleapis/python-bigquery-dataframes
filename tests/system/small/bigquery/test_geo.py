@@ -383,12 +383,11 @@ def test_geo_st_isclosed():
         False,  # GEOMETRYCOLLECTION EMPTY: False
         None,
     ]
-    expected_index: pd.Index = pd.Index([0, 1, 2, 3, 4, 5, 6], dtype="Int64")
-    expected_series = pd.Series(
-        data=expected_data, index=expected_index, dtype="boolean"
-    )
+    expected_series = pd.Series(data=expected_data, dtype="boolean")
 
     pd.testing.assert_series_equal(
         bf_result,
         expected_series,
+        # We default to Int64 (nullable) dtype, but pandas defaults to int64 index.
+        check_index_type=False,
     )
