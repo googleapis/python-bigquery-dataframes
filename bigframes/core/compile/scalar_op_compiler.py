@@ -1073,6 +1073,11 @@ def geo_st_intersection_op_impl(x: ibis_types.Value, y: ibis_types.Value):
     )
 
 
+@scalar_op_compiler.register_unary_op(ops.geo_x_op)
+def geo_x_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).x()
+
+
 @scalar_op_compiler.register_unary_op(ops.GeoStLengthOp, pass_op=True)
 def geo_length_op_impl(x: ibis_types.Value, op: ops.GeoStLengthOp):
     # Call the st_length UDF defined in this file (or imported)
