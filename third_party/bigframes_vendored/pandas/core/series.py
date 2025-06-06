@@ -4937,8 +4937,10 @@ class Series(NDFrame):  # type: ignore[misc]
         """Return the first element of the underlying data as a Python scalar.
 
         **Examples:**
+
             >>> import bigframes.pandas as bpd
             >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series([1])
             >>> s.item()
             np.int64(1)

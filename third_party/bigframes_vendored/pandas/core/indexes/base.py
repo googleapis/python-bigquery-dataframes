@@ -1091,7 +1091,9 @@ class Index:
         """Return the first element of the underlying data as a Python scalar.
 
         **Examples:**
+
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series([1], index=['a'])
             >>> s.index.item()
             'a'

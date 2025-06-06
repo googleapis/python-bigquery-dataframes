@@ -4644,41 +4644,34 @@ def test_series_item(session):
     pd_s_single = pd.Series([42])
     assert bf_s_single.item() == pd_s_single.item()
 
+
+def test_series_item_with_multiple(session):
     # Test with multiple items
     bf_s_multiple = bigframes.pandas.Series([1, 2, 3], session=session)
     pd_s_multiple = pd.Series([1, 2, 3])
-    expected_message_multiple = ""
+
     try:
         pd_s_multiple.item()
     except ValueError as e:
-        expected_message_multiple = str(e)
+        expected_message = str(e)
+    else:
+        raise AssertionError("Expected ValueError from pandas, but didn't get one")
 
-    with pytest.raises(
-        ValueError, match=re.escape(expected_message_multiple)
-    ) as bf_excinfo:
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
         bf_s_multiple.item()
-    # Ensure pandas also raises with the same message, just to be certain about the expected message
-    with pytest.raises(
-        ValueError, match=re.escape(expected_message_multiple)
-    ) as pd_excinfo:
-        pd_s_multiple.item()
-    assert str(bf_excinfo.value) == str(pd_excinfo.value)
 
+
+def test_series_item_with_empty(session):
     # Test with an empty Series
     bf_s_empty = bigframes.pandas.Series([], dtype="Int64", session=session)
     pd_s_empty = pd.Series([], dtype="Int64")
-    expected_message_empty = ""
+
     try:
         pd_s_empty.item()
     except ValueError as e:
-        expected_message_empty = str(e)
+        expected_message = str(e)
+    else:
+        raise AssertionError("Expected ValueError from pandas, but didn't get one")
 
-    with pytest.raises(
-        ValueError, match=re.escape(expected_message_empty)
-    ) as bf_excinfo_empty:
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
         bf_s_empty.item()
-    with pytest.raises(
-        ValueError, match=re.escape(expected_message_empty)
-    ) as pd_excinfo_empty:
-        pd_s_empty.item()
-    assert str(bf_excinfo_empty.value) == str(pd_excinfo_empty.value)

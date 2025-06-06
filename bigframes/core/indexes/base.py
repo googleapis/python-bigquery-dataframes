@@ -620,10 +620,7 @@ class Index(vendored_pandas_index.Index):
 
     def item(self):
         # Docstring is in third_party/bigframes_vendored/pandas/core/indexes/base.py
-        peeked_val = self.to_series().peek(2)
-        if len(peeked_val) == 1:
-            return peeked_val.item()
-        raise ValueError("can only convert an array of size 1 to a Python scalar")
+        return self.to_series().peek(2).item()
 
 
 def _should_create_datetime_index(block: blocks.Block) -> bool:

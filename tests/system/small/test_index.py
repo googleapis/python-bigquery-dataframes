@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
 import numpy
 import pandas as pd
 import pytest
@@ -466,34 +468,34 @@ def test_index_item(session):
     pd_idx_single = pd.Index([42])
     assert bf_idx_single.item() == pd_idx_single.item()
 
+
+def test_index_item_with_multiple(session):
     # Test with multiple items
     bf_idx_multiple = bpd.Index([1, 2, 3], session=session)
     pd_idx_multiple = pd.Index([1, 2, 3])
-    with pytest.raises(
-        ValueError, match="can only convert an array of size 1 to a Python scalar"
-    ) as bf_excinfo:
-        bf_idx_multiple.item()
-    with pytest.raises(
-        ValueError, match="can only convert an array of size 1 to a Python scalar"
-    ) as pd_excinfo:
-        pd_idx_multiple.item()
-    assert str(bf_excinfo.value) == str(pd_excinfo.value)
 
+    try:
+        pd_idx_multiple.item()
+    except ValueError as e:
+        expected_message = str(e)
+    else:
+        raise AssertionError("Expected ValueError from pandas, but didn't get one")
+
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
+        bf_idx_multiple.item()
+
+
+def test_index_item_with_empty(session):
     # Test with an empty Index
     bf_idx_empty = bpd.Index([], dtype="Int64", session=session)
     pd_idx_empty: pd.Index = pd.Index([], dtype="Int64")
-    expected_message_empty = ""
+
     try:
         pd_idx_empty.item()
     except ValueError as e:
-        expected_message_empty = str(e)
+        expected_message = str(e)
+    else:
+        raise AssertionError("Expected ValueError from pandas, but didn't get one")
 
-    with pytest.raises(
-        ValueError, match=re.escape(expected_message_empty)
-    ) as bf_excinfo_empty:
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
         bf_idx_empty.item()
-    with pytest.raises(
-        ValueError, match=re.escape(expected_message_empty)
-    ) as pd_excinfo_empty:
-        pd_idx_empty.item()
-    assert str(bf_excinfo_empty.value) == str(pd_excinfo_empty.value)
