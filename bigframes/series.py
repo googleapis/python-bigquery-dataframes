@@ -962,7 +962,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def item(self):
         # Docstring is in third_party/bigframes_vendored/pandas/core/series.py
-        return self.peek(1).item()
+        peeked_val = self.peek(2)
+        if len(peeked_val) == 1:
+            return peeked_val.item()
+        raise ValueError("can only convert an array of size 1 to a Python scalar")
 
     def nlargest(self, n: int = 5, keep: str = "first") -> Series:
         if keep not in ("first", "last", "all"):
