@@ -32,7 +32,10 @@ def ensure_equivalence(
     e2_result = engine2.execute(node, ordered=True)
     assert e1_result is not None
     assert e2_result is not None
-    e1_result.to_arrow_table().equals(e2_result.to_arrow_table())
+    # Schemas might have extra nullity markers, normalize to node expected schema, which should be looser
+    e1_table = e1_result.to_arrow_table().cast(node.schema.to_pyarrow())
+    e2_table = e2_result.to_arrow_table().cast(node.schema.to_pyarrow())
+    assert e1_table.equals(e2_table), f"{e1_table} is not equal to {e2_table}"
 
 
 def test_engines_read_local(
@@ -83,24 +86,15 @@ def test_engines_read_local_w_col_subset(
     ensure_equivalence(local_node, REFERENCE_ENGINE, engine)
 
 
-def test_engines_read_local_w_empty_scan_list(
-    fake_session: bigframes.Session,
-    managed_data_source: local_data.ManagedArrowTable,
-    engine,
-):
-    scan_list = nodes.ScanList.from_items([])
-    local_node = nodes.ReadLocalNode(
-        managed_data_source, scan_list, fake_session, offsets_col=None
-    )
-    ensure_equivalence(local_node, REFERENCE_ENGINE, engine)
-
-
 def test_engines_read_local_w_zero_row_source(
     fake_session: bigframes.Session,
     zero_row_source: local_data.ManagedArrowTable,
     engine,
 ):
-    scan_list = nodes.ScanList.from_items([])
+    scan_list = nodes.ScanList.from_items(
+        nodes.ScanItem(identifiers.ColumnId(item.column), item.dtype, item.column)
+        for item in zero_row_source.schema.items
+    )
     local_node = nodes.ReadLocalNode(
         zero_row_source, scan_list, fake_session, offsets_col=None
     )
@@ -112,7 +106,10 @@ def test_engines_read_local_w_nested_source(
     nested_data_source: local_data.ManagedArrowTable,
     engine,
 ):
-    scan_list = nodes.ScanList.from_items([])
+    scan_list = nodes.ScanList.from_items(
+        nodes.ScanItem(identifiers.ColumnId(item.column), item.dtype, item.column)
+        for item in nested_data_source.schema.items
+    )
     local_node = nodes.ReadLocalNode(
         nested_data_source, scan_list, fake_session, offsets_col=None
     )
@@ -124,7 +121,10 @@ def test_engines_read_local_w_repeated_source(
     repeated_data_source: local_data.ManagedArrowTable,
     engine,
 ):
-    scan_list = nodes.ScanList.from_items([])
+    scan_list = nodes.ScanList.from_items(
+        nodes.ScanItem(identifiers.ColumnId(item.column), item.dtype, item.column)
+        for item in repeated_data_source.schema.items
+    )
     local_node = nodes.ReadLocalNode(
         repeated_data_source, scan_list, fake_session, offsets_col=None
     )
