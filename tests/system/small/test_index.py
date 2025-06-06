@@ -469,9 +469,13 @@ def test_index_item(session):
     # Test with multiple items
     bf_idx_multiple = bpd.Index([1, 2, 3], session=session)
     pd_idx_multiple = pd.Index([1, 2, 3])
-    with pytest.raises(ValueError, match="can only convert an array of size 1 to a Python scalar") as bf_excinfo:
+    with pytest.raises(
+        ValueError, match="can only convert an array of size 1 to a Python scalar"
+    ) as bf_excinfo:
         bf_idx_multiple.item()
-    with pytest.raises(ValueError, match="can only convert an array of size 1 to a Python scalar") as pd_excinfo:
+    with pytest.raises(
+        ValueError, match="can only convert an array of size 1 to a Python scalar"
+    ) as pd_excinfo:
         pd_idx_multiple.item()
     assert str(bf_excinfo.value) == str(pd_excinfo.value)
 
@@ -484,8 +488,12 @@ def test_index_item(session):
     except ValueError as e:
         expected_message_empty = str(e)
 
-    with pytest.raises(ValueError, match=re.escape(expected_message_empty)) as bf_excinfo_empty:
+    with pytest.raises(
+        ValueError, match=re.escape(expected_message_empty)
+    ) as bf_excinfo_empty:
         bf_idx_empty.item()
-    with pytest.raises(ValueError, match=re.escape(expected_message_empty)) as pd_excinfo_empty:
+    with pytest.raises(
+        ValueError, match=re.escape(expected_message_empty)
+    ) as pd_excinfo_empty:
         pd_idx_empty.item()
     assert str(bf_excinfo_empty.value) == str(pd_excinfo_empty.value)
