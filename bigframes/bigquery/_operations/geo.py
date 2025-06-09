@@ -468,7 +468,6 @@ def st_length(
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
 
-
         >>> from shapely.geometry import Polygon, LineString, Point, GeometryCollection
         >>> bpd.options.display.progress_bar = None
 
