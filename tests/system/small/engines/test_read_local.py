@@ -16,27 +16,13 @@ import pytest
 
 import bigframes
 from bigframes.core import identifiers, local_data, nodes
-from bigframes.session import polars_executor, semi_executor
+from bigframes.session import polars_executor
+from tests.system.small.engines.engine_testing import ensure_equivalence
 
 pytest.importorskip("polars")
 
 # Polars used as reference as its fast and local. Generally though, prefer gbq engine where they disagree.
 REFERENCE_ENGINE = polars_executor.PolarsExecutor()
-
-
-def ensure_equivalence(
-    node: nodes.BigFrameNode,
-    engine1: semi_executor.SemiExecutor,
-    engine2: semi_executor.SemiExecutor,
-):
-    e1_result = engine1.execute(node, ordered=True)
-    e2_result = engine2.execute(node, ordered=True)
-    assert e1_result is not None
-    assert e2_result is not None
-    # Schemas might have extra nullity markers, normalize to node expected schema, which should be looser
-    e1_table = e1_result.to_arrow_table().cast(node.schema.to_pyarrow())
-    e2_table = e2_result.to_arrow_table().cast(node.schema.to_pyarrow())
-    assert e1_table.equals(e2_table), f"{e1_table} is not equal to {e2_table}"
 
 
 def test_engines_read_local(
