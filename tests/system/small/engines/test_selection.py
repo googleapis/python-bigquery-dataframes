@@ -16,7 +16,7 @@ import pytest
 
 from bigframes.core import array_value, expression, identifiers, nodes
 from bigframes.session import polars_executor
-from tests.system.small.engines.engine_testing import ensure_equivalence
+from tests.system.small.engines.engine_utils import assert_equivalence_execution
 
 pytest.importorskip("polars")
 
@@ -33,7 +33,7 @@ def test_engines_select_identity(
         for col in scalars_array_value.column_ids
     )
     node = nodes.SelectionNode(scalars_array_value.node, selection)
-    ensure_equivalence(node, REFERENCE_ENGINE, engine)
+    assert_equivalence_execution(node, REFERENCE_ENGINE, engine)
 
 
 def test_engines_select_rename(
@@ -45,7 +45,7 @@ def test_engines_select_rename(
         for col in scalars_array_value.column_ids
     )
     node = nodes.SelectionNode(scalars_array_value.node, selection)
-    ensure_equivalence(node, REFERENCE_ENGINE, engine)
+    assert_equivalence_execution(node, REFERENCE_ENGINE, engine)
 
 
 def test_engines_select_reorder_rename_drop(
@@ -57,4 +57,4 @@ def test_engines_select_reorder_rename_drop(
         for col in scalars_array_value.column_ids[::-2]
     )
     node = nodes.SelectionNode(scalars_array_value.node, selection)
-    ensure_equivalence(node, REFERENCE_ENGINE, engine)
+    assert_equivalence_execution(node, REFERENCE_ENGINE, engine)

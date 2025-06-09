@@ -17,7 +17,7 @@ import pytest
 import bigframes
 from bigframes.core import identifiers, local_data, nodes
 from bigframes.session import polars_executor
-from tests.system.small.engines.engine_testing import ensure_equivalence
+from tests.system.small.engines.engine_utils import assert_equivalence_execution
 
 pytest.importorskip("polars")
 
@@ -37,7 +37,7 @@ def test_engines_read_local(
     local_node = nodes.ReadLocalNode(
         managed_data_source, scan_list, fake_session, offsets_col=None
     )
-    ensure_equivalence(local_node, REFERENCE_ENGINE, engine)
+    assert_equivalence_execution(local_node, REFERENCE_ENGINE, engine)
 
 
 def test_engines_read_local_w_offsets(
@@ -55,7 +55,7 @@ def test_engines_read_local_w_offsets(
         fake_session,
         offsets_col=identifiers.ColumnId("offsets"),
     )
-    ensure_equivalence(local_node, REFERENCE_ENGINE, engine)
+    assert_equivalence_execution(local_node, REFERENCE_ENGINE, engine)
 
 
 def test_engines_read_local_w_col_subset(
@@ -70,7 +70,7 @@ def test_engines_read_local_w_col_subset(
     local_node = nodes.ReadLocalNode(
         managed_data_source, scan_list, fake_session, offsets_col=None
     )
-    ensure_equivalence(local_node, REFERENCE_ENGINE, engine)
+    assert_equivalence_execution(local_node, REFERENCE_ENGINE, engine)
 
 
 def test_engines_read_local_w_zero_row_source(
@@ -85,7 +85,7 @@ def test_engines_read_local_w_zero_row_source(
     local_node = nodes.ReadLocalNode(
         zero_row_source, scan_list, fake_session, offsets_col=None
     )
-    ensure_equivalence(local_node, REFERENCE_ENGINE, engine)
+    assert_equivalence_execution(local_node, REFERENCE_ENGINE, engine)
 
 
 def test_engines_read_local_w_nested_source(
@@ -100,7 +100,7 @@ def test_engines_read_local_w_nested_source(
     local_node = nodes.ReadLocalNode(
         nested_data_source, scan_list, fake_session, offsets_col=None
     )
-    ensure_equivalence(local_node, REFERENCE_ENGINE, engine)
+    assert_equivalence_execution(local_node, REFERENCE_ENGINE, engine)
 
 
 def test_engines_read_local_w_repeated_source(
@@ -115,4 +115,4 @@ def test_engines_read_local_w_repeated_source(
     local_node = nodes.ReadLocalNode(
         repeated_data_source, scan_list, fake_session, offsets_col=None
     )
-    ensure_equivalence(local_node, REFERENCE_ENGINE, engine)
+    assert_equivalence_execution(local_node, REFERENCE_ENGINE, engine)

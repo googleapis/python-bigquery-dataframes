@@ -16,7 +16,7 @@ from bigframes.core import nodes
 from bigframes.session import semi_executor
 
 
-def ensure_equivalence(
+def assert_equivalence_execution(
     node: nodes.BigFrameNode,
     engine1: semi_executor.SemiExecutor,
     engine2: semi_executor.SemiExecutor,
