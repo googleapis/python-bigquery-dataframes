@@ -14,8 +14,6 @@
 
 from unittest import mock
 
-import pandas
-
 import bigframes.core.global_session
 import bigframes.dataframe
 import bigframes.pandas.io.api as bf_io_api
