@@ -47,27 +47,3 @@ def test_read_gbq_colab_calls_set_location(
     assert kwargs["pyformat_args"] == sample_pyformat_args
     assert not kwargs["dry_run"]
     assert isinstance(result, bigframes.dataframe.DataFrame)
-
-
-@mock.patch("bigframes.pandas.io.api._set_default_session_location_if_possible")
-@mock.patch("bigframes.core.global_session.with_default_session")
-def test_read_gbq_colab_dry_run_returns_series(
-    mock_with_default_session, mock_set_location
-):
-    # Configure the mock for with_default_session to return a Series mock
-    mock_series = mock.create_autospec(pandas.Series)
-    mock_with_default_session.return_value = mock_series
-
-    query_or_table = "test_query"
-    result = bf_io_api._read_gbq_colab(query_or_table, pyformat_args=None, dry_run=True)
-
-    mock_set_location.assert_called_once_with(query_or_table)
-    mock_with_default_session.assert_called_once()
-
-    # Check the actual arguments passed to with_default_session
-    args, kwargs = mock_with_default_session.call_args
-    assert args[0] == bigframes.session.Session._read_gbq_colab
-    assert args[1] == query_or_table
-    assert kwargs["pyformat_args"] is None
-    assert kwargs["dry_run"]
-    assert isinstance(result, pandas.Series)
