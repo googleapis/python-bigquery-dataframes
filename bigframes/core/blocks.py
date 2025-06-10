@@ -2507,6 +2507,11 @@ class Block:
                 return self._view_ref_dry_run
 
             # TODO: create empty temp table with the right schema.
+            # We shouldn't run `to_sql_query` if we have a `dry_run`, because it
+            # could cause us to make unnecessary API calls to upload local node
+            # data.
+            sql, _, _ = self.to_sql_query(include_index=include_index)
+            self._view_ref_dry_run = self.session._create_temp_view(sql)
             return self._view_ref_dry_run
 
         # We shouldn't run `to_sql_query` if we have a `dry_run`, because it

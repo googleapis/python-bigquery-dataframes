@@ -140,30 +140,66 @@ def test_read_gbq_colab_includes_formatted_scalars(session):
     )
 
 
-def test_read_gbq_colab_includes_formatted_bigframes_dataframe(
+def test_read_gbq_colab_includes_formatted_dataframes(
     session, scalars_df_index, scalars_pandas_df_index
 ):
+    pd_df = pandas.DataFrame(
+        {
+            "rowindex": [0, 1, 2, 3, 4, 5],
+            "value": [0, 100, 200, 300, 400, 500],
+        }
+    )
     pyformat_args = {
         # Apply some operations to make sure the columns aren't renamed.
-        "some_dataframe": scalars_df_index[scalars_df_index["int64_col"] > 0].assign(
+        "bf_df": scalars_df_index[scalars_df_index["int64_col"] > 0].assign(
             int64_col=scalars_df_index["int64_too"]
         ),
+        "pd_df": pd_df,
         # This is not a supported type, but ignored if not referenced.
         "some_object": object(),
     }
+    sql = """
+    SELECT bf_df.int64_col + pd_df.value AS int64_col,
+    COALESCE(bf_df.rowindex, pd_df.rowindex) AS rowindex
+    FROM {bf_df} AS bf_df
+    FULL OUTER JOIN {pd_df} AS pd_df
+    ON bf_df.rowindex = pd_df.rowindex
+    ORDER BY rowindex ASC
+    """
+
+    # Do the dry run first so that we don't re-use the uploaded data from the
+    # real query.
+    dry_run_output = session._read_gbq_colab(
+        sql,
+        pyformat_args=pyformat_args,
+        dry_run=True,
+    )
+
     df = session._read_gbq_colab(
-        """
-        SELECT int64_col, rowindex
-        FROM {some_dataframe}
-        ORDER BY rowindex ASC
-        """,
+        sql,
         pyformat_args=pyformat_args,
     )
+
+    # Confirm that dry_run was accurate.
+    pandas.testing.assert_series_equal(
+        pandas.Series(dry_run_output["columnDtypes"]),
+        df.dtypes,
+    )
+
     result = df.to_pandas()
     expected = (
         scalars_pandas_df_index[scalars_pandas_df_index["int64_col"] > 0]
         .assign(int64_col=scalars_pandas_df_index["int64_too"])
         .reset_index(drop=False)[["int64_col", "rowindex"]]
+        .merge(
+            pd_df,
+            on="rowindex",
+            how="outer",
+        )
+        .assign(int64_col=lambda df: (df["int64_col"] + df["value"]).astype("Int64"))
+        .drop(columns=["value"])
+        .sort_values(by="rowindex")
+        .reset_index(drop=True)
     )
     pandas.testing.assert_frame_equal(
         result,

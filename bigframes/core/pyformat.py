@@ -57,10 +57,10 @@ def _field_to_template_value(
     if isinstance(value, table_types):
         return _table_to_sql(value)
 
-    # TODO(tswast): need to know if this is a dry run or the real deal.
     if isinstance(value, pandas.DataFrame):
         # TODO: create bigframes DataFrame. Need a Session.
-        return "test"
+        df = bigframes.dataframe.DataFrame(value, session=session)
+        return _table_to_sql(df._to_view(dry_run=dry_run))
 
     if isinstance(value, bigframes.dataframe.DataFrame):
         return _table_to_sql(value._to_view(dry_run=dry_run))
