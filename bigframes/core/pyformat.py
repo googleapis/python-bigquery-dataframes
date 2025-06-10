@@ -63,7 +63,7 @@ def _field_to_template_value(
         return "test"
 
     if isinstance(value, bigframes.dataframe.DataFrame):
-        return _table_to_sql(value._to_view())
+        return _table_to_sql(value._to_view(dry_run=dry_run))
 
     return bigframes.core.sql.simple_literal(value)
 

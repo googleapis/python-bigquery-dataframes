@@ -403,11 +403,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self.index.name is not None or len(self.index.names) > 1
         )
 
-    def _to_view(self) -> bigquery.TableReference:
+    def _to_view(self, dry_run: bool = False) -> bigquery.TableReference:
         """Compiles this DataFrame's expression tree to SQL and saves it to a
         (temporary) view.
         """
-        return self._block.to_view(include_index=self._should_sql_have_index())
+        return self._block.to_view(
+            include_index=self._should_sql_have_index(), dry_run=dry_run
+        )
 
     def _to_sql_query(
         self, include_index: bool, enable_cache: bool = True

@@ -154,6 +154,7 @@ class Block:
         self._stats_cache[" ".join(self.index_columns)] = {}
         self._transpose_cache: Optional[Block] = transpose_cache
         self._view_ref: Optional[bigquery.TableReference] = None
+        self._view_ref_dry_run: Optional[bigquery.TableReference] = None
 
     @classmethod
     def from_local(
@@ -2488,13 +2489,29 @@ class Block:
             idx_labels,
         )
 
-    def to_view(self, include_index: bool) -> bigquery.TableReference:
+    def to_view(
+        self, include_index: bool, *, dry_run: bool = False
+    ) -> bigquery.TableReference:
         """
-        Creates a temporary BigQuery VIEW with the SQL corresponding to this block.
+        Creates a temporary BigQuery VIEW (or empty table if dry_run) with the
+        SQL corresponding to this block.
         """
         if self._view_ref is not None:
             return self._view_ref
 
+        # Prefer the real view if it exists, but since dry_run might be called
+        # many times before the real query, we cache that empty table reference
+        # with the correct schema too.
+        if dry_run:
+            if self._view_ref_dry_run is not None:
+                return self._view_ref_dry_run
+
+            # TODO: create empty temp table with the right schema.
+            return self._view_ref_dry_run
+
+        # We shouldn't run `to_sql_query` if we have a `dry_run`, because it
+        # could cause us to make unnecessary API calls to upload local node
+        # data.
         sql, _, _ = self.to_sql_query(include_index=include_index)
         self._view_ref = self.session._create_temp_view(sql)
         return self._view_ref
