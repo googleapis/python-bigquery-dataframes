@@ -14,7 +14,6 @@
 
 from unittest import mock
 
-import bigframes.core.global_session
 import bigframes.dataframe
 import bigframes.pandas.io.api as bf_io_api
 import bigframes.session
@@ -29,13 +28,15 @@ def test_read_gbq_colab_calls_set_location(
     mock_df = mock.create_autospec(bigframes.dataframe.DataFrame)
     mock_with_default_session.return_value = mock_df
 
-    query_or_table = "my_project.my_dataset.my_table"
+    query_or_table = "SELECT {param1} AS param1"
     sample_pyformat_args = {"param1": "value1"}
     result = bf_io_api._read_gbq_colab(
         query_or_table, pyformat_args=sample_pyformat_args, dry_run=False
     )
 
-    mock_set_location.assert_called_once_with(query_or_table)
+    # Make sure that we format the SQL first to prevent syntax errors.
+    formatted_query = "SELECT 'value1' AS param1"
+    mock_set_location.assert_called_once_with(formatted_query)
     mock_with_default_session.assert_called_once()
 
     # Check the actual arguments passed to with_default_session

@@ -249,7 +249,7 @@ def _read_gbq_colab(
 
     Args:
         query_or_table (str):
-            SQL query or table ID.
+            SQL query or table ID (table ID not yet supported).
         pyformat_args (Optional[Dict[str, Any]]):
             Parameters to format into the query string.
         dry_run (bool):
@@ -260,7 +260,15 @@ def _read_gbq_colab(
         Union[bigframes.dataframe.DataFrame, pandas.Series]:
             A BigQuery DataFrame if `dry_run` is False, otherwise a pandas Series.
     """
-    _set_default_session_location_if_possible(query_or_table)
+    if pyformat_args is None:
+        pyformat_args = {}
+
+    query = bigframes.core.pyformat.pyformat(
+        query_or_table,
+        pyformat_args=pyformat_args,
+    )
+    _set_default_session_location_if_possible(query)
+
     return global_session.with_default_session(
         bigframes.session.Session._read_gbq_colab,
         query_or_table,
