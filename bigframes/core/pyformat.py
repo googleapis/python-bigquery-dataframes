@@ -59,7 +59,7 @@ def _field_to_template_value(
 
     if isinstance(value, pandas.DataFrame):
         # TODO: create bigframes DataFrame. Need a Session.
-        df = bigframes.dataframe.DataFrame(value, session=session)
+        df = session.read_pandas(value, write_engine="_deferred")
         return _table_to_sql(df._to_view(dry_run=dry_run))
 
     if isinstance(value, bigframes.dataframe.DataFrame):

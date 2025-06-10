@@ -14,6 +14,7 @@
 
 """System tests for read_gbq_colab helper functions."""
 
+import numpy
 import pandas
 import pandas.testing
 
@@ -149,21 +150,33 @@ def test_read_gbq_colab_includes_formatted_dataframes(
             "value": [0, 100, 200, 300, 400, 500],
         }
     )
+
+    # Make sure we test with some data that is too large to inline as SQL.
+    pd_df_large = pandas.DataFrame(
+        {
+            "rowindex": numpy.arange(100_000),
+            "large_value": numpy.arange(100_000),
+        }
+    )
+
     pyformat_args = {
         # Apply some operations to make sure the columns aren't renamed.
         "bf_df": scalars_df_index[scalars_df_index["int64_col"] > 0].assign(
             int64_col=scalars_df_index["int64_too"]
         ),
         "pd_df": pd_df,
+        "pd_df_large": pd_df_large,
         # This is not a supported type, but ignored if not referenced.
         "some_object": object(),
     }
     sql = """
-    SELECT bf_df.int64_col + pd_df.value AS int64_col,
-    COALESCE(bf_df.rowindex, pd_df.rowindex) AS rowindex
+    SELECT bf_df.int64_col + pd_df.value + pd_df_large.large_value AS int64_col,
+    COALESCE(bf_df.rowindex, pd_df.rowindex, pd_df_large.rowindex) AS rowindex
     FROM {bf_df} AS bf_df
     FULL OUTER JOIN {pd_df} AS pd_df
     ON bf_df.rowindex = pd_df.rowindex
+    LEFT JOIN {pd_df_large} AS pd_df_large
+    ON bf_df.rowindex = pd_df_large.rowindex
     ORDER BY rowindex ASC
     """
 
@@ -196,8 +209,17 @@ def test_read_gbq_colab_includes_formatted_dataframes(
             on="rowindex",
             how="outer",
         )
-        .assign(int64_col=lambda df: (df["int64_col"] + df["value"]).astype("Int64"))
-        .drop(columns=["value"])
+        .merge(
+            pd_df_large,
+            on="rowindex",
+            how="left",
+        )
+        .assign(
+            int64_col=lambda df: (
+                df["int64_col"] + df["value"] + df["large_value"]
+            ).astype("Int64")
+        )
+        .drop(columns=["value", "large_value"])
         .sort_values(by="rowindex")
         .reset_index(drop=True)
     )

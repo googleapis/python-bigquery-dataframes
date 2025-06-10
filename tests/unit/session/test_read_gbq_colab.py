@@ -15,8 +15,10 @@
 """Unit tests for read_gbq_colab helper functions."""
 
 import textwrap
+from unittest import mock
 
 from google.cloud import bigquery
+import numpy
 import pandas
 import pytest
 
@@ -40,10 +42,21 @@ def test_read_gbq_colab_includes_label():
 
 @pytest.mark.parametrize("dry_run", [True, False])
 def test_read_gbq_colab_includes_formatted_values_in_dry_run(monkeypatch, dry_run):
-    session = mocks.create_bigquery_session()
+    bqclient = mock.create_autospec(bigquery.Client, instance=True)
+    bqclient.project = "proj"
+    session = mocks.create_bigquery_session(bqclient=bqclient)
     bf_df = mocks.create_dataframe(monkeypatch, session=session)
-    bf_df._to_view = lambda: bigquery.TableReference.from_string("my-project.my_dataset.some_view")  # type: ignore
-    pd_df = pandas.DataFrame({"rowindex": [1, 2, 3], "value": ["a", "b", "c"]})
+    session._create_temp_table = mock.Mock(  # type: ignore
+        return_value=bigquery.TableReference.from_string("proj.dset.temp_table")
+    )
+    session._create_temp_view = mock.Mock(  # type: ignore
+        return_value=bigquery.TableReference.from_string("proj.dset.temp_view")
+    )
+
+    # To avoid trouble with get_table() calls getting out of sync with mock
+    # "uploaded" data, make sure this is small enough to inline in the SQL as a
+    # view.
+    pd_df = pandas.DataFrame({"rowindex": numpy.arange(3), "value": numpy.arange(3)})
 
     pyformat_args = {
         "some_integer": 123,
@@ -62,7 +75,7 @@ def test_read_gbq_colab_includes_formatted_values_in_dry_run(monkeypatch, dry_ru
             {some_string} as some_string,
             '{{escaped}}' as escaped
             FROM {bf_df} AS bf_df
-            FULL OUTER JOIN {{pd_df}} AS pd_df
+            FULL OUTER JOIN {pd_df} AS pd_df
             ON bf_df.rowindex = pd_df.rowindex
             """
         ),
@@ -70,12 +83,12 @@ def test_read_gbq_colab_includes_formatted_values_in_dry_run(monkeypatch, dry_ru
         dry_run=dry_run,
     )
     expected = textwrap.dedent(
-        """
+        f"""
         SELECT 123 as some_integer,
         'This could be dangerous, but we escape it' as some_string,
-        '{escaped}' as escaped
-        FROM `my-project`.`my_dataset`.`some_view` AS bf_df
-        FULL OUTER JOIN {pd_df} AS pd_df
+        '{{escaped}}' as escaped
+        FROM `proj`.`dset`.`temp_{"table" if dry_run else "view"}` AS bf_df
+        FULL OUTER JOIN `proj`.`dset`.`temp_{"table" if dry_run else "view"}` AS pd_df
         ON bf_df.rowindex = pd_df.rowindex
         """
     )
@@ -86,13 +99,9 @@ def test_read_gbq_colab_includes_formatted_values_in_dry_run(monkeypatch, dry_ru
 
     if dry_run:
         assert config.dry_run
-
-        # TODO: check for _no_ load job.
     else:
         # Allow for any "False-y" value.
         assert not config.dry_run
-
-        # TODO: check for load job.
 
     assert query.strip() == expected.strip()
 
