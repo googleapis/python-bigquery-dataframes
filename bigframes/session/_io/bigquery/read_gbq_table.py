@@ -250,6 +250,10 @@ def get_index_cols(
     column(s), then return those too so that ordering generation can be
     avoided.
     """
+    # Transform index_col -> index_cols so we have a variable that is
+    # always a list of column names (possibly empty).
+    schema_len = len(table.schema)
+
     index_cols: List[str] = []
     if isinstance(index_col, bigframes.enums.DefaultIndexKind):
         if index_col == bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64:
@@ -265,14 +269,7 @@ def get_index_cols(
             raise NotImplementedError(
                 f"Got unexpected index_col {repr(index_col)}. {constants.FEEDBACK_LINK}"
             )
-    elif isinstance(index_col, Iterable) and len(list(index_col)) == 0:
-        return []
-
-    # Transform index_col -> index_cols so we have a variable that is
-    # always a list of column names (possibly empty).
-    schema_len = len(table.schema)
-
-    if isinstance(index_col, str):
+    elif isinstance(index_col, str):
         if rename_to_schema is not None:
             index_col = rename_to_schema.get(index_col, index_col)
         index_cols = [index_col]
