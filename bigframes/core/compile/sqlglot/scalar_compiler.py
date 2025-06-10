@@ -78,7 +78,46 @@ def compile_op_expression(expr: expression.OpExpression):
         )
 
 
+def compile_rowkey(op: ops.RowKey, *columns: sge.Expression) -> sge.Expression:
+    # TODO: add `uid_gen` to the scalar_compiler instance
+    # ordering_hash_part = guid.generate_guid("bford_")
+    # ordering_hash_part2 = guid.generate_guid("bford_")
+    # ordering_rand_part = guid.generate_guid("bford_")
+
+    # cast_to_str = lambda a : ir._cast(a, "STRING")
+    # str_columns = list(map(cast_to_str, ))
+    return sge.Star()
+
+    # # All inputs into hash must be non-null or resulting hash will be null
+    # str_values = list(map(_convert_to_nonnull_string, columns))
+    # full_row_str = (
+    #     str_values[0].concat(*str_values[1:]) if len(str_values) > 1 else str_values[0]
+    # )
+    # full_row_hash = (
+    #     full_row_str.hash()
+    #     .name(ordering_hash_part)
+    #     .cast(ibis_dtypes.String(nullable=True))
+    # )
+    # # By modifying value slightly, we get another hash uncorrelated with the first
+    # full_row_hash_p2 = (
+    #     (full_row_str + "_")
+    #     .hash()
+    #     .name(ordering_hash_part2)
+    #     .cast(ibis_dtypes.String(nullable=True))
+    # )
+    # # Used to disambiguate between identical rows (which will have identical hash)
+    # random_value = (
+    #     bigframes_vendored.ibis.random()
+    #     .name(ordering_rand_part)
+    #     .cast(ibis_dtypes.String(nullable=True))
+    # )
+
+    # return full_row_hash.concat(full_row_hash_p2, random_value)
+
+
 # TODO: add parenthesize for operators
-def compile_addop(op: ops.AddOp, left: sge.Expression, right: sge.Expression):
+def compile_addop(
+    op: ops.AddOp, left: sge.Expression, right: sge.Expression
+) -> sge.Expression:
     # TODO: support addop for string dtype.
     return sge.Add(this=left, expression=right)

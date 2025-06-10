@@ -107,6 +107,21 @@ class SQLGlotIR:
         return cls(expr=sg.select(sge.Star()).from_(expr), uid_gen=uid_gen)
 
     @classmethod
+    def from_table(
+        cls,
+        project_id: str,
+        dataset_id: str,
+        table_id: str,
+    ) -> SQLGlotIR:
+        table_expr = sge.Table(
+            this=sg.to_identifier(table_id, quoted=cls.quoted),
+            db=sg.to_identifier(dataset_id, quoted=cls.quoted),
+            catalog=sg.to_identifier(project_id, quoted=cls.quoted),
+        )
+        select_expr = sge.Select().select(sge.Star()).from_(table_expr)
+        return cls(expr=select_expr)
+
+    @classmethod
     def from_query_string(
         cls,
         query_string: str,
