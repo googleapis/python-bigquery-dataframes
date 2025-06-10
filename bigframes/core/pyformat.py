@@ -27,6 +27,8 @@ import google.cloud.bigquery
 import google.cloud.bigquery.table
 import pandas
 
+import bigframes.session
+
 _BQ_TABLE_TYPES = Union[
     google.cloud.bigquery.Table,
     google.cloud.bigquery.TableReference,
@@ -41,6 +43,9 @@ def _table_to_sql(table: _BQ_TABLE_TYPES) -> str:
 def _field_to_template_value(
     name: str,
     value: Any,
+    *,
+    session: bigframes.session.Session,
+    dry_run: bool = False,
 ) -> str:
     """Convert value to something embeddable in a SQL string."""
     import bigframes.core.sql  # Avoid circular imports
@@ -97,6 +102,8 @@ def pyformat(
     sql_template: str,
     *,
     pyformat_args: dict,
+    session: bigframes.session.Session,
+    dry_run: bool = False,
 ) -> str:
     """Unsafe Python-style string formatting of SQL string.
 
@@ -121,6 +128,8 @@ def pyformat(
     format_kwargs = {}
     for name in fields:
         value = pyformat_args[name]
-        format_kwargs[name] = _field_to_template_value(name, value)
+        format_kwargs[name] = _field_to_template_value(
+            name, value, session=session, dry_run=dry_run
+        )
 
     return sql_template.format(**format_kwargs)

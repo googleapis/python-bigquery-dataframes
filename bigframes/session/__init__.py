@@ -530,6 +530,8 @@ class Session(
         query = bigframes.core.pyformat.pyformat(
             query,
             pyformat_args=pyformat_args,
+            session=self,
+            dry_run=dry_run,
         )
 
         return self._loader.read_gbq_query(

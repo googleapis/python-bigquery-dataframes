@@ -25,7 +25,13 @@ import google.cloud.bigquery
 import google.cloud.bigquery.table
 import pytest
 
-import bigframes.core.pyformat as pyformat
+from bigframes.core import pyformat
+from bigframes.testing import mocks
+
+
+@pytest.fixture
+def session():
+    return mocks.create_bigquery_session()
 
 
 @pytest.mark.parametrize(
@@ -48,31 +54,31 @@ def test_parse_fields(sql_template: str, expected: List[str]):
     assert fields == expected
 
 
-def test_pyformat_with_unsupported_type_raises_typeerror():
+def test_pyformat_with_unsupported_type_raises_typeerror(session):
     pyformat_args = {"my_object": object()}
     sql = "SELECT {my_object}"
 
     with pytest.raises(TypeError, match="my_object has unsupported type: "):
-        pyformat.pyformat(sql, pyformat_args=pyformat_args)
+        pyformat.pyformat(sql, pyformat_args=pyformat_args, session=session)
 
 
-def test_pyformat_with_missing_variable_raises_keyerror():
+def test_pyformat_with_missing_variable_raises_keyerror(session):
     pyformat_args: Dict[str, Any] = {}
     sql = "SELECT {my_object}"
 
     with pytest.raises(KeyError, match="my_object"):
-        pyformat.pyformat(sql, pyformat_args=pyformat_args)
+        pyformat.pyformat(sql, pyformat_args=pyformat_args, session=session)
 
 
-def test_pyformat_with_no_variables():
+def test_pyformat_with_no_variables(session):
     pyformat_args: Dict[str, Any] = {}
     sql = "SELECT '{{escaped curly brackets}}'"
     expected_sql = "SELECT '{escaped curly brackets}'"
-    got_sql = pyformat.pyformat(sql, pyformat_args=pyformat_args)
+    got_sql = pyformat.pyformat(sql, pyformat_args=pyformat_args, session=session)
     assert got_sql == expected_sql
 
 
-def test_pyformat_with_query_string_replaces_variables():
+def test_pyformat_with_query_string_replaces_variables(session):
     pyformat_args = {
         "my_string": "some string value",
         "max_value": 2.25,
@@ -102,7 +108,7 @@ def test_pyformat_with_query_string_replaces_variables():
     WHERE height < 2.25
     """.strip()
 
-    got_sql = pyformat.pyformat(sql, pyformat_args=pyformat_args)
+    got_sql = pyformat.pyformat(sql, pyformat_args=pyformat_args, session=session)
     assert got_sql == expected_sql
 
 
@@ -134,12 +140,12 @@ def test_pyformat_with_query_string_replaces_variables():
         ),
     ),
 )
-def test_pyformat_with_table_replaces_variables(table, expected_sql):
+def test_pyformat_with_table_replaces_variables(table, expected_sql, session=session):
     pyformat_args = {
         "table": table,
         # Unreferenced values of unsupported type shouldn't cause issues.
         "my_object": object(),
     }
     sql = "SELECT * FROM {table}"
-    got_sql = pyformat.pyformat(sql, pyformat_args=pyformat_args)
+    got_sql = pyformat.pyformat(sql, pyformat_args=pyformat_args, session=session)
     assert got_sql == expected_sql
