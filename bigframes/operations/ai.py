@@ -117,7 +117,7 @@ class AIAccessor:
         attach_logprobs=False,
     ):
         """
-        Maps the DataFrame with the semantics of the user instruction. The name of the keys in the output_schema parameter carry 
+        Maps the DataFrame with the semantics of the user instruction. The name of the keys in the output_schema parameter carry
         semantic meaning, and can be used for information extraction.
 
         **Examples:**
