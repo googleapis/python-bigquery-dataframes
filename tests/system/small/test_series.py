@@ -4285,13 +4285,16 @@ def test_apply_lambda(scalars_dfs, col, lambda_):
     bf_result = bf_col.apply(lambda_, by_row=False).to_pandas()
 
     pd_col = scalars_pandas_df[col]
-    if pd.__version__.startswith("2.2"):
+    if pd.__version__[:3] in ("2.2", "2.3"):
         pd_result = pd_col.apply(lambda_, by_row=False)
     else:
         pd_result = pd_col.apply(lambda_)
 
     # ignore dtype check, which are Int64 and object respectively
-    assert_series_equal(bf_result, pd_result, check_dtype=False)
+    # Some columns implicitly convert to floating point. Use check_exact=False to ensure we're "close enough"
+    assert_series_equal(
+        bf_result, pd_result, check_dtype=False, check_exact=False, rtol=0.001
+    )
 
 
 @pytest.mark.parametrize(
@@ -4375,13 +4378,16 @@ def test_apply_simple_udf(scalars_dfs):
 
     pd_col = scalars_pandas_df["int64_col"]
 
-    if pd.__version__.startswith("2.2"):
+    if pd.__version__[:3] in ("2.2", "2.3"):
         pd_result = pd_col.apply(foo, by_row=False)
     else:
         pd_result = pd_col.apply(foo)
 
     # ignore dtype check, which are Int64 and object respectively
-    assert_series_equal(bf_result, pd_result, check_dtype=False)
+    # Some columns implicitly convert to floating point. Use check_exact=False to ensure we're "close enough"
+    assert_series_equal(
+        bf_result, pd_result, check_dtype=False, check_exact=False, rtol=0.001
+    )
 
 
 @pytest.mark.parametrize(
@@ -4636,3 +4642,42 @@ def test_series_to_pandas_dry_run(scalars_df_index):
 
     assert isinstance(result, pd.Series)
     assert len(result) > 0
+
+
+def test_series_item(session):
+    # Test with a single item
+    bf_s_single = bigframes.pandas.Series([42], session=session)
+    pd_s_single = pd.Series([42])
+    assert bf_s_single.item() == pd_s_single.item()
+
+
+def test_series_item_with_multiple(session):
+    # Test with multiple items
+    bf_s_multiple = bigframes.pandas.Series([1, 2, 3], session=session)
+    pd_s_multiple = pd.Series([1, 2, 3])
+
+    try:
+        pd_s_multiple.item()
+    except ValueError as e:
+        expected_message = str(e)
+    else:
+        raise AssertionError("Expected ValueError from pandas, but didn't get one")
+
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
+        bf_s_multiple.item()
+
+
+def test_series_item_with_empty(session):
+    # Test with an empty Series
+    bf_s_empty = bigframes.pandas.Series([], dtype="Int64", session=session)
+    pd_s_empty = pd.Series([], dtype="Int64")
+
+    try:
+        pd_s_empty.item()
+    except ValueError as e:
+        expected_message = str(e)
+    else:
+        raise AssertionError("Expected ValueError from pandas, but didn't get one")
+
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
+        bf_s_empty.item()

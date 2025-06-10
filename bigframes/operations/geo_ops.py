@@ -54,6 +54,13 @@ geo_st_geogpoint_op = base_ops.create_binary_op(
     name="geo_st_geogpoint", type_signature=op_typing.BinaryNumericGeo()
 )
 
+geo_st_isclosed_op = base_ops.create_unary_op(
+    name="geo_st_isclosed",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.BOOL_DTYPE, description="geo-like"
+    ),
+)
+
 geo_x_op = base_ops.create_unary_op(
     name="geo_x",
     type_signature=op_typing.FixedOutputType(
@@ -77,6 +84,15 @@ geo_st_intersection_op = base_ops.create_binary_op(
 class GeoStDistanceOp(base_ops.BinaryOp):
     name = "st_distance"
     use_spheroid: bool
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return dtypes.FLOAT_DTYPE
+
+
+@dataclasses.dataclass(frozen=True)
+class GeoStLengthOp(base_ops.UnaryOp):
+    name = "geo_st_length"
+    use_spheroid: bool = False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return dtypes.FLOAT_DTYPE

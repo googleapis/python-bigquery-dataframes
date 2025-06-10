@@ -98,9 +98,11 @@ from bigframes.operations.geo_ops import (
     geo_st_geogfromtext_op,
     geo_st_geogpoint_op,
     geo_st_intersection_op,
+    geo_st_isclosed_op,
     geo_x_op,
     geo_y_op,
     GeoStDistanceOp,
+    GeoStLengthOp,
 )
 from bigframes.operations.json_ops import (
     JSONExtract,
@@ -385,6 +387,8 @@ __all__ = [
     "geo_st_geogfromtext_op",
     "geo_st_geogpoint_op",
     "geo_st_intersection_op",
+    "geo_st_isclosed_op",
+    "GeoStLengthOp",
     "geo_x_op",
     "geo_y_op",
     "GeoStDistanceOp",

@@ -30,7 +30,6 @@ from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
 import bigframes.core.compile.default_ordering
 import bigframes.core.compile.ibis_types
 import bigframes.core.expression as ex
-import bigframes.dtypes
 import bigframes.operations as ops
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
@@ -1074,9 +1073,20 @@ def geo_st_intersection_op_impl(x: ibis_types.Value, y: ibis_types.Value):
     )
 
 
+@scalar_op_compiler.register_unary_op(ops.geo_st_isclosed_op, pass_op=False)
+def geo_st_isclosed_op_impl(x: ibis_types.Value):
+    return st_isclosed(x)
+
+
 @scalar_op_compiler.register_unary_op(ops.geo_x_op)
 def geo_x_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).x()
+
+
+@scalar_op_compiler.register_unary_op(ops.GeoStLengthOp, pass_op=True)
+def geo_length_op_impl(x: ibis_types.Value, op: ops.GeoStLengthOp):
+    # Call the st_length UDF defined in this file (or imported)
+    return st_length(x, op.use_spheroid)
 
 
 @scalar_op_compiler.register_unary_op(ops.geo_y_op)
@@ -2058,6 +2068,12 @@ def st_distance(a: ibis_dtypes.geography, b: ibis_dtypes.geography, use_spheroid
 
 
 @ibis_udf.scalar.builtin
+def st_length(geog: ibis_dtypes.geography, use_spheroid: bool) -> ibis_dtypes.float:  # type: ignore
+    """ST_LENGTH BQ builtin. This body is never executed."""
+    pass
+
+
+@ibis_udf.scalar.builtin
 def unix_micros(a: ibis_dtypes.timestamp) -> int:  # type: ignore
     """Convert a timestamp to microseconds"""
 
@@ -2178,6 +2194,11 @@ def str_lstrip_op(  # type: ignore[empty-body]
     x: ibis_dtypes.String, to_strip: ibis_dtypes.String
 ) -> ibis_dtypes.String:
     """Remove leading and trailing characters."""
+
+
+@ibis_udf.scalar.builtin
+def st_isclosed(a: ibis_dtypes.geography) -> ibis_dtypes.boolean:  # type: ignore
+    """Checks if a geography is closed."""
 
 
 @ibis_udf.scalar.builtin(name="rtrim")
