@@ -550,6 +550,7 @@ class GbqDataLoader:
         )
 
         columns = list(columns)
+        include_all_columns = columns is None or len(columns) == 0
         filters = typing.cast(list, list(filters))
 
         # ---------------------------------
@@ -563,35 +564,22 @@ class GbqDataLoader:
             cache=self._df_snapshot,
             use_cache=use_cache,
         )
-        table_column_names = {field.name for field in table.schema}
 
         if table.location.casefold() != self._storage_manager.location.casefold():
             raise ValueError(
                 f"Current session is in {self._storage_manager.location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
             )
 
-        for key in columns:
-            if key not in table_column_names:
-                possibility = min(
-                    table_column_names,
-                    key=lambda item: bigframes._tools.strings.levenshtein_distance(
-                        key, item
-                    ),
-                )
-                raise ValueError(
-                    f"Column '{key}' of `columns` not found in this table. Did you mean '{possibility}'?"
-                )
-
         # TODO(b/408499371): check `names` work with `use_cols` for read_csv method.
         if names is not None:
             len_names = len(list(names))
-            len_columns = len(table.schema)
-            if len_names > len_columns:
+            len_schema = len(table.schema)
+            if len_names > len_schema:
                 raise ValueError(
-                    f"Too many columns specified: expected {len_columns}"
+                    f"Too many columns specified: expected {len_schema}"
                     f" and found {len_names}"
                 )
-            elif len_names < len_columns:
+            elif len_names < len_schema:
                 if (
                     isinstance(index_col, bigframes.enums.DefaultIndexKind)
                     or index_col != ()
@@ -601,10 +589,59 @@ class GbqDataLoader:
                         "number of `names` matches the number of columns in your "
                         "data."
                     )
-                index_col = range(len_columns - len_names)
-                names = [
-                    field.name for field in table.schema[: len_columns - len_names]
-                ] + list(names)
+                if len(columns) == 0:
+                    # Additional unnamed columns is going to set as index columns
+                    index_col = range(len_schema - len_names)
+                    names = [
+                        field.name for field in table.schema[: len_schema - len_names]
+                    ] + list(names)
+                else:
+                    # The 'columns' must be identical to the 'names'. If not, raise an error.
+                    if len(columns) != len_names:
+                        raise ValueError(
+                            "Number of passed names did not match number of header "
+                            "fields in the file"
+                        )
+                    if set(list(names)) != set(list(columns)):
+                        raise ValueError("Usecols do not match columns")
+
+        rename_to_schema: Optional[Dict[str, str]] = None
+        if len(columns) == 0:
+            table_column_names = [field.name for field in table.schema]
+            if names is not None:
+                rename_to_schema = dict(zip(list(names), table_column_names))
+        else:
+            if names is not None:
+                assert len(table.schema) >= len(list(names))
+                assert len(list(names)) >= len(columns)
+                table_column_names = [
+                    field.name for field in table.schema[: len(list(names))]
+                ]
+
+                invalid_columns = set(columns) - set(names)
+                if len(invalid_columns) != 0:
+                    raise ValueError(
+                        "Usecols do not match columns, columns expected but not "
+                        f"found: {invalid_columns}"
+                    )
+
+                rename_to_schema = dict(zip(list(names), table_column_names))
+                names = columns
+                columns = [rename_to_schema[renamed_name] for renamed_name in columns]
+            else:
+                table_column_names = [field.name for field in table.schema]
+                for column_name in columns:
+                    if column_name not in table_column_names:
+                        possibility = min(
+                            table_column_names,
+                            key=lambda item: bigframes._tools.strings.levenshtein_distance(
+                                column_name, item
+                            ),
+                        )
+                        raise ValueError(
+                            f"Column '{column_name}' of `columns` not found in this table. "
+                            f"Did you mean '{possibility}'?"
+                        )
 
         # Converting index_col into a list of column names requires
         # the table metadata because we might use the primary keys
@@ -612,7 +649,7 @@ class GbqDataLoader:
         index_cols = bf_read_gbq_table.get_index_cols(
             table=table,
             index_col=index_col,
-            names=names,
+            rename_to_schema=rename_to_schema,
         )
         columns = list(
             _check_column_duplicates(index_cols, columns, index_col_in_columns)
@@ -715,7 +752,7 @@ class GbqDataLoader:
             metadata_only=not self._scan_index_uniqueness,
         )
         schema = schemata.ArraySchema.from_bq_table(table)
-        if columns:
+        if not include_all_columns:
             schema = schema.select(index_cols + columns)
         array_value = core.ArrayValue.from_table(
             table,
@@ -767,14 +804,14 @@ class GbqDataLoader:
 
         value_columns = [col for col in array_value.column_ids if col not in index_cols]
         if names is not None:
-            renamed_cols: Dict[str, str] = {
-                col: new_name for col, new_name in zip(array_value.column_ids, names)
-            }
+            assert rename_to_schema is not None
+            schema_to_rename = {value: key for key, value in rename_to_schema.items()}
             if index_col != bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64:
                 index_names = [
-                    renamed_cols.get(index_col, index_col) for index_col in index_cols
+                    schema_to_rename.get(index_col, index_col)
+                    for index_col in index_cols
                 ]
-            value_columns = [renamed_cols.get(col, col) for col in value_columns]
+            value_columns = [schema_to_rename.get(col, col) for col in value_columns]
 
         block = blocks.Block(
             array_value,
