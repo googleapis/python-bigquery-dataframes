@@ -67,8 +67,7 @@ def test_type_system_examples() -> None:
         '{"a":{"b":[1,2,3],"c":true}}',
         None,
     ]
-    # For Pandas 3.0+ and PyArrow 19.0+, can use pa.json_(pa.string()) instead of
-    # db_dtypes.JSONArrowType()
+    # db_dtypes.JSONArrowType() might be changed to pa.json_(pa.string()) in the future
     bpd.Series(json_data, dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()))
     # 0                               1
     # 1                           "str"
@@ -99,8 +98,7 @@ def test_type_system_examples() -> None:
         [{"key": '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}'}],
     ]
     pa_array = pa.array(list_data, type=pa.list_(pa.struct([("key", pa.string())])))
-    # For Pandas 3.0+ and PyArrow 19.0+, can use pa.json_(pa.string()) instead of
-    # db_dtypes.JSONArrowType()
+    # db_dtypes.JSONArrowType() might be changed to pa.json_(pa.string()) in the future
     bpd.Series(
         pd.arrays.ArrowExtensionArray(pa_array),
         dtype=pd.ArrowDtype(
@@ -322,8 +320,7 @@ def test_type_system_examples() -> None:
         '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
     ]
 
-    # For Pandas 3.0+ and PyArrow 19.0+, can use pa.json_(pa.string()) instead of
-    # db_dtypes.JSONArrowType()
+    # db_dtypes.JSONArrowType() might be changed to pa.json_(pa.string()) in the future
     json_s = bpd.Series(fruits, dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()))
     bbq.json_query(json_s, "$.fruits[0]")
     # 0    {"name":"apple"}
@@ -348,8 +345,7 @@ def test_type_system_examples() -> None:
         '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
     ]
 
-    # For Pandas 3.0+ and PyArrow 19.0+, can use pa.json_(pa.string()) instead of
-    # db_dtypes.JSONArrowType()
+    # db_dtypes.JSONArrowType() might be changed to pa.json_(pa.string()) in the future
     json_s = bpd.Series(fruits, dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()))
 
     bbq.json_extract_array(json_s, "$.fruits")
