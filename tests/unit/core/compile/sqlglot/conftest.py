@@ -19,6 +19,7 @@ import pyarrow as pa
 import pytest
 
 from bigframes import dtypes
+import bigframes.testing.mocks as mocks
 import bigframes.testing.utils
 
 CURRENT_DIR = pathlib.Path(__file__).parent
@@ -29,7 +30,9 @@ DATA_DIR = CURRENT_DIR.parent.parent.parent.parent / "data"
 def compiler_session():
     from bigframes.testing import compiler_session
 
-    return compiler_session.SQLCompilerSession()
+    session = mocks.create_bigquery_session()
+    session._executor = compiler_session.SQLCompilerExecutor()
+    return session
 
 
 @pytest.fixture(scope="session")
