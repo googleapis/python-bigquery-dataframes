@@ -25,6 +25,7 @@ from typing import Any, Union
 
 import google.cloud.bigquery
 import google.cloud.bigquery.table
+import pandas
 
 _BQ_TABLE_TYPES = Union[
     google.cloud.bigquery.Table,
@@ -51,7 +52,11 @@ def _field_to_template_value(
     if isinstance(value, table_types):
         return _table_to_sql(value)
 
-    # TODO(tswast): convert pandas DataFrame objects to gbq tables or a literals subquery.
+    # TODO(tswast): need to know if this is a dry run or the real deal.
+    if isinstance(value, pandas.DataFrame):
+        # TODO: create bigframes DataFrame. Need a Session.
+        return "test"
+
     if isinstance(value, bigframes.dataframe.DataFrame):
         return _table_to_sql(value._to_view())
 
@@ -70,6 +75,7 @@ def _validate_type(name: str, value: Any):
         typing.get_args(_BQ_TABLE_TYPES)
         + typing.get_args(bigframes.core.sql.SIMPLE_LITERAL_TYPES)
         + (bigframes.dataframe.DataFrame,)
+        + (pandas.DataFrame,)
     )
 
     if not isinstance(value, supported_types):
