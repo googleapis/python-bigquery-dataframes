@@ -152,6 +152,7 @@ class GbqDataLoader:
         scan_index_uniqueness: bool,
         force_total_order: bool,
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
+        synced_clock: Optional[session_time.BigQuerySyncedClock] = None,
     ):
         self._bqclient = bqclient
         self._write_client = write_client
@@ -165,7 +166,11 @@ class GbqDataLoader:
         self._metrics = metrics
         # Unfortunate circular reference, but need to pass reference when constructing objects
         self._session = session
-        self._clock = session_time.BigQuerySyncedClock(bqclient)
+        self._clock = (
+            session_time.BigQuerySyncedClock(bqclient)
+            if synced_clock is None
+            else synced_clock
+        )
         self._clock.sync()
 
     def read_pandas(
@@ -298,7 +303,8 @@ class GbqDataLoader:
         ):
             if errors:
                 raise ValueError(
-                    f"Problem loading at least one row from DataFrame: {errors}. {constants.FEEDBACK_LINK}"
+                    f"Problem loading at least one row from DataFrame: {errors}. "
+                    "{constants.FEEDBACK_LINK}"
                 )
         destination_table = self._bqclient.get_table(load_table_destination)
         return nodes.BigqueryDataSource(
@@ -348,7 +354,8 @@ class GbqDataLoader:
         for response in self._write_client.append_rows(requests=request_gen()):
             if response.row_errors:
                 raise ValueError(
-                    f"Problem loading at least one row from DataFrame: {response.row_errors}. {constants.FEEDBACK_LINK}"
+                    "Problem loading at least one row from DataFrame: "
+                    f"{response.row_errors}. {constants.FEEDBACK_LINK}"
                 )
         # This step isn't strictly necessary in COMMITTED mode, but avoids max active stream limits
         response = self._write_client.finalize_write_stream(name=stream.name)
@@ -466,7 +473,9 @@ class GbqDataLoader:
 
         if table.location.casefold() != self._storage_manager.location.casefold():
             raise ValueError(
-                f"Current session is in {self._storage_manager.location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
+                f"Current session is in {self._storage_manager.location} but "
+                f"dataset '{table.project}.{table.dataset_id}' is located in "
+                f"{table.location}"
             )
 
         for key in columns:

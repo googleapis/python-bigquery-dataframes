@@ -48,12 +48,14 @@ class BigQuerySyncedClock:
                 time.monotonic() - self._sync_monotonic_time
             ) < MIN_RESYNC_SECONDS:
                 return
-            current_bq_time = list(
-                next(
-                    self._bqclient.query_and_wait(
+            tmp = self._bqclient.query_and_wait(
                         "SELECT CURRENT_TIMESTAMP() AS `current_timestamp`",
                     )
+            current_bq_time = list(
+                next(
+                    tmp
                 )
             )[0]
+            # self._sync_remote_time  = datetime.datetime(1970, 1, 1)
             self._sync_remote_time = cast(datetime.datetime, current_bq_time)
             self._sync_monotonic_time = time.monotonic()
