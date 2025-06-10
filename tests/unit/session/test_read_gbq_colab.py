@@ -63,7 +63,6 @@ def test_read_gbq_colab_includes_formatted_values_in_dry_run(monkeypatch, dry_ru
         "some_string": "This could be dangerous, but we escape it",
         "bf_df": bf_df,
         "pd_df": pd_df,
-        # TODO(swast): A pandas DataFrame should turn into a view, but not run a load job.
         # This is not a supported type, but ignored if not referenced.
         "some_object": object(),
     }
