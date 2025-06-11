@@ -146,9 +146,7 @@ def test_read_gbq_w_unknown_column(
 ):
     with pytest.raises(
         ValueError,
-        match=re.escape(
-            "Column 'int63_col' of `columns` not found in this table. Did you mean 'int64_col'?"
-        ),
+        match=re.escape("Column 'int63_col' is not found. Did you mean 'int64_col'?"),
     ):
         session.read_gbq(
             scalars_table_id,
