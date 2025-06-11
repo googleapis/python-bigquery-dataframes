@@ -458,9 +458,9 @@ class FunctionClient:
             if self._cloud_build_service_account:
                 canonical_cloud_build_service_account = (
                     self._cloud_build_service_account
+                    if "/" in self._cloud_build_service_account
+                    else f"projects/{self._gcp_project_id}/serviceAccounts/{self._cloud_build_service_account}"
                 )
-                if "/" not in canonical_cloud_build_service_account:
-                    canonical_cloud_build_service_account = f"projects/{self._gcp_project_id}/serviceAccounts/{canonical_cloud_build_service_account}"
                 function.build_config.service_account = (
                     canonical_cloud_build_service_account
                 )
