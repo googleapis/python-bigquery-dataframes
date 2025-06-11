@@ -1555,9 +1555,13 @@ class Session(
                 See for more details
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
             cloud_build_service_account (str, Optional):
-                Service account to be used by Cloud Build to build the function
-                source code into a deployable artifact. If not provided, the
-                default Cloud Build service account is used. See
+                Service account in the fully qualified format
+                `projects/PROJECT_ID/serviceAccounts/SERVICE_ACCOUNT_EMAIL`, or
+                just the SERVICE_ACCOUNT_EMAIL. The latter would be interpreted
+                as belonging to the BigQuery DataFrames session project. This is
+                to be used by Cloud Build to build the function source code into
+                a deployable artifact. If not provided, the default Cloud Build
+                service account is used. See
                 https://cloud.google.com/build/docs/cloud-build-service-account
                 for more details.
         Returns:

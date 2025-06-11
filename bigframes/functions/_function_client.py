@@ -454,7 +454,17 @@ class FunctionClient:
             function.build_config.docker_repository = (
                 self._cloud_function_docker_repository
             )
-            function.build_config.service_account = self._cloud_build_service_account
+
+            if self._cloud_build_service_account:
+                canonical_cloud_build_service_account = (
+                    self._cloud_build_service_account
+                )
+                if "/" not in canonical_cloud_build_service_account:
+                    canonical_cloud_build_service_account = f"projects/{self._gcp_project_id}/serviceAccounts/{canonical_cloud_build_service_account}"
+                function.build_config.service_account = (
+                    canonical_cloud_build_service_account
+                )
+
             function.service_config = functions_v2.ServiceConfig()
             if memory_mib is not None:
                 function.service_config.available_memory = f"{memory_mib}Mi"
