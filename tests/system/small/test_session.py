@@ -1404,7 +1404,7 @@ def test_read_csv_for_names_and_invalid_usecols(
     usecols = ["a", "X"]
     with pytest.raises(
         ValueError,
-        match=re.escape("Usecols do not match columns"),
+        match=re.escape("Column 'X' is not found. "),
     ):
         session.read_csv(path, engine="bigquery", names=names, usecols=usecols)
 
