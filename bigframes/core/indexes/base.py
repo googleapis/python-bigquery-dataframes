@@ -255,6 +255,11 @@ class Index(vendored_pandas_index.Index):
             _, dry_run_query_job = self._block._compute_dry_run()
             return formatter.repr_query_job(dry_run_query_job)
 
+        # handle anywidget mode for plain text representation
+        if opts.repr_mode == "anywidget":
+            preview_index = self.head(max_results).to_pandas()
+            return repr(preview_index)
+
         pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
         self._query_job = query_job
         return repr(pandas_df.index)
