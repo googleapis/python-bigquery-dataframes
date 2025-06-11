@@ -67,7 +67,9 @@ def test_type_system_examples() -> None:
         '{"a":{"b":[1,2,3],"c":true}}',
         None,
     ]
-    # db_dtypes.JSONArrowType() might be changed to pa.json_(pa.string()) in the future
+    # In addition to db_dtypes.JSONArrowType(), support for pa.json_(pa.string())
+    # will be added once the ArrowDtype supports this extension type in pandas 3.0.0.
+    # See: https://github.com/pandas-dev/pandas/pull/61103
     bpd.Series(json_data, dtype=pd.ArrowDtype(db_dtypes.JSONArrowType()))
     # 0                               1
     # 1                           "str"
