@@ -87,8 +87,8 @@ extras = {
         "google-cloud-testutils",
     ],
     # install anywidget for SQL
-    "anysidget": [
-        "interactive_table_widget",
+    "anywidget": [
+        "anywidget>=0.9.18",
     ],
 }
 extras["all"] = list(sorted(frozenset(itertools.chain.from_iterable(extras.values()))))
