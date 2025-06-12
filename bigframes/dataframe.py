@@ -791,7 +791,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
             # Instantiate and return the widget. The widget's frontend will
             # handle the display of the table and pagination
-            return AnyWidget(dataframe=first_page)._repr_html_()
+            return AnyWidget(dataframe=first_page)
 
         self._cached()
         df = self.copy()
