@@ -17,6 +17,7 @@
 import numpy
 import pandas
 import pandas.testing
+import pytest
 
 
 def test_read_gbq_colab_to_pandas_batches_preserves_order_by(maybe_ordered_session):
@@ -141,6 +142,9 @@ def test_read_gbq_colab_includes_formatted_scalars(session):
     )
 
 
+@pytest.mark.skipif(
+    pandas.__version__.startswith("1."), reason="bad left join in pandas 1.x"
+)
 def test_read_gbq_colab_includes_formatted_dataframes(
     session, scalars_df_index, scalars_pandas_df_index
 ):
