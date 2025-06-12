@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
 
-from bigframes.operations import base_ops
-import bigframes.operations.type as op_typing
+import bigframes
 
-AndOp = base_ops.create_binary_op(name="and", type_signature=op_typing.LOGICAL)
-and_op = AndOp()
+pytest.importorskip("pytest_snapshot")
 
-OrOp = base_ops.create_binary_op(name="or", type_signature=op_typing.LOGICAL)
-or_op = OrOp()
 
-XorOp = base_ops.create_binary_op(name="xor", type_signature=op_typing.LOGICAL)
-xor_op = XorOp()
+def test_compile_readtable(compiler_session: bigframes.Session, snapshot):
+    bf_df = compiler_session.read_gbq_table("test-project.test_dataset.test_table")
+    snapshot.assert_match(bf_df.sql, "out.sql")
