@@ -1,9 +1,9 @@
-BigQuery DataFrames (bigframes)
+BigQuery DataFrames (BigFrames)
 ===============================
 
 |GA| |pypi| |versions|
 
-BigQuery DataFrames (also known as bigframes) provides a Pythonic DataFrame
+BigQuery DataFrames (also known as BigFrames) provides a Pythonic DataFrame
 and machine learning (ML) API powered by the BigQuery engine.
 
 * ``bigframes.pandas`` provides a pandas-compatible API for analytics.
@@ -51,7 +51,7 @@ Documentation
 
 To learn more about BigQuery DataFrames, visit these pages
 
-* `Introduction to BigQuery DataFrames (bigframes) <https://cloud.google.com/bigquery/docs/bigquery-dataframes-introduction>`_
+* `Introduction to BigQuery DataFrames (BigFrames) <https://cloud.google.com/bigquery/docs/bigquery-dataframes-introduction>`_
 * `Sample notebooks <https://github.com/googleapis/python-bigquery-dataframes/tree/main/notebooks>`_
 * `API reference <https://cloud.google.com/python/docs/reference/bigframes/latest/summary_overview>`_
 * `Source code (GitHub) <https://github.com/googleapis/python-bigquery-dataframes>`_
