@@ -21,12 +21,13 @@ from __future__ import annotations
 
 import string
 import typing
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import google.cloud.bigquery
-import google.cloud.bigquery.table
 import pandas
 
+import bigframes.core.local_data
+from bigframes.core.tools import bigquery_schema
 import bigframes.session
 
 _BQ_TABLE_TYPES = Union[
@@ -40,11 +41,38 @@ def _table_to_sql(table: _BQ_TABLE_TYPES) -> str:
     return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
 
 
+def _pandas_df_to_sql_dry_run(pd_df: pandas.DataFrame) -> str:
+    managed_table = bigframes.core.local_data.ManagedArrowTable.from_pandas(pd_df)
+    bqschema = managed_table.schema.to_bigquery()
+    return bigquery_schema.to_sql_dry_run(bqschema)
+
+
+def _pandas_df_to_sql(
+    df_pd: pandas.DataFrame,
+    *,
+    session: Optional[bigframes.session.Session] = None,
+    dry_run: bool = False,
+) -> str:
+    if session is None:
+        if not dry_run:
+            message = (
+                "Can't embed a pandas DataFrame in a SQL string without a "
+                "bigframes session except if for a dry run."
+            )
+            raise ValueError(message)
+
+        return _pandas_df_to_sql_dry_run(df_pd)
+
+    # Use the _deferred engine to avoid loading data too often during dry run.
+    df = session.read_pandas(df_pd, write_engine="_deferred")
+    return _table_to_sql(df._to_view(dry_run=dry_run))
+
+
 def _field_to_template_value(
     name: str,
     value: Any,
     *,
-    session: bigframes.session.Session,
+    session: Optional[bigframes.session.Session] = None,
     dry_run: bool = False,
 ) -> str:
     """Convert value to something embeddable in a SQL string."""
@@ -58,9 +86,7 @@ def _field_to_template_value(
         return _table_to_sql(value)
 
     if isinstance(value, pandas.DataFrame):
-        # Use the _deferred engine to avoid loading data too often during dry run.
-        df = session.read_pandas(value, write_engine="_deferred")
-        return _table_to_sql(df._to_view(dry_run=dry_run))
+        return _pandas_df_to_sql(value, session=session, dry_run=dry_run)
 
     if isinstance(value, bigframes.dataframe.DataFrame):
         return _table_to_sql(value._to_view(dry_run=dry_run))
@@ -102,7 +128,7 @@ def pyformat(
     sql_template: str,
     *,
     pyformat_args: dict,
-    session: bigframes.session.Session,
+    session: Optional[bigframes.session.Session] = None,
     dry_run: bool = False,
 ) -> str:
     """Unsafe Python-style string formatting of SQL string.

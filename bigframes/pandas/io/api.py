@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import functools
 import inspect
 import threading
 import typing
@@ -263,11 +264,13 @@ def _read_gbq_colab(
     if pyformat_args is None:
         pyformat_args = {}
 
-    query = bigframes.core.pyformat.pyformat(
+    create_query = functools.partial(
+        bigframes.core.pyformat.pyformat,
         query_or_table,
         pyformat_args=pyformat_args,
+        dry_run=True,
     )
-    _set_default_session_location_if_possible(query)
+    _set_default_session_location_if_possible_deferred_query(create_query)
 
     return global_session.with_default_session(
         bigframes.session.Session._read_gbq_colab,
@@ -531,6 +534,10 @@ _default_location_lock = threading.Lock()
 
 
 def _set_default_session_location_if_possible(query):
+    _set_default_session_location_if_possible_deferred_query(lambda: query)
+
+
+def _set_default_session_location_if_possible_deferred_query(create_query):
     # Set the location as per the query if this is the first query the user is
     # running and:
     # (1) Default session has not started yet, and
@@ -561,6 +568,8 @@ def _set_default_session_location_if_possible(query):
         )
 
         bqclient = clients_provider.bqclient
+
+        query = create_query()
 
         if bigframes.session._io.bigquery.is_query(query):
             # Intentionally run outside of the session so that we can detect the
