@@ -19,7 +19,9 @@ import bigframes.pandas.io.api as bf_io_api
 import bigframes.session
 
 
-@mock.patch("bigframes.pandas.io.api._set_default_session_location_if_possible")
+@mock.patch(
+    "bigframes.pandas.io.api._set_default_session_location_if_possible_deferred_query"
+)
 @mock.patch("bigframes.core.global_session.with_default_session")
 def test_read_gbq_colab_calls_set_location(
     mock_with_default_session, mock_set_location
@@ -36,7 +38,9 @@ def test_read_gbq_colab_calls_set_location(
 
     # Make sure that we format the SQL first to prevent syntax errors.
     formatted_query = "SELECT 'value1' AS param1"
-    mock_set_location.assert_called_once_with(formatted_query)
+    mock_set_location.assert_called_once()
+    args, _ = mock_set_location.call_args
+    assert formatted_query == args[0]()
     mock_with_default_session.assert_called_once()
 
     # Check the actual arguments passed to with_default_session
