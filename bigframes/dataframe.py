@@ -40,12 +40,12 @@ from typing import (
 )
 import warnings
 
+import anywidget  # type: ignore
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
-from interactive_table_widget import Widget
 import numpy
 import pandas
 from pandas.api import extensions as pd_ext
@@ -729,6 +729,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
+        if opts.repr_mode == "anywidget":
+            preview_df = self.head(max_results).to_pandas()
+            return repr(preview_df)
+
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -787,9 +791,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
             # Instantiate and return the widget. The widget's frontend will
             # handle the display of the table and pagination
-            return Widget(dataframe=first_page)._repr_html_()
-        self._cached()
+            return anywidget(dataframe=first_page)._repr_html_()
 
+        self._cached()
         df = self.copy()
         if bigframes.options.display.blob_display:
             blob_cols = [
