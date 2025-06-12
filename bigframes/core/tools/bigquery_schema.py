@@ -45,4 +45,4 @@ def _to_struct(bqschema: Tuple[google.cloud.bigquery.SchemaField, ...]):
 
 def to_sql_dry_run(bqschema: Tuple[google.cloud.bigquery.SchemaField, ...]):
     """Create an empty table expression with the correct schema."""
-    return f"UNNEST(ARRAY<{_to_struct(bqschema)}>[]))"
+    return f"UNNEST(ARRAY<{_to_struct(bqschema)}>[])"

@@ -19,10 +19,12 @@
 
 from __future__ import annotations
 
+import decimal
 from typing import Any, Dict, List
 
 import google.cloud.bigquery
 import google.cloud.bigquery.table
+import pandas
 import pytest
 
 from bigframes.core import pyformat
@@ -76,6 +78,84 @@ def test_pyformat_with_no_variables(session):
     expected_sql = "SELECT '{escaped curly brackets}'"
     got_sql = pyformat.pyformat(sql, pyformat_args=pyformat_args, session=session)
     assert got_sql == expected_sql
+
+
+@pytest.mark.parametrize(
+    ("df_pd", "expected_struct"),
+    (
+        pytest.param(
+            pandas.DataFrame(),
+            "STRUCT<>",
+            id="empty",
+        ),
+        pytest.param(
+            # Empty columns default to floating point, just like pandas.
+            pandas.DataFrame({"empty column": []}),
+            "STRUCT<`empty column` FLOAT>",
+            id="empty column",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "col1": [1, 2, 3],
+                    "col2": ["a", "b", "c"],
+                    "col3": [
+                        decimal.Decimal(1),
+                        decimal.Decimal(2),
+                        decimal.Decimal(3),
+                    ],
+                }
+            ),
+            "STRUCT<`col1` INTEGER, `col2` STRING, `col3` NUMERIC>",
+            id="scalars",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {"array col": [[1, 2, 3]], "another array": [["a", "b", "c"]]}
+            ),
+            "STRUCT<`array col` ARRAY<INTEGER>, `another array` ARRAY<STRING>>",
+            id="arrays",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "struct col": [
+                        {"subfield": {"subsubfield": 1}, "subfield2": 2},
+                    ],
+                }
+            ),
+            "STRUCT<`struct col` STRUCT<`subfield` STRUCT<`subsubfield` INTEGER>, `subfield2` INTEGER>>",
+            id="structs",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "array of struct col": [
+                        [{"subfield": {"subsubfield": 1}, "subfield2": 2}],
+                    ],
+                }
+            ),
+            "STRUCT<`array of struct col` ARRAY<STRUCT<`subfield` STRUCT<`subsubfield` INTEGER>, `subfield2` INTEGER>>>",
+            id="array_of_structs",
+        ),
+    ),
+)
+def test_pyformat_with_pandas_dataframe_dry_run_no_session(df_pd, expected_struct):
+    pyformat_args: Dict[str, Any] = {"my_pandas_df": df_pd}
+    sql = "SELECT * FROM {my_pandas_df}"
+    expected_sql = f"SELECT * FROM UNNEST(ARRAY<{expected_struct}>[])"
+    got_sql = pyformat.pyformat(
+        sql, pyformat_args=pyformat_args, dry_run=True, session=None
+    )
+    assert got_sql == expected_sql
+
+
+def test_pyformat_with_pandas_dataframe_not_dry_run_no_session_raises_valueerror():
+    pyformat_args: Dict[str, Any] = {"my_pandas_df": pandas.DataFrame()}
+    sql = "SELECT * FROM {my_pandas_df}"
+
+    with pytest.raises(ValueError, match="my_pandas_df"):
+        pyformat.pyformat(sql, pyformat_args=pyformat_args)
 
 
 def test_pyformat_with_query_string_replaces_variables(session):

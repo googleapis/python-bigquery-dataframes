@@ -50,14 +50,15 @@ def _pandas_df_to_sql_dry_run(pd_df: pandas.DataFrame) -> str:
 def _pandas_df_to_sql(
     df_pd: pandas.DataFrame,
     *,
+    name: str,
     session: Optional[bigframes.session.Session] = None,
     dry_run: bool = False,
 ) -> str:
     if session is None:
         if not dry_run:
             message = (
-                "Can't embed a pandas DataFrame in a SQL string without a "
-                "bigframes session except if for a dry run."
+                f"Can't embed pandas DataFrame {name} in a SQL "
+                "string without a bigframes session except if for a dry run."
             )
             raise ValueError(message)
 
@@ -86,7 +87,7 @@ def _field_to_template_value(
         return _table_to_sql(value)
 
     if isinstance(value, pandas.DataFrame):
-        return _pandas_df_to_sql(value, session=session, dry_run=dry_run)
+        return _pandas_df_to_sql(value, session=session, dry_run=dry_run, name=name)
 
     if isinstance(value, bigframes.dataframe.DataFrame):
         return _table_to_sql(value._to_view(dry_run=dry_run))
