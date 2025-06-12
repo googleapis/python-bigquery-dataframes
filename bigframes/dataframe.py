@@ -40,7 +40,7 @@ from typing import (
 )
 import warnings
 
-import anywidget  # type: ignore
+from anywidget import AnyWidget  # type: ignore
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
@@ -785,13 +785,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
             # get the first page result
             try:
-                first_page = next(batches)
+                first_page = next(iter(batches))
             except StopIteration:
                 first_page = pandas.DataFrame(columns=self.columns)
 
             # Instantiate and return the widget. The widget's frontend will
             # handle the display of the table and pagination
-            return anywidget(dataframe=first_page)._repr_html_()
+            return AnyWidget(dataframe=first_page)._repr_html_()
 
         self._cached()
         df = self.copy()
