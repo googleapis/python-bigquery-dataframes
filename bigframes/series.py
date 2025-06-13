@@ -433,6 +433,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
+        # For anywidget mode, display a preview of the Series to avoid executing
+        # a potentially large query
+        if opts.repr_mode == "anywidget":
+            preview_series = self[:max_results].to_pandas()
+            return repr(preview_series)
+
         self._cached()
         pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
         self._set_internal_query_job(query_job)

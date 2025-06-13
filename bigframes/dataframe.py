@@ -40,6 +40,7 @@ from typing import (
 )
 import warnings
 
+from anywidget import AnyWidget  # type: ignore
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
@@ -739,6 +740,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
+        if opts.repr_mode == "anywidget":
+            # for plain text represtation, display a preview of the first few
+            # rows as a pandas Dataframe
+            preview_df = self.head(max_results).to_pandas()
+            return repr(preview_df)
+
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -785,6 +792,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
+        if opts.repr_mode == "anywidget":
+            # create an iterator for the data batches
+            batches = self.to_pandas_batches()
+
+            # get the first page result
+            try:
+                first_page = next(iter(batches))
+            except StopIteration:
+                first_page = pandas.DataFrame(columns=self.columns)
+
+            # Instantiate and return the widget. The widget's frontend will
+            # handle the display of the table and pagination
+            return AnyWidget(dataframe=first_page)
+
+        self._cached()
         df = self.copy()
         if bigframes.options.display.blob_display:
             blob_cols = [

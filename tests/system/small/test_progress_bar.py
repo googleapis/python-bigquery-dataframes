@@ -164,3 +164,27 @@ def test_query_job_dry_run_series(penguins_df_default_index: bf.dataframe.DataFr
     with bf.option_context("display.repr_mode", "deferred"):
         series_result = repr(penguins_df_default_index["body_mass_g"])
         assert EXPECTED_DRY_RUN_MESSAGE in series_result
+
+
+def test_repr_anywidget_dataframe(penguins_df_default_index: bf.dataframe.DataFrame):
+    with bf.option_context("display.repr_mode", "anywidget"):
+        actual_repr = repr(penguins_df_default_index)
+
+        opts = bf.options.display
+        max_rows = opts.max_rows
+        expected_repr = repr(penguins_df_default_index.head(max_rows).to_pandas())
+
+        assert actual_repr == expected_repr
+
+
+def test_repr_anywidget_idex(penguins_df_default_index: bf.dataframe.DataFrame):
+    with bf.option_context("display.repr_mode", "anywidget"):
+        index = penguins_df_default_index.index
+        actual_repr = repr(index)
+
+        opts = bf.options.display
+        max_rows = opts.max_rows
+        expected_pd = penguins_df_default_index.head(max_rows).to_pandas()
+        expected_repr = repr(expected_pd.index)
+
+        assert actual_repr == expected_repr
