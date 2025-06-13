@@ -382,6 +382,7 @@ def json_value_array(
     """
     Extracts a JSON array of scalar values and converts it to a SQL ``ARRAY<STRING>``
     value. In addition, this function:
+
     - Removes the outermost quotes and unescapes the values.
     - Returns a SQL ``NULL`` if the selected value isn't an array or not an array
       containing only scalar values.
