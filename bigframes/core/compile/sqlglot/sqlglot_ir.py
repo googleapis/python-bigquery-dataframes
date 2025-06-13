@@ -149,6 +149,30 @@ class SQLGlotIR:
         select_expr.set("with", sge.With(expressions=[cte]))
         return cls(expr=select_expr, uid_gen=uid_gen)
 
+    @classmethod
+    def from_union(
+        cls,
+        selects: typing.Sequence[sge.Select],
+        output_ids: typing.Sequence[str],
+        uid_gen: guid.SequentialUIDGenerator,
+    ) -> SQLGlotIR:
+        """Builds SQLGlot expression by union of multiple select expressions."""
+        selections = [
+            sge.Alias(
+                this=sge.to_identifier(id, quoted=cls.quoted),
+                alias=sge.to_identifier(id, quoted=cls.quoted),
+            )
+            for id in output_ids
+        ]
+
+        union_expr = sg.union(
+            *selects,
+            distinct=False,
+            copy=False,
+        )
+        select_expr = sge.Select().select(*selections).from_(union_expr)
+        return cls(expr=select_expr, uid_gen=uid_gen)
+
     def select(
         self,
         selected_cols: tuple[tuple[str, sge.Expression], ...],
