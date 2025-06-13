@@ -14,12 +14,30 @@
 from __future__ import annotations
 
 import functools
+import typing
 
 import sqlglot.expressions as sge
 
-from bigframes.core import expression
+from bigframes.core import expression, field
+from bigframes.core import identifiers as ids
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.operations as ops
+
+
+def compile_deref_op(
+    expr: expression.DerefOp, field_by_id: typing.Mapping[ids.ColumnId, field.Field]
+):
+    """Compiles DerefOp expression after resolving its dtype.
+
+    This is not part of the overloaded "compile_scalar_expression" function because deref expressions lack
+    type and nullability information.
+    """
+
+    bindings = {
+        id: expression.SchemaFieldRefExpression(field)
+        for id, field in field_by_id.items()
+    }
+    return compile_scalar_expression(expr.bind_refs(bindings))
 
 
 @functools.singledispatch
@@ -28,11 +46,6 @@ def compile_scalar_expression(
 ) -> sge.Expression:
     """Compiles BigFrames scalar expression into SQLGlot expression."""
     raise ValueError(f"Can't compile unrecognized node: {expression}")
-
-
-@compile_scalar_expression.register
-def compile_deref_expression(expr: expression.DerefOp) -> sge.Expression:
-    return sge.ColumnDef(this=sge.to_identifier(expr.id.sql, quoted=True))
 
 
 @compile_scalar_expression.register
