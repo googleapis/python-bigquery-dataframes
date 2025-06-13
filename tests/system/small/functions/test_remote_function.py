@@ -717,7 +717,7 @@ def test_read_gbq_function_like_original(
 
     assert square2.bigframes_remote_function
     assert square2.bigframes_bigquery_function
-    assert not hasattr(square2, "bigframes_cloud_function")
+    assert square2.bigframes_cloud_function is None
 
     # They should point to the same function.
     assert square1.bigframes_remote_function == square2.bigframes_remote_function  # type: ignore

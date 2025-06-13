@@ -110,7 +110,7 @@ def test_managed_function_series_apply(session, dataset_id, scalars_dfs):
             function_name=foo.bigframes_bigquery_function,  # type: ignore
         )
         assert hasattr(foo_ref, "bigframes_bigquery_function")
-        assert not hasattr(foo_ref, "bigframes_remote_function")
+        assert foo_ref.bigframes_remote_function is None
         assert foo.bigframes_bigquery_function == foo_ref.bigframes_bigquery_function  # type: ignore
 
         bf_result_col_gbq = scalars_df["int64_too"].apply(foo_ref)
@@ -260,7 +260,7 @@ def test_managed_function_series_combine_array_output(session, dataset_id, scala
         )
 
         assert hasattr(add_list_managed_func_ref, "bigframes_bigquery_function")
-        assert add_list_managed_func_ref.igframes_remote_function is None
+        assert add_list_managed_func_ref.bigframes_remote_function is None
         assert (
             add_list_managed_func_ref.bigframes_bigquery_function
             == add_list_managed_func.bigframes_bigquery_function

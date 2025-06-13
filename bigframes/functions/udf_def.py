@@ -111,7 +111,7 @@ class UdfSignature:
                 udf_fields.append(UdfField.from_sdk(argument))
 
         return cls(
-            input_types=tuple(map(UdfField.from_sdk, routine.arguments)),
+            input_types=tuple(udf_fields),
             output_bq_type=bq_return_type,
         )
 

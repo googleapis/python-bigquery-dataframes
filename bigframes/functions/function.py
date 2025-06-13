@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable, get_origin, Optional, TYPE_CHECKING
+from typing import Callable, cast, get_origin, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from bigframes.session import Session
@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 import google.api_core.exceptions
 from google.cloud import bigquery
 
-import bigframes.dtypes
 import bigframes.formatting_helpers as bf_formatting
 from bigframes.functions import _function_session as bff_session
 from bigframes.functions import _utils, function_typing, udf_def
@@ -132,6 +131,13 @@ def _get_output_type_override(routine: bigquery.Routine) -> Optional[type[list]]
         if python_output_type := _utils.get_python_output_type_from_bigframes_metadata(
             routine.description
         ):
+            bq_return_type = cast(bigquery.StandardSqlDataType, routine.return_type)
+
+            if bq_return_type is None or bq_return_type.type_kind != "STRING":
+                raise bf_formatting.create_exception_with_feedback_link(
+                    TypeError,
+                    "An explicit output_type should be provided only for a BigQuery function with STRING output.",
+                )
             if get_origin(python_output_type) is list:
                 return python_output_type
             else:
