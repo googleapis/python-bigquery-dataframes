@@ -196,7 +196,7 @@ class SQLGlotCompiler:
     ) -> ir.SQLGlotIR:
         output_ids = [id.sql for id in node.output_ids]
         return ir.SQLGlotIR.from_union(
-            children,
+            [child.expr for child in children],
             output_ids=output_ids,
             uid_gen=self.uid_gen,
         )

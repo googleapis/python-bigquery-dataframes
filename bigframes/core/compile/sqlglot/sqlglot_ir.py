@@ -157,21 +157,48 @@ class SQLGlotIR:
         uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Builds SQLGlot expression by union of multiple select expressions."""
-        selections = [
-            sge.Alias(
-                this=sge.to_identifier(id, quoted=cls.quoted),
-                alias=sge.to_identifier(id, quoted=cls.quoted),
+        assert (
+            len(list(selects)) >= 2
+        ), f"At least two select expressions must be provided, but got {selects}."
+
+        existing_ctes: list[sge.CTE] = []
+        union_selects: list[sge.Select] = []
+        for select in selects:
+            assert isinstance(
+                select, sge.Select
+            ), f"All provided expressions must be of type sge.Select, but got {type(select)}"
+
+            select_expr = select.copy()
+            existing_ctes = [*existing_ctes, *select_expr.args.pop("with", [])]
+
+            new_cte_name = sge.to_identifier(
+                next(uid_gen.get_uid_stream("bfcte_")), quoted=cls.quoted
             )
-            for id in output_ids
-        ]
+            new_cte = sge.CTE(
+                this=select_expr,
+                alias=new_cte_name,
+            )
+            existing_ctes = [*existing_ctes, new_cte]
+
+            selections = [
+                sge.Alias(
+                    this=expr.alias_or_name,
+                    alias=sge.to_identifier(output_id, quoted=cls.quoted),
+                )
+                for expr, output_id in zip(select_expr.expressions, output_ids)
+            ]
+            union_selects.append(
+                sge.Select().select(*selections).from_(sge.Table(this=new_cte_name))
+            )
 
         union_expr = sg.union(
-            *selects,
+            *union_selects,
             distinct=False,
             copy=False,
         )
-        select_expr = sge.Select().select(*selections).from_(union_expr)
-        return cls(expr=select_expr, uid_gen=uid_gen)
+        final_select_expr = sge.Select().select(sge.Star()).from_(union_expr.subquery())
+        final_select_expr.set("with", sge.With(expressions=existing_ctes))
+        return cls(expr=final_select_expr, uid_gen=uid_gen)
 
     def select(
         self,
@@ -205,7 +232,7 @@ class SQLGlotIR:
             )
             for id, expr in projected_cols
         ]
-        new_expr = self._encapsulate_as_cte().select(*projected_cols_expr, append=False)
+        new_expr = self._encapsulate_as_cte().select(*projected_cols_expr, append=True)
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def insert(
