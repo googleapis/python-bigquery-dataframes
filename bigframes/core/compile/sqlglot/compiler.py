@@ -167,6 +167,7 @@ class SQLGlotCompiler:
             table.table_id,
             col_names=[col.source_id for col in node.scan_list.items],
             alias_names=[col.id.sql for col in node.scan_list.items],
+            uid_gen=self.uid_gen,
         )
 
     @_compile_node.register
@@ -188,6 +189,13 @@ class SQLGlotCompiler:
             for expr, id in node.assignments
         )
         return child.project(projected_cols)
+
+    @_compile_node.register
+    def compile_filter(
+        self, node: nodes.FilterNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        condition = scalar_compiler.compile_scalar_expression(node.predicate)
+        return child.filter(condition)
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):

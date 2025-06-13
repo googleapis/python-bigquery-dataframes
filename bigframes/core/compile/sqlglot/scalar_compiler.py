@@ -84,3 +84,9 @@ def compile_addop(
 ) -> sge.Expression:
     # TODO: support addop for string dtype.
     return sge.Add(this=left, expression=right)
+
+
+def compile_ge(
+    op: ops.ge_op, left: sge.Expression, right: sge.Expression  # type: ignore[valid-type]
+) -> sge.Expression:
+    return sge.GTE(this=left, expression=right)
