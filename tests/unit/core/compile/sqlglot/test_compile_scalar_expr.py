@@ -27,5 +27,5 @@ def test_compile_numerical_add(compiler_session: bigframes.Session, snapshot):
 
 def test_compile_string_add(compiler_session: bigframes.Session, snapshot):
     bf_df = compiler_session.read_gbq_table("test-project.test_dataset.test_table")
-    bf_df["string_col"] = bf_df["string_col"] + 'a'
+    bf_df["string_col"] = bf_df["string_col"] + "a"
     snapshot.assert_match(bf_df.sql, "out.sql")

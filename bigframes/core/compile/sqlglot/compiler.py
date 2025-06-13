@@ -119,6 +119,7 @@ class SQLGlotCompiler:
         return typing.cast(nodes.ResultNode, result_node)
 
     def _compile_result_node(self, root: nodes.ResultNode) -> str:
+        # Have to bind schema as the final step before compilation.
         root = typing.cast(nodes.ResultNode, schema_binding.bind_schema_to_tree(root))
         selected_cols: tuple[tuple[str, sge.Expression], ...] = tuple(
             (name, scalar_compiler.compile_scalar_expression(ref))

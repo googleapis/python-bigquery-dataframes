@@ -18,6 +18,7 @@ from bigframes.core import bigframe_node
 from bigframes.core import expression as ex
 from bigframes.core import nodes
 
+
 def bind_schema_to_tree(
     node: bigframe_node.BigFrameNode,
 ) -> bigframe_node.BigFrameNode:

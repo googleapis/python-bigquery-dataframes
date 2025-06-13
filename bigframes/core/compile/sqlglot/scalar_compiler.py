@@ -96,6 +96,6 @@ def compile_addop(op: ops.AddOp, left: TypedExpr, right: TypedExpr) -> sge.Expre
     if left.dtype == dtypes.STRING_DTYPE and right.dtype == dtypes.STRING_DTYPE:
         # String addition
         return sge.Concat(expressions=[left.expr, right.expr])
-    
+
     # Numerical addition
     return sge.Add(this=left.expr, expression=right.expr)
