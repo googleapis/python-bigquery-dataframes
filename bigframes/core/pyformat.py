@@ -26,6 +26,7 @@ from typing import Any, Optional, Union
 import google.cloud.bigquery
 import pandas
 
+from bigframes.core import utils
 import bigframes.core.local_data
 from bigframes.core.tools import bigquery_schema
 import bigframes.session
@@ -42,7 +43,18 @@ def _table_to_sql(table: _BQ_TABLE_TYPES) -> str:
 
 
 def _pandas_df_to_sql_dry_run(pd_df: pandas.DataFrame) -> str:
-    managed_table = bigframes.core.local_data.ManagedArrowTable.from_pandas(pd_df)
+    # Ensure there are no duplicate column labels.
+    #
+    # Please make sure this stays in sync with the logic used to_gbq(). See
+    # bigframes.dataframe.DataFrame._prepare_export().
+    new_col_labels, new_idx_labels = utils.get_standardized_ids(
+        pd_df.columns, pd_df.index.names
+    )
+    pd_copy = pd_df.copy()
+    pd_copy.columns = pandas.Index(new_col_labels)
+    pd_copy.index.names = new_idx_labels
+
+    managed_table = bigframes.core.local_data.ManagedArrowTable.from_pandas(pd_copy)
     bqschema = managed_table.schema.to_bigquery()
     return bigquery_schema.to_sql_dry_run(bqschema)
 

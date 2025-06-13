@@ -138,6 +138,13 @@ def test_pyformat_with_no_variables(session):
             "STRUCT<`array of struct col` ARRAY<STRUCT<`subfield` STRUCT<`subsubfield` INTEGER>, `subfield2` INTEGER>>>",
             id="array_of_structs",
         ),
+        pytest.param(
+            pandas.DataFrame({"c1": [1, 2, 3], "c2": ["a", "b", "c"]}).rename(
+                columns={"c1": "c", "c2": "c"}
+            ),
+            "STRUCT<`c` INTEGER, `c_1` STRING>",
+            id="duplicate_column_names",
+        ),
     ),
 )
 def test_pyformat_with_pandas_dataframe_dry_run_no_session(df_pd, expected_struct):

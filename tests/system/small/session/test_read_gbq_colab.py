@@ -232,3 +232,73 @@ def test_read_gbq_colab_includes_formatted_dataframes(
         expected,
         check_index_type=False,  # int64 vs Int64
     )
+
+
+@pytest.mark.parametrize(
+    ("pd_df",),
+    (
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "rowindex": [0, 1, 2, 3, 4, 5],
+                    "value": [0, 100, 200, 300, 400, 500],
+                    "value2": [-1, -2, -3, -4, -5, -6],
+                }
+            ),
+            id="inline-df",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    # Make sure we test with some data that is too large to
+                    # inline as SQL.
+                    "rowindex": numpy.arange(100_000),
+                    "value": numpy.arange(100_000),
+                    "value2": numpy.arange(100_000),
+                }
+            ),
+            id="large-df",
+        ),
+    ),
+)
+def test_read_gbq_colab_with_formatted_dataframe_deduplicates_column_names_just_like_to_gbq(
+    session,
+    pd_df,
+):
+    # Create duplicate column names.
+    pd_df.columns = ["rowindex", "value", "value"]
+
+    pyformat_args = {
+        "pd_df": pd_df,
+    }
+    sql = """
+    SELECT rowindex, value, value_1
+    FROM {pd_df}
+    """
+
+    # Do the dry run first so that we don't re-use the uploaded data from the
+    # real query.
+    dry_run_output = session._read_gbq_colab(
+        sql,
+        pyformat_args=pyformat_args,
+        dry_run=True,
+    )
+
+    df = session._read_gbq_colab(
+        sql,
+        pyformat_args=pyformat_args,
+    )
+
+    # Confirm that dry_run was accurate.
+    pandas.testing.assert_series_equal(
+        pandas.Series(dry_run_output["columnDtypes"]),
+        df.dtypes,
+    )
+
+    # Make sure the query doesn't fail.
+    df.to_pandas_batches()
+
+    # Make sure the
+    table_id = session.read_pandas(pd_df).to_gbq()
+    table = session.bqclient.get_table(table_id)
+    assert [field.name for field in table.schema] == ["rowindex", "value", "value_1"]
