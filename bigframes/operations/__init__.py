@@ -81,11 +81,9 @@ from bigframes.operations.generic_ops import (
     hash_op,
     invert_op,
     IsInOp,
-    isnull_op,
     MapOp,
     maximum_op,
     minimum_op,
-    notnull_op,
     RowKey,
     SqlScalarOp,
     where_op,
@@ -104,6 +102,7 @@ from bigframes.operations.geo_ops import (
     GeoStDistanceOp,
     GeoStLengthOp,
 )
+from bigframes.operations.isnull_op import isnull_op, notnull_op
 from bigframes.operations.json_ops import (
     JSONExtract,
     JSONExtractArray,

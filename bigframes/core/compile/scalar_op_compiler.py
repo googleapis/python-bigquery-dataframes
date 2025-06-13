@@ -228,18 +228,23 @@ class ScalarOpCompiler:
 # Singleton compiler
 scalar_op_compiler = ScalarOpCompiler()
 
+# Registrations for operations defined in isnull_op.py
+from bigframes.operations import isnull_op, notnull_op
+from bigframes.operations.isnull_op import (
+    _ibis_isnull_op_impl,
+    _ibis_notnull_op_impl,
+)
+
+@scalar_op_compiler.register_unary_op(isnull_op)
+def _scalar_isnull_op_impl_wrapper(x: ibis_types.Value):
+    return _ibis_isnull_op_impl(x)
+
+@scalar_op_compiler.register_unary_op(notnull_op)
+def _scalar_notnull_op_impl_wrapper(x: ibis_types.Value):
+    return _ibis_notnull_op_impl(x)
+
 
 ### Unary Ops
-@scalar_op_compiler.register_unary_op(ops.isnull_op)
-def isnull_op_impl(x: ibis_types.Value):
-    return x.isnull()
-
-
-@scalar_op_compiler.register_unary_op(ops.notnull_op)
-def notnull_op_impl(x: ibis_types.Value):
-    return x.notnull()
-
-
 @scalar_op_compiler.register_unary_op(ops.hash_op)
 def hash_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.IntegerValue, x).hash()
