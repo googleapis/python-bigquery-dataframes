@@ -730,6 +730,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return formatter.repr_query_job(self._compute_dry_run())
 
         if opts.repr_mode == "anywidget":
+            # for plain text represtation, display a preview of the first few
+            # rows as a pandas Dataframe
             preview_df = self.head(max_results).to_pandas()
             return repr(preview_df)
 

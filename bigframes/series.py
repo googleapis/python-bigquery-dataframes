@@ -433,11 +433,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        # add a widget mode for plain text representation: shows the head of
-        # the series as a pandas series to avoid executing a large query for a
-        # simple printout.
+        # For anywidget mode, display a preview of the Series to avoid executing
+        # a potentially large query
         if opts.repr_mode == "anywidget":
-            preview_series = self.head(max_results).to_pandas()
+            preview_series = self[:max_results].to_pandas()
             return repr(preview_series)
 
         self._cached()
