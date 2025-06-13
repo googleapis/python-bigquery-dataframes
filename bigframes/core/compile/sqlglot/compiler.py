@@ -119,13 +119,12 @@ class SQLGlotCompiler:
         return typing.cast(nodes.ResultNode, result_node)
 
     def _compile_result_node(self, root: nodes.ResultNode) -> str:
-        sqlglot_ir = self.compile_node(root.child)
-
+        root = typing.cast(nodes.ResultNode, schema_binding.bind_schema_to_tree(root))
         selected_cols: tuple[tuple[str, sge.Expression], ...] = tuple(
             (name, scalar_compiler.compile_scalar_expression(ref))
             for ref, name in root.output_cols
         )
-        sqlglot_ir = sqlglot_ir.select(selected_cols)
+        sqlglot_ir = self.compile_node(root.child).select(selected_cols)
 
         # TODO: add order_by, limit to sqlglot_expr
         return sqlglot_ir.sql
@@ -193,6 +192,5 @@ class SQLGlotCompiler:
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
     node = nodes.bottom_up(node, rewrite.rewrite_slice)
-    node = nodes.bottom_up(node, schema_binding.bind_schema_to_expressions)
     node = nodes.bottom_up(node, rewrite.rewrite_range_rolling)
     return node
