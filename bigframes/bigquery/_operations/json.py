@@ -196,6 +196,10 @@ def json_extract_string_array(
     values in the array. This function uses single quotes and brackets to escape
     invalid JSONPath characters in JSON keys.
 
+    .. deprecated:: 2.6.0
+        The ``json_extract_string_array`` is deprecated and will be removed in a future version.
+        Use ``json_value_array`` instead.
+
     **Examples:**
 
         >>> import bigframes.pandas as bpd
@@ -233,6 +237,11 @@ def json_extract_string_array(
     Returns:
         bigframes.series.Series: A new Series with the parsed arrays from the input.
     """
+    msg = (
+        "The `json_extract_string_array` is deprecated and will be removed in a future version. "
+        "Use `json_value_array` instead."
+    )
+    warnings.warn(bfe.format_message(msg), category=UserWarning)
     array_series = input._apply_unary_op(
         ops.JSONExtractStringArray(json_path=json_path)
     )

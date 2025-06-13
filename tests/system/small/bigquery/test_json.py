@@ -214,6 +214,85 @@ def test_json_extract_string_array_w_invalid_series_type():
         bbq.json_extract_string_array(s)
 
 
+def test_json_value_array_from_json_strings():
+    s = bpd.Series(['{"a": ["ab", "2", "3 xy"]}', '{"a": []}', '{"a": ["4","5"]}'])
+    actual = bbq.json_value_array(s, "$.a")
+    expected_data = [["ab", "2", "3 xy"], [], ["4", "5"]]
+    # Expected dtype after JSON_VALUE_ARRAY is ARRAY<STRING>
+    expected = bpd.Series(expected_data, dtype=pd.ArrowDtype(pa.list_(pa.string())))
+    pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas(), check_index_type=False, check_names=False, check_dtype=False)
+
+def test_json_value_array_from_array_strings():
+    s = bpd.Series(["[1, 2, 3]", "[]", "[4,5]"])
+    actual = bbq.json_value_array(s)
+    expected_data = [["1", "2", "3"], [], ["4", "5"]]
+    expected = bpd.Series(expected_data, dtype=pd.ArrowDtype(pa.list_(pa.string())))
+    pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas(), check_index_type=False, check_names=False, check_dtype=False)
+
+def test_json_value_array_as_float_array_from_array_strings():
+    s = bpd.Series(["[1, 2.5, 3]", "[]", "[4,5.0]"])
+    actual = bbq.json_value_array(s, value_dtype=dtypes.FLOAT_DTYPE)
+    expected_data = [[1.0, 2.5, 3.0], [], [4.0, 5.0]]
+    expected = bpd.Series(expected_data, dtype=pd.ArrowDtype(pa.list_(pa.float64())))
+    pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas(), check_index_type=False, check_names=False, check_dtype=False, rtol=1e-5)
+
+def test_json_value_array_as_int_array_from_array_strings():
+    s = bpd.Series(["[1, 2, 3]", "[]", "[4,5]"])
+    actual = bbq.json_value_array(s, value_dtype=dtypes.INT_DTYPE)
+    expected_data = [[1, 2, 3], [], [4, 5]]
+    expected = bpd.Series(expected_data, dtype=pd.ArrowDtype(pa.list_(pa.int64())))
+    pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas(), check_index_type=False, check_names=False, check_dtype=False)
+
+def test_json_value_array_as_bool_array_from_array_strings():
+    s = bpd.Series(['["true", "false", "true"]', '[]', '["false", "false"]'])
+    actual = bbq.json_value_array(s, value_dtype=dtypes.BOOL_DTYPE)
+    expected_data = [[True, False, True], [], [False, False]]
+    expected = bpd.Series(expected_data, dtype=pd.ArrowDtype(pa.list_(pa.bool_())))
+    pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas(), check_index_type=False, check_names=False, check_dtype=False)
+
+def test_json_value_array_w_invalid_series_type():
+    s = bpd.Series([1, 2], dtype=dtypes.INT_DTYPE) # Not a JSON-like string
+    with pytest.raises(TypeError):
+        bbq.json_value_array(s)
+
+def test_json_value_array_from_json_native():
+    json_data = [
+        '{"key": ["hello", "world"]}',
+        '{"key": ["123", "45.6"]}',
+        '{"key": []}',
+        '{}' # case with missing key
+    ]
+    s = bpd.Series(json_data, dtype=dtypes.JSON_DTYPE)
+    actual = bbq.json_value_array(s, json_path="$.key")
+
+    expected_data_pandas = [
+        ["hello", "world"],
+        ["123", "45.6"],
+        [],
+        None
+    ]
+    expected = bpd.Series(expected_data_pandas, dtype=pd.ArrowDtype(pa.list_(pa.string()))).fillna(pd.NA)
+    result_pd = actual.to_pandas().fillna(pd.NA)
+    pd.testing.assert_series_equal(result_pd, expected.to_pandas(), check_index_type=False, check_names=False, check_dtype=False)
+
+def test_json_value_array_from_json_native_with_dtype_coercion():
+    json_data = [
+        '{"values": ["10", "20"]}',
+        '{"values": ["-5", "0"]}',
+        '{"values": []}'
+    ]
+    s = bpd.Series(json_data, dtype=dtypes.JSON_DTYPE)
+    actual = bbq.json_value_array(s, json_path="$.values", value_dtype=dtypes.INT_DTYPE)
+
+    expected_data_pandas = [
+        [10, 20],
+        [-5, 0],
+        []
+    ]
+    expected = bpd.Series(expected_data_pandas, dtype=pd.ArrowDtype(pa.list_(pa.int64())))
+    pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas(), check_index_type=False, check_names=False, check_dtype=False)
+
+
 def test_json_query_from_json():
     s = bpd.Series(
         ['{"a": {"b": [1, 2]}}', '{"a": {"c": 1}}', '{"a": {"b": 0}}'],
