@@ -57,13 +57,17 @@ class SQLGlotCompiler:
     # Define scalar compiler for converting bigframes expressions to sqlglot expressions.
     scalar_op_compiler = scalar_op_compiler.SQLGlotScalarOpCompiler()
 
+    # Creates sequential IDs with separate counters for each prefix (e.g., "t", "c").
+    # ID sequences are unique per instance of this class.
+    uid_generator = guid.SequentialUIDGenerator()
+
     # TODO: add BigQuery Dialect
     def compile_sql(
         self,
         node: nodes.BigFrameNode,
         ordered: bool,
         limit: typing.Optional[int] = None,
-    ) -> sg.Expression:
+    ) -> sge.Select:
         # later steps might add ids, so snapshot before those steps.
         output_ids = node.schema.names
         if ordered:
@@ -92,15 +96,17 @@ class SQLGlotCompiler:
         if order_expr:
             select_node = select_node.order_by(order_expr)
 
-        return select_node
+        # return select_node
 
-    def _replace_unsupported_ops(self, node: nodes.BigFrameNode):
+    def _replace_unsupported_ops(self, node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         # TODO: Run all replacement rules as single bottom-up pass
         node = nodes.bottom_up(node, rewrites.rewrite_slice)
         node = nodes.bottom_up(node, rewrites.rewrite_timedelta_expressions)
         return node
 
-    def compile_row_ordering(self, node: bigframes.core.ordering.RowOrdering):
+    def compile_row_ordering(
+        self, node: bigframes.core.ordering.RowOrdering
+    ) -> sge.Order:
         if len(node.all_ordering_columns) == 0:
             return None
 
@@ -119,12 +125,12 @@ class SQLGlotCompiler:
         return sge.Order(expressions=ordering_expr)
 
     @functools.singledispatchmethod
-    def compile_node(self, node: nodes.BigFrameNode):
+    def compile_node(self, node: nodes.BigFrameNode) -> sge.Select:
         """Defines transformation but isn't cached, always use compile_node instead"""
         raise ValueError(f"Can't compile unrecognized node: {node}")
 
     @compile_node.register
-    def compile_selection(self, node: nodes.SelectionNode):
+    def compile_selection(self, node: nodes.SelectionNode) -> sge.Select:
         child = self.compile_node(node.child)
         selected_cols = [
             sge.Alias(
@@ -136,7 +142,7 @@ class SQLGlotCompiler:
         return child.select(*selected_cols, append=False)
 
     @compile_node.register
-    def compile_projection(self, node: nodes.ProjectionNode):
+    def compile_projection(self, node: nodes.ProjectionNode) -> sge.Select:
         child = self.compile_node(node.child)
 
         new_cols = [
@@ -150,7 +156,7 @@ class SQLGlotCompiler:
         return child.select(*new_cols, append=True)
 
     @compile_node.register
-    def compile_readlocal(self, node: nodes.ReadLocalNode):
+    def compile_readlocal(self, node: nodes.ReadLocalNode) -> sge.Select:
         array_as_pd = pd.read_feather(
             io.BytesIO(node.feather_bytes),
             columns=[item.source_id for item in node.scan_list.items],
@@ -205,6 +211,36 @@ class SQLGlotCompiler:
         )
         return sg.select(sge.Star()).from_(expr)
 
+    @compile_node.register
+    def compile_filter(self, node: nodes.FilterNode) -> sge.Select:
+        child_expr = self.compile_node(node.child)
+        # cte_name = self.uid_generator.generate_sequential_uid("t")
+        # with_expr = self.create_cte_from_select(child_expr, cte_name)
+
+        # predicate_expr = self.scalar_op_compiler.compile_expression(node.predicate)
+
+        # result = (
+        #     sg.select(sge.Star())
+        #     .from_(sg.to_identifier(cte_name, quoted=self.quoted))
+        #     .where(predicate_expr)
+        # )
+        # existing = result.args.get("with")
+        # if not existing:
+        #     result.args.set("with", sge.With())
+        # result.args.get("with").expressions = cte_list
+
+        # predicate = node.predicate
+        # def filter(self, predicate: ex.Expression) -> UnorderedIR:
+        #     table = self._to_ibis_expr()
+        #     condition = op_compiler.compile_expression(predicate, table)
+        #     table = table.filter(condition)
+        #     return UnorderedIR(
+        #         table, tuple(table[column_name] for column_name in self._column_names)
+        #     )
+
+        return child_expr
+
+    # TODO(refactor): Helpers to build SQLGlot expressions.
     def cast(self, arg, to) -> sge.Cast:
         return sge.Cast(this=sge.convert(arg), to=to, copy=False)
 
@@ -214,3 +250,15 @@ class SQLGlotCompiler:
 
         # TODO: handle other types like visit_DefaultLiteral
         return sge.convert(value)
+
+    def create_cte_from_select(
+        self, select: sge.Select, cte_name: str
+    ) -> sge.With:
+        new_cte = sge.CTE(
+            this=select,
+            alias=sge.TableAlias(this=sg.to_identifier(cte_name, quoted=self.quoted)),
+        )
+
+        with_expr = select.args.pop("with", sge.With())
+        cte_list = with_expr.expressions + [new_cte]
+        return sge.With(expressions=cte_list)

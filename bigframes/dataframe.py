@@ -98,7 +98,7 @@ ERROR_IO_REQUIRES_WILDCARD = (
 
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
-@log_adapter.class_logger
+# @log_adapter.class_logger
 class DataFrame(vendored_pandas_frame.DataFrame):
     __doc__ = vendored_pandas_frame.DataFrame.__doc__
     # internal flag to disable cache at all

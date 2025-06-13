@@ -53,6 +53,9 @@ class SQLCompiler(bigframes.session.executor.Executor):
         #     else array_value.node
         # )
         exp = self.compiler.compile_sql(array_value.node, ordered=ordered)
+        # if exp is None:
+        #     raise ValueError("Got unexpected empty expression.")
+        
         return exp.sql(dialect="bigquery", pretty=False)
 
 

@@ -52,11 +52,17 @@ class SQLGlotScalarOpCompiler:
         raise NotImplementedError(f"Cannot compile expression: {expr}")
 
     @compile_expression.register
-    def compile_deref_op(self, expr: ex.DerefOp):
+    def compile_deref_op(self, expr: ex.DerefOp) -> sge.Expression:
         return sge.ColumnDef(this=sge.to_identifier(expr.id.sql, quoted=self.quoted))
 
     @compile_expression.register
-    def compile_op_expression(self, expr: ex.OpExpression):
+    def compile_scalar_constant_expression(
+        self, expr: ex.ScalarConstantExpression
+    ) -> sge.Expression:
+        return sge.Literal(this=expr.value, is_string=dtypes.is_string_like(expr.dtype))
+
+    @compile_expression.register
+    def compile_op_expression(self, expr: ex.OpExpression) -> sge.Expression:
         op = expr.op
         # TODO: This can block non-recursively compiler.
         args = tuple(map(self.compile_expression, expr.inputs))
@@ -79,5 +85,13 @@ class SQLGlotScalarOpCompiler:
             raise NotImplementedError(f"Cannot compile operator {method_name}")
 
     # TODO: add parenthesize for operators
-    def compile_AddOp(self, op: ops.AddOp, left: sge.Expression, right: sge.Expression):
+    def compile_AddOp(
+        self, op: ops.AddOp, left: sge.Expression, right: sge.Expression
+    ) -> sge.Expression:
         return sge.Add(this=left, expression=right)
+
+    # TODO: check why it's not `GeOp`
+    def compile_ge(
+        self, op, left: sge.Expression, right: sge.Expression
+    ) -> sge.Expression:
+        return sge.GTE(this=left, expression=right)

@@ -45,3 +45,12 @@ def test_compile_order_by(
     bf_sort_values = bf_df.sort_values("strings")
     expected_sql = "SELECT `column_0` AS `int1`, `column_1` AS `int2`, `column_2` AS `bools`, `column_3` AS `strings`, `bfuid_col_1` AS `bfuid_col_2` FROM UNNEST(ARRAY<STRUCT<`column_0` INT64, `column_1` INT64, `column_2` BOOLEAN, `column_3` STRING, `bfuid_col_1` INT64>>[(1, -10, TRUE, 'b', 0), (2, 20, CAST(NULL AS BOOLEAN), 'aa', 1), (3, 30, FALSE, 'ccc', 2)]) ORDER BY `strings` ASC NULLS LAST, `bfuid_col_2` ASC NULLS LAST"
     assert bf_sort_values.sql == expected_sql
+
+
+def test_compile_filter(
+    inline_pd_df: pd.DataFrame, sql_compiler_session: bigframes.Session
+):
+    bf_df = bpd.DataFrame(inline_pd_df, session=sql_compiler_session)
+    bf_filter = bf_df[bf_df["int2"] >= 1]
+    expected_sql = "SELECT `column_0` AS `int1`, `column_1` AS `int2`, `column_2` AS `bools`, `column_3` AS `strings`, `bfuid_col_1` AS `bfuid_col_2` FROM UNNEST(ARRAY<STRUCT<`column_0` INT64, `column_1` INT64, `column_2` BOOLEAN, `column_3` STRING, `bfuid_col_1` INT64>>[(1, -10, TRUE, 'b', 0), (2, 20, CAST(NULL AS BOOLEAN), 'aa', 1), (3, 30, FALSE, 'ccc', 2)]) ORDER BY `strings` ASC NULLS LAST, `bfuid_col_2` ASC NULLS LAST"
+    assert bf_filter.sql == expected_sql
