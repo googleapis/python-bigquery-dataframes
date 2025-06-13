@@ -444,6 +444,23 @@ _ARROW_TO_BIGFRAMES = {
     if mapping.arrow_dtype is not None
 }
 
+# Include types that aren't 1:1 to BigQuery but allowed to be loaded in to BigQuery:
+_ARROW_TO_BIGFRAMES.update(
+    {
+        pa.int8(): INT_DTYPE,
+        pa.int16(): INT_DTYPE,
+        pa.int32(): INT_DTYPE,
+        pa.uint8(): INT_DTYPE,
+        pa.uint16(): INT_DTYPE,
+        pa.uint32(): INT_DTYPE,
+        # uint64 is omitted because uint64 -> BigQuery INT64 is a lossy conversion.
+        pa.float16(): FLOAT_DTYPE,
+        pa.float32(): FLOAT_DTYPE,
+        # TODO(tswast): Can we support datetime/timestamp/time with units larger
+        # than microseconds?
+    }
+)
+
 
 def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
     if arrow_dtype in _ARROW_TO_BIGFRAMES:
