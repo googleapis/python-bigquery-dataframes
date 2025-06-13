@@ -115,7 +115,7 @@ def sdk_type_to_sql_string(
     sdk_type: bigquery.StandardSqlDataType,
 ) -> str:
     if sdk_type.array_element_type is not None:
-        return f"ARRAY<{sdk_type_to_py_type(sdk_type.array_element_type)}>"
+        return f"ARRAY<{sdk_type_to_sql_string(sdk_type.array_element_type)}>"
     if sdk_type.struct_type is not None:
         raise ValueError("Cannot handle struct types in remote function")
     assert sdk_type.type_kind is not None

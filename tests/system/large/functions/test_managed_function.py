@@ -417,16 +417,16 @@ def test_managed_function_dataframe_apply_axis_1_array_output(session, dataset_i
     # Assert the dataframe dtypes.
     assert tuple(bf_df.dtypes) == expected_dtypes
 
-    try:
+    @session.udf(
+        input_types=[int, float, str],
+        output_type=list[str],
+        dataset=dataset_id,
+        name=prefixer.create_prefix(),
+    )
+    def foo(x, y, z):
+        return [str(x), str(y), z]
 
-        @session.udf(
-            input_types=[int, float, str],
-            output_type=list[str],
-            dataset=dataset_id,
-            name=prefixer.create_prefix(),
-        )
-        def foo(x, y, z):
-            return [str(x), str(y), z]
+    try:
 
         assert getattr(foo, "is_row_processor") is False
         assert getattr(foo, "input_dtypes") == expected_dtypes
