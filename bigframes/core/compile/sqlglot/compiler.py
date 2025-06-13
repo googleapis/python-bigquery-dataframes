@@ -18,14 +18,14 @@ import functools
 import typing
 
 from google.cloud import bigquery
-import pyarrow as pa
 import sqlglot.expressions as sge
 
-from bigframes.core import expression, guid, identifiers, nodes, rewrite
+from bigframes.core import expression, guid, identifiers, nodes, pyarrow_utils, rewrite
 from bigframes.core.compile import configs
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.core.ordering as bf_ordering
+from bigframes.core.rewrite import schema_binding
 
 
 class SQLGlotCompiler:
@@ -120,7 +120,14 @@ class SQLGlotCompiler:
 
     def _compile_result_node(self, root: nodes.ResultNode) -> str:
         sqlglot_ir = self.compile_node(root.child)
-        # TODO: add order_by, limit, and selections to sqlglot_expr
+
+        selected_cols: tuple[tuple[str, sge.Expression], ...] = tuple(
+            (name, scalar_compiler.compile_scalar_expression(ref))
+            for ref, name in root.output_cols
+        )
+        sqlglot_ir = sqlglot_ir.select(selected_cols)
+
+        # TODO: add order_by, limit to sqlglot_expr
         return sqlglot_ir.sql
 
     @functools.lru_cache(maxsize=5000)
@@ -147,11 +154,21 @@ class SQLGlotCompiler:
 
         offsets = node.offsets_col.sql if node.offsets_col else None
         if offsets:
-            pa_table = pa_table.append_column(
-                offsets, pa.array(range(pa_table.num_rows), type=pa.int64())
-            )
+            pa_table = pyarrow_utils.append_offsets(pa_table, offsets)
 
         return ir.SQLGlotIR.from_pyarrow(pa_table, node.schema, uid_gen=self.uid_gen)
+
+    @_compile_node.register
+    def compile_readtable(self, node: nodes.ReadTableNode, *args):
+        table = node.source.table
+        return ir.SQLGlotIR.from_table(
+            table.project_id,
+            table.dataset_id,
+            table.table_id,
+            col_names=[col.source_id for col in node.scan_list.items],
+            alias_names=[col.id.sql for col in node.scan_list.items],
+            uid_gen=self.uid_gen,
+        )
 
     @_compile_node.register
     def compile_selection(
@@ -176,6 +193,6 @@ class SQLGlotCompiler:
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
     node = nodes.bottom_up(node, rewrite.rewrite_slice)
-    node = nodes.bottom_up(node, rewrite.rewrite_timedelta_expressions)
+    node = nodes.bottom_up(node, schema_binding.bind_schema_to_expressions)
     node = nodes.bottom_up(node, rewrite.rewrite_range_rolling)
     return node

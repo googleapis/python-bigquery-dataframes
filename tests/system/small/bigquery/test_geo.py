@@ -19,10 +19,14 @@ import pytest
 from shapely.geometry import (  # type: ignore
     GeometryCollection,
     LineString,
+    MultiLineString,
+    MultiPoint,
+    MultiPolygon,
     Point,
     Polygon,
 )
 
+from bigframes.bigquery import st_length
 import bigframes.bigquery as bbq
 import bigframes.geopandas
 
@@ -57,6 +61,66 @@ def test_geo_st_area():
         check_exact=False,
         rtol=0.1,
     )
+
+
+# Expected length for 1 degree of longitude at the equator is approx 111195.079734 meters
+DEG_LNG_EQUATOR_METERS = 111195.07973400292
+
+
+def test_st_length_various_geometries(session):
+    input_geometries = [
+        Point(0, 0),
+        LineString([(0, 0), (1, 0)]),
+        Polygon([(0, 0), (1, 0), (0, 1), (0, 0)]),
+        MultiPoint([Point(0, 0), Point(1, 1)]),
+        MultiLineString([LineString([(0, 0), (1, 0)]), LineString([(0, 0), (0, 1)])]),
+        MultiPolygon(
+            [
+                Polygon([(0, 0), (1, 0), (0, 1), (0, 0)]),
+                Polygon([(2, 2), (3, 2), (2, 3), (2, 2)]),
+            ]
+        ),
+        GeometryCollection([Point(0, 0), LineString([(0, 0), (1, 0)])]),
+        GeometryCollection([]),
+        None,  # Represents NULL geography input
+        GeometryCollection([Point(1, 1), Point(2, 2)]),
+    ]
+    geoseries = bigframes.geopandas.GeoSeries(input_geometries, session=session)
+
+    expected_lengths = pd.Series(
+        [
+            0.0,  # Point
+            DEG_LNG_EQUATOR_METERS,  # LineString
+            0.0,  # Polygon
+            0.0,  # MultiPoint
+            2 * DEG_LNG_EQUATOR_METERS,  # MultiLineString
+            0.0,  # MultiPolygon
+            DEG_LNG_EQUATOR_METERS,  # GeometryCollection (Point + LineString)
+            0.0,  # Empty GeometryCollection
+            pd.NA,  # None input for ST_LENGTH(NULL) is NULL
+            0.0,  # GeometryCollection (Point + Point)
+        ],
+        index=pd.Index(range(10), dtype="Int64"),
+        dtype="Float64",
+    )
+
+    # Test default use_spheroid
+    result_default = st_length(geoseries).to_pandas()
+    pd.testing.assert_series_equal(
+        result_default,
+        expected_lengths,
+        rtol=1e-3,
+        atol=1e-3,  # For comparisons involving 0.0
+    )  # type: ignore
+
+    # Test explicit use_spheroid=False
+    result_explicit_false = st_length(geoseries, use_spheroid=False).to_pandas()
+    pd.testing.assert_series_equal(
+        result_explicit_false,
+        expected_lengths,
+        rtol=1e-3,
+        atol=1e-3,  # For comparisons involving 0.0
+    )  # type: ignore
 
 
 def test_geo_st_difference_with_geometry_objects():
@@ -353,4 +417,41 @@ def test_geo_st_intersection_with_similar_geometry_objects():
         check_index_type=False,
         check_exact=False,
         rtol=0.1,
+    )
+
+
+def test_geo_st_isclosed():
+    bf_gs = bigframes.geopandas.GeoSeries(
+        [
+            Point(0, 0),  # Point
+            LineString([(0, 0), (1, 1)]),  # Open LineString
+            LineString([(0, 0), (1, 1), (0, 1), (0, 0)]),  # Closed LineString
+            Polygon([(0, 0), (1, 1), (0, 1)]),  # Open polygon
+            GeometryCollection(),  # Empty GeometryCollection
+            bigframes.geopandas.GeoSeries.from_wkt(["GEOMETRYCOLLECTION EMPTY"]).iloc[
+                0
+            ],  # Also empty
+            None,  # Should be filtered out by dropna
+        ],
+        index=[0, 1, 2, 3, 4, 5, 6],
+    )
+    bf_result = bbq.st_isclosed(bf_gs).to_pandas()
+
+    # Expected results based on ST_ISCLOSED documentation:
+    expected_data = [
+        True,  # Point: True
+        False,  # Open LineString: False
+        True,  # Closed LineString: True
+        False,  # Polygon: False (only True if it's a full polygon)
+        False,  # Empty GeometryCollection: False (An empty GEOGRAPHY isn't closed)
+        False,  # GEOMETRYCOLLECTION EMPTY: False
+        None,
+    ]
+    expected_series = pd.Series(data=expected_data, dtype="boolean")
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        expected_series,
+        # We default to Int64 (nullable) dtype, but pandas defaults to int64 index.
+        check_index_type=False,
     )

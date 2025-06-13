@@ -19,8 +19,8 @@ from typing import (
 from bigframes_vendored.pandas.core.generic import NDFrame
 import numpy
 import numpy as np
-from pandas._libs import lib
 from pandas._typing import Axis, FilePath, NaPosition, WriteBuffer
+from pandas.api import extensions as pd_ext
 
 from bigframes import constants
 
@@ -323,7 +323,7 @@ class Series(NDFrame):  # type: ignore[misc]
         self,
         *,
         drop: bool = False,
-        name=lib.no_default,
+        name=pd_ext.no_default,
     ) -> DataFrame | Series | None:
         """
         Generate a new DataFrame or Series with the index reset.
@@ -730,7 +730,9 @@ class Series(NDFrame):  # type: ignore[misc]
 
     to_list = tolist
 
-    def to_numpy(self, dtype, copy=False, na_value=None, *, allow_large_results=None):
+    def to_numpy(
+        self, dtype, copy=False, na_value=pd_ext.no_default, *, allow_large_results=None
+    ):
         """
         A NumPy ndarray representing the values in this Series or Index.
 
@@ -4931,6 +4933,26 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def item(self: Series, *args, **kwargs):
+        """Return the first element of the underlying data as a Python scalar.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([1])
+            >>> s.item()
+            np.int64(1)
+
+        Returns:
+            scalar: The first element of Series.
+
+        Raises:
+            ValueError: If the data is not length = 1.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def items(self):
         """
         Lazily iterate over (index, value) tuples.
@@ -5255,7 +5277,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename(self, index, **kwargs) -> Series | None:
+    def rename(self, index, *, inplace, **kwargs):
         """
         Alter Series index labels or name.
 
@@ -5299,15 +5321,17 @@ class Series(NDFrame):  # type: ignore[misc]
                 the index.
                 Scalar or hashable sequence-like will alter the ``Series.name``
                 attribute.
+            inplace (bool):
+                Default False. Whether to return a new Series.
 
         Returns:
-            bigframes.pandas.Series:
-                Series with index labels.
+            bigframes.pandas.Series | None:
+                Series with index labels or None if ``inplace=True``.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename_axis(self, mapper, **kwargs):
+    def rename_axis(self, mapper, *, inplace, **kwargs):
         """
         Set the name of the axis for the index or columns.
 

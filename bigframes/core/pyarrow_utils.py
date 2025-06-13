@@ -85,3 +85,18 @@ def truncate_pyarrow_iterable(
         else:
             yield batch
             total_yielded += batch.num_rows
+
+
+def append_offsets(
+    pa_table: pa.Table,
+    offsets_col: str,
+) -> pa.Table:
+    return pa_table.append_column(
+        offsets_col, pa.array(range(pa_table.num_rows), type=pa.int64())
+    )
+
+
+def as_nullable(pa_table: pa.Table):
+    """Normalizes schema to nullable for value-wise comparisons."""
+    nullable_schema = pa.schema(field.with_nullable(True) for field in pa_table.schema)
+    return pa_table.cast(nullable_schema)

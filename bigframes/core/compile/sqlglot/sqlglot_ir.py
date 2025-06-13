@@ -18,6 +18,7 @@ import dataclasses
 import typing
 
 from google.cloud import bigquery
+import numpy as np
 import pyarrow as pa
 import sqlglot as sg
 import sqlglot.dialects.bigquery
@@ -106,6 +107,31 @@ class SQLGlotIR:
         return cls(expr=sg.select(sge.Star()).from_(expr), uid_gen=uid_gen)
 
     @classmethod
+    def from_table(
+        cls,
+        project_id: str,
+        dataset_id: str,
+        table_id: str,
+        col_names: typing.Sequence[str],
+        alias_names: typing.Sequence[str],
+        uid_gen: guid.SequentialUIDGenerator,
+    ) -> SQLGlotIR:
+        selections = [
+            sge.Alias(
+                this=sge.to_identifier(col_name, quoted=cls.quoted),
+                alias=sge.to_identifier(alias_name, quoted=cls.quoted),
+            )
+            for col_name, alias_name in zip(col_names, alias_names)
+        ]
+        table_expr = sge.Table(
+            this=sg.to_identifier(table_id, quoted=cls.quoted),
+            db=sg.to_identifier(dataset_id, quoted=cls.quoted),
+            catalog=sg.to_identifier(project_id, quoted=cls.quoted),
+        )
+        select_expr = sge.Select().select(*selections).from_(table_expr)
+        return cls(expr=select_expr, uid_gen=uid_gen)
+
+    @classmethod
     def from_query_string(
         cls,
         query_string: str,
@@ -127,15 +153,22 @@ class SQLGlotIR:
         self,
         selected_cols: tuple[tuple[str, sge.Expression], ...],
     ) -> SQLGlotIR:
-        cols_expr = [
+        selections = [
             sge.Alias(
                 this=expr,
                 alias=sge.to_identifier(id, quoted=self.quoted),
             )
             for id, expr in selected_cols
         ]
-        new_expr = self._encapsulate_as_cte().select(*cols_expr, append=False)
-        return SQLGlotIR(expr=new_expr)
+        # Attempts to simplify selected columns when the original and new column
+        # names are simply aliases of each other.
+        squashed_selections = _squash_selections(self.expr.expressions, selections)
+        if squashed_selections != []:
+            new_expr = self.expr.select(*squashed_selections, append=False)
+            return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+        else:
+            new_expr = self._encapsulate_as_cte().select(*selections, append=False)
+            return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def project(
         self,
@@ -148,9 +181,8 @@ class SQLGlotIR:
             )
             for id, expr in projected_cols
         ]
-        # TODO: some columns are not able to be projected into the same select.
-        select_expr = self.expr.select(*projected_cols_expr, append=True)
-        return SQLGlotIR(expr=select_expr)
+        new_expr = self._encapsulate_as_cte().select(*projected_cols_expr, append=False)
+        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def insert(
         self,
@@ -198,7 +230,7 @@ class SQLGlotIR:
             this=select_expr,
             alias=new_cte_name,
         )
-        new_with_clause = sge.With(expressions=existing_ctes + [new_cte])
+        new_with_clause = sge.With(expressions=[*existing_ctes, new_cte])
         new_select_expr = (
             sge.Select().select(sge.Star()).from_(sge.Table(this=new_cte_name))
         )
@@ -213,7 +245,11 @@ def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
     elif dtype == dtypes.BYTES_DTYPE:
         return _cast(str(value), sqlglot_type)
     elif dtypes.is_time_like(dtype):
+        if isinstance(value, np.generic):
+            value = value.item()
         return _cast(sge.convert(value.isoformat()), sqlglot_type)
+    elif dtype in (dtypes.NUMERIC_DTYPE, dtypes.BIGNUMERIC_DTYPE):
+        return _cast(sge.convert(value), sqlglot_type)
     elif dtypes.is_geo_like(dtype):
         wkt = value if isinstance(value, str) else to_wkt(value)
         return sge.func("ST_GEOGFROMTEXT", sge.convert(wkt))
@@ -234,6 +270,8 @@ def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
         )
         return values if len(value) > 0 else _cast(values, sqlglot_type)
     else:
+        if isinstance(value, np.generic):
+            value = value.item()
         return sge.convert(value)
 
 
@@ -247,3 +285,62 @@ def _table(table: bigquery.TableReference) -> sge.Table:
         db=sg.to_identifier(table.dataset_id, quoted=True),
         catalog=sg.to_identifier(table.project, quoted=True),
     )
+
+
+def _squash_selections(
+    old_expr: list[sge.Expression], new_expr: list[sge.Alias]
+) -> list[sge.Alias]:
+    """
+    Simplifies the select column expressions if existing (old_expr) and
+    new (new_expr) selected columns are both simple aliases of column definitions.
+
+    Example:
+    old_expr: [A AS X, B AS Y]
+    new_expr: [X AS P, Y AS Q]
+    Result:   [A AS P, B AS Q]
+    """
+    old_alias_map: typing.Dict[str, str] = {}
+    for selected in old_expr:
+        column_alias_pair = _get_column_alias_pair(selected)
+        if column_alias_pair is None:
+            return []
+        else:
+            old_alias_map[column_alias_pair[1]] = column_alias_pair[0]
+
+    new_selected_cols: typing.List[sge.Alias] = []
+    for selected in new_expr:
+        column_alias_pair = _get_column_alias_pair(selected)
+        if column_alias_pair is None or column_alias_pair[0] not in old_alias_map:
+            return []
+        else:
+            new_alias_expr = sge.Alias(
+                this=sge.ColumnDef(
+                    this=sge.to_identifier(
+                        old_alias_map[column_alias_pair[0]], quoted=True
+                    )
+                ),
+                alias=sg.to_identifier(column_alias_pair[1], quoted=True),
+            )
+            new_selected_cols.append(new_alias_expr)
+    return new_selected_cols
+
+
+def _get_column_alias_pair(
+    expr: sge.Expression,
+) -> typing.Optional[typing.Tuple[str, str]]:
+    """Checks if an expression is a simple alias of a column definition
+    (e.g., "column_name AS alias_name").
+    If it is, returns a tuple containing the alias name and original column name.
+    Returns `None` otherwise.
+    """
+    if not isinstance(expr, sge.Alias):
+        return None
+    if not isinstance(expr.this, sge.ColumnDef):
+        return None
+
+    column_def_expr: sge.ColumnDef = expr.this
+    if not isinstance(column_def_expr.this, sge.Identifier):
+        return None
+
+    original_identifier: sge.Identifier = column_def_expr.this
+    return (original_identifier.this, expr.alias)

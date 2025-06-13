@@ -99,7 +99,8 @@ def test_json_extract_from_json():
         ['{"a": {"b": [1, 2]}}', '{"a": {"c": 1}}', '{"a": {"b": 0}}'],
         dtype=dtypes.JSON_DTYPE,
     )
-    actual = bbq.json_extract(s, "$.a.b")
+    with pytest.warns(UserWarning, match="The `json_extract` is deprecated"):
+        actual = bbq.json_extract(s, "$.a.b")
     expected = bpd.Series(["[1, 2]", None, "0"], dtype=dtypes.JSON_DTYPE)
 
     pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas())
@@ -127,7 +128,8 @@ def test_json_extract_array_from_json():
         ['{"a": ["ab", "2", "3 xy"]}', '{"a": []}', '{"a": ["4", "5"]}', "{}"],
         dtype=dtypes.JSON_DTYPE,
     )
-    actual = bbq.json_extract_array(s, "$.a")
+    with pytest.warns(UserWarning, match="The `json_extract_array` is deprecated"):
+        actual = bbq.json_extract_array(s, "$.a")
 
     # This code provides a workaround for issue https://github.com/apache/arrow/issues/45262,
     # which currently prevents constructing a series using the pa.list_(db_types.JSONArrrowType())
@@ -210,6 +212,94 @@ def test_json_extract_string_array_w_invalid_series_type():
     s = bpd.Series([1, 2])
     with pytest.raises(TypeError):
         bbq.json_extract_string_array(s)
+
+
+def test_json_query_from_json():
+    s = bpd.Series(
+        ['{"a": {"b": [1, 2]}}', '{"a": {"c": 1}}', '{"a": {"b": 0}}'],
+        dtype=dtypes.JSON_DTYPE,
+    )
+    actual = bbq.json_query(s, "$.a.b")
+    expected = bpd.Series(["[1, 2]", None, "0"], dtype=dtypes.JSON_DTYPE)
+
+    pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas())
+
+
+def test_json_query_from_string():
+    s = bpd.Series(
+        ['{"a": {"b": [1, 2]}}', '{"a": {"c": 1}}', '{"a": {"b": 0}}'],
+        dtype=pd.StringDtype(storage="pyarrow"),
+    )
+    actual = bbq.json_query(s, "$.a.b")
+    expected = bpd.Series(["[1,2]", None, "0"], dtype=pd.StringDtype(storage="pyarrow"))
+
+    pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas())
+
+
+def test_json_query_w_invalid_series_type():
+    s = bpd.Series([1, 2])
+    with pytest.raises(TypeError):
+        bbq.json_query(s, "$.a")
+
+
+def test_json_query_array_from_json():
+    s = bpd.Series(
+        ['{"a": ["ab", "2", "3 xy"]}', '{"a": []}', '{"a": ["4", "5"]}', "{}"],
+        dtype=dtypes.JSON_DTYPE,
+    )
+    actual = bbq.json_query_array(s, "$.a")
+
+    # This code provides a workaround for issue https://github.com/apache/arrow/issues/45262,
+    # which currently prevents constructing a series using the pa.list_(db_types.JSONArrrowType())
+    sql = """
+        SELECT 0 AS id, [JSON '"ab"', JSON '"2"', JSON '"3 xy"'] AS data,
+        UNION ALL
+        SELECT 1, [],
+        UNION ALL
+        SELECT 2, [JSON '"4"', JSON '"5"'],
+        UNION ALL
+        SELECT 3, null,
+    """
+    df = bpd.read_gbq(sql).set_index("id").sort_index()
+    expected = df["data"]
+    expected.index.name = None
+    expected.name = None
+
+    pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas())
+
+
+def test_json_query_array_from_json_strings():
+    s = bpd.Series(
+        ['{"a": ["ab", "2", "3 xy"]}', '{"a": []}', '{"a": ["4","5"]}', "{}"],
+        dtype=pd.StringDtype(storage="pyarrow"),
+    )
+    actual = bbq.json_query_array(s, "$.a")
+    expected = bpd.Series(
+        [['"ab"', '"2"', '"3 xy"'], [], ['"4"', '"5"'], None],
+        dtype=pd.ArrowDtype(pa.list_(pa.string())),
+    )
+
+    pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas())
+
+
+def test_json_query_array_from_json_array_strings():
+    s = bpd.Series(
+        ["[1, 2, 3]", "[]", "[4,5]"],
+        dtype=pd.StringDtype(storage="pyarrow"),
+    )
+    actual = bbq.json_query_array(s)
+    expected = bpd.Series(
+        [["1", "2", "3"], [], ["4", "5"]],
+        dtype=pd.ArrowDtype(pa.list_(pa.string())),
+    )
+
+    pd.testing.assert_series_equal(actual.to_pandas(), expected.to_pandas())
+
+
+def test_json_query_array_w_invalid_series_type():
+    s = bpd.Series([1, 2])
+    with pytest.raises(TypeError):
+        bbq.json_query_array(s)
 
 
 def test_json_value_from_json():

@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import re
 import typing
-from typing import List, Optional
+from typing import Dict, List, Optional, Sequence
 import warnings
 
 import numpy as np
@@ -34,7 +36,12 @@ class AIAccessor:
 
         self._df: bigframes.dataframe.DataFrame = df
 
-    def filter(self, instruction: str, model, ground_with_google_search: bool = False):
+    def filter(
+        self,
+        instruction: str,
+        model,
+        ground_with_google_search: bool = False,
+    ):
         """
         Filters the DataFrame with the semantics of the user instruction.
 
@@ -82,75 +89,29 @@ class AIAccessor:
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
-        import bigframes.dataframe
-        import bigframes.series
 
-        self._validate_model(model)
-        columns = self._parse_columns(instruction)
-        for column in columns:
-            if column not in self._df.columns:
-                raise ValueError(f"Column {column} not found.")
+        answer_col = "answer"
 
-        if ground_with_google_search:
-            msg = exceptions.format_message(
-                "Enables Grounding with Google Search may impact billing cost. See pricing "
-                "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
-            )
-            warnings.warn(msg, category=UserWarning)
+        output_schema = {answer_col: "bool"}
+        result = self.map(
+            instruction,
+            model,
+            output_schema,
+            ground_with_google_search,
+        )
 
-        self._confirm_operation(len(self._df))
-
-        df: bigframes.dataframe.DataFrame = self._df[columns].copy()
-        has_blob_column = False
-        for column in columns:
-            if df[column].dtype == dtypes.OBJ_REF_DTYPE:
-                # Don't cast blob columns to string
-                has_blob_column = True
-                continue
-
-            if df[column].dtype != dtypes.STRING_DTYPE:
-                df[column] = df[column].astype(dtypes.STRING_DTYPE)
-
-        user_instruction = self._format_instruction(instruction, columns)
-        output_instruction = "Based on the provided context, reply to the following claim by only True or False:"
-
-        if has_blob_column:
-            results = typing.cast(
-                bigframes.dataframe.DataFrame,
-                model.predict(
-                    df,
-                    prompt=self._make_multimodel_prompt(
-                        df, columns, user_instruction, output_instruction
-                    ),
-                    temperature=0.0,
-                    ground_with_google_search=ground_with_google_search,
-                ),
-            )
-        else:
-            results = typing.cast(
-                bigframes.dataframe.DataFrame,
-                model.predict(
-                    self._make_text_prompt(
-                        df, columns, user_instruction, output_instruction
-                    ),
-                    temperature=0.0,
-                    ground_with_google_search=ground_with_google_search,
-                ),
-            )
-
-        return self._df[
-            results["ml_generate_text_llm_result"].str.lower().str.contains("true")
-        ]
+        return result[result[answer_col]].drop(answer_col, axis=1)
 
     def map(
         self,
         instruction: str,
-        output_column: str,
         model,
+        output_schema: Dict[str, str] | None = None,
         ground_with_google_search: bool = False,
     ):
         """
-        Maps the DataFrame with the semantics of the user instruction.
+        Maps the DataFrame with the semantics of the user instruction. The name of the keys in the output_schema parameter carry
+        semantic meaning, and can be used for information extraction.
 
         **Examples:**
 
@@ -163,7 +124,7 @@ class AIAccessor:
             >>> model = llm.GeminiTextGenerator(model_name="gemini-2.0-flash-001")
 
             >>> df = bpd.DataFrame({"ingredient_1": ["Burger Bun", "Soy Bean"], "ingredient_2": ["Beef Patty", "Bittern"]})
-            >>> df.ai.map("What is the food made from {ingredient_1} and {ingredient_2}? One word only.", output_column="food", model=model)
+            >>> df.ai.map("What is the food made from {ingredient_1} and {ingredient_2}? One word only.", model=model, output_schema={"food": "string"})
               ingredient_1 ingredient_2      food
             0   Burger Bun   Beef Patty  Burger
             <BLANKLINE>
@@ -171,6 +132,22 @@ class AIAccessor:
             <BLANKLINE>
             <BLANKLINE>
             [2 rows x 3 columns]
+
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> bpd.options.experiments.ai_operators = True
+            >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
+
+            >>> import bigframes.ml.llm as llm
+            >>> model = llm.GeminiTextGenerator(model_name="gemini-2.0-flash-001")
+
+            >>> df = bpd.DataFrame({"text": ["Elmo lives at 123 Sesame Street."]})
+            >>> df.ai.map("{text}", model=model, output_schema={"person": "string", "address": "string"})
+                                           text person            address
+            0  Elmo lives at 123 Sesame Street.   Elmo  123 Sesame Street
+            <BLANKLINE>
+            [1 rows x 3 columns]
 
         Args:
             instruction (str):
@@ -180,11 +157,13 @@ class AIAccessor:
                 in the instructions like:
                 "Get the ingredients of {food}."
 
-            output_column (str):
-                The column name of the mapping result.
-
             model (bigframes.ml.llm.GeminiTextGenerator):
                 A GeminiTextGenerator provided by Bigframes ML package.
+
+            output_schema (Dict[str, str] or None, default None):
+                The schema used to generate structured output as a bigframes DataFrame. The schema is a string key-value pair of <column_name>:<type>.
+                Supported types are int64, float64, bool, string, array<type> and struct<column type>. If None, generate string result under the column
+                "ml_generate_text_llm_result".
 
             ground_with_google_search (bool, default False):
                 Enables Grounding with Google Search for the GeminiTextGenerator model.
@@ -236,6 +215,9 @@ class AIAccessor:
             "Based on the provided contenxt, answer the following instruction:"
         )
 
+        if output_schema is None:
+            output_schema = {"ml_generate_text_llm_result": "string"}
+
         if has_blob_column:
             results = typing.cast(
                 bigframes.series.Series,
@@ -246,7 +228,8 @@ class AIAccessor:
                     ),
                     temperature=0.0,
                     ground_with_google_search=ground_with_google_search,
-                )["ml_generate_text_llm_result"],
+                    output_schema=output_schema,
+                ),
             )
         else:
             results = typing.cast(
@@ -257,12 +240,103 @@ class AIAccessor:
                     ),
                     temperature=0.0,
                     ground_with_google_search=ground_with_google_search,
-                )["ml_generate_text_llm_result"],
+                    output_schema=output_schema,
+                ),
             )
+
+        attach_columns = [results[col] for col, _ in output_schema.items()]
 
         from bigframes.core.reshape.api import concat
 
-        return concat([self._df, results.rename(output_column)], axis=1)
+        return concat([self._df, *attach_columns], axis=1)
+
+    def classify(
+        self,
+        instruction: str,
+        model,
+        labels: Sequence[str],
+        output_column: str = "result",
+        ground_with_google_search: bool = False,
+    ):
+        """
+        Classifies the rows of dataframes based on user instruction into the provided labels.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> bpd.options.experiments.ai_operators = True
+            >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
+
+            >>> import bigframes.ml.llm as llm
+            >>> model = llm.GeminiTextGenerator(model_name="gemini-2.0-flash-001")
+
+            >>> df = bpd.DataFrame({
+            ...     "feedback_text": [
+            ...         "The product is amazing, but the shipping was slow.",
+            ...         "I had an issue with my recent bill.",
+            ...         "The user interface is very intuitive."
+            ...     ],
+            ... })
+            >>> df.ai.classify("{feedback_text}", model=model, labels=["Shipping", "Billing", "UI"])
+                                                   feedback_text     result
+            0  The product is amazing, but the shipping was s...   Shipping
+            1                I had an issue with my recent bill.    Billing
+            2              The user interface is very intuitive.         UI
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            instruction (str):
+                An instruction on how to classify the data. This value must contain
+                column references by name, which should be wrapped in a pair of braces.
+                For example, if you have a column "feedback", you can refer to this column
+                with"{food}".
+
+            model (bigframes.ml.llm.GeminiTextGenerator):
+                A GeminiTextGenerator provided by Bigframes ML package.
+
+            labels (Sequence[str]):
+                A collection of labels (categories). It must contain at least two and at most 20 elements.
+                Labels are case sensitive. Duplicated labels are not allowed.
+
+            output_column (str, default "result"):
+                The name of column for the output.
+
+            ground_with_google_search (bool, default False):
+                Enables Grounding with Google Search for the GeminiTextGenerator model.
+                When set to True, the model incorporates relevant information from Google
+                Search results into its responses, enhancing their accuracy and factualness.
+                Note: Using this feature may impact billing costs. Refer to the pricing
+                page for details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models
+                The default is `False`.
+
+        Returns:
+            bigframes.pandas.DataFrame: DataFrame with classification result.
+
+        Raises:
+            NotImplementedError: when the AI operator experiment is off.
+            ValueError: when the instruction refers to a non-existing column, when no
+                columns are referred to, or when the count of labels does not meet the
+                requirement.
+        """
+
+        if len(labels) < 2 or len(labels) > 20:
+            raise ValueError(
+                f"The number of labels should be between 2 and 20 (inclusive), but {len(labels)} labels are provided."
+            )
+
+        if len(set(labels)) != len(labels):
+            raise ValueError("There are duplicate labels.")
+
+        updated_instruction = f"Based on the user instruction {instruction}, you must provide an answer that must exist in the following list of labels: {labels}"
+
+        return self.map(
+            updated_instruction,
+            model,
+            output_schema={output_column: "string"},
+            ground_with_google_search=ground_with_google_search,
+        )
 
     def join(
         self,
@@ -312,10 +386,6 @@ class AIAccessor:
 
             model (bigframes.ml.llm.GeminiTextGenerator):
                 A GeminiTextGenerator provided by Bigframes ML package.
-
-            max_rows (int, default 1000):
-                The maximum number of rows allowed to be sent to the model per call. If the result is too large, the method
-                call will end early with an error.
 
             ground_with_google_search (bool, default False):
                 Enables Grounding with Google Search for the GeminiTextGenerator model.
@@ -400,7 +470,9 @@ class AIAccessor:
         joined_df = self._df.merge(other, how="cross", suffixes=("_left", "_right"))
 
         return joined_df.ai.filter(
-            instruction, model, ground_with_google_search=ground_with_google_search
+            instruction,
+            model,
+            ground_with_google_search=ground_with_google_search,
         ).reset_index(drop=True)
 
     def search(

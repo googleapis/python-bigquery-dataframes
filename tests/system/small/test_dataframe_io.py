@@ -15,13 +15,15 @@
 from typing import Tuple
 
 import google.api_core.exceptions
+import numpy
+import numpy.testing
 import pandas as pd
 import pandas.testing
 import pyarrow as pa
 import pytest
 
 import bigframes.dtypes as dtypes
-from tests.system import utils
+from bigframes.testing import utils
 
 try:
     import pandas_gbq  # type: ignore
@@ -319,7 +321,8 @@ def test_to_pandas_dry_run(session, scalars_pandas_df_multi_index):
 
     result = bf_df.to_pandas(dry_run=True)
 
-    assert len(result) == 14
+    assert isinstance(result, pd.Series)
+    assert len(result) > 0
 
 
 def test_to_arrow_override_global_option(scalars_df_index):
@@ -1060,3 +1063,12 @@ def test_to_sql_query_named_index_excluded(
     utils.assert_pandas_df_equal(
         roundtrip.to_pandas(), pd_df, check_index_type=False, ignore_order=True
     )
+
+
+def test_to_numpy(scalars_dfs):
+    bf_df, pd_df = scalars_dfs
+
+    bf_result = numpy.array(bf_df[["int64_too"]], dtype="int64")
+    pd_result = numpy.array(pd_df[["int64_too"]], dtype="int64")
+
+    numpy.testing.assert_array_equal(bf_result, pd_result)

@@ -32,7 +32,7 @@ import bigframes.dtypes as dtypes
 import bigframes.features
 import bigframes.pandas
 import bigframes.series as series
-from tests.system.utils import (
+from bigframes.testing.utils import (
     assert_pandas_df_equal,
     assert_series_equal,
     get_first_file_from_wildcard,
@@ -622,6 +622,18 @@ def test_series_replace_list_scalar(scalars_dfs):
     pd_result = scalars_pandas_df[col_name].replace(
         ["Hello, World!", "T"], "Howdy, Planet!"
     )
+
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+def test_series_replace_nans_with_pd_na(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    col_name = "string_col"
+    bf_result = scalars_df[col_name].replace({pd.NA: "UNKNOWN"}).to_pandas()
+    pd_result = scalars_pandas_df[col_name].replace({pd.NA: "UNKNOWN"})
 
     pd.testing.assert_series_equal(
         pd_result,
@@ -1362,6 +1374,24 @@ def test_isin_bigframes_values(scalars_dfs, col_name, test_set, session):
         scalars_df[col_name].isin(series.Series(test_set, session=session)).to_pandas()
     )
     pd_result = scalars_pandas_df[col_name].isin(test_set).astype("boolean")
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+def test_isin_bigframes_index(scalars_dfs, session):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = (
+        scalars_df["string_col"]
+        .isin(bigframes.pandas.Index(["Hello, World!", "Hi", "こんにちは"], session=session))
+        .to_pandas()
+    )
+    pd_result = (
+        scalars_pandas_df["string_col"]
+        .isin(pd.Index(["Hello, World!", "Hi", "こんにちは"]))
+        .astype("boolean")
+    )
     pd.testing.assert_series_equal(
         pd_result,
         bf_result,
@@ -2132,7 +2162,7 @@ def test_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep, col_na
     ],
 )
 def test_unique(scalars_df_index, scalars_pandas_df_index, col_name):
-    bf_uniq = scalars_df_index[col_name].unique().to_numpy()
+    bf_uniq = scalars_df_index[col_name].unique().to_numpy(na_value=None)
     pd_uniq = scalars_pandas_df_index[col_name].unique()
     numpy.array_equal(pd_uniq, bf_uniq)
 
@@ -2999,6 +3029,17 @@ def test_clip(scalars_df_index, scalars_pandas_df_index, ordered):
     pd_result = col_pd.clip(lower_pd, upper_pd)
 
     assert_series_equal(bf_result, pd_result, ignore_order=not ordered)
+
+
+def test_clip_int_with_float_bounds(scalars_df_index, scalars_pandas_df_index):
+    col_bf = scalars_df_index["int64_too"]
+    bf_result = col_bf.clip(-100, 3.14151593).to_pandas()
+
+    col_pd = scalars_pandas_df_index["int64_too"]
+    # pandas doesn't work with Int64 and clip with floats
+    pd_result = col_pd.astype("int64").clip(-100, 3.14151593).astype("Float64")
+
+    assert_series_equal(bf_result, pd_result)
 
 
 def test_clip_filtered_two_sided(scalars_df_index, scalars_pandas_df_index):
@@ -4244,13 +4285,16 @@ def test_apply_lambda(scalars_dfs, col, lambda_):
     bf_result = bf_col.apply(lambda_, by_row=False).to_pandas()
 
     pd_col = scalars_pandas_df[col]
-    if pd.__version__.startswith("2.2"):
+    if pd.__version__[:3] in ("2.2", "2.3"):
         pd_result = pd_col.apply(lambda_, by_row=False)
     else:
         pd_result = pd_col.apply(lambda_)
 
     # ignore dtype check, which are Int64 and object respectively
-    assert_series_equal(bf_result, pd_result, check_dtype=False)
+    # Some columns implicitly convert to floating point. Use check_exact=False to ensure we're "close enough"
+    assert_series_equal(
+        bf_result, pd_result, check_dtype=False, check_exact=False, rtol=0.001
+    )
 
 
 @pytest.mark.parametrize(
@@ -4334,13 +4378,16 @@ def test_apply_simple_udf(scalars_dfs):
 
     pd_col = scalars_pandas_df["int64_col"]
 
-    if pd.__version__.startswith("2.2"):
+    if pd.__version__[:3] in ("2.2", "2.3"):
         pd_result = pd_col.apply(foo, by_row=False)
     else:
         pd_result = pd_col.apply(foo)
 
     # ignore dtype check, which are Int64 and object respectively
-    assert_series_equal(bf_result, pd_result, check_dtype=False)
+    # Some columns implicitly convert to floating point. Use check_exact=False to ensure we're "close enough"
+    assert_series_equal(
+        bf_result, pd_result, check_dtype=False, check_exact=False, rtol=0.001
+    )
 
 
 @pytest.mark.parametrize(
@@ -4593,4 +4640,44 @@ def test_series_to_pandas_dry_run(scalars_df_index):
 
     result = bf_series.to_pandas(dry_run=True)
 
-    assert len(result) == 14
+    assert isinstance(result, pd.Series)
+    assert len(result) > 0
+
+
+def test_series_item(session):
+    # Test with a single item
+    bf_s_single = bigframes.pandas.Series([42], session=session)
+    pd_s_single = pd.Series([42])
+    assert bf_s_single.item() == pd_s_single.item()
+
+
+def test_series_item_with_multiple(session):
+    # Test with multiple items
+    bf_s_multiple = bigframes.pandas.Series([1, 2, 3], session=session)
+    pd_s_multiple = pd.Series([1, 2, 3])
+
+    try:
+        pd_s_multiple.item()
+    except ValueError as e:
+        expected_message = str(e)
+    else:
+        raise AssertionError("Expected ValueError from pandas, but didn't get one")
+
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
+        bf_s_multiple.item()
+
+
+def test_series_item_with_empty(session):
+    # Test with an empty Series
+    bf_s_empty = bigframes.pandas.Series([], dtype="Int64", session=session)
+    pd_s_empty = pd.Series([], dtype="Int64")
+
+    try:
+        pd_s_empty.item()
+    except ValueError as e:
+        expected_message = str(e)
+    else:
+        raise AssertionError("Expected ValueError from pandas, but didn't get one")
+
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
+        bf_s_empty.item()

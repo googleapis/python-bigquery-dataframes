@@ -17,7 +17,6 @@ from __future__ import annotations
 import functools
 import typing
 
-import bigframes_vendored.constants as constants
 import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations.generic as ibis_generic
@@ -1074,9 +1073,20 @@ def geo_st_intersection_op_impl(x: ibis_types.Value, y: ibis_types.Value):
     )
 
 
+@scalar_op_compiler.register_unary_op(ops.geo_st_isclosed_op, pass_op=False)
+def geo_st_isclosed_op_impl(x: ibis_types.Value):
+    return st_isclosed(x)
+
+
 @scalar_op_compiler.register_unary_op(ops.geo_x_op)
 def geo_x_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).x()
+
+
+@scalar_op_compiler.register_unary_op(ops.GeoStLengthOp, pass_op=True)
+def geo_length_op_impl(x: ibis_types.Value, op: ops.GeoStLengthOp):
+    # Call the st_length UDF defined in this file (or imported)
+    return st_length(x, op.use_spheroid)
 
 
 @scalar_op_compiler.register_unary_op(ops.geo_y_op)
@@ -1274,15 +1284,56 @@ def timedelta_floor_op_impl(x: ibis_types.NumericValue):
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
 def remote_function_op_impl(x: ibis_types.Value, op: ops.RemoteFunctionOp):
-    ibis_node = getattr(op.func, "ibis_node", None)
-    if ibis_node is None:
-        raise TypeError(
-            f"only a bigframes remote function is supported as a callable. {constants.FEEDBACK_LINK}"
-        )
-    x_transformed = ibis_node(x)
+    udf_sig = op.function_def.signature
+    ibis_py_sig = (udf_sig.py_input_types, udf_sig.py_output_type)
+
+    @ibis_udf.scalar.builtin(
+        name=str(op.function_def.routine_ref), signature=ibis_py_sig
+    )
+    def udf(input):
+        ...
+
+    x_transformed = udf(x)
     if not op.apply_on_null:
-        x_transformed = ibis_api.case().when(x.isnull(), x).else_(x_transformed).end()
+        return ibis_api.case().when(x.isnull(), x).else_(x_transformed).end()
     return x_transformed
+
+
+@scalar_op_compiler.register_binary_op(ops.BinaryRemoteFunctionOp, pass_op=True)
+def binary_remote_function_op_impl(
+    x: ibis_types.Value, y: ibis_types.Value, op: ops.BinaryRemoteFunctionOp
+):
+    udf_sig = op.function_def.signature
+    ibis_py_sig = (udf_sig.py_input_types, udf_sig.py_output_type)
+
+    @ibis_udf.scalar.builtin(
+        name=str(op.function_def.routine_ref), signature=ibis_py_sig
+    )
+    def udf(input1, input2):
+        ...
+
+    x_transformed = udf(x, y)
+    return x_transformed
+
+
+@scalar_op_compiler.register_nary_op(ops.NaryRemoteFunctionOp, pass_op=True)
+def nary_remote_function_op_impl(
+    *operands: ibis_types.Value, op: ops.NaryRemoteFunctionOp
+):
+    udf_sig = op.function_def.signature
+    ibis_py_sig = (udf_sig.py_input_types, udf_sig.py_output_type)
+    arg_names = tuple(arg.name for arg in udf_sig.input_types)
+
+    @ibis_udf.scalar.builtin(
+        name=str(op.function_def.routine_ref),
+        signature=ibis_py_sig,
+        param_name_overrides=arg_names,
+    )
+    def udf(*inputs):
+        ...
+
+    result = udf(*operands)
+    return result
 
 
 @scalar_op_compiler.register_unary_op(ops.MapOp, pass_op=True)
@@ -1354,6 +1405,32 @@ def json_extract_string_array_op_impl(
     x: ibis_types.Value, op: ops.JSONExtractStringArray
 ):
     return json_extract_string_array(json_obj=x, json_path=op.json_path)
+
+
+@scalar_op_compiler.register_unary_op(ops.JSONQuery, pass_op=True)
+def json_query_op_impl(x: ibis_types.Value, op: ops.JSONQuery):
+    # Define a user-defined function whose returned type is dynamically matching the input.
+    def json_query(json_or_json_string, json_path: ibis_dtypes.str):  # type: ignore
+        """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
+        ...
+
+    return_type = x.type()
+    json_query.__annotations__["return"] = return_type
+    json_query_op = ibis_udf.scalar.builtin(json_query)
+    return json_query_op(json_or_json_string=x, json_path=op.json_path)
+
+
+@scalar_op_compiler.register_unary_op(ops.JSONQueryArray, pass_op=True)
+def json_query_array_op_impl(x: ibis_types.Value, op: ops.JSONQueryArray):
+    # Define a user-defined function whose returned type is dynamically matching the input.
+    def json_query_array(json_or_json_string, json_path: ibis_dtypes.str):  # type: ignore
+        """Extracts a JSON value and converts it to a SQL JSON-formatted STRING or JSON value."""
+        ...
+
+    return_type = x.type()
+    json_query_array.__annotations__["return"] = ibis_dtypes.Array[return_type]  # type: ignore
+    json_query_op = ibis_udf.scalar.builtin(json_query_array)
+    return json_query_op(json_or_json_string=x, json_path=op.json_path)
 
 
 @scalar_op_compiler.register_unary_op(ops.ParseJSON, pass_op=True)
@@ -1895,19 +1972,6 @@ def manhattan_distance_impl(
     return vector_distance(vector1, vector2, "MANHATTAN")
 
 
-@scalar_op_compiler.register_binary_op(ops.BinaryRemoteFunctionOp, pass_op=True)
-def binary_remote_function_op_impl(
-    x: ibis_types.Value, y: ibis_types.Value, op: ops.BinaryRemoteFunctionOp
-):
-    ibis_node = getattr(op.func, "ibis_node", None)
-    if ibis_node is None:
-        raise TypeError(
-            f"only a bigframes remote function is supported as a callable. {constants.FEEDBACK_LINK}"
-        )
-    x_transformed = ibis_node(x, y)
-    return x_transformed
-
-
 # Blob Ops
 @scalar_op_compiler.register_binary_op(ops.obj_make_ref_op)
 def obj_make_ref_op(x: ibis_types.Value, y: ibis_types.Value):
@@ -1935,34 +1999,18 @@ def clip_op(
     if isinstance(lower, ibis_types.NullScalar) and (
         not isinstance(upper, ibis_types.NullScalar)
     ):
-        return (
-            ibis_api.case()  # type: ignore
-            .when(upper.isnull() | (original > upper), upper)
-            .else_(original)
-            .end()
-        )
+        return ibis_api.least(original, upper)
     elif (not isinstance(lower, ibis_types.NullScalar)) and isinstance(
         upper, ibis_types.NullScalar
     ):
-        return (
-            ibis_api.case()  # type: ignore
-            .when(lower.isnull() | (original < lower), lower)
-            .else_(original)
-            .end()
-        )
+        return ibis_api.greatest(original, lower)
     elif isinstance(lower, ibis_types.NullScalar) and (
         isinstance(upper, ibis_types.NullScalar)
     ):
         return original
     else:
         # Note: Pandas has unchanged behavior when upper bound and lower bound are flipped. This implementation requires that lower_bound < upper_bound
-        return (
-            ibis_api.case()  # type: ignore
-            .when(lower.isnull() | (original < lower), lower)
-            .when(upper.isnull() | (original > upper), upper)
-            .else_(original)
-            .end()
-        )
+        return ibis_api.greatest(ibis_api.least(original, upper), lower)
 
 
 # N-ary Operations
@@ -1983,19 +2031,6 @@ def case_when_op(*cases_and_outputs: ibis_types.Value) -> ibis_types.Value:
     for predicate, output in zip(cases_and_outputs[::2], result_values):
         case_val = case_val.when(predicate, output)
     return case_val.end()  # type: ignore
-
-
-@scalar_op_compiler.register_nary_op(ops.NaryRemoteFunctionOp, pass_op=True)
-def nary_remote_function_op_impl(
-    *operands: ibis_types.Value, op: ops.NaryRemoteFunctionOp
-):
-    ibis_node = getattr(op.func, "ibis_node", None)
-    if ibis_node is None:
-        raise TypeError(
-            f"only a bigframes remote function is supported as a callable. {constants.FEEDBACK_LINK}"
-        )
-    result = ibis_node(*operands)
-    return result
 
 
 @scalar_op_compiler.register_nary_op(ops.SqlScalarOp, pass_op=True)
@@ -2058,6 +2093,12 @@ def st_boundary(a: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ign
 @ibis_udf.scalar.builtin
 def st_distance(a: ibis_dtypes.geography, b: ibis_dtypes.geography, use_spheroid: bool) -> ibis_dtypes.float:  # type: ignore
     """Convert string to geography."""
+
+
+@ibis_udf.scalar.builtin
+def st_length(geog: ibis_dtypes.geography, use_spheroid: bool) -> ibis_dtypes.float:  # type: ignore
+    """ST_LENGTH BQ builtin. This body is never executed."""
+    pass
 
 
 @ibis_udf.scalar.builtin
@@ -2181,6 +2222,11 @@ def str_lstrip_op(  # type: ignore[empty-body]
     x: ibis_dtypes.String, to_strip: ibis_dtypes.String
 ) -> ibis_dtypes.String:
     """Remove leading and trailing characters."""
+
+
+@ibis_udf.scalar.builtin
+def st_isclosed(a: ibis_dtypes.geography) -> ibis_dtypes.boolean:  # type: ignore
+    """Checks if a geography is closed."""
 
 
 @ibis_udf.scalar.builtin(name="rtrim")

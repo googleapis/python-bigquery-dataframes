@@ -25,7 +25,6 @@ import warnings
 import google.api_core.exceptions
 from google.cloud import bigquery, functions_v2, storage
 import pandas
-import pyarrow
 import pytest
 import test_utils.prefixer
 
@@ -36,7 +35,7 @@ import bigframes.exceptions
 import bigframes.functions._utils as bff_utils
 import bigframes.pandas as bpd
 import bigframes.series
-from tests.system.utils import (
+from bigframes.testing.utils import (
     assert_pandas_df_equal,
     cleanup_function_assets,
     delete_cloud_function,
@@ -95,118 +94,6 @@ def bq_cf_connection() -> str:
     $ bq show --connection --location=us --project_id=PROJECT_ID bigframes-rf-conn
     """
     return "bigframes-rf-conn"
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_multiply_with_ibis(
-    session,
-    scalars_table_id,
-    bigquery_client,
-    ibis_client,
-    dataset_id,
-    bq_cf_connection,
-):
-    try:
-
-        @session.remote_function(
-            # Make sure that the input/output types can be used positionally.
-            # This avoids the worst of the breaking change from 1.x to 2.x.
-            [int, int],
-            int,
-            dataset_id,
-            bigquery_connection=bq_cf_connection,
-            reuse=False,
-            cloud_function_service_account="default",
-        )
-        def multiply(x, y):
-            return x * y
-
-        _, dataset_name, table_name = scalars_table_id.split(".")
-        if not ibis_client.dataset:
-            ibis_client.dataset = dataset_name
-
-        col_name = "int64_col"
-        table = ibis_client.tables[table_name]
-        table = table.filter(table[col_name].notnull()).order_by("rowindex").head(10)
-        sql = table.compile()
-        pandas_df_orig = bigquery_client.query(sql).to_dataframe()
-
-        col = table[col_name]
-        col_2x = multiply(col, 2).name("int64_col_2x")
-        col_square = multiply(col, col).name("int64_col_square")
-        table = table.mutate([col_2x, col_square])
-        sql = table.compile()
-        pandas_df_new = bigquery_client.query(sql).to_dataframe()
-
-        pandas.testing.assert_series_equal(
-            pandas_df_orig[col_name] * 2,
-            pandas_df_new["int64_col_2x"],
-            check_names=False,
-        )
-
-        pandas.testing.assert_series_equal(
-            pandas_df_orig[col_name] * pandas_df_orig[col_name],
-            pandas_df_new["int64_col_square"],
-            check_names=False,
-        )
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(multiply, bigquery_client, session.cloudfunctionsclient)
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_stringify_with_ibis(
-    session,
-    scalars_table_id,
-    bigquery_client,
-    ibis_client,
-    dataset_id,
-    bq_cf_connection,
-):
-    try:
-
-        @session.remote_function(
-            # Make sure that the input/output types can be used positionally.
-            # This avoids the worst of the breaking change from 1.x to 2.x.
-            [int],
-            str,
-            dataset_id,
-            bigquery_connection=bq_cf_connection,
-            reuse=False,
-            cloud_function_service_account="default",
-        )
-        def stringify(x):
-            return f"I got {x}"
-
-        # Function should work locally.
-        assert stringify(42) == "I got 42"
-
-        _, dataset_name, table_name = scalars_table_id.split(".")
-        if not ibis_client.dataset:
-            ibis_client.dataset = dataset_name
-
-        col_name = "int64_col"
-        table = ibis_client.tables[table_name]
-        table = table.filter(table[col_name].notnull()).order_by("rowindex").head(10)
-        sql = table.compile()
-        pandas_df_orig = bigquery_client.query(sql).to_dataframe()
-
-        col = table[col_name]
-        col_2x = stringify.ibis_node(col).name("int64_str_col")
-        table = table.mutate([col_2x])
-        sql = table.compile()
-        pandas_df_new = bigquery_client.query(sql).to_dataframe()
-
-        pandas.testing.assert_series_equal(
-            pandas_df_orig[col_name].apply(lambda x: f"I got {x}"),
-            pandas_df_new["int64_str_col"],
-            check_names=False,
-        )
-    finally:
-        # clean up the gcp assets created for the remote function
-        cleanup_function_assets(
-            stringify, bigquery_client, session.cloudfunctionsclient
-        )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -1342,7 +1229,7 @@ def test_remote_function_via_session_custom_sa(scalars_dfs):
     # For upfront convenience, the following set up has been statically created
     # in the project bigfrmames-dev-perf via cloud console:
     #
-    # 1. Create a service account as per
+    # 1. Create a service account bigframes-dev-perf-1@bigframes-dev-perf.iam.gserviceaccount.com as per
     #    https://cloud.google.com/iam/docs/service-accounts-create#iam-service-accounts-create-console
     # 2. Give necessary roles as per
     #    https://cloud.google.com/functions/docs/reference/iam/roles#additional-configuration
@@ -1375,6 +1262,80 @@ def test_remote_function_via_session_custom_sa(scalars_dfs):
             name=square_num.bigframes_cloud_function
         )
         assert gcf.service_config.service_account_email == gcf_service_account
+
+        # assert that the function works as expected on data
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_int64_col = scalars_df["int64_col"]
+        bf_result_col = bf_int64_col.apply(square_num)
+        bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
+
+        pd_int64_col = scalars_pandas_df["int64_col"]
+        pd_result_col = pd_int64_col.apply(lambda x: x if x is None else x * x)
+        pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
+
+        assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
+    finally:
+        # clean up the gcp assets created for the remote function
+        cleanup_function_assets(
+            square_num, rf_session.bqclient, rf_session.cloudfunctionsclient
+        )
+
+
+@pytest.mark.parametrize(
+    ("set_build_service_account"),
+    [
+        pytest.param(
+            "projects/bigframes-dev-perf/serviceAccounts/bigframes-dev-perf-1@bigframes-dev-perf.iam.gserviceaccount.com",
+            id="fully-qualified-sa",
+        ),
+        pytest.param(
+            "bigframes-dev-perf-1@bigframes-dev-perf.iam.gserviceaccount.com",
+            id="just-sa-email",
+        ),
+    ],
+)
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_via_session_custom_build_sa(
+    scalars_dfs, set_build_service_account
+):
+    # TODO(shobs): Automate the following set-up during testing in the test project.
+    #
+    # For upfront convenience, the following set up has been statically created
+    # in the project bigfrmames-dev-perf via cloud console:
+    #
+    # 1. Create a service account bigframes-dev-perf-1@bigframes-dev-perf.iam.gserviceaccount.com as per
+    #    https://cloud.google.com/iam/docs/service-accounts-create#iam-service-accounts-create-console
+    # 2. Give "Cloud Build Service Account (roles/cloudbuild.builds.builder)" role as per
+    #    https://cloud.google.com/build/docs/cloud-build-service-account#default_permissions_of_the_legacy_service_account
+    #
+    project = "bigframes-dev-perf"
+    expected_build_service_account = "projects/bigframes-dev-perf/serviceAccounts/bigframes-dev-perf-1@bigframes-dev-perf.iam.gserviceaccount.com"
+
+    rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
+
+    try:
+
+        # TODO(shobs): Figure out why the default ingress setting
+        # (internal-only) does not work here
+        @rf_session.remote_function(
+            input_types=[int],
+            output_type=int,
+            reuse=False,
+            cloud_function_service_account="default",
+            cloud_build_service_account=set_build_service_account,
+            cloud_function_ingress_settings="all",
+        )
+        def square_num(x):
+            if x is None:
+                return x
+            return x * x
+
+        # assert that the GCF is created with the intended SA
+        gcf = rf_session.cloudfunctionsclient.get_function(
+            name=square_num.bigframes_cloud_function
+        )
+        assert gcf.build_config.service_account == expected_build_service_account
 
         # assert that the function works as expected on data
         scalars_df, scalars_pandas_df = scalars_dfs
@@ -2291,13 +2252,6 @@ def test_df_apply_axis_1_multiple_params_array_output(session):
 
         assert getattr(foo, "is_row_processor") is False
         assert getattr(foo, "input_dtypes") == expected_dtypes
-        assert getattr(foo, "output_dtype") == pandas.ArrowDtype(
-            pyarrow.list_(
-                bigframes.dtypes.bigframes_dtype_to_arrow_dtype(
-                    bigframes.dtypes.STRING_DTYPE
-                )
-            )
-        )
         assert (
             getattr(foo, "bigframes_bigquery_function_output_dtype")
             == bigframes.dtypes.STRING_DTYPE

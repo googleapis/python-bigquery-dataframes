@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
 import numpy
 import pandas as pd
 import pytest
 
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_index_equal_ignore_index_type
+from bigframes.testing.utils import assert_pandas_index_equal_ignore_index_type
 
 
 def test_index_construct_from_list():
@@ -375,10 +377,42 @@ def test_index_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep):
     )
 
 
-def test_index_isin(scalars_df_index, scalars_pandas_df_index):
+def test_index_isin_list(scalars_df_index, scalars_pandas_df_index):
     col_name = "int64_col"
     bf_series = (
         scalars_df_index.set_index(col_name).index.isin([2, 55555, 4]).to_pandas()
+    )
+    pd_result_array = scalars_pandas_df_index.set_index(col_name).index.isin(
+        [2, 55555, 4]
+    )
+    pd.testing.assert_index_equal(
+        pd.Index(pd_result_array).set_names(col_name),
+        bf_series,
+    )
+
+
+def test_index_isin_bf_series(scalars_df_index, scalars_pandas_df_index, session):
+    col_name = "int64_col"
+    bf_series = (
+        scalars_df_index.set_index(col_name)
+        .index.isin(bpd.Series([2, 55555, 4], session=session))
+        .to_pandas()
+    )
+    pd_result_array = scalars_pandas_df_index.set_index(col_name).index.isin(
+        [2, 55555, 4]
+    )
+    pd.testing.assert_index_equal(
+        pd.Index(pd_result_array).set_names(col_name),
+        bf_series,
+    )
+
+
+def test_index_isin_bf_index(scalars_df_index, scalars_pandas_df_index, session):
+    col_name = "int64_col"
+    bf_series = (
+        scalars_df_index.set_index(col_name)
+        .index.isin(bpd.Index([2, 55555, 4], session=session))
+        .to_pandas()
     )
     pd_result_array = scalars_pandas_df_index.set_index(col_name).index.isin(
         [2, 55555, 4]
@@ -426,3 +460,42 @@ def test_multiindex_repr_includes_all_names(session):
     )
     index = session.read_pandas(df).set_index(["A", "B"]).index
     assert "names=['A', 'B']" in repr(index)
+
+
+def test_index_item(session):
+    # Test with a single item
+    bf_idx_single = bpd.Index([42], session=session)
+    pd_idx_single = pd.Index([42])
+    assert bf_idx_single.item() == pd_idx_single.item()
+
+
+def test_index_item_with_multiple(session):
+    # Test with multiple items
+    bf_idx_multiple = bpd.Index([1, 2, 3], session=session)
+    pd_idx_multiple = pd.Index([1, 2, 3])
+
+    try:
+        pd_idx_multiple.item()
+    except ValueError as e:
+        expected_message = str(e)
+    else:
+        raise AssertionError("Expected ValueError from pandas, but didn't get one")
+
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
+        bf_idx_multiple.item()
+
+
+def test_index_item_with_empty(session):
+    # Test with an empty Index
+    bf_idx_empty = bpd.Index([], dtype="Int64", session=session)
+    pd_idx_empty: pd.Index = pd.Index([], dtype="Int64")
+
+    try:
+        pd_idx_empty.item()
+    except ValueError as e:
+        expected_message = str(e)
+    else:
+        raise AssertionError("Expected ValueError from pandas, but didn't get one")
+
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
+        bf_idx_empty.item()

@@ -15,7 +15,9 @@ from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
 
-from bigframes.core import bigframe_node, nodes
+import pyarrow as pa
+
+from bigframes.core import array_value, bigframe_node, local_data, nodes
 from bigframes.session import executor, semi_executor
 
 if TYPE_CHECKING:
@@ -49,14 +51,16 @@ class PolarsExecutor(semi_executor.SemiExecutor):
             return None
         # Note: Ignoring ordered flag, as just executing totally ordered is fine.
         try:
-            lazy_frame: pl.LazyFrame = self._compiler.compile(plan)
+            lazy_frame: pl.LazyFrame = self._compiler.compile(
+                array_value.ArrayValue(plan).node
+            )
         except Exception:
             return None
         if peek is not None:
             lazy_frame = lazy_frame.limit(peek)
         pa_table = lazy_frame.collect().to_arrow()
         return executor.ExecuteResult(
-            arrow_batches=iter(pa_table.to_batches()),
+            arrow_batches=iter(map(self._adapt_batch, pa_table.to_batches())),
             schema=plan.schema,
             total_bytes=pa_table.nbytes,
             total_rows=pa_table.num_rows,
@@ -64,3 +68,13 @@ class PolarsExecutor(semi_executor.SemiExecutor):
 
     def _can_execute(self, plan: bigframe_node.BigFrameNode):
         return all(isinstance(node, _COMPATIBLE_NODES) for node in plan.unique_nodes())
+
+    def _adapt_array(self, array: pa.Array) -> pa.Array:
+        target_type = local_data.logical_type_replacements(array.type)
+        if target_type != array.type:
+            return array.cast(target_type)
+        return array
+
+    def _adapt_batch(self, batch: pa.RecordBatch) -> pa.RecordBatch:
+        new_arrays = [self._adapt_array(arr) for arr in batch.columns]
+        return pa.RecordBatch.from_arrays(new_arrays, names=batch.column_names)

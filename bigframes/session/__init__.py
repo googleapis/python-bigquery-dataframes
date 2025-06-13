@@ -60,7 +60,8 @@ from bigframes import exceptions as bfe
 from bigframes import version
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
-from bigframes.core import blocks, log_adapter
+import bigframes.constants
+from bigframes.core import blocks, log_adapter, utils
 import bigframes.core.pyformat
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
@@ -171,6 +172,7 @@ class Session(
                 application_name=context.application_name,
                 bq_kms_key_name=self._bq_kms_key_name,
                 client_endpoints_override=context.client_endpoints_override,
+                requests_transport_adapters=context.requests_transport_adapters,
             )
 
         # TODO(shobs): Remove this logic after https://github.com/ibis-project/ibis/issues/8494
@@ -178,18 +180,6 @@ class Session(
         # so we are going to remember the current config and restore it after
         # the ibis client has been created
         original_default_query_job_config = self.bqclient.default_query_job_config
-
-        # Only used to fetch remote function metadata.
-        # TODO: Remove in favor of raw bq client
-
-        self.ibis_client = typing.cast(
-            ibis_bigquery.Backend,
-            ibis_bigquery.Backend().connect(
-                project_id=context.project,
-                client=self.bqclient,
-                storage_client=self.bqstoragereadclient,
-            ),
-        )
 
         self.bqclient.default_query_job_config = original_default_query_job_config
 
@@ -248,14 +238,6 @@ class Session(
         self._temp_storage_manager = (
             self._session_resource_manager or self._anon_dataset_manager
         )
-        self._executor: executor.Executor = bq_caching_executor.BigQueryCachingExecutor(
-            bqclient=self._clients_provider.bqclient,
-            bqstoragereadclient=self._clients_provider.bqstoragereadclient,
-            storage_manager=self._temp_storage_manager,
-            strictly_ordered=self._strictly_ordered,
-            metrics=self._metrics,
-            enable_polars_execution=context.enable_polars_execution,
-        )
         self._loader = bigframes.session.loader.GbqDataLoader(
             session=self,
             bqclient=self._clients_provider.bqclient,
@@ -265,6 +247,15 @@ class Session(
             scan_index_uniqueness=self._strictly_ordered,
             force_total_order=self._strictly_ordered,
             metrics=self._metrics,
+        )
+        self._executor: executor.Executor = bq_caching_executor.BigQueryCachingExecutor(
+            bqclient=self._clients_provider.bqclient,
+            bqstoragereadclient=self._clients_provider.bqstoragereadclient,
+            loader=self._loader,
+            storage_manager=self._temp_storage_manager,
+            strictly_ordered=self._strictly_ordered,
+            metrics=self._metrics,
+            enable_polars_execution=context.enable_polars_execution,
         )
 
     def __del__(self):
@@ -528,6 +519,8 @@ class Session(
         query = bigframes.core.pyformat.pyformat(
             query,
             pyformat_args=pyformat_args,
+            session=self,
+            dry_run=dry_run,
         )
 
         return self._loader.read_gbq_query(
@@ -535,6 +528,10 @@ class Session(
             index_col=bigframes.enums.DefaultIndexKind.NULL,
             force_total_order=False,
             dry_run=typing.cast(Union[Literal[False], Literal[True]], dry_run),
+            # TODO(tswast): we may need to allow allow_large_results to be overwritten
+            # or possibly a general configuration object for an explicit
+            # destination table and write disposition.
+            allow_large_results=False,
         )
 
     @overload
@@ -938,15 +935,15 @@ class Session(
         if write_engine == "default":
             write_engine = (
                 "bigquery_load"
-                if mem_usage > MAX_INLINE_DF_BYTES
+                if mem_usage > bigframes.constants.MAX_INLINE_BYTES
                 else "bigquery_inline"
             )
 
         if write_engine == "bigquery_inline":
-            if mem_usage > MAX_INLINE_DF_BYTES:
+            if mem_usage > bigframes.constants.MAX_INLINE_BYTES:
                 raise ValueError(
                     f"DataFrame size ({mem_usage} bytes) exceeds the maximum allowed "
-                    f"for inline data ({MAX_INLINE_DF_BYTES} bytes)."
+                    f"for inline data ({bigframes.constants.MAX_INLINE_BYTES} bytes)."
                 )
             return self._read_pandas_inline(pandas_dataframe)
         elif write_engine == "bigquery_load":
@@ -955,6 +952,10 @@ class Session(
             return self._loader.read_pandas(pandas_dataframe, method="stream")
         elif write_engine == "bigquery_write":
             return self._loader.read_pandas(pandas_dataframe, method="write")
+        elif write_engine == "_deferred":
+            import bigframes.dataframe as dataframe
+
+            return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe, self))
         else:
             raise ValueError(f"Got unexpected write_engine '{write_engine}'")
 
@@ -1103,11 +1104,8 @@ class Session(
         native CSV loading capabilities, making it suitable for large datasets
         that may not fit into local memory.
         """
-        if dtype is not None:
-            raise NotImplementedError(
-                f"BigQuery engine does not support the `dtype` argument."
-                f"{constants.FEEDBACK_LINK}"
-            )
+        if dtype is not None and not utils.is_dict_like(dtype):
+            raise ValueError("dtype should be a dict-like object.")
 
         if names is not None:
             if len(names) != len(set(names)):
@@ -1162,9 +1160,19 @@ class Session(
             job_config.skip_leading_rows = header + 1
 
         table_id = self._loader.load_file(filepath_or_buffer, job_config=job_config)
-        return self._loader.read_gbq_table(
-            table_id, index_col=index_col, columns=columns, names=names
+        df = self._loader.read_gbq_table(
+            table_id,
+            index_col=index_col,
+            columns=columns,
+            names=names,
+            index_col_in_columns=True,
         )
+
+        if dtype is not None:
+            for column, dtype in dtype.items():
+                if column in df.columns:
+                    df[column] = df[column].astype(dtype)
+        return df
 
     def read_pickle(
         self,
@@ -1361,6 +1369,7 @@ class Session(
         cloud_function_ingress_settings: Literal[
             "all", "internal-only", "internal-and-gclb"
         ] = "internal-only",
+        cloud_build_service_account: Optional[str] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1536,6 +1545,16 @@ class Session(
                 If no setting is provided, `internal-only` will be used by default.
                 See for more details
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
+            cloud_build_service_account (str, Optional):
+                Service account in the fully qualified format
+                `projects/PROJECT_ID/serviceAccounts/SERVICE_ACCOUNT_EMAIL`, or
+                just the SERVICE_ACCOUNT_EMAIL. The latter would be interpreted
+                as belonging to the BigQuery DataFrames session project. This is
+                to be used by Cloud Build to build the function source code into
+                a deployable artifact. If not provided, the default Cloud Build
+                service account is used. See
+                https://cloud.google.com/build/docs/cloud-build-service-account
+                for more details.
         Returns:
             collections.abc.Callable:
                 A remote function object pointing to the cloud assets created
@@ -1564,6 +1583,7 @@ class Session(
             cloud_function_vpc_connector=cloud_function_vpc_connector,
             cloud_function_memory_mib=cloud_function_memory_mib,
             cloud_function_ingress_settings=cloud_function_ingress_settings,
+            cloud_build_service_account=cloud_build_service_account,
         )
 
     def udf(
@@ -1908,10 +1928,15 @@ class Session(
         # https://cloud.google.com/bigquery/docs/customer-managed-encryption#encrypt-model
         job_config.destination_encryption_configuration = None
         iterator, query_job = bf_io_bigquery.start_query_with_client(
-            self.bqclient, sql, job_config=job_config, metrics=self._metrics
+            self.bqclient,
+            sql,
+            job_config=job_config,
+            metrics=self._metrics,
+            location=None,
+            project=None,
+            timeout=None,
+            query_with_job=True,
         )
-
-        assert query_job is not None
         return iterator, query_job
 
     def _create_object_table(self, path: str, connection: str) -> str:
@@ -1934,13 +1959,25 @@ class Session(
             sql,
             job_config=bigquery.QueryJobConfig(),
             metrics=self._metrics,
+            location=None,
+            project=None,
+            timeout=None,
+            query_with_job=True,
         )
 
         return table
 
     def _create_temp_view(self, sql: str) -> bigquery.TableReference:
-        """Create a random id Object Table from the input path and connection."""
+        """Create a random id view from the sql string."""
         return self._anon_dataset_manager.create_temp_view(sql)
+
+    def _create_temp_table(
+        self, schema: Sequence[bigquery.SchemaField], cluster_cols: Sequence[str] = []
+    ) -> bigquery.TableReference:
+        """Allocate a random temporary table with the desired schema."""
+        return self._temp_storage_manager.create_temp_table(
+            schema=schema, cluster_cols=cluster_cols
+        )
 
     def from_glob_path(
         self, path: str, *, connection: Optional[str] = None, name: Optional[str] = None
