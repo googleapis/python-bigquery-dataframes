@@ -231,14 +231,6 @@ if polars_installed:
             else:
                 return input.is_in(op.values) or input.is_null()
 
-        @compile_op.register(gen_ops.IsNullOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return input.is_null()
-
-        @compile_op.register(gen_ops.NotNullOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return input.is_not_null()
-
         @compile_op.register(gen_ops.FillNaOp)
         @compile_op.register(gen_ops.CoalesceOp)
         def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
@@ -267,6 +259,16 @@ if polars_installed:
             # TODO: Polars casting works differently, need to lower instead to specific conversion ops.
             # eg. We want "True" instead of "true" for bool to strin
             return input.cast(_DTYPE_MAPPING[op.to_type], strict=not op.safe)
+
+    # Register ops from other modules
+    from bigframes.operations import IsNullOp, NotNullOp
+    from bigframes.operations.isnull_op import (
+        _polars_isnull_op_impl,
+        _polars_notnull_op_impl,
+    )
+
+    PolarsExpressionCompiler.compile_op.register(IsNullOp, _polars_isnull_op_impl)
+    PolarsExpressionCompiler.compile_op.register(NotNullOp, _polars_notnull_op_impl)
 
     @dataclasses.dataclass(frozen=True)
     class PolarsAggregateCompiler:
