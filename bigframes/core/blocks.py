@@ -2531,7 +2531,7 @@ class Block:
             idx_labels,
         )
 
-    def to_view(
+    def to_placeholder_table(
         self, include_index: bool, *, dry_run: bool = False
     ) -> bigquery.TableReference:
         """

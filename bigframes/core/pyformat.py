@@ -66,7 +66,7 @@ def _pandas_df_to_sql(
 
     # Use the _deferred engine to avoid loading data too often during dry run.
     df = session.read_pandas(df_pd, write_engine="_deferred")
-    return _table_to_sql(df._to_view(dry_run=dry_run))
+    return _table_to_sql(df._to_placeholder_table(dry_run=dry_run))
 
 
 def _field_to_template_value(
@@ -90,7 +90,7 @@ def _field_to_template_value(
         return _pandas_df_to_sql(value, session=session, dry_run=dry_run, name=name)
 
     if isinstance(value, bigframes.dataframe.DataFrame):
-        return _table_to_sql(value._to_view(dry_run=dry_run))
+        return _table_to_sql(value._to_placeholder_table(dry_run=dry_run))
 
     return bigframes.core.sql.simple_literal(value)
 
