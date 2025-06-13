@@ -47,6 +47,8 @@ def test_local_data_well_formed_round_trip():
 
 
 def test_local_data_small_sizes_round_trip():
+    pyarrow_version = int(pa.__version__.split(".")[0])
+
     int8s = [126, 127, -127, -128, 0, 1, -1]
     uint8s = [254, 255, 1, 0, 128, 129, 127]
     int16s = [32766, 32767, -32766, -32767, 0, 1, -1]
@@ -77,33 +79,36 @@ def test_local_data_small_sizes_round_trip():
         float.fromhex("0x1.fffffcp-127"),  # ((2 ** -126) * (1 - 2 ** -23)).hex()
         float.fromhex("-0x1.fffffcp-127"),  # ((2 ** -126) * (1 - 2 ** -23)).hex()
     ]
-    small_pd = pd.DataFrame(
-        {
-            "int8": pd.Series(int8s, dtype=pd.Int8Dtype()),
-            "int16": pd.Series(int16s, dtype=pd.Int16Dtype()),
-            "int32": pd.Series(int32s, dtype=pd.Int32Dtype()),
-            "uint8": pd.Series(uint8s, dtype=pd.UInt8Dtype()),
-            "uint16": pd.Series(uint16s, dtype=pd.UInt16Dtype()),
-            "uint32": pd.Series(uint32s, dtype=pd.UInt32Dtype()),
-            "float16": pd.Series(float16s, dtype="float16"),
-            "float32": pd.Series(float32s, dtype="float32"),
-        }
-    )
+    small_data = {
+        "int8": pd.Series(int8s, dtype=pd.Int8Dtype()),
+        "int16": pd.Series(int16s, dtype=pd.Int16Dtype()),
+        "int32": pd.Series(int32s, dtype=pd.Int32Dtype()),
+        "uint8": pd.Series(uint8s, dtype=pd.UInt8Dtype()),
+        "uint16": pd.Series(uint16s, dtype=pd.UInt16Dtype()),
+        "uint32": pd.Series(uint32s, dtype=pd.UInt32Dtype()),
+        "float32": pd.Series(float32s, dtype="float32"),
+    }
+    expected_data = {
+        "int8": pd.Series(int8s, dtype=pd.Int64Dtype()),
+        "int16": pd.Series(int16s, dtype=pd.Int64Dtype()),
+        "int32": pd.Series(int32s, dtype=pd.Int64Dtype()),
+        "uint8": pd.Series(uint8s, dtype=pd.Int64Dtype()),
+        "uint16": pd.Series(uint16s, dtype=pd.Int64Dtype()),
+        "uint32": pd.Series(uint32s, dtype=pd.Int64Dtype()),
+        "float32": pd.Series(float32s, dtype=pd.Float64Dtype()),
+    }
+
+    # Casting from float16 added in version 16.
+    # https://arrow.apache.org/blog/2024/04/20/16.0.0-release/#:~:text=Enhancements,New%20Features
+    if pyarrow_version >= 16:
+        small_data["float16"] = pd.Series(float16s, dtype="float16")
+        expected_data["float16"] = pd.Series(float16s, dtype=pd.Float64Dtype())
+
+    small_pd = pd.DataFrame(small_data)
     local_entry = local_data.ManagedArrowTable.from_pandas(small_pd)
     result = pd.DataFrame(local_entry.itertuples(), columns=small_pd.columns)
 
-    expected = pd.DataFrame(
-        {
-            "int8": pd.Series(int8s, dtype=pd.Int64Dtype()),
-            "int16": pd.Series(int16s, dtype=pd.Int64Dtype()),
-            "int32": pd.Series(int32s, dtype=pd.Int64Dtype()),
-            "uint8": pd.Series(uint8s, dtype=pd.Int64Dtype()),
-            "uint16": pd.Series(uint16s, dtype=pd.Int64Dtype()),
-            "uint32": pd.Series(uint32s, dtype=pd.Int64Dtype()),
-            "float16": pd.Series(float16s, dtype=pd.Float64Dtype()),
-            "float32": pd.Series(float32s, dtype=pd.Float64Dtype()),
-        }
-    )
+    expected = pd.DataFrame(expected_data)
     pandas.testing.assert_frame_equal(expected, result, check_dtype=False)
 
 
