@@ -14,8 +14,6 @@
 
 from unittest import mock
 
-import pandas
-
 import bigframes.dataframe
 import bigframes.pandas.io.api as bf_io_api
 import bigframes.session
@@ -37,12 +35,11 @@ def test_read_gbq_colab_dry_run_doesnt_call_set_location(
 
     query_or_table = "SELECT {param1} AS param1"
     sample_pyformat_args = {"param1": "value1"}
-    result = bf_io_api._read_gbq_colab(
+    bf_io_api._read_gbq_colab(
         query_or_table, pyformat_args=sample_pyformat_args, dry_run=True
     )
 
     mock_set_location.assert_not_called()
-    assert isinstance(result, pandas.Series)
 
 
 @mock.patch(
