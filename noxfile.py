@@ -79,7 +79,7 @@ UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = ["tests"]
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
-    "3.12": ["tests", "polars", "scikit-learn"],
+    "3.12": ["tests", "polars", "scikit-learn", "anywidget"],
 }
 
 # 3.10 is needed for Windows tests as it is the only version installed in the
@@ -108,8 +108,8 @@ SYSTEM_TEST_EXTRAS: List[str] = []
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     "3.9": ["tests"],
     "3.10": ["tests"],
-    "3.12": ["tests", "scikit-learn", "polars"],
-    "3.13": ["tests", "polars"],
+    "3.12": ["tests", "scikit-learn", "polars", "anywidget"],
+    "3.13": ["tests", "polars", "anywidget"],
 }
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
