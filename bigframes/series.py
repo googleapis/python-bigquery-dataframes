@@ -430,14 +430,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         # metadata, like we do with DataFrame.
         opts = bigframes.options.display
         max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
             return formatter.repr_query_job(self._compute_dry_run())
-
-        # For anywidget mode, display a preview of the Series to avoid executing
-        # a potentially large query
-        if opts.repr_mode == "anywidget":
-            preview_series = self[:max_results].to_pandas()
-            return repr(preview_series)
 
         self._cached()
         pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)

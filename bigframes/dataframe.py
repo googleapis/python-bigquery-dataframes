@@ -726,14 +726,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         opts = bigframes.options.display
         max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
             return formatter.repr_query_job(self._compute_dry_run())
-
-        if opts.repr_mode == "anywidget":
-            # for plain text represtation, display a preview of the first few
-            # rows as a pandas Dataframe
-            preview_df = self.head(max_results).to_pandas()
-            return repr(preview_df)
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
