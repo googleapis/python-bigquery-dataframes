@@ -276,6 +276,7 @@ def mypy(session):
                 "types-setuptools",
                 "types-tabulate",
                 "polars",
+                "anywidget",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
