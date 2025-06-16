@@ -506,6 +506,92 @@ def read_pandas(
 read_pandas.__doc__ = inspect.getdoc(bigframes.session.Session.read_pandas)
 
 
+@overload
+def read_arrow(
+    arrow_table: pyarrow.Table,
+    *,
+    write_engine: constants.WriteEngineType = "default",
+) -> bigframes.dataframe.DataFrame:
+    ...
+
+
+# TODO(b/340350610): Add overloads for pyarrow.RecordBatchReader and other arrow types.
+def read_arrow(
+    arrow_table: pyarrow.Table,
+    *,
+    write_engine: constants.WriteEngineType = "default",
+) -> bigframes.dataframe.DataFrame:
+    """Loads DataFrame from a pyarrow Table.
+
+    The pyarrow Table will be persisted as a temporary BigQuery table, which can be
+    automatically recycled after the Session is closed.
+
+    .. note::
+        Data is inlined in the query SQL if it is small enough (roughly 5MB
+        or less in memory). Larger size data is loaded to a BigQuery table
+        instead.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> import pyarrow as pa
+        >>> bpd.options.display.progress_bar = None
+
+        >>> data = [
+        ...     pa.array([1, 2, 3]),
+        ...     pa.array(["foo", "bar", "baz"]),
+        ... ]
+        >>> arrow_table = pa.Table.from_arrays(data, names=["id", "value"])
+        >>> df = bpd.read_arrow(arrow_table)
+        >>> df
+           id  value
+        0   1    foo
+        1   2    bar
+        2   3    baz
+        <BLANKLINE>
+        [2 rows x 2 columns]
+
+    Args:
+        arrow_table (pyarrow.Table):
+            a pyarrow Table object to be loaded.
+        write_engine (str):
+            How data should be written to BigQuery (if at all). Supported
+            values:
+
+            * "default":
+              (Recommended) Select an appropriate mechanism to write data
+              to BigQuery. Depends on data size and supported data types.
+            * "bigquery_inline":
+              Inline data in BigQuery SQL. Use this when you know the data
+              is small enough to fit within BigQuery's 1 MB query text size
+              limit.
+            * "bigquery_load":
+              Use a BigQuery load job. Use this for larger data sizes.
+            * "bigquery_streaming":
+              Use the BigQuery streaming JSON API. Use this if your
+              workload is such that you exhaust the BigQuery load job
+              quota and your data cannot be embedded in SQL due to size or
+              data type limitations.
+            * "bigquery_write":
+              [Preview] Use the BigQuery Storage Write API. This feature
+              is in public preview.
+    Returns:
+        An equivalent bigframes.pandas.DataFrame object
+
+    Raises:
+        ValueError:
+            When the object is not a pyarrow Table.
+    """
+    return global_session.with_default_session(
+        bigframes.session.Session.read_arrow,
+        arrow_table,
+        write_engine=write_engine,
+    )
+
+
+read_arrow.__doc__ = inspect.getdoc(bigframes.session.Session.read_arrow)
+
+
 def read_pickle(
     filepath_or_buffer: FilePath | ReadPickleBuffer,
     compression: CompressionOptions = "infer",
