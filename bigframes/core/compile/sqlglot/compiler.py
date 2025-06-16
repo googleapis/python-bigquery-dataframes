@@ -119,15 +119,33 @@ class SQLGlotCompiler:
         return typing.cast(nodes.ResultNode, result_node)
 
     def _compile_result_node(self, root: nodes.ResultNode) -> str:
-        sqlglot_ir = self.compile_node(root.child)
-
+        # Have to bind schema as the final step before compilation.
+        root = typing.cast(nodes.ResultNode, schema_binding.bind_schema_to_tree(root))
         selected_cols: tuple[tuple[str, sge.Expression], ...] = tuple(
             (name, scalar_compiler.compile_scalar_expression(ref))
             for ref, name in root.output_cols
         )
-        sqlglot_ir = sqlglot_ir.select(selected_cols)
+        # Skip squashing selections to ensure the right ordering and limit keys
+        sqlglot_ir = self.compile_node(root.child).select(
+            selected_cols, squash_selections=False
+        )
 
-        # TODO: add order_by, limit to sqlglot_expr
+        if root.order_by is not None:
+            ordering_cols = tuple(
+                sge.Ordered(
+                    this=scalar_compiler.compile_scalar_expression(
+                        ordering.scalar_expression
+                    ),
+                    desc=ordering.direction.is_ascending is False,
+                    nulls_first=ordering.na_last is False,
+                )
+                for ordering in root.order_by.all_ordering_columns
+            )
+            sqlglot_ir = sqlglot_ir.order_by(ordering_cols)
+
+        if root.limit is not None:
+            sqlglot_ir = sqlglot_ir.limit(root.limit)
+
         return sqlglot_ir.sql
 
     @functools.lru_cache(maxsize=5000)
@@ -167,6 +185,7 @@ class SQLGlotCompiler:
             table.table_id,
             col_names=[col.source_id for col in node.scan_list.items],
             alias_names=[col.id.sql for col in node.scan_list.items],
+            uid_gen=self.uid_gen,
         )
 
     @_compile_node.register
@@ -189,9 +208,19 @@ class SQLGlotCompiler:
         )
         return child.project(projected_cols)
 
+    @_compile_node.register
+    def compile_concat(
+        self, node: nodes.ConcatNode, *children: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        output_ids = [id.sql for id in node.output_ids]
+        return ir.SQLGlotIR.from_union(
+            [child.expr for child in children],
+            output_ids=output_ids,
+            uid_gen=self.uid_gen,
+        )
+
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
     node = nodes.bottom_up(node, rewrite.rewrite_slice)
-    node = nodes.bottom_up(node, schema_binding.bind_schema_to_expressions)
     node = nodes.bottom_up(node, rewrite.rewrite_range_rolling)
     return node

@@ -28,7 +28,7 @@ from bigframes import dtypes
 from bigframes.core import guid
 import bigframes.core.compile.sqlglot.sqlglot_types as sgt
 import bigframes.core.local_data as local_data
-import bigframes.core.schema as schemata
+import bigframes.core.schema as bf_schema
 
 # shapely.wkt.dumps was moved to shapely.io.to_wkt in 2.0.
 try:
@@ -67,7 +67,7 @@ class SQLGlotIR:
     def from_pyarrow(
         cls,
         pa_table: pa.Table,
-        schema: schemata.ArraySchema,
+        schema: bf_schema.ArraySchema,
         uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Builds SQLGlot expression from pyarrow table."""
@@ -114,6 +114,7 @@ class SQLGlotIR:
         table_id: str,
         col_names: typing.Sequence[str],
         alias_names: typing.Sequence[str],
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         selections = [
             sge.Alias(
@@ -128,7 +129,7 @@ class SQLGlotIR:
             catalog=sg.to_identifier(project_id, quoted=cls.quoted),
         )
         select_expr = sge.Select().select(*selections).from_(table_expr)
-        return cls(expr=select_expr)
+        return cls(expr=select_expr, uid_gen=uid_gen)
 
     @classmethod
     def from_query_string(
@@ -148,9 +149,61 @@ class SQLGlotIR:
         select_expr.set("with", sge.With(expressions=[cte]))
         return cls(expr=select_expr, uid_gen=uid_gen)
 
+    @classmethod
+    def from_union(
+        cls,
+        selects: typing.Sequence[sge.Select],
+        output_ids: typing.Sequence[str],
+        uid_gen: guid.SequentialUIDGenerator,
+    ) -> SQLGlotIR:
+        """Builds SQLGlot expression by union of multiple select expressions."""
+        assert (
+            len(list(selects)) >= 2
+        ), f"At least two select expressions must be provided, but got {selects}."
+
+        existing_ctes: list[sge.CTE] = []
+        union_selects: list[sge.Select] = []
+        for select in selects:
+            assert isinstance(
+                select, sge.Select
+            ), f"All provided expressions must be of type sge.Select, but got {type(select)}"
+
+            select_expr = select.copy()
+            existing_ctes = [*existing_ctes, *select_expr.args.pop("with", [])]
+
+            new_cte_name = sge.to_identifier(
+                next(uid_gen.get_uid_stream("bfcte_")), quoted=cls.quoted
+            )
+            new_cte = sge.CTE(
+                this=select_expr,
+                alias=new_cte_name,
+            )
+            existing_ctes = [*existing_ctes, new_cte]
+
+            selections = [
+                sge.Alias(
+                    this=expr.alias_or_name,
+                    alias=sge.to_identifier(output_id, quoted=cls.quoted),
+                )
+                for expr, output_id in zip(select_expr.expressions, output_ids)
+            ]
+            union_selects.append(
+                sge.Select().select(*selections).from_(sge.Table(this=new_cte_name))
+            )
+
+        union_expr = sg.union(
+            *union_selects,
+            distinct=False,
+            copy=False,
+        )
+        final_select_expr = sge.Select().select(sge.Star()).from_(union_expr.subquery())
+        final_select_expr.set("with", sge.With(expressions=existing_ctes))
+        return cls(expr=final_select_expr, uid_gen=uid_gen)
+
     def select(
         self,
         selected_cols: tuple[tuple[str, sge.Expression], ...],
+        squash_selections: bool = True,
     ) -> SQLGlotIR:
         selections = [
             sge.Alias(
@@ -159,15 +212,39 @@ class SQLGlotIR:
             )
             for id, expr in selected_cols
         ]
-        # Attempts to simplify selected columns when the original and new column
-        # names are simply aliases of each other.
-        squashed_selections = _squash_selections(self.expr.expressions, selections)
-        if squashed_selections != []:
-            new_expr = self.expr.select(*squashed_selections, append=False)
-            return SQLGlotIR(expr=new_expr)
+
+        # If squashing is enabled, we try to simplify the selections
+        # by checking if the new selections are simply aliases of the
+        # original columns.
+        if squash_selections:
+            new_selections = _squash_selections(self.expr.expressions, selections)
+            if new_selections != []:
+                new_expr = self.expr.select(*new_selections, append=False)
+                return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+
+        new_expr = self._encapsulate_as_cte().select(*selections, append=False)
+        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+
+    def order_by(
+        self,
+        ordering: tuple[sge.Ordered, ...],
+    ) -> SQLGlotIR:
+        """Adds ORDER BY clause to the query."""
+        if len(ordering) == 0:
+            return SQLGlotIR(expr=self.expr.copy(), uid_gen=self.uid_gen)
+        new_expr = self.expr.order_by(*ordering)
+        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+
+    def limit(
+        self,
+        limit: int | None,
+    ) -> SQLGlotIR:
+        """Adds LIMIT clause to the query."""
+        if limit is not None:
+            new_expr = self.expr.limit(limit)
         else:
-            new_expr = self._encapsulate_as_cte().select(*selections, append=False)
-            return SQLGlotIR(expr=new_expr)
+            new_expr = self.expr.copy()
+        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def project(
         self,
@@ -180,8 +257,8 @@ class SQLGlotIR:
             )
             for id, expr in projected_cols
         ]
-        new_expr = self._encapsulate_as_cte().select(*projected_cols_expr, append=False)
-        return SQLGlotIR(expr=new_expr)
+        new_expr = self._encapsulate_as_cte().select(*projected_cols_expr, append=True)
+        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def insert(
         self,
@@ -290,6 +367,7 @@ def _squash_selections(
     old_expr: list[sge.Expression], new_expr: list[sge.Alias]
 ) -> list[sge.Alias]:
     """
+    TODO: Reanble this function to optimize the SQL.
     Simplifies the select column expressions if existing (old_expr) and
     new (new_expr) selected columns are both simple aliases of column definitions.
 

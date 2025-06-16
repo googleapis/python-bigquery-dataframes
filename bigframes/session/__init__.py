@@ -181,18 +181,6 @@ class Session(
         # the ibis client has been created
         original_default_query_job_config = self.bqclient.default_query_job_config
 
-        # Only used to fetch remote function metadata.
-        # TODO: Remove in favor of raw bq client
-
-        self.ibis_client = typing.cast(
-            ibis_bigquery.Backend,
-            ibis_bigquery.Backend().connect(
-                project_id=context.project,
-                client=self.bqclient,
-                storage_client=self.bqstoragereadclient,
-            ),
-        )
-
         self.bqclient.default_query_job_config = original_default_query_job_config
 
         # Resolve the BQ connection for remote function and Vertex AI integration
@@ -530,6 +518,8 @@ class Session(
         query = bigframes.core.pyformat.pyformat(
             query,
             pyformat_args=pyformat_args,
+            session=self,
+            dry_run=dry_run,
         )
 
         return self._loader.read_gbq_query(
@@ -1378,6 +1368,7 @@ class Session(
         cloud_function_ingress_settings: Literal[
             "all", "internal-only", "internal-and-gclb"
         ] = "internal-only",
+        cloud_build_service_account: Optional[str] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1553,6 +1544,16 @@ class Session(
                 If no setting is provided, `internal-only` will be used by default.
                 See for more details
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
+            cloud_build_service_account (str, Optional):
+                Service account in the fully qualified format
+                `projects/PROJECT_ID/serviceAccounts/SERVICE_ACCOUNT_EMAIL`, or
+                just the SERVICE_ACCOUNT_EMAIL. The latter would be interpreted
+                as belonging to the BigQuery DataFrames session project. This is
+                to be used by Cloud Build to build the function source code into
+                a deployable artifact. If not provided, the default Cloud Build
+                service account is used. See
+                https://cloud.google.com/build/docs/cloud-build-service-account
+                for more details.
         Returns:
             collections.abc.Callable:
                 A remote function object pointing to the cloud assets created
@@ -1581,6 +1582,7 @@ class Session(
             cloud_function_vpc_connector=cloud_function_vpc_connector,
             cloud_function_memory_mib=cloud_function_memory_mib,
             cloud_function_ingress_settings=cloud_function_ingress_settings,
+            cloud_build_service_account=cloud_build_service_account,
         )
 
     def udf(
@@ -1965,8 +1967,16 @@ class Session(
         return table
 
     def _create_temp_view(self, sql: str) -> bigquery.TableReference:
-        """Create a random id Object Table from the input path and connection."""
+        """Create a random id view from the sql string."""
         return self._anon_dataset_manager.create_temp_view(sql)
+
+    def _create_temp_table(
+        self, schema: Sequence[bigquery.SchemaField], cluster_cols: Sequence[str] = []
+    ) -> bigquery.TableReference:
+        """Allocate a random temporary table with the desired schema."""
+        return self._temp_storage_manager.create_temp_table(
+            schema=schema, cluster_cols=cluster_cols
+        )
 
     def from_glob_path(
         self, path: str, *, connection: Optional[str] = None, name: Optional[str] = None
