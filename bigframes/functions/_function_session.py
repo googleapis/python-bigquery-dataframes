@@ -548,9 +548,7 @@ class FunctionSession:
             # Try to get input types via type annotations.
 
             # The function will actually be receiving a pandas Series, but allow both
-            # BigQuery DataFrames and pandas object types for compatibility.
-            # The function will actually be receiving a pandas Series, but allow
-            # both BigQuery DataFrames and pandas object types for compatibility.
+            # BigQuery DataFrames and pandas object types for pandas API compatibility.
             is_row_processor = False
             if new_sig := _convert_row_processor_sig(py_sig):
                 py_sig = new_sig
