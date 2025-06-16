@@ -212,6 +212,8 @@ def test_series_describe_non_numeric(scalars_dfs, include):
 
 @pytest.mark.parametrize("include", [None, "all"])
 def test_series_describe_temporal(scalars_dfs, include):
+    # Pandas returns <NA> for unique timestamps only after 2.1.0
+    pytest.importorskip("pandas", minversion="2.1.0")
     target_col = "timestamp_col"
     bf_df, pd_df = scalars_dfs
     bf_s, pd_s = bf_df[target_col], pd_df[target_col]
