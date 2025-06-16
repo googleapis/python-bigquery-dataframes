@@ -202,7 +202,7 @@ class BaseSqlGenerator:
         https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-ai-forecast"""
         named_parameters_sql = self.build_named_parameters(**options)
 
-        return f"""SELECT * FROM AI.FORECAST(({source_sql}), {named_parameters_sql})"""
+        return f"""SELECT * FROM AI.FORECAST(({source_sql}),{named_parameters_sql})"""
 
 
 class ModelCreationSqlGenerator(BaseSqlGenerator):

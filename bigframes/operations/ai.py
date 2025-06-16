@@ -923,26 +923,16 @@ class AIAccessor:
             timestamp_column (str):
                 A str value that specified the name of the time points column.
                 The time points column provides the time points used to generate the forecast.
-                The time points column must use one of the following data types:
-                    TIMESTAMP
-                    DATE
-                    DATETIME
+                The time points column must use one of the following data types: TIMESTAMP, DATE and DATETIME
             data_column (str):
                 A str value that specifies the name of the data column. The data column contains the data to forecast.
-                The data column must use one of the following data types:
-                    INT64
-                    NUMERIC
-                    FLOAT64
+                The data column must use one of the following data types: INT64, NUMERIC and FLOAT64
             model (str, default "TimesFM 2.0"):
                 A str value that specifies the name of the model. TimesFM 2.0 is the only supported value, and is the default value.
             id_columns (Iterable[str] or None, default None):
                 An iterable of str value that specifies the names of one or more ID columns. Each ID identifies a unique time series to forecast.
                 Specify one or more values for this argument in order to forecast multiple time series using a single query.
-                The columns that you specify must use one of the following data types:
-                    STRING
-                    INT64
-                    ARRAY<STRING>
-                    ARRAY<INT64>
+                The columns that you specify must use one of the following data types: STRING, INT64, ARRAY<STRING> and ARRAY<INT64>
             horizon (int, default 10):
                 An int value that specifies the number of time points to forecast. The default value is 10. The valid input range is [1, 10,000].
             confidence_level (float, default 0.95):
