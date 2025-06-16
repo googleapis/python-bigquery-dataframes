@@ -507,6 +507,7 @@ def docs(session):
     """Build the docs for this library."""
     session.install("-e", ".[scikit-learn]")
     session.install(
+        "anywidget",
         # We need to pin to specific versions of the `sphinxcontrib-*` packages
         # which still support sphinx 4.x.
         # See https://github.com/googleapis/sphinx-docfx-yaml/issues/344
@@ -548,6 +549,7 @@ def docfx(session):
 
     session.install("-e", ".[scikit-learn]")
     session.install(
+        "anywidget",
         # We need to pin to specific versions of the `sphinxcontrib-*` packages
         # which still support sphinx 4.x.
         # See https://github.com/googleapis/sphinx-docfx-yaml/issues/344
