@@ -27,7 +27,7 @@ from bigframes.core import guid, log_adapter
 
 @log_adapter.class_logger
 class AIAccessor:
-    def __init__(self, df, base_bqml) -> None:
+    def __init__(self, df, base_bqml=None) -> None:
         import bigframes  # Import in the function body to avoid circular imports.
         import bigframes.dataframe
         from bigframes.ml import core as ml_core
