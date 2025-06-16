@@ -930,40 +930,31 @@ class Session(
     def read_arrow(
         self,
         arrow_table: pyarrow.Table,
-        *,
-        write_engine: constants.WriteEngineType = "default",
     ) -> dataframe.DataFrame:
         """Loads a BigQuery DataFrames DataFrame from a ``pyarrow.Table`` object.
 
-        This method persists the ``pyarrow.Table`` data into a temporary BigQuery
-        table, which is automatically cleaned up when the session is closed.
+        This method uses a deferred loading mechanism: the ``pyarrow.Table`` data
+        is kept in memory locally and converted to a BigFrames DataFrame
+        representation without immediate BigQuery table materialization.
+        Actual computation or data transfer to BigQuery is deferred until an
+        action requiring remote execution is triggered on the DataFrame.
+
         This is the primary session-level API for reading Arrow tables and is
         called by :func:`bigframes.pandas.read_arrow`.
-
-        .. note::
-            The method of persistence (and associated BigQuery costs/quotas)
-            depends on the ``write_engine`` parameter and the table's size.
-            If the input ``pyarrow.Table`` is small (determined by its in-memory
-            size, roughly <= 5MB using ``pyarrow.Table.nbytes``), its data might
-            be inlined directly into a SQL query when ``write_engine`` is
-            ``"default"`` or ``"bigquery_inline"``. For larger tables, or when
-            ``write_engine`` is ``"bigquery_load"``, ``"bigquery_streaming"``,
-            or ``"bigquery_write"``, a BigQuery load job or streaming API is used.
 
         **Examples:**
 
             >>> import bigframes.pandas as bpd
             >>> import pyarrow as pa
             >>> # Assume 'session' is an active BigQuery DataFrames Session
-            >>> # bpd.options.display.progress_bar = None # Optional: to silence progress bar
 
             >>> data_dict = {
             ...     "id": pa.array([1, 2, 3], type=pa.int64()),
             ...     "product_name": pa.array(["laptop", "tablet", "phone"], type=pa.string()),
             ... }
             >>> arrow_table = pa.Table.from_pydict(data_dict)
-            >>> df = session.read_arrow(arrow_table)
-            >>> df
+            >>> bf_df = session.read_arrow(arrow_table)
+            >>> bf_df
                id product_name
             0   1       laptop
             1   2       tablet
@@ -973,25 +964,7 @@ class Session(
 
         Args:
             arrow_table (pyarrow.Table):
-                The ``pyarrow.Table`` object to load into BigQuery DataFrames.
-            write_engine (str, default "default"):
-                Specifies the mechanism for writing data to BigQuery.
-                Supported values:
-
-                * ``"default"``: (Recommended) Automatically selects the most
-                  appropriate write mechanism. If the table's estimated
-                  in-memory size (via ``arrow_table.nbytes``) is less than
-                  or equal to :data:`bigframes.constants.MAX_INLINE_BYTES`
-                  (currently 5000 bytes), ``"bigquery_inline"`` is used.
-                  Otherwise, ``"bigquery_load"`` is used.
-                * ``"bigquery_inline"``: Embeds the table data directly into a
-                  BigQuery SQL query. Suitable only for very small tables.
-                * ``"bigquery_load"``: Uses a BigQuery load job to ingest the
-                  data. Preferred for larger datasets.
-                * ``"bigquery_streaming"``: Employs the BigQuery Storage Write
-                  API in streaming mode (older JSON-based API).
-                * ``"bigquery_write"``: [Preview] Leverages the BigQuery Storage
-                  Write API (Arrow-based). This feature is in public preview.
+                The ``pyarrow.Table`` object to load.
 
         Returns:
             bigframes.dataframe.DataFrame:
@@ -1000,11 +973,10 @@ class Session(
 
         Raises:
             ValueError:
-                If the input object is not a ``pyarrow.Table`` or if an
-                unsupported ``write_engine`` is specified.
+                If the input object is not a ``pyarrow.Table``.
         """
         if isinstance(arrow_table, pyarrow.Table):
-            return self._read_arrow(arrow_table, write_engine=write_engine)
+            return self._read_arrow(arrow_table)
         else:
             raise ValueError(
                 f"read_arrow() expects a pyarrow.Table, but got a {type(arrow_table)}"
@@ -1024,33 +996,34 @@ class Session(
                 "bigframes.pandas.DataFrame."
             )
 
-        final_engine, is_inline, loader_method = self._get_loader_details_for_engine(
-            write_engine, pandas_dataframe.memory_usage(deep=True).sum()
-        )
+        mem_usage = pandas_dataframe.memory_usage(deep=True).sum()
+        if write_engine == "default":
+            write_engine = (
+                "bigquery_load"
+                if mem_usage > bigframes.constants.MAX_INLINE_BYTES
+                else "bigquery_inline"
+            )
 
-        if is_inline:
-            if final_engine == "bigquery_inline":
-                # Ensure inline data isn't too large if specified directly
-                if (
-                    pandas_dataframe.memory_usage(deep=True).sum()
-                    > bigframes.constants.MAX_INLINE_BYTES
-                ):
-                    raise ValueError(
-                        f"DataFrame size ({pandas_dataframe.memory_usage(deep=True).sum()} bytes) "
-                        f"exceeds the maximum allowed for inline data "
-                        f"({bigframes.constants.MAX_INLINE_BYTES} bytes) when "
-                        f"write_engine='bigquery_inline'."
-                    )
-                return self._read_pandas_inline(pandas_dataframe)
-            elif final_engine == "_deferred":
-                return dataframe.DataFrame(
-                    blocks.Block.from_local(pandas_dataframe, self)
+        if write_engine == "bigquery_inline":
+            if mem_usage > bigframes.constants.MAX_INLINE_BYTES:
+                raise ValueError(
+                    f"DataFrame size ({mem_usage} bytes) exceeds the maximum allowed "
+                    f"for inline data ({bigframes.constants.MAX_INLINE_BYTES} bytes)."
                 )
-            else:
-                # Should not happen if _get_loader_details_for_engine is correct
-                raise ValueError(f"Unexpected inline engine: {final_engine}")
+            return self._read_pandas_inline(pandas_dataframe)
+        elif write_engine == "bigquery_load":
+            return self._loader.read_pandas(pandas_dataframe, method="load")
+        elif write_engine == "bigquery_streaming":
+            return self._loader.read_pandas(pandas_dataframe, method="stream")
+        elif write_engine == "bigquery_write":
+            return self._loader.read_pandas(pandas_dataframe, method="write")
+        elif write_engine == "_deferred":
+            # Must import here to avoid circular dependency from blocks.py
+            import bigframes.dataframe as dataframe
+
+            return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe, self))
         else:
-            return self._loader.read_pandas(pandas_dataframe, method=loader_method)
+            raise ValueError(f"Got unexpected write_engine '{write_engine}'")
 
     def _read_pandas_inline(
         self, pandas_dataframe: pandas.DataFrame
@@ -1061,107 +1034,32 @@ class Session(
         local_block = blocks.Block.from_local(pandas_dataframe, self)
         return dataframe.DataFrame(local_block)
 
-    def _read_arrow_inline(self, arrow_table: pyarrow.Table) -> dataframe.DataFrame:
-        """Creates a BigFrames DataFrame from an in-memory pyarrow Table by inlining data."""
-        import bigframes.dataframe as dataframe
-
-        # Assuming Block.from_local can handle pandas DataFrame.
-        # If Block.from_local is enhanced to take pyarrow.Table directly,
-        # this conversion can be removed.
-        pandas_df = arrow_table.to_pandas()
-        local_block = blocks.Block.from_local(pandas_df, self)
-        return dataframe.DataFrame(local_block)
-
-    def _get_loader_details_for_engine(
-        self, write_engine: str, in_memory_size: int
-    ) -> Tuple[str, bool, str]:
-        """
-        Determines the final write engine, if it's an inline operation, and the loader method name.
-
-        Args:
-            write_engine (str):
-                The user-provided or default write engine.
-            in_memory_size (int):
-                The size of the data in bytes.
-
-        Returns:
-            Tuple[str, bool, str]:
-                A tuple containing:
-                    - final_write_engine (str): The resolved engine.
-                    - is_inline (bool): True if the engine is "bigquery_inline" or "_deferred".
-                    - loader_method_name (str): The method name for GbqDataLoader
-                      (e.g., "load", "stream", "write"), or an empty string if inline.
-        """
-        final_write_engine = write_engine
-        if write_engine == "default":
-            if in_memory_size > bigframes.constants.MAX_INLINE_BYTES:
-                final_write_engine = "bigquery_load"
-            else:
-                final_write_engine = "bigquery_inline"
-
-        if final_write_engine == "bigquery_inline":
-            return "bigquery_inline", True, ""
-        elif final_write_engine == "bigquery_load":
-            return "bigquery_load", False, "load"
-        elif final_write_engine == "bigquery_streaming":
-            return "bigquery_streaming", False, "stream"
-        elif final_write_engine == "bigquery_write":
-            return "bigquery_write", False, "write"
-        elif final_write_engine == "_deferred":  # Specific to _read_pandas
-            return "_deferred", True, ""
-        else:
-            raise ValueError(f"Got unexpected write_engine '{final_write_engine}'")
-
     def _read_arrow(
         self,
         arrow_table: pyarrow.Table,
-        *,
-        write_engine: constants.WriteEngineType = "default",
     ) -> dataframe.DataFrame:
-        """Internal helper to load a ``pyarrow.Table`` into a BigQuery DataFrames DataFrame.
+        """Internal helper to load a ``pyarrow.Table`` using a deferred mechanism.
 
-        This method orchestrates the data loading process based on the specified
-        ``write_engine``. It determines whether to inline the data, use a load
-        job, or employ streaming based on the engine and table properties.
+        Converts the Arrow table to a pandas DataFrame with ArrowDTypes,
+        then creates a BigFrames block from this local pandas DataFrame.
+        The data remains in memory until an operation triggers execution.
         Called by the public :meth:`~Session.read_arrow`.
 
         Args:
             arrow_table (pyarrow.Table):
                 The ``pyarrow.Table`` to load.
-            write_engine (str):
-                The write engine determining the loading mechanism.
-                If ``"default"``, the engine is chosen based on the table's
-                estimated size (``arrow_table.nbytes``). See
-                :meth:`~Session.read_arrow` for detailed descriptions of options.
 
         Returns:
             bigframes.dataframe.DataFrame:
                 A new DataFrame representing the data from the Arrow table.
-
-        Raises:
-            ValueError: If an unsupported ``write_engine`` is specified.
         """
-        final_engine, is_inline, loader_method = self._get_loader_details_for_engine(
-            write_engine, arrow_table.nbytes
-        )
-
-        if is_inline:
-            if final_engine == "bigquery_inline":
-                # Ensure inline data isn't too large if specified directly
-                if arrow_table.nbytes > bigframes.constants.MAX_INLINE_BYTES:
-                    raise ValueError(
-                        f"Arrow Table size ({arrow_table.nbytes} bytes) "
-                        f"exceeds the maximum allowed for inline data "
-                        f"({bigframes.constants.MAX_INLINE_BYTES} bytes) when "
-                        f"write_engine='bigquery_inline'."
-                    )
-                return self._read_arrow_inline(arrow_table)
-            # No "_deferred" case for Arrow currently
-            else:
-                # Should not happen
-                raise ValueError(f"Unexpected inline engine for Arrow: {final_engine}")
-        else:
-            return self._loader.read_arrow(arrow_table, method=loader_method)
+        import bigframes.dataframe as dataframe
+        # It's important to use types_mapper=pd.ArrowDtype to preserve Arrow types
+        # as much as possible when converting to pandas, especially for types
+        # that might otherwise lose precision or be converted to NumPy types.
+        pandas_df = arrow_table.to_pandas(types_mapper=pandas.ArrowDtype)
+        block = blocks.Block.from_local(pandas_df, self)
+        return dataframe.DataFrame(block)
 
     def read_csv(
         self,
@@ -2273,3 +2171,5 @@ def _warn_if_bf_version_is_obsolete():
     if today - release_date > datetime.timedelta(days=365):
         msg = f"Your BigFrames version {version.__version__} is more than 1 year old. Please update to the lastest version."
         warnings.warn(msg, bfe.ObsoleteVersionWarning)
+
+[end of bigframes/session/__init__.py]

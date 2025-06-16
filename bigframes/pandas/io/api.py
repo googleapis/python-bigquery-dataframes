@@ -516,13 +516,10 @@ import pyarrow
 # would likely be converted to a Table first or handled by a different dedicated function.
 def read_arrow(
     arrow_table: pyarrow.Table,
-    *,
-    write_engine: constants.WriteEngineType = "default",
 ) -> bigframes.dataframe.DataFrame:
     return global_session.with_default_session(
         bigframes.session.Session.read_arrow,
         arrow_table,
-        write_engine=write_engine,
     )
 
 
