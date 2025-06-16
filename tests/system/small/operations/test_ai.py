@@ -23,7 +23,6 @@ import pytest
 import bigframes
 from bigframes import dataframe, dtypes
 from bigframes.ml import llm
-import bigframes.operations
 import bigframes.operations.ai
 from bigframes.testing import utils
 
@@ -268,45 +267,31 @@ def test_top_k(session):
 
 
 def test_forecast_default(time_series_df_default_index: dataframe.DataFrame):
-    with bigframes.option_context(
-        AI_OP_EXP_OPTION,
-        True,
-        THRESHOLD_OPTION,
-        50,
-    ):
-        df = time_series_df_default_index[time_series_df_default_index["id"] == "1"]
+    df = time_series_df_default_index[time_series_df_default_index["id"] == "1"]
 
-        result = df.ai.forecast(
-            timestamp_column="parsed_date", data_column="total_visits"
-        )
+    result = df.ai.forecast(timestamp_column="parsed_date", data_column="total_visits")
 
-        utils.check_pandas_df_schema_and_index(
-            result,
-            columns=AI_FORECAST_COLUMNS,
-            index=10,
-        )
+    utils.check_pandas_df_schema_and_index(
+        result,
+        columns=AI_FORECAST_COLUMNS,
+        index=10,
+    )
 
 
 def test_forecast_w_params(time_series_df_default_index: dataframe.DataFrame):
-    with bigframes.option_context(
-        AI_OP_EXP_OPTION,
-        True,
-        THRESHOLD_OPTION,
-        50,
-    ):
-        result = time_series_df_default_index.ai.forecast(
-            timestamp_column="parsed_date",
-            data_column="total_visits",
-            id_columns=["id"],
-            horizon=20,
-            confidence_level=0.98,
-        )
+    result = time_series_df_default_index.ai.forecast(
+        timestamp_column="parsed_date",
+        data_column="total_visits",
+        id_columns=["id"],
+        horizon=20,
+        confidence_level=0.98,
+    )
 
-        utils.check_pandas_df_schema_and_index(
-            result,
-            columns=["id"] + AI_FORECAST_COLUMNS,
-            index=20 * 2,  # 20 for each id
-        )
+    utils.check_pandas_df_schema_and_index(
+        result,
+        columns=["id"] + AI_FORECAST_COLUMNS,
+        index=20 * 2,  # 20 for each id
+    )
 
 
 def _create_dummy_full_response(row_count: int) -> pd.Series:
