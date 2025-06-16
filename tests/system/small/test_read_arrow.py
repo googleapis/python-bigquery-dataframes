@@ -34,9 +34,7 @@ def test_read_arrow_basic(session):
         pa.array([0.1, 0.2, 0.3], type=pa.float64()),
         pa.array(["foo", "bar", "baz"], type=pa.string()),
     ]
-    arrow_table = pa.Table.from_arrays(
-        data, names=["ints", "floats", "strings"]
-    )
+    arrow_table = pa.Table.from_arrays(data, names=["ints", "floats", "strings"])
 
     bf_df = bpd.read_arrow(arrow_table)
 
@@ -142,13 +140,17 @@ def test_read_arrow_all_types(session):
     bf_pd_df = bf_df.to_pandas()
 
     for col in ["int_col", "float_col"]:
-            bf_pd_df[col] = bf_pd_df[col].astype(pd_expected[col].dtype)
+        bf_pd_df[col] = bf_pd_df[col].astype(pd_expected[col].dtype)
 
     bf_pd_df["str_col"] = bf_pd_df["str_col"].astype(pandas.ArrowDtype(pa.string()))
     bf_pd_df["ts_col"] = pandas.to_datetime(bf_pd_df["ts_col"], utc=True)
-    bf_pd_df["date_col"] = bf_pd_df["date_col"].apply(lambda x: x.date() if hasattr(x, 'date') and x is not pandas.NaT else x)
+    bf_pd_df["date_col"] = bf_pd_df["date_col"].apply(
+        lambda x: x.date() if hasattr(x, "date") and x is not pandas.NaT else x
+    )
     bf_pd_df["bool_col"] = bf_pd_df["bool_col"].astype(pandas.ArrowDtype(pa.bool_()))
-    pd_expected["bool_col"] = pd_expected["bool_col"].astype(pandas.ArrowDtype(pa.bool_()))
+    pd_expected["bool_col"] = pd_expected["bool_col"].astype(
+        pandas.ArrowDtype(pa.bool_())
+    )
 
     pandas.testing.assert_frame_equal(
         bf_pd_df, pd_expected, check_dtype=False, rtol=1e-5
@@ -193,10 +195,18 @@ def test_read_arrow_list_types(session):
     bf_pd_df = bf_df.to_pandas()
 
     # Explicitly cast to ArrowDtype for comparison as pandas might default to object
-    pd_expected["list_int_col"] = pd_expected["list_int_col"].astype(pandas.ArrowDtype(pa.list_(pa.int64())))
-    pd_expected["list_str_col"] = pd_expected["list_str_col"].astype(pandas.ArrowDtype(pa.list_(pa.string())))
-    bf_pd_df["list_int_col"] = bf_pd_df["list_int_col"].astype(pandas.ArrowDtype(pa.list_(pa.int64())))
-    bf_pd_df["list_str_col"] = bf_pd_df["list_str_col"].astype(pandas.ArrowDtype(pa.list_(pa.string())))
+    pd_expected["list_int_col"] = pd_expected["list_int_col"].astype(
+        pandas.ArrowDtype(pa.list_(pa.int64()))
+    )
+    pd_expected["list_str_col"] = pd_expected["list_str_col"].astype(
+        pandas.ArrowDtype(pa.list_(pa.string()))
+    )
+    bf_pd_df["list_int_col"] = bf_pd_df["list_int_col"].astype(
+        pandas.ArrowDtype(pa.list_(pa.int64()))
+    )
+    bf_pd_df["list_str_col"] = bf_pd_df["list_str_col"].astype(
+        pandas.ArrowDtype(pa.list_(pa.string()))
+    )
 
     pandas.testing.assert_frame_equal(bf_pd_df, pd_expected, check_dtype=True)
 
@@ -214,7 +224,9 @@ def test_read_arrow_engine_streaming(session):
     assert str(bf_df.dtypes["event"]) == "string[pyarrow]"
     pd_expected = arrow_table.to_pandas()
     bf_pd_df = bf_df.to_pandas()
-    pandas.testing.assert_frame_equal(bf_pd_df.astype(pd_expected.dtypes), pd_expected, check_dtype=False)
+    pandas.testing.assert_frame_equal(
+        bf_pd_df.astype(pd_expected.dtypes), pd_expected, check_dtype=False
+    )
 
 
 def test_read_arrow_engine_write(session):
@@ -230,7 +242,9 @@ def test_read_arrow_engine_write(session):
     assert str(bf_df.dtypes["status"]) == "string[pyarrow]"
     pd_expected = arrow_table.to_pandas()
     bf_pd_df = bf_df.to_pandas()
-    pandas.testing.assert_frame_equal(bf_pd_df.astype(pd_expected.dtypes), pd_expected, check_dtype=False)
+    pandas.testing.assert_frame_equal(
+        bf_pd_df.astype(pd_expected.dtypes), pd_expected, check_dtype=False
+    )
 
 
 def test_read_arrow_no_columns_empty_rows(session):
@@ -241,7 +255,14 @@ def test_read_arrow_no_columns_empty_rows(session):
 
 
 def test_read_arrow_special_column_names(session):
-    col_names = ["col with space", "col/slash", "col.dot", "col:colon", "col(paren)", "col[bracket]"]
+    col_names = [
+        "col with space",
+        "col/slash",
+        "col.dot",
+        "col:colon",
+        "col(paren)",
+        "col[bracket]",
+    ]
     # BigQuery normalizes column names by replacing special characters with underscores.
     # Exception: dots are not allowed and usually cause errors or are handled by specific client libraries.
     # BigFrames aims to map to valid BigQuery column names.
@@ -267,10 +288,10 @@ def test_read_arrow_special_column_names(session):
     expected_bq_names = [
         "col_with_space",
         "col_slash",
-        "col_dot", # BQ might error on dots or replace them. Let's assume replacement for now.
+        "col_dot",  # BQ might error on dots or replace them. Let's assume replacement for now.
         "col_colon",
         "col_paren_",
-        "col_bracket_"
+        "col_bracket_",
     ]
     # Update: Based on typical BigQuery behavior, dots are not allowed.
     # However, BigFrames might handle this by replacing dots with underscores before sending to BQ,
@@ -292,8 +313,8 @@ def test_read_arrow_special_column_names(session):
     # And arrow_table.to_pandas() will use the original names.
     # We then rename bf_pd_df columns to match pd_expected for data comparison.
 
-    pd_expected = arrow_table.to_pandas() # Has original names
-    bf_pd_df = bf_df.to_pandas() # Has BQ/BF names
+    pd_expected = arrow_table.to_pandas()  # Has original names
+    bf_pd_df = bf_df.to_pandas()  # Has BQ/BF names
 
     assert len(bf_pd_df.columns) == len(pd_expected.columns)
 

@@ -1031,7 +1031,10 @@ class Session(
         if is_inline:
             if final_engine == "bigquery_inline":
                 # Ensure inline data isn't too large if specified directly
-                if pandas_dataframe.memory_usage(deep=True).sum() > bigframes.constants.MAX_INLINE_BYTES:
+                if (
+                    pandas_dataframe.memory_usage(deep=True).sum()
+                    > bigframes.constants.MAX_INLINE_BYTES
+                ):
                     raise ValueError(
                         f"DataFrame size ({pandas_dataframe.memory_usage(deep=True).sum()} bytes) "
                         f"exceeds the maximum allowed for inline data "
@@ -1058,11 +1061,10 @@ class Session(
         local_block = blocks.Block.from_local(pandas_dataframe, self)
         return dataframe.DataFrame(local_block)
 
-    def _read_arrow_inline(
-        self, arrow_table: pyarrow.Table
-    ) -> dataframe.DataFrame:
+    def _read_arrow_inline(self, arrow_table: pyarrow.Table) -> dataframe.DataFrame:
         """Creates a BigFrames DataFrame from an in-memory pyarrow Table by inlining data."""
         import bigframes.dataframe as dataframe
+
         # Assuming Block.from_local can handle pandas DataFrame.
         # If Block.from_local is enhanced to take pyarrow.Table directly,
         # this conversion can be removed.
