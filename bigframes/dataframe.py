@@ -4899,4 +4899,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @property
     def ai(self):
         """Returns the accessor for AI operators."""
-        return bigframes.operations.ai.AIAccessor(self)
+        import bigframes.ml.core as ml_core
+
+        return bigframes.operations.ai.AIAccessor(self, ml_core.BaseBqml(self._session))
