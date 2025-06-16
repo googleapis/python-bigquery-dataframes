@@ -39,6 +39,7 @@ import bigframes.functions._utils as bff_utils
 from bigframes.pandas.core.api import to_timedelta
 from bigframes.pandas.io.api import (
     from_glob_path,
+    read_arrow,
     read_csv,
     read_gbq,
     read_gbq_function,
@@ -50,7 +51,6 @@ from bigframes.pandas.io.api import (
     read_pandas,
     read_parquet,
     read_pickle,
-    read_arrow,
 )
 import bigframes.series
 import bigframes.session

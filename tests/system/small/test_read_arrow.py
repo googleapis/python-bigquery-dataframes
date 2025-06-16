@@ -35,9 +35,7 @@ class TestReadArrow:
             pa.array([0.1, 0.2, 0.3], type=pa.float64()),
             pa.array(["foo", "bar", "baz"], type=pa.string()),
         ]
-        arrow_table = pa.Table.from_arrays(
-            data, names=["ints", "floats", "strings"]
-        )
+        arrow_table = pa.Table.from_arrays(data, names=["ints", "floats", "strings"])
 
         bf_df = bpd.read_arrow(arrow_table)
 
@@ -105,9 +103,13 @@ class TestReadArrow:
             pa.array([True, False, True], type=pa.bool_()),
             pa.array(
                 [
-                    datetime.datetime(2023, 1, 1, 12, 30, 0, tzinfo=datetime.timezone.utc),
+                    datetime.datetime(
+                        2023, 1, 1, 12, 30, 0, tzinfo=datetime.timezone.utc
+                    ),
                     None,
-                    datetime.datetime(2023, 1, 2, 10, 0, 0, tzinfo=datetime.timezone.utc),
+                    datetime.datetime(
+                        2023, 1, 2, 10, 0, 0, tzinfo=datetime.timezone.utc
+                    ),
                 ],
                 type=pa.timestamp("us", tz="UTC"),
             ),
@@ -135,7 +137,9 @@ class TestReadArrow:
         assert str(bf_df.dtypes["int_col"]) == "Int64"
         assert str(bf_df.dtypes["float_col"]) == "Float64"
         assert str(bf_df.dtypes["str_col"]) == "string[pyarrow]"
-        assert str(bf_df.dtypes["bool_col"]) == "boolean[pyarrow]" # TODO(b/340350610): should be boolean not boolean[pyarrow]
+        assert (
+            str(bf_df.dtypes["bool_col"]) == "boolean[pyarrow]"
+        )  # TODO(b/340350610): should be boolean not boolean[pyarrow]
         assert str(bf_df.dtypes["ts_col"]) == "timestamp[us, tz=UTC]"
         assert str(bf_df.dtypes["date_col"]) == "date"
         # assert str(bf_df.dtypes["list_col"]) == "TODO" # Define expected BQ/BF dtype
@@ -149,8 +153,8 @@ class TestReadArrow:
 
         # Pandas to_datetime might be needed for proper comparison of timestamp/date
         # Forcing types to be consistent for comparison
-        for col in ["int_col", "float_col"]: # "bool_col"
-             bf_pd_df[col] = bf_pd_df[col].astype(pd_expected[col].dtype)
+        for col in ["int_col", "float_col"]:  # "bool_col"
+            bf_pd_df[col] = bf_pd_df[col].astype(pd_expected[col].dtype)
 
         # String columns are compared as objects by default in pandas if there are NaNs
         # We expect string[pyarrow] from BigQuery DataFrames
@@ -162,19 +166,25 @@ class TestReadArrow:
 
         # Date comparison
         # bf_pd_df["date_col"] comes as dbdate, convert to datetime.date
-        bf_pd_df["date_col"] = bf_pd_df["date_col"].apply(lambda x: x.date() if hasattr(x, 'date') else x)
+        bf_pd_df["date_col"] = bf_pd_df["date_col"].apply(
+            lambda x: x.date() if hasattr(x, "date") else x
+        )
         # pd_expected["date_col"] is already datetime.date objects
 
         # Bool comparison (pyarrow bools can be different from pandas bools with NAs)
-        bf_pd_df["bool_col"] = bf_pd_df["bool_col"].astype(pandas.ArrowDtype(pa.bool_()))
-        pd_expected["bool_col"] = pd_expected["bool_col"].astype(pandas.ArrowDtype(pa.bool_()))
-
-
-        pandas.testing.assert_frame_equal(
-            bf_pd_df, pd_expected, check_dtype=False, # check_dtype often problematic with Arrow mixed
-            rtol=1e-5 # for float comparisons
+        bf_pd_df["bool_col"] = bf_pd_df["bool_col"].astype(
+            pandas.ArrowDtype(pa.bool_())
+        )
+        pd_expected["bool_col"] = pd_expected["bool_col"].astype(
+            pandas.ArrowDtype(pa.bool_())
         )
 
+        pandas.testing.assert_frame_equal(
+            bf_pd_df,
+            pd_expected,
+            check_dtype=False,  # check_dtype often problematic with Arrow mixed
+            rtol=1e-5,  # for float comparisons
+        )
 
     def test_read_arrow_empty_table(self, session):
         data = [
