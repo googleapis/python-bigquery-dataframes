@@ -77,9 +77,9 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
 ]
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
-UNIT_TEST_EXTRAS: List[str] = ["tests"]
+UNIT_TEST_EXTRAS: List[str] = ["tests", "anywidget"]
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
-    "3.12": ["tests", "polars", "scikit-learn", "anywidget"],
+    "3.12": ["tests", "polars", "scikit-learn"],
 }
 
 # 3.10 is needed for Windows tests as it is the only version installed in the
@@ -508,7 +508,6 @@ def docs(session):
     """Build the docs for this library."""
     session.install("-e", ".[scikit-learn]")
     session.install(
-        "anywidget",
         # We need to pin to specific versions of the `sphinxcontrib-*` packages
         # which still support sphinx 4.x.
         # See https://github.com/googleapis/sphinx-docfx-yaml/issues/344
@@ -521,6 +520,7 @@ def docs(session):
         SPHINX_VERSION,
         "alabaster",
         "recommonmark",
+        "anywidget",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
@@ -550,7 +550,6 @@ def docfx(session):
 
     session.install("-e", ".[scikit-learn]")
     session.install(
-        "anywidget",
         # We need to pin to specific versions of the `sphinxcontrib-*` packages
         # which still support sphinx 4.x.
         # See https://github.com/googleapis/sphinx-docfx-yaml/issues/344
@@ -564,6 +563,7 @@ def docfx(session):
         "alabaster",
         "recommonmark",
         "gcp-sphinx-docfx-yaml==3.0.1",
+        "anywidget",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
@@ -767,6 +767,7 @@ def notebook(session: nox.Session):
         "google-cloud-aiplatform",
         "matplotlib",
         "seaborn",
+        "anywidget",
     )
 
     notebooks_list = list(pathlib.Path("notebooks/").glob("*/*.ipynb"))
