@@ -13,7 +13,7 @@
 # limitations under the License.
 import dataclasses
 import functools
-from typing import AbstractSet
+import typing
 
 from bigframes.core import identifiers, nodes
 
@@ -56,6 +56,7 @@ def prune_columns(node: nodes.BigFrameNode):
                 node.child, node.consumed_ids or frozenset(list(node.child.ids)[0:1])
             )
         )
+        result = prune_result_child(node)
     elif isinstance(node, nodes.AggregateNode):
         result = node.replace_child(
             prune_node(
@@ -70,6 +71,20 @@ def prune_columns(node: nodes.BigFrameNode):
     else:
         result = node
     return result
+
+
+def prune_result_child(resultNode: nodes.ResultNode) -> nodes.ResultNode:
+    child = resultNode.child
+    if isinstance(child, nodes.SelectionNode):
+        # If the child node is a selection, we can prune it
+        return typing.cast(
+            nodes.ResultNode,
+            resultNode.remap_refs(
+                {id: ref.id for ref, id in child.input_output_pairs}
+            ).replace_child(child.child),
+        )
+
+    return resultNode
 
 
 def prune_selection_child(
@@ -143,7 +158,7 @@ def prune_selection_child(
 
 def prune_node(
     node: nodes.BigFrameNode,
-    ids: AbstractSet[identifiers.ColumnId],
+    ids: typing.AbstractSet[identifiers.ColumnId],
 ):
     # This clause is important, ensures idempotency, so can reach fixed point
     if not (set(node.ids) - ids):
@@ -157,7 +172,7 @@ def prune_node(
 
 def prune_aggregate(
     node: nodes.AggregateNode,
-    used_cols: AbstractSet[identifiers.ColumnId],
+    used_cols: typing.AbstractSet[identifiers.ColumnId],
 ) -> nodes.AggregateNode:
     pruned_aggs = (
         tuple(agg for agg in node.aggregations if agg[1] in used_cols)
@@ -169,7 +184,7 @@ def prune_aggregate(
 @functools.singledispatch
 def prune_leaf(
     node: nodes.BigFrameNode,
-    used_cols: AbstractSet[identifiers.ColumnId],
+    used_cols: typing.AbstractSet[identifiers.ColumnId],
 ):
     ...
 
@@ -177,7 +192,7 @@ def prune_leaf(
 @prune_leaf.register
 def prune_readlocal(
     node: nodes.ReadLocalNode,
-    selection: AbstractSet[identifiers.ColumnId],
+    selection: typing.AbstractSet[identifiers.ColumnId],
 ) -> nodes.ReadLocalNode:
     new_scan_list = node.scan_list.filter_cols(selection)
     return dataclasses.replace(
@@ -190,7 +205,7 @@ def prune_readlocal(
 @prune_leaf.register
 def prune_readtable(
     node: nodes.ReadTableNode,
-    selection: AbstractSet[identifiers.ColumnId],
+    selection: typing.AbstractSet[identifiers.ColumnId],
 ) -> nodes.ReadTableNode:
     new_scan_list = node.scan_list.filter_cols(selection)
     return dataclasses.replace(node, scan_list=new_scan_list)
