@@ -40,7 +40,6 @@ from typing import (
 )
 import warnings
 
-import anywidget  # type: ignore
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
@@ -778,6 +777,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return formatter.repr_query_job(self._compute_dry_run())
 
         if opts.repr_mode == "anywidget":
+            import anywidget  # type: ignore
+
             # create an iterator for the data batches
             batches = self.to_pandas_batches()
 
