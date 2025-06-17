@@ -19,6 +19,8 @@ from google.cloud import bigquery
 import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 
+import bigframes.exceptions
+import bigframes.options
 from bigframes.core import compile, nodes
 from bigframes.session import executor, semi_executor
 import bigframes.session._io.bigquery as bq_io
@@ -48,6 +50,17 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
         iterator, query_job = self._run_execute_query(
             sql=compiled.sql,
         )
+
+        # Check if the number of rows exceeds the maximum allowed
+        if iterator.total_rows is not None:
+            max_rows = bigframes.options.compute.maximum_rows_downloaded
+            if max_rows is not None and iterator.total_rows > max_rows:
+                raise bigframes.exceptions.MaximumRowsDownloadedExceeded(
+                    f"Query would download {iterator.total_rows} rows, which "
+                    f"exceeds the limit of {max_rows}. "
+                    "You can adjust this limit by setting "
+                    "`bigframes.options.compute.maximum_rows_downloaded`."
+                )
 
         return executor.ExecuteResult(
             arrow_batches=iterator.to_arrow_iterable(),

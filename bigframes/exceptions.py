@@ -71,6 +71,10 @@ class OperationAbortedError(RuntimeError):
     """Operation is aborted."""
 
 
+class MaximumRowsDownloadedExceeded(RuntimeError):
+    """Maximum rows downloaded exceeded."""
+
+
 class TimeTravelDisabledWarning(Warning):
     """A query was reattempted without time travel."""
 

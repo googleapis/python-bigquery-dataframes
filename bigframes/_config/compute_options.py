@@ -106,6 +106,19 @@ class ComputeOptions:
     ai_ops_threshold_autofail: bool = False
 
     allow_large_results: Optional[bool] = None
+    maximum_rows_downloaded: Optional[int] = None
+    """Limits the number of rows downloaded from BigQuery.
+
+    When converting a BigQuery DataFrames object to a pandas DataFrame or Series
+    (e.g., using ``.to_pandas()``, ``.head()``, ``.__repr__()``, direct iteration),
+    the data is downloaded from BigQuery to the client machine. This option
+    restricts the number of rows that can be downloaded.
+
+    If the number of rows to be downloaded exceeds this limit, a
+    ``bigframes.exceptions.MaximumRowsDownloadedExceeded`` exception is raised.
+
+    Set to ``None`` (the default) for no limit.
+    """
 
     def assign_extra_query_labels(self, **kwargs: Any) -> None:
         """

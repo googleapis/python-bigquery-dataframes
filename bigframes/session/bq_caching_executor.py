@@ -28,6 +28,7 @@ import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
 
+import bigframes.options
 import bigframes.constants
 import bigframes.core
 from bigframes.core import compile, local_data, rewrite
@@ -687,7 +688,7 @@ class BigQueryCachingExecutor(executor.Executor):
                 bigframes.core.ArrayValue(plan), iterator.schema
             )
 
-        return executor.ExecuteResult(
+        result = executor.ExecuteResult(
             arrow_batches=iterator.to_arrow_iterable(
                 bqstorage_client=self.bqstoragereadclient
             ),
@@ -696,6 +697,18 @@ class BigQueryCachingExecutor(executor.Executor):
             total_bytes=size_bytes,
             total_rows=iterator.total_rows,
         )
+
+        # Check if the number of rows exceeds the maximum allowed
+        if result.total_rows is not None:
+            max_rows = bigframes.options.compute.maximum_rows_downloaded
+            if max_rows is not None and result.total_rows > max_rows:
+                raise bfe.MaximumRowsDownloadedExceeded(
+                    f"Query would download {result.total_rows} rows, which "
+                    f"exceeds the limit of {max_rows}. "
+                    "You can adjust this limit by setting "
+                    "`bigframes.options.compute.maximum_rows_downloaded`."
+                )
+        return result
 
 
 def _if_schema_match(
