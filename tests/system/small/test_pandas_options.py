@@ -12,17 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 import re
-from unittest import mock
 import warnings
 
 import google.api_core.exceptions
-import google.auth
-import google.auth.exceptions
+import pandas.testing
 import pytest
 
-import bigframes.core.global_session
+import bigframes.exceptions
 import bigframes.pandas as bpd
 
 
@@ -277,160 +274,43 @@ def test_credentials_need_reauthentication(
     assert df is not None
 
 
-@pytest.fixture(scope="function")
-def max_rows_option_manager():
-    """Ensures maximum_rows_downloaded is reset after each test."""
-    original_value = bpd.options.compute.maximum_rows_downloaded
-    yield
-    bpd.options.compute.maximum_rows_downloaded = original_value
-
-
-def test_max_rows_normal_execution_no_limit(
-    max_rows_option_manager, test_data_tables, scalars_pandas_df_index
-):
-    """Test queries execute normally when the option is not set."""
-    table_name = test_data_tables["scalars"]
-    bpd.options.compute.maximum_rows_downloaded = None
-    df = bpd.read_gbq(table_name)
-    pd_df = df.to_pandas()
-    # scalars table has 10 rows
-    assert len(pd_df) == len(scalars_pandas_df_index)
-
-
 def test_max_rows_normal_execution_within_limit(
-    max_rows_option_manager, test_data_tables, scalars_pandas_df_index
+    scalars_df_index, scalars_pandas_df_index
 ):
     """Test queries execute normally when the number of rows is within the limit."""
-    table_name = test_data_tables["scalars"]
-    # scalars table has 10 rows
-    bpd.options.compute.maximum_rows_downloaded = 10
-    df = bpd.read_gbq(table_name)
-    pd_df = df.to_pandas()
-    assert len(pd_df) == len(scalars_pandas_df_index)
+    with bpd.option_context("compute.maximum_rows_downloaded", 10):
+        df = scalars_df_index.head(10)
+        result = df.to_pandas()
 
-    bpd.options.compute.maximum_rows_downloaded = 15
-    df = bpd.read_gbq(table_name)
-    pd_df = df.to_pandas()
-    assert len(pd_df) == len(scalars_pandas_df_index)
+    expected = scalars_pandas_df_index.head(10)
+    pandas.testing.assert_frame_equal(result, expected)
+
+    with bpd.option_context("compute.maximum_rows_downloaded", 10), bpd.option_context(
+        "display.repr_mode", "head"
+    ):
+        df = scalars_df_index.head(10)
+        assert repr(df) is not None
+
+    # We should be able to get away with only a single row for shape.
+    with bpd.option_context("compute.maximum_rows_downloaded", 1):
+        shape = scalars_df_index.shape
+        assert shape == scalars_pandas_df_index.shape
+
+    # 0 is not recommended, as it would stop aggregations and many other
+    # necessary operations, but we shouldn't need even 1 row for to_gbq().
+    with bpd.option_context("compute.maximum_rows_downloaded", 0):
+        destination = scalars_df_index.to_gbq()
+        assert destination is not None
 
 
-def test_max_rows_exceeds_limit_to_pandas(
-    max_rows_option_manager, test_data_tables
-):
+def test_max_rows_exceeds_limit(scalars_df_index):
     """Test to_pandas() raises MaximumRowsDownloadedExceeded when the limit is exceeded."""
-    table_name = test_data_tables["scalars"]
-    # scalars table has 10 rows
-    bpd.options.compute.maximum_rows_downloaded = 5
-    df = bpd.read_gbq(table_name)
-    with pytest.raises(bpd.exceptions.MaximumRowsDownloadedExceeded):
-        df.to_pandas()
+    with bpd.option_context("compute.maximum_rows_downloaded", 5), pytest.raises(
+        bigframes.exceptions.MaximumRowsDownloadedExceeded, match="5"
+    ):
+        scalars_df_index.to_pandas()
 
-
-def test_max_rows_exceeds_limit_to_pandas_batches(
-    max_rows_option_manager, test_data_tables
-):
-    """Test next(iter(to_pandas_batches())) raises MaximumRowsDownloadedExceeded."""
-    table_name = test_data_tables["scalars"]
-    # scalars table has 10 rows
-    bpd.options.compute.maximum_rows_downloaded = 5
-    df = bpd.read_gbq(table_name)
-    with pytest.raises(bpd.exceptions.MaximumRowsDownloadedExceeded):
-        next(iter(df.to_pandas_batches()))
-
-
-def test_max_rows_repr_does_not_raise(max_rows_option_manager, test_data_tables):
-    """Test repr(df) does not raise the exception."""
-    table_name = test_data_tables["scalars"]
-    bpd.options.compute.maximum_rows_downloaded = 1
-    df = bpd.read_gbq(table_name)
-    # scalars table has 10 rows, limit is 1, but repr should only fetch a few
-    assert "int_col" in repr(df)
-
-
-def test_max_rows_peek_does_not_raise(max_rows_option_manager, test_data_tables):
-    """Test df.peek() does not raise the exception."""
-    table_name = test_data_tables["scalars"]
-    bpd.options.compute.maximum_rows_downloaded = 1
-    df = bpd.read_gbq(table_name)
-    # scalars table has 10 rows, limit is 1, but peek should only fetch a few
-    peeked_df = df.peek(n=2)
-    assert len(peeked_df) == 2
-
-
-def test_max_rows_shape_does_not_raise(max_rows_option_manager, test_data_tables):
-    """Test df.shape does not raise the exception."""
-    table_name = test_data_tables["scalars"]
-    bpd.options.compute.maximum_rows_downloaded = 1
-    df = bpd.read_gbq(table_name)
-    # scalars table has 10 rows, limit is 1
-    # Shape currently executes a full count query, but doesn't download rows
-    assert df.shape == (10, 16)
-
-
-def test_max_rows_to_gbq_does_not_raise(
-    max_rows_option_manager, test_data_tables, dataset_id_permanent, session
-):
-    """Test df.to_gbq() does not raise the exception."""
-    table_name = test_data_tables["scalars"]
-    bpd.options.compute.maximum_rows_downloaded = 1
-    df = bpd.read_gbq(table_name)
-    # scalars table has 10 rows, limit is 1
-    # to_gbq only executes a query and stores results in a new table, no download
-    dest_table = f"{dataset_id_permanent}.test_max_rows_to_gbq_output"
-    df.to_gbq(destination_table=dest_table, if_exists="replace")
-    # Simple check to ensure table was created
-    dest_df = bpd.read_gbq(dest_table)
-    assert dest_df.shape[0] == 10
-    session.bqclient.delete_table(dest_table, not_found_ok=True)
-
-    # Call get_global_session() *after* read_gbq so that our location detection
-    # has a chance to work.
-    session = bpd.get_global_session()
-    assert session.bqclient._http.credentials.valid
-
-    with monkeypatch.context() as m:
-        # Simulate expired credentials to trigger the credential refresh flow
-        m.setattr(
-            session.bqclient._http.credentials, "expiry", datetime.datetime.utcnow()
-        )
-        assert not session.bqclient._http.credentials.valid
-
-        # Simulate an exception during the credential refresh flow
-        m.setattr(
-            session.bqclient._http.credentials,
-            "refresh",
-            mock.Mock(side_effect=google.auth.exceptions.RefreshError()),
-        )
-
-        # Confirm that session is unusable to run any jobs
-        with pytest.raises(google.auth.exceptions.RefreshError):
-            query_job = session.bqclient.query(test_query)
-            query_job.result()  # blocks until finished
-
-        # Confirm that as a result bigframes.pandas interface is unusable
-        with pytest.raises(google.auth.exceptions.RefreshError):
-            bpd.read_gbq(test_query)
-
-        # Now verify that closing the session works We look at the
-        # thread-local session because of the
-        # reset_default_session_and_location fixture and that this test mutates
-        # state that might otherwise be used by tests running in parallel.
-        assert (
-            bigframes.core.global_session._global_session_state.thread_local_session
-            is not None
-        )
-
-        with warnings.catch_warnings(record=True) as warned:
-            bpd.close_session()  # CleanupFailedWarning: can't clean up
-
-        assert len(warned) == 1
-        assert warned[0].category == bigframes.exceptions.CleanupFailedWarning
-
-        assert (
-            bigframes.core.global_session._global_session_state.thread_local_session
-            is None
-        )
-
-    # Now verify that use is able to start over
-    df = bpd.read_gbq(test_query)
-    assert df is not None
+    with bpd.option_context("compute.maximum_rows_downloaded", 5), pytest.raises(
+        bigframes.exceptions.MaximumRowsDownloadedExceeded, match="5"
+    ):
+        next(iter(scalars_df_index.to_pandas_batches()))

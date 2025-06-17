@@ -75,7 +75,6 @@ import bigframes.session.clients
 import bigframes.session.loader
 import bigframes.session.metrics
 import bigframes.session.validation
-from bigframes.session.utils import check_row_limit
 
 # Avoid circular imports.
 if typing.TYPE_CHECKING:

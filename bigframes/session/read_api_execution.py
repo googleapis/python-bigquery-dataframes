@@ -93,6 +93,9 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
             rowstream = reader.rows()
 
             def process_page(page):
+                # TODO(b/417780501): keep track of how many rows have been
+                # downloaded and raise if we exceed
+                # bigframes.options.compute.maximum_rows_downloaded.
                 pa_batch = page.to_arrow()
                 pa_batch = pa_batch.select(
                     [item.source_id for item in node.scan_list.items]

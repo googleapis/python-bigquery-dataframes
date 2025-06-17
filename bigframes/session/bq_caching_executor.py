@@ -28,7 +28,7 @@ import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
 
-import bigframes.options
+import bigframes
 import bigframes.constants
 import bigframes.core
 from bigframes.core import compile, local_data, rewrite
@@ -39,11 +39,11 @@ import bigframes.core.ordering as order
 import bigframes.core.schema as schemata
 import bigframes.core.tree_properties as tree_properties
 import bigframes.dtypes
-from bigframes.exceptions import MaximumRowsDownloadedExceeded, QueryComplexityError, format_message
+from bigframes.exceptions import format_message, QueryComplexityError
 import bigframes.features
 from bigframes.session import executor, loader, local_scan_executor, read_api_execution
+from bigframes.session._io.bigquery import limits as bq_limits
 import bigframes.session._io.bigquery as bq_io
-from bigframes.session.utils import check_row_limit
 import bigframes.session.metrics
 import bigframes.session.planner
 import bigframes.session.temporary_storage
@@ -698,14 +698,7 @@ class BigQueryCachingExecutor(executor.Executor):
             total_bytes=size_bytes,
             total_rows=iterator.total_rows,
         )
-
-        if result.total_rows is not None:
-            check_row_limit(
-                total_rows=result.total_rows,
-                maximum_rows_downloaded=bigframes.options.compute.maximum_rows_downloaded,
-                exception_type=MaximumRowsDownloadedExceeded,
-                operation_name="Query execution",
-            )
+        bq_limits.check_row_limit(result=result)
         return result
 
 
