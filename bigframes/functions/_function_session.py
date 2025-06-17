@@ -250,18 +250,11 @@ class FunctionSession:
             "all", "internal-only", "internal-and-gclb"
         ] = "internal-only",
         cloud_build_service_account: Optional[str] = None,
-        deploy_immediately: bool = False,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function.
 
         .. deprecated:: 0.0.1
         This is an internal method. Please use :func:`bigframes.pandas.remote_function` instead.
-
-        .. note::
-            The `deploy_immediately` parameter is included for future enhancements.
-            Currently, the remote function and its associated cloud resources are
-            always provisioned when this decorator is applied, regardless of this
-            flag's value.
 
         .. warning::
             To use remote functions with Bigframes 2.0 and onwards, please (preferred)
@@ -457,10 +450,261 @@ class FunctionSession:
                 service account is used. See
                 https://cloud.google.com/build/docs/cloud-build-service-account
                 for more details.
-            deploy_immediately (bool, Optional):
-                If `True`, ensures the function is deployed at decoration time.
-                Defaults to `False`.
-                Currently, deployment always occurs at decoration time regardless of this flag.
+        """
+        # Some defaults may be used from the session if not provided otherwise.
+        session = self._resolve_session(session)
+
+        # If the user forces the cloud function service argument to None, throw
+        # an exception
+        if cloud_function_service_account is None:
+            raise ValueError(
+                'You must provide a user managed cloud_function_service_account, or "default" if you would like to let the default service account be used.'
+            )
+
+        # A BigQuery client is required to perform BQ operations.
+        bigquery_client = self._resolve_bigquery_client(session, bigquery_client)
+
+        # A BigQuery connection client is required for BQ connection operations.
+        bigquery_connection_client = self._resolve_bigquery_connection_client(
+            session, bigquery_connection_client
+        )
+
+        # A resource manager client is required to get/set IAM operations.
+        resource_manager_client = self._resolve_resource_manager_client(
+            session, resource_manager_client
+        )
+
+        # BQ remote function must be persisted, for which we need a dataset.
+        # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#:~:text=You%20cannot%20create%20temporary%20remote%20functions.
+        dataset_ref = self._resolve_dataset_reference(session, bigquery_client, dataset)
+
+        # A cloud functions client is required for cloud functions operations.
+        cloud_functions_client = self._resolve_cloud_functions_client(
+            session, cloud_functions_client
+        )
+
+        bq_location, cloud_function_region = _utils.get_remote_function_locations(
+            bigquery_client.location
+        )
+
+        # A connection is required for BQ remote function.
+        # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function
+        bq_connection_id = self._resolve_bigquery_connection_id(
+            session, dataset_ref, bq_location, bigquery_connection
+        )
+
+        # If any CMEK is intended then check that a docker repository is also specified.
+        if (
+            cloud_function_kms_key_name is not None
+            and cloud_function_docker_repository is None
+        ):
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
+                "cloud_function_docker_repository must be specified with cloud_function_kms_key_name."
+                " For more details see https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.",
+            )
+
+        if cloud_function_ingress_settings is None:
+            cloud_function_ingress_settings = "internal-only"
+            msg = bfe.format_message(
+                "The `cloud_function_ingress_settings` is being set to 'internal-only' by default."
+            )
+            warnings.warn(msg, category=UserWarning, stacklevel=2)
+
+        bq_connection_manager = session.bqconnectionmanager
+
+        def wrapper(func):
+            nonlocal input_types, output_type
+
+            if not callable(func):
+                raise bf_formatting.create_exception_with_feedback_link(
+                    TypeError, f"func must be a callable, got {func}"
+                )
+
+            if sys.version_info >= (3, 10):
+                # Add `eval_str = True` so that deferred annotations are turned into their
+                # corresponding type objects. Need Python 3.10 for eval_str parameter.
+                # https://docs.python.org/3/library/inspect.html#inspect.signature
+                signature_kwargs: Mapping[str, Any] = {"eval_str": True}
+            else:
+                signature_kwargs = {}  # type: ignore
+
+            py_sig = inspect.signature(
+                func,
+                **signature_kwargs,
+            )
+            if input_types is not None:
+                if not isinstance(input_types, collections.abc.Sequence):
+                    input_types = [input_types]
+                py_sig = py_sig.replace(
+                    parameters=[
+                        par.replace(annotation=itype)
+                        for par, itype in zip(py_sig.parameters.values(), input_types)
+                    ]
+                )
+            if output_type:
+                py_sig = py_sig.replace(return_annotation=output_type)
+
+            # Try to get input types via type annotations.
+
+            # The function will actually be receiving a pandas Series, but allow both
+            # BigQuery DataFrames and pandas object types for compatibility.
+            # The function will actually be receiving a pandas Series, but allow
+            # both BigQuery DataFrames and pandas object types for compatibility.
+            is_row_processor = False
+            if new_sig := _convert_row_processor_sig(py_sig):
+                py_sig = new_sig
+                is_row_processor = True
+
+            remote_function_client = _function_client.FunctionClient(
+                dataset_ref.project,
+                bq_location,
+                dataset_ref.dataset_id,
+                bigquery_client,
+                bq_connection_id,
+                bq_connection_manager,
+                cloud_function_region,
+                cloud_functions_client,
+                None
+                if cloud_function_service_account == "default"
+                else cloud_function_service_account,
+                cloud_function_kms_key_name,
+                cloud_function_docker_repository,
+                cloud_build_service_account=cloud_build_service_account,
+                session=session,  # type: ignore
+            )
+
+            # resolve the output type that can be supported in the bigframes,
+            # ibis, BQ remote functions and cloud functions integration.
+            bqrf_metadata = None
+            post_process_routine = None
+            if get_origin(py_sig.return_annotation) is list:
+                # TODO(b/284515241): remove this special handling to support
+                # array output types once BQ remote functions support ARRAY.
+                # Until then, use json serialized strings at the cloud function
+                # and BQ level, and parse that to the intended output type at
+                # the bigframes level.
+                bqrf_metadata = _utils.get_bigframes_metadata(
+                    python_output_type=py_sig.return_annotation
+                )
+                post_process_routine = _utils._build_unnest_post_routine(
+                    py_sig.return_annotation
+                )
+                py_sig = py_sig.replace(return_annotation=str)
+
+            udf_sig = udf_def.UdfSignature.from_py_signature(py_sig)
+
+            (
+                rf_name,
+                cf_name,
+                created_new,
+            ) = remote_function_client.provision_bq_remote_function(
+                func,
+                input_types=udf_sig.sql_input_types,
+                output_type=udf_sig.sql_output_type,
+                reuse=reuse,
+                name=name,
+                package_requirements=packages,
+                max_batching_rows=max_batching_rows,
+                cloud_function_timeout=cloud_function_timeout,
+                cloud_function_max_instance_count=cloud_function_max_instances,
+                is_row_processor=is_row_processor,
+                cloud_function_vpc_connector=cloud_function_vpc_connector,
+                cloud_function_memory_mib=cloud_function_memory_mib,
+                cloud_function_ingress_settings=cloud_function_ingress_settings,
+                bq_metadata=bqrf_metadata,
+            )
+
+            bigframes_cloud_function = (
+                remote_function_client.get_cloud_function_fully_qualified_name(cf_name)
+            )
+            bigframes_bigquery_function = (
+                remote_function_client.get_remote_function_fully_qualilfied_name(
+                    rf_name
+                )
+            )
+
+            # If a new remote function was created, update the cloud artifacts
+            # created in the session. This would be used to clean up any
+            # resources in the session. Note that we need to do this only for
+            # the case where an explicit name was not provided by the user and
+            # we used an internal name. For the cases where the user provided an
+            # explicit name, we are assuming that the user wants to persist them
+            # with that name and would directly manage their lifecycle.
+            if created_new and (not name):
+                self._update_temp_artifacts(
+                    bigframes_bigquery_function, bigframes_cloud_function
+                )
+
+            udf_definition = udf_def.BigqueryUdf(
+                routine_ref=bigquery.RoutineReference.from_string(
+                    bigframes_bigquery_function
+                ),
+                signature=udf_sig,
+            )
+            decorator = functools.wraps(func)
+            if is_row_processor:
+                return decorator(
+                    bq_functions.BigqueryCallableRowRoutine(
+                        udf_definition,
+                        session,
+                        post_routine=post_process_routine,
+                        cloud_function_ref=bigframes_cloud_function,
+                        local_func=func,
+                        is_managed=False,
+                    )
+                )
+            else:
+                return decorator(
+                    bq_functions.BigqueryCallableRoutine(
+                        udf_definition,
+                        session,
+                        post_routine=post_process_routine,
+                        cloud_function_ref=bigframes_cloud_function,
+                        local_func=func,
+                        is_managed=False,
+                    )
+                )
+
+        return wrapper
+
+    def deploy_remote_function(
+        self,
+        *,
+        input_types: Union[None, type, Sequence[type]] = None,
+        output_type: Optional[type] = None,
+        session: Optional[Session] = None,
+        bigquery_client: Optional[bigquery.Client] = None,
+        bigquery_connection_client: Optional[
+            bigquery_connection_v1.ConnectionServiceClient
+        ] = None,
+        cloud_functions_client: Optional[functions_v2.FunctionServiceClient] = None,
+        resource_manager_client: Optional[resourcemanager_v3.ProjectsClient] = None,
+        dataset: Optional[str] = None,
+        bigquery_connection: Optional[str] = None,
+        reuse: bool = True,
+        name: Optional[str] = None,
+        packages: Optional[Sequence[str]] = None,
+        cloud_function_service_account: str,
+        cloud_function_kms_key_name: Optional[str] = None,
+        cloud_function_docker_repository: Optional[str] = None,
+        max_batching_rows: Optional[int] = 1000,
+        cloud_function_timeout: Optional[int] = 600,
+        cloud_function_max_instances: Optional[int] = None,
+        cloud_function_vpc_connector: Optional[str] = None,
+        cloud_function_memory_mib: Optional[int] = 1024,
+        cloud_function_ingress_settings: Literal[
+            "all", "internal-only", "internal-and-gclb"
+        ] = "internal-only",
+        cloud_build_service_account: Optional[str] = None,
+    ):
+        """Decorator to turn a user defined function into a BigQuery remote function and deploy it immediately.
+
+        This function ensures that the remote function and its associated cloud function
+        are created or updated at the time of calling.
+
+        The arguments are the same as :meth:`bigframes.pandas.remote_function`.
+        Please see :meth:`~bigframes.pandas.remote_function` for more details on the arguments.
         """
         # Some defaults may be used from the session if not provided otherwise.
         session = self._resolve_session(session)
@@ -689,15 +933,9 @@ class FunctionSession:
         bigquery_connection: Optional[str] = None,
         name: Optional[str] = None,
         packages: Optional[Sequence[str]] = None,
-        deploy_immediately: bool = False,
     ):
         """Decorator to turn a Python user defined function (udf) into a
         BigQuery managed function.
-
-        .. note::
-            The `deploy_immediately` parameter is included for future enhancements.
-            Currently, the UDF is always provisioned in BigQuery when this
-            decorator is applied, regardless of this flag's value.
 
         .. note::
             This feature is in preview. The code in the udf must be
@@ -762,13 +1000,149 @@ class FunctionSession:
                 dependency is added to the `requirements.txt` as is, and can be
                 of the form supported in
                 https://pip.pypa.io/en/stable/reference/requirements-file-format/.
-            deploy_immediately (bool, Optional):
-                If `True`, ensures the UDF is created in BigQuery at decoration time.
-                Defaults to `False`.
-                Currently, deployment always occurs at decoration time regardless of this flag.
         """
 
         warnings.warn("udf is in preview.", category=bfe.PreviewWarning, stacklevel=5)
+
+        # Some defaults may be used from the session if not provided otherwise.
+        session = self._resolve_session(session)
+
+        # A BigQuery client is required to perform BQ operations.
+        bigquery_client = self._resolve_bigquery_client(session, bigquery_client)
+
+        # BQ managed function must be persisted, for which we need a dataset.
+        dataset_ref = self._resolve_dataset_reference(session, bigquery_client, dataset)
+
+        bq_location, _ = _utils.get_remote_function_locations(bigquery_client.location)
+
+        # A connection is optional for BQ managed function.
+        bq_connection_id = (
+            self._resolve_bigquery_connection_id(
+                session, dataset_ref, bq_location, bigquery_connection
+            )
+            if bigquery_connection
+            else None
+        )
+
+        bq_connection_manager = session.bqconnectionmanager
+
+        # TODO(b/399129906): Write a method for the repeated part in the wrapper
+        # for both managed function and remote function.
+        def wrapper(func):
+            nonlocal input_types, output_type
+
+            if not callable(func):
+                raise bf_formatting.create_exception_with_feedback_link(
+                    TypeError, f"func must be a callable, got {func}"
+                )
+
+            if sys.version_info >= (3, 10):
+                # Add `eval_str = True` so that deferred annotations are turned into their
+                # corresponding type objects. Need Python 3.10 for eval_str parameter.
+                # https://docs.python.org/3/library/inspect.html#inspect.signature
+                signature_kwargs: Mapping[str, Any] = {"eval_str": True}
+            else:
+                signature_kwargs = {}  # type: ignore
+
+            py_sig = inspect.signature(
+                func,
+                **signature_kwargs,
+            )
+            if input_types is not None:
+                if not isinstance(input_types, collections.abc.Sequence):
+                    input_types = [input_types]
+                py_sig = py_sig.replace(
+                    parameters=[
+                        par.replace(annotation=itype)
+                        for par, itype in zip(py_sig.parameters.values(), input_types)
+                    ]
+                )
+            if output_type:
+                py_sig = py_sig.replace(return_annotation=output_type)
+
+            udf_sig = udf_def.UdfSignature.from_py_signature(py_sig)
+
+            # The function will actually be receiving a pandas Series, but allow
+            # both BigQuery DataFrames and pandas object types for compatibility.
+            is_row_processor = False
+            if new_sig := _convert_row_processor_sig(py_sig):
+                py_sig = new_sig
+                is_row_processor = True
+
+            managed_function_client = _function_client.FunctionClient(
+                dataset_ref.project,
+                bq_location,
+                dataset_ref.dataset_id,
+                bigquery_client,
+                bq_connection_id,
+                bq_connection_manager,
+                session=session,  # type: ignore
+            )
+
+            bq_function_name = managed_function_client.provision_bq_managed_function(
+                func=func,
+                input_types=udf_sig.sql_input_types,
+                output_type=udf_sig.sql_output_type,
+                name=name,
+                packages=packages,
+                is_row_processor=is_row_processor,
+                bq_connection_id=bq_connection_id,
+            )
+            full_rf_name = (
+                managed_function_client.get_remote_function_fully_qualilfied_name(
+                    bq_function_name
+                )
+            )
+
+            udf_definition = udf_def.BigqueryUdf(
+                routine_ref=bigquery.RoutineReference.from_string(full_rf_name),
+                signature=udf_sig,
+            )
+
+            if not name:
+                self._update_temp_artifacts(full_rf_name, "")
+
+            decorator = functools.wraps(func)
+            if is_row_processor:
+                return decorator(
+                    bq_functions.BigqueryCallableRowRoutine(
+                        udf_definition, session, local_func=func, is_managed=True
+                    )
+                )
+            else:
+                return decorator(
+                    bq_functions.BigqueryCallableRoutine(
+                        udf_definition,
+                        session,
+                        local_func=func,
+                        is_managed=True,
+                    )
+                )
+
+        return wrapper
+
+    def deploy_udf(
+        self,
+        input_types: Union[None, type, Sequence[type]] = None,
+        output_type: Optional[type] = None,
+        session: Optional[Session] = None,
+        bigquery_client: Optional[bigquery.Client] = None,
+        dataset: Optional[str] = None,
+        bigquery_connection: Optional[str] = None,
+        name: Optional[str] = None,
+        packages: Optional[Sequence[str]] = None,
+    ):
+        """Decorator to turn a Python user defined function (udf) into a
+        BigQuery managed function and deploy it immediately.
+
+        This function ensures that the UDF is created or updated in BigQuery
+        at the time of calling.
+
+        The arguments are the same as :meth:`bigframes.pandas.udf`.
+        Please see :meth:`~bigframes.pandas.udf` for more details on the arguments.
+        """
+
+        warnings.warn("deploy_udf is in preview.", category=bfe.PreviewWarning, stacklevel=5)
 
         # Some defaults may be used from the session if not provided otherwise.
         session = self._resolve_session(session)

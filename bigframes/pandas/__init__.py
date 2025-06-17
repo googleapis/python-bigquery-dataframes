@@ -151,10 +151,9 @@ def deploy_remote_function(
     For detailed argument descriptions, see :func:`~bigframes.pandas.remote_function`.
     """
     return global_session.with_default_session(
-        bigframes.session.Session.remote_function,
+        bigframes.session.Session.deploy_remote_function,
         input_types=input_types,
         output_type=output_type,
-        deploy_immediately=True,
         dataset=dataset,
         bigquery_connection=bigquery_connection,
         reuse=reuse,
@@ -217,10 +216,9 @@ def deploy_udf(
     For detailed argument descriptions, see :func:`~bigframes.pandas.udf`.
     """
     return global_session.with_default_session(
-        bigframes.session.Session.udf,
+        bigframes.session.Session.deploy_udf,
         input_types=input_types,
         output_type=output_type,
-        deploy_immediately=True,
         dataset=dataset,
         bigquery_connection=bigquery_connection,
         name=name,
