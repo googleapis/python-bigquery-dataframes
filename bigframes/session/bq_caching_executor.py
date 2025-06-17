@@ -42,7 +42,6 @@ import bigframes.core.tree_properties as tree_properties
 import bigframes.dtypes
 import bigframes.features
 from bigframes.session import executor, loader, local_scan_executor, read_api_execution
-from bigframes.session._io.bigquery import limits as bq_limits
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
 import bigframes.session.planner
@@ -689,8 +688,8 @@ class BigQueryCachingExecutor(executor.Executor):
                 bigframes.core.ArrayValue(plan), iterator.schema
             )
 
-        result = executor.ExecuteResult(
-            arrow_batches=iterator.to_arrow_iterable(
+        return executor.ExecuteResult(
+            _arrow_batches=iterator.to_arrow_iterable(
                 bqstorage_client=self.bqstoragereadclient
             ),
             schema=plan.schema,
@@ -698,8 +697,6 @@ class BigQueryCachingExecutor(executor.Executor):
             total_bytes=size_bytes,
             total_rows=iterator.total_rows,
         )
-        bq_limits.check_row_limit(result=result)
-        return result
 
 
 def _if_schema_match(

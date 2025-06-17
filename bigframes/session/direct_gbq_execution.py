@@ -21,7 +21,6 @@ import google.cloud.bigquery.table as bq_table
 
 from bigframes.core import compile, nodes
 from bigframes.session import executor, semi_executor
-from bigframes.session._io.bigquery import limits as bq_limits
 import bigframes.session._io.bigquery as bq_io
 
 
@@ -49,10 +48,9 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
         iterator, query_job = self._run_execute_query(
             sql=compiled.sql,
         )
-        bq_limits.check_row_limit(result=iterator)
 
         return executor.ExecuteResult(
-            arrow_batches=iterator.to_arrow_iterable(),
+            _arrow_batches=iterator.to_arrow_iterable(),
             schema=plan.schema,
             query_job=query_job,
             total_rows=iterator.total_rows,

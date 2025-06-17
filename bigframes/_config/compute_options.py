@@ -85,14 +85,14 @@ class ComputeOptions:
             charge). If unspecified, this will be set to your project default.
             See `maximum_bytes_billed`: https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJobConfig#google_cloud_bigquery_job_QueryJobConfig_maximum_bytes_billed.
 
-        maximum_rows_downloaded (int | None):
-            Limits the number of rows downloaded from BigQuery. When converting
+        maximum_result_rows (int | None):
+            Limits the number of rows in an execution result. When converting
             a BigQuery DataFrames object to a pandas DataFrame or Series (e.g.,
             using ``.to_pandas()``, ``.peek()``, ``.__repr__()``, direct
             iteration), the data is downloaded from BigQuery to the client
             machine. This option restricts the number of rows that can be
             downloaded.  If the number of rows to be downloaded exceeds this
-            limit, a ``bigframes.exceptions.MaximumRowsDownloadedExceeded``
+            limit, a ``bigframes.exceptions.MaximumResultRowsExceeded``
             exception is raised.
 
         semantic_ops_confirmation_threshold (int | None):
@@ -112,7 +112,7 @@ class ComputeOptions:
         default_factory=dict, init=False
     )
     maximum_bytes_billed: Optional[int] = None
-    maximum_rows_downloaded: Optional[int] = None
+    maximum_result_rows: Optional[int] = None
     semantic_ops_confirmation_threshold: Optional[int] = 0
     semantic_ops_threshold_autofail = False
 
