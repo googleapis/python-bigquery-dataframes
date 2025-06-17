@@ -14,4 +14,4 @@ SELECT
   `bfcol_3` AS `int64_col`
 FROM `bfcte_1`
 ORDER BY
-  `bfcol_2` ASC NULLS LAST
+  `bfcol_3` ASC NULLS LAST

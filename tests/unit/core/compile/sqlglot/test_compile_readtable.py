@@ -24,12 +24,12 @@ def test_compile_readtable(scalars_types_df: bpd.DataFrame, snapshot):
 
 
 def test_compile_readtable_w_ordering(scalars_types_df: bpd.DataFrame, snapshot):
-    bf_df = scalars_types_df[["rowindex", "int64_col"]]
-    bf_df = bf_df.set_index("rowindex").sort_index()
+    bf_df = scalars_types_df[["int64_col"]]
+    bf_df = bf_df.sort_values("int64_col")
     snapshot.assert_match(bf_df.sql, "out.sql")
 
 
 def test_compile_readtable_w_limit(scalars_types_df: bpd.DataFrame, snapshot):
-    bf_df = scalars_types_df[["rowindex", "int64_col"]]
-    bf_df = bf_df.sort_values("int64_col").head(10)
+    bf_df = scalars_types_df[["int64_col"]]
+    bf_df = bf_df.sort_index().head(10)
     snapshot.assert_match(bf_df.sql, "out.sql")

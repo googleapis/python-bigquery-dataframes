@@ -6,15 +6,13 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     `bfcol_1` AS `bfcol_2`,
-    `bfcol_1` AS `bfcol_3`,
-    `bfcol_0` AS `bfcol_4`
+    `bfcol_0` AS `bfcol_3`
   FROM `bfcte_0`
 )
 SELECT
   `bfcol_2` AS `rowindex`,
-  `bfcol_3` AS `rowindex_1`,
-  `bfcol_4` AS `int64_col`
+  `bfcol_3` AS `int64_col`
 FROM `bfcte_1`
 ORDER BY
-  `bfcol_4` ASC NULLS LAST
+  `bfcol_2` ASC NULLS LAST
 LIMIT 10
