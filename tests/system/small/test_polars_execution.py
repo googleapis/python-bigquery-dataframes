@@ -14,7 +14,7 @@
 import pytest
 
 import bigframes
-from tests.system.utils import assert_pandas_df_equal
+from bigframes.testing.utils import assert_pandas_df_equal
 
 polars = pytest.importorskip("polars", reason="polars is required for this test")
 
@@ -53,7 +53,8 @@ def test_polar_execution_sorted_filtered(session_w_polars, scalars_pandas_df_ind
         .to_pandas()
     )
 
-    assert session_w_polars._metrics.execution_count == execution_count_before
+    # Filter and isnull not supported by polar engine yet, so falls back to bq execution
+    assert session_w_polars._metrics.execution_count == (execution_count_before + 1)
     assert_pandas_df_equal(bf_result, pd_result)
 
 
@@ -70,5 +71,6 @@ def test_polar_execution_unsupported_sql_fallback(
     bf_df["str_len_col"] = bf_df.string_col.str.len()
     bf_result = bf_df.to_pandas()
 
+    # str len not supported by polar engine yet, so falls back to bq execution
     assert session_w_polars._metrics.execution_count == (execution_count_before + 1)
     assert_pandas_df_equal(bf_result, pd_result)
