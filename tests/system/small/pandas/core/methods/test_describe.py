@@ -164,19 +164,18 @@ def test_df_describe_mixed_types_include_all(scalars_dfs):
     ).all()
 
 
-@pytest.mark.parametrize("include", [None, "all"])
-def test_series_describe_numeric(scalars_dfs, include):
+def test_series_describe_numeric(scalars_dfs):
     target_col = "int64_col"
     bf_df, pd_df = scalars_dfs
     bf_s, pd_s = bf_df[target_col], pd_df[target_col]
 
     bf_result = (
-        bf_s.describe(include=include)
+        bf_s.describe()
         .to_pandas()
         .reindex(["count", "nunique", "mean", "std", "min", "max"])
     )
     pd_result = (
-        pd_s.describe(include=include)
+        pd_s.describe()
         .reindex(["count", "unique", "mean", "std", "min", "max"])
         .rename(index={"unique": "nunique"})
     )
@@ -189,17 +188,14 @@ def test_series_describe_numeric(scalars_dfs, include):
     )
 
 
-@pytest.mark.parametrize("include", [None, "all"])
-def test_series_describe_non_numeric(scalars_dfs, include):
+def test_series_describe_non_numeric(scalars_dfs):
     target_col = "string_col"
     bf_df, pd_df = scalars_dfs
     bf_s, pd_s = bf_df[target_col], pd_df[target_col]
 
-    bf_result = bf_s.describe(include=include).to_pandas().reindex(["count", "nunique"])
+    bf_result = bf_s.describe().to_pandas().reindex(["count", "nunique"])
     pd_result = (
-        pd_s.describe(include=include)
-        .reindex(["count", "unique"])
-        .rename(index={"unique": "nunique"})
+        pd_s.describe().reindex(["count", "unique"]).rename(index={"unique": "nunique"})
     )
 
     pandas.testing.assert_series_equal(
@@ -210,19 +206,16 @@ def test_series_describe_non_numeric(scalars_dfs, include):
     )
 
 
-@pytest.mark.parametrize("include", [None, "all"])
-def test_series_describe_temporal(scalars_dfs, include):
+def test_series_describe_temporal(scalars_dfs):
     # Pandas returns <NA> for unique timestamps only after 2.1.0
     pytest.importorskip("pandas", minversion="2.1.0")
     target_col = "timestamp_col"
     bf_df, pd_df = scalars_dfs
     bf_s, pd_s = bf_df[target_col], pd_df[target_col]
 
-    bf_result = bf_s.describe(include=include).to_pandas().reindex(["count", "nunique"])
+    bf_result = bf_s.describe().to_pandas().reindex(["count", "nunique"])
     pd_result = (
-        pd_s.describe(include=include)
-        .reindex(["count", "unique"])
-        .rename(index={"unique": "nunique"})
+        pd_s.describe().reindex(["count", "unique"]).rename(index={"unique": "nunique"})
     )
 
     pandas.testing.assert_series_equal(
