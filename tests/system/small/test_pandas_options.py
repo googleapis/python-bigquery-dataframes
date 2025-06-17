@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import re
+from unittest import mock
 import warnings
 
 import google.api_core.exceptions
@@ -270,6 +272,58 @@ def test_credentials_need_reauthentication(
     test_query = "SELECT 1"
 
     # Confirm that default session works as usual
+    df = bpd.read_gbq(test_query)
+    assert df is not None
+
+    # Call get_global_session() *after* read_gbq so that our location detection
+    # has a chance to work.
+    session = bpd.get_global_session()
+    assert session.bqclient._http.credentials.valid
+
+    with monkeypatch.context() as m:
+        # Simulate expired credentials to trigger the credential refresh flow
+        m.setattr(
+            session.bqclient._http.credentials, "expiry", datetime.datetime.utcnow()
+        )
+        assert not session.bqclient._http.credentials.valid
+
+        # Simulate an exception during the credential refresh flow
+        m.setattr(
+            session.bqclient._http.credentials,
+            "refresh",
+            mock.Mock(side_effect=google.auth.exceptions.RefreshError()),
+        )
+
+        # Confirm that session is unusable to run any jobs
+        with pytest.raises(google.auth.exceptions.RefreshError):
+            query_job = session.bqclient.query(test_query)
+            query_job.result()  # blocks until finished
+
+        # Confirm that as a result bigframes.pandas interface is unusable
+        with pytest.raises(google.auth.exceptions.RefreshError):
+            bpd.read_gbq(test_query)
+
+        # Now verify that closing the session works We look at the
+        # thread-local session because of the
+        # reset_default_session_and_location fixture and that this test mutates
+        # state that might otherwise be used by tests running in parallel.
+        assert (
+            bigframes.core.global_session._global_session_state.thread_local_session
+            is not None
+        )
+
+        with warnings.catch_warnings(record=True) as warned:
+            bpd.close_session()  # CleanupFailedWarning: can't clean up
+
+        assert len(warned) == 1
+        assert warned[0].category == bigframes.exceptions.CleanupFailedWarning
+
+        assert (
+            bigframes.core.global_session._global_session_state.thread_local_session
+            is None
+        )
+
+    # Now verify that use is able to start over
     df = bpd.read_gbq(test_query)
     assert df is not None
 
