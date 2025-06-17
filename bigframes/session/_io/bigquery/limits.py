@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,8 +48,10 @@ def check_row_limit(
         return
 
     if total_rows > maximum_rows_downloaded:
-        message = ROW_LIMIT_EXCEEDED_TEMPLATE.format(
-            total_rows=total_rows,
-            maximum_rows_downloaded=maximum_rows_downloaded,
+        message = bigframes.exceptions.format_message(
+            ROW_LIMIT_EXCEEDED_TEMPLATE.format(
+                total_rows=total_rows,
+                maximum_rows_downloaded=maximum_rows_downloaded,
+            )
         )
         raise bigframes.exceptions.MaximumRowsDownloadedExceeded(message)

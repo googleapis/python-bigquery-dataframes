@@ -29,6 +29,7 @@ import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
 
 import bigframes
+from bigframes import exceptions as bfe
 import bigframes.constants
 import bigframes.core
 from bigframes.core import compile, local_data, rewrite
@@ -39,7 +40,6 @@ import bigframes.core.ordering as order
 import bigframes.core.schema as schemata
 import bigframes.core.tree_properties as tree_properties
 import bigframes.dtypes
-from bigframes.exceptions import format_message, QueryComplexityError
 import bigframes.features
 from bigframes.session import executor, loader, local_scan_executor, read_api_execution
 from bigframes.session._io.bigquery import limits as bq_limits
@@ -212,7 +212,7 @@ class BigQueryCachingExecutor(executor.Executor):
         """
         plan = self.logical_plan(array_value.node)
         if not tree_properties.can_fast_peek(plan):
-            msg = format_message("Peeking this value cannot be done efficiently.")
+            msg = bfe.format_message("Peeking this value cannot be done efficiently.")
             warnings.warn(msg)
 
         output_spec = _get_default_output_spec()
@@ -417,7 +417,7 @@ class BigQueryCachingExecutor(executor.Executor):
             # Unfortunately, this error type does not have a separate error code or exception type
             if "Resources exceeded during query execution" in e.message:
                 new_message = "Computation is too complex to execute as a single query. Try using DataFrame.cache() on intermediate results, or setting bigframes.options.compute.enable_multi_query_execution."
-                raise QueryComplexityError(new_message) from e
+                raise bfe.QueryComplexityError(new_message) from e
             else:
                 raise
 
@@ -675,7 +675,7 @@ class BigQueryCachingExecutor(executor.Executor):
             size_bytes = None
 
         if size_bytes is not None and size_bytes >= MAX_SMALL_RESULT_BYTES:
-            msg = format_message(
+            msg = bfe.format_message(
                 "The query result size has exceeded 10 GB. In BigFrames 2.0 and "
                 "later, you might need to manually set `allow_large_results=True` in "
                 "the IO method or adjust the BigFrames option: "
