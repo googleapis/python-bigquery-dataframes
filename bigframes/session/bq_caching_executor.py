@@ -39,10 +39,11 @@ import bigframes.core.ordering as order
 import bigframes.core.schema as schemata
 import bigframes.core.tree_properties as tree_properties
 import bigframes.dtypes
-import bigframes.exceptions as bfe
+from bigframes.exceptions import MaximumRowsDownloadedExceeded, QueryComplexityError, format_message
 import bigframes.features
 from bigframes.session import executor, loader, local_scan_executor, read_api_execution
 import bigframes.session._io.bigquery as bq_io
+from bigframes.session.utils import check_row_limit
 import bigframes.session.metrics
 import bigframes.session.planner
 import bigframes.session.temporary_storage
@@ -211,7 +212,7 @@ class BigQueryCachingExecutor(executor.Executor):
         """
         plan = self.logical_plan(array_value.node)
         if not tree_properties.can_fast_peek(plan):
-            msg = bfe.format_message("Peeking this value cannot be done efficiently.")
+            msg = format_message("Peeking this value cannot be done efficiently.")
             warnings.warn(msg)
 
         output_spec = _get_default_output_spec()
@@ -416,7 +417,7 @@ class BigQueryCachingExecutor(executor.Executor):
             # Unfortunately, this error type does not have a separate error code or exception type
             if "Resources exceeded during query execution" in e.message:
                 new_message = "Computation is too complex to execute as a single query. Try using DataFrame.cache() on intermediate results, or setting bigframes.options.compute.enable_multi_query_execution."
-                raise bigframes.exceptions.QueryComplexityError(new_message) from e
+                raise QueryComplexityError(new_message) from e
             else:
                 raise
 
@@ -674,7 +675,7 @@ class BigQueryCachingExecutor(executor.Executor):
             size_bytes = None
 
         if size_bytes is not None and size_bytes >= MAX_SMALL_RESULT_BYTES:
-            msg = bfe.format_message(
+            msg = format_message(
                 "The query result size has exceeded 10 GB. In BigFrames 2.0 and "
                 "later, you might need to manually set `allow_large_results=True` in "
                 "the IO method or adjust the BigFrames option: "
@@ -698,16 +699,13 @@ class BigQueryCachingExecutor(executor.Executor):
             total_rows=iterator.total_rows,
         )
 
-        # Check if the number of rows exceeds the maximum allowed
         if result.total_rows is not None:
-            max_rows = bigframes.options.compute.maximum_rows_downloaded
-            if max_rows is not None and result.total_rows > max_rows:
-                raise bfe.MaximumRowsDownloadedExceeded(
-                    f"Query would download {result.total_rows} rows, which "
-                    f"exceeds the limit of {max_rows}. "
-                    "You can adjust this limit by setting "
-                    "`bigframes.options.compute.maximum_rows_downloaded`."
-                )
+            check_row_limit(
+                total_rows=result.total_rows,
+                maximum_rows_downloaded=bigframes.options.compute.maximum_rows_downloaded,
+                exception_type=MaximumRowsDownloadedExceeded,
+                operation_name="Query execution",
+            )
         return result
 
 
