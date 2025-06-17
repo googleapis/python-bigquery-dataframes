@@ -250,11 +250,18 @@ class FunctionSession:
             "all", "internal-only", "internal-and-gclb"
         ] = "internal-only",
         cloud_build_service_account: Optional[str] = None,
+        deploy_immediately: bool = False,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function.
 
         .. deprecated:: 0.0.1
         This is an internal method. Please use :func:`bigframes.pandas.remote_function` instead.
+
+        .. note::
+            The `deploy_immediately` parameter is included for future enhancements.
+            Currently, the remote function and its associated cloud resources are
+            always provisioned when this decorator is applied, regardless of this
+            flag's value.
 
         .. warning::
             To use remote functions with Bigframes 2.0 and onwards, please (preferred)
@@ -450,6 +457,10 @@ class FunctionSession:
                 service account is used. See
                 https://cloud.google.com/build/docs/cloud-build-service-account
                 for more details.
+            deploy_immediately (bool, Optional):
+                If `True`, ensures the function is deployed at decoration time.
+                Defaults to `False`.
+                Currently, deployment always occurs at decoration time regardless of this flag.
         """
         # Some defaults may be used from the session if not provided otherwise.
         session = self._resolve_session(session)
@@ -678,9 +689,15 @@ class FunctionSession:
         bigquery_connection: Optional[str] = None,
         name: Optional[str] = None,
         packages: Optional[Sequence[str]] = None,
+        deploy_immediately: bool = False,
     ):
         """Decorator to turn a Python user defined function (udf) into a
         BigQuery managed function.
+
+        .. note::
+            The `deploy_immediately` parameter is included for future enhancements.
+            Currently, the UDF is always provisioned in BigQuery when this
+            decorator is applied, regardless of this flag's value.
 
         .. note::
             This feature is in preview. The code in the udf must be
@@ -745,6 +762,10 @@ class FunctionSession:
                 dependency is added to the `requirements.txt` as is, and can be
                 of the form supported in
                 https://pip.pypa.io/en/stable/reference/requirements-file-format/.
+            deploy_immediately (bool, Optional):
+                If `True`, ensures the UDF is created in BigQuery at decoration time.
+                Defaults to `False`.
+                Currently, deployment always occurs at decoration time regardless of this flag.
         """
 
         warnings.warn("udf is in preview.", category=bfe.PreviewWarning, stacklevel=5)
