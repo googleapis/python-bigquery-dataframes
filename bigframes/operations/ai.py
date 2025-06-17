@@ -33,7 +33,7 @@ class AIAccessor:
         from bigframes.ml import core as ml_core
 
         self._df: bigframes.dataframe.DataFrame = df
-        self._base_bqml: ml_core.BaseBqml = base_bqml
+        self._base_bqml: ml_core.BaseBqml = base_bqml or ml_core.BaseBqml(df._session)
 
     def filter(
         self,
@@ -943,7 +943,17 @@ class AIAccessor:
             DataFrame:
                 The forecast dataframe matches that of the BigQuery AI.FORECAST function.
                 See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-ai-forecast
+
+        Raises:
+            ValueError: when referring to a non-existing column.
         """
+        columns = [timestamp_column, data_column]
+        if id_columns:
+            columns += id_columns
+        for column in columns:
+            if column not in self._df.columns:
+                raise ValueError(f"Column `{column}` not found")
+
         options: dict[str, Union[int, float, str, Iterable[str]]] = {
             "data_col": data_column,
             "timestamp_col": timestamp_column,
