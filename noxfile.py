@@ -809,7 +809,7 @@ def notebook(session: nox.Session):
         # continuously tested.
         "notebooks/apps/synthetic_data_generation.ipynb",
         "notebooks/multimodal/multimodal_dataframe.ipynb",  # too slow
-        # This anywidget notebook runs in deferred mode, so it won't
+        # This anywidget notebook uses deferred execution, so it won't
         # produce metrics for the performance benchmark script.
         "notebooks/dataframes/anywidget_mode.ipynb",
     ]
