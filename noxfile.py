@@ -107,7 +107,7 @@ SYSTEM_TEST_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_EXTRAS: List[str] = []
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     "3.9": ["tests"],
-    "3.10": ["tests"],
+    "3.10": ["tests", "polars"],
     "3.12": ["tests", "scikit-learn", "polars"],
     "3.13": ["tests", "polars"],
 }

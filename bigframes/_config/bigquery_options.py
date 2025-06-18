@@ -22,6 +22,7 @@ import warnings
 import google.auth.credentials
 import requests.adapters
 
+import bigframes._importing
 import bigframes.enums
 import bigframes.exceptions as bfe
 
@@ -114,6 +115,8 @@ class BigQueryOptions:
             client_endpoints_override = {}
 
         self._client_endpoints_override = client_endpoints_override
+        if enable_polars_execution:
+            bigframes._importing.import_polars()
         self._enable_polars_execution = enable_polars_execution
 
     @property
@@ -439,4 +442,5 @@ class BigQueryOptions:
                 "Polars execution is an experimental feature, and may not be stable. Must have polars installed."
             )
             warnings.warn(msg, category=bfe.PreviewWarning)
+            bigframes._importing.import_polars()
         self._enable_polars_execution = value
