@@ -87,10 +87,10 @@ class SQLGlotCompiler:
                 nodes.ResultNode, rewrite.column_pruning(result_node)
             )
             result_node = self._remap_variables(result_node)
-            sql = self._compile_result_node(result_node)
             result_node = typing.cast(
                 nodes.ResultNode, rewrite.defer_selection(result_node)
             )
+            sql = self._compile_result_node(result_node)
             return configs.CompileResult(
                 sql, result_node.schema.to_bigquery(), result_node.order_by
             )
