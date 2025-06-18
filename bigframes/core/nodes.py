@@ -75,7 +75,7 @@ class AdditiveNode:
         ...
 
     @abc.abstractmethod
-    def replace_additive_base(self, BigFrameNode):
+    def replace_additive_base(self, BigFrameNode) -> BigFrameNode:
         ...
 
 
