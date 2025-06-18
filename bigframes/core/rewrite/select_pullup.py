@@ -21,6 +21,11 @@ from bigframes.core import expression, nodes
 def defer_selection(
     root: nodes.BigFrameNode,
 ) -> nodes.BigFrameNode:
+    """
+    Defers SelectionNode operations in the tree, pulling them up.
+
+    In many cases, these nodes will be merged or eliminated entirely, simplifying the overall tree.
+    """
     return nodes.bottom_up(root, pull_up_select)
 
 
