@@ -56,7 +56,7 @@ def prune_columns(node: nodes.BigFrameNode):
                 node.child, node.consumed_ids or frozenset(list(node.child.ids)[0:1])
             )
         )
-        result = prune_result_child(node)
+        result = prune_result_child(typing.cast(nodes.ResultNode, result))
     elif isinstance(node, nodes.AggregateNode):
         result = node.replace_child(
             prune_node(

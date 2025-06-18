@@ -15,8 +15,14 @@ WITH `bfcte_0` AS (
     `bfcol_3` AS `bfcol_5`,
     CONCAT(`bfcol_3`, 'a') AS `bfcol_6`
   FROM `bfcte_1`
+), `bfcte_3` AS (
+  SELECT
+    `bfcol_4` AS `bfcol_7`,
+    `bfcol_5` AS `bfcol_8`,
+    `bfcol_6` AS `bfcol_9`
+  FROM `bfcte_2`
 )
 SELECT
-  `bfcol_4` AS `rowindex`,
-  `bfcol_6` AS `string_col`
-FROM `bfcte_2`
+  `bfcol_7` AS `rowindex`,
+  `bfcol_8` AS `string_col`
+FROM `bfcte_3`
