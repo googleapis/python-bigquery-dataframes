@@ -61,7 +61,9 @@ def test_blob_exif(
         connection=bq_connection,
     )
 
-    actual = exif_image_df["blob_col"].blob.exif(engine="pillow", connection=bq_connection)
+    actual = exif_image_df["blob_col"].blob.exif(
+        engine="pillow", connection=bq_connection
+    )
     expected = bpd.Series(
         ['{"ExifOffset": 47, "Make": "MyCamera"}'],
         session=session,
