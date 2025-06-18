@@ -107,10 +107,9 @@ SYSTEM_TEST_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_EXTRAS: List[str] = []
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     "3.9": ["tests", "anywidget"],
-    "3.10": ["tests", "anywidget"],
-    "3.11": ["anywidget"],
+    "3.10": ["tests"],
     "3.12": ["tests", "scikit-learn", "polars", "anywidget"],
-    "3.13": ["tests", "polars", "anywidget"],
+    "3.13": ["tests", "polars"],
 }
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
@@ -810,6 +809,9 @@ def notebook(session: nox.Session):
         # continuously tested.
         "notebooks/apps/synthetic_data_generation.ipynb",
         "notebooks/multimodal/multimodal_dataframe.ipynb",  # too slow
+        # This anywidget notebook runs in deferred mode, so it won't
+        # produce metrics for the performance benchmark script.
+        "notebooks/dataframes/anywidget_mode.ipynb",
     ]
 
     # TODO: remove exception for Python 3.13 cloud run adds a runtime for it (internal issue 333742751)
