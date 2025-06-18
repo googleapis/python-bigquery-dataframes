@@ -56,7 +56,6 @@ def prune_columns(node: nodes.BigFrameNode):
                 node.child, node.consumed_ids or frozenset(list(node.child.ids)[0:1])
             )
         )
-        result = prune_result_child(typing.cast(nodes.ResultNode, result))
     elif isinstance(node, nodes.AggregateNode):
         result = node.replace_child(
             prune_node(
@@ -71,20 +70,6 @@ def prune_columns(node: nodes.BigFrameNode):
     else:
         result = node
     return result
-
-
-def prune_result_child(resultNode: nodes.ResultNode) -> nodes.ResultNode:
-    child = resultNode.child
-    if isinstance(child, nodes.SelectionNode):
-        # If the child node is a selection, we can prune it
-        return typing.cast(
-            nodes.ResultNode,
-            resultNode.remap_refs(
-                {id: ref.id for ref, id in child.input_output_pairs}
-            ).replace_child(child.child),
-        )
-
-    return resultNode
 
 
 def prune_selection_child(
