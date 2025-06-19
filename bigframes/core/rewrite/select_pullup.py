@@ -65,10 +65,27 @@ def pull_up_select_unary(node: nodes.UnaryNode) -> nodes.BigFrameNode:
             nodes.SelectionNode, child.replace_child(pushed_down_node)
         )
         return pulled_up_select
-    elif isinstance(node, (nodes.SelectionNode, nodes.ResultNode, nodes.AggregateNode)):
+    elif isinstance(
+        node,
+        (
+            nodes.SelectionNode,
+            nodes.ResultNode,
+        ),
+    ):
         return node.remap_refs(
             {id: ref.id for ref, id in child.input_output_pairs}
         ).replace_child(child.child)
+    elif isinstance(node, nodes.AggregateNode):
+        pushed_down_agg = node.remap_refs(
+            {id: ref.id for ref, id in child.input_output_pairs}
+        ).replace_child(child.child)
+        new_selection = tuple(
+            nodes.AliasedRef.identity(id).remap_refs(
+                {id: ref.id for ref, id in child.input_output_pairs}
+            )
+            for id in node.ids
+        )
+        return nodes.SelectionNode(pushed_down_agg, new_selection)
     elif isinstance(node, nodes.ExplodeNode):
         pushed_down_node = node.remap_refs(
             {id: ref.id for ref, id in child.input_output_pairs}
