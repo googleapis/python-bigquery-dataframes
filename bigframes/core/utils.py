@@ -149,7 +149,7 @@ def label_to_identifier(label: typing.Hashable, strict: bool = False) -> str:
             identifier = "_" + identifier
 
     else:
-        # even with flexible column names, there are constraints
+        # Even with flexible column names, there are constraints
         # Convert illegal characters
         # See: https://cloud.google.com/bigquery/docs/schemas#flexible-column-names
         identifier = re.sub(r"[!\"$\(\)\*\,\./;\?@[\]^`{}~]", "_", identifier)
