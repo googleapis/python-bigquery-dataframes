@@ -31,9 +31,10 @@ _COMPATIBLE_NODES = (
     nodes.OrderByNode,
     nodes.ReversedNode,
     nodes.SelectionNode,
+    nodes.ProjectionNode,
 )
 
-_COMPATIBLE_SCALAR_OPS = ()
+_COMPATIBLE_SCALAR_OPS = (bigframes.operations.eq_op,)
 
 
 def _get_expr_ops(expr: expression.Expression) -> set[bigframes.operations.ScalarOp]:
