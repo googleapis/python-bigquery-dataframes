@@ -300,6 +300,53 @@ class GbqDataLoader:
         )
         return dataframe.DataFrame(block)
 
+    def read_arrow(
+        self,
+        arrow_table: pa.Table,
+        method: Literal["load", "stream", "write"],
+    ) -> dataframe.DataFrame:
+        """Converts a ``pyarrow.Table`` to a ``ManagedArrowTable`` and loads it.
+
+        This method is an internal part of the data loading pipeline for Arrow tables,
+        called by ``Session._read_arrow`` when the ``write_engine`` is
+        ``"bigquery_load"``, ``"bigquery_streaming"``, or ``"bigquery_write"``.
+        It prepares the Arrow table for BigQuery ingestion by wrapping it in a
+        :class:`~bigframes.core.local_data.ManagedArrowTable` and then delegates
+        the actual loading to :meth:`~GbqDataLoader.read_managed_data`.
+
+        Args:
+            arrow_table (pyarrow.Table):
+                The ``pyarrow.Table`` to be loaded.
+            method (Literal["load", "stream", "write"]):
+                The BigQuery ingestion method to be used by
+                ``read_managed_data`` (e.g., "load", "stream", "write"),
+                corresponding to the ``write_engine`` chosen in the session layer.
+
+        Returns:
+            bigframes.dataframe.DataFrame:
+                A BigQuery DataFrames DataFrame representing the loaded data.
+        """
+        from bigframes import dataframe
+        from bigframes.core import blocks
+        from bigframes.core.local_data import ManagedArrowTable
+
+        managed_arrow_table = ManagedArrowTable(arrow_table)
+        array_value = self.read_managed_data(managed_arrow_table, method=method)
+
+        # For Arrow tables, the index is not explicitly part of the table's
+        # schema in the same way as pandas. We'll create a default index.
+        # The actual index creation (e.g. sequential) will be handled by
+        # subsequent operations or session defaults if needed.
+        # Column labels are taken directly from the Arrow table.
+        block = blocks.Block(
+            array_value,
+            index_columns=[],  # Start with no explicit index columns from arrow table
+            column_labels=arrow_table.column_names,
+            # index_labels can also be empty or default based on conventions
+            index_labels=[],
+        )
+        return dataframe.DataFrame(block)
+
     def read_managed_data(
         self,
         data: local_data.ManagedArrowTable,

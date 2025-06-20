@@ -50,6 +50,7 @@ from bigframes.pandas.io.api import (
     read_pandas,
     read_parquet,
     read_pickle,
+    read_arrow,
 )
 import bigframes.series
 import bigframes.session
@@ -344,6 +345,7 @@ _functions = [
     read_pandas,
     read_parquet,
     read_pickle,
+    read_arrow,
     remote_function,
     to_datetime,
     to_timedelta,

@@ -55,6 +55,7 @@ from pandas._typing import (
     ReadPickleBuffer,
     StorageOptions,
 )
+import pyarrow
 
 from bigframes import exceptions as bfe
 from bigframes import version
@@ -916,6 +917,71 @@ class Session(
                 f"read_pandas() expects a pandas.DataFrame, but got a {type(pandas_dataframe)}"
             )
 
+    @typing.overload
+    def read_arrow(
+        self,
+        arrow_table: pyarrow.Table,
+        *,
+        write_engine: constants.WriteEngineType = "default",
+    ) -> dataframe.DataFrame:
+        ...
+
+    # TODO(b/340350610): Add overloads for pyarrow.RecordBatchReader and other arrow types.
+    def read_arrow(
+        self,
+        arrow_table: pyarrow.Table,
+    ) -> dataframe.DataFrame:
+        """Loads a BigQuery DataFrames DataFrame from a ``pyarrow.Table`` object.
+
+        This method uses a deferred loading mechanism: the ``pyarrow.Table`` data
+        is kept in memory locally and converted to a BigFrames DataFrame
+        representation without immediate BigQuery table materialization.
+        Actual computation or data transfer to BigQuery is deferred until an
+        action requiring remote execution is triggered on the DataFrame.
+
+        This is the primary session-level API for reading Arrow tables and is
+        called by :func:`bigframes.pandas.read_arrow`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import pyarrow as pa
+            >>> # Assume 'session' is an active BigQuery DataFrames Session
+
+            >>> data_dict = {
+            ...     "id": pa.array([1, 2, 3], type=pa.int64()),
+            ...     "product_name": pa.array(["laptop", "tablet", "phone"], type=pa.string()),
+            ... }
+            >>> arrow_table = pa.Table.from_pydict(data_dict)
+            >>> bf_df = session.read_arrow(arrow_table)
+            >>> bf_df
+               id product_name
+            0   1       laptop
+            1   2       tablet
+            2   3        phone
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
+        Args:
+            arrow_table (pyarrow.Table):
+                The ``pyarrow.Table`` object to load.
+
+        Returns:
+            bigframes.dataframe.DataFrame:
+                A new BigQuery DataFrames DataFrame representing the data from the
+                input ``pyarrow.Table``.
+
+        Raises:
+            ValueError:
+                If the input object is not a ``pyarrow.Table``.
+        """
+        if isinstance(arrow_table, pyarrow.Table):
+            return self._read_arrow(arrow_table)
+        else:
+            raise ValueError(
+                f"read_arrow() expects a pyarrow.Table, but got a {type(arrow_table)}"
+            )
+
     def _read_pandas(
         self,
         pandas_dataframe: pandas.DataFrame,
@@ -952,6 +1018,7 @@ class Session(
         elif write_engine == "bigquery_write":
             return self._loader.read_pandas(pandas_dataframe, method="write")
         elif write_engine == "_deferred":
+            # Must import here to avoid circular dependency from blocks.py
             import bigframes.dataframe as dataframe
 
             return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe, self))
@@ -961,10 +1028,38 @@ class Session(
     def _read_pandas_inline(
         self, pandas_dataframe: pandas.DataFrame
     ) -> dataframe.DataFrame:
+        """Creates a BigFrames DataFrame from an in-memory pandas DataFrame by inlining data."""
         import bigframes.dataframe as dataframe
 
         local_block = blocks.Block.from_local(pandas_dataframe, self)
         return dataframe.DataFrame(local_block)
+
+    def _read_arrow(
+        self,
+        arrow_table: pyarrow.Table,
+    ) -> dataframe.DataFrame:
+        """Internal helper to load a ``pyarrow.Table`` using a deferred mechanism.
+
+        Converts the Arrow table to a pandas DataFrame with ArrowDTypes,
+        then creates a BigFrames block from this local pandas DataFrame.
+        The data remains in memory until an operation triggers execution.
+        Called by the public :meth:`~Session.read_arrow`.
+
+        Args:
+            arrow_table (pyarrow.Table):
+                The ``pyarrow.Table`` to load.
+
+        Returns:
+            bigframes.dataframe.DataFrame:
+                A new DataFrame representing the data from the Arrow table.
+        """
+        import bigframes.dataframe as dataframe
+        # It's important to use types_mapper=pd.ArrowDtype to preserve Arrow types
+        # as much as possible when converting to pandas, especially for types
+        # that might otherwise lose precision or be converted to NumPy types.
+        pandas_df = arrow_table.to_pandas(types_mapper=pandas.ArrowDtype)
+        block = blocks.Block.from_local(pandas_df, self)
+        return dataframe.DataFrame(block)
 
     def read_csv(
         self,
@@ -2076,3 +2171,5 @@ def _warn_if_bf_version_is_obsolete():
     if today - release_date > datetime.timedelta(days=365):
         msg = f"Your BigFrames version {version.__version__} is more than 1 year old. Please update to the lastest version."
         warnings.warn(msg, bfe.ObsoleteVersionWarning)
+
+[end of bigframes/session/__init__.py]

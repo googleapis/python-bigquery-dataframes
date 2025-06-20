@@ -506,6 +506,26 @@ def read_pandas(
 read_pandas.__doc__ = inspect.getdoc(bigframes.session.Session.read_pandas)
 
 
+# pyarrow is imported in bigframes.session, but we need it here for the type hint.
+import pyarrow
+
+
+# TODO(b/340350610): Add overloads for pyarrow.RecordBatchReader and other arrow types if needed
+# once the implementation details for those types are finalized.
+# For now, a single function signature for pyarrow.Table is sufficient as other types
+# would likely be converted to a Table first or handled by a different dedicated function.
+def read_arrow(
+    arrow_table: pyarrow.Table,
+) -> bigframes.dataframe.DataFrame:
+    return global_session.with_default_session(
+        bigframes.session.Session.read_arrow,
+        arrow_table,
+    )
+
+
+read_arrow.__doc__ = inspect.getdoc(bigframes.session.Session.read_arrow)
+
+
 def read_pickle(
     filepath_or_buffer: FilePath | ReadPickleBuffer,
     compression: CompressionOptions = "infer",
