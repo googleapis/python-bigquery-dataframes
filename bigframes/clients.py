@@ -24,7 +24,7 @@ from typing import cast, Optional
 import google.api_core.exceptions
 import google.api_core.retry
 from google.cloud import bigquery_connection_v1, resourcemanager_v3
-import google.cloud.iam
+import google.iam.v1
 
 logger = logging.getLogger(__name__)
 
