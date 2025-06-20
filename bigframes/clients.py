@@ -24,6 +24,7 @@ from typing import cast, Optional
 import google.api_core.exceptions
 import google.api_core.retry
 from google.cloud import bigquery_connection_v1, resourcemanager_v3
+import google.cloud.iam
 
 logger = logging.getLogger(__name__)
 
@@ -172,10 +173,9 @@ class BqConnectionManager:
                     return
 
         # Create a new binding
-        new_binding = {
-            "role": role,
-            "members": [service_account],
-        }  # Use a dictionary to avoid problematic google.iam namespace package.
+        new_binding = google.iam.v1.policy_pb2.Binding(
+            role=role, members=[service_account]
+        )  # Use a dictionary to avoid problematic google.iam namespace package.
         policy.bindings.append(new_binding)
         request = {
             "resource": project,
