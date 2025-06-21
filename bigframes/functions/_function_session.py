@@ -668,6 +668,75 @@ class FunctionSession:
 
         return wrapper
 
+    def deploy_remote_function(
+        self,
+        *,
+        input_types: Union[None, type, Sequence[type]] = None,
+        output_type: Optional[type] = None,
+        session: Optional[Session] = None,
+        bigquery_client: Optional[bigquery.Client] = None,
+        bigquery_connection_client: Optional[
+            bigquery_connection_v1.ConnectionServiceClient
+        ] = None,
+        cloud_functions_client: Optional[functions_v2.FunctionServiceClient] = None,
+        resource_manager_client: Optional[resourcemanager_v3.ProjectsClient] = None,
+        dataset: Optional[str] = None,
+        bigquery_connection: Optional[str] = None,
+        reuse: bool = True,
+        name: Optional[str] = None,
+        packages: Optional[Sequence[str]] = None,
+        cloud_function_service_account: str,
+        cloud_function_kms_key_name: Optional[str] = None,
+        cloud_function_docker_repository: Optional[str] = None,
+        max_batching_rows: Optional[int] = 1000,
+        cloud_function_timeout: Optional[int] = 600,
+        cloud_function_max_instances: Optional[int] = None,
+        cloud_function_vpc_connector: Optional[str] = None,
+        cloud_function_memory_mib: Optional[int] = 1024,
+        cloud_function_ingress_settings: Literal[
+            "all", "internal-only", "internal-and-gclb"
+        ] = "internal-only",
+        cloud_build_service_account: Optional[str] = None,
+    ):
+        """Orchestrates the creation of a BigQuery remote function that deploys immediately.
+
+        This method ensures that the remote function is created and available for
+        use in BigQuery as soon as this call is made. It achieves this by calling
+        the standard :meth:`~bigframes.functions._function_session.FunctionSession.remote_function`
+        method, which currently handles immediate deployment.
+
+        All arguments are passed directly to
+        :meth:`~bigframes.functions._function_session.FunctionSession.remote_function`.
+        Please see its docstring for parameter details.
+
+        Returns:
+            The same result as :meth:`~bigframes.functions._function_session.FunctionSession.remote_function`.
+        """
+        return self.remote_function(  # type: ignore
+            input_types=input_types,
+            output_type=output_type,
+            session=session,
+            bigquery_client=bigquery_client,
+            bigquery_connection_client=bigquery_connection_client,
+            cloud_functions_client=cloud_functions_client,
+            resource_manager_client=resource_manager_client,
+            dataset=dataset,
+            bigquery_connection=bigquery_connection,
+            reuse=reuse,
+            name=name,
+            packages=packages,
+            cloud_function_service_account=cloud_function_service_account,
+            cloud_function_kms_key_name=cloud_function_kms_key_name,
+            cloud_function_docker_repository=cloud_function_docker_repository,
+            max_batching_rows=max_batching_rows,
+            cloud_function_timeout=cloud_function_timeout,
+            cloud_function_max_instances=cloud_function_max_instances,
+            cloud_function_vpc_connector=cloud_function_vpc_connector,
+            cloud_function_memory_mib=cloud_function_memory_mib,
+            cloud_function_ingress_settings=cloud_function_ingress_settings,
+            cloud_build_service_account=cloud_build_service_account,
+        )
+
     def udf(
         self,
         input_types: Union[None, type, Sequence[type]] = None,
@@ -865,6 +934,42 @@ class FunctionSession:
                 )
 
         return wrapper
+
+    def deploy_udf(
+        self,
+        input_types: Union[None, type, Sequence[type]] = None,
+        output_type: Optional[type] = None,
+        session: Optional[Session] = None,
+        bigquery_client: Optional[bigquery.Client] = None,
+        dataset: Optional[str] = None,
+        bigquery_connection: Optional[str] = None,
+        name: Optional[str] = None,
+        packages: Optional[Sequence[str]] = None,
+    ):
+        """Orchestrates the creation of a BigQuery UDF that deploys immediately.
+
+        This method ensures that the UDF is created and available for
+        use in BigQuery as soon as this call is made. It achieves this by calling
+        the standard :meth:`~bigframes.functions._function_session.FunctionSession.udf`
+        method, which currently handles immediate deployment.
+
+        All arguments are passed directly to
+        :meth:`~bigframes.functions._function_session.FunctionSession.udf`.
+        Please see its docstring for parameter details.
+
+        Returns:
+            The same result as :meth:`~bigframes.functions._function_session.FunctionSession.udf`.
+        """
+        return self.udf(  # type: ignore
+            input_types=input_types,
+            output_type=output_type,
+            session=session,
+            bigquery_client=bigquery_client,
+            dataset=dataset,
+            bigquery_connection=bigquery_connection,
+            name=name,
+            packages=packages,
+        )
 
 
 def _convert_row_processor_sig(
