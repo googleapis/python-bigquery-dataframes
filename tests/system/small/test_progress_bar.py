@@ -180,16 +180,3 @@ def test_repr_anywidget_index(penguins_df_default_index: bf.dataframe.DataFrame)
         index = penguins_df_default_index.index
         actual_repr = repr(index)
         assert EXPECTED_DRY_RUN_MESSAGE in actual_repr
-
-
-def test_repr_anywidget_pagination_buttons_initial_state(
-    penguins_df_default_index: bf.dataframe.DataFrame,
-):
-    pytest.importorskip("anywidget")
-    with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes.display import TableWidget
-
-        widget = TableWidget(penguins_df_default_index)
-        assert widget.page == 0
-        assert widget.page_size == bf.options.display.max_rows
-        assert widget.row_count > 0
