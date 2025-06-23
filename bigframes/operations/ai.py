@@ -19,8 +19,6 @@ import typing
 from typing import Dict, Iterable, List, Optional, Sequence, Union
 import warnings
 
-import numpy as np
-
 from bigframes import dtypes, exceptions, options
 from bigframes.core import guid, log_adapter
 
