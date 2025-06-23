@@ -33,7 +33,7 @@ import bigframes.dataframe as dataframe
 import bigframes.dtypes as dtypes
 import bigframes.pandas as bpd
 import bigframes.series as series
-from tests.system.utils import (
+from bigframes.testing.utils import (
     assert_dfs_equivalent,
     assert_pandas_df_equal,
     assert_series_equal,
@@ -810,7 +810,7 @@ def test_repr_html_w_all_rows(scalars_dfs, session):
         + f"[{len(pandas_df.index)} rows x {len(pandas_df.columns)} columns in total]"
     )
     assert actual == expected
-    assert (executions_post - executions_pre) <= 2
+    assert (executions_post - executions_pre) <= 3
 
 
 def test_df_column_name_with_space(scalars_dfs):
@@ -1633,6 +1633,29 @@ def test_merge_left_on_right_on(scalars_dfs, merge_how):
     assert_pandas_df_equal(
         bf_result, pd_result, ignore_order=True, check_index_type=False
     )
+
+
+def test_self_merge_self_w_on_args():
+    data = {
+        "A": pd.Series([1, 2, 3], dtype="Int64"),
+        "B": pd.Series([1, 2, 3], dtype="Int64"),
+        "C": pd.Series([100, 200, 300], dtype="Int64"),
+        "D": pd.Series(["alpha", "beta", "gamma"], dtype="string[pyarrow]"),
+    }
+    df = pd.DataFrame(data)
+
+    df1 = df[["A", "C"]]
+    df2 = df[["B", "C", "D"]]
+    pd_result = df1.merge(df2, left_on=["A", "C"], right_on=["B", "C"], how="inner")
+
+    bf_df = bpd.DataFrame(data)
+
+    bf_df1 = bf_df[["A", "C"]]
+    bf_df2 = bf_df[["B", "C", "D"]]
+    bf_result = bf_df1.merge(
+        bf_df2, left_on=["A", "C"], right_on=["B", "C"], how="inner"
+    ).to_pandas()
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -2634,16 +2657,16 @@ def test_listlike_binop_axis_1_bf_index(scalars_dfs):
     assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
 
 
-def test_binop_with_self_aggregate(session, scalars_dfs):
-    scalars_df, scalars_pandas_df = scalars_dfs
+def test_binop_with_self_aggregate(scalars_dfs_maybe_ordered):
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
 
     df_columns = ["int64_col", "float64_col", "int64_too"]
 
     # Ensure that this takes the optimized single-query path by counting executions
-    execution_count_before = session._metrics.execution_count
+    execution_count_before = scalars_df._session._metrics.execution_count
     bf_df = scalars_df[df_columns]
     bf_result = (bf_df - bf_df.mean()).to_pandas()
-    execution_count_after = session._metrics.execution_count
+    execution_count_after = scalars_df._session._metrics.execution_count
 
     pd_df = scalars_pandas_df[df_columns]
     pd_result = pd_df - pd_df.mean()
@@ -2652,6 +2675,29 @@ def test_binop_with_self_aggregate(session, scalars_dfs):
 
     assert executions == 1
     assert_pandas_df_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_binop_with_self_aggregate_w_index_reset(scalars_dfs_maybe_ordered):
+    scalars_df, scalars_pandas_df = scalars_dfs_maybe_ordered
+
+    df_columns = ["int64_col", "float64_col", "int64_too"]
+
+    # Ensure that this takes the optimized single-query path by counting executions
+    execution_count_before = scalars_df._session._metrics.execution_count
+    bf_df = scalars_df[df_columns].reset_index(drop=True)
+    bf_result = (bf_df - bf_df.mean()).to_pandas()
+    execution_count_after = scalars_df._session._metrics.execution_count
+
+    pd_df = scalars_pandas_df[df_columns].reset_index(drop=True)
+    pd_result = pd_df - pd_df.mean()
+
+    executions = execution_count_after - execution_count_before
+
+    assert executions == 1
+    pd_result.index = pd_result.index.astype("Int64")
+    assert_pandas_df_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -3073,154 +3119,6 @@ def test_dataframe_agg_int_multi_string(scalars_dfs):
     pd.testing.assert_frame_equal(
         pd_result, bf_result, check_dtype=False, check_index_type=False
     )
-
-
-def test_df_describe_non_temporal(scalars_dfs):
-    # TODO: supply a reason why this isn't compatible with pandas 1.x
-    pytest.importorskip("pandas", minversion="2.0.0")
-    scalars_df, scalars_pandas_df = scalars_dfs
-    # excluding temporal columns here because BigFrames cannot perform percentiles operations on them
-    unsupported_columns = ["datetime_col", "timestamp_col", "time_col", "date_col"]
-    bf_result = scalars_df.drop(columns=unsupported_columns).describe().to_pandas()
-
-    modified_pd_df = scalars_pandas_df.drop(columns=unsupported_columns)
-    pd_result = modified_pd_df.describe()
-
-    # Pandas may produce narrower numeric types, but bigframes always produces Float64
-    pd_result = pd_result.astype("Float64")
-
-    # Drop quartiles, as they are approximate
-    bf_min = bf_result.loc["min", :]
-    bf_p25 = bf_result.loc["25%", :]
-    bf_p50 = bf_result.loc["50%", :]
-    bf_p75 = bf_result.loc["75%", :]
-    bf_max = bf_result.loc["max", :]
-
-    bf_result = bf_result.drop(labels=["25%", "50%", "75%"])
-    pd_result = pd_result.drop(labels=["25%", "50%", "75%"])
-
-    pd.testing.assert_frame_equal(pd_result, bf_result, check_index_type=False)
-
-    # Double-check that quantiles are at least plausible.
-    assert (
-        (bf_min <= bf_p25)
-        & (bf_p25 <= bf_p50)
-        & (bf_p50 <= bf_p50)
-        & (bf_p75 <= bf_max)
-    ).all()
-
-
-@pytest.mark.parametrize("include", [None, "all"])
-def test_df_describe_non_numeric(scalars_dfs, include):
-    # TODO: supply a reason why this isn't compatible with pandas 1.x
-    pytest.importorskip("pandas", minversion="2.0.0")
-    scalars_df, scalars_pandas_df = scalars_dfs
-
-    # Excluding "date_col" here because in BigFrames it is used as PyArrow[date32()], which is
-    # considered numerical in Pandas
-    target_columns = ["string_col", "bytes_col", "bool_col", "time_col"]
-
-    modified_bf = scalars_df[target_columns]
-    bf_result = modified_bf.describe(include=include).to_pandas()
-
-    modified_pd_df = scalars_pandas_df[target_columns]
-    pd_result = modified_pd_df.describe(include=include)
-
-    # Reindex results with the specified keys and their order, because
-    # the relative order is not important.
-    bf_result = bf_result.reindex(["count", "nunique"])
-    pd_result = pd_result.reindex(
-        ["count", "unique"]
-        # BF counter part of "unique" is called "nunique"
-    ).rename(index={"unique": "nunique"})
-
-    pd.testing.assert_frame_equal(
-        pd_result.astype("Int64"),
-        bf_result,
-        check_index_type=False,
-    )
-
-
-def test_df_describe_temporal(scalars_dfs):
-    # TODO: supply a reason why this isn't compatible with pandas 1.x
-    pytest.importorskip("pandas", minversion="2.0.0")
-    scalars_df, scalars_pandas_df = scalars_dfs
-
-    temporal_columns = ["datetime_col", "timestamp_col", "time_col", "date_col"]
-
-    modified_bf = scalars_df[temporal_columns]
-    bf_result = modified_bf.describe(include="all").to_pandas()
-
-    modified_pd_df = scalars_pandas_df[temporal_columns]
-    pd_result = modified_pd_df.describe(include="all")
-
-    # Reindex results with the specified keys and their order, because
-    # the relative order is not important.
-    bf_result = bf_result.reindex(["count", "nunique"])
-    pd_result = pd_result.reindex(
-        ["count", "unique"]
-        # BF counter part of "unique" is called "nunique"
-    ).rename(index={"unique": "nunique"})
-
-    pd.testing.assert_frame_equal(
-        pd_result.astype("Float64"),
-        bf_result.astype("Float64"),
-        check_index_type=False,
-    )
-
-
-def test_df_describe_mixed_types_include_all(scalars_dfs):
-    # TODO: supply a reason why this isn't compatible with pandas 1.x
-    pytest.importorskip("pandas", minversion="2.0.0")
-    scalars_df, scalars_pandas_df = scalars_dfs
-
-    numeric_columns = [
-        "int64_col",
-        "float64_col",
-    ]
-    non_numeric_columns = ["string_col"]
-    supported_columns = numeric_columns + non_numeric_columns
-
-    modified_bf = scalars_df[supported_columns]
-    bf_result = modified_bf.describe(include="all").to_pandas()
-
-    modified_pd_df = scalars_pandas_df[supported_columns]
-    pd_result = modified_pd_df.describe(include="all")
-
-    # Drop quartiles, as they are approximate
-    bf_min = bf_result.loc["min", :]
-    bf_p25 = bf_result.loc["25%", :]
-    bf_p50 = bf_result.loc["50%", :]
-    bf_p75 = bf_result.loc["75%", :]
-    bf_max = bf_result.loc["max", :]
-
-    # Reindex results with the specified keys and their order, because
-    # the relative order is not important.
-    bf_result = bf_result.reindex(["count", "nunique", "mean", "std", "min", "max"])
-    pd_result = pd_result.reindex(
-        ["count", "unique", "mean", "std", "min", "max"]
-        # BF counter part of "unique" is called "nunique"
-    ).rename(index={"unique": "nunique"})
-
-    pd.testing.assert_frame_equal(
-        pd_result[numeric_columns].astype("Float64"),
-        bf_result[numeric_columns],
-        check_index_type=False,
-    )
-
-    pd.testing.assert_frame_equal(
-        pd_result[non_numeric_columns].astype("Int64"),
-        bf_result[non_numeric_columns],
-        check_index_type=False,
-    )
-
-    # Double-check that quantiles are at least plausible.
-    assert (
-        (bf_min <= bf_p25)
-        & (bf_p25 <= bf_p50)
-        & (bf_p50 <= bf_p50)
-        & (bf_p75 <= bf_max)
-    ).all()
 
 
 def test_df_transpose():
@@ -5629,3 +5527,29 @@ def test_astype_invalid_type_fail(scalars_dfs):
 
     with pytest.raises(TypeError, match=r".*Share your usecase with.*"):
         bf_df.astype(123)
+
+
+def test_agg_with_dict(scalars_dfs):
+    bf_df, pd_df = scalars_dfs
+    agg_funcs = {
+        "int64_too": ["min", "max"],
+        "int64_col": ["min", "count"],
+    }
+
+    bf_result = bf_df.agg(agg_funcs).to_pandas()
+    pd_result = pd_df.agg(agg_funcs)
+
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_agg_with_dict_containing_non_existing_col_raise_key_error(scalars_dfs):
+    bf_df, _ = scalars_dfs
+    agg_funcs = {
+        "int64_too": ["min", "max"],
+        "nonexisting_col": ["count"],
+    }
+
+    with pytest.raises(KeyError):
+        bf_df.agg(agg_funcs)

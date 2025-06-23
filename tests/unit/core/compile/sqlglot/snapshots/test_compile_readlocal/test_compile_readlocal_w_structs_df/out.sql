@@ -20,7 +20,8 @@ WITH `bfcte_0` AS (
   )])
 )
 SELECT
-  `bfcol_0` AS `bfcol_3`,
-  `bfcol_1` AS `bfcol_4`,
-  `bfcol_2` AS `bfcol_5`
+  `bfcol_0` AS `id`,
+  `bfcol_1` AS `person`
 FROM `bfcte_0`
+ORDER BY
+  `bfcol_2` ASC NULLS LAST

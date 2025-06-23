@@ -22,7 +22,6 @@ import traceback
 import typing
 from typing import Dict, Generator, Optional
 
-import bigframes_vendored.ibis.backends as ibis_backends
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import google.cloud.bigquery_connection_v1 as bigquery_connection_v1
@@ -41,7 +40,7 @@ import bigframes
 import bigframes.dataframe
 import bigframes.pandas as bpd
 import bigframes.series
-import tests.system.utils
+import bigframes.testing.utils
 
 # Use this to control the number of cloud functions being deleted in a single
 # test session. This should help soften the spike of the number of mutations per
@@ -107,11 +106,6 @@ def bigquery_client(session: bigframes.Session) -> bigquery.Client:
 @pytest.fixture(scope="session")
 def bigquery_client_tokyo(session_tokyo: bigframes.Session) -> bigquery.Client:
     return session_tokyo.bqclient
-
-
-@pytest.fixture(scope="session")
-def ibis_client(session: bigframes.Session) -> ibis_backends.BaseBackend:
-    return session.ibis_client
 
 
 @pytest.fixture(scope="session")
@@ -615,7 +609,7 @@ def scalars_pandas_df_default_index() -> pd.DataFrame:
         DATA_DIR / "scalars.jsonl",
         lines=True,
     )
-    tests.system.utils.convert_pandas_dtypes(df, bytes_col=True)
+    bigframes.testing.utils.convert_pandas_dtypes(df, bytes_col=True)
 
     df = df.set_index("rowindex", drop=False)
     df.index.name = None
@@ -920,8 +914,8 @@ def llm_text_pandas_df():
 
 
 @pytest.fixture(scope="session")
-def llm_text_df(test_session, llm_text_pandas_df):
-    return test_session.read_pandas(llm_text_pandas_df)
+def llm_text_df(session, llm_text_pandas_df):
+    return session.read_pandas(llm_text_pandas_df)
 
 
 @pytest.fixture(scope="session")
@@ -1422,12 +1416,12 @@ def use_fast_query_path():
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent):
     """Clean up stale cloud functions."""
-    permanent_endpoints = tests.system.utils.get_remote_function_endpoints(
+    permanent_endpoints = bigframes.testing.utils.get_remote_function_endpoints(
         session.bqclient, dataset_id_permanent
     )
     delete_count = 0
     try:
-        for cloud_function in tests.system.utils.get_cloud_functions(
+        for cloud_function in bigframes.testing.utils.get_cloud_functions(
             cloudfunctions_client,
             session.bqclient.project,
             session.bqclient.location,
@@ -1447,7 +1441,7 @@ def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent
 
             # Go ahead and delete
             try:
-                tests.system.utils.delete_cloud_function(
+                bigframes.testing.utils.delete_cloud_function(
                     cloudfunctions_client, cloud_function.name
                 )
                 delete_count += 1
@@ -1494,9 +1488,9 @@ def images_uris() -> list[str]:
 
 @pytest.fixture(scope="session")
 def images_mm_df(
-    images_uris, test_session: bigframes.Session, bq_connection: str
+    images_uris, session: bigframes.Session, bq_connection: str
 ) -> bpd.DataFrame:
-    blob_series = bpd.Series(images_uris, session=test_session).str.to_blob(
+    blob_series = bpd.Series(images_uris, session=session).str.to_blob(
         connection=bq_connection
     )
     return blob_series.rename("blob_col").to_frame()
@@ -1518,8 +1512,20 @@ def pdf_gcs_path() -> str:
 
 @pytest.fixture(scope="session")
 def pdf_mm_df(
-    pdf_gcs_path, test_session: bigframes.Session, bq_connection: str
+    pdf_gcs_path, session: bigframes.Session, bq_connection: str
 ) -> bpd.DataFrame:
-    return test_session.from_glob_path(
-        pdf_gcs_path, name="pdf", connection=bq_connection
+    return session.from_glob_path(pdf_gcs_path, name="pdf", connection=bq_connection)
+
+
+@pytest.fixture(scope="session")
+def audio_gcs_path() -> str:
+    return "gs://bigframes_blob_test/audio/*"
+
+
+@pytest.fixture(scope="session")
+def audio_mm_df(
+    audio_gcs_path, session: bigframes.Session, bq_connection: str
+) -> bpd.DataFrame:
+    return session.from_glob_path(
+        audio_gcs_path, name="audio", connection=bq_connection
     )

@@ -941,7 +941,7 @@ class Index:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename(self, name) -> Index:
+    def rename(self, name, *, inplace):
         """
         Alter Index or MultiIndex name.
 
@@ -960,10 +960,13 @@ class Index:
         Args:
             name (label or list of labels):
                 Name(s) to set.
+            inplace (bool):
+                Default False.  Modifies the object directly, instead of
+                creating a new Index or MultiIndex.
 
         Returns:
-            bigframes.pandas.Index:
-                The same type as the caller.
+            bigframes.pandas.Index | None:
+                The same type as the caller or None if ``inplace=True``.
 
         Raises:
             ValueError:
@@ -1081,6 +1084,25 @@ class Index:
 
         Returns:
             bigframes.pandas.Index
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def item(self, *args, **kwargs):
+        """Return the first element of the underlying data as a Python scalar.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([1], index=['a'])
+            >>> s.index.item()
+            'a'
+
+        Returns:
+            scalar: The first element of Index.
+
+        Raises:
+            ValueError: If the data is not length = 1.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

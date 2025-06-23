@@ -145,12 +145,7 @@ class Index(vendored_pandas_index.Index):
 
     @names.setter
     def names(self, values: typing.Sequence[blocks.Label]):
-        new_block = self._block.with_index_labels(values)
-        if self._linked_frame is not None:
-            self._linked_frame._set_block(
-                self._linked_frame._block.with_index_labels(values)
-            )
-        self._block = new_block
+        self.rename(values, inplace=True)
 
     @property
     def nlevels(self) -> int:
@@ -256,7 +251,9 @@ class Index(vendored_pandas_index.Index):
         # metadata, like we do with DataFrame.
         opts = bigframes.options.display
         max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
             _, dry_run_query_job = self._block._compute_dry_run()
             return formatter.repr_query_job(dry_run_query_job)
 
@@ -411,11 +408,62 @@ class Index(vendored_pandas_index.Index):
             ops.fillna_op.as_expr(ex.free_var("arg"), ex.const(value))
         )
 
-    def rename(self, name: Union[str, Sequence[str]]) -> Index:
-        names = [name] if isinstance(name, str) else list(name)
+    @overload
+    def rename(
+        self,
+        name: Union[blocks.Label, Sequence[blocks.Label]],
+    ) -> Index:
+        ...
+
+    @overload
+    def rename(
+        self,
+        name: Union[blocks.Label, Sequence[blocks.Label]],
+        *,
+        inplace: Literal[False],
+    ) -> Index:
+        ...
+
+    @overload
+    def rename(
+        self,
+        name: Union[blocks.Label, Sequence[blocks.Label]],
+        *,
+        inplace: Literal[True],
+    ) -> None:
+        ...
+
+    def rename(
+        self,
+        name: Union[blocks.Label, Sequence[blocks.Label]],
+        *,
+        inplace: bool = False,
+    ) -> Optional[Index]:
+        # Tuples are allowed as a label, but we specifically exclude them here.
+        # This is because tuples are hashable, but we want to treat them as a
+        # sequence. If name is iterable, we want to assume we're working with a
+        # MultiIndex. Unfortunately, strings are iterable and we don't want a
+        # list of all the characters, so specifically exclude the non-tuple
+        # hashables.
+        if isinstance(name, blocks.Label) and not isinstance(name, tuple):
+            names = [name]
+        else:
+            names = list(name)
+
         if len(names) != self.nlevels:
             raise ValueError("'name' must be same length as levels")
-        return Index(self._block.with_index_labels(names))
+
+        new_block = self._block.with_index_labels(names)
+
+        if inplace:
+            if self._linked_frame is not None:
+                self._linked_frame._set_block(
+                    self._linked_frame._block.with_index_labels(names)
+                )
+            self._block = new_block
+            return None
+        else:
+            return Index(new_block)
 
     def drop(
         self,
@@ -458,6 +506,10 @@ class Index(vendored_pandas_index.Index):
         return self.get_level_values(level).drop_duplicates()
 
     def isin(self, values) -> Index:
+        import bigframes.series as series
+
+        if isinstance(values, (series.Series, Index)):
+            return Index(self.to_series().isin(values))
         if not utils.is_list_like(values):
             raise TypeError(
                 "only list-like objects are allowed to be passed to "
@@ -567,6 +619,10 @@ class Index(vendored_pandas_index.Index):
 
     def __len__(self):
         return self.shape[0]
+
+    def item(self):
+        # Docstring is in third_party/bigframes_vendored/pandas/core/indexes/base.py
+        return self.to_series().peek(2).item()
 
 
 def _should_create_datetime_index(block: blocks.Block) -> bool:

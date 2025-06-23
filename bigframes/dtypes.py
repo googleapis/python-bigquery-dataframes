@@ -444,8 +444,35 @@ _ARROW_TO_BIGFRAMES = {
     if mapping.arrow_dtype is not None
 }
 
+# Include types that aren't 1:1 to BigQuery but allowed to be loaded in to BigQuery:
+_ARROW_TO_BIGFRAMES_LOSSLESS = {
+    pa.int8(): INT_DTYPE,
+    pa.int16(): INT_DTYPE,
+    pa.int32(): INT_DTYPE,
+    pa.uint8(): INT_DTYPE,
+    pa.uint16(): INT_DTYPE,
+    pa.uint32(): INT_DTYPE,
+    # uint64 is omitted because uint64 -> BigQuery INT64 is a lossy conversion.
+    pa.float16(): FLOAT_DTYPE,
+    pa.float32(): FLOAT_DTYPE,
+    # TODO(tswast): Can we support datetime/timestamp/time with units larger
+    # than microseconds?
+}
 
-def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
+
+def arrow_dtype_to_bigframes_dtype(
+    arrow_dtype: pa.DataType, allow_lossless_cast: bool = False
+) -> Dtype:
+    """
+    Convert an arrow type into the pandas-y type used to represent it in BigFrames.
+
+    Args:
+        arrow_dtype: Arrow data type.
+        allow_lossless_cast: Allow lossless conversions, such as int32 to int64.
+    """
+    if allow_lossless_cast and arrow_dtype in _ARROW_TO_BIGFRAMES_LOSSLESS:
+        return _ARROW_TO_BIGFRAMES_LOSSLESS[arrow_dtype]
+
     if arrow_dtype in _ARROW_TO_BIGFRAMES:
         return _ARROW_TO_BIGFRAMES[arrow_dtype]
 
@@ -754,7 +781,7 @@ def bf_type_from_type_kind(
 
 def is_dtype(scalar: typing.Any, dtype: Dtype) -> bool:
     """Captures whether a scalar can be losslessly represented by a dtype."""
-    if scalar is None:
+    if pd.isna(scalar):
         return True
     if pd.api.types.is_bool_dtype(dtype):
         return pd.api.types.is_bool(scalar)
@@ -868,34 +895,6 @@ def lcd_type_or_throw(dtype1: Dtype, dtype2: Dtype) -> Dtype:
             f"BigFrames cannot upcast {dtype1} and {dtype2} to common type. {constants.FEEDBACK_LINK}"
         )
     return result
-
-
-### Remote functions use only
-# TODO: Refactor into remote function module
-
-# Input and output types supported by BigQuery DataFrames remote functions.
-# TODO(shobs): Extend the support to all types supported by BQ remote functions
-# https://cloud.google.com/bigquery/docs/remote-functions#limitations
-RF_SUPPORTED_IO_PYTHON_TYPES = {bool, bytes, float, int, str}
-
-# Support array output types in BigQuery DataFrames remote functions even though
-# it is not currently (2024-10-06) supported in BigQuery remote functions.
-# https://cloud.google.com/bigquery/docs/remote-functions#limitations
-# TODO(b/284515241): remove this special handling when BigQuery remote functions
-# support array.
-RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES = {bool, float, int, str}
-
-RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS = {
-    "BOOLEAN",
-    "BOOL",
-    "BYTES",
-    "FLOAT",
-    "FLOAT64",
-    "INT64",
-    "INTEGER",
-    "STRING",
-    "ARRAY",
-}
 
 
 TIMEDELTA_DESCRIPTION_TAG = "#microseconds"

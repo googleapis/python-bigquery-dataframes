@@ -31,6 +31,12 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         )
 
     @property
+    def length(self):
+        raise NotImplementedError(
+            "GeoSeries.length is not yet implemented. Please use bigframes.bigquery.st_length(geoseries) instead."
+        )
+
+    @property
     def x(self) -> bigframes.series.Series:
         series = self._apply_unary_op(ops.geo_x_op)
         series.name = None
@@ -56,6 +62,15 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         series = self._apply_unary_op(ops.geo_st_boundary_op)
         series.name = None
         return series
+
+    @property
+    def is_closed(self) -> bigframes.series.Series:
+        # TODO(tswast): GeoPandas doesn't treat Point as closed. Use ST_LENGTH
+        # when available to filter out "closed" shapes that return false in
+        # GeoPandas.
+        raise NotImplementedError(
+            f"GeoSeries.is_closed is not supported. Use bigframes.bigquery.st_isclosed(series), instead. {constants.FEEDBACK_LINK}"
+        )
 
     @classmethod
     def from_wkt(cls, data, index=None) -> GeoSeries:

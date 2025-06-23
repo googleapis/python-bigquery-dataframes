@@ -34,8 +34,9 @@ from typing import (
 import google.cloud.bigquery as bq
 
 from bigframes.core import identifiers, local_data, sequences
-from bigframes.core.bigframe_node import BigFrameNode, COLUMN_SET, Field
+from bigframes.core.bigframe_node import BigFrameNode, COLUMN_SET
 import bigframes.core.expression as ex
+from bigframes.core.field import Field
 from bigframes.core.ordering import OrderingExpression, RowOrdering
 import bigframes.core.slices as slices
 import bigframes.core.window_spec as window
@@ -74,7 +75,7 @@ class AdditiveNode:
         ...
 
     @abc.abstractmethod
-    def replace_additive_base(self, BigFrameNode):
+    def replace_additive_base(self, BigFrameNode) -> BigFrameNode:
         ...
 
 
@@ -151,6 +152,16 @@ class SliceNode(UnaryNode):
             and (self.step == 1)
             and (self.stop is not None)
             and (self.stop > 0)
+        )
+
+    @property
+    def is_noop(self) -> bool:
+        """Returns whether this node doesn't actually change the results."""
+        # TODO: Handle tail case.
+        return (
+            ((not self.start) or (self.start == 0))
+            and (self.step == 1)
+            and ((self.stop is None) or (self.stop == self.row_count))
         )
 
     @property
@@ -262,6 +273,10 @@ class InNode(BigFrameNode, AdditiveNode):
         left_nullable = self.left_child.field_by_id[self.left_col.id].nullable
         right_nullable = self.right_child.field_by_id[self.right_col.id].nullable
         return left_nullable or right_nullable
+
+    @property
+    def _node_expressions(self):
+        return (self.left_col, self.right_col)
 
     def replace_additive_base(self, node: BigFrameNode):
         return dataclasses.replace(self, left_child=node)
@@ -375,6 +390,10 @@ class JoinNode(BigFrameNode):
     @property
     def consumed_ids(self) -> COLUMN_SET:
         return frozenset(*self.ids, *self.referenced_ids)
+
+    @property
+    def _node_expressions(self):
+        return tuple(itertools.chain.from_iterable(self.conditions))
 
     def transform_children(self, t: Callable[[BigFrameNode], BigFrameNode]) -> JoinNode:
         transformed = dataclasses.replace(
@@ -589,6 +608,10 @@ class ScanList:
     """
 
     items: typing.Tuple[ScanItem, ...]
+
+    @classmethod
+    def from_items(cls, items: Iterable[ScanItem]) -> ScanList:
+        return cls(tuple(items))
 
     def filter_cols(
         self,
@@ -981,6 +1004,10 @@ class FilterNode(UnaryNode):
     def referenced_ids(self) -> COLUMN_SET:
         return frozenset(self.predicate.column_references)
 
+    @property
+    def _node_expressions(self):
+        return (self.predicate,)
+
     def remap_vars(
         self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> FilterNode:
@@ -1034,6 +1061,10 @@ class OrderByNode(UnaryNode):
         return frozenset(
             itertools.chain.from_iterable(map(lambda x: x.referenced_columns, self.by))
         )
+
+    @property
+    def _node_expressions(self):
+        return tuple(map(lambda x: x.scalar_expression, self.by))
 
     def remap_vars(
         self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
@@ -1163,6 +1194,10 @@ class SelectionNode(UnaryNode):
     def consumed_ids(self) -> COLUMN_SET:
         return frozenset(ref.id for ref, id in self.input_output_pairs)
 
+    @property
+    def _node_expressions(self):
+        return tuple(ref for ref, id in self.input_output_pairs)
+
     def get_id_mapping(self) -> dict[identifiers.ColumnId, identifiers.ColumnId]:
         return {ref.id: id for ref, id in self.input_output_pairs}
 
@@ -1190,26 +1225,25 @@ class ProjectionNode(UnaryNode, AdditiveNode):
     assignments: typing.Tuple[typing.Tuple[ex.Expression, identifiers.ColumnId], ...]
 
     def _validate(self):
-        input_types = self.child._dtype_lookup
-        for expression, id in self.assignments:
+        for expression, _ in self.assignments:
             # throws TypeError if invalid
-            _ = expression.output_type(input_types)
+            _ = ex.bind_schema_fields(expression, self.child.field_by_id).output_type
         # Cannot assign to existing variables - append only!
         assert all(name not in self.child.schema.names for _, name in self.assignments)
 
     @functools.cached_property
     def added_fields(self) -> Tuple[Field, ...]:
-        input_types = self.child._dtype_lookup
-
         fields = []
         for expr, id in self.assignments:
+            bound_expr = ex.bind_schema_fields(expr, self.child.field_by_id)
             field = Field(
                 id,
-                bigframes.dtypes.dtype_for_etype(expr.output_type(input_types)),
-                nullable=expr.nullable,
+                bigframes.dtypes.dtype_for_etype(bound_expr.output_type),
+                nullable=bound_expr.nullable,
             )
+
             # Special case until we get better nullability inference in expression objects themselves
-            if expr.is_identity and not any(
+            if bound_expr.is_identity and not any(
                 self.child.field_by_id[id].nullable for id in expr.column_references
             ):
                 field = field.with_nonnull()
@@ -1250,6 +1284,10 @@ class ProjectionNode(UnaryNode, AdditiveNode):
                 ex.column_references for ex, id in self.assignments
             )
         )
+
+    @property
+    def _node_expressions(self):
+        return tuple(ex for ex, id in self.assignments)
 
     @property
     def additive_base(self) -> BigFrameNode:
@@ -1300,7 +1338,7 @@ class AggregateNode(UnaryNode):
             Field(
                 id,
                 bigframes.dtypes.dtype_for_etype(
-                    agg.output_type(self.child._dtype_lookup)
+                    agg.output_type(self.child.field_by_id)
                 ),
                 nullable=True,
             )
@@ -1346,6 +1384,13 @@ class AggregateNode(UnaryNode):
         return not all(
             aggregate.op.order_independent for aggregate, _ in self.aggregations
         )
+
+    @property
+    def _node_expressions(self):
+        by_ids = (ref for ref in self.by_column_ids)
+        aggs = tuple(agg for agg, _ in self.aggregations)
+        order_ids = tuple(part.scalar_expression for part in self.order_by)
+        return (*by_ids, *aggs, *order_ids)
 
     def remap_vars(
         self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
@@ -1410,11 +1455,11 @@ class WindowOpNode(UnaryNode, AdditiveNode):
 
     @functools.cached_property
     def added_field(self) -> Field:
-        input_types = self.child._dtype_lookup
+        input_fields = self.child.field_by_id
         # TODO: Determine if output could be non-null
         return Field(
             self.output_name,
-            bigframes.dtypes.dtype_for_etype(self.expression.output_type(input_types)),
+            bigframes.dtypes.dtype_for_etype(self.expression.output_type(input_fields)),
         )
 
     @property
@@ -1448,6 +1493,10 @@ class WindowOpNode(UnaryNode, AdditiveNode):
     @property
     def additive_base(self) -> BigFrameNode:
         return self.child
+
+    @property
+    def _node_expressions(self):
+        return (self.expression, *self.window_spec.expressions)
 
     def replace_additive_base(self, node: BigFrameNode) -> WindowOpNode:
         return dataclasses.replace(self, child=node)
@@ -1519,6 +1568,10 @@ class ExplodeNode(UnaryNode):
     # Offsets are generated only if this is non-null
     offsets_col: Optional[identifiers.ColumnId] = None
 
+    def _validate(self):
+        for col in self.column_ids:
+            assert col.id in self.child.ids
+
     @property
     def row_preserving(self) -> bool:
         return False
@@ -1570,6 +1623,10 @@ class ExplodeNode(UnaryNode):
     def referenced_ids(self) -> COLUMN_SET:
         return frozenset(ref.id for ref in self.column_ids)
 
+    @property
+    def _node_expressions(self):
+        return self.column_ids
+
     def remap_vars(
         self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
     ) -> ExplodeNode:
@@ -1592,6 +1649,10 @@ class ResultNode(UnaryNode):
     order_by: Optional[RowOrdering] = None
     limit: Optional[int] = None
     # TODO: CTE definitions
+
+    def _validate(self):
+        for ref, name in self.output_cols:
+            assert ref.id in self.child.ids
 
     @property
     def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
@@ -1642,6 +1703,10 @@ class ResultNode(UnaryNode):
     @property
     def variables_introduced(self) -> int:
         return 0
+
+    @property
+    def _node_expressions(self):
+        return tuple(ref for ref, _ in self.output_cols)
 
 
 # Tree operators

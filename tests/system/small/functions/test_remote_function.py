@@ -31,7 +31,7 @@ import bigframes.exceptions
 from bigframes.functions import _utils as bff_utils
 from bigframes.functions import function as bff
 import bigframes.session._io.bigquery
-from tests.system.utils import assert_pandas_df_equal, get_function_name
+from bigframes.testing.utils import assert_pandas_df_equal, get_function_name
 
 _prefixer = test_utils.prefixer.Prefixer("bigframes", "")
 
@@ -99,7 +99,7 @@ def get_bq_connection_id_path_format(connection_id_dot_format):
     return f"projects/{fields[0]}/locations/{fields[1]}/connections/{fields[2]}"
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+# @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_direct_no_session_param(
     bigquery_client,
     bigqueryconnection_client,
@@ -134,7 +134,6 @@ def test_remote_function_direct_no_session_param(
     assert hasattr(square, "bigframes_remote_function")
     assert hasattr(square, "bigframes_bigquery_function")
     assert hasattr(square, "bigframes_cloud_function")
-    assert hasattr(square, "ibis_node")
 
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -718,7 +717,7 @@ def test_read_gbq_function_like_original(
 
     assert square2.bigframes_remote_function
     assert square2.bigframes_bigquery_function
-    assert not hasattr(square2, "bigframes_cloud_function")
+    assert square2.bigframes_cloud_function is None
 
     # They should point to the same function.
     assert square1.bigframes_remote_function == square2.bigframes_remote_function  # type: ignore
@@ -764,6 +763,11 @@ def test_read_gbq_function_runs_existing_udf_array_output(session, routine_id_un
             """
         ),
         job_config=bigquery.QueryJobConfig(),
+        location=None,
+        project=None,
+        timeout=None,
+        metrics=None,
+        query_with_job=True,
     )
     func = session.read_gbq_function(routine_id_unique)
 
@@ -797,6 +801,11 @@ def test_read_gbq_function_runs_existing_udf_2_params_array_output(
             """
         ),
         job_config=bigquery.QueryJobConfig(),
+        location=None,
+        project=None,
+        timeout=None,
+        metrics=None,
+        query_with_job=True,
     )
     func = session.read_gbq_function(routine_id_unique)
 
@@ -832,6 +841,11 @@ def test_read_gbq_function_runs_existing_udf_4_params_array_output(
             """
         ),
         job_config=bigquery.QueryJobConfig(),
+        location=None,
+        project=None,
+        timeout=None,
+        metrics=None,
+        query_with_job=True,
     )
     func = session.read_gbq_function(routine_id_unique)
 

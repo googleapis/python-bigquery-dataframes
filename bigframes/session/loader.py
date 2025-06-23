@@ -22,6 +22,7 @@ import itertools
 import os
 import typing
 from typing import (
+    cast,
     Dict,
     Generator,
     Hashable,
@@ -39,6 +40,7 @@ import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
 from google.cloud import bigquery_storage_v1
+import google.cloud.bigquery
 import google.cloud.bigquery as bigquery
 from google.cloud.bigquery_storage_v1 import types as bq_storage_types
 import pandas
@@ -52,6 +54,7 @@ import bigframes.dtypes
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.session import dry_runs
 import bigframes.session._io.bigquery as bf_io_bigquery
+import bigframes.session._io.bigquery.read_gbq_query as bf_read_gbq_query
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
 import bigframes.session.metrics
 import bigframes.session.temporary_storage
@@ -93,29 +96,135 @@ def _to_index_cols(
     return index_cols
 
 
-def _check_column_duplicates(index_cols: Iterable[str], columns: Iterable[str]):
-    index_cols_list = list(index_cols) if index_cols is not None else []
-    columns_list = list(columns) if columns is not None else []
-    set_index = set(index_cols_list)
+def _check_duplicates(name: str, columns: Optional[Iterable[str]] = None):
+    """Check for duplicate column names in the provided iterable."""
+    if columns is None:
+        return
+    columns_list = list(columns)
     set_columns = set(columns_list)
-
-    if len(index_cols_list) > len(set_index):
-        raise ValueError(
-            "The 'index_col' argument contains duplicate names. "
-            "All column names specified in 'index_col' must be unique."
-        )
-
     if len(columns_list) > len(set_columns):
         raise ValueError(
-            "The 'columns' argument contains duplicate names. "
-            "All column names specified in 'columns' must be unique."
+            f"The '{name}' argument contains duplicate names. "
+            f"All column names specified in '{name}' must be unique."
         )
 
-    if not set_index.isdisjoint(set_columns):
+
+def _check_index_col_param(
+    index_cols: Iterable[str],
+    columns: Iterable[str],
+    *,
+    table_columns: Optional[Iterable[str]] = None,
+    index_col_in_columns: Optional[bool] = False,
+):
+    """Checks for duplicates in `index_cols` and resolves overlap with `columns`.
+
+    Args:
+        index_cols (Iterable[str]):
+            Column names designated as the index columns.
+        columns (Iterable[str]):
+            Used column names from table_columns.
+        table_columns (Iterable[str]):
+            A full list of column names in the table schema.
+        index_col_in_columns (bool):
+            A flag indicating how to handle overlap between `index_cols` and
+            `columns`.
+            - If `False`, the two lists must be disjoint (contain no common
+              elements). An error is raised if any overlap is found.
+            - If `True`, `index_cols` is expected to be a subset of
+              `columns`. An error is raised if an index column is not found
+              in the `columns` list.
+    """
+    _check_duplicates("index_col", index_cols)
+
+    if columns is not None and len(list(columns)) > 0:
+        set_index = set(list(index_cols) if index_cols is not None else [])
+        set_columns = set(list(columns) if columns is not None else [])
+
+        if index_col_in_columns:
+            if not set_index.issubset(set_columns):
+                raise ValueError(
+                    f"The specified index column(s) were not found: {set_index - set_columns}. "
+                    f"Available columns are: {set_columns}"
+                )
+        else:
+            if not set_index.isdisjoint(set_columns):
+                raise ValueError(
+                    "Found column names that exist in both 'index_col' and 'columns' arguments. "
+                    "These arguments must specify distinct sets of columns."
+                )
+
+    if not index_col_in_columns and table_columns is not None:
+        for key in index_cols:
+            if key not in table_columns:
+                possibility = min(
+                    table_columns,
+                    key=lambda item: bigframes._tools.strings.levenshtein_distance(
+                        key, item
+                    ),
+                )
+                raise ValueError(
+                    f"Column '{key}' of `index_col` not found in this table. Did you mean '{possibility}'?"
+                )
+
+
+def _check_columns_param(columns: Iterable[str], table_columns: Iterable[str]):
+    """Validates that the specified columns are present in the table columns.
+
+    Args:
+        columns (Iterable[str]):
+            Used column names from table_columns.
+        table_columns (Iterable[str]):
+            A full list of column names in the table schema.
+    Raises:
+        ValueError: If any column in `columns` is not found in the table columns.
+    """
+    for column_name in columns:
+        if column_name not in table_columns:
+            possibility = min(
+                table_columns,
+                key=lambda item: bigframes._tools.strings.levenshtein_distance(
+                    column_name, item
+                ),
+            )
+            raise ValueError(
+                f"Column '{column_name}' is not found. Did you mean '{possibility}'?"
+            )
+
+
+def _check_names_param(
+    names: Iterable[str],
+    index_col: Iterable[str]
+    | str
+    | Iterable[int]
+    | int
+    | bigframes.enums.DefaultIndexKind,
+    columns: Iterable[str],
+    table_columns: Iterable[str],
+):
+    len_names = len(list(names))
+    len_table_columns = len(list(table_columns))
+    len_columns = len(list(columns))
+    if len_names > len_table_columns:
         raise ValueError(
-            "Found column names that exist in both 'index_col' and 'columns' arguments. "
-            "These arguments must specify distinct sets of columns."
+            f"Too many columns specified: expected {len_table_columns}"
+            f" and found {len_names}"
         )
+    elif len_names < len_table_columns:
+        if isinstance(index_col, bigframes.enums.DefaultIndexKind) or index_col != ():
+            raise KeyError(
+                "When providing both `index_col` and `names`, ensure the "
+                "number of `names` matches the number of columns in your "
+                "data."
+            )
+        if len_columns != 0:
+            # The 'columns' must be identical to the 'names'. If not, raise an error.
+            if len_columns != len_names:
+                raise ValueError(
+                    "Number of passed names did not match number of header "
+                    "fields in the file"
+                )
+            if set(list(names)) != set(list(columns)):
+                raise ValueError("Usecols do not match columns")
 
 
 @dataclasses.dataclass
@@ -387,6 +496,8 @@ class GbqDataLoader:
         enable_snapshot: bool = ...,
         dry_run: Literal[False] = ...,
         force_total_order: Optional[bool] = ...,
+        n_rows: Optional[int] = None,
+        index_col_in_columns: bool = False,
     ) -> dataframe.DataFrame:
         ...
 
@@ -408,6 +519,8 @@ class GbqDataLoader:
         enable_snapshot: bool = ...,
         dry_run: Literal[True] = ...,
         force_total_order: Optional[bool] = ...,
+        n_rows: Optional[int] = None,
+        index_col_in_columns: bool = False,
     ) -> pandas.Series:
         ...
 
@@ -428,7 +541,68 @@ class GbqDataLoader:
         enable_snapshot: bool = True,
         dry_run: bool = False,
         force_total_order: Optional[bool] = None,
+        n_rows: Optional[int] = None,
+        index_col_in_columns: bool = False,
     ) -> dataframe.DataFrame | pandas.Series:
+        """Read a BigQuery table into a BigQuery DataFrames DataFrame.
+
+        This method allows you to create a DataFrame from a BigQuery table.
+        You can specify the columns to load, an index column, and apply
+        filters.
+
+        Args:
+            table_id (str):
+                The identifier of the BigQuery table to read.
+            index_col (Iterable[str] | str | Iterable[int] | int | bigframes.enums.DefaultIndexKind, optional):
+                The column(s) to use as the index for the DataFrame. This can be
+                a single column name or a list of column names. If not provided,
+                a default index will be used based on the session's
+                ``default_index_type``.
+            columns (Iterable[str], optional):
+                The columns to read from the table. If not specified, all
+                columns will be read.
+            names (Optional[Iterable[str]], optional):
+                A list of column names to use for the resulting DataFrame. This
+                is useful if you want to rename the columns as you read the
+                data.
+            max_results (Optional[int], optional):
+                The maximum number of rows to retrieve from the table. If not
+                specified, all rows will be loaded.
+            use_cache (bool, optional):
+                Whether to use cached results for the query. Defaults to True.
+                Setting this to False will force a re-execution of the query.
+            filters (third_party_pandas_gbq.FiltersType, optional):
+                A list of filters to apply to the data. Filters are specified
+                as a list of tuples, where each tuple contains a column name,
+                an operator (e.g., '==', '!='), and a value.
+            enable_snapshot (bool, optional):
+                If True, a snapshot of the table is used to ensure that the
+                DataFrame is deterministic, even if the underlying table
+                changes. Defaults to True.
+            dry_run (bool, optional):
+                If True, the function will not actually execute the query but
+                will instead return statistics about the table. Defaults to False.
+            force_total_order (Optional[bool], optional):
+                If True, a total ordering is enforced on the DataFrame, which
+                can be useful for operations that require a stable row order.
+                If None, the session's default behavior is used.
+            n_rows (Optional[int], optional):
+                The number of rows to consider for type inference and other
+                metadata operations. This does not limit the number of rows
+                in the final DataFrame.
+            index_col_in_columns (bool, optional):
+                Specifies if the ``index_col`` is also present in the ``columns``
+                list. Defaults to ``False``.
+
+                * If ``False``, ``index_col`` and ``columns`` must specify
+                    distinct sets of columns. An error will be raised if any
+                    column is found in both.
+                * If ``True``, the column(s) in ``index_col`` are expected to
+                    also be present in the ``columns`` list. This is useful
+                    when the index is selected from the data columns (e.g., in a
+                    ``read_csv`` scenario). The column will be used as the
+                    DataFrame's index and removed from the list of value columns.
+        """
         import bigframes._tools.strings
         import bigframes.dataframe as dataframe
 
@@ -441,11 +615,14 @@ class GbqDataLoader:
                 f"`max_results` should be a positive number, got {max_results}."
             )
 
+        _check_duplicates("columns", columns)
+
         table_ref = google.cloud.bigquery.table.TableReference.from_string(
             table_id, default_project=self._bqclient.project
         )
 
         columns = list(columns)
+        include_all_columns = columns is None or len(columns) == 0
         filters = typing.cast(list, list(filters))
 
         # ---------------------------------
@@ -459,48 +636,40 @@ class GbqDataLoader:
             cache=self._df_snapshot,
             use_cache=use_cache,
         )
-        table_column_names = {field.name for field in table.schema}
 
         if table.location.casefold() != self._storage_manager.location.casefold():
             raise ValueError(
                 f"Current session is in {self._storage_manager.location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
             )
 
-        for key in columns:
-            if key not in table_column_names:
-                possibility = min(
-                    table_column_names,
-                    key=lambda item: bigframes._tools.strings.levenshtein_distance(
-                        key, item
-                    ),
-                )
-                raise ValueError(
-                    f"Column '{key}' of `columns` not found in this table. Did you mean '{possibility}'?"
-                )
-
-        # TODO(b/408499371): check `names` work with `use_cols` for read_csv method.
+        table_column_names = [field.name for field in table.schema]
+        rename_to_schema: Optional[Dict[str, str]] = None
         if names is not None:
+            _check_names_param(names, index_col, columns, table_column_names)
+
+            # Additional unnamed columns is going to set as index columns
             len_names = len(list(names))
-            len_columns = len(table.schema)
-            if len_names > len_columns:
-                raise ValueError(
-                    f"Too many columns specified: expected {len_columns}"
-                    f" and found {len_names}"
-                )
-            elif len_names < len_columns:
-                if (
-                    isinstance(index_col, bigframes.enums.DefaultIndexKind)
-                    or index_col != ()
-                ):
-                    raise KeyError(
-                        "When providing both `index_col` and `names`, ensure the "
-                        "number of `names` matches the number of columns in your "
-                        "data."
-                    )
-                index_col = range(len_columns - len_names)
+            len_schema = len(table.schema)
+            if len(columns) == 0 and len_names < len_schema:
+                index_col = range(len_schema - len_names)
                 names = [
-                    field.name for field in table.schema[: len_columns - len_names]
+                    field.name for field in table.schema[: len_schema - len_names]
                 ] + list(names)
+
+            assert len_schema >= len_names
+            assert len_names >= len(columns)
+
+            table_column_names = table_column_names[: len(list(names))]
+            rename_to_schema = dict(zip(list(names), table_column_names))
+
+        if len(columns) != 0:
+            if names is None:
+                _check_columns_param(columns, table_column_names)
+            else:
+                _check_columns_param(columns, names)
+                names = columns
+                assert rename_to_schema is not None
+                columns = [rename_to_schema[renamed_name] for renamed_name in columns]
 
         # Converting index_col into a list of column names requires
         # the table metadata because we might use the primary keys
@@ -508,21 +677,17 @@ class GbqDataLoader:
         index_cols = bf_read_gbq_table.get_index_cols(
             table=table,
             index_col=index_col,
-            names=names,
+            rename_to_schema=rename_to_schema,
         )
-        _check_column_duplicates(index_cols, columns)
-
-        for key in index_cols:
-            if key not in table_column_names:
-                possibility = min(
-                    table_column_names,
-                    key=lambda item: bigframes._tools.strings.levenshtein_distance(
-                        key, item
-                    ),
-                )
-                raise ValueError(
-                    f"Column '{key}' of `index_col` not found in this table. Did you mean '{possibility}'?"
-                )
+        _check_index_col_param(
+            index_cols,
+            columns,
+            table_columns=table_column_names,
+            index_col_in_columns=index_col_in_columns,
+        )
+        if index_col_in_columns and not include_all_columns:
+            set_index = set(list(index_cols) if index_cols is not None else [])
+            columns = [col for col in columns if col not in set_index]
 
         # -----------------------------
         # Optionally, execute the query
@@ -609,7 +774,7 @@ class GbqDataLoader:
             metadata_only=not self._scan_index_uniqueness,
         )
         schema = schemata.ArraySchema.from_bq_table(table)
-        if columns:
+        if not include_all_columns:
             schema = schema.select(index_cols + columns)
         array_value = core.ArrayValue.from_table(
             table,
@@ -618,6 +783,7 @@ class GbqDataLoader:
             at_time=time_travel_timestamp if enable_snapshot else None,
             primary_key=primary_key,
             session=self._session,
+            n_rows=n_rows,
         )
         # if we don't have a unique index, we order by row hash if we are in strict mode
         if (
@@ -660,14 +826,14 @@ class GbqDataLoader:
 
         value_columns = [col for col in array_value.column_ids if col not in index_cols]
         if names is not None:
-            renamed_cols: Dict[str, str] = {
-                col: new_name for col, new_name in zip(array_value.column_ids, names)
-            }
+            assert rename_to_schema is not None
+            schema_to_rename = {value: key for key, value in rename_to_schema.items()}
             if index_col != bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64:
                 index_names = [
-                    renamed_cols.get(index_col, index_col) for index_col in index_cols
+                    schema_to_rename.get(index_col, index_col)
+                    for index_col in index_cols
                 ]
-            value_columns = [renamed_cols.get(col, col) for col in value_columns]
+            value_columns = [schema_to_rename.get(col, col) for col in value_columns]
 
         block = blocks.Block(
             array_value,
@@ -732,6 +898,7 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[False] = ...,
         force_total_order: Optional[bool] = ...,
+        allow_large_results: bool = ...,
     ) -> dataframe.DataFrame:
         ...
 
@@ -748,6 +915,7 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[True] = ...,
         force_total_order: Optional[bool] = ...,
+        allow_large_results: bool = ...,
     ) -> pandas.Series:
         ...
 
@@ -763,9 +931,8 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = (),
         dry_run: bool = False,
         force_total_order: Optional[bool] = None,
+        allow_large_results: bool = True,
     ) -> dataframe.DataFrame | pandas.Series:
-        import bigframes.dataframe as dataframe
-
         configuration = _transform_read_gbq_configuration(configuration)
 
         if "query" not in configuration:
@@ -790,7 +957,7 @@ class GbqDataLoader:
             )
 
         index_cols = _to_index_cols(index_col)
-        _check_column_duplicates(index_cols, columns)
+        _check_index_col_param(index_cols, columns)
 
         filters_copy1, filters_copy2 = itertools.tee(filters)
         has_filters = len(list(filters_copy1)) != 0
@@ -820,29 +987,72 @@ class GbqDataLoader:
                 query_job, list(columns), index_cols
             )
 
-        # No cluster candidates as user query might not be clusterable (eg because of ORDER BY clause)
-        destination, query_job = self._query_to_destination(
-            query,
-            cluster_candidates=[],
-            configuration=configuration,
-        )
+        query_job_for_metrics: Optional[bigquery.QueryJob] = None
+        destination: Optional[bigquery.TableReference] = None
 
+        # TODO(b/421161077): If an explicit destination table is set in
+        # configuration, should we respect that setting?
+        if allow_large_results:
+            destination, query_job = self._query_to_destination(
+                query,
+                # No cluster candidates as user query might not be clusterable
+                # (eg because of ORDER BY clause)
+                cluster_candidates=[],
+                configuration=configuration,
+            )
+            query_job_for_metrics = query_job
+            rows = None
+        else:
+            job_config = typing.cast(
+                bigquery.QueryJobConfig,
+                bigquery.QueryJobConfig.from_api_repr(configuration),
+            )
+
+            # TODO(b/420984164): We may want to set a page_size here to limit
+            # the number of results in the first jobs.query response.
+            rows = self._start_query_with_job_optional(
+                query,
+                job_config=job_config,
+            )
+
+            # If there is a query job, fetch it so that we can get the
+            # statistics and destination table, if needed.
+            if rows.job_id and rows.location and rows.project:
+                query_job = cast(
+                    bigquery.QueryJob,
+                    self._bqclient.get_job(
+                        rows.job_id, project=rows.project, location=rows.location
+                    ),
+                )
+                destination = query_job.destination
+                query_job_for_metrics = query_job
+
+        # We split query execution from results fetching so that we can log
+        # metrics from either the query job, row iterator, or both.
         if self._metrics is not None:
-            self._metrics.count_job_stats(query_job)
+            self._metrics.count_job_stats(
+                query_job=query_job_for_metrics, row_iterator=rows
+            )
 
-        # If there was no destination table, that means the query must have
-        # been DDL or DML. Return some job metadata, instead.
+        # It's possible that there's no job and corresponding destination table.
+        # In this case, we must create a local node.
+        #
+        # TODO(b/420984164): Tune the threshold for which we download to
+        # local node. Likely there are a wide range of sizes in which it
+        # makes sense to download the results beyond the first page, even if
+        # there is a job and destination table available.
+        if rows is not None and destination is None:
+            return bf_read_gbq_query.create_dataframe_from_row_iterator(
+                rows,
+                session=self._session,
+            )
+
+        # If there was no destination table and we've made it this far, that
+        # means the query must have been DDL or DML. Return some job metadata,
+        # instead.
         if not destination:
-            return dataframe.DataFrame(
-                data=pandas.DataFrame(
-                    {
-                        "statement_type": [
-                            query_job.statement_type if query_job else "unknown"
-                        ],
-                        "job_id": [query_job.job_id if query_job else "unknown"],
-                        "location": [query_job.location if query_job else "unknown"],
-                    }
-                ),
+            return bf_read_gbq_query.create_dataframe_from_query_job_stats(
+                query_job_for_metrics,
                 session=self._session,
             )
 
@@ -852,6 +1062,7 @@ class GbqDataLoader:
             columns=columns,
             use_cache=configuration["query"]["useQueryCache"],
             force_total_order=force_total_order,
+            n_rows=query_job.result().total_rows,
             # max_results and filters are omitted because they are already
             # handled by to_query(), above.
         )
@@ -867,9 +1078,12 @@ class GbqDataLoader:
         # bother trying to do a CREATE TEMP TABLE ... AS SELECT ... statement.
         dry_run_config = bigquery.QueryJobConfig()
         dry_run_config.dry_run = True
-        _, dry_run_job = self._start_query(query, job_config=dry_run_config)
+        dry_run_job = self._start_query_with_job(
+            query,
+            job_config=dry_run_config,
+        )
         if dry_run_job.statement_type != "SELECT":
-            _, query_job = self._start_query(query)
+            query_job = self._start_query_with_job(query)
             return query_job.destination, query_job
 
         # Create a table to workaround BigQuery 10 GB query results limit. See:
@@ -903,7 +1117,7 @@ class GbqDataLoader:
             # Write to temp table to workaround BigQuery 10 GB query results
             # limit. See: internal issue 303057336.
             job_config.labels["error_caught"] = "true"
-            _, query_job = self._start_query(
+            query_job = self._start_query_with_job(
                 query,
                 job_config=job_config,
                 timeout=timeout,
@@ -914,34 +1128,72 @@ class GbqDataLoader:
             # tables as the destination. For example, if the query has a
             # top-level ORDER BY, this conflicts with our ability to cluster
             # the table by the index column(s).
-            _, query_job = self._start_query(query, timeout=timeout)
+            query_job = self._start_query_with_job(query, timeout=timeout)
             return query_job.destination, query_job
 
-    def _start_query(
+    def _prepare_job_config(
         self,
-        sql: str,
         job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
-        timeout: Optional[float] = None,
-    ) -> Tuple[google.cloud.bigquery.table.RowIterator, bigquery.QueryJob]:
-        """
-        Starts BigQuery query job and waits for results.
-
-        Do not execute dataframe through this API, instead use the executor.
-        """
+    ) -> google.cloud.bigquery.QueryJobConfig:
         job_config = bigquery.QueryJobConfig() if job_config is None else job_config
+
         if bigframes.options.compute.maximum_bytes_billed is not None:
             # Maybe this should be pushed down into start_query_with_client
             job_config.maximum_bytes_billed = (
                 bigframes.options.compute.maximum_bytes_billed
             )
-        iterator, query_job = bf_io_bigquery.start_query_with_client(
+
+        return job_config
+
+    def _start_query_with_job_optional(
+        self,
+        sql: str,
+        *,
+        job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
+        timeout: Optional[float] = None,
+    ) -> google.cloud.bigquery.table.RowIterator:
+        """
+        Starts BigQuery query with job optional and waits for results.
+
+        Do not execute dataframe through this API, instead use the executor.
+        """
+        job_config = self._prepare_job_config(job_config)
+        rows, _ = bf_io_bigquery.start_query_with_client(
             self._bqclient,
             sql,
             job_config=job_config,
             timeout=timeout,
+            location=None,
+            project=None,
+            metrics=None,
+            query_with_job=False,
         )
-        assert query_job is not None
-        return iterator, query_job
+        return rows
+
+    def _start_query_with_job(
+        self,
+        sql: str,
+        *,
+        job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
+        timeout: Optional[float] = None,
+    ) -> bigquery.QueryJob:
+        """
+        Starts BigQuery query job and waits for results.
+
+        Do not execute dataframe through this API, instead use the executor.
+        """
+        job_config = self._prepare_job_config(job_config)
+        _, query_job = bf_io_bigquery.start_query_with_client(
+            self._bqclient,
+            sql,
+            job_config=job_config,
+            timeout=timeout,
+            location=None,
+            project=None,
+            metrics=None,
+            query_with_job=True,
+        )
+        return query_job
 
 
 def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:

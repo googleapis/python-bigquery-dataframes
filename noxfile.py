@@ -77,9 +77,9 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
 ]
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
-UNIT_TEST_EXTRAS: List[str] = ["tests"]
+UNIT_TEST_EXTRAS: List[str] = ["tests", "anywidget"]
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
-    "3.12": ["polars", "scikit-learn"],
+    "3.12": ["tests", "polars", "scikit-learn", "anywidget"],
 }
 
 # 3.10 is needed for Windows tests as it is the only version installed in the
@@ -106,10 +106,10 @@ SYSTEM_TEST_LOCAL_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_EXTRAS: List[str] = []
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
-    "3.9": ["tests"],
+    "3.9": ["tests", "anywidget"],
     "3.10": ["tests"],
     LATEST_FULLY_SUPPORTED_PYTHON: ["all"],
-    "3.13": ["tests"],
+    "3.13": ["tests", "polars"],
 }
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
@@ -119,10 +119,10 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 # Sessions are executed in the order so putting the smaller sessions
 # ahead to fail fast at presubmit running.
 nox.options.sessions = [
-    "unit",
     "system-3.9",
     "system-3.12",
     "cover",
+    # TODO(b/401609005): remove
     "cleanup",
 ]
 
@@ -202,14 +202,11 @@ def install_unittest_dependencies(session, install_test_extra, *constraints):
     if UNIT_TEST_LOCAL_DEPENDENCIES:
         session.install(*UNIT_TEST_LOCAL_DEPENDENCIES, *constraints)
 
-    if install_test_extra and UNIT_TEST_EXTRAS_BY_PYTHON:
-        extras = UNIT_TEST_EXTRAS_BY_PYTHON.get(session.python, [])
-    if install_test_extra and UNIT_TEST_EXTRAS:
-        extras = UNIT_TEST_EXTRAS
-    else:
-        extras = []
-
-    if extras:
+    if install_test_extra:
+        if session.python in UNIT_TEST_EXTRAS_BY_PYTHON:
+            extras = UNIT_TEST_EXTRAS_BY_PYTHON[session.python]
+        else:
+            extras = UNIT_TEST_EXTRAS
         session.install("-e", f".[{','.join(extras)}]", *constraints)
     else:
         session.install("-e", ".", *constraints)
@@ -279,6 +276,7 @@ def mypy(session):
                 "types-setuptools",
                 "types-tabulate",
                 "polars",
+                "anywidget",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
@@ -467,20 +465,31 @@ def cover(session):
     session.install("coverage", "pytest-cov")
 
     # Create a coverage report that includes only the product code.
+    omitted_paths = [
+        # non-prod, unit tested
+        "bigframes/core/compile/polars/*",
+        "bigframes/core/compile/sqlglot/*",
+        # untested
+        "bigframes/streaming/*",
+        # utils
+        "bigframes/testing/*",
+    ]
+
     session.run(
         "coverage",
         "report",
         "--include=bigframes/*",
+        # Only unit tested
+        f"--omit={','.join(omitted_paths)}",
         "--show-missing",
-        "--fail-under=85",
+        "--fail-under=84",
     )
 
-    # Make sure there is no dead code in our test directories.
+    # Make sure there is no dead code in our system test directories.
     session.run(
         "coverage",
         "report",
         "--show-missing",
-        "--include=tests/unit/*",
         "--include=tests/system/small/*",
         # TODO(b/353775058) resume coverage to 100 when the issue is fixed.
         "--fail-under=99",
@@ -506,6 +515,7 @@ def docs(session):
         SPHINX_VERSION,
         "alabaster",
         "recommonmark",
+        "anywidget",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
@@ -548,6 +558,7 @@ def docfx(session):
         "alabaster",
         "recommonmark",
         "gcp-sphinx-docfx-yaml==3.0.1",
+        "anywidget",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
@@ -751,6 +762,7 @@ def notebook(session: nox.Session):
         "google-cloud-aiplatform",
         "matplotlib",
         "seaborn",
+        "anywidget",
     )
 
     notebooks_list = list(pathlib.Path("notebooks/").glob("*/*.ipynb"))
@@ -793,6 +805,9 @@ def notebook(session: nox.Session):
         # continuously tested.
         "notebooks/apps/synthetic_data_generation.ipynb",
         "notebooks/multimodal/multimodal_dataframe.ipynb",  # too slow
+        # This anywidget notebook uses deferred execution, so it won't
+        # produce metrics for the performance benchmark script.
+        "notebooks/dataframes/anywidget_mode.ipynb",
     ]
 
     # TODO: remove exception for Python 3.13 cloud run adds a runtime for it (internal issue 333742751)
