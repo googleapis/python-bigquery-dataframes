@@ -24,7 +24,7 @@ pytest.importorskip("pytest_snapshot")
 def test_compile_concat(
     scalars_types_pandas_df: pd.DataFrame, compiler_session: bigframes.Session, snapshot
 ):
-    # TODO: concat dataframes from a gbq table but trigger a windows compiler.
+    # TODO(b/425739511): concat dataframes from a gbq table but trigger a windows compiler.
     df1 = bpd.DataFrame(scalars_types_pandas_df, session=compiler_session)
     df1 = df1[["rowindex", "int64_col", "string_col"]]
     concat_df = bpd.concat([df1, df1])
