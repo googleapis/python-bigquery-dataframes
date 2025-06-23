@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Iterator
 import uuid
 
 import anywidget  # type: ignore
@@ -26,6 +27,8 @@ class TableWidget(anywidget.AnyWidget):
     An interactive, paginated table widget for BigFrames DataFrames.
     """
 
+    # The _esm variable contains the JavaScript source code for the frontend
+    # component of the widget.
     _esm = """
     function render({ model, el }) {
         const container = document.createElement('div');
@@ -97,7 +100,7 @@ class TableWidget(anywidget.AnyWidget):
         Initialize the TableWidget.
 
         Args:
-            dataframe: The Bigframes Dataframe to display
+            dataframe: The Bigframes Dataframe to display.
         """
         super().__init__()
         self._dataframe = dataframe
@@ -105,12 +108,11 @@ class TableWidget(anywidget.AnyWidget):
         # respect display options
         self.page_size = bigframes.options.display.max_rows
 
+        # Initialize data fetching attributes.
         self._batches = dataframe.to_pandas_batches(page_size=self.page_size)
         self._cached_data = pd.DataFrame(columns=self._dataframe.columns)
         self._table_id = str(uuid.uuid4())
         self._all_data_loaded = False
-
-        # store the iterator as an instance variable
         self._batch_iterator = None
 
         # len(dataframe) is expensive, since it will trigger a
@@ -120,8 +122,13 @@ class TableWidget(anywidget.AnyWidget):
         # get the initial page
         self._set_table_html()
 
-    def _get_next_batch(self):
-        """Gets the next batch of data from the batches generator."""
+    def _get_next_batch(self) -> bool:
+        """
+        Gets the next batch of data from the generator and appends to cache.
+
+        Returns:
+            bool: True if a batch was successfully loaded, False otherwise.
+        """
         if self._all_data_loaded:
             return False
 
@@ -139,8 +146,8 @@ class TableWidget(anywidget.AnyWidget):
         except Exception as e:
             raise RuntimeError(f"Error during batch processing: {str(e)}") from e
 
-    def _get_batch_iterator(self):
-        """Get batch Iterator."""
+    def _get_batch_iterator(self) -> Iterator[pd.DataFrame]:
+        """Lazily initializes and returns the batch iterator."""
         if self._batch_iterator is None:
             self._batch_iterator = iter(self._batches)
         return self._batch_iterator
@@ -150,12 +157,10 @@ class TableWidget(anywidget.AnyWidget):
         start = self.page * self.page_size
         end = start + self.page_size
 
-        # fetch more dat if the requested page is outside our cache
-        while len(self._cached_data) < end:
-            prev_len = len(self._cached_data)
+        # fetch more data if the requested page is outside our cache
+        while len(self._cached_data) < end and not self._all_data_loaded:
             self._get_next_batch()
-            if len(self._cached_data) == prev_len:
-                break
+
         # Get the data fro the current page
         page_data = self._cached_data.iloc[start:end]
 
@@ -170,5 +175,5 @@ class TableWidget(anywidget.AnyWidget):
 
     @traitlets.observe("page")
     def _page_changed(self, change):
-        """Handler for when the page nubmer is changed from the frontend"""
+        """Handler for when the page nubmer is changed from the frontend."""
         self._set_table_html()
