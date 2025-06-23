@@ -14,12 +14,12 @@
 
 import pytest
 
-import bigframes
+import bigframes.pandas as bpd
 
 pytest.importorskip("pytest_snapshot")
 
 
-def test_compile_projection(compiler_session: bigframes.Session, snapshot):
-    bf_df = compiler_session.read_gbq_table("test-project.test_dataset.test_table")
-    bf_df["int64_col"] = bf_df["int64_col"] + 1
-    snapshot.assert_match(bf_df.sql, "out.sql")
+def test_compile_filter(scalars_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalars_types_df[["rowindex", "int64_col"]]
+    bf_filter = bf_df[bf_df["rowindex"] >= 1]
+    snapshot.assert_match(bf_filter.sql, "out.sql")
