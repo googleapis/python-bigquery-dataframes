@@ -118,10 +118,12 @@ remote_function.__doc__ = inspect.getdoc(bigframes.session.Session.remote_functi
 
 
 def deploy_remote_function(
+    func,
     **kwargs,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.deploy_remote_function,
+        func=func,
         **kwargs,
     )
 
@@ -155,10 +157,12 @@ udf.__doc__ = inspect.getdoc(bigframes.session.Session.udf)
 
 
 def deploy_udf(
+    func,
     **kwargs,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.deploy_udf,
+        func=func,
         **kwargs,
     )
 
