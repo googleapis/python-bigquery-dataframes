@@ -118,62 +118,17 @@ remote_function.__doc__ = inspect.getdoc(bigframes.session.Session.remote_functi
 
 
 def deploy_remote_function(
-    # Make sure that the input/output types, and dataset can be used
-    # positionally. This avoids the worst of the breaking change from 1.x to
-    # 2.x while still preventing possible mixups between consecutive str
-    # parameters.
-    input_types: Union[None, type, Sequence[type]] = None,
-    output_type: Optional[type] = None,
-    dataset: Optional[str] = None,
-    *,
-    bigquery_connection: Optional[str] = None,
-    reuse: bool = True,
-    name: Optional[str] = None,
-    packages: Optional[Sequence[str]] = None,
-    cloud_function_service_account: str,
-    cloud_function_kms_key_name: Optional[str] = None,
-    cloud_function_docker_repository: Optional[str] = None,
-    max_batching_rows: Optional[int] = 1000,
-    cloud_function_timeout: Optional[int] = 600,
-    cloud_function_max_instances: Optional[int] = None,
-    cloud_function_vpc_connector: Optional[str] = None,
-    cloud_function_memory_mib: Optional[int] = 1024,
-    cloud_function_ingress_settings: Literal[
-        "all", "internal-only", "internal-and-gclb"
-    ] = "internal-only",
-    cloud_build_service_account: Optional[str] = None,
+    **kwargs,
 ):
-    """Deploys a remote function immediately.
-
-    This function takes the same arguments as :func:`~bigframes.pandas.remote_function`.
-    The key difference is that this function ensures the remote function
-    is created and deployed in BigQuery at the time of this call.
-
-    For detailed argument descriptions, see :func:`~bigframes.pandas.remote_function`.
-    """
     return global_session.with_default_session(
         bigframes.session.Session.deploy_remote_function,
-        input_types=input_types,
-        output_type=output_type,
-        dataset=dataset,
-        bigquery_connection=bigquery_connection,
-        reuse=reuse,
-        name=name,
-        packages=packages,
-        cloud_function_service_account=cloud_function_service_account,
-        cloud_function_kms_key_name=cloud_function_kms_key_name,
-        cloud_function_docker_repository=cloud_function_docker_repository,
-        max_batching_rows=max_batching_rows,
-        cloud_function_timeout=cloud_function_timeout,
-        cloud_function_max_instances=cloud_function_max_instances,
-        cloud_function_vpc_connector=cloud_function_vpc_connector,
-        cloud_function_memory_mib=cloud_function_memory_mib,
-        cloud_function_ingress_settings=cloud_function_ingress_settings,
-        cloud_build_service_account=cloud_build_service_account,
+        **kwargs,
     )
 
 
-# deploy_remote_function.__doc__ is now set directly in the SEARCH block.
+deploy_remote_function.__doc__ = inspect.getdoc(
+    bigframes.session.Session.deploy_remote_function
+)
 
 
 def udf(
@@ -200,34 +155,15 @@ udf.__doc__ = inspect.getdoc(bigframes.session.Session.udf)
 
 
 def deploy_udf(
-    *,
-    input_types: Union[None, type, Sequence[type]] = None,
-    output_type: Optional[type] = None,
-    dataset: str,
-    bigquery_connection: Optional[str] = None,
-    name: str,
-    packages: Optional[Sequence[str]] = None,
+    **kwargs,
 ):
-    """Deploys a UDF immediately.
-
-    This function takes the same arguments as :func:`~bigframes.pandas.udf`.
-    The key difference is that this function ensures the UDF
-    is created and deployed in BigQuery at the time of this call.
-
-    For detailed argument descriptions, see :func:`~bigframes.pandas.udf`.
-    """
     return global_session.with_default_session(
         bigframes.session.Session.deploy_udf,
-        input_types=input_types,
-        output_type=output_type,
-        dataset=dataset,
-        bigquery_connection=bigquery_connection,
-        name=name,
-        packages=packages,
+        **kwargs,
     )
 
 
-# deploy_udf.__doc__ is now set directly in the SEARCH block.
+deploy_udf.__doc__ = inspect.getdoc(bigframes.session.Session.deploy_udf)
 
 
 @typing.overload
