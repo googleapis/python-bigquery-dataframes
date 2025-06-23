@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "2.8.0"
+import pytest
 
-# {x-release-please-start-date}
-__release_date__ = "2025-06-23"
-# {x-release-please-end}
+import bigframes.pandas as bpd
+
+pytest.importorskip("pytest_snapshot")
+
+
+def test_compile_filter(scalars_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalars_types_df[["rowindex", "int64_col"]]
+    bf_filter = bf_df[bf_df["rowindex"] >= 1]
+    snapshot.assert_match(bf_filter.sql, "out.sql")
