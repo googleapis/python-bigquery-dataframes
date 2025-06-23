@@ -780,20 +780,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return formatter.repr_query_job(self._compute_dry_run())
 
         if opts.repr_mode == "anywidget":
-            import anywidget  # type: ignore
-
-            # create an iterator for the data batches
-            batches = self.to_pandas_batches()
-
-            # get the first page result
             try:
-                first_page = next(iter(batches))
-            except StopIteration:
-                first_page = pandas.DataFrame(columns=self.columns)
+                from bigframes import display
 
-            # Instantiate and return the widget. The widget's frontend will
-            # handle the display of the table and pagination
-            return anywidget.AnyWidget(dataframe=first_page)
+                return display.TableWidget(self)
+            except AttributeError:
+                # Fallback if anywidget is not available
+                warnings.warn(
+                    "Anywidget mode is not available, falling back to deferred mode."
+                )
+                return formatter.repr_query_job(self._compute_dry_run())
 
         self._cached()
         df = self.copy()
