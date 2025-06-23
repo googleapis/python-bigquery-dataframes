@@ -18,10 +18,9 @@ import warnings
 try:
     import anywidget  # noqa
 
-    from .anywidget import TableWidget  # noqa
+    from bigframes.display.anywidget import TableWidget
 
     __all__ = ["TableWidget"]
-except ImportError:
+except Exception:
     msg = "Anywidget mode not available as anywidget is not installed."
     warnings.warn(msg)
-    __all__ = []
