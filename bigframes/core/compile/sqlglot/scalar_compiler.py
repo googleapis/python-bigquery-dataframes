@@ -17,7 +17,6 @@ import functools
 
 import sqlglot.expressions as sge
 
-from bigframes import dtypes
 from bigframes.core import expression
 from bigframes.core.compile.sqlglot.expressions import (
     binary_compiler,
