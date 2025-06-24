@@ -141,157 +141,144 @@ def get_bq_schema(target_row_size_bytes: int) -> list[tuple[str, str, int | None
     return schema
 
 
-def generate_random_data(schema: list[tuple[str, str, int | None]], num_rows: int, rng: np.random.Generator) -> list[dict]:
+def generate_random_data(schema: list[tuple[str, str, int | None]],
+                         num_rows: int,
+                         rng: np.random.Generator,
+                         batch_size: int) -> iter:
     """
-    Generates random data for the given schema and number of rows using vectorized operations.
+    Generates random data for the given schema and number of rows, yielding batches.
     """
     if num_rows == 0:
-        return []
+        yield []
+        return
 
-    columns_data = {}
     char_list = list("abcdefghijklmnopqrstuvwxyz0123456789")
     json_char_list = list("abcdef")
+    col_names_ordered = [s[0] for s in schema]
 
-    for col_name, bq_type, length in schema:
-        if bq_type == 'BOOL':
-            columns_data[col_name] = rng.choice([True, False], size=num_rows)
-        elif bq_type == 'INT64':
-            columns_data[col_name] = rng.integers(-10**18, 10**18, size=num_rows, dtype=np.int64)
-        elif bq_type == 'FLOAT64':
-            columns_data[col_name] = rng.random(size=num_rows) * 2 * 10**10 - 10**10
-        elif bq_type == 'NUMERIC':
-            # Generate as float, then format to string.
-            # Using np.vectorize for formatting.
-            raw_numerics = rng.random(size=num_rows) * 2 * 10**28 - 10**28
-            format_numeric_v = np.vectorize(lambda x: f"{x:.9f}")
-            columns_data[col_name] = format_numeric_v(raw_numerics)
-        elif bq_type == 'DATE':
-            start_date_ord = datetime.date(1, 1, 1).toordinal()
-            max_days = (datetime.date(9999, 12, 31) - datetime.date(1, 1, 1)).days
-            day_offsets = rng.integers(0, max_days + 1, size=num_rows)
-            # Vectorized conversion from ordinal + offset to ISO date string
-            date_ordinals = start_date_ord + day_offsets
-            columns_data[col_name] = [datetime.date.fromordinal(int(ordinal)).isoformat() for ordinal in date_ordinals]
-        elif bq_type == 'DATETIME':
-            # Generate components and then assemble.
-            # This is less directly vectorized for the final string but component generation is.
-            years = rng.integers(1, 10000, size=num_rows) # Max year 9999
-            months = rng.integers(1, 13, size=num_rows)
-            days = rng.integers(1, 29, size=num_rows) # simplify day generation
-            hours = rng.integers(0, 24, size=num_rows)
-            minutes = rng.integers(0, 60, size=num_rows)
-            seconds = rng.integers(0, 60, size=num_rows)
-            microseconds = rng.integers(0, 1000000, size=num_rows)
-            dt_list = []
-            for i in range(num_rows):
-                try:
-                    dt_list.append(datetime.datetime(
-                        years[i], months[i], days[i],
+    generated_rows_total = 0
+    while generated_rows_total < num_rows:
+        current_batch_size = min(batch_size, num_rows - generated_rows_total)
+        if current_batch_size == 0:
+            break
+
+        columns_data_batch = {}
+        for col_name, bq_type, length in schema:
+            if bq_type == 'BOOL':
+                columns_data_batch[col_name] = rng.choice([True, False], size=current_batch_size)
+            elif bq_type == 'INT64':
+                columns_data_batch[col_name] = rng.integers(-10**18, 10**18, size=current_batch_size, dtype=np.int64)
+            elif bq_type == 'FLOAT64':
+                columns_data_batch[col_name] = rng.random(size=current_batch_size) * 2 * 10**10 - 10**10
+            elif bq_type == 'NUMERIC':
+                raw_numerics = rng.random(size=current_batch_size) * 2 * 10**28 - 10**28
+                format_numeric_v = np.vectorize(lambda x: f"{x:.9f}")
+                columns_data_batch[col_name] = format_numeric_v(raw_numerics)
+            elif bq_type == 'DATE':
+                start_date_ord = datetime.date(1, 1, 1).toordinal()
+                max_days = (datetime.date(9999, 12, 31) - datetime.date(1, 1, 1)).days
+                day_offsets = rng.integers(0, max_days + 1, size=current_batch_size)
+                date_ordinals = start_date_ord + day_offsets
+                columns_data_batch[col_name] = [datetime.date.fromordinal(int(ordinal)).isoformat() for ordinal in date_ordinals]
+            elif bq_type == 'DATETIME':
+                years = rng.integers(1, 10000, size=current_batch_size)
+                months = rng.integers(1, 13, size=current_batch_size)
+                days_val = rng.integers(1, 29, size=current_batch_size)
+                hours = rng.integers(0, 24, size=current_batch_size)
+                minutes = rng.integers(0, 60, size=current_batch_size)
+                seconds = rng.integers(0, 60, size=current_batch_size)
+                microseconds = rng.integers(0, 1000000, size=current_batch_size)
+                dt_list = []
+                for i in range(current_batch_size):
+                    try:
+                        dt_list.append(datetime.datetime(
+                            years[i], months[i], days_val[i],
+                            hours[i], minutes[i], seconds[i], microseconds[i]
+                        ).isoformat(sep=' '))
+                    except ValueError:
+                         dt_list.append(datetime.datetime(2000,1,1,hours[i],minutes[i],seconds[i],microseconds[i]).isoformat(sep=' '))
+                columns_data_batch[col_name] = dt_list
+            elif bq_type == 'TIMESTAMP':
+                min_ts = int(datetime.datetime(1, 1, 1, tzinfo=datetime.timezone.utc).timestamp())
+                max_ts = int(datetime.datetime(9999, 12, 28, tzinfo=datetime.timezone.utc).timestamp())
+                random_seconds = rng.integers(min_ts, max_ts, size=current_batch_size, dtype=np.int64)
+                random_microseconds = rng.integers(0, 1000000, size=current_batch_size)
+                ts_list = []
+                for i in range(current_batch_size):
+                    try:
+                        base_dt = datetime.datetime.fromtimestamp(random_seconds[i], tz=datetime.timezone.utc)
+                        final_dt = base_dt.replace(microsecond=random_microseconds[i])
+                        ts_list.append(final_dt.isoformat(sep=' '))
+                    except OverflowError:
+                         fallback_dt = datetime.datetime(2000,1,1,12,0,0,random_microseconds[i], tzinfo=datetime.timezone.utc)
+                         ts_list.append(fallback_dt.isoformat(sep=' '))
+                    except ValueError:
+                         fallback_dt = datetime.datetime(2000,1,1,12,0,0,random_microseconds[i], tzinfo=datetime.timezone.utc)
+                         ts_list.append(fallback_dt.isoformat(sep=' '))
+                columns_data_batch[col_name] = ts_list
+            elif bq_type == 'TIME':
+                hours = rng.integers(0, 24, size=current_batch_size)
+                minutes = rng.integers(0, 60, size=current_batch_size)
+                seconds = rng.integers(0, 60, size=current_batch_size)
+                microseconds = rng.integers(0, 1000000, size=current_batch_size)
+                time_list = []
+                for i in range(current_batch_size):
+                    time_list.append(datetime.time(
                         hours[i], minutes[i], seconds[i], microseconds[i]
-                    ).isoformat(sep=' '))
-                except ValueError: # Handle invalid date combinations like Feb 29 in non-leap year if days were > 28
-                     # Fallback to a known good date if component combination is invalid
-                     dt_list.append(datetime.datetime(2000,1,1,hours[i],minutes[i],seconds[i],microseconds[i]).isoformat(sep=' '))
-            columns_data[col_name] = dt_list
-        elif bq_type == 'TIMESTAMP':
-            # Generate Unix timestamps (seconds since epoch) then convert
-            # Range for timestamps (approx 1970 to 2038 for standard 32-bit, extend for 64-bit)
-            # Let's use a wider range, assuming BQ handles it, e.g., year 1 to 9999
-            min_ts = int(datetime.datetime(1, 1, 1, tzinfo=datetime.timezone.utc).timestamp())
-            max_ts = int(datetime.datetime(9999, 12, 28, tzinfo=datetime.timezone.utc).timestamp()) # up to 9999
-
-            random_seconds = rng.integers(min_ts, max_ts, size=num_rows, dtype=np.int64)
-            random_microseconds = rng.integers(0, 1000000, size=num_rows)
-
-            ts_list = []
-            for i in range(num_rows):
-                try:
-                    # Ensure the timestamp is within reasonable bounds for fromtimestamp
-                    # Clamp to a safe range if extreme values from min_ts/max_ts cause issues
-                    # Python's fromtimestamp might have platform limitations
-                    base_dt = datetime.datetime.fromtimestamp(random_seconds[i], tz=datetime.timezone.utc)
-                    final_dt = base_dt.replace(microsecond=random_microseconds[i]) # add microseconds
-                    ts_list.append(final_dt.isoformat(sep=' '))
-                except OverflowError: # Fallback for timestamps too large for platform's C mktime
-                     fallback_dt = datetime.datetime(2000,1,1,12,0,0,random_microseconds[i], tzinfo=datetime.timezone.utc)
-                     ts_list.append(fallback_dt.isoformat(sep=' '))
-                except ValueError: # Handles cases like negative timestamps on Windows
-                     fallback_dt = datetime.datetime(2000,1,1,12,0,0,random_microseconds[i], tzinfo=datetime.timezone.utc)
-                     ts_list.append(fallback_dt.isoformat(sep=' '))
-
-            columns_data[col_name] = ts_list
-        elif bq_type == 'TIME':
-            hours = rng.integers(0, 24, size=num_rows)
-            minutes = rng.integers(0, 60, size=num_rows)
-            seconds = rng.integers(0, 60, size=num_rows)
-            microseconds = rng.integers(0, 1000000, size=num_rows)
-            time_list = []
-            for i in range(num_rows):
-                time_list.append(datetime.time(
-                    hours[i], minutes[i], seconds[i], microseconds[i]
-                ).isoformat())
-            columns_data[col_name] = time_list
-        elif bq_type == 'STRING':
-            content_len = length if length is not None else 1
-            content_len = max(0, content_len) # ensure non-negative
-            if content_len == 0:
-                columns_data[col_name] = [""] * num_rows
-            else:
-                # Generate num_rows * content_len characters, then reshape and join
-                chars_array = rng.choice(char_list, size=(num_rows, content_len))
-                columns_data[col_name] = [''.join(row_chars) for row_chars in chars_array]
-        elif bq_type == 'BYTES':
-            content_len = length if length is not None else 1
-            content_len = max(0, content_len)
-            # rng.bytes is not directly vectorizable in the same way for num_rows
-            columns_data[col_name] = [rng.bytes(content_len) for _ in range(num_rows)]
-        elif bq_type == 'JSON':
-            content_len = length if length is not None else 10
-            json_list = []
-            # JSON generation remains somewhat row-wise due to complexity of hitting exact length
-            for _ in range(num_rows):
-                if content_len <= 5: # approx "{\"\":0}"
-                    json_val_len = max(0, content_len - 5) # Length of value part
-                    json_val_chars = rng.choice(json_char_list, size=json_val_len)
-                    json_obj = {"k": ''.join(json_val_chars)} if content_len > 4 else ""
+                    ).isoformat())
+                columns_data_batch[col_name] = time_list
+            elif bq_type == 'STRING':
+                content_len = length if length is not None else 1
+                content_len = max(0, content_len)
+                if content_len == 0:
+                    columns_data_batch[col_name] = [""] * current_batch_size
                 else:
-                    val_len = max(1, content_len - 10) # {"key": "vvv..."}
-                    json_val_chars = rng.choice(json_char_list, size=val_len)
-                    json_obj = {"key": ''.join(json_val_chars)}
-
-                json_str = json.dumps(json_obj)
-                # Crude truncation/adjustment to meet length. This is hard to vectorize precisely.
-                if len(json_str.encode('utf-8')) > content_len and content_len > 0:
-                    approx_val_len = max(1, content_len - len(json.dumps({"key":""}).encode('utf-8')))
-                    json_obj_adjusted = {"key": "X" * approx_val_len}
-                    json_str = json.dumps(json_obj_adjusted)
-                    json_str = json_str[:content_len] # Final hard truncate
-                elif len(json_str.encode('utf-8')) < content_len and content_len > 0:
-                    # If too short, and we have a simple {"key": "value"} structure, try to pad value
-                    if "key" in json_obj and isinstance(json_obj["key"], str):
-                        padding_needed = content_len - len(json_str.encode('utf-8'))
-                        json_obj["key"] += "X" * padding_needed
-                        json_str = json.dumps(json_obj)
-                        # Truncate if padding overshot due to multi-byte chars or structure
-                        while len(json_str.encode('utf-8')) > content_len and len(json_obj["key"]) > 0:
-                            json_obj["key"] = json_obj["key"][:-1]
+                    chars_array = rng.choice(char_list, size=(current_batch_size, content_len))
+                    columns_data_batch[col_name] = [''.join(row_chars) for row_chars in chars_array]
+            elif bq_type == 'BYTES':
+                content_len = length if length is not None else 1
+                content_len = max(0, content_len)
+                columns_data_batch[col_name] = [rng.bytes(content_len) for _ in range(current_batch_size)]
+            elif bq_type == 'JSON':
+                content_len = length if length is not None else 10
+                json_list = []
+                for _ in range(current_batch_size):
+                    if content_len <= 5:
+                        json_val_len = max(0, content_len - 5)
+                        json_val_chars = rng.choice(json_char_list, size=json_val_len)
+                        json_obj = {"k": ''.join(json_val_chars)} if content_len > 4 else ""
+                    else:
+                        val_len = max(1, content_len - 10)
+                        json_val_chars = rng.choice(json_char_list, size=val_len)
+                        json_obj = {"key": ''.join(json_val_chars)}
+                    json_str = json.dumps(json_obj)
+                    if len(json_str.encode('utf-8')) > content_len and content_len > 0:
+                        approx_val_len = max(1, content_len - len(json.dumps({"key":""}).encode('utf-8')))
+                        json_obj_adjusted = {"key": "X" * approx_val_len}
+                        json_str = json.dumps(json_obj_adjusted)
+                        json_str = json_str[:content_len]
+                    elif len(json_str.encode('utf-8')) < content_len and content_len > 0:
+                        if "key" in json_obj and isinstance(json_obj["key"], str):
+                            padding_needed = content_len - len(json_str.encode('utf-8'))
+                            json_obj["key"] += "X" * padding_needed
                             json_str = json.dumps(json_obj)
-                        if len(json_str.encode('utf-8')) > content_len: # Final fallback if still too long
-                             json_str = json_str[:content_len]
+                            while len(json_str.encode('utf-8')) > content_len and len(json_obj["key"]) > 0:
+                                json_obj["key"] = json_obj["key"][:-1]
+                                json_str = json.dumps(json_obj)
+                            if len(json_str.encode('utf-8')) > content_len:
+                                 json_str = json_str[:content_len]
+                    json_list.append(json_str)
+                columns_data_batch[col_name] = json_list
 
+        # Assemble batch of rows
+        batch_data = []
+        if current_batch_size > 0:
+            for i in range(current_batch_size):
+                row = {col_name: columns_data_batch[col_name][i] for col_name in col_names_ordered}
+                batch_data.append(row)
 
-                json_list.append(json_str)
-            columns_data[col_name] = json_list
-
-    # Assemble rows from columns_data
-    # This is a way to transpose the dictionary of arrays into a list of dicts
-    data = []
-    if num_rows > 0:
-        col_names_ordered = [s[0] for s in schema] # Get column names in original schema order
-        for i in range(num_rows):
-            row = {col_name: columns_data[col_name][i] for col_name in col_names_ordered}
-            data.append(row)
-    return data
+        yield batch_data
+        generated_rows_total += current_batch_size
 
 
 def create_and_load_table(
@@ -299,23 +286,57 @@ def create_and_load_table(
     dataset_id: str,
     table_name: str,
     schema_def: list[tuple[str, str, int | None]],
-    data_rows: list[dict]
+    num_rows: int,
+    rng: np.random.Generator,
+    data_gen_batch_size: int  # Batch size for the data generator
 ):
-    """Creates a BigQuery table and loads data into it."""
+    """Creates a BigQuery table and loads data into it by consuming a data generator."""
+
+    # BQ client library streaming insert batch size (rows per API call)
+    # This is different from data_gen_batch_size which is for generating data.
+    # We can make BQ_LOAD_BATCH_SIZE smaller than data_gen_batch_size if needed.
+    BQ_LOAD_BATCH_SIZE = 500
+
     if not project_id or project_id == "your-gcp-project":
         print(f"SKIPPING BigQuery interaction for table {table_name}: PROJECT_ID not set.")
         print(f"  Schema: {schema_def}")
-        if data_rows:
-             print(f"  Would load {len(data_rows)} row(s). First row (sample): {data_rows[0]}")
-        else:
-            print(f"  Would load {len(data_rows)} row(s).")
+        print(f"  Total rows to generate: {num_rows}")
+        print(f"  Data generation batch size: {data_gen_batch_size}")
+
+        # Simulate consuming the first batch for sample output
+        first_batch_generated = False
+        for i, batch_data in enumerate(generate_random_data(schema_def, num_rows, rng, data_gen_batch_size)):
+            if not first_batch_generated and batch_data:
+                print(f"  Simulating: Would load {len(batch_data)} row(s) in first batch (sample): {batch_data[0]}")
+                first_batch_generated = True
+            elif not first_batch_generated and not batch_data and num_rows == 0:
+                 print(f"  Simulating: Would load 0 rows as num_rows is 0.")
+                 first_batch_generated = True # Mark as handled
+
+            if i == 0: # Only show info for the first yielded batch in simulation
+                if num_rows > 0 and not batch_data: # Should not happen if num_rows > 0
+                    print("  Simulating: Generator yielded an empty first batch unexpectedly for non-zero num_rows.")
+                elif num_rows == 0 and not batch_data: # Expected for num_rows = 0
+                    pass # Already handled
+                # If num_rows > 0 and batch_data has content, it's handled above.
+
+            if i == 0 and num_rows > data_gen_batch_size: # If there will be more batches
+                num_simulated_batches = math.ceil(num_rows / data_gen_batch_size)
+                print(f"  Simulating: Would continue generating and loading in approx. {num_simulated_batches} batches.")
+            elif i == 0 and num_rows > 0 and num_rows <= data_gen_batch_size : # Single batch
+                 print(f"  Simulating: All {num_rows} rows would be generated in a single batch.")
+
+            if i == 0: # Break after inspecting the first batch for simulation purposes
+                break
+        if not first_batch_generated and num_rows > 0 : # If loop didn't run (e.g. num_rows was 0 initially for generator)
+             print(f"  Simulating: No data batches were generated (num_rows: {num_rows}).")
         return
 
     client = bigquery.Client(project=project_id)
     table_id = f"{project_id}.{dataset_id}.{table_name}"
 
     bq_schema = []
-    for col_name, type_name, _ in schema_def: # length is not used for SchemaField directly
+    for col_name, type_name, _ in schema_def:
         bq_schema.append(bigquery.SchemaField(col_name, type_name))
 
     table = bigquery.Table(table_id, schema=bq_schema)
@@ -325,30 +346,43 @@ def create_and_load_table(
         client.create_table(table, exists_ok=True)
         print(f"Table {table_id} created successfully or already exists.")
 
-        if data_rows:
-            print(f"Loading {len(data_rows)} rows into {table_id}...")
-            # For very large number of rows, consider batching or load jobs
-            # insert_rows_json has limits on request size and row count per request.
-            # Max 10k rows / 10MB per API call for streaming inserts.
-            # If num_rows is huge, this will fail or be very slow.
-            # The problem implies up to ~6B rows, which MUST use Load Jobs, not streaming.
-            # For now, this script will use insert_rows_json for simplicity,
-            # acknowledging it won't work for the largest percentiles.
+        if num_rows > 0:
+            print(f"Starting to load {num_rows} rows into {table_id} in batches...")
+            total_rows_loaded = 0
 
-            # Simplified batching for demonstration
-            batch_size = 500 # Keep batch size small for streaming
-            for i in range(0, len(data_rows), batch_size):
-                batch = data_rows[i:i + batch_size]
-                errors = client.insert_rows_json(table, batch)
-                if errors:
-                    print(f"Encountered errors while inserting rows: {errors}")
-                    # Decide how to handle errors: stop, log, retry certain types?
-                    # For this script, we'll print and continue if possible.
-                else:
-                    print(f"Loaded batch of {len(batch)} rows successfully.")
-            print(f"Data loading complete for {table_id}.")
+            # Data is generated in data_gen_batch_size chunks by the generator.
+            # Data is loaded into BQ in BQ_LOAD_BATCH_SIZE chunks.
+            # These can be different. The generator yields larger chunks,
+            # and we further batch them for BQ API calls if needed.
+
+            batch_num_gen = 0
+            for generated_data_chunk in generate_random_data(schema_def, num_rows, rng, data_gen_batch_size):
+                batch_num_gen += 1
+                if not generated_data_chunk: # Should only happen if num_rows was 0 from start
+                    continue
+
+                print(f"  Processing generated chunk {batch_num_gen} (size: {len(generated_data_chunk)} rows)...")
+
+                # Sub-batch for BigQuery client.insert_rows_json
+                for i in range(0, len(generated_data_chunk), BQ_LOAD_BATCH_SIZE):
+                    bq_insert_batch = generated_data_chunk[i:i + BQ_LOAD_BATCH_SIZE]
+                    if not bq_insert_batch:
+                        continue
+
+                    errors = client.insert_rows_json(table, bq_insert_batch)
+                    if errors:
+                        print(f"    Encountered errors while inserting sub-batch: {errors}")
+                        # TODO: Add more robust error handling, e.g., retry, log to file
+                    else:
+                        total_rows_loaded += len(bq_insert_batch)
+                        print(f"    Loaded sub-batch of {len(bq_insert_batch)} rows. Total loaded: {total_rows_loaded}/{num_rows}")
+
+            if total_rows_loaded == num_rows:
+                print(f"Data loading complete for {table_id}. Total {total_rows_loaded} rows loaded.")
+            else:
+                print(f"Warning: Data loading for {table_id} finished, but row count mismatch. Loaded: {total_rows_loaded}, Expected: {num_rows}")
         else:
-            print(f"No data to load for table {table_id}.")
+            print(f"No data to load for table {table_id} as num_rows is 0.")
 
     except Exception as e:
         print(f"Error during BigQuery operation for table {table_id}: {e}")
@@ -401,27 +435,22 @@ def main():
 
         print(f"Generated Schema: {schema_definition}")
 
-        # For the largest tables, generating all data in memory is not feasible.
-        # Data generation should ideally be streamed or done in chunks.
-        # This script will attempt to generate all, which will fail for large num_rows.
-        # Acknowledging this limitation for the scope of this exercise.
-        if num_rows > 100000: # Heuristic limit for in-memory data generation
-            print(f"Warning: Number of rows ({num_rows}) is very large. Data generation might be slow or fail.")
-            print("Simulating data generation and skipping actual BQ load for this large table to prevent OOM.")
-            # In a real scenario, use Dataflow or generate data directly to GCS then BQ Load Job.
-            # For the purpose of this script, we will "pretend" to generate and load.
-            # We will still call create_and_load_table, but it has its own checks for PROJECT_ID.
-            # And if PROJECT_ID is set, it will attempt loading in small batches.
-            # The true fix for multi-billion rows is a BQ Load Job from GCS.
-            # Let's limit num_rows for actual data generation for this script to avoid OOM
-            data_to_load = generate_random_data(schema_definition, min(num_rows, 1000), rng) # Generate only up to 1000 rows for demo
-            print(f"Generated {len(data_to_load)} sample rows (capped for large tables).")
-        else:
-            data_to_load = generate_random_data(schema_definition, num_rows, rng)
-            print(f"Generated {len(data_to_load)} rows of data.")
+        # Data generation batch size - can be tuned.
+        # Larger might be more efficient for generation, but uses more memory per batch.
+        # BQ loading itself is handled in smaller sub-batches within create_and_load_table.
+        DATA_GENERATION_BATCH_SIZE = 10000
 
-
-        create_and_load_table(PROJECT_ID, DATASET_ID, table_name, schema_definition, data_to_load)
+        # No longer pre-generate data_to_load here.
+        # create_and_load_table will now pull from the generator.
+        create_and_load_table(
+            PROJECT_ID,
+            DATASET_ID,
+            table_name,
+            schema_definition,
+            num_rows, # Pass the total number of rows
+            rng,      # Pass the random number generator
+            DATA_GENERATION_BATCH_SIZE # Pass the data generation batch size
+        )
 
 if __name__ == "__main__":
     main()
