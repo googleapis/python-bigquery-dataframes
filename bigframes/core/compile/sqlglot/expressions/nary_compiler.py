@@ -12,14 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import functools
+from __future__ import annotations
 
-from sqlglot import expressions as sge
+import typing
+
+import sqlglot.expressions as sge
 
 from bigframes import operations as ops
-from bigframes.core.compile.sqlglot.expressions import typed_expr
+from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
+from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
+
+# No simpler way to specify that the compilation function expects varargs.
+NaryOpCompiler = typing.Callable[..., sge.Expression]
+
+NARY_OP_REIGSTRATION = OpRegistration[NaryOpCompiler]()
 
 
-@functools.singledispatch
-def compile(op: ops.NaryOp, *exprs: typed_expr.TypedExpr) -> sge.Expression:
-    raise TypeError(f"Unrecognized nary operator: {op.name}")
+def compile(op: ops.NaryOp, *args: TypedExpr) -> sge.Expression:
+    return NARY_OP_REIGSTRATION[op](op, *args)

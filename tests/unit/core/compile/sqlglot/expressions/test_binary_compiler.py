@@ -37,7 +37,7 @@ def test_add_numeric_w_scalar(scalars_types_df: bpd.DataFrame, snapshot):
 
 def test_add_string(scalars_types_df: bpd.DataFrame, snapshot):
     bf_df = scalars_types_df[["string_col"]]
-    
+
     bf_df["string_col"] = bf_df["string_col"] + "a"
 
     snapshot.assert_match(bf_df.sql, "out.sql")

@@ -14,14 +14,14 @@
 
 import pytest
 
-import bigframes.pandas as bpd
 from bigframes import bigquery
+import bigframes.pandas as bpd
 
 pytest.importorskip("pytest_snapshot")
 
 
 def test_array_to_string(scalars_types_df: bpd.DataFrame, snapshot):
-    result = bigquery.array_to_string(scalars_types_df['string_col'], ".")
+    result = bigquery.array_to_string(scalars_types_df["string_col"], ".")
 
     snapshot.assert_match(result.sql, "out.sql")
 
@@ -30,7 +30,7 @@ def test_compile_numerical_add_w_scalar(scalars_types_df: bpd.DataFrame, snapsho
     bf_df = scalars_types_df[["int64_col"]]
 
     bf_df["int64_col"] = bf_df["int64_col"] + 1
-    
+
     snapshot.assert_match(bf_df.sql, "out.sql")
 
 

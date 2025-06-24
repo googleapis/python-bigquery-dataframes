@@ -12,19 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import functools
+from __future__ import annotations
 
-from sqlglot import expressions as sge
+import typing
+
+import sqlglot.expressions as sge
 
 from bigframes import operations as ops
-from bigframes.core.compile.sqlglot.expressions import typed_expr
+from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
+from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
+
+TernaryOpCompiler = typing.Callable[
+    [ops.TernaryOp, TypedExpr, TypedExpr, TypedExpr], sge.Expression
+]
+
+TERNATRY_OP_REIGSTRATION = OpRegistration[TernaryOpCompiler]()
 
 
-@functools.singledispatch
 def compile(
-    op: ops.TernaryOp,
-    expr1: typed_expr.TypedExpr,
-    expr2: typed_expr.TypedExpr,
-    expr3: typed_expr.TypedExpr,
+    op: ops.TernaryOp, expr1: TypedExpr, expr2: TypedExpr, expr3: TypedExpr
 ) -> sge.Expression:
-    raise TypeError(f"Unrecognized ternary operator: {op.name}")
+    return TERNATRY_OP_REIGSTRATION[op](op, expr1, expr2, expr3)

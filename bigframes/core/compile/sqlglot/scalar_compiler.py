@@ -65,7 +65,6 @@ def compile_op_expression(expr: expression.OpExpression) -> sge.Expression:
     )
 
     op = expr.op
-
     if isinstance(op, ops.UnaryOp):
         return unary_compiler.compile(op, args[0])
     elif isinstance(op, ops.BinaryOp):
@@ -79,20 +78,3 @@ def compile_op_expression(expr: expression.OpExpression) -> sge.Expression:
             f"Operator '{op.name}' has an unrecognized arity or type "
             "and cannot be compiled."
         )
-
-
-# TODO: add parenthesize for operators
-def compile_addop(op: ops.AddOp, left: TypedExpr, right: TypedExpr) -> sge.Expression:
-    if left.dtype == dtypes.STRING_DTYPE and right.dtype == dtypes.STRING_DTYPE:
-        # String addition
-        return sge.Concat(expressions=[left.expr, right.expr])
-
-    # Numerical addition
-    return sge.Add(this=left.expr, expression=right.expr)
-
-
-def compile_ge(
-    op: ops.ge_op, left: TypedExpr, right: TypedExpr  # type: ignore[valid-type]
-) -> sge.Expression:
-
-    return sge.GTE(this=left.expr, expression=right.expr)

@@ -12,36 +12,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import functools
+from __future__ import annotations
+
 import typing
 
 import sqlglot
-from sqlglot import expressions as sge
+import sqlglot.expressions as sge
 
 from bigframes import operations as ops
-from bigframes.core.compile.sqlglot.expressions import typed_expr
+from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
+from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
+
+UnaryOpCompiler = typing.Callable[[ops.UnaryOp, TypedExpr], sge.Expression]
+
+UNARY_OP_REIGSTRATION = OpRegistration[UnaryOpCompiler]()
 
 
-@functools.singledispatch
-def compile(op: ops.UnaryOp, expr: typed_expr.TypedExpr) -> sge.Expression:
-    raise TypeError(f"Unrecognized unary operator: {op.name}")
+def compile(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return UNARY_OP_REIGSTRATION[op](op, expr)
 
 
-@compile.register
-def _(op: ops.ArrayToStringOp, expr: typed_expr.TypedExpr) -> sge.Expression:
-    return sge.ArrayToString(this=expr.sge_expr, expression=f"'{op.delimiter}'")
+@UNARY_OP_REIGSTRATION.register(ops.ArrayToStringOp)
+def _(op, expr: TypedExpr) -> sge.Expression:
+    return sge.ArrayToString(this=expr.expr, expression=f"'{op.delimiter}'")
 
 
-@compile.register
-def _(op: ops.ArrayIndexOp, expr: typed_expr.TypedExpr) -> sge.Expression:
+@UNARY_OP_REIGSTRATION.register(ops.ArrayIndexOp)
+def _(op, expr: TypedExpr) -> sge.Expression:
     offset = sge.Anonymous(
         this="safe_offset", expressions=[sge.Literal.number(op.index)]
     )
-    return expr.sge_expr[offset]
+    return expr.expr[offset]
 
 
-@compile.register
-def _(op: ops.ArraySliceOp, expr: typed_expr.TypedExpr) -> sge.Expression:
+@UNARY_OP_REIGSTRATION.register(ops.ArraySliceOp)
+def _(op, expr: TypedExpr) -> sge.Expression:
     slice_idx = sqlglot.to_identifier("slice_idx")
 
     conditions: typing.List[sge.Predicate] = [slice_idx >= op.start]
@@ -54,7 +59,7 @@ def _(op: ops.ArraySliceOp, expr: typed_expr.TypedExpr) -> sge.Expression:
 
     selected_elements = (
         sge.select(el)
-        .from_(sge.Unnest(expressions=[expr.sge_expr], as_=el, offset=slice_idx))
+        .from_(sge.Unnest(expressions=[expr.expr], as_=el, offset=slice_idx))
         .where(*conditions)
     )
 

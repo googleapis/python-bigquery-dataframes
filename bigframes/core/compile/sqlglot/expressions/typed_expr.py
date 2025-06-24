@@ -14,7 +14,7 @@
 
 import dataclasses
 
-from sqlglot import expressions as sge
+import sqlglot.expressions as sge
 
 from bigframes import dtypes
 
@@ -23,5 +23,5 @@ from bigframes import dtypes
 class TypedExpr:
     """SQLGlot expression with type."""
 
-    sge_expr: sge.Expression
+    expr: sge.Expression
     dtype: dtypes.ExpressionType
