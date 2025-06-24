@@ -182,7 +182,7 @@ class SQLGlotIR:
 
             selections = [
                 sge.Alias(
-                    this=expr.alias_or_name,
+                    this=sge.to_identifier(expr.alias_or_name, quoted=cls.quoted),
                     alias=sge.to_identifier(output_id, quoted=cls.quoted),
                 )
                 for expr, output_id in zip(select_expr.expressions, output_ids)
@@ -249,6 +249,16 @@ class SQLGlotIR:
         ]
         new_expr = self._encapsulate_as_cte().select(*projected_cols_expr, append=True)
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+
+    def filter(
+        self,
+        condition: sge.Expression,
+    ) -> SQLGlotIR:
+        """Filters the query with the given condition."""
+        new_expr = self._encapsulate_as_cte()
+        return SQLGlotIR(
+            expr=new_expr.where(condition, append=False), uid_gen=self.uid_gen
+        )
 
     def insert(
         self,
