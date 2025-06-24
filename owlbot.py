@@ -107,6 +107,13 @@ assert 1 == s.replace(  # docs/conf.py
     "BigQuery DataFrames provides DataFrame APIs on the BigQuery engine",
 )
 
+# Include JavaScript files for anywidget
+assert 1 == s.replace(  # MANIFEST.in
+    ["MANIFEST.in"],
+    "recursive-include bigframes *.json *.proto py.typed",
+    "recursive-include bigframes *.json *.proto *.js py.typed",
+)
+
 # Don't omit `*/core/*.py` when counting test coverages
 assert 1 == s.replace(  # .coveragerc
     [".coveragerc"],
