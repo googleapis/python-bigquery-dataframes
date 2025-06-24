@@ -41,11 +41,13 @@ def test_compile_readlocal_w_structs_df(
 
 
 def test_compile_readlocal_w_lists_df(
-    repeated_pandas_df: pd.DataFrame,
+    repeated_types_pandas_df: pd.DataFrame,
     compiler_session_w_repeated_types: bigframes.Session,
     snapshot,
 ):
-    bf_df = bpd.DataFrame(repeated_pandas_df, session=compiler_session_w_repeated_types)
+    bf_df = bpd.DataFrame(
+        repeated_types_pandas_df, session=compiler_session_w_repeated_types
+    )
     snapshot.assert_match(bf_df.sql, "out.sql")
 
 

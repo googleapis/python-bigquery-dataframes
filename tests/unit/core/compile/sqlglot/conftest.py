@@ -189,7 +189,18 @@ def repeated_types_table_schema() -> typing.Sequence[bigquery.SchemaField]:
 
 
 @pytest.fixture(scope="session")
-def repeated_pandas_df() -> pd.DataFrame:
+def repeated_types_df(compiler_session_w_repeated_types) -> bpd.DataFrame:
+    """Returns a BigFrames DataFrame containing all scalar types and using the `rowindex`
+    column as the index."""
+    bf_df = compiler_session_w_repeated_types.read_gbq_table(
+        "bigframes-dev.sqlglot_test.repeated_types"
+    )
+    bf_df = bf_df.set_index("rowindex", drop=False)
+    return bf_df
+
+
+@pytest.fixture(scope="session")
+def repeated_types_pandas_df() -> pd.DataFrame:
     """Returns a pandas DataFrame containing LIST types and using the `rowindex`
     column as the index."""
 
@@ -200,17 +211,6 @@ def repeated_pandas_df() -> pd.DataFrame:
     # TODO: add dtype conversion here if needed.
     df = df.set_index("rowindex")
     return df
-
-
-@pytest.fixture(scope="session")
-def repeated_types_df(compiler_session_w_repeated_types) -> bpd.DataFrame:
-    """Returns a BigFrames DataFrame containing all scalar types and using the `rowindex`
-    column as the index."""
-    bf_df = compiler_session_w_repeated_types.read_gbq_table(
-        "bigframes-dev.sqlglot_test.repeated_types"
-    )
-    bf_df = bf_df.set_index("rowindex", drop=False)
-    return bf_df
 
 
 @pytest.fixture(scope="session")
@@ -254,7 +254,7 @@ def json_pandas_df() -> pd.DataFrame:
     df = pd.DataFrame(
         {
             "rowindex": pd.Series(range(len(json_data)), dtype=dtypes.INT_DTYPE),
-            "json_col": pd.Series(json_data, dtype=dtypes.STRING_DTYPE),
+            "json_col": pd.Series(json_data, dtype=dtypes.JSON_DTYPE),
         },
     )
     # TODO(b/427305807): Why `drop=False` will produce two "rowindex" columns?
