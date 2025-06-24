@@ -1,14 +1,14 @@
 import math
 import json
 import datetime
+import argparse # Added argparse
 import numpy as np
 from google.cloud import bigquery
 
-# --- Configuration ---
-PROJECT_ID = "your-gcp-project"  # TODO: Replace with your GCP Project ID
-DATASET_ID = "benchmark_dataset"  # TODO: Replace with your BigQuery Dataset ID
-
 # --- Input Data ---
+# Global constants for PROJECT_ID and DATASET_ID are removed.
+# They will be passed via argparse.
+
 TABLE_STATS = {
     'percentile': [9, 19, 29, 39, 49, 59, 69, 79, 89, 99],
     'materialized_or_scanned_bytes': [
@@ -309,13 +309,18 @@ def create_and_load_table(
     # We can make BQ_LOAD_BATCH_SIZE smaller than data_gen_batch_size if needed.
     BQ_LOAD_BATCH_SIZE = 500
 
-    if not project_id or project_id == "your-gcp-project":
-        print(f"SKIPPING BigQuery interaction for table {table_name}: PROJECT_ID not set.")
+    # If project_id or dataset_id are not provided, run in simulation mode.
+    if not project_id or not dataset_id:
+        print(f"SIMULATION MODE: No project_id or dataset_id provided for table {table_name}.")
+        if project_id: # Only project_id provided
+            print(f"  (Project ID was given: {project_id}, but dataset_id is missing for actual BQ operations)")
+        elif dataset_id: # Only dataset_id provided
+            print(f"  (Dataset ID was given: {dataset_id}, but project_id is missing for actual BQ operations)")
+        # Common simulation info
         print(f"  Schema: {schema_def}")
         print(f"  Total rows to generate: {num_rows}")
         print(f"  Data generation batch size: {data_gen_batch_size}")
 
-        # Simulate consuming the first batch for sample output
         first_batch_generated = False
         for i, batch_data in enumerate(generate_random_data(schema_def, num_rows, rng, data_gen_batch_size)):
             if not first_batch_generated and batch_data:
@@ -323,89 +328,94 @@ def create_and_load_table(
                 first_batch_generated = True
             elif not first_batch_generated and not batch_data and num_rows == 0:
                  print(f"  Simulating: Would load 0 rows as num_rows is 0.")
-                 first_batch_generated = True # Mark as handled
+                 first_batch_generated = True
 
-            if i == 0: # Only show info for the first yielded batch in simulation
-                if num_rows > 0 and not batch_data: # Should not happen if num_rows > 0
+            if i == 0:
+                if num_rows > 0 and not batch_data:
                     print("  Simulating: Generator yielded an empty first batch unexpectedly for non-zero num_rows.")
-                elif num_rows == 0 and not batch_data: # Expected for num_rows = 0
-                    pass # Already handled
-                # If num_rows > 0 and batch_data has content, it's handled above.
-
-            if i == 0 and num_rows > data_gen_batch_size: # If there will be more batches
-                num_simulated_batches = math.ceil(num_rows / data_gen_batch_size)
-                print(f"  Simulating: Would continue generating and loading in approx. {num_simulated_batches} batches.")
-            elif i == 0 and num_rows > 0 and num_rows <= data_gen_batch_size : # Single batch
-                 print(f"  Simulating: All {num_rows} rows would be generated in a single batch.")
-
-            if i == 0: # Break after inspecting the first batch for simulation purposes
+                if num_rows > data_gen_batch_size:
+                    num_simulated_batches = math.ceil(num_rows / data_gen_batch_size)
+                    print(f"  Simulating: Would continue generating and loading in approx. {num_simulated_batches} batches.")
+                elif num_rows > 0 and num_rows <= data_gen_batch_size:
+                     print(f"  Simulating: All {num_rows} rows would be generated in a single batch.")
                 break
-        if not first_batch_generated and num_rows > 0 : # If loop didn't run (e.g. num_rows was 0 initially for generator)
+        if not first_batch_generated and num_rows > 0 :
              print(f"  Simulating: No data batches were generated (num_rows: {num_rows}).")
         return
+    else:
+        # Actual BigQuery operations occur here because both project_id and dataset_id are provided
+        print(f"Attempting BigQuery operations for table {table_name} in project '{project_id}', dataset '{dataset_id}'.")
+        try:
+            client = bigquery.Client(project=project_id)
+            table_id = f"{project_id}.{dataset_id}.{table_name}"
 
-    client = bigquery.Client(project=project_id)
-    table_id = f"{project_id}.{dataset_id}.{table_name}"
+            bq_schema = []
+            for col_name, type_name, _ in schema_def:
+                bq_schema.append(bigquery.SchemaField(col_name, type_name))
 
-    bq_schema = []
-    for col_name, type_name, _ in schema_def:
-        bq_schema.append(bigquery.SchemaField(col_name, type_name))
+            table = bigquery.Table(table_id, schema=bq_schema)
 
-    table = bigquery.Table(table_id, schema=bq_schema)
+            print(f"Creating table {table_id}...")
+            client.create_table(table, exists_ok=True)
+            print(f"Table {table_id} created successfully or already exists.")
 
-    try:
-        print(f"Creating table {table_id}...")
-        client.create_table(table, exists_ok=True)
-        print(f"Table {table_id} created successfully or already exists.")
+            if num_rows > 0:
+                print(f"Starting to load {num_rows} rows into {table_id} in batches...")
+                total_rows_loaded = 0
 
-        if num_rows > 0:
-            print(f"Starting to load {num_rows} rows into {table_id} in batches...")
-            total_rows_loaded = 0
-
-            # Data is generated in data_gen_batch_size chunks by the generator.
-            # Data is loaded into BQ in BQ_LOAD_BATCH_SIZE chunks.
-            # These can be different. The generator yields larger chunks,
-            # and we further batch them for BQ API calls if needed.
-
-            batch_num_gen = 0
-            for generated_data_chunk in generate_random_data(schema_def, num_rows, rng, data_gen_batch_size):
-                batch_num_gen += 1
-                if not generated_data_chunk: # Should only happen if num_rows was 0 from start
-                    continue
-
-                print(f"  Processing generated chunk {batch_num_gen} (size: {len(generated_data_chunk)} rows)...")
-
-                # Sub-batch for BigQuery client.insert_rows_json
-                for i in range(0, len(generated_data_chunk), BQ_LOAD_BATCH_SIZE):
-                    bq_insert_batch = generated_data_chunk[i:i + BQ_LOAD_BATCH_SIZE]
-                    if not bq_insert_batch:
+                batch_num_gen = 0
+                for generated_data_chunk in generate_random_data(schema_def, num_rows, rng, data_gen_batch_size):
+                    batch_num_gen += 1
+                    if not generated_data_chunk:
                         continue
 
-                    errors = client.insert_rows_json(table, bq_insert_batch)
-                    if errors:
-                        print(f"    Encountered errors while inserting sub-batch: {errors}")
-                        # TODO: Add more robust error handling, e.g., retry, log to file
-                    else:
-                        total_rows_loaded += len(bq_insert_batch)
-                        print(f"    Loaded sub-batch of {len(bq_insert_batch)} rows. Total loaded: {total_rows_loaded}/{num_rows}")
+                    print(f"  Processing generated chunk {batch_num_gen} (size: {len(generated_data_chunk)} rows)...")
 
-            if total_rows_loaded == num_rows:
-                print(f"Data loading complete for {table_id}. Total {total_rows_loaded} rows loaded.")
+                    for i in range(0, len(generated_data_chunk), BQ_LOAD_BATCH_SIZE):
+                        bq_insert_batch = generated_data_chunk[i:i + BQ_LOAD_BATCH_SIZE]
+                        if not bq_insert_batch:
+                            continue
+
+                        errors = client.insert_rows_json(table, bq_insert_batch)
+                        if errors:
+                            print(f"    Encountered errors while inserting sub-batch: {errors}")
+                        else:
+                            total_rows_loaded += len(bq_insert_batch)
+                            print(f"    Loaded sub-batch of {len(bq_insert_batch)} rows. Total loaded: {total_rows_loaded}/{num_rows}")
+
+                if total_rows_loaded == num_rows:
+                    print(f"Data loading complete for {table_id}. Total {total_rows_loaded} rows loaded.")
+                else:
+                    print(f"Warning: Data loading for {table_id} finished, but row count mismatch. Loaded: {total_rows_loaded}, Expected: {num_rows}")
             else:
-                print(f"Warning: Data loading for {table_id} finished, but row count mismatch. Loaded: {total_rows_loaded}, Expected: {num_rows}")
-        else:
-            print(f"No data to load for table {table_id} as num_rows is 0.")
+                print(f"No data to load for table {table_id} as num_rows is 0.")
 
-    except Exception as e:
-        print(f"Error during BigQuery operation for table {table_id}: {e}")
-        # Potentially re-raise or handle more gracefully
-        raise
+        except Exception as e:
+            # Use table_name here as table_id might not be set if client init fails
+            print(f"Error during BigQuery operation for table '{table_name}': {e}")
+        # Potentially re-raise or handle more gracefully. For this script, we'll log and continue.
+        # raise # Removing this to allow processing of other tables if one fails
 
 # --- Main Script Logic ---
 def main():
     """Main function to create and populate BigQuery tables."""
-    rng = np.random.default_rng(seed=42) # Seed for reproducibility
 
+    parser = argparse.ArgumentParser(description="Generate and load BigQuery benchmark tables.")
+    parser.add_argument(
+        "-p", "--project_id",
+        type=str,
+        default=None,
+        help="Google Cloud Project ID. If not provided, script runs in simulation mode."
+    )
+    parser.add_argument(
+        "-d", "--dataset_id",
+        type=str,
+        default=None,
+        help="BigQuery Dataset ID within the project. If not provided, script runs in simulation mode."
+    )
+    args = parser.parse_args()
+
+    rng = np.random.default_rng(seed=42) # Seed for reproducibility
     num_percentiles = len(TABLE_STATS['percentile'])
 
     for i in range(num_percentiles):
@@ -414,15 +424,11 @@ def main():
         num_rows_raw = TABLE_STATS['num_materialized_or_scanned_rows'][i]
 
         target_row_bytes = math.ceil(avg_row_bytes_raw)
-        # Ensure minimum 1 row if original data suggests rows, even if rounded num_rows is 0.
-        # Or if avg_row_bytes > 0, it implies there should be rows.
-        # The input data has num_rows=0 for first percentile with avg_row_bytes > 0.
-        # Let's ensure at least 1 row if target_row_bytes > 0, otherwise 0 rows.
         if target_row_bytes == 0:
             num_rows = 0
         else:
             num_rows = math.ceil(num_rows_raw) if num_rows_raw > 0 else 1
-            if num_rows == 0 : num_rows = 1 # Ensure at least one row if target_row_bytes > 0
+            if num_rows == 0 : num_rows = 1
 
         table_name = f"percentile_{percentile:02d}_rows_{num_rows}_avg_bytes_{target_row_bytes}"
         print(f"\n--- Processing Table: {table_name} ---")
@@ -431,37 +437,26 @@ def main():
 
         if target_row_bytes == 0 and num_rows == 0:
             print("Skipping table creation as target row bytes and num_rows are 0.")
-            # We might still want to create an empty table if that's the requirement.
-            # For now, if both are zero, we skip actual schema generation and loading.
-            # The problem implies creating 10 tables. So an empty table might be desired.
-            # Let's create it with no schema if target_row_bytes is 0.
             schema_definition = []
         else:
             schema_definition = get_bq_schema(target_row_bytes)
 
         if not schema_definition and target_row_bytes > 0 :
-            # This case should ideally be handled by get_bq_schema to add a fallback BOOL
             print(f"Warning: Schema could not be generated for target_row_bytes: {target_row_bytes}. Adding fallback.")
             schema_definition = [("col_fallback_bool", "BOOL", None)]
 
-
         print(f"Generated Schema: {schema_definition}")
 
-        # Data generation batch size - can be tuned.
-        # Larger might be more efficient for generation, but uses more memory per batch.
-        # BQ loading itself is handled in smaller sub-batches within create_and_load_table.
         DATA_GENERATION_BATCH_SIZE = 10000
 
-        # No longer pre-generate data_to_load here.
-        # create_and_load_table will now pull from the generator.
         create_and_load_table(
-            PROJECT_ID,
-            DATASET_ID,
+            args.project_id,
+            args.dataset_id,
             table_name,
             schema_definition,
-            num_rows, # Pass the total number of rows
-            rng,      # Pass the random number generator
-            DATA_GENERATION_BATCH_SIZE # Pass the data generation batch size
+            num_rows,
+            rng,
+            DATA_GENERATION_BATCH_SIZE
         )
 
 if __name__ == "__main__":
