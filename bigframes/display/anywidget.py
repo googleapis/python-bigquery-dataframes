@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from importlib import resources
 from typing import Iterator
 import uuid
 
@@ -27,68 +28,10 @@ class TableWidget(anywidget.AnyWidget):
     An interactive, paginated table widget for BigFrames DataFrames.
     """
 
-    # The _esm variable contains the JavaScript source code for the frontend
-    # component of the widget.
-    _esm = """
-    function render({ model, el }) {
-        const container = document.createElement('div');
-        container.innerHTML = model.get('table_html');
-
-        const buttonContainer = document.createElement('div');
-        const prevPage = document.createElement('button');
-        const label = document.createElement('span');
-        const nextPage = document.createElement('button');
-        prevPage.type = 'button';
-        nextPage.type = 'button';
-        prevPage.textContent = 'Prev';
-        nextPage.textContent = 'Next';
-
-        // update button states and label
-        function updateButtonStates() {
-            const totalPages = Math.ceil(model.get('row_count') / model.get('page_size'));
-            const currentPage = model.get('page');
-
-            // Update label
-            label.textContent = `Page ${currentPage + 1} of ${totalPages}`;
-
-            // Update button states
-            prevPage.disabled = currentPage === 0;
-            nextPage.disabled = currentPage >= totalPages - 1;
-        }
-
-        // Initial button state setup
-        updateButtonStates();
-
-        prevPage.addEventListener('click', () => {
-            let newPage = model.get('page') - 1;
-            if (newPage < 0) {
-              newPage = 0;
-            }
-            console.log(`Setting page to ${newPage}`)
-            model.set('page', newPage);
-            model.save_changes();
-        });
-
-        nextPage.addEventListener('click', () => {
-            const newPage = model.get('page') + 1;
-            console.log(`Setting page to ${newPage}`)
-            model.set('page', newPage);
-            model.save_changes();
-        });
-
-        model.on('change:table_html', () => {
-            container.innerHTML = model.get('table_html');
-            updateButtonStates(); // Update button states when table changes
-        });
-
-        buttonContainer.appendChild(prevPage);
-        buttonContainer.appendChild(label);
-        buttonContainer.appendChild(nextPage);
-        el.appendChild(container);
-        el.appendChild(buttonContainer);
-    }
-    export default { render };
-    """
+    @property
+    def _esm(self):
+        """Load JavaScript code from external file."""
+        return resources.read_text(bigframes.display, "table_widget.js")
 
     page = traitlets.Int(0).tag(sync=True)
     page_size = traitlets.Int(25).tag(sync=True)
