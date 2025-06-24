@@ -52,14 +52,24 @@ def images_output_uris(images_output_folder: str) -> list[str]:
     ]
 
 
+@pytest.mark.parametrize(
+    "verbose, expected_type",
+    [
+        (True, "struct"),
+        (False, "json"),
+    ],
+)
 def test_blob_exif(
     bq_connection: str,
     session: bigframes.Session,
+    verbose: bool,
+    expected_type: str,
 ):
     exif_image_df = session.from_glob_path(
         "gs://bigframes_blob_test/images_exif/*",
         name="blob_col",
         connection=bq_connection,
+        verbose=verbose,
     )
 
     actual = exif_image_df["blob_col"].blob.exif(
@@ -288,18 +298,38 @@ def test_blob_image_normalize_to_folder(
     assert not actual.blob.size().isna().any()
 
 
-def test_blob_image_normalize_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str):
+@pytest.mark.parametrize(
+    "verbose",
+    [True, False],
+)
+def test_blob_image_normalize_to_bq(
+    images_mm_df: bpd.DataFrame, bq_connection: str, verbose: bool
+):
     actual = images_mm_df["blob_col"].blob.image_normalize(
         alpha=50.0,
         beta=150.0,
         norm_type="minmax",
         connection=bq_connection,
         engine="opencv",
+        verbose=verbose,
     )
 
     assert isinstance(actual, bpd.Series)
     assert len(actual) == 2
-    assert actual.dtype == dtypes.BYTES_DTYPE
+
+    if verbose:
+        assert hasattr(actual, "struct")
+        actual_exploded = actual.struct.explode()
+        assert "status" in actual_exploded.columns
+        assert "content" in actual_exploded.columns
+
+        status_series = actual_exploded["status"]
+        assert status_series.dtype == dtypes.STRING_DTYPE
+
+        content_series = actual_exploded["content"]
+        assert content_series.dtype == dtypes.BYTES_DTYPE
+    else:
+        assert actual.dtype == dtypes.BYTES_DTYPE
 
 
 @pytest.mark.parametrize(

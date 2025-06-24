@@ -313,6 +313,7 @@ class BlobAccessor(base.SeriesMethods):
         max_batching_rows: int = 8192,
         container_cpu: Union[float, int] = 0.33,
         container_memory: str = "512Mi",
+        verbose: bool = False,
     ) -> bigframes.series.Series:
         """Extract EXIF data. Now only support image types.
 
@@ -322,15 +323,17 @@ class BlobAccessor(base.SeriesMethods):
             max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
             container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+            verbose (bool, default False): If True, returns a struct with status and content fields. If False, returns only the content.
 
         Returns:
-            bigframes.series.Series: JSON series of key-value pairs.
+            bigframes.series.Series: JSON series of key-value pairs if verbose=False, or struct with status and content if verbose=True.
         """
         if engine is None or engine.casefold() != "pillow":
             raise ValueError("Must specify the engine, supported value is 'pillow'.")
 
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
+        import bigframes.pandas as bpd
 
         connection = self._resolve_connection(connection)
         df = self.get_runtime_json_str(mode="R").to_frame()
@@ -345,9 +348,22 @@ class BlobAccessor(base.SeriesMethods):
         ).udf()
 
         res = self._df_apply_udf(df, exif_udf)
-        res = bbq.parse_json(res)
 
-        return res
+        exif_content_series = bbq.parse_json(
+            res._apply_unary_op(ops.JSONValue(json_path="$.content"))
+        ).rename("exif_content")
+
+        if verbose:
+            exif_status_series = res._apply_unary_op(
+                ops.JSONValue(json_path="$.status")
+            )
+            results_df = bpd.DataFrame(
+                {"status": exif_status_series, "content": exif_content_series}
+            )
+            results_struct = bbq.struct(results_df).rename("exif_results")
+            return results_struct
+        else:
+            return exif_content_series
 
     def image_blur(
         self,
@@ -359,6 +375,7 @@ class BlobAccessor(base.SeriesMethods):
         max_batching_rows: int = 8192,
         container_cpu: Union[float, int] = 0.33,
         container_memory: str = "512Mi",
+        verbose: bool = False,
     ) -> bigframes.series.Series:
         """Blurs images.
 
@@ -374,14 +391,17 @@ class BlobAccessor(base.SeriesMethods):
             max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
             container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+            verbose (bool, default False): If True, returns a struct with status and content fields. If False, returns only the content.
 
         Returns:
-            bigframes.series.Series: blob Series if destination is GCS. Or bytes Series if destination is BQ.
+            bigframes.series.Series: blob Series if destination is GCS. Or bytes Series if destination is BQ. If verbose=True, returns struct with status and content.
         """
         if engine is None or engine.casefold() != "opencv":
             raise ValueError("Must specify the engine, supported value is 'opencv'.")
 
+        import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
+        import bigframes.pandas as bpd
 
         connection = self._resolve_connection(connection)
         df = self.get_runtime_json_str(mode="R").to_frame()
@@ -402,7 +422,21 @@ class BlobAccessor(base.SeriesMethods):
             df["ext"] = ext  # type: ignore
             res = self._df_apply_udf(df, image_blur_udf)
 
-            return res
+            blurred_content_series = res._apply_unary_op(
+                ops.JSONValue(json_path="$.content")
+            ).rename("blurred_content")
+
+            if verbose:
+                blurred_status_series = res._apply_unary_op(
+                    ops.JSONValue(json_path="$.status")
+                )
+                results_df = bpd.DataFrame(
+                    {"status": blurred_status_series, "content": blurred_content_series}
+                )
+                results_struct = bbq.struct(results_df).rename("blurred_results")
+                return results_struct
+            else:
+                return blurred_content_series
 
         if isinstance(dst, str):
             dst = os.path.join(dst, "")
@@ -432,7 +466,17 @@ class BlobAccessor(base.SeriesMethods):
         res = self._df_apply_udf(df, image_blur_udf)
         res.cache()  # to execute the udf
 
-        return dst
+        if verbose:
+            blurred_status_series = res._apply_unary_op(
+                ops.JSONValue(json_path="$.status")
+            )
+            results_df = bpd.DataFrame(
+                {"status": blurred_status_series, "content": dst}
+            )
+            results_struct = bbq.struct(results_df).rename("blurred_results")
+            return results_struct
+        else:
+            return dst
 
     def image_resize(
         self,
@@ -446,6 +490,7 @@ class BlobAccessor(base.SeriesMethods):
         max_batching_rows: int = 8192,
         container_cpu: Union[float, int] = 0.33,
         container_memory: str = "512Mi",
+        verbose: bool = False,
     ):
         """Resize images.
 
@@ -463,9 +508,10 @@ class BlobAccessor(base.SeriesMethods):
             max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
             container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+            verbose (bool, default False): If True, returns a struct with status and content fields. If False, returns only the content.
 
         Returns:
-            bigframes.series.Series: blob Series if destination is GCS. Or bytes Series if destination is BQ.
+            bigframes.series.Series: blob Series if destination is GCS. Or bytes Series if destination is BQ. If verbose=True, returns struct with status and content.
         """
         if engine is None or engine.casefold() != "opencv":
             raise ValueError("Must specify the engine, supported value is 'opencv'.")
@@ -477,7 +523,9 @@ class BlobAccessor(base.SeriesMethods):
                 "Only one of dsize or (fx, fy) parameters must be set. And the set values must be positive. "
             )
 
+        import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
+        import bigframes.pandas as bpd
 
         connection = self._resolve_connection(connection)
         df = self.get_runtime_json_str(mode="R").to_frame()
@@ -499,7 +547,21 @@ class BlobAccessor(base.SeriesMethods):
             df["ext"] = ext  # type: ignore
             res = self._df_apply_udf(df, image_resize_udf)
 
-            return res
+            resized_content_series = res._apply_unary_op(
+                ops.JSONValue(json_path="$.content")
+            ).rename("resized_content")
+
+            if verbose:
+                resized_status_series = res._apply_unary_op(
+                    ops.JSONValue(json_path="$.status")
+                )
+                results_df = bpd.DataFrame(
+                    {"status": resized_status_series, "content": resized_content_series}
+                )
+                results_struct = bbq.strcut(results_df).rename("resized_results")
+                return results_struct
+            else:
+                return resized_content_series
 
         if isinstance(dst, str):
             dst = os.path.join(dst, "")
@@ -530,7 +592,17 @@ class BlobAccessor(base.SeriesMethods):
         res = self._df_apply_udf(df, image_resize_udf)
         res.cache()  # to execute the udf
 
-        return dst
+        if verbose:
+            resized_status_series = res._apply_unary_op(
+                ops.JSONValue(json_path="$.status")
+            )
+            results_df = bpd.DataFrame(
+                {"status": resized_status_series, "content": dst}
+            )
+            results_struct = bbq.struct(results_df).rename("resized_results")
+            return results_struct
+        else:
+            return dst
 
     def image_normalize(
         self,
@@ -562,23 +634,16 @@ class BlobAccessor(base.SeriesMethods):
             max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
             container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
             container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
-            verbose (bool, default "False"): controls the verbosity of the output.
-                when set to True, both error messages and the normalized image
-                content are displayed. Conversely, when set to False, only the
-                normalized image content is presented, suppressing error messages.
+            verbose (bool, default False): If True, returns a struct with status and content fields. If False, returns only the content.
 
         Returns:
-            bigframes.series.Series: blob Series if destination is GCS. Or bytes Series if destination is BQ.
+            bigframes.series.Series: blob Series if destination is GCS. Or bytes Series if destination is BQ. If verbose=True, returns struct with status and content.
         """
         if engine is None or engine.casefold() != "opencv":
             raise ValueError("Must specify the engine, supported value is 'opencv'.")
 
-            bigframes.series.Series: blob Series if destination is GCS. Or
-                struct[str, bytes] or bytes Series if destination is BQ,
-                depend on the "verbose" parameter. Contains the normalized image
-                data. Includes error messages if verbosity is enbled.
+        import base64
 
-        """
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
         import bigframes.pandas as bpd
@@ -602,29 +667,25 @@ class BlobAccessor(base.SeriesMethods):
             df["beta"] = beta
             df["norm_type"] = norm_type
             df["ext"] = ext  # type: ignore
+            df["verbose"] = verbose
             res = self._df_apply_udf(df, image_normalize_udf)
 
-            bq_session = self._block.bq_session
-            encoded_content_series = res._apply_unary_op(
-                ops.JSONValue(json_path="$.content")
-            )
-            base64_decode_udf = bq_session.register_function(
-                "base64_decode_bq",
-                lambda x: bbq.query(f"SELECT TO_BASE64(FROM_BASE64('{x}'))")
-                .to_dataframe()
-                .iloc[0, 0],
-            )
-            decoded_content_series = encoded_content_series.apply(base64_decode_udf)
-
             if verbose:
-                status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
-                res_df = bpd.DataFrame(
-                    {"status": status_series, "content": decoded_content_series}
+                normalized_status_series = res._apply_unary_op(
+                    ops.JSONValue(json_path="$.status")
                 )
-                res_struct = bbq.struct(res_df)
-                return res_struct
+                normalized_content_b64_series = res._apply_unary_op(
+                    ops.JSONValue(json_path="$.content")
+                )
+                # TODO this is not allowed, I need to find another way
+                normalized_bytes = base64.b64decode(normalized_content_b64_series)
+                results_df = bpd.DataFrame(
+                    {"status": normalized_status_series, "content": normalized_bytes}
+                )
+                results_struct = bbq.struct(results_df).rename("normalized_results")
+                return results_struct
             else:
-                return decoded_content_series
+                return res
 
         if isinstance(dst, str):
             dst = os.path.join(dst, "")
@@ -652,31 +713,22 @@ class BlobAccessor(base.SeriesMethods):
         df["beta"] = beta
         df["norm_type"] = norm_type
         df["ext"] = ext  # type: ignore
+        # df["verbose"] = verbose
 
         res = self._df_apply_udf(df, image_normalize_udf)
         res.cache()  # to execute the udf
 
-        bq_session = self._block.bq_session
-        encoded_content_series = res._apply_unary_op(
-            ops.JSONValue(json_path="$.content")
-        )
-        base64_decode_udf = bq_session.register_function(
-            "base64_decode_bq",
-            lambda x: bbq.query(f"SELECT TO_BASE64(FROM_BASE64('{x}'))")
-            .to_dataframe()
-            .iloc[0, 0],
-        )
-        decoded_content_series = encoded_content_series.apply(base64_decode_udf)
-
         if verbose:
-            status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
-            res_df = bpd.DataFrame(
-                {"status": status_series, "content": decoded_content_series}
+            normalized_status_series = res._apply_unary_op(
+                ops.JSONValue(json_path="$.status")
             )
-            res_struct = bbq.struct(res_df)
-            return res_struct
+            results_df = bpd.DataFrame(
+                {"status": normalized_status_series, "content": dst}
+            )
+            results_struct = bbq.struct(results_df).rename("normalized_results")
+            return results_struct
         else:
-            return decoded_content_series
+            return dst
 
     def pdf_extract(
         self,
@@ -732,15 +784,19 @@ class BlobAccessor(base.SeriesMethods):
 
         res = src_rt.apply(pdf_extract_udf)
 
-        content_series = res._apply_unary_op(ops.JSONValue(json_path="$.content"))
+        extracted_content_series = res._apply_unary_op(
+            ops.JSONValue(json_path="$.content")
+        ).rename("extracted_content")
 
         if verbose:
             status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
-            res_df = bpd.DataFrame({"status": status_series, "content": content_series})
-            res_struct = bbq.struct(res_df)
-            return res_struct
+            results_df = bpd.DataFrame(
+                {"status": status_series, "content": extracted_content_series}
+            )
+            results_struct = bbq.struct(results_df).rename("extracted_results")
+            return results_struct
         else:
-            return content_series
+            return extracted_content_series
 
     def pdf_chunk(
         self,
@@ -814,14 +870,18 @@ class BlobAccessor(base.SeriesMethods):
 
         res = self._df_apply_udf(df, pdf_chunk_udf)
 
-        content_series = bbq.json_extract_string_array(res, "$.content")
+        chunked_content_series = bbq.json_extract_string_array(res, "$.content").rename(
+            "chunked_content"
+        )
         if verbose:
             status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
-            res_df = bpd.DataFrame({"status": status_series, "content": content_series})
-            res_struct = bbq.struct(res_df)
-            return res_struct
+            results_df = bpd.DataFrame(
+                {"status": status_series, "content": chunked_content_series}
+            )
+            resultes_struct = bbq.struct(results_df).rename("chunked_results")
+            return resultes_struct
         else:
-            return content_series
+            return chunked_content_series
 
     def audio_transcribe(
         self,
