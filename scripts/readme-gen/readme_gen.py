@@ -24,7 +24,6 @@ import subprocess
 import jinja2
 import yaml
 
-
 jinja_env = jinja2.Environment(
     trim_blocks=True,
     loader=jinja2.FileSystemLoader(
@@ -54,7 +53,7 @@ def main():
     jinja_env.globals["get_help"] = get_help
 
     with io.open(source, "r") as f:
-        config = yaml.load(f)
+        config = yaml.safe_load(f)
 
     # This allows get_help to execute in the right directory.
     os.chdir(root)
