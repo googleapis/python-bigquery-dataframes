@@ -183,39 +183,51 @@ def generate_random_data(schema: list[tuple[str, str, int | None]],
             elif bq_type == 'DATETIME':
                 years = rng.integers(1, 10000, size=current_batch_size)
                 months = rng.integers(1, 13, size=current_batch_size)
-                days_val = rng.integers(1, 29, size=current_batch_size)
+                days_val = rng.integers(1, 29, size=current_batch_size) # Simplified day generation
                 hours = rng.integers(0, 24, size=current_batch_size)
                 minutes = rng.integers(0, 60, size=current_batch_size)
                 seconds = rng.integers(0, 60, size=current_batch_size)
                 microseconds = rng.integers(0, 1000000, size=current_batch_size)
-                dt_list = []
+
+                # Construct Python datetime objects then convert to numpy.datetime64 for string conversion
+                py_datetimes = []
                 for i in range(current_batch_size):
                     try:
-                        dt_list.append(datetime.datetime(
+                        py_datetimes.append(datetime.datetime(
                             years[i], months[i], days_val[i],
-                            hours[i], minutes[i], seconds[i], microseconds[i]
-                        ).isoformat(sep=' '))
-                    except ValueError:
-                         dt_list.append(datetime.datetime(2000,1,1,hours[i],minutes[i],seconds[i],microseconds[i]).isoformat(sep=' '))
-                columns_data_batch[col_name] = dt_list
+                            hours[i], minutes[i], seconds[i], microseconds[i]))
+                    except ValueError: # Fallback for invalid date component combinations
+                        py_datetimes.append(datetime.datetime(
+                            2000, 1, 1, hours[i], minutes[i], seconds[i], microseconds[i]))
+
+                np_datetimes = np.array(py_datetimes, dtype='datetime64[us]')
+                # np.datetime_as_string produces 'YYYY-MM-DDTHH:MM:SS.ffffff'
+                # BQ DATETIME typically uses a space separator: 'YYYY-MM-DD HH:MM:SS.ffffff'
+                datetime_strings = np.datetime_as_string(np_datetimes, unit='us')
+                columns_data_batch[col_name] = [s.replace('T', ' ') for s in datetime_strings]
+
             elif bq_type == 'TIMESTAMP':
-                min_ts = int(datetime.datetime(1, 1, 1, tzinfo=datetime.timezone.utc).timestamp())
-                max_ts = int(datetime.datetime(9999, 12, 28, tzinfo=datetime.timezone.utc).timestamp())
-                random_seconds = rng.integers(min_ts, max_ts, size=current_batch_size, dtype=np.int64)
-                random_microseconds = rng.integers(0, 1000000, size=current_batch_size)
-                ts_list = []
-                for i in range(current_batch_size):
-                    try:
-                        base_dt = datetime.datetime.fromtimestamp(random_seconds[i], tz=datetime.timezone.utc)
-                        final_dt = base_dt.replace(microsecond=random_microseconds[i])
-                        ts_list.append(final_dt.isoformat(sep=' '))
-                    except OverflowError:
-                         fallback_dt = datetime.datetime(2000,1,1,12,0,0,random_microseconds[i], tzinfo=datetime.timezone.utc)
-                         ts_list.append(fallback_dt.isoformat(sep=' '))
-                    except ValueError:
-                         fallback_dt = datetime.datetime(2000,1,1,12,0,0,random_microseconds[i], tzinfo=datetime.timezone.utc)
-                         ts_list.append(fallback_dt.isoformat(sep=' '))
-                columns_data_batch[col_name] = ts_list
+                # Generate seconds from a broad range (e.g., year 1 to 9999)
+                # Note: Python's datetime.timestamp() might be limited by system's C mktime.
+                # For broader range with np.datetime64, it's usually fine.
+                # Let's generate epoch seconds relative to Unix epoch for np.datetime64 compatibility
+                min_epoch_seconds = int(datetime.datetime(1, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc).timestamp())
+                # Max for datetime64[s] is far out, but let's bound it reasonably for BQ.
+                max_epoch_seconds = int(datetime.datetime(9999, 12, 28, 23, 59, 59, tzinfo=datetime.timezone.utc).timestamp())
+
+                epoch_seconds = rng.integers(min_epoch_seconds, max_epoch_seconds + 1, size=current_batch_size, dtype=np.int64)
+                microseconds_offset = rng.integers(0, 1000000, size=current_batch_size, dtype=np.int64)
+
+                # Create datetime64[s] from epoch seconds and add microseconds as timedelta64[us]
+                np_timestamps_s = epoch_seconds.astype('datetime64[s]')
+                np_microseconds_td = microseconds_offset.astype('timedelta64[us]')
+                np_timestamps_us = np_timestamps_s + np_microseconds_td
+
+                # Convert to string with UTC timezone indicator
+                # np.datetime_as_string with timezone='UTC' produces 'YYYY-MM-DDTHH:MM:SS.ffffffZ'
+                # BigQuery generally accepts this for TIMESTAMP.
+                columns_data_batch[col_name] = np.datetime_as_string(np_timestamps_us, unit='us', timezone='UTC')
+
             elif bq_type == 'TIME':
                 hours = rng.integers(0, 24, size=current_batch_size)
                 minutes = rng.integers(0, 60, size=current_batch_size)
