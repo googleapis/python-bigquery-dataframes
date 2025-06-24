@@ -236,7 +236,7 @@ def json_types_df(compiler_session_w_json_types) -> bpd.DataFrame:
     bf_df = compiler_session_w_json_types.read_gbq_table(
         "bigframes-dev.sqlglot_test.json_types"
     )
-    # TODO: Why `drop=False` will produce two "rowindex" columns?
+    # TODO(b/427305807): Why `drop=False` will produce two "rowindex" columns?
     bf_df = bf_df.set_index("rowindex", drop=True)
     return bf_df
 
@@ -265,6 +265,6 @@ def json_pandas_df() -> pd.DataFrame:
             "json_col": pd.Series(json_data, dtype=dtypes.STRING_DTYPE),
         },
     )
-    # TODO: Why `drop=False` will produce two "rowindex" columns?
+    # TODO(b/427305807): Why `drop=False` will produce two "rowindex" columns?
     df = df.set_index("rowindex", drop=True)
     return df
