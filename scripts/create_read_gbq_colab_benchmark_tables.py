@@ -473,9 +473,7 @@ def main():
         target_row_bytes = max(1, int(math.ceil(avg_row_bytes_raw)))
         num_rows = max(1, int(math.ceil(num_rows_raw)))
 
-        table_name = (
-            f"percentile_{percentile:02d}_rows_{num_rows}_avg_bytes_{target_row_bytes}"
-        )
+        table_name = f"percentile_{percentile:02d}"
         print(f"\n--- Processing Table: {table_name} ---")
         print(f"Target average row bytes (rounded up): {target_row_bytes}")
         print(f"Number of rows (rounded up): {num_rows}")
