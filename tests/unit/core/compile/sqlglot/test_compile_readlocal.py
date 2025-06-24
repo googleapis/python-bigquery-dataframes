@@ -33,6 +33,7 @@ def test_compile_readlocal_w_structs_df(
     compiler_session: bigframes.Session,
     snapshot,
 ):
+    # TODO: Check why the output is different from the expected output.
     bf_df = bpd.DataFrame(nested_structs_pandas_df, session=compiler_session)
     snapshot.assert_match(bf_df.sql, "out.sql")
 
