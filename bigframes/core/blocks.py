@@ -159,38 +159,105 @@ class Block:
     @classmethod
     def from_local(
         cls,
-        data: pd.DataFrame,
+        data: Union[pd.DataFrame, pd.Series, pa.Table],
         session: bigframes.Session,
         *,
         cache_transpose: bool = True,
     ) -> Block:
-        # Assumes caller has already converted datatypes to bigframes ones.
-        pd_data = data
-        column_labels = pd_data.columns
-        index_labels = list(pd_data.index.names)
+        # Assumes caller has already converted datatypes to bigframes ones where appropriate (e.g. for pandas inputs)
+        index_cols: typing.Sequence[str]
+        value_cols: typing.Sequence[str]
+        index_names: typing.Sequence[typing.Optional[Label]]
+        column_names: pd.Index
+        managed_data: local_data.ManagedArrowTable
 
-        # unique internal ids
-        column_ids = [f"column_{i}" for i in range(len(pd_data.columns))]
-        index_ids = [f"level_{level}" for level in range(pd_data.index.nlevels)]
+        if isinstance(data, pa.Table):
+            # For a raw Arrow table, assume all columns are value columns initially.
+            # No pre-defined index in the Arrow metadata itself that Block.from_local
+            # would understand without further conventions or schema.pandas_metadata.
+            # If schema.pandas_metadata exists, it could potentially inform index/column setup,
+            # but for generic pa.Table, treat all as data.
+            index_cols = []
+            value_cols = list(data.column_names) # these will become the internal IDs
+            index_names = []
+            column_names = pd.Index(data.column_names) # Use original arrow column names as labels
+            managed_data = local_data.ManagedArrowTable(data)
+            # The array_value created later will use value_cols as its column_ids directly
+            # so no separate reset_index or set_axis is needed for raw arrow table input.
+            # The internal IDs for the ArrayValue will be the original Arrow column names.
+            array_value_column_ids = value_cols
 
-        pd_data = pd_data.set_axis(column_ids, axis=1)
-        pd_data = pd_data.reset_index(names=index_ids)
-        managed_data = local_data.ManagedArrowTable.from_pandas(pd_data)
-        array_value = core.ArrayValue.from_managed(managed_data, session=session)
+        elif isinstance(data, pd.Series):
+            # Standardize column names to avoid collisions, eg. index named "value" and series also named "value"
+            original_index_names = list(name if name is not None else f"level_{i}" for i, name in enumerate(data.index.names))
+            original_series_name = data.name if data.name is not None else "value"
+
+            # Ensure series name doesn't clash with index names
+            series_name_std = utils.get_standardized_id(original_series_name)
+            index_names_std = [utils.get_standardized_id(name) for name in original_index_names]
+            while series_name_std in index_names_std:
+                series_name_std = series_name_std + "_series"
+
+            value_cols = [series_name_std]
+            index_cols = index_names_std
+
+            pd_data_reset = data.rename(series_name_std).reset_index(names=index_names_std)
+            managed_data = local_data.ManagedArrowTable.from_pandas(pd_data_reset)
+            index_names = list(data.index.names)
+            column_names = pd.Index([data.name])
+            array_value_column_ids = [*index_cols, *value_cols]
+
+        elif isinstance(data, pd.DataFrame):
+            original_index_names = list(name if name is not None else f"level_{i}" for i, name in enumerate(data.index.names))
+            original_column_names = list(data.columns)
+
+            # Standardize all names
+            index_names_std = [utils.get_standardized_id(name) for name in original_index_names]
+            column_names_std = [utils.get_standardized_id(name) for name in original_column_names]
+
+            # Resolve clashes between index and column names after standardization
+            final_column_names_std = []
+            for name_std in column_names_std:
+                temp_name_std = name_std
+                while temp_name_std in index_names_std:
+                    temp_name_std = temp_name_std + "_col"
+                final_column_names_std.append(temp_name_std)
+
+            value_cols = final_column_names_std
+            index_cols = index_names_std
+
+            pd_data_prepared = data.copy(deep=False)
+            pd_data_prepared.columns = value_cols
+            pd_data_prepared = pd_data_prepared.reset_index(names=index_cols)
+
+            managed_data = local_data.ManagedArrowTable.from_pandas(pd_data_prepared)
+            index_names = list(data.index.names)
+            column_names = data.columns.copy()
+            array_value_column_ids = [*index_cols, *value_cols]
+        else:
+            raise TypeError(
+                f"data must be pandas DataFrame, Series, or pyarrow Table. Got: {type(data)}"
+            )
+
+        array_value = core.ArrayValue.from_managed(managed_data, session=session, default_column_ids=array_value_column_ids)
+
         block = cls(
             array_value,
-            column_labels=column_labels,
-            index_columns=index_ids,
-            index_labels=index_labels,
+            column_labels=column_names,
+            index_columns=index_cols,
+            index_labels=index_names,
         )
-        if cache_transpose:
+
+        # For pandas inputs, attempt to create transpose cache.
+        # For Arrow inputs, this is skipped as data.T is not standard.
+        if isinstance(data, (pd.DataFrame, pd.Series)) and cache_transpose:
             try:
                 # this cache will help when aligning on axis=1
                 block = block.with_transpose_cache(
                     cls.from_local(data.T, session, cache_transpose=False)
                 )
             except Exception:
-                pass
+                pass # Transposition might fail for various reasons, non-critical.
         return block
 
     @property

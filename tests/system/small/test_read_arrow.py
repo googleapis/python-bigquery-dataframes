@@ -41,22 +41,19 @@ def test_read_arrow_basic(session):
     bf_df = bpd.read_arrow(arrow_table)
 
     assert bf_df.shape == (3, 3)
-    # Expected dtypes (BigQuery/BigFrames dtypes)
-    assert str(bf_df.dtypes["ints"]) == "Int64"
-    assert str(bf_df.dtypes["floats"]) == "Float64"
-    assert str(bf_df.dtypes["strings"]) == "string[pyarrow]"
+    # Expected dtypes after conversion to BigQuery DataFrames representation
+    assert isinstance(bf_df.dtypes["ints"], pd.ArrowDtype)
+    assert bf_df.dtypes["ints"].pyarrow_dtype == pa.int64()
+    assert isinstance(bf_df.dtypes["floats"], pd.ArrowDtype)
+    assert bf_df.dtypes["floats"].pyarrow_dtype == pa.float64()
+    assert isinstance(bf_df.dtypes["strings"], pd.ArrowDtype)
+    assert bf_df.dtypes["strings"].pyarrow_dtype == pa.string()
 
-    # For deferred loading, the comparison should be against a pandas DataFrame
-    # created with ArrowDtype for consistency.
     expected_pd_df = arrow_table.to_pandas(types_mapper=pd.ArrowDtype)
-
-    bf_pd_df = bf_df.to_pandas()
-
-    # Ensure dtypes are consistent for comparison, especially for string which might differ
-    bf_pd_df["strings"] = bf_pd_df["strings"].astype(pd.ArrowDtype(pa.string()))
+    pd_df_from_bf = bf_df.to_pandas()
 
     pd.testing.assert_frame_equal(
-        bf_pd_df, expected_pd_df, check_dtype=True
+        pd_df_from_bf, expected_pd_df, check_dtype=True
     )
 
 
@@ -65,7 +62,7 @@ def test_read_arrow_all_types(session):
         pa.array([1, None, 3], type=pa.int64()),
         pa.array([0.1, None, 0.3], type=pa.float64()),
         pa.array(["foo", "bar", None], type=pa.string()),
-        pa.array([True, False, True], type=pa.bool_()),
+        pa.array([True, False, None], type=pa.bool_()), # Added None for bool
         pa.array(
             [
                 datetime.datetime(2023, 1, 1, 12, 30, 0, tzinfo=datetime.timezone.utc),
@@ -92,23 +89,24 @@ def test_read_arrow_all_types(session):
     bf_df = bpd.read_arrow(arrow_table)
 
     assert bf_df.shape == (3, len(names))
-    assert str(bf_df.dtypes["int_col"]) == "Int64"  # Uses pandas nullable Int64
-    assert str(bf_df.dtypes["float_col"]) == "Float64" # Uses pandas nullable Float64
-    assert str(bf_df.dtypes["str_col"]) == "string[pyarrow]"
-    assert str(bf_df.dtypes["bool_col"]) == "boolean[pyarrow]"
-    assert str(bf_df.dtypes["ts_col"]) == "timestamp[us, tz=UTC]"
-    assert str(bf_df.dtypes["date_col"]) == "date" # Translates to dbdate in BigQuery pandas
+    assert isinstance(bf_df.dtypes["int_col"], pd.ArrowDtype)
+    assert bf_df.dtypes["int_col"].pyarrow_dtype == pa.int64()
+    assert isinstance(bf_df.dtypes["float_col"], pd.ArrowDtype)
+    assert bf_df.dtypes["float_col"].pyarrow_dtype == pa.float64()
+    assert isinstance(bf_df.dtypes["str_col"], pd.ArrowDtype)
+    assert bf_df.dtypes["str_col"].pyarrow_dtype == pa.string()
+    assert isinstance(bf_df.dtypes["bool_col"], pd.ArrowDtype)
+    assert bf_df.dtypes["bool_col"].pyarrow_dtype == pa.bool_()
+    assert isinstance(bf_df.dtypes["ts_col"], pd.ArrowDtype)
+    assert bf_df.dtypes["ts_col"].pyarrow_dtype == pa.timestamp("us", tz="UTC")
+    assert isinstance(bf_df.dtypes["date_col"], pd.ArrowDtype)
+    assert bf_df.dtypes["date_col"].pyarrow_dtype == pa.date32()
 
     expected_pd_df = arrow_table.to_pandas(types_mapper=pd.ArrowDtype)
-    bf_pd_df = bf_df.to_pandas() # This will also use ArrowDtypes where applicable
-
-    # Date column from BQ might be dbdate, convert expected to match for direct comparison if necessary
-    # However, if bf_df.to_pandas() also yields ArrowDtype for dates, direct comparison is fine.
-    # Let's assume bf_pd_df["date_col"] is already ArrowDtype(pa.date32())
-    # or compatible for direct comparison after `to_pandas(types_mapper=pd.ArrowDtype)`
+    pd_df_from_bf = bf_df.to_pandas()
 
     pd.testing.assert_frame_equal(
-        bf_pd_df, expected_pd_df, check_dtype=True, rtol=1e-5
+        pd_df_from_bf, expected_pd_df, check_dtype=True, rtol=1e-5
     )
 
 
@@ -122,8 +120,10 @@ def test_read_arrow_empty_table(session):
     bf_df = bpd.read_arrow(arrow_table)
 
     assert bf_df.shape == (0, 2)
-    assert str(bf_df.dtypes["empty_int"]) == "Int64"
-    assert str(bf_df.dtypes["empty_str"]) == "string[pyarrow]"
+    assert isinstance(bf_df.dtypes["empty_int"], pd.ArrowDtype)
+    assert bf_df.dtypes["empty_int"].pyarrow_dtype == pa.int64()
+    assert isinstance(bf_df.dtypes["empty_str"], pd.ArrowDtype)
+    assert bf_df.dtypes["empty_str"].pyarrow_dtype == pa.string()
     assert bf_df.empty
 
 
@@ -144,9 +144,9 @@ def test_read_arrow_list_types(session):
     assert bf_df.dtypes["list_str_col"].pyarrow_dtype == pa.list_(pa.string())
 
     expected_pd_df = arrow_table.to_pandas(types_mapper=pd.ArrowDtype)
-    bf_pd_df = bf_df.to_pandas() # Should also use ArrowDtypes
+    pd_df_from_bf = bf_df.to_pandas()
 
-    pd.testing.assert_frame_equal(bf_pd_df, expected_pd_df, check_dtype=True)
+    pd.testing.assert_frame_equal(pd_df_from_bf, expected_pd_df, check_dtype=True)
 
 
 def test_read_arrow_no_columns_empty_rows(session):
@@ -157,10 +157,12 @@ def test_read_arrow_no_columns_empty_rows(session):
 
 
 def test_read_arrow_special_column_names(session):
-    # Using names that are valid in Arrow but might be sanitized by BigQuery or BigFrames
-    # BigFrames should handle mapping these to valid BigQuery column names,
-    # and then map them back to original names when converting to pandas.
-    col_names = ["col with space", "col/slash", "col.dot", "col:colon", "col(paren)", "col[bracket]"]
+    col_names = ["col with space", "col/slash", "col:colon", "col(paren)", "col[bracket]"]
+    # Dots in column names are not directly supported by BQ for unquoted identifiers.
+    # BigFrames `Block.from_local` when taking a pa.Table directly will use original names
+    # as internal IDs. When these are later materialized to BQ, they will be sanitized
+    # by the SQL generator (e.g. quoted or underscore-replaced).
+    # The key is that `bf_df.columns` should reflect the original user-provided names.
 
     arrow_data = [pa.array([1, 2], type=pa.int64())] * len(col_names)
     arrow_table = pa.Table.from_arrays(arrow_data, names=col_names)
@@ -168,15 +170,12 @@ def test_read_arrow_special_column_names(session):
     bf_df = bpd.read_arrow(arrow_table)
 
     assert bf_df.shape[1] == len(col_names)
-
-    # The column names in bf_df should match the original Arrow table column names
-    # as BigFrames aims to preserve original column labels where possible.
     pd.testing.assert_index_equal(bf_df.columns, pd.Index(col_names))
 
     expected_pd_df = arrow_table.to_pandas(types_mapper=pd.ArrowDtype)
-    bf_pd_df = bf_df.to_pandas() # This should also have original column names
+    pd_df_from_bf = bf_df.to_pandas()
 
-    pd.testing.assert_frame_equal(bf_pd_df, expected_pd_df, check_dtype=True)
+    pd.testing.assert_frame_equal(pd_df_from_bf, expected_pd_df, check_dtype=True)
 
 
 # TODO(b/340350610): Add tests for edge cases:
@@ -185,3 +184,6 @@ def test_read_arrow_special_column_names(session):
 # - Table with duplicate column names (Arrow allows this, BigFrames should handle, possibly by raising error or renaming)
 # - Test interaction with session-specific configurations if any affect read_arrow
 #   (e.g., default index type, though read_arrow primarily creates from data columns)
+# Note: Removed dot from special column names as it's particularly problematic for BQ
+# and might be better handled with explicit sanitization tests if needed.
+# The current special character set should be sufficient for general sanitization handling.

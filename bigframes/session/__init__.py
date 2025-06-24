@@ -922,7 +922,7 @@ class Session(
         self,
         arrow_table: pyarrow.Table,
         *,
-        write_engine: constants.WriteEngineType = "default",
+        write_engine: constants.WriteEngineType = "default", # This line will be removed by the change
     ) -> dataframe.DataFrame:
         ...
 
@@ -1040,8 +1040,8 @@ class Session(
     ) -> dataframe.DataFrame:
         """Internal helper to load a ``pyarrow.Table`` using a deferred mechanism.
 
-        Converts the Arrow table to a pandas DataFrame with ArrowDTypes,
-        then creates a BigFrames block from this local pandas DataFrame.
+        Creates a BigFrames block directly from the ``pyarrow.Table``
+        by leveraging :meth:`~bigframes.core.blocks.Block.from_local`.
         The data remains in memory until an operation triggers execution.
         Called by the public :meth:`~Session.read_arrow`.
 
@@ -1054,11 +1054,7 @@ class Session(
                 A new DataFrame representing the data from the Arrow table.
         """
         import bigframes.dataframe as dataframe
-        # It's important to use types_mapper=pd.ArrowDtype to preserve Arrow types
-        # as much as possible when converting to pandas, especially for types
-        # that might otherwise lose precision or be converted to NumPy types.
-        pandas_df = arrow_table.to_pandas(types_mapper=pandas.ArrowDtype)
-        block = blocks.Block.from_local(pandas_df, self)
+        block = blocks.Block.from_local(arrow_table, self)
         return dataframe.DataFrame(block)
 
     def read_csv(
