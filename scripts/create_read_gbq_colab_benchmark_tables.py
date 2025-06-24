@@ -384,9 +384,17 @@ def create_and_load_table(
     table = bigquery.Table(table_id, schema=bq_schema)
 
     if client:
-        print(f"Creating table {table_id}...")
-        client.create_table(table, exists_ok=True)
+        print(f"(Re)creating table {table_id}...")
+        table = client.create_table(table, exists_ok=True)
         print(f"Table {table_id} created successfully or already exists.")
+
+        # Query in case there's something in the streaming buffer already.
+        table_rows = next(
+            iter(client.query_and_wait(f"SELECT COUNT(*) FROM `{table_id}`"))
+        )[0]
+        print(f"Table {table_id} has {table_rows} rows.")
+        num_rows = max(0, num_rows - table_rows)
+
     else:
         print(f"Simulating: Generated schema: {schema_def}")
 
@@ -405,9 +413,10 @@ def create_and_load_table(
         if not generated_data_chunk:
             continue
 
-        print(
-            f"  Processing generated chunk {batch_num_gen} (size: {len(generated_data_chunk)} rows)..."
-        )
+        if batch_num_gen == 1 or batch_num_gen % 10 == 0:
+            print(
+                f"  Processing generated chunk {batch_num_gen} (size: {len(generated_data_chunk)} rows)..."
+            )
 
         if not client:
             num_simulated_batches = math.ceil(num_rows / BQ_LOAD_BATCH_SIZE)
@@ -422,9 +431,6 @@ def create_and_load_table(
             raise ValueError(f"Encountered errors while inserting sub-batch: {errors}")
 
         total_rows_loaded += len(generated_data_chunk)
-        print(
-            f"Loaded sub-batch of {len(generated_data_chunk)} rows. Total loaded: {total_rows_loaded}/{num_rows}"
-        )
 
 
 # --- Main Script Logic ---
@@ -456,6 +462,8 @@ def main():
 
     if args.project_id and args.dataset_id:
         client = bigquery.Client(project=args.project_id)
+        dataset = bigquery.Dataset(f"{args.project_id}.{args.dataset_id}")
+        client.create_dataset(dataset, exists_ok=True)
 
     for i in range(num_percentiles):
         percentile = TABLE_STATS["percentile"][i]
