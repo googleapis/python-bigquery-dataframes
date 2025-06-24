@@ -197,15 +197,7 @@ def repeated_pandas_df() -> pd.DataFrame:
         DATA_DIR / "repeated.jsonl",
         lines=True,
     )
-    df["date_list_col"] = df["date_list_col"].astype(
-        pd.ArrowDtype(pa.list_(pa.date32()))
-    )
-    df["date_time_list_col"] = df["date_time_list_col"].astype(
-        pd.ArrowDtype(pa.list_(pa.timestamp("us")))
-    )
-    df["numeric_list_col"] = df["numeric_list_col"].astype(
-        pd.ArrowDtype(pa.list_(pa.decimal128(38, 9)))
-    )
+    # TODO: add dtype conversion here if needed.
     df = df.set_index("rowindex")
     return df
 
