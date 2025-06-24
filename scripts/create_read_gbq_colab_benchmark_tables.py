@@ -142,96 +142,155 @@ def get_bq_schema(target_row_size_bytes: int) -> list[tuple[str, str, int | None
 
 
 def generate_random_data(schema: list[tuple[str, str, int | None]], num_rows: int, rng: np.random.Generator) -> list[dict]:
-    """Generates random data for the given schema and number of rows."""
-    data = []
+    """
+    Generates random data for the given schema and number of rows using vectorized operations.
+    """
     if num_rows == 0:
         return []
 
-    for _ in range(num_rows):
-        row = {}
-        for col_name, bq_type, length in schema:
-            if bq_type == 'BOOL':
-                row[col_name] = rng.choice([True, False])
-            elif bq_type == 'INT64':
-                row[col_name] = int(rng.integers(-10**18, 10**18))
-            elif bq_type == 'FLOAT64':
-                row[col_name] = rng.random() * 2 * 10**10 - 10**10 # Large range of floats
-            elif bq_type == 'NUMERIC':
-                # NUMERIC can be up to 38 digits, 9 decimal places.
-                # For simplicity, generate as float and convert to string.
-                # BQ client library handles string representation for NUMERIC.
-                val = rng.random() * 2 * 10**28 - 10**28
-                row[col_name] = f"{val:.9f}" # Format with 9 decimal places
-            elif bq_type == 'DATE':
-                start_date = datetime.date(1, 1, 1)
-                # Max date is 9999-12-31. Random days up to that.
-                # Python's max date is 9999-12-31 as well.
-                days = int(rng.integers(0, (datetime.date(9999,12,31) - start_date).days))
-                row[col_name] = (start_date + datetime.timedelta(days=days)).isoformat()
-            elif bq_type == 'DATETIME':
-                # Similar to date, but with time
-                dt = datetime.datetime(
-                    year=rng.integers(1, 9999), month=rng.integers(1, 12), day=rng.integers(1, 28), # simplify day generation
-                    hour=rng.integers(0, 23), minute=rng.integers(0, 59), second=rng.integers(0, 59),
-                    microsecond=rng.integers(0, 999999)
-                )
-                row[col_name] = dt.isoformat(sep=' ') # BQ standard format
-            elif bq_type == 'TIMESTAMP':
-                # UTC timestamp
-                dt = datetime.datetime(
-                    year=rng.integers(1970, 2038), month=rng.integers(1, 12), day=rng.integers(1, 28),
-                    hour=rng.integers(0, 23), minute=rng.integers(0, 59), second=rng.integers(0, 59),
-                    microsecond=rng.integers(0, 999999), tzinfo=datetime.timezone.utc
-                )
-                row[col_name] = dt.isoformat(sep=' ')
-            elif bq_type == 'TIME':
-                t = datetime.time(
-                    hour=rng.integers(0, 23), minute=rng.integers(0, 59), second=rng.integers(0, 59),
-                    microsecond=rng.integers(0, 999999)
-                )
-                row[col_name] = t.isoformat()
-            elif bq_type == 'STRING':
-                # Generate random string of 'length' characters.
-                # Each char is 1 byte for simplicity, assuming ASCII-like.
-                # UTF-8 can be multi-byte, but for sizing, we assume length = byte size.
-                # BigQuery STRING size is 2 bytes + UTF-8 encoded string size.
-                # 'length' here refers to the content byte size.
-                content_len = length if length is not None else 1 # Default to 1 if length somehow None
-                row[col_name] = ''.join(rng.choice(list("abcdefghijklmnopqrstuvwxyz0123456789"), size=max(0,content_len)))
-            elif bq_type == 'BYTES':
-                # 'length' here refers to the content byte size.
-                content_len = length if length is not None else 1
-                row[col_name] = rng.bytes(max(0, content_len)) # Will be base64 encoded by client lib
-            elif bq_type == 'JSON':
-                # 'length' here refers to the content byte size of the JSON string.
-                # This is tricky to get exact. We'll generate a simple JSON and hope it's close enough.
-                # For more precision, one would need to serialize and check size, then adjust.
-                # For this script, generate a simple structure.
-                content_len = length if length is not None else 10 # Default length
+    columns_data = {}
+    char_list = list("abcdefghijklmnopqrstuvwxyz0123456789")
+    json_char_list = list("abcdef")
+
+    for col_name, bq_type, length in schema:
+        if bq_type == 'BOOL':
+            columns_data[col_name] = rng.choice([True, False], size=num_rows)
+        elif bq_type == 'INT64':
+            columns_data[col_name] = rng.integers(-10**18, 10**18, size=num_rows, dtype=np.int64)
+        elif bq_type == 'FLOAT64':
+            columns_data[col_name] = rng.random(size=num_rows) * 2 * 10**10 - 10**10
+        elif bq_type == 'NUMERIC':
+            # Generate as float, then format to string.
+            # Using np.vectorize for formatting.
+            raw_numerics = rng.random(size=num_rows) * 2 * 10**28 - 10**28
+            format_numeric_v = np.vectorize(lambda x: f"{x:.9f}")
+            columns_data[col_name] = format_numeric_v(raw_numerics)
+        elif bq_type == 'DATE':
+            start_date_ord = datetime.date(1, 1, 1).toordinal()
+            max_days = (datetime.date(9999, 12, 31) - datetime.date(1, 1, 1)).days
+            day_offsets = rng.integers(0, max_days + 1, size=num_rows)
+            # Vectorized conversion from ordinal + offset to ISO date string
+            date_ordinals = start_date_ord + day_offsets
+            columns_data[col_name] = [datetime.date.fromordinal(int(ordinal)).isoformat() for ordinal in date_ordinals]
+        elif bq_type == 'DATETIME':
+            # Generate components and then assemble.
+            # This is less directly vectorized for the final string but component generation is.
+            years = rng.integers(1, 10000, size=num_rows) # Max year 9999
+            months = rng.integers(1, 13, size=num_rows)
+            days = rng.integers(1, 29, size=num_rows) # simplify day generation
+            hours = rng.integers(0, 24, size=num_rows)
+            minutes = rng.integers(0, 60, size=num_rows)
+            seconds = rng.integers(0, 60, size=num_rows)
+            microseconds = rng.integers(0, 1000000, size=num_rows)
+            dt_list = []
+            for i in range(num_rows):
+                try:
+                    dt_list.append(datetime.datetime(
+                        years[i], months[i], days[i],
+                        hours[i], minutes[i], seconds[i], microseconds[i]
+                    ).isoformat(sep=' '))
+                except ValueError: # Handle invalid date combinations like Feb 29 in non-leap year if days were > 28
+                     # Fallback to a known good date if component combination is invalid
+                     dt_list.append(datetime.datetime(2000,1,1,hours[i],minutes[i],seconds[i],microseconds[i]).isoformat(sep=' '))
+            columns_data[col_name] = dt_list
+        elif bq_type == 'TIMESTAMP':
+            # Generate Unix timestamps (seconds since epoch) then convert
+            # Range for timestamps (approx 1970 to 2038 for standard 32-bit, extend for 64-bit)
+            # Let's use a wider range, assuming BQ handles it, e.g., year 1 to 9999
+            min_ts = int(datetime.datetime(1, 1, 1, tzinfo=datetime.timezone.utc).timestamp())
+            max_ts = int(datetime.datetime(9999, 12, 28, tzinfo=datetime.timezone.utc).timestamp()) # up to 9999
+
+            random_seconds = rng.integers(min_ts, max_ts, size=num_rows, dtype=np.int64)
+            random_microseconds = rng.integers(0, 1000000, size=num_rows)
+
+            ts_list = []
+            for i in range(num_rows):
+                try:
+                    # Ensure the timestamp is within reasonable bounds for fromtimestamp
+                    # Clamp to a safe range if extreme values from min_ts/max_ts cause issues
+                    # Python's fromtimestamp might have platform limitations
+                    base_dt = datetime.datetime.fromtimestamp(random_seconds[i], tz=datetime.timezone.utc)
+                    final_dt = base_dt.replace(microsecond=random_microseconds[i]) # add microseconds
+                    ts_list.append(final_dt.isoformat(sep=' '))
+                except OverflowError: # Fallback for timestamps too large for platform's C mktime
+                     fallback_dt = datetime.datetime(2000,1,1,12,0,0,random_microseconds[i], tzinfo=datetime.timezone.utc)
+                     ts_list.append(fallback_dt.isoformat(sep=' '))
+                except ValueError: # Handles cases like negative timestamps on Windows
+                     fallback_dt = datetime.datetime(2000,1,1,12,0,0,random_microseconds[i], tzinfo=datetime.timezone.utc)
+                     ts_list.append(fallback_dt.isoformat(sep=' '))
+
+            columns_data[col_name] = ts_list
+        elif bq_type == 'TIME':
+            hours = rng.integers(0, 24, size=num_rows)
+            minutes = rng.integers(0, 60, size=num_rows)
+            seconds = rng.integers(0, 60, size=num_rows)
+            microseconds = rng.integers(0, 1000000, size=num_rows)
+            time_list = []
+            for i in range(num_rows):
+                time_list.append(datetime.time(
+                    hours[i], minutes[i], seconds[i], microseconds[i]
+                ).isoformat())
+            columns_data[col_name] = time_list
+        elif bq_type == 'STRING':
+            content_len = length if length is not None else 1
+            content_len = max(0, content_len) # ensure non-negative
+            if content_len == 0:
+                columns_data[col_name] = [""] * num_rows
+            else:
+                # Generate num_rows * content_len characters, then reshape and join
+                chars_array = rng.choice(char_list, size=(num_rows, content_len))
+                columns_data[col_name] = [''.join(row_chars) for row_chars in chars_array]
+        elif bq_type == 'BYTES':
+            content_len = length if length is not None else 1
+            content_len = max(0, content_len)
+            # rng.bytes is not directly vectorizable in the same way for num_rows
+            columns_data[col_name] = [rng.bytes(content_len) for _ in range(num_rows)]
+        elif bq_type == 'JSON':
+            content_len = length if length is not None else 10
+            json_list = []
+            # JSON generation remains somewhat row-wise due to complexity of hitting exact length
+            for _ in range(num_rows):
                 if content_len <= 5: # approx "{\"\":0}"
-                     # Minimal JSON to fit small sizes
-                    json_obj = {"k": "v"[:max(0, content_len-5)]} if content_len > 4 else ""
+                    json_val_len = max(0, content_len - 5) # Length of value part
+                    json_val_chars = rng.choice(json_char_list, size=json_val_len)
+                    json_obj = {"k": ''.join(json_val_chars)} if content_len > 4 else ""
                 else:
-                    # Create a string that will be roughly 'content_len' when serialized as {"key": "value"}
-                    # {"k": "vvv...v"} -> 10 bytes overhead for `{"k": ""}`.
-                    # So, value_len should be content_len - 10.
-                    val_len = max(1, content_len - 10)
-                    json_obj = {"key": ''.join(rng.choice(list("abcdef"), size=val_len))}
+                    val_len = max(1, content_len - 10) # {"key": "vvv..."}
+                    json_val_chars = rng.choice(json_char_list, size=val_len)
+                    json_obj = {"key": ''.join(json_val_chars)}
 
                 json_str = json.dumps(json_obj)
-                # If the generated string is too long, truncate it. This is crude.
-                if len(json_str.encode('utf-8')) > content_len and content_len > 0 :
-                    # Attempt to create a string of roughly the right byte length for the value
-                    # This is still an approximation.
+                # Crude truncation/adjustment to meet length. This is hard to vectorize precisely.
+                if len(json_str.encode('utf-8')) > content_len and content_len > 0:
                     approx_val_len = max(1, content_len - len(json.dumps({"key":""}).encode('utf-8')))
-                    json_obj = {"key": "X" * approx_val_len}
-                    json_str = json.dumps(json_obj)
-                    # Final truncation if still off (crude)
-                    json_str = json_str[:content_len]
+                    json_obj_adjusted = {"key": "X" * approx_val_len}
+                    json_str = json.dumps(json_obj_adjusted)
+                    json_str = json_str[:content_len] # Final hard truncate
+                elif len(json_str.encode('utf-8')) < content_len and content_len > 0:
+                    # If too short, and we have a simple {"key": "value"} structure, try to pad value
+                    if "key" in json_obj and isinstance(json_obj["key"], str):
+                        padding_needed = content_len - len(json_str.encode('utf-8'))
+                        json_obj["key"] += "X" * padding_needed
+                        json_str = json.dumps(json_obj)
+                        # Truncate if padding overshot due to multi-byte chars or structure
+                        while len(json_str.encode('utf-8')) > content_len and len(json_obj["key"]) > 0:
+                            json_obj["key"] = json_obj["key"][:-1]
+                            json_str = json.dumps(json_obj)
+                        if len(json_str.encode('utf-8')) > content_len: # Final fallback if still too long
+                             json_str = json_str[:content_len]
 
 
-                row[col_name] = json_str
-        data.append(row)
+                json_list.append(json_str)
+            columns_data[col_name] = json_list
+
+    # Assemble rows from columns_data
+    # This is a way to transpose the dictionary of arrays into a list of dicts
+    data = []
+    if num_rows > 0:
+        col_names_ordered = [s[0] for s in schema] # Get column names in original schema order
+        for i in range(num_rows):
+            row = {col_name: columns_data[col_name][i] for col_name in col_names_ordered}
+            data.append(row)
     return data
 
 
