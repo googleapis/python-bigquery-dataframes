@@ -32,6 +32,7 @@ def compile(op: ops.BinaryOp, left: TypedExpr, right: TypedExpr) -> sge.Expressi
     return BINARY_OP_REIGSTRATION[op](op, left, right)
 
 
+# TODO: add parenthesize for operators
 @BINARY_OP_REIGSTRATION.register(ops.add_op)
 def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
     if left.dtype == dtypes.STRING_DTYPE and right.dtype == dtypes.STRING_DTYPE:
