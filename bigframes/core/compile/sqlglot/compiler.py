@@ -219,6 +219,21 @@ class SQLGlotCompiler:
         return child.filter(condition)
 
     @_compile_node.register
+    def compile_join(
+        self, node: nodes.JoinNode, left: ir.SQLGlotIR, right: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        conditions = tuple(
+            (left.id.sql, right.id.sql) for left, right in node.conditions
+        )
+
+        return left.join(
+            right,
+            join_type=node.type,
+            conditions=conditions,
+            join_nulls=node.joins_nulls,
+        )
+
+    @_compile_node.register
     def compile_concat(
         self, node: nodes.ConcatNode, *children: ir.SQLGlotIR
     ) -> ir.SQLGlotIR:
