@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import datetime
 import json
 import math
@@ -324,7 +325,10 @@ def generate_random_data(
                 content_len = length if length is not None else 1
                 content_len = max(0, content_len)
                 columns_data_batch[col_name] = np.array(
-                    [rng.bytes(content_len) for _ in range(current_batch_size)]
+                    [
+                        base64.b64encode(rng.bytes(content_len)).decode("utf-8")
+                        for _ in range(current_batch_size)
+                    ]
                 )
             elif bq_type == "JSON":
                 content_len = length if length is not None else 10

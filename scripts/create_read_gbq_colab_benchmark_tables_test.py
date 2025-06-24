@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import base64
 import datetime
 import json
 import math
@@ -266,8 +267,9 @@ def test_generate_data_all_datatypes(rng):
             assert isinstance(row["c_string"], str)
             assert len(row["c_string"]) == 10
 
-            assert isinstance(row["c_bytes"], bytes)
-            assert len(row["c_bytes"]) == 5
+            c_bytes = base64.b64decode(row["c_bytes"])
+            assert isinstance(c_bytes, bytes)
+            assert len(c_bytes) == 5
 
             assert isinstance(row["c_json"], str)
             try:
