@@ -212,6 +212,13 @@ class SQLGlotCompiler:
         return child.project(projected_cols)
 
     @_compile_node.register
+    def compile_filter(
+        self, node: nodes.FilterNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        condition = scalar_compiler.compile_scalar_expression(node.predicate)
+        return child.filter(condition)
+
+    @_compile_node.register
     def compile_concat(
         self, node: nodes.ConcatNode, *children: ir.SQLGlotIR
     ) -> ir.SQLGlotIR:
@@ -221,6 +228,14 @@ class SQLGlotCompiler:
             output_ids=output_ids,
             uid_gen=self.uid_gen,
         )
+
+    @_compile_node.register
+    def compile_explode(
+        self, node: nodes.ExplodeNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        offsets_col = node.offsets_col.sql if (node.offsets_col is not None) else None
+        columns = tuple(ref.id.sql for ref in node.column_ids)
+        return child.explode(columns, offsets_col)
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
