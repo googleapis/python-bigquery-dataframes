@@ -437,6 +437,10 @@ class BigQueryOptions:
 
     @enable_polars_execution.setter
     def enable_polars_execution(self, value: bool):
+        if self._session_started and self._enable_polars_execution != value:
+            raise ValueError(
+                SESSION_STARTED_MESSAGE.format(attribute="enable_polars_execution")
+            )
         if value is True:
             msg = bfe.format_message(
                 "Polars execution is an experimental feature, and may not be stable. Must have polars installed."
