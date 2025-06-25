@@ -88,6 +88,18 @@ def table_widget(paginated_bf_df: bf.dataframe.DataFrame):
     return widget
 
 
+@pytest.fixture(scope="module", autouse=True)
+def cleanup_session(session):
+    """Ensure session cleanup happens after all tests in this module."""
+    yield
+    # Force cleanup of all temporary resources if session is still active
+    try:
+        session.close()
+    except Exception:
+        # Session may already be closed by the global fixture
+        pass
+
+
 def _assert_html_matches_pandas_slice(
     table_html: str,
     expected_pd_slice: pd.DataFrame,
