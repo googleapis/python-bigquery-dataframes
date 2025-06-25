@@ -87,6 +87,9 @@ class SQLGlotCompiler:
                 nodes.ResultNode, rewrite.column_pruning(result_node)
             )
             result_node = self._remap_variables(result_node)
+            result_node = typing.cast(
+                nodes.ResultNode, rewrite.defer_selection(result_node)
+            )
             sql = self._compile_result_node(result_node)
             return configs.CompileResult(
                 sql, result_node.schema.to_bigquery(), result_node.order_by
@@ -97,6 +100,9 @@ class SQLGlotCompiler:
         result_node = typing.cast(nodes.ResultNode, rewrite.column_pruning(result_node))
 
         result_node = self._remap_variables(result_node)
+        result_node = typing.cast(
+            nodes.ResultNode, rewrite.defer_selection(result_node)
+        )
         sql = self._compile_result_node(result_node)
         # Return the ordering iff no extra columns are needed to define the row order
         if ordering is not None:
@@ -125,10 +131,7 @@ class SQLGlotCompiler:
             (name, scalar_compiler.compile_scalar_expression(ref))
             for ref, name in root.output_cols
         )
-        # Skip squashing selections to ensure the right ordering and limit keys
-        sqlglot_ir = self.compile_node(root.child).select(
-            selected_cols, squash_selections=False
-        )
+        sqlglot_ir = self.compile_node(root.child).select(selected_cols)
 
         if root.order_by is not None:
             ordering_cols = tuple(
@@ -209,6 +212,13 @@ class SQLGlotCompiler:
         return child.project(projected_cols)
 
     @_compile_node.register
+    def compile_filter(
+        self, node: nodes.FilterNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        condition = scalar_compiler.compile_scalar_expression(node.predicate)
+        return child.filter(condition)
+
+    @_compile_node.register
     def compile_concat(
         self, node: nodes.ConcatNode, *children: ir.SQLGlotIR
     ) -> ir.SQLGlotIR:
@@ -218,6 +228,14 @@ class SQLGlotCompiler:
             output_ids=output_ids,
             uid_gen=self.uid_gen,
         )
+
+    @_compile_node.register
+    def compile_explode(
+        self, node: nodes.ExplodeNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        offsets_col = node.offsets_col.sql if (node.offsets_col is not None) else None
+        columns = tuple(ref.id.sql for ref in node.column_ids)
+        return child.explode(columns, offsets_col)
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
