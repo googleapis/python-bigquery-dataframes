@@ -25,7 +25,6 @@ from typing import Literal, Optional, Sequence, Union
 
 import bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetimes
 import pandas
-import pyarrow as pa
 
 import bigframes._config as config
 from bigframes.core import log_adapter
@@ -41,6 +40,7 @@ from bigframes.pandas.core.api import to_timedelta
 from bigframes.pandas.io.api import (
     _read_gbq_colab,
     from_glob_path,
+    read_arrow,
     read_csv,
     read_gbq,
     read_gbq_function,
@@ -55,21 +55,6 @@ from bigframes.pandas.io.api import (
 )
 import bigframes.series
 import bigframes.session
-
-
-def read_arrow(pa_table: pa.Table) -> bigframes.dataframe.DataFrame:
-    """Load a PyArrow Table to a BigQuery DataFrames DataFrame.
-
-    Args:
-        pa_table (pyarrow.Table):
-            PyArrow table to load data from.
-
-    Returns:
-        bigframes.dataframe.DataFrame:
-            A new DataFrame representing the data from the PyArrow table.
-    """
-    session = global_session.get_global_session()
-    return session.read_arrow(pa_table=pa_table)
 import bigframes.session._io.bigquery
 import bigframes.session.clients
 import bigframes.version
@@ -383,6 +368,7 @@ _functions = [
     merge,
     qcut,
     read_csv,
+    read_arrow,
     read_gbq,
     _read_gbq_colab,
     read_gbq_function,

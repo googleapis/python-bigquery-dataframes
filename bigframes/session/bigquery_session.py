@@ -21,12 +21,9 @@ import uuid
 # TODO: Non-ibis implementation
 import bigframes_vendored.ibis.backends.bigquery.datatypes as ibis_bq
 import google.cloud.bigquery as bigquery
-import pyarrow as pa
 
-import bigframes.dataframe
 from bigframes.core.compile import googlesql
 from bigframes.session import temporary_storage
-from bigframes.session._io.arrow import create_dataframe_from_arrow_table
 
 KEEPALIVE_QUERY_TIMEOUT_SECONDS = 5.0
 
@@ -144,19 +141,6 @@ class SessionResourceManager(temporary_storage.TemporaryStorageManager):
                 )
             except Exception as e:
                 logging.warning("BigQuery session keep-alive query errored : %s", e)
-
-    def read_arrow(self, pa_table: pa.Table) -> bigframes.dataframe.DataFrame:
-        """Load a PyArrow Table to a BigQuery DataFrames DataFrame.
-
-        Args:
-            pa_table (pyarrow.Table):
-                PyArrow table to load data from.
-
-        Returns:
-            bigframes.dataframe.DataFrame:
-                A new DataFrame representing the data from the PyArrow table.
-        """
-        return create_dataframe_from_arrow_table(pa_table, session=self)
 
 
 class RecurringTaskDaemon:
