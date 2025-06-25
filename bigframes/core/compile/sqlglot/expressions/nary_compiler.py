@@ -20,8 +20,8 @@ from bigframes import operations as ops
 from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 
-NARY_OP_REIGSTRATION = OpRegistration()
+NARY_OP_REGISTRATION = OpRegistration()
 
 
 def compile(op: ops.NaryOp, *args: TypedExpr) -> sge.Expression:
-    return NARY_OP_REIGSTRATION[op](op, *args)
+    return NARY_OP_REGISTRATION[op](op, *args)

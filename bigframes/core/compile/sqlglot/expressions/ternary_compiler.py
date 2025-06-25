@@ -20,10 +20,10 @@ from bigframes import operations as ops
 from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 
-TERNATRY_OP_REIGSTRATION = OpRegistration()
+TERNATRY_OP_REGISTRATION = OpRegistration()
 
 
 def compile(
     op: ops.TernaryOp, expr1: TypedExpr, expr2: TypedExpr, expr3: TypedExpr
 ) -> sge.Expression:
-    return TERNATRY_OP_REIGSTRATION[op](op, expr1, expr2, expr3)
+    return TERNATRY_OP_REGISTRATION[op](op, expr1, expr2, expr3)

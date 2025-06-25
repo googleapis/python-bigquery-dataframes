@@ -23,19 +23,19 @@ from bigframes import operations as ops
 from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 
-UNARY_OP_REIGSTRATION = OpRegistration()
+UNARY_OP_REGISTRATION = OpRegistration()
 
 
 def compile(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
-    return UNARY_OP_REIGSTRATION[op](op, expr)
+    return UNARY_OP_REGISTRATION[op](op, expr)
 
 
-@UNARY_OP_REIGSTRATION.register(ops.ArrayToStringOp)
+@UNARY_OP_REGISTRATION.register(ops.ArrayToStringOp)
 def _(op: ops.ArrayToStringOp, expr: TypedExpr) -> sge.Expression:
     return sge.ArrayToString(this=expr.expr, expression=f"'{op.delimiter}'")
 
 
-@UNARY_OP_REIGSTRATION.register(ops.ArrayIndexOp)
+@UNARY_OP_REGISTRATION.register(ops.ArrayIndexOp)
 def _(op: ops.ArrayIndexOp, expr: TypedExpr) -> sge.Expression:
     offset = sge.Anonymous(
         this="safe_offset", expressions=[sge.Literal.number(op.index)]
@@ -43,7 +43,7 @@ def _(op: ops.ArrayIndexOp, expr: TypedExpr) -> sge.Expression:
     return expr.expr[offset]
 
 
-@UNARY_OP_REIGSTRATION.register(ops.ArraySliceOp)
+@UNARY_OP_REGISTRATION.register(ops.ArraySliceOp)
 def _(op: ops.ArraySliceOp, expr: TypedExpr) -> sge.Expression:
     slice_idx = sqlglot.to_identifier("slice_idx")
 
