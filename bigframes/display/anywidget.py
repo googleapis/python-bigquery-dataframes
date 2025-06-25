@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from importlib import resources
+import functools
+import math
 from typing import Iterator
 import uuid
 
@@ -28,7 +30,7 @@ class TableWidget(anywidget.AnyWidget):
     An interactive, paginated table widget for BigFrames DataFrames.
     """
 
-    @property
+    @functools.cached_property
     def _esm(self):
         """Load JavaScript code from external file."""
         return resources.read_text(bigframes.display, "table_widget.js")
@@ -64,6 +66,15 @@ class TableWidget(anywidget.AnyWidget):
 
         # get the initial page
         self._set_table_html()
+
+    @traitlets.validate("page")
+    def _validate_page(self, proposal):
+        """Validate and clamp page number to valid range."""
+        value = proposal["value"]
+        if self.row_count == 0 or self.page_size == 0:
+            return 0
+        max_page = max(0, math.ceil(self.row_count / self.page_size) - 1)
+        return max(0, min(value, max_page))
 
     def _get_next_batch(self) -> bool:
         """
