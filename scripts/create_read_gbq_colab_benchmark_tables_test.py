@@ -59,6 +59,7 @@ def test_get_bq_schema_zero_bytes():
 
 def test_get_bq_schema_one_byte():
     schema = get_bq_schema(1)
+
     assert len(schema) == 1
     assert schema[0][1] == "BOOL"  # ('col_bool_fallback_0', 'BOOL', None) or similar
     assert _calculate_row_size(schema) == 1
@@ -68,6 +69,7 @@ def test_get_bq_schema_exact_fixed_fit():
     # BOOL (1) + INT64 (8) = 9 bytes
     target_size = 9
     schema = get_bq_schema(target_size)
+
     assert len(schema) == 2
     assert schema[0][1] == "BOOL"
     assert schema[1][1] == "INT64"
@@ -80,15 +82,19 @@ def test_get_bq_schema_needs_flexible_string():
     # Total = 1+8+8+16+8+8+8+8 = 65
     target_size = 65 + 1
     schema = get_bq_schema(target_size)
+
     assert _calculate_row_size(schema) == 65 + 2 + 2 + 1
+
     string_cols = [s for s in schema if s[1] == "STRING"]
-    bytes_cols = [s for s in schema if s[1] == "BYTES"]
-    json_cols = [s for s in schema if s[1] == "JSON"]
     assert len(string_cols) == 1
-    assert len(bytes_cols) == 1
-    assert len(json_cols) == 1
     assert string_cols[0][2] == 0
+
+    bytes_cols = [s for s in schema if s[1] == "BYTES"]
+    assert len(bytes_cols) == 1
     assert bytes_cols[0][2] == 0
+
+    json_cols = [s for s in schema if s[1] == "JSON"]
+    assert len(json_cols) == 1
     assert json_cols[0][2] == 1
 
 
@@ -98,15 +104,19 @@ def test_get_bq_schema_flexible_expansion():
     # Total = 1+8+8+16+8+8+8+8 = 65
     target_size = 65 + 3 * 5
     schema = get_bq_schema(target_size)
+
     assert _calculate_row_size(schema) == target_size
+
     string_cols = [s for s in schema if s[1] == "STRING"]
-    bytes_cols = [s for s in schema if s[1] == "BYTES"]
-    json_cols = [s for s in schema if s[1] == "JSON"]
     assert len(string_cols) == 1
-    assert len(bytes_cols) == 1
-    assert len(json_cols) == 1
     assert string_cols[0][2] == 3
+
+    bytes_cols = [s for s in schema if s[1] == "BYTES"]
+    assert len(bytes_cols) == 1
     assert bytes_cols[0][2] == 3
+
+    json_cols = [s for s in schema if s[1] == "JSON"]
+    assert len(json_cols) == 1
     assert json_cols[0][2] == 5
 
 
@@ -128,11 +138,11 @@ def test_get_bq_schema_all_fixed_types_possible():
         "TIME",
     }
     present_types = {s[1] for s in schema}
+
     assert expected_fixed_types.issubset(present_types)
 
     # Check if the size is close to target.
     # All fixed (65)
-    print(f"Schema for all_fixed_types (target={target_size}): {schema}")  # DEBUG
     calculated_size = _calculate_row_size(schema)
     assert calculated_size == target_size
 
@@ -140,6 +150,7 @@ def test_get_bq_schema_all_fixed_types_possible():
 def test_get_bq_schema_uniqueness_of_column_names():
     target_size = 100  # A size that generates multiple columns
     schema = get_bq_schema(target_size)
+
     column_names = [s[0] for s in schema]
     assert len(column_names) == len(set(column_names))
 
