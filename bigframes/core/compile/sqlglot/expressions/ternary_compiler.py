@@ -22,11 +22,7 @@ from bigframes import operations as ops
 from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 
-TernaryOpCompiler = typing.Callable[
-    [ops.TernaryOp, TypedExpr, TypedExpr, TypedExpr], sge.Expression
-]
-
-TERNATRY_OP_REIGSTRATION = OpRegistration[TernaryOpCompiler]()
+TERNATRY_OP_REIGSTRATION = OpRegistration()
 
 
 def compile(

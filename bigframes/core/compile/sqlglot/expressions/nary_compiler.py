@@ -22,10 +22,7 @@ from bigframes import operations as ops
 from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 
-# No simpler way to specify that the compilation function expects varargs.
-NaryOpCompiler = typing.Callable[..., sge.Expression]
-
-NARY_OP_REIGSTRATION = OpRegistration[NaryOpCompiler]()
+NARY_OP_REIGSTRATION = OpRegistration()
 
 
 def compile(op: ops.NaryOp, *args: TypedExpr) -> sge.Expression:

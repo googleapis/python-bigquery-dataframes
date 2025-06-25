@@ -23,9 +23,7 @@ from bigframes import operations as ops
 from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 
-BinaryOpCompiler = typing.Callable[[ops.BinaryOp, TypedExpr, TypedExpr], sge.Expression]
-
-BINARY_OP_REIGSTRATION = OpRegistration[BinaryOpCompiler]()
+BINARY_OP_REIGSTRATION = OpRegistration()
 
 
 def compile(op: ops.BinaryOp, left: TypedExpr, right: TypedExpr) -> sge.Expression:
@@ -45,5 +43,4 @@ def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
 
 @BINARY_OP_REIGSTRATION.register(ops.ge_op)
 def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
-
     return sge.GTE(this=left.expr, expression=right.expr)

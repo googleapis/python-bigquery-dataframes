@@ -20,21 +20,25 @@ import bigframes.pandas as bpd
 pytest.importorskip("pytest_snapshot")
 
 
-def test_array_to_string(scalars_types_df: bpd.DataFrame, snapshot):
-    result = bigquery.array_to_string(scalars_types_df["string_col"], ".")
+def test_array_to_string(repeated_types_df: bpd.DataFrame, snapshot):
+    result = bigquery.array_to_string(repeated_types_df["string_list_col"], ".")
 
-    snapshot.assert_match(result.sql, "out.sql")
-
-
-def test_compile_numerical_add_w_scalar(scalars_types_df: bpd.DataFrame, snapshot):
-    bf_df = scalars_types_df[["int64_col"]]
-
-    bf_df["int64_col"] = bf_df["int64_col"] + 1
-
-    snapshot.assert_match(bf_df.sql, "out.sql")
+    snapshot.assert_match(result.to_frame().sql, "out.sql")
 
 
-def test_compile_string_add(scalars_types_df: bpd.DataFrame, snapshot):
-    bf_df = scalars_types_df[["string_col"]]
-    bf_df["string_col"] = bf_df["string_col"] + "a"
-    snapshot.assert_match(bf_df.sql, "out.sql")
+def test_array_index(repeated_types_df: bpd.DataFrame, snapshot):
+    result = repeated_types_df["string_list_col"].list[1]
+
+    snapshot.assert_match(result.to_frame().sql, "out.sql")
+
+
+def test_array_slice_with_only_start(repeated_types_df: bpd.DataFrame, snapshot):
+    result = repeated_types_df["string_list_col"].list[1:]
+
+    snapshot.assert_match(result.to_frame().sql, "out.sql")
+
+
+def test_array_slice_with_start_and_stop(repeated_types_df: bpd.DataFrame, snapshot):
+    result = repeated_types_df["string_list_col"].list[1:5]
+
+    snapshot.assert_match(result.to_frame().sql, "out.sql")
