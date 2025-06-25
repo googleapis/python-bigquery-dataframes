@@ -100,7 +100,6 @@ assert 1 == s.replace(  # MANIFEST.in
     "recursive-include third_party/bigframes_vendored *\nrecursive-include bigframes",
 )
 
-
 # Include JavaScript files for display widgets
 assert 1 == s.replace(  # MANIFEST.in
     ["MANIFEST.in"],
@@ -108,14 +107,12 @@ assert 1 == s.replace(  # MANIFEST.in
     "recursive-include bigframes *.json *.proto *.js py.typed",
 )
 
-
 # Fixup the documentation.
 assert 1 == s.replace(  # docs/conf.py
     ["docs/conf.py"],
     re.escape("Google Cloud Client Libraries for bigframes"),
     "BigQuery DataFrames provides DataFrame APIs on the BigQuery engine",
 )
-
 
 # Don't omit `*/core/*.py` when counting test coverages
 assert 1 == s.replace(  # .coveragerc
