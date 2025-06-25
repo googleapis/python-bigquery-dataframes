@@ -12,12 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import traceback
+
 import pandas as pd
 import pytest
 
 import bigframes as bf
 
 pytest.importorskip("anywidget")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def cleanup_session(session):
+    """Ensure comprehensive cleanup happens after all tests in this module."""
+    yield
+    try:
+        # Force cleanup of anonymous dataset and all temporary tables
+        if hasattr(session, "_anon_dataset_manager") and session._anon_dataset_manager:
+            session._anon_dataset_manager.close()
+
+        # Also call the main session cleanup
+        session.close()
+    except Exception as e:
+        traceback.print_exception(type(e), e, None)
+        # Try the BigFrames cleanup function as fallback
+        try:
+            import bigframes.pandas as bpd
+
+            bpd.clean_up_by_session_id(
+                session.session_id, location=session._location, project=session._project
+            )
+        except Exception as cleanup_error:
+            print(f"Warning: Fallback cleanup also failed: {cleanup_error}")
+            traceback.print_exception(type(cleanup_error), cleanup_error, None)
 
 
 @pytest.fixture(scope="module")
@@ -86,18 +113,6 @@ def table_widget(paginated_bf_df: bf.dataframe.DataFrame):
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 5):
         widget = TableWidget(paginated_bf_df)
     return widget
-
-
-@pytest.fixture(scope="module", autouse=True)
-def cleanup_session(session):
-    """Ensure session cleanup happens after all tests in this module."""
-    yield
-    # Force cleanup of all temporary resources if session is still active
-    try:
-        session.close()
-    except Exception:
-        # Session may already be closed by the global fixture
-        pass
 
 
 def _assert_html_matches_pandas_slice(
