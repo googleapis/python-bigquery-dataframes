@@ -23,12 +23,8 @@ import google.cloud.bigquery.table
 import pandas
 
 from bigframes import dataframe
-from bigframes.core import local_data, pyarrow_utils
-import bigframes.core as core
-import bigframes.core.blocks as blocks
-import bigframes.core.guid
-import bigframes.core.schema as schemata
 import bigframes.session
+from bigframes.session._io.arrow import create_dataframe_from_arrow_table
 
 
 def create_dataframe_from_query_job_stats(
@@ -61,30 +57,4 @@ def create_dataframe_from_row_iterator(
     'jobless' case where there's no destination table.
     """
     pa_table = rows.to_arrow()
-
-    # TODO(tswast): Use array_value.promote_offsets() instead once that node is
-    # supported by the local engine.
-    offsets_col = bigframes.core.guid.generate_guid()
-    pa_table = pyarrow_utils.append_offsets(pa_table, offsets_col=offsets_col)
-
-    # We use the ManagedArrowTable constructor directly, because the
-    # results of to_arrow() should be the source of truth with regards
-    # to canonical formats since it comes from either the BQ Storage
-    # Read API or has been transformed by google-cloud-bigquery to look
-    # like the output of the BQ Storage Read API.
-    mat = local_data.ManagedArrowTable(
-        pa_table,
-        schemata.ArraySchema.from_bq_schema(
-            list(rows.schema) + [bigquery.SchemaField(offsets_col, "INTEGER")]
-        ),
-    )
-    mat.validate()
-
-    array_value = core.ArrayValue.from_managed(mat, session)
-    block = blocks.Block(
-        array_value,
-        (offsets_col,),
-        [field.name for field in rows.schema],
-        (None,),
-    )
-    return dataframe.DataFrame(block)
+    return create_dataframe_from_arrow_table(pa_table, session=session)
