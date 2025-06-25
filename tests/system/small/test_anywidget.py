@@ -12,111 +12,235 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
-
+import pandas as pd
 import pytest
 
 import bigframes as bf
 
+pytest.importorskip("anywidget")
 
-def test_repr_anywidget_initial_state(
-    penguins_df_default_index: bf.dataframe.DataFrame,
+
+@pytest.fixture(scope="module")
+def paginated_pandas_df() -> pd.DataFrame:
+    """Create a test DataFrame with exactly 3 pages of manually defined data."""
+    test_data = pd.DataFrame(
+        {
+            "id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            "page_indicator": [
+                # Page 1 (rows 1-5)
+                "page_1_row_1",
+                "page_1_row_2",
+                "page_1_row_3",
+                "page_1_row_4",
+                "page_1_row_5",
+                # Page 2 (rows 6-10)
+                "page_2_row_1",
+                "page_2_row_2",
+                "page_2_row_3",
+                "page_2_row_4",
+                "page_2_row_5",
+                # Page 3 (rows 11-15)
+                "page_3_row_1",
+                "page_3_row_2",
+                "page_3_row_3",
+                "page_3_row_4",
+                "page_3_row_5",
+            ],
+            "value": [
+                "data_001",
+                "data_002",
+                "data_003",
+                "data_004",
+                "data_005",
+                "data_006",
+                "data_007",
+                "data_008",
+                "data_009",
+                "data_010",
+                "data_011",
+                "data_012",
+                "data_013",
+                "data_014",
+                "data_015",
+            ],
+        }
+    )
+    return test_data
+
+
+@pytest.fixture(scope="module")
+def paginated_bf_df(
+    session: bf.Session, paginated_pandas_df: pd.DataFrame
+) -> bf.dataframe.DataFrame:
+    return session.read_pandas(paginated_pandas_df)
+
+
+@pytest.fixture(scope="module")
+def table_widget(paginated_bf_df: bf.dataframe.DataFrame):
+    """
+    Helper fixture to create a TableWidget instance with a fixed page size.
+    This reduces duplication across tests that use the same widget configuration.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 5):
+        widget = TableWidget(paginated_bf_df)
+    return widget
+
+
+def _assert_html_matches_pandas_slice(
+    table_html: str,
+    expected_pd_slice: pd.DataFrame,
+    full_pd_df: pd.DataFrame,
 ):
-    pytest.importorskip("anywidget")
+    """
+    Assertion helper to verify that the rendered HTML contains exactly the
+    rows from the expected pandas DataFrame slice and no others. This is
+    inspired by the pattern of comparing BigFrames output to pandas output.
+    """
+    # Check that the unique indicator from each expected row is present.
+    for _, row in expected_pd_slice.iterrows():
+        assert (
+            row["page_indicator"] in table_html
+        ), f"Expected row '{row['page_indicator']}' to be in the table HTML."
+
+    # Create a DataFrame of all rows that should NOT be present.
+    unexpected_pd_df = full_pd_df.drop(expected_pd_slice.index)
+
+    # Check that no unique indicators from unexpected rows are present.
+    for _, row in unexpected_pd_df.iterrows():
+        assert (
+            row["page_indicator"] not in table_html
+        ), f"Expected row '{row['page_indicator']}' NOT to be in the table HTML."
+
+
+def test_repr_anywidget_initialization_set_correct_defaults(
+    paginated_bf_df: bf.dataframe.DataFrame,
+    paginated_pandas_df: pd.DataFrame,
+):
+    """
+    A TableWidget should initialize with correct default values.
+    """
     with bf.option_context("display.repr_mode", "anywidget"):
         from bigframes.display import TableWidget
 
-        widget = TableWidget(penguins_df_default_index)
-        assert widget.page == 0
-        assert widget.page_size == bf.options.display.max_rows
-        assert widget.row_count > 0
+        widget = TableWidget(paginated_bf_df)
+
+        assert widget.page == 0, "Initial page should be 0."
+        assert (
+            widget.page_size == bf.options.display.max_rows
+        ), "Page size should default to max_rows option."
+        assert widget.row_count == len(
+            paginated_pandas_df
+        ), "Row count should match the source DataFrame."
 
 
-def test_repr_anywidget_pagination_navigation(
-    penguins_df_default_index: bf.dataframe.DataFrame,
+def test_repr_anywidget_display_first_page_on_load(table_widget, paginated_pandas_df):
+    """
+    Given a widget, when it is first loaded, then it should display
+    the first page of data.
+    """
+    expected_slice = paginated_pandas_df.iloc[0:5]
+
+    html = table_widget.table_html
+
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+def test_repr_anywidget_navigate_to_second_page(table_widget, paginated_pandas_df):
+    """
+    Given a widget, when the page is set to 1, then it should display
+    the second page of data.
+    """
+    expected_slice = paginated_pandas_df.iloc[5:10]
+
+    table_widget.page = 1
+    html = table_widget.table_html
+
+    assert table_widget.page == 1
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+def test_repr_anywidget_navigate_to_last_page(table_widget, paginated_pandas_df):
+    """
+    Given a widget, when the page is set to the last page (2),
+    then it should display the final page of data.
+    """
+    expected_slice = paginated_pandas_df.iloc[10:15]
+
+    table_widget.page = 2
+    html = table_widget.table_html
+
+    assert table_widget.page == 2
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+def test_repr_anywidget_page_clamp_to_zero_for_negative_input(
+    table_widget, paginated_pandas_df
 ):
-    """Test basic prev/next navigation functionality."""
-    pytest.importorskip("anywidget")
-    with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes.display.anywidget import TableWidget
+    """
+    Given a widget, when a negative page number is set,
+    then the page number should be clamped to 0 and display the first page.
+    """
+    expected_slice = paginated_pandas_df.iloc[0:5]
 
-        widget = TableWidget(penguins_df_default_index)
+    table_widget.page = -1
+    html = table_widget.table_html
 
-        # Test initial state
-        assert widget.page == 0
-
-        # Simulate next page click
-        widget.page = 1
-        assert widget.page == 1
-
-        # Simulate prev page click
-        widget.page = 0
-        assert widget.page == 0
+    assert table_widget.page == 0, "Page should be clamped to 0."
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
 
 
-def test_repr_anywidget_pagination_edge_cases(
-    penguins_df_default_index: bf.dataframe.DataFrame,
+def test_repr_anywidget_page_clamp_to_last_page_for_out_of_bounds_input(
+    table_widget, paginated_pandas_df
 ):
-    """Test pagination at boundaries."""
-    pytest.importorskip("anywidget")
-    with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes.display.anywidget import TableWidget
+    """
+    Given a widget, when a page number greater than the max is set,
+    then the page number should be clamped to the last valid page.
+    """
+    expected_slice = paginated_pandas_df.iloc[10:15]
 
-        widget = TableWidget(penguins_df_default_index)
+    table_widget.page = 100
+    html = table_widget.table_html
 
-        # Test going below page 0
-        widget.page = -1
-        # Should stay at 0 (handled by frontend)
-
-        # Test going beyond last page
-        total_pages = math.ceil(widget.row_count / widget.page_size)
-        widget.page = total_pages + 1
-        # Should be clamped to last valid page
+    assert table_widget.page == 2, "Page should be clamped to the last valid page."
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
 
 
-def test_repr_anywidget_pagination_different_page_sizes(
-    penguins_df_default_index: bf.dataframe.DataFrame,
+@pytest.mark.parametrize(
+    "page, start_row, end_row",
+    [
+        (0, 0, 3),
+        (1, 3, 6),
+        (2, 6, 9),
+        (3, 9, 12),
+        (4, 12, 15),
+    ],
+    ids=[
+        "Page 0 (Rows 1-3)",
+        "Page 1 (Rows 4-6)",
+        "Page 2 (Rows 7-9)",
+        "Page 3 (Rows 10-12)",
+        "Page 4 (Rows 13-15)",
+    ],
+)
+def test_repr_anywidget_paginate_correctly_with_custom_page_size(
+    paginated_bf_df, paginated_pandas_df, page, start_row, end_row
 ):
-    """Test pagination with different page sizes."""
-    pytest.importorskip("anywidget")
+    """
+    A widget should paginate correctly with a custom page size of 3.
+    This uses pytest parameterization, a strong pattern from the examples.
+    """
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 3):
+        from bigframes.display import TableWidget
 
-    # Test with smaller page size
-    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 5):
-        from bigframes.display.anywidget import TableWidget
+        widget = TableWidget(paginated_bf_df)
+        assert widget.page_size == 3
 
-        widget = TableWidget(penguins_df_default_index)
+        expected_slice = paginated_pandas_df.iloc[start_row:end_row]
 
-        assert widget.page_size == 5
-        total_pages = math.ceil(widget.row_count / 5)
-        assert total_pages > 1  # Should have multiple pages
+        widget.page = page
+        html = widget.table_html
 
-        # Navigate through several pages
-        for page in range(min(3, total_pages)):
-            widget.page = page
-            assert widget.page == page
-
-
-def test_repr_anywidget_pagination_buttons_functionality(
-    penguins_df_default_index: bf.dataframe.DataFrame,
-):
-    """Test complete pagination button functionality."""
-    pytest.importorskip("anywidget")
-    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 10):
-        from bigframes.display.anywidget import TableWidget
-
-        widget = TableWidget(penguins_df_default_index)
-
-        # Test initial state
-        assert widget.page == 0
-        assert widget.page_size == 10
-        assert widget.row_count > 0
-
-        # Calculate expected pages
-        total_pages = math.ceil(widget.row_count / widget.page_size)
-
-        # Test navigation through all pages
-        for page_num in range(min(total_pages, 5)):  # Test first 5 pages
-            widget.page = page_num
-            assert widget.page == page_num
-            # Verify table_html is updated
-            assert len(widget.table_html) > 0
+        assert widget.page == page
+        _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
