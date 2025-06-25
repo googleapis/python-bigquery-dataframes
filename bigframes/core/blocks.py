@@ -36,7 +36,8 @@ import bigframes_vendored.constants as constants
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas as pd
-import pyarrow as pa
+# pyarrow is imported below where needed, but not at top-level if only used for type hints by Session
+# import pyarrow as pa
 
 from bigframes import session
 from bigframes._config import sampling_options
@@ -159,7 +160,7 @@ class Block:
     @classmethod
     def from_local(
         cls,
-        data: Union[pd.DataFrame, pd.Series, pa.Table],
+        data: Union[pd.DataFrame, pd.Series],
         session: bigframes.Session,
         *,
         cache_transpose: bool = True,
@@ -170,24 +171,10 @@ class Block:
         index_names: typing.Sequence[typing.Optional[Label]]
         column_names: pd.Index
         managed_data: local_data.ManagedArrowTable
+        array_value_column_ids: typing.Sequence[str]
 
-        if isinstance(data, pa.Table):
-            # For a raw Arrow table, assume all columns are value columns initially.
-            # No pre-defined index in the Arrow metadata itself that Block.from_local
-            # would understand without further conventions or schema.pandas_metadata.
-            # If schema.pandas_metadata exists, it could potentially inform index/column setup,
-            # but for generic pa.Table, treat all as data.
-            index_cols = []
-            value_cols = list(data.column_names) # these will become the internal IDs
-            index_names = []
-            column_names = pd.Index(data.column_names) # Use original arrow column names as labels
-            managed_data = local_data.ManagedArrowTable(data)
-            # The array_value created later will use value_cols as its column_ids directly
-            # so no separate reset_index or set_axis is needed for raw arrow table input.
-            # The internal IDs for the ArrayValue will be the original Arrow column names.
-            array_value_column_ids = value_cols
 
-        elif isinstance(data, pd.Series):
+        if isinstance(data, pd.Series):
             # Standardize column names to avoid collisions, eg. index named "value" and series also named "value"
             original_index_names = list(name if name is not None else f"level_{i}" for i, name in enumerate(data.index.names))
             original_series_name = data.name if data.name is not None else "value"
@@ -236,7 +223,7 @@ class Block:
             array_value_column_ids = [*index_cols, *value_cols]
         else:
             raise TypeError(
-                f"data must be pandas DataFrame, Series, or pyarrow Table. Got: {type(data)}"
+                f"data must be pandas DataFrame or Series. Got: {type(data)}"
             )
 
         array_value = core.ArrayValue.from_managed(managed_data, session=session, default_column_ids=array_value_column_ids)
@@ -248,9 +235,7 @@ class Block:
             index_labels=index_names,
         )
 
-        # For pandas inputs, attempt to create transpose cache.
-        # For Arrow inputs, this is skipped as data.T is not standard.
-        if isinstance(data, (pd.DataFrame, pd.Series)) and cache_transpose:
+        if cache_transpose:
             try:
                 # this cache will help when aligning on axis=1
                 block = block.with_transpose_cache(
@@ -3412,3 +3397,5 @@ def _pd_index_to_array_value(
         rows.append(row)
 
     return core.ArrayValue.from_pyarrow(pa.Table.from_pylist(rows), session=session)
+
+[end of bigframes/core/blocks.py]
