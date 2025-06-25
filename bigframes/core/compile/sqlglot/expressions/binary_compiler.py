@@ -14,8 +14,6 @@
 
 from __future__ import annotations
 
-import typing
-
 import sqlglot.expressions as sge
 
 from bigframes import dtypes
