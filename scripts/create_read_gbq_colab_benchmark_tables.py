@@ -106,6 +106,7 @@ FIXED_TYPES = [
 FLEXIBLE_TYPES = ["STRING", "BYTES", "JSON"]
 
 JSON_CHAR_LIST = list("abcdef")
+STRING_CHAR_LIST = list("abcdefghijklmnopqrstuvwxyz0123456789")
 
 # --- Helper Functions ---
 
@@ -154,11 +155,165 @@ def get_bq_schema(target_row_size_bytes: int) -> Sequence[tuple[str, str, int | 
     return schema
 
 
-def generate_json_row(content_len: int, rng: np.random.Generator) -> str:
-    json_val_len = max(0, content_len - 5)
+def generate_bool_batch(
+    num_rows: int, rng: np.random.Generator, content_length: int | None = None
+) -> np.ndarray:
+    return rng.choice([True, False], size=num_rows)
+
+
+def generate_int64_batch(
+    num_rows: int, rng: np.random.Generator, content_length: int | None = None
+) -> np.ndarray:
+    return rng.integers(-(10**18), 10**18, size=num_rows, dtype=np.int64)
+
+
+def generate_float64_batch(
+    num_rows: int, rng: np.random.Generator, content_length: int | None = None
+) -> np.ndarray:
+    return rng.random(size=num_rows) * 2 * 10**10 - 10**10
+
+
+def generate_numeric_batch(
+    num_rows: int, rng: np.random.Generator, content_length: int | None = None
+) -> np.ndarray:
+    raw_numerics = rng.random(size=num_rows) * 2 * 10**28 - 10**28
+    format_numeric_vectorized = np.vectorize(lambda x: f"{x:.9f}")
+    return format_numeric_vectorized(raw_numerics)
+
+
+def generate_date_batch(
+    num_rows: int, rng: np.random.Generator, content_length: int | None = None
+) -> np.ndarray:
+    start_date_ord = datetime.date(1, 1, 1).toordinal()
+    max_days = (datetime.date(9999, 12, 31) - datetime.date(1, 1, 1)).days
+    day_offsets = rng.integers(0, max_days + 1, size=num_rows)
+    date_ordinals = start_date_ord + day_offsets
+    return np.array(
+        [
+            datetime.date.fromordinal(int(ordinal)).isoformat()
+            for ordinal in date_ordinals
+        ]
+    )
+
+
+def generate_numpy_datetimes(num_rows: int, rng: np.random.Generator) -> np.ndarray:
+    # Generate seconds from a broad range (e.g., year 1 to 9999)
+    # Note: Python's datetime.timestamp() might be limited by system's C mktime.
+    # For broader range with np.datetime64, it's usually fine.
+    # Let's generate epoch seconds relative to Unix epoch for np.datetime64 compatibility
+    min_epoch_seconds = int(
+        datetime.datetime(1, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc).timestamp()
+    )
+    # Max for datetime64[s] is far out, but let's bound it reasonably for BQ.
+    max_epoch_seconds = int(
+        datetime.datetime(
+            9999, 12, 28, 23, 59, 59, tzinfo=datetime.timezone.utc
+        ).timestamp()
+    )
+
+    epoch_seconds = rng.integers(
+        min_epoch_seconds,
+        max_epoch_seconds + 1,
+        size=num_rows,
+        dtype=np.int64,
+    )
+    microseconds_offset = rng.integers(0, 1000000, size=num_rows, dtype=np.int64)
+
+    # Create datetime64[s] from epoch seconds and add microseconds as timedelta64[us]
+    np_timestamps_s = epoch_seconds.astype("datetime64[s]")
+    np_microseconds_td = microseconds_offset.astype("timedelta64[us]")
+    return np_timestamps_s + np_microseconds_td
+
+
+def generate_datetime_batch(
+    num_rows: int, rng: np.random.Generator, content_length: int | None = None
+) -> np.ndarray:
+    np_datetimes = generate_numpy_datetimes(num_rows, rng)
+
+    # np.datetime_as_string produces 'YYYY-MM-DDTHH:MM:SS.ffffff'
+    # BQ DATETIME typically uses a space separator: 'YYYY-MM-DD HH:MM:SS.ffffff'
+    datetime_strings = np.datetime_as_string(np_datetimes, unit="us")
+    return np.array([s.replace("T", " ") for s in datetime_strings])
+
+
+def generate_timestamp_batch(
+    num_rows: int, rng: np.random.Generator, content_length: int | None = None
+) -> np.ndarray:
+    np_datetimes = generate_numpy_datetimes(num_rows, rng)
+
+    # Convert to string with UTC timezone indicator
+    # np.datetime_as_string with timezone='UTC' produces 'YYYY-MM-DDTHH:MM:SS.ffffffZ'
+    # BigQuery generally accepts this for TIMESTAMP.
+    return np.datetime_as_string(np_datetimes, unit="us", timezone="UTC")
+
+
+def generate_time_batch(
+    num_rows: int, rng: np.random.Generator, content_length: int | None = None
+) -> np.ndarray:
+    hours = rng.integers(0, 24, size=num_rows)
+    minutes = rng.integers(0, 60, size=num_rows)
+    seconds = rng.integers(0, 60, size=num_rows)
+    microseconds = rng.integers(0, 1000000, size=num_rows)
+    time_list = [
+        datetime.time(hours[i], minutes[i], seconds[i], microseconds[i]).isoformat()
+        for i in range(num_rows)
+    ]
+    return np.array(time_list)
+
+
+def generate_json_row(content_length: int, rng: np.random.Generator) -> str:
+    json_val_len = max(0, content_length - 5)
     json_val_chars = rng.choice(JSON_CHAR_LIST, size=json_val_len)
     json_obj = {"k": "".join(json_val_chars)}
     return json.dumps(json_obj)
+
+
+def generate_json_batch(
+    num_rows: int, rng: np.random.Generator, content_length: int | None = None
+) -> np.ndarray:
+    content_length = content_length if content_length is not None else 10
+    json_list = [
+        generate_json_row(content_length=content_length, rng=rng)
+        for _ in range(num_rows)
+    ]
+    return np.array(json_list)
+
+
+def generate_string_batch(
+    num_rows: int, rng: np.random.Generator, content_length: int | None = None
+) -> np.ndarray:
+    content_length = content_length if content_length is not None else 1
+    content_length = max(0, content_length)
+    chars_array = rng.choice(STRING_CHAR_LIST, size=(num_rows, content_length))
+    return np.array(["".join(row_chars) for row_chars in chars_array])
+
+
+def generate_bytes_batch(
+    num_rows: int, rng: np.random.Generator, content_length: int | None = None
+) -> np.ndarray:
+    content_length = content_length if content_length is not None else 1
+    content_length = max(0, content_length)
+    return np.array(
+        [
+            base64.b64encode(rng.bytes(content_length)).decode("utf-8")
+            for _ in range(num_rows)
+        ]
+    )
+
+
+BIGQUERY_DATA_TYPE_GENERATORS = {
+    "BOOL": generate_bool_batch,
+    "DATE": generate_date_batch,
+    "FLOAT64": generate_float64_batch,
+    "INT64": generate_int64_batch,
+    "DATETIME": generate_datetime_batch,
+    "TIMESTAMP": generate_timestamp_batch,
+    "TIME": generate_time_batch,
+    "NUMERIC": generate_numeric_batch,
+    "JSON": generate_json_batch,
+    "BYTES": generate_bytes_batch,
+    "STRING": generate_string_batch,
+}
 
 
 def generate_random_data(
@@ -174,7 +329,6 @@ def generate_random_data(
         yield []
         return
 
-    char_list = list("abcdefghijklmnopqrstuvwxyz0123456789")
     col_names_ordered = [s[0] for s in schema]
 
     generated_rows_total = 0
@@ -185,158 +339,10 @@ def generate_random_data(
 
         columns_data_batch = {}
         for col_name, bq_type, length in schema:
-            if bq_type == "BOOL":
-                columns_data_batch[col_name] = rng.choice(
-                    [True, False], size=current_batch_size
-                )
-            elif bq_type == "INT64":
-                columns_data_batch[col_name] = rng.integers(
-                    -(10**18), 10**18, size=current_batch_size, dtype=np.int64
-                )
-            elif bq_type == "FLOAT64":
-                columns_data_batch[col_name] = (
-                    rng.random(size=current_batch_size) * 2 * 10**10 - 10**10
-                )
-            elif bq_type == "NUMERIC":
-                raw_numerics = (
-                    rng.random(size=current_batch_size) * 2 * 10**28 - 10**28
-                )
-                format_numeric_v = np.vectorize(lambda x: f"{x:.9f}")
-                columns_data_batch[col_name] = format_numeric_v(raw_numerics)
-            elif bq_type == "DATE":
-                start_date_ord = datetime.date(1, 1, 1).toordinal()
-                max_days = (datetime.date(9999, 12, 31) - datetime.date(1, 1, 1)).days
-                day_offsets = rng.integers(0, max_days + 1, size=current_batch_size)
-                date_ordinals = start_date_ord + day_offsets
-                columns_data_batch[col_name] = np.array(
-                    [
-                        datetime.date.fromordinal(int(ordinal)).isoformat()
-                        for ordinal in date_ordinals
-                    ]
-                )
-            elif bq_type == "DATETIME":
-                years = rng.integers(1, 10000, size=current_batch_size)
-                months = rng.integers(1, 13, size=current_batch_size)
-                days_val = rng.integers(
-                    1, 29, size=current_batch_size
-                )  # Simplified day generation
-                hours = rng.integers(0, 24, size=current_batch_size)
-                minutes = rng.integers(0, 60, size=current_batch_size)
-                seconds = rng.integers(0, 60, size=current_batch_size)
-                microseconds = rng.integers(0, 1000000, size=current_batch_size)
-
-                # Construct Python datetime objects then convert to numpy.datetime64 for string conversion
-                py_datetimes = []
-                for i in range(current_batch_size):
-                    try:
-                        py_datetimes.append(
-                            datetime.datetime(
-                                years[i],
-                                months[i],
-                                days_val[i],
-                                hours[i],
-                                minutes[i],
-                                seconds[i],
-                                microseconds[i],
-                            )
-                        )
-                    except ValueError:  # Fallback for invalid date component combinations
-                        py_datetimes.append(
-                            datetime.datetime(
-                                2000,
-                                1,
-                                1,
-                                hours[i],
-                                minutes[i],
-                                seconds[i],
-                                microseconds[i],
-                            )
-                        )
-
-                np_datetimes = np.array(py_datetimes, dtype="datetime64[us]")
-                # np.datetime_as_string produces 'YYYY-MM-DDTHH:MM:SS.ffffff'
-                # BQ DATETIME typically uses a space separator: 'YYYY-MM-DD HH:MM:SS.ffffff'
-                datetime_strings = np.datetime_as_string(np_datetimes, unit="us")
-                columns_data_batch[col_name] = np.array(
-                    [s.replace("T", " ") for s in datetime_strings]
-                )
-
-            elif bq_type == "TIMESTAMP":
-                # Generate seconds from a broad range (e.g., year 1 to 9999)
-                # Note: Python's datetime.timestamp() might be limited by system's C mktime.
-                # For broader range with np.datetime64, it's usually fine.
-                # Let's generate epoch seconds relative to Unix epoch for np.datetime64 compatibility
-                min_epoch_seconds = int(
-                    datetime.datetime(
-                        1, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc
-                    ).timestamp()
-                )
-                # Max for datetime64[s] is far out, but let's bound it reasonably for BQ.
-                max_epoch_seconds = int(
-                    datetime.datetime(
-                        9999, 12, 28, 23, 59, 59, tzinfo=datetime.timezone.utc
-                    ).timestamp()
-                )
-
-                epoch_seconds = rng.integers(
-                    min_epoch_seconds,
-                    max_epoch_seconds + 1,
-                    size=current_batch_size,
-                    dtype=np.int64,
-                )
-                microseconds_offset = rng.integers(
-                    0, 1000000, size=current_batch_size, dtype=np.int64
-                )
-
-                # Create datetime64[s] from epoch seconds and add microseconds as timedelta64[us]
-                np_timestamps_s = epoch_seconds.astype("datetime64[s]")
-                np_microseconds_td = microseconds_offset.astype("timedelta64[us]")
-                np_timestamps_us = np_timestamps_s + np_microseconds_td
-
-                # Convert to string with UTC timezone indicator
-                # np.datetime_as_string with timezone='UTC' produces 'YYYY-MM-DDTHH:MM:SS.ffffffZ'
-                # BigQuery generally accepts this for TIMESTAMP.
-                columns_data_batch[col_name] = np.datetime_as_string(
-                    np_timestamps_us, unit="us", timezone="UTC"
-                )
-
-            elif bq_type == "TIME":
-                hours = rng.integers(0, 24, size=current_batch_size)
-                minutes = rng.integers(0, 60, size=current_batch_size)
-                seconds = rng.integers(0, 60, size=current_batch_size)
-                microseconds = rng.integers(0, 1000000, size=current_batch_size)
-                time_list = [
-                    datetime.time(
-                        hours[i], minutes[i], seconds[i], microseconds[i]
-                    ).isoformat()
-                    for i in range(current_batch_size)
-                ]
-                columns_data_batch[col_name] = np.array(time_list)
-            elif bq_type == "STRING":
-                content_len = length if length is not None else 1
-                content_len = max(0, content_len)
-                chars_array = rng.choice(
-                    char_list, size=(current_batch_size, content_len)
-                )
-                columns_data_batch[col_name] = np.array(
-                    ["".join(row_chars) for row_chars in chars_array]
-                )
-            elif bq_type == "BYTES":
-                content_len = length if length is not None else 1
-                content_len = max(0, content_len)
-                columns_data_batch[col_name] = np.array(
-                    [
-                        base64.b64encode(rng.bytes(content_len)).decode("utf-8")
-                        for _ in range(current_batch_size)
-                    ]
-                )
-            elif bq_type == "JSON":
-                content_len = length if length is not None else 10
-                json_list = [
-                    generate_json_row(content_len=content_len, rng=rng)
-                    for _ in range(current_batch_size)
-                ]
-                columns_data_batch[col_name] = np.array(json_list)
+            generate_batch = BIGQUERY_DATA_TYPE_GENERATORS[bq_type]
+            columns_data_batch[col_name] = generate_batch(
+                current_batch_size, rng, content_length=length
+            )
 
         # Turn numpy objects into Python objects.
         # https://stackoverflow.com/a/32850511/101923
@@ -346,13 +352,12 @@ def generate_random_data(
 
         # Assemble batch of rows
         batch_data = []
-        if current_batch_size > 0:
-            for i in range(current_batch_size):
-                row = {
-                    col_name: columns_data_batch_json[col_name][i]
-                    for col_name in col_names_ordered
-                }
-                batch_data.append(row)
+        for i in range(current_batch_size):
+            row = {
+                col_name: columns_data_batch_json[col_name][i]
+                for col_name in col_names_ordered
+            }
+            batch_data.append(row)
 
         yield batch_data
         generated_rows_total += current_batch_size
