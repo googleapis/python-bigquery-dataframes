@@ -16,10 +16,12 @@ from __future__ import annotations
 
 import argparse
 import base64
+import concurrent.futures
 import datetime
 import json
 import math
-from typing import Iterable, MutableSequence, Sequence
+import time
+from typing import Any, Iterable, MutableSequence, Sequence
 
 from google.cloud import bigquery
 import numpy as np
@@ -316,51 +318,77 @@ BIGQUERY_DATA_TYPE_GENERATORS = {
 }
 
 
-def generate_random_data(
+def generate_work_items(
+    table_id: str,
     schema: Sequence[tuple[str, str, int | None]],
     num_rows: int,
-    rng: np.random.Generator,
     batch_size: int,
-) -> Iterable[list[dict]]:
+) -> Iterable[tuple[str, Sequence[tuple[str, str, int | None]], int]]:
     """
-    Generates random data for the given schema and number of rows, yielding batches.
+    Generates work items of appropriate batch sizes.
     """
     if num_rows == 0:
-        yield []
         return
 
-    col_names_ordered = [s[0] for s in schema]
-
     generated_rows_total = 0
+
     while generated_rows_total < num_rows:
         current_batch_size = min(batch_size, num_rows - generated_rows_total)
         if current_batch_size == 0:
             break
 
-        columns_data_batch = {}
-        for col_name, bq_type, length in schema:
-            generate_batch = BIGQUERY_DATA_TYPE_GENERATORS[bq_type]
-            columns_data_batch[col_name] = generate_batch(
-                current_batch_size, rng, content_length=length
-            )
-
-        # Turn numpy objects into Python objects.
-        # https://stackoverflow.com/a/32850511/101923
-        columns_data_batch_json = {}
-        for column in columns_data_batch:
-            columns_data_batch_json[column] = columns_data_batch[column].tolist()
-
-        # Assemble batch of rows
-        batch_data = []
-        for i in range(current_batch_size):
-            row = {
-                col_name: columns_data_batch_json[col_name][i]
-                for col_name in col_names_ordered
-            }
-            batch_data.append(row)
-
-        yield batch_data
+        yield (table_id, schema, current_batch_size)
         generated_rows_total += current_batch_size
+
+
+def generate_batch(
+    schema: Sequence[tuple[str, str, int | None]],
+    num_rows: int,
+    rng: np.random.Generator,
+) -> list[dict[str, Any]]:
+    col_names_ordered = [s[0] for s in schema]
+
+    columns_data_batch = {}
+    for col_name, bq_type, length in schema:
+        generate_batch = BIGQUERY_DATA_TYPE_GENERATORS[bq_type]
+        columns_data_batch[col_name] = generate_batch(
+            num_rows, rng, content_length=length
+        )
+
+    # Turn numpy objects into Python objects.
+    # https://stackoverflow.com/a/32850511/101923
+    columns_data_batch_json = {}
+    for column in columns_data_batch:
+        columns_data_batch_json[column] = columns_data_batch[column].tolist()
+
+    # Assemble batch of rows
+    batch_data = []
+    for i in range(num_rows):
+        row = {
+            col_name: columns_data_batch_json[col_name][i]
+            for col_name in col_names_ordered
+        }
+        batch_data.append(row)
+
+    return batch_data
+
+
+def generate_and_load_batch(
+    client: bigquery.Client,
+    table_id: str,
+    schema_def: Sequence[tuple[str, str, int | None]],
+    num_rows: int,
+    rng: np.random.Generator,
+):
+    bq_schema = []
+    for col_name, type_name, _ in schema_def:
+        bq_schema.append(bigquery.SchemaField(col_name, type_name))
+    table = bigquery.Table(table_id, schema=bq_schema)
+
+    generated_data_chunk = generate_batch(schema_def, num_rows, rng)
+    errors = client.insert_rows_json(table, generated_data_chunk)
+    if errors:
+        raise ValueError(f"Encountered errors while inserting sub-batch: {errors}")
 
 
 def create_and_load_table(
@@ -370,9 +398,13 @@ def create_and_load_table(
     table_name: str,
     schema_def: Sequence[tuple[str, str, int | None]],
     num_rows: int,
-    rng: np.random.Generator,
+    executor: concurrent.futures.Executor,
 ):
     """Creates a BigQuery table and loads data into it by consuming a data generator."""
+
+    if not client:
+        print(f"Simulating: Generated schema: {schema_def}")
+        return
 
     # BQ client library streaming insert batch size (rows per API call)
     # This is different from data_gen_batch_size which is for generating data.
@@ -390,55 +422,69 @@ def create_and_load_table(
         bq_schema.append(bigquery.SchemaField(col_name, type_name))
 
     table = bigquery.Table(table_id, schema=bq_schema)
+    print(f"(Re)creating table {table_id}...")
+    table = client.create_table(table, exists_ok=True)
+    print(f"Table {table_id} created successfully or already exists.")
 
-    if client:
-        print(f"(Re)creating table {table_id}...")
-        table = client.create_table(table, exists_ok=True)
-        print(f"Table {table_id} created successfully or already exists.")
-
-        # Query in case there's something in the streaming buffer already.
-        table_rows = next(
-            iter(client.query_and_wait(f"SELECT COUNT(*) FROM `{table_id}`"))
-        )[0]
-        print(f"Table {table_id} has {table_rows} rows.")
-        num_rows = max(0, num_rows - table_rows)
-
-    else:
-        print(f"Simulating: Generated schema: {schema_def}")
+    # Query in case there's something in the streaming buffer already.
+    table_rows = next(
+        iter(client.query_and_wait(f"SELECT COUNT(*) FROM `{table_id}`"))
+    )[0]
+    print(f"Table {table_id} has {table_rows} rows.")
+    num_rows = max(0, num_rows - table_rows)
 
     if num_rows <= 0:
         print(f"No rows to load. Requested {num_rows} rows. Skipping.")
         return
 
     print(f"Starting to load {num_rows} rows into {table_id} in batches...")
-    total_rows_loaded = 0
 
-    batch_num_gen = 0
-    for generated_data_chunk in generate_random_data(
-        schema_def, num_rows, rng, BQ_LOAD_BATCH_SIZE
+    previous_status_time = 0.0
+    generated_rows_total = 0
+
+    for completed_rows in executor.map(
+        worker_process_item,
+        generate_work_items(
+            table_id,
+            schema_def,
+            num_rows,
+            BQ_LOAD_BATCH_SIZE,
+        ),
     ):
-        batch_num_gen += 1
-        if not generated_data_chunk:
-            continue
+        generated_rows_total += completed_rows
 
-        if batch_num_gen == 1 or batch_num_gen % 10 == 0:
-            print(
-                f"  Processing generated chunk {batch_num_gen} (size: {len(generated_data_chunk)} rows)..."
-            )
+        current_time = time.monotonic()
+        if current_time - previous_status_time > 5:
+            print(f"Wrote {generated_rows_total} out of {num_rows} rows.")
+            previous_status_time = current_time
 
-        if not client:
-            num_simulated_batches = math.ceil(num_rows / BQ_LOAD_BATCH_SIZE)
-            print(
-                f"Simulating: Would generate and load approx. {num_simulated_batches} batches."
-            )
-            print(f"Sample row: {generated_data_chunk[0]}")
-            break
 
-        errors = client.insert_rows_json(table, generated_data_chunk)
-        if errors:
-            raise ValueError(f"Encountered errors while inserting sub-batch: {errors}")
+worker_client: bigquery.Client | None = None
+worker_rng: np.random.Generator | None = None
 
-        total_rows_loaded += len(generated_data_chunk)
+
+def worker_initializer(project_id: str | None):
+    global worker_client, worker_rng
+
+    # One client per process, since multiprocessing and client connections don't
+    # play nicely together.
+    if project_id is not None:
+        worker_client = bigquery.Client(project=project_id)
+
+    worker_rng = np.random.default_rng()
+
+
+def worker_process_item(
+    work_item: tuple[str, Sequence[tuple[str, str, int | None]], int]
+):
+    global worker_client, worker_rng
+
+    if worker_client is None or worker_rng is None:
+        raise ValueError("Worker not initialized.")
+
+    table_id, schema_def, num_rows = work_item
+    generate_and_load_batch(worker_client, table_id, schema_def, num_rows, worker_rng)
+    return num_rows
 
 
 # --- Main Script Logic ---
@@ -464,7 +510,6 @@ def main():
     )
     args = parser.parse_args()
 
-    rng = np.random.default_rng(seed=42)  # Seed for reproducibility
     num_percentiles = len(TABLE_STATS["percentile"])
     client = None
 
@@ -473,31 +518,34 @@ def main():
         dataset = bigquery.Dataset(f"{args.project_id}.{args.dataset_id}")
         client.create_dataset(dataset, exists_ok=True)
 
-    for i in range(num_percentiles):
-        percentile = TABLE_STATS["percentile"][i]
-        avg_row_bytes_raw = TABLE_STATS["avg_row_bytes"][i]
-        num_rows_raw = TABLE_STATS["num_materialized_or_scanned_rows"][i]
+    with concurrent.futures.ProcessPoolExecutor(
+        initializer=worker_initializer, initargs=(args.project_id,)
+    ) as executor:
+        for i in range(num_percentiles):
+            percentile = TABLE_STATS["percentile"][i]
+            avg_row_bytes_raw = TABLE_STATS["avg_row_bytes"][i]
+            num_rows_raw = TABLE_STATS["num_materialized_or_scanned_rows"][i]
 
-        target_row_bytes = max(1, int(math.ceil(avg_row_bytes_raw)))
-        num_rows = max(1, int(math.ceil(num_rows_raw)))
+            target_row_bytes = max(1, int(math.ceil(avg_row_bytes_raw)))
+            num_rows = max(1, int(math.ceil(num_rows_raw)))
 
-        table_name = f"percentile_{percentile:02d}"
-        print(f"\n--- Processing Table: {table_name} ---")
-        print(f"Target average row bytes (rounded up): {target_row_bytes}")
-        print(f"Number of rows (rounded up): {num_rows}")
+            table_name = f"percentile_{percentile:02d}"
+            print(f"\n--- Processing Table: {table_name} ---")
+            print(f"Target average row bytes (rounded up): {target_row_bytes}")
+            print(f"Number of rows (rounded up): {num_rows}")
 
-        schema_definition = get_bq_schema(target_row_bytes)
-        print(f"Generated Schema: {schema_definition}")
+            schema_definition = get_bq_schema(target_row_bytes)
+            print(f"Generated Schema: {schema_definition}")
 
-        create_and_load_table(
-            client,
-            args.project_id or "",
-            args.dataset_id or "",
-            table_name,
-            schema_definition,
-            num_rows,
-            rng,
-        )
+            create_and_load_table(
+                client,
+                args.project_id or "",
+                args.dataset_id or "",
+                table_name,
+                schema_definition,
+                num_rows,
+                executor,
+            )
 
 
 if __name__ == "__main__":

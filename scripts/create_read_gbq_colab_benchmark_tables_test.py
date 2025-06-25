@@ -23,7 +23,8 @@ import re
 # Assuming the script to be tested is in the same directory or accessible via PYTHONPATH
 from create_read_gbq_colab_benchmark_tables import (
     BIGQUERY_DATA_TYPE_SIZES,
-    generate_random_data,
+    generate_batch,
+    generate_work_items,
     get_bq_schema,
 )
 import numpy as np
@@ -155,69 +156,60 @@ def test_get_bq_schema_uniqueness_of_column_names():
     assert len(column_names) == len(set(column_names))
 
 
-# --- Pytest Fixture for RNG ---
-@pytest.fixture
-def rng():
-    return np.random.default_rng(seed=42)
+# --- Tests for generate_work_items ---
 
 
-# --- Tests for generate_random_data ---
-
-
-def test_generate_data_zero_rows(rng):
+def test_generate_work_items_zero_rows():
     schema = [("col_int", "INT64", None)]
-    data_generator = generate_random_data(schema, num_rows=0, rng=rng, batch_size=10)
-
-    # Expect one empty list to be yielded
-    first_batch = next(data_generator)
-    assert first_batch == []
+    data_generator = generate_work_items(
+        "some_table", schema, num_rows=0, batch_size=10
+    )
 
     # Expect the generator to be exhausted
     with pytest.raises(StopIteration):
         next(data_generator)
 
 
-def test_generate_data_basic_schema_and_batching(rng):
+def test_generate_work_items_basic_schema_and_batching():
     schema = [("id", "INT64", None), ("is_active", "BOOL", None)]
     num_rows = 25
     batch_size = 10
 
     generated_rows_count = 0
     batch_count = 0
-    for batch in generate_random_data(schema, num_rows, rng, batch_size):
+    for work_item in generate_work_items("some_table", schema, num_rows, batch_size):
+        table_id, schema_def, num_rows_in_batch = work_item
+        assert table_id == "some_table"
+        assert schema_def == schema
+        assert num_rows_in_batch <= num_rows
+        assert num_rows_in_batch <= batch_size
         batch_count += 1
-        generated_rows_count += len(batch)
-        for row in batch:
-            assert isinstance(row, dict)
-            assert "id" in row
-            assert "is_active" in row
-            assert isinstance(row["id"], int)
-            assert isinstance(row["is_active"], bool)
+        generated_rows_count += num_rows_in_batch
 
     assert generated_rows_count == num_rows
     assert batch_count == math.ceil(num_rows / batch_size)  # 25/10 = 2.5 -> 3 batches
 
 
-def test_generate_data_batch_size_larger_than_num_rows(rng):
+def test_generate_work_items_batch_size_larger_than_num_rows():
     schema = [("value", "FLOAT64", None)]
     num_rows = 5
     batch_size = 100
 
     generated_rows_count = 0
     batch_count = 0
-    for batch in generate_random_data(schema, num_rows, rng, batch_size):
+    for work_item in generate_work_items("some_table", schema, num_rows, batch_size):
+        table_id, schema_def, num_rows_in_batch = work_item
+        assert table_id == "some_table"
+        assert schema_def == schema
+        assert num_rows_in_batch == num_rows  # Should be one batch with all rows
         batch_count += 1
-        generated_rows_count += len(batch)
-        assert len(batch) == num_rows  # Should be one batch with all rows
-        for row in batch:
-            assert "value" in row
-            assert isinstance(row["value"], float)
+        generated_rows_count += num_rows_in_batch
 
     assert generated_rows_count == num_rows
     assert batch_count == 1
 
 
-def test_generate_data_all_datatypes(rng):
+def test_generate_work_items_all_datatypes(rng):
     schema = [
         ("c_bool", "BOOL", None),
         ("c_int64", "INT64", None),
@@ -234,6 +226,55 @@ def test_generate_data_all_datatypes(rng):
     num_rows = 3
     batch_size = 2  # To test multiple batches
 
+    total_rows_processed = 0
+    for work_item in generate_work_items("some_table", schema, num_rows, batch_size):
+        table_id, schema_def, num_rows_in_batch = work_item
+        assert table_id == "some_table"
+        assert schema_def == schema
+        assert num_rows_in_batch <= batch_size
+        assert num_rows_in_batch <= num_rows
+
+        total_rows_processed += num_rows_in_batch
+
+    assert total_rows_processed == num_rows
+
+
+# --- Pytest Fixture for RNG ---
+@pytest.fixture
+def rng():
+    return np.random.default_rng(seed=42)
+
+
+def test_generate_batch_basic_schema(rng):
+    schema = [("id", "INT64", None), ("is_active", "BOOL", None)]
+    batch = generate_batch(schema, 5, rng)
+
+    assert len(batch) == 5
+
+    for row in batch:
+        assert isinstance(row, dict)
+        assert "id" in row
+        assert "is_active" in row
+        assert isinstance(row["id"], int)
+        assert isinstance(row["is_active"], bool)
+
+
+def test_generate_batch_all_datatypes(rng):
+    schema = [
+        ("c_bool", "BOOL", None),
+        ("c_int64", "INT64", None),
+        ("c_float64", "FLOAT64", None),
+        ("c_numeric", "NUMERIC", None),
+        ("c_date", "DATE", None),
+        ("c_datetime", "DATETIME", None),
+        ("c_timestamp", "TIMESTAMP", None),
+        ("c_time", "TIME", None),
+        ("c_string", "STRING", 10),
+        ("c_bytes", "BYTES", 5),
+        ("c_json", "JSON", 20),  # Length for JSON is content hint
+    ]
+    num_rows = 3
+
     date_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}$")
     time_pattern = re.compile(r"^\d{2}:\d{2}:\d{2}(\.\d{1,6})?$")
     # BQ DATETIME: YYYY-MM-DD HH:MM:SS.ffffff
@@ -244,51 +285,49 @@ def test_generate_data_all_datatypes(rng):
     )
     numeric_pattern = re.compile(r"^-?\d+\.\d{9}$")
 
-    total_rows_processed = 0
-    for batch in generate_random_data(schema, num_rows, rng, batch_size):
-        total_rows_processed += len(batch)
-        for row in batch:
-            assert isinstance(row["c_bool"], bool)
-            assert isinstance(row["c_int64"], int)
-            assert isinstance(row["c_float64"], float)
+    batch = generate_batch(schema, num_rows, rng)
+    assert len(batch) == num_rows
 
-            assert isinstance(row["c_numeric"], str)
-            assert numeric_pattern.match(row["c_numeric"])
+    for row in batch:
+        assert isinstance(row["c_bool"], bool)
+        assert isinstance(row["c_int64"], int)
+        assert isinstance(row["c_float64"], float)
 
-            assert isinstance(row["c_date"], str)
-            assert date_pattern.match(row["c_date"])
-            datetime.date.fromisoformat(row["c_date"])  # Check parsable
+        assert isinstance(row["c_numeric"], str)
+        assert numeric_pattern.match(row["c_numeric"])
 
-            assert isinstance(row["c_datetime"], str)
-            assert datetime_pattern.match(row["c_datetime"])
-            datetime.datetime.fromisoformat(row["c_datetime"])  # Check parsable
+        assert isinstance(row["c_date"], str)
+        assert date_pattern.match(row["c_date"])
+        datetime.date.fromisoformat(row["c_date"])  # Check parsable
 
-            assert isinstance(row["c_timestamp"], str)
-            assert timestamp_pattern.match(row["c_timestamp"])
-            # datetime.fromisoformat can parse 'Z' if Python >= 3.11, or needs replace('Z', '+00:00')
-            dt_obj = datetime.datetime.fromisoformat(
-                row["c_timestamp"].replace("Z", "+00:00")
-            )
-            assert dt_obj.tzinfo == datetime.timezone.utc
+        assert isinstance(row["c_datetime"], str)
+        assert datetime_pattern.match(row["c_datetime"])
+        datetime.datetime.fromisoformat(row["c_datetime"])  # Check parsable
 
-            assert isinstance(row["c_time"], str)
-            assert time_pattern.match(row["c_time"])
-            datetime.time.fromisoformat(row["c_time"])  # Check parsable
+        assert isinstance(row["c_timestamp"], str)
+        assert timestamp_pattern.match(row["c_timestamp"])
+        # datetime.fromisoformat can parse 'Z' if Python >= 3.11, or needs replace('Z', '+00:00')
+        dt_obj = datetime.datetime.fromisoformat(
+            row["c_timestamp"].replace("Z", "+00:00")
+        )
+        assert dt_obj.tzinfo == datetime.timezone.utc
 
-            assert isinstance(row["c_string"], str)
-            assert len(row["c_string"]) == 10
+        assert isinstance(row["c_time"], str)
+        assert time_pattern.match(row["c_time"])
+        datetime.time.fromisoformat(row["c_time"])  # Check parsable
 
-            c_bytes = base64.b64decode(row["c_bytes"])
-            assert isinstance(c_bytes, bytes)
-            assert len(c_bytes) == 5
+        assert isinstance(row["c_string"], str)
+        assert len(row["c_string"]) == 10
 
-            assert isinstance(row["c_json"], str)
-            try:
-                json.loads(row["c_json"])  # Check if it's valid JSON
-            except json.JSONDecodeError:
-                pytest.fail(f"Invalid JSON string generated: {row['c_json']}")
-            # Note: Exact length check for JSON is hard due to content variability and escaping.
-            # The 'length' parameter for JSON in schema is a hint for content size.
-            # We are primarily testing that it's valid JSON.
+        c_bytes = base64.b64decode(row["c_bytes"])
+        assert isinstance(c_bytes, bytes)
+        assert len(c_bytes) == 5
 
-    assert total_rows_processed == num_rows
+        assert isinstance(row["c_json"], str)
+        try:
+            json.loads(row["c_json"])  # Check if it's valid JSON
+        except json.JSONDecodeError:
+            pytest.fail(f"Invalid JSON string generated: {row['c_json']}")
+        # Note: Exact length check for JSON is hard due to content variability and escaping.
+        # The 'length' parameter for JSON in schema is a hint for content size.
+        # We are primarily testing that it's valid JSON.
