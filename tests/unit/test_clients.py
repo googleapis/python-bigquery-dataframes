@@ -72,7 +72,9 @@ def test_get_canonical_bq_connection_id_invalid_path():
 
 
 def test_ensure_iam_binding():
-    bq_connection_client = bigquery_connection_v1.ConnectionServiceClient()
+    bq_connection_client = mock.create_autospec(
+        bigquery_connection_v1.ConnectionServiceClient, instance=True
+    )
     resource_manager_client = mock.create_autospec(
         resourcemanager_v3.ProjectsClient, instance=True
     )
