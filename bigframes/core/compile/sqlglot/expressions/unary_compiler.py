@@ -37,10 +37,12 @@ def _(op: ops.ArrayToStringOp, expr: TypedExpr) -> sge.Expression:
 
 @UNARY_OP_REGISTRATION.register(ops.ArrayIndexOp)
 def _(op: ops.ArrayIndexOp, expr: TypedExpr) -> sge.Expression:
-    offset = sge.Anonymous(
-        this="safe_offset", expressions=[sge.Literal.number(op.index)]
+    return sge.Bracket(
+        this=expr.expr,
+        expressions=[sge.Literal.number(op.index)],
+        safe=True,
+        offset=False,
     )
-    return expr.expr[offset]
 
 
 @UNARY_OP_REGISTRATION.register(ops.ArraySliceOp)

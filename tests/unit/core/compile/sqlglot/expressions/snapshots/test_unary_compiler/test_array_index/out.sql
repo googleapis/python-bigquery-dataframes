@@ -6,7 +6,7 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    `bfcol_1`[safe_offset(1)] AS `bfcol_4`
+    `bfcol_1`[SAFE_OFFSET(1)] AS `bfcol_4`
   FROM `bfcte_0`
 )
 SELECT
