@@ -16,7 +16,6 @@ import pandas as pd
 import pytest
 
 import bigframes as bf
-from bigframes.display import TableWidget
 
 pytest.importorskip("anywidget")
 
@@ -52,13 +51,15 @@ def paginated_bf_df(
 
 
 @pytest.fixture(scope="module")
-def table_widget(paginated_bf_df: bf.dataframe.DataFrame) -> TableWidget:
+def table_widget(paginated_bf_df: bf.dataframe.DataFrame):
     """
     Helper fixture to create a TableWidget instance with a fixed page size.
     This reduces duplication across tests that use the same widget configuration.
     """
+    from bigframes import display
+
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        widget = TableWidget(paginated_bf_df)
+        widget = display.TableWidget(paginated_bf_df)
     return widget
 
 
@@ -89,9 +90,9 @@ def test_repr_anywidget_initialization_sets_page_to_zero(
 ):
     """A TableWidget should initialize with the page number set to 0."""
     with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes.display import TableWidget
+        from bigframes import display
 
-        widget = TableWidget(paginated_bf_df)
+        widget = display.TableWidget(paginated_bf_df)
 
         assert widget.page == 0
 
@@ -101,9 +102,9 @@ def test_repr_anywidget_initialization_sets_page_size_from_options(
 ):
     """A TableWidget should initialize its page size from bf.options."""
     with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes.display import TableWidget
+        from bigframes import display
 
-        widget = TableWidget(paginated_bf_df)
+        widget = display.TableWidget(paginated_bf_df)
 
         assert widget.page_size == bf.options.display.max_rows
 
@@ -114,15 +115,15 @@ def test_repr_anywidget_initialization_sets_row_count(
 ):
     """A TableWidget should initialize with the correct total row count."""
     with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes.display import TableWidget
+        from bigframes import display
 
-        widget = TableWidget(paginated_bf_df)
+        widget = display.TableWidget(paginated_bf_df)
 
         assert widget.row_count == len(paginated_pandas_df)
 
 
 def test_repr_anywidget_display_first_page_on_load(
-    table_widget: TableWidget, paginated_pandas_df: pd.DataFrame
+    table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
     Given a widget, when it is first loaded, then it should display
@@ -136,7 +137,7 @@ def test_repr_anywidget_display_first_page_on_load(
 
 
 def test_repr_anywidget_navigate_to_second_page(
-    table_widget: TableWidget, paginated_pandas_df: pd.DataFrame
+    table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
     Given a widget, when the page is set to 1, then it should display
@@ -152,7 +153,7 @@ def test_repr_anywidget_navigate_to_second_page(
 
 
 def test_repr_anywidget_navigate_to_last_page(
-    table_widget: TableWidget, paginated_pandas_df: pd.DataFrame
+    table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
     Given a widget, when the page is set to the last page (2),
@@ -168,7 +169,7 @@ def test_repr_anywidget_navigate_to_last_page(
 
 
 def test_repr_anywidget_page_clamp_to_zero_for_negative_input(
-    table_widget: TableWidget, paginated_pandas_df: pd.DataFrame
+    table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
     Given a widget, when a negative page number is set,
@@ -184,7 +185,7 @@ def test_repr_anywidget_page_clamp_to_zero_for_negative_input(
 
 
 def test_repr_anywidget_page_clamp_to_last_page_for_out_of_bounds_input(
-    table_widget: TableWidget, paginated_pandas_df: pd.DataFrame
+    table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
     Given a widget, when a page number greater than the max is set,
