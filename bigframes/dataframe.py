@@ -3412,16 +3412,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         on: Optional[str] = None,
         how: str = "left",
+        lsuffix: str = "",
+        rsuffix: str = "",
     ) -> DataFrame:
         if isinstance(other, bigframes.series.Series):
             other = other.to_frame()
 
         left, right = self, other
 
-        if not left.columns.intersection(right.columns).empty:
-            raise NotImplementedError(
-                f"Deduping column names is not implemented. {constants.FEEDBACK_LINK}"
-            )
+        col_intersection = left.columns.intersection(right.columns)
+
+        if not col_intersection.empty:
+            if lsuffix == rsuffix == "":
+                raise ValueError(
+                    f"columns overlap but no suffix specified: {col_intersection}"
+                )
+
         if how == "cross":
             if on is not None:
                 raise ValueError("'on' is not supported for cross join.")
@@ -3429,7 +3435,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 right._block,
                 left_join_ids=[],
                 right_join_ids=[],
-                suffixes=("", ""),
+                suffixes=(lsuffix, rsuffix),
                 how="cross",
                 sort=True,
             )
@@ -3441,8 +3447,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 raise ValueError(
                     "Join on columns must match the index level of the other DataFrame. Join on column with multi-index haven't been supported."
                 )
+
+            # Replace all columns names with unique names for reordering.
+            left_col_original_names = left.columns
+            on_col_name = "bigframes_left_col_on"
+            dup_on_col_name = "bigframes_left_col_on_dup"
+            left_col_temp_names = [
+                f"bigframes_left_col_name_{i}" if col_name != on else on_col_name
+                for i, col_name in enumerate(left_col_original_names)
+            ]
+            left.columns = pandas.Index(left_col_temp_names)
+            # if on column is also in right df, we need to duplicate the column
+            # and set it to be the first column
+            if on in col_intersection:
+                left[dup_on_col_name] = left[on_col_name]
+                on_col_name = dup_on_col_name
+                left_col_temp_names = [on_col_name] + left_col_temp_names
+                left = left[left_col_temp_names]
+
             # Switch left index with on column
-            left_columns = left.columns
             left_idx_original_names = left.index.names if left._has_index else ()
             left_idx_names_in_cols = [
                 f"bigframes_left_idx_name_{i}"
@@ -3451,11 +3474,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if left._has_index:
                 left.index.names = left_idx_names_in_cols
             left = left.reset_index(drop=False)
-            left = left.set_index(on)
+            left = left.set_index(on_col_name)
+
+            right_col_original_names = right.columns
+            right_col_temp_names = [
+                f"bigframes_right_col_name_{i}"
+                for i in range(len(right_col_original_names))
+            ]
+            right.columns = pandas.Index(right_col_temp_names)
 
             # Join on index and switch back
             combined_df = left._perform_join_by_index(right, how=how)
-            combined_df.index.name = on
+            combined_df.index.name = on_col_name
             combined_df = combined_df.reset_index(drop=False)
             combined_df = combined_df.set_index(left_idx_names_in_cols)
 
@@ -3468,14 +3498,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
 
             # Reorder columns
-            combined_df = combined_df[list(left_columns) + list(right.columns)]
-            return combined_df
+            combined_df = combined_df[left_col_temp_names + right_col_temp_names]
+            return combined_df._add_suffix(
+                left_col_original_names,
+                right_col_original_names,
+                lsuffix=lsuffix,
+                rsuffix=rsuffix,
+                extra_col=on if on_col_name == dup_on_col_name else None,
+            )
 
         # Join left index with right index
         if left._block.index.nlevels != right._block.index.nlevels:
             raise ValueError("Index to join on must have the same number of levels.")
 
-        return left._perform_join_by_index(right, how=how)
+        return left._perform_join_by_index(right, how=how)._add_suffix(
+            left.columns, right.columns, lsuffix=lsuffix, rsuffix=rsuffix
+        )
 
     def _perform_join_by_index(
         self,
@@ -3488,6 +3526,30 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             other._block, how=how, block_identity_join=True, always_order=always_order
         )
         return DataFrame(block)
+
+    def _add_suffix(
+        self,
+        left_columns,
+        right_columns,
+        lsuffix: str = "",
+        rsuffix: str = "",
+        extra_col: typing.Optional[str] = None,
+    ):
+        col_intersection = left_columns.intersection(right_columns)
+        final_col_names = [] if extra_col is None else [extra_col]
+        for col_name in left_columns:
+            if col_name in col_intersection:
+                final_col_names.append(f"{col_name}{lsuffix}")
+            else:
+                final_col_names.append(col_name)
+
+        for col_name in right_columns:
+            if col_name in col_intersection:
+                final_col_names.append(f"{col_name}{rsuffix}")
+            else:
+                final_col_names.append(col_name)
+        self.columns = pandas.Index(final_col_names)
+        return self
 
     @validations.requires_ordering()
     def rolling(
