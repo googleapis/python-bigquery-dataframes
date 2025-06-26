@@ -11,17 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib
+from types import ModuleType
 
-from __future__ import annotations
+from packaging import version
 
-import sqlglot.expressions as sge
-
-from bigframes import operations as ops
-from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
-from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
-
-NARY_OP_REGISTRATION = OpRegistration()
+# Keep this in sync with setup.py
+POLARS_MIN_VERSION = version.Version("1.7.0")
 
 
-def compile(op: ops.NaryOp, *args: TypedExpr) -> sge.Expression:
-    return NARY_OP_REGISTRATION[op](op, *args)
+def import_polars() -> ModuleType:
+    polars_module = importlib.import_module("polars")
+    imported_version = version.Version(polars_module.build_info()["version"])
+    if imported_version < POLARS_MIN_VERSION:
+        raise ImportError(
+            f"Imported polars version: {imported_version} is below the minimum version: {POLARS_MIN_VERSION}"
+        )
+    return polars_module
