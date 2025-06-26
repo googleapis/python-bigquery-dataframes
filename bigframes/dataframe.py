@@ -3506,7 +3506,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
             # Reorder columns
             combined_df = combined_df[left_col_temp_names + right_col_temp_names]
-            return combined_df._add_suffix(
+            return combined_df._add_join_suffix(
                 left_col_original_names,
                 right_col_original_names,
                 lsuffix=lsuffix,
@@ -3518,7 +3518,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if left._block.index.nlevels != right._block.index.nlevels:
             raise ValueError("Index to join on must have the same number of levels.")
 
-        return left._perform_join_by_index(right, how=how)._add_suffix(
+        return left._perform_join_by_index(right, how=how)._add_join_suffix(
             left.columns, right.columns, lsuffix=lsuffix, rsuffix=rsuffix
         )
 
@@ -3534,7 +3534,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(block)
 
-    def _add_suffix(
+    def _add_join_suffix(
         self,
         left_columns,
         right_columns,
