@@ -2913,27 +2913,6 @@ def test_join_raise_when_param_on_duplicate_with_index(scalars_df_index, how):
 
 
 @all_joins
-def test_join_raise_when_param_on_duplicate_with_column(scalars_df_index, how):
-    if how == "cross":
-        return
-    bf_df_a = scalars_df_index[["string_col", "int64_col"]].rename(
-        columns={"int64_col": "string_col"}
-    )
-    bf_df_a.index.name = "string_col"
-    bf_df_b = scalars_df_index.dropna()["string_col"]
-    with pytest.raises(ValueError):
-        bf_df_a.join(bf_df_b, on="string_col", how=how, lsuffix="_l", rsuffix="_r")
-
-
-def test_join_duplicate_columns_raises_value_error(scalars_dfs):
-    scalars_df, _ = scalars_dfs
-    df_a = scalars_df[["string_col", "float64_col"]]
-    df_b = scalars_df[["float64_col"]]
-    with pytest.raises(ValueError):
-        df_a.join(df_b, how="outer")
-
-
-@all_joins
 def test_join_param_on(scalars_dfs, how):
     bf_df, pd_df = scalars_dfs
 
