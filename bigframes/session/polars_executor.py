@@ -35,7 +35,15 @@ _COMPATIBLE_NODES = (
     nodes.SliceNode,
 )
 
-_COMPATIBLE_SCALAR_OPS = (bigframes.operations.eq_op,)
+_COMPATIBLE_SCALAR_OPS = (
+    bigframes.operations.eq_op,
+    bigframes.operations.eq_null_match_op,
+    bigframes.operations.ne_op,
+    bigframes.operations.gt_op,
+    bigframes.operations.lt_op,
+    bigframes.operations.ge_op,
+    bigframes.operations.le_op,
+)
 
 
 def _get_expr_ops(expr: expression.Expression) -> set[bigframes.operations.ScalarOp]:

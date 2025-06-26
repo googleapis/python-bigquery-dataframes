@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
+
 from bigframes import dtypes
 from bigframes.core import bigframe_node, expression
 from bigframes.core.rewrite import op_lowering
@@ -21,14 +23,18 @@ import bigframes.operations as ops
 # TODO: Would be more precise to actually have separate op set for polars ops (where they diverge from the original ops)
 
 
-class LowerEqRule(op_lowering.OpLoweringRule):
+@dataclasses.dataclass
+class CoerceArgsRule(op_lowering.OpLoweringRule):
+    op_type: type[ops.BinaryOp]
+
     @property
     def op(self) -> type[ops.ScalarOp]:
-        return comparison_ops.EqOp
+        return self.op_type
 
     def lower(self, expr: expression.OpExpression) -> expression.Expression:
+        assert isinstance(expr.op, self.op_type)
         larg, rarg = _coerce_comparables(expr.children[0], expr.children[1])
-        return ops.eq_op.as_expr(larg, rarg)
+        return expr.op.as_expr(larg, rarg)
 
 
 class LowerFloorDivRule(op_lowering.OpLoweringRule):
@@ -60,19 +66,30 @@ def _coerce_comparables(expr1: expression.Expression, expr2: expression.Expressi
     return expr1, expr2
 
 
+# TODO: Need to handle bool->string cast to get capitalization correct
 def _lower_cast(cast_op: ops.AsTypeOp, arg: expression.Expression):
     if arg.output_type == dtypes.BOOL_DTYPE and dtypes.is_numeric(cast_op.to_type):
         # bool -> decimal needs two-step cast
         new_arg = ops.AsTypeOp(to_type=dtypes.INT_DTYPE).as_expr(arg)
         return cast_op.as_expr(new_arg)
-    if arg.output_type == dtypes.BOOL_DTYPE and cast_op.to_type == dtypes.STRING_DTYPE:
-        new_arg = ops.AsTypeOp(to_type=dtypes.INT_DTYPE).as_expr(arg)
-        return cast_op.as_expr(new_arg)
     return cast_op.as_expr(arg)
 
 
+LOWER_COMPARISONS = tuple(
+    CoerceArgsRule(op)
+    for op in (
+        comparison_ops.EqOp,
+        comparison_ops.EqNullsMatchOp,
+        comparison_ops.NeOp,
+        comparison_ops.LtOp,
+        comparison_ops.GtOp,
+        comparison_ops.LeOp,
+        comparison_ops.GeOp,
+    )
+)
+
 POLARS_LOWERING_RULES = (
-    LowerEqRule(),
+    *LOWER_COMPARISONS,
     LowerFloorDivRule(),
 )
 

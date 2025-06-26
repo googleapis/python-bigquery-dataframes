@@ -26,6 +26,8 @@ pytest.importorskip("polars")
 # Polars used as reference as its fast and local. Generally though, prefer gbq engine where they disagree.
 REFERENCE_ENGINE = polars_executor.PolarsExecutor()
 
+# numeric domain
+
 
 def apply_op_pairwise(
     array: array_value.ArrayValue, op: ops.BinaryOp, excluded_cols=[]
@@ -47,12 +49,22 @@ def apply_op_pairwise(
 
 
 @pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
-def test_engines_project_eq_op(
-    scalars_array_value: array_value.ArrayValue,
-    engine,
+@pytest.mark.parametrize(
+    "op",
+    [
+        ops.eq_op,
+        ops.eq_null_match_op,
+        ops.ne_op,
+        ops.gt_op,
+        ops.lt_op,
+        ops.le_op,
+        ops.ge_op,
+    ],
+)
+def test_engines_project_comparison_op(
+    scalars_array_value: array_value.ArrayValue, engine, op
 ):
     # exclude string cols as does not contain dates
-    arr = apply_op_pairwise(
-        scalars_array_value, ops.eq_op, excluded_cols=["string_col"]
-    )
+    # bool col actually doesn't work properly for bq engine
+    arr = apply_op_pairwise(scalars_array_value, op, excluded_cols=["string_col"])
     assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
