@@ -109,7 +109,7 @@ SYSTEM_TEST_EXTRAS: List[str] = []
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     "3.9": ["tests", "anywidget"],
     "3.10": ["tests"],
-    "3.12": ["tests", "scikit-learn", "polars", "anywidget"],
+    LATEST_FULLY_SUPPORTED_PYTHON: ["all"],
     "3.13": ["tests", "polars"],
 }
 
@@ -427,10 +427,6 @@ def doctest(session: nox.sessions.Session):
             "third_party",
             "--ignore",
             "third_party/bigframes_vendored/ibis",
-            "--ignore",
-            "bigframes/core/compile/polars",
-            "--ignore",
-            "bigframes/testing",
         ),
         test_folder="bigframes",
         check_cov=True,
