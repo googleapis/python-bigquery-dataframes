@@ -14,8 +14,6 @@
 
 from __future__ import annotations
 
-import warnings
-
 try:
     import anywidget  # noqa
 
@@ -23,5 +21,4 @@ try:
 
     __all__ = ["TableWidget"]
 except Exception:
-    msg = "Anywidget mode not available as anywidget is not installed."
-    warnings.warn(msg)
+    pass

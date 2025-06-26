@@ -12,17 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from importlib import resources
 import functools
 import math
-from typing import Iterator
+from typing import Iterator, TYPE_CHECKING
 import uuid
 
-import anywidget  # type: ignore
 import pandas as pd
-import traitlets
 
 import bigframes
+
+# Follow the same pattern as Polars
+anywidget_installed = True
+if TYPE_CHECKING:
+    import anywidget
+    import traitlets
+else:
+    try:
+        import anywidget
+        import traitlets
+    except Exception:
+        anywidget_installed = False
 
 
 class TableWidget(anywidget.AnyWidget):
@@ -30,23 +42,15 @@ class TableWidget(anywidget.AnyWidget):
     An interactive, paginated table widget for BigFrames DataFrames.
     """
 
-    @functools.cached_property
-    def _esm(self):
-        """Load JavaScript code from external file."""
-        return resources.read_text(bigframes.display, "table_widget.js")
-
-    page = traitlets.Int(0).tag(sync=True)
-    page_size = traitlets.Int(25).tag(sync=True)
-    row_count = traitlets.Int(0).tag(sync=True)
-    table_html = traitlets.Unicode().tag(sync=True)
-
     def __init__(self, dataframe):
         """
         Initialize the TableWidget.
-
         Args:
             dataframe: The Bigframes Dataframe to display.
         """
+        if not anywidget_installed:
+            raise ValueError("Anywidget is not installed, cannot create TableWidget.")
+
         super().__init__()
         self._dataframe = dataframe
 
@@ -67,6 +71,17 @@ class TableWidget(anywidget.AnyWidget):
         # get the initial page
         self._set_table_html()
 
+    # Use functools.cached_property instead of @property for _esm
+    @functools.cached_property
+    def _esm(self):
+        """Load JavaScript code from external file."""
+        return resources.read_text(bigframes.display, "table_widget.js")
+
+    page = traitlets.Int(0).tag(sync=True)
+    page_size = traitlets.Int(25).tag(sync=True)
+    row_count = traitlets.Int(0).tag(sync=True)
+    table_html = traitlets.Unicode().tag(sync=True)
+
     @traitlets.validate("page")
     def _validate_page(self, proposal):
         """Validate and clamp page number to valid range."""
@@ -79,7 +94,6 @@ class TableWidget(anywidget.AnyWidget):
     def _get_next_batch(self) -> bool:
         """
         Gets the next batch of data from the generator and appends to cache.
-
         Returns:
             bool: True if a batch was successfully loaded, False otherwise.
         """
@@ -115,7 +129,7 @@ class TableWidget(anywidget.AnyWidget):
         while len(self._cached_data) < end and not self._all_data_loaded:
             self._get_next_batch()
 
-        # Get the data fro the current page
+        # Get the data for the current page
         page_data = self._cached_data.iloc[start:end]
 
         # Generate HTML table
@@ -129,5 +143,5 @@ class TableWidget(anywidget.AnyWidget):
 
     @traitlets.observe("page")
     def _page_changed(self, change):
-        """Handler for when the page nubmer is changed from the frontend."""
+        """Handler for when the page number is changed from the frontend."""
         self._set_table_html()
