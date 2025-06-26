@@ -12,16 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import annotations
+import pytest
 
-import sqlglot.expressions as sge
+import bigframes.pandas as bpd
 
-from bigframes import operations as ops
-from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
-from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
-
-NARY_OP_REGISTRATION = OpRegistration()
+pytest.importorskip("pytest_snapshot")
 
 
-def compile(op: ops.NaryOp, *args: TypedExpr) -> sge.Expression:
-    return NARY_OP_REGISTRATION[op](op, *args)
+# TODO: check order by with offset
+def test_compile_explode_series(repeated_types_df: bpd.DataFrame, snapshot):
+    s = repeated_types_df["int_list_col"].explode()
+    snapshot.assert_match(s.to_frame().sql, "out.sql")
+
+
+def test_compile_explode_dataframe(repeated_types_df: bpd.DataFrame, snapshot):
+    exploded_columns = ["int_list_col", "string_list_col"]
+    df = repeated_types_df[["rowindex", *exploded_columns]].explode(exploded_columns)
+    snapshot.assert_match(df.sql, "out.sql")
