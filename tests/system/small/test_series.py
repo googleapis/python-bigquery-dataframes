@@ -536,10 +536,10 @@ def test_series___setitem__(scalars_dfs, index_col, key, value):
 @pytest.mark.parametrize(
     ("key", "value"),
     (
-        (-2, 999),
-        (-1, 888),
+        (0, 999),
+        (1, 888),
         (0, None),
-        (1, 777),
+        (-2345, 777),
     ),
 )
 def test_series___setitem___with_int_key_numeric(scalars_dfs, key, value):
