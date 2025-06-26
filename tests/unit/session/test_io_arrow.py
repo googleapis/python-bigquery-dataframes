@@ -18,7 +18,6 @@ import pyarrow as pa
 import pytest
 
 import bigframes.pandas as bpd
-from bigframes.session._io.arrow import create_dataframe_from_arrow_table
 from bigframes.testing import mocks
 
 
@@ -28,214 +27,107 @@ def session():
     return mocks.create_bigquery_session()
 
 
-def test_create_dataframe_from_arrow_table(session):
-    pa_table = pa.Table.from_pydict(
+def test_read_arrow_empty_table(session):
+    empty_table = pa.Table.from_pydict(
         {
-            "col1": [1, 2, 3],
-            "col2": ["a", "b", "c"],
+            "col_a": pa.array([], type=pa.int64()),
+            "col_b": pa.array([], type=pa.string()),
         }
     )
-    # The mock session might need specific setup for to_pandas if it hits BQ client
-    # For now, let's assume the LocalNode execution path for to_pandas is self-contained enough
-    # or that the default mock bqclient.query_and_wait is sufficient.
-    df = create_dataframe_from_arrow_table(pa_table, session=session)
-    assert len(df.columns) == 2
-    # The default mock session's query_and_wait returns an empty table by default for non-special queries.
-    # We need to mock the specific table result for to_pandas to work as expected for LocalDataNode.
-    # This is a bit of a deeper mock interaction.
-    # A simpler unit test might avoid to_pandas() and check Block properties.
-    # However, if create_bigquery_session's mocks are sufficient, this might pass.
-    # For LocalDataNode, to_pandas eventually calls executor.execute(block.expr)
-    # which for the default mock session might not return the actual data.
-    # Let's adjust how the mock session's query_and_wait works for this specific table.
-
-    # For local data, to_pandas will use the local data directly if possible,
-    # avoiding BQ calls. Let's see if the current mocks are enough.
-    pd_df = df.to_pandas()
-    assert pd_df.shape == (3,2)
-    assert list(df.columns) == ["col1", "col2"]
-    assert pd_df["col1"].dtype == "int64"
-    assert pd_df["col2"].dtype == "object"
-
-
-def test_create_dataframe_from_arrow_table_empty(session):
-    pa_table = pa.Table.from_pydict(
-        {
-            "col1": pa.array([], type=pa.int64()),
-            "col2": pa.array([], type=pa.string()),
-        }
-    )
-    df = create_dataframe_from_arrow_table(pa_table, session=session)
-    assert len(df.columns) == 2
-    pd_df = df.to_pandas()
-    assert pd_df.shape == (0,2)
-    assert list(df.columns) == ["col1", "col2"]
-    assert pd_df["col1"].dtype == "int64"
-    assert pd_df["col2"].dtype == "object"
-
-
-def test_create_dataframe_from_arrow_table_all_types(session):
-    pa_table = pa.Table.from_pydict(
-        {
-            "int_col": [1, None, 3],
-            "float_col": [1.0, None, 3.0],
-            "bool_col": [True, None, False],
-            "string_col": ["a", None, "c"],
-            "bytes_col": [b"a", None, b"c"],
-            "date_col": pa.array([datetime.date(2023, 1, 1), None, datetime.date(2023, 1, 3)], type=pa.date32()),
-            "timestamp_col": pa.array([datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc), None, datetime.datetime(2023, 1, 3, 12, 0, 0, tzinfo=datetime.timezone.utc)], type=pa.timestamp("us", tz="UTC")),
-        }
-    )
-    df = create_dataframe_from_arrow_table(pa_table, session=session)
-    assert len(df.columns) == 7
-
-    # For LocalDataNode, head() should work locally.
-    df_head = df.head(5)
-    assert len(df_head) == 3
-
-    pd_df = df.to_pandas()
-    assert pd_df["int_col"].dtype == "Int64"
-    assert pd_df["float_col"].dtype == "float64"
-    assert pd_df["bool_col"].dtype == "boolean"
-    assert pd_df["string_col"].dtype == "object"
-    assert pd_df["bytes_col"].dtype == "object"
-    assert pd_df["date_col"].dtype.name.startswith("date32")
-    assert pd_df["timestamp_col"].dtype.name.startswith("timestamp[us, tz=UTC]")
-
-@pytest.fixture(scope="module") # Changed to module as it's shared and doesn't change
-def arrow_sample_data():
-    return pa.Table.from_pydict(
-        {
-            "id": [1, 2, 3, 4, 5],
-            "name": ["foo", "bar", "baz", "qux", "quux"],
-            "value": [10.0, 20.0, 30.0, 40.0, 50.0],
-        }
-    )
-
-def test_session_read_arrow(session, arrow_sample_data):
-    session._set_arrow_table_for_shape(arrow_sample_data)
-    df = session.read_arrow(arrow_sample_data)
+    df = session.read_arrow(empty_table)
     assert isinstance(df, bpd.DataFrame)
-    # assert df.shape == (5, 3)
-    assert list(df.columns) == ["id", "name", "value"]
-    pd_df = df.to_pandas()
-    assert pd_df["id"].tolist() == [1,2,3,4,5]
-    assert pd_df["name"].tolist() == ["foo", "bar", "baz", "qux", "quux"]
-
-def test_pandas_read_arrow(arrow_sample_data, mocker):
-    # This test uses the global session, so we mock what get_global_session returns
-    mock_session_instance = session() # Get an instance of our MockSession
-    mock_session_instance._set_arrow_table_for_shape(arrow_sample_data)
-    mocker.patch("bigframes.pandas.global_session.get_global_session", return_value=mock_session_instance)
-
-    df = bpd.read_arrow(arrow_sample_data)
-    assert isinstance(df, bpd.DataFrame)
-    # assert df.shape == (5, 3)
-    assert list(df.columns) == ["id", "name", "value"]
-    pd_df = df.to_pandas()
-
-
-def test_create_dataframe_from_arrow_table(session):
-    pa_table = pa.Table.from_pydict(
-        {
-            "col1": [1, 2, 3],
-            "col2": ["a", "b", "c"],
-        }
-    )
-    df = create_dataframe_from_arrow_table(pa_table, session=session)
-    assert df.shape == (3, 2)
-    assert list(df.columns) == ["col1", "col2"]
-    # Verify dtypes by converting to pandas - more direct checks might be needed depending on internal structure
-    pd_df = df.to_pandas()
-    assert pd_df["col1"].dtype == "int64"
-    assert pd_df["col2"].dtype == "object"  # StringDtype might be more accurate depending on session config
-
-
-def test_create_dataframe_from_arrow_table_empty(session):
-    pa_table = pa.Table.from_pydict(
-        {
-            "col1": pa.array([], type=pa.int64()),
-            "col2": pa.array([], type=pa.string()),
-        }
-    )
-    df = create_dataframe_from_arrow_table(pa_table, session=session)
     assert df.shape == (0, 2)
-    assert list(df.columns) == ["col1", "col2"]
+    assert list(df.columns) == ["col_a", "col_b"]
     pd_df = df.to_pandas()
-    assert pd_df["col1"].dtype == "int64"
-    assert pd_df["col2"].dtype == "object"
+    assert pd_df.empty
+    assert list(pd_df.columns) == ["col_a", "col_b"]
+    assert pd_df["col_a"].dtype == "Int64"
+    assert pd_df["col_b"].dtype == "string[pyarrow]"
 
 
-def test_create_dataframe_from_arrow_table_all_types(session):
-    pa_table = pa.Table.from_pydict(
-        {
-            "int_col": [1, None, 3],
-            "float_col": [1.0, None, 3.0],
-            "bool_col": [True, None, False],
-            "string_col": ["a", None, "c"],
-            "bytes_col": [b"a", None, b"c"],
-            "date_col": pa.array([datetime.date(2023, 1, 1), None, datetime.date(2023, 1, 3)], type=pa.date32()),
-            "timestamp_col": pa.array([datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc), None, datetime.datetime(2023, 1, 3, 12, 0, 0, tzinfo=datetime.timezone.utc)], type=pa.timestamp("us", tz="UTC")),
-        }
+@pytest.mark.parametrize(
+    "data,arrow_type,expected_bq_type_kind",
+    [
+        ([1, 2], pa.int8(), "INTEGER"),
+        ([1, 2], pa.int16(), "INTEGER"),
+        ([1, 2], pa.int32(), "INTEGER"),
+        ([1, 2], pa.int64(), "INTEGER"),
+        ([1.0, 2.0], pa.float32(), "FLOAT"),
+        ([1.0, 2.0], pa.float64(), "FLOAT"),
+        ([True, False], pa.bool_(), "BOOLEAN"),
+        (["a", "b"], pa.string(), "STRING"),
+        (["a", "b"], pa.large_string(), "STRING"),
+        ([b"a", b"b"], pa.binary(), "BYTES"),
+        ([b"a", b"b"], pa.large_binary(), "BYTES"),
+        (
+            [
+                pa.scalar(1000, type=pa.duration("s")),
+                pa.scalar(2000, type=pa.duration("s")),
+            ],
+            pa.duration("s"),
+            "INTEGER",
+        ),
+        ([datetime.date(2023, 1, 1)], pa.date32(), "DATE"),
+        (
+            [datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)],
+            pa.timestamp("s", tz="UTC"),
+            "TIMESTAMP",
+        ),
+        (
+            [datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)],
+            pa.timestamp("ms", tz="UTC"),
+            "TIMESTAMP",
+        ),
+        (
+            [datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)],
+            pa.timestamp("us", tz="UTC"),
+            "TIMESTAMP",
+        ),
+        ([datetime.time(12, 34, 56, 789000)], pa.time64("us"), "TIME"),
+    ],
+)
+def test_read_arrow_type_mappings(session, data, arrow_type, expected_bq_type_kind):
+    """
+    Tests that various arrow types are mapped to the expected BigQuery types.
+    This is an indirect check via the resulting DataFrame's schema.
+    """
+    pa_table = pa.Table.from_arrays([pa.array(data, type=arrow_type)], names=["col"])
+    df = session.read_arrow(pa_table)
+
+    bigquery_schema = df._block.expr.schema.to_bigquery()
+    assert len(bigquery_schema) == 2  # offsets + value
+    field = bigquery_schema[-1]
+    assert field.field_type.upper() == expected_bq_type_kind
+
+    # Also check pandas dtype after conversion for good measure
+    pd_df = df.to_pandas()
+    assert pd_df["col"].shape == (len(data),)
+
+
+def test_read_arrow_list_type(session):
+    pa_table = pa.Table.from_arrays(
+        [pa.array([[1, 2], [3, 4, 5]], type=pa.list_(pa.int64()))], names=["list_col"]
     )
-    df = create_dataframe_from_arrow_table(pa_table, session=session)
-    assert df.shape == (3, 7)
-    # This will execute the query and fetch results, good for basic validation
-    df_head = df.head(5)
-    assert len(df_head) == 3
+    df = session.read_arrow(pa_table)
 
-    # More detailed dtype checks might require looking at the bq schema or ibis schema
-    # For now, we rely on to_pandas() for a basic check
-    pd_df = df.to_pandas()
-    assert pd_df["int_col"].dtype == "Int64" # Pandas uses nullable Int64Dtype
-    assert pd_df["float_col"].dtype == "float64"
-    assert pd_df["bool_col"].dtype == "boolean" # Pandas uses nullable BooleanDtype
-    assert pd_df["string_col"].dtype == "object" # Or StringDtype
-    assert pd_df["bytes_col"].dtype == "object" # Or ArrowDtype(pa.binary())
-    assert pd_df["date_col"].dtype.name.startswith("date32") # ArrowDtype(pa.date32())
-    assert pd_df["timestamp_col"].dtype.name.startswith("timestamp[us, tz=UTC]") # ArrowDtype(pa.timestamp('us', tz='UTC'))
+    bigquery_schema = df._block.expr.schema.to_bigquery()
+    assert len(bigquery_schema) == 2  # offsets + value
+    field = bigquery_schema[-1]
+    assert field.mode.upper() == "REPEATED"
+    assert field.field_type.upper() == "INTEGER"
 
-@pytest.fixture(scope="session")
-def arrow_sample_data():
-    return pa.Table.from_pydict(
-        {
-            "id": [1, 2, 3, 4, 5],
-            "name": ["foo", "bar", "baz", "qux", "quux"],
-            "value": [10.0, 20.0, 30.0, 40.0, 50.0],
-        }
+
+def test_read_arrow_struct_type(session):
+    struct_type = pa.struct([("a", pa.int64()), ("b", pa.string())])
+    pa_table = pa.Table.from_arrays(
+        [pa.array([{"a": 1, "b": "x"}, {"a": 2, "b": "y"}], type=struct_type)],
+        names=["struct_col"],
     )
+    df = session.read_arrow(pa_table)
 
-def test_session_read_arrow(session, arrow_sample_data):
-    df = session.read_arrow(arrow_sample_data)
-    assert isinstance(df, bpd.DataFrame)
-    assert df.shape == (5, 3)
-    assert list(df.columns) == ["id", "name", "value"]
-    pd_df = df.to_pandas()
-    assert pd_df["id"].tolist() == [1,2,3,4,5]
-    assert pd_df["name"].tolist() == ["foo", "bar", "baz", "qux", "quux"]
-
-    def test_pandas_read_arrow(arrow_sample_data, mocker):
-        # This test uses the global session, so we mock what get_global_session returns
-        mock_session_instance = session() # Get an instance of our MockSession
-        mocker.patch("bigframes.pandas.global_session.get_global_session", return_value=mock_session_instance)
-
-    df = bpd.read_arrow(arrow_sample_data)
-    assert isinstance(df, bpd.DataFrame)
-    assert df.shape == (5, 3)
-    assert list(df.columns) == ["id", "name", "value"]
-    pd_df = df.to_pandas()
-    assert pd_df["id"].tolist() == [1,2,3,4,5]
-    assert pd_df["name"].tolist() == ["foo", "bar", "baz", "qux", "quux"]
-
-def test_read_arrow_with_index_col_error(session, arrow_sample_data):
-    # read_arrow doesn't support index_col, ensure it's not accidentally passed or used
-    # For now, there's no index_col parameter. If added, this test would need adjustment.
-    # This test is more of a placeholder to remember this aspect.
-    # If create_dataframe_from_arrow_table were to accept index_col, this would be relevant.
-    with pytest.raises(TypeError) as excinfo:
-        session.read_arrow(arrow_sample_data, index_col="id") # type: ignore
-    assert "got an unexpected keyword argument 'index_col'" in str(excinfo.value)
-
-    with pytest.raises(TypeError) as excinfo:
-        bpd.read_arrow(arrow_sample_data, index_col="id") # type: ignore
-    assert "got an unexpected keyword argument 'index_col'" in str(excinfo.value)
+    bigquery_schema = df._block.expr.schema.to_bigquery()
+    assert len(bigquery_schema) == 2  # offsets + value
+    field = bigquery_schema[-1]
+    assert field.field_type.upper() == "RECORD"
+    assert field.fields[0].name == "a"
+    assert field.fields[1].name == "b"
