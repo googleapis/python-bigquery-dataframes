@@ -28,10 +28,12 @@ REFERENCE_ENGINE = polars_executor.PolarsExecutor()
 
 
 def apply_op_pairwise(
-    array: array_value.ArrayValue, op: ops.BinaryOp
+    array: array_value.ArrayValue, op: ops.BinaryOp, excluded_cols=[]
 ) -> array_value.ArrayValue:
     exprs = []
     for l_arg, r_arg in itertools.permutations(array.column_ids, 2):
+        if (l_arg in excluded_cols) or (r_arg in excluded_cols):
+            continue
         try:
             _ = op.output_type(
                 array.get_column_type(l_arg), array.get_column_type(r_arg)
@@ -49,5 +51,8 @@ def test_engines_project_eq_op(
     scalars_array_value: array_value.ArrayValue,
     engine,
 ):
-    arr = apply_op_pairwise(scalars_array_value, ops.eq_op)
+    # exclude string cols as does not contain dates
+    arr = apply_op_pairwise(
+        scalars_array_value, ops.eq_op, excluded_cols=["string_col"]
+    )
     assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
