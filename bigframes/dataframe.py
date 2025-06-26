@@ -3443,7 +3443,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         # Join left columns with right index
         if on is not None:
-            if on in left.index.names:
+            if left._has_index and (on in left.index.names):
                 if on in left.columns:
                     raise ValueError(
                         f"'{on}' is both an index level and a column label, which is ambiguous."

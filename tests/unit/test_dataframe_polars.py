@@ -2465,6 +2465,17 @@ def test_join_duplicate_columns_raises_value_error(scalars_dfs):
 
 
 @all_joins
+def test_join_param_on_duplicate_with_index_raises_value_error(scalars_df_index, how):
+    if how == "cross":
+        return
+    bf_df_a = scalars_df_index[["string_col"]]
+    bf_df_a.index.name = "string_col"
+    bf_df_b = scalars_df_index.dropna()["string_col"]
+    with pytest.raises(ValueError):
+        bf_df_a.join(bf_df_b, on="string_col", how=how, lsuffix="_l", rsuffix="_r")
+
+
+@all_joins
 def test_join_param_on(scalars_dfs, how):
     bf_df, pd_df = scalars_dfs
 

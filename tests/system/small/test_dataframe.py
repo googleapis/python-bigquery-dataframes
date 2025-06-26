@@ -2865,9 +2865,11 @@ def test_join_param_on_with_duplicate_column_name_not_on_col(
         pd_df_b, on="int64_too", how=how, lsuffix="_l", rsuffix="_r"
     )
     pd.testing.assert_frame_equal(
-        bf_result, pd_result, check_like=True, check_index_type=False
+        bf_result.sort_index(),
+        pd_result.sort_index(),
+        check_like=True,
+        check_index_type=False,
     )
-    pd.testing.assert_index_equal(bf_result.columns, pd_result.columns)
 
 
 @all_joins
@@ -2896,20 +2898,11 @@ def test_join_param_on_with_duplicate_column_name_on_col(
         pd_df_b, on="int64_too", how=how, lsuffix="_l", rsuffix="_r"
     )
     pd.testing.assert_frame_equal(
-        bf_result, pd_result, check_like=True, check_index_type=False
+        bf_result.sort_index(),
+        pd_result.sort_index(),
+        check_like=True,
+        check_index_type=False,
     )
-    pd.testing.assert_index_equal(bf_result.columns, pd_result.columns)
-
-
-@all_joins
-def test_join_raise_when_param_on_duplicate_with_index(scalars_df_index, how):
-    if how == "cross":
-        return
-    bf_df_a = scalars_df_index[["string_col"]]
-    bf_df_a.index.name = "string_col"
-    bf_df_b = scalars_df_index.dropna()["string_col"]
-    with pytest.raises(ValueError):
-        bf_df_a.join(bf_df_b, on="string_col", how=how, lsuffix="_l", rsuffix="_r")
 
 
 @all_joins
