@@ -3444,10 +3444,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # Join left columns with right index
         if on is not None:
             if on in left.index.names:
-                raise ValueError(
-                    f"'{on}' is both an index level and a column label, which is ambiguous."
-                )
-            if on in left.columns:
+                if on in left.columns:
+                    raise ValueError(
+                        f"'{on}' is both an index level and a column label, which is ambiguous."
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"Joining on index level '{on}' is not yet supported. {constants.FEEDBACK_LINK}"
+                    )
+            if (left.columns == on).sum() > 1:
                 raise ValueError(f"The column label '{on}' is not unique.")
 
             if other._block.index.nlevels != 1:
