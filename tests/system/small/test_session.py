@@ -1568,14 +1568,12 @@ def test_read_csv_for_gcs_file_w_header(session, df_and_gcs_csv, header):
     # Compares results for pandas and bigframes engines
     scalars_df, path = df_and_gcs_csv
     bf_df = session.read_csv(path, engine="bigquery", index_col=False, header=header)
-    pd_df = session.read_csv(
-        path, index_col=False, header=header, dtype=scalars_df.dtypes.to_dict()
-    )
 
-    # b/408461403: workaround the issue where the slice does not work for DataFrame.
-    expected_df = session.read_pandas(scalars_df.to_pandas()[header:])
+    dtypes = {col: dtype for col, dtype in zip(bf_df.columns, bf_df.dtypes.to_list())}
+    pd_df = session.read_csv(path, index_col=False, header=header, dtype=dtypes)
 
-    assert pd_df.shape[0] == expected_df.shape[0]
+    expected_df = scalars_df[header:]
+    assert pd_df.shape[0] == scalars_df[header:].shape[0]
     assert bf_df.shape[0] == pd_df.shape[0]
 
     # We use a default index because of index_col=False, so the previous index
@@ -1583,17 +1581,11 @@ def test_read_csv_for_gcs_file_w_header(session, df_and_gcs_csv, header):
     assert len(pd_df.columns) == len(expected_df.columns) + 1
     assert len(bf_df.columns) == len(pd_df.columns)
 
-    # When `header > 0`, pandas and BigFrames may handle column naming differently.
-    # Pandas uses the literal content of the specified header row for column names,
-    # regardless of what it is. BigQuery, however, might generate default names based
-    # on data type (e.g.,bool_field_0,string_field_1, etc.).
-    if header == 0:
-        # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
-        # (b/280889935) or guarantee row ordering.
-        bf_df = bf_df.set_index("rowindex").sort_index()
-        pd_df = pd_df.set_index("rowindex")
-        pd.testing.assert_frame_equal(bf_df.to_pandas(), scalars_df.to_pandas())
-        pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.set_index(pd_df.columns[0]).sort_index()
+    pd_df = pd_df.set_index(pd_df.columns[0])
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
 def test_read_csv_w_usecols(session, df_and_local_csv):

@@ -1106,15 +1106,6 @@ class Session(
         if dtype is not None and not utils.is_dict_like(dtype):
             raise ValueError("dtype should be a dict-like object.")
 
-        if names is not None:
-            if len(names) != len(set(names)):
-                raise ValueError("Duplicated names are not allowed.")
-            if not (
-                bigframes.core.utils.is_list_like(names, allow_sets=False)
-                or isinstance(names, abc.KeysView)
-            ):
-                raise ValueError("Names should be an ordered collection.")
-
         if index_col is True:
             raise ValueError("The value of index_col couldn't be 'True'")
 
@@ -1143,16 +1134,31 @@ class Session(
 
         job_config = bigquery.LoadJobConfig()
         job_config.source_format = bigquery.SourceFormat.CSV
-        job_config.autodetect = True
         job_config.field_delimiter = sep
         job_config.encoding = encoding
         job_config.labels = {"bigframes-api": "read_csv"}
 
-        # b/409070192: When header > 0, pandas and BigFrames returns different column naming.
+        if names is not None:
+            if len(names) != len(set(names)):
+                raise ValueError("Duplicated names are not allowed.")
+            if not (
+                bigframes.core.utils.is_list_like(names, allow_sets=False)
+                or isinstance(names, abc.KeysView)
+            ):
+                raise ValueError("Names should be an ordered collection.")
+        else:
+            # names = None
+            names = self._try_to_get_names_from_pandas_read_csv(
+                filepath_or_buffer,
+                header=header,
+                index_col=index_col,
+                usecols=usecols,
+            )
 
         # We want to match pandas behavior. If header is 0, no rows should be skipped, so we
         # do not need to set `skip_leading_rows`. If header is None, then there is no header.
         # Setting skip_leading_rows to 0 does that. If header=N and N>0, we want to skip N rows.
+        job_config.autodetect = True
         if header is None:
             job_config.skip_leading_rows = 0
         elif header > 0:
@@ -1172,6 +1178,52 @@ class Session(
                 if column in df.columns:
                     df[column] = df[column].astype(dtype)
         return df
+
+    def _try_to_get_names_from_pandas_read_csv(
+        self,
+        filepath_or_buffer,
+        *,
+        header,
+        index_col,
+        usecols,
+    ) -> Optional[Sequence[str]]:
+        """Attempts to infer column names from a CSV file using pandas.
+
+        This method uses `pandas.read_csv` to preview the column names. It is
+        neccesary because BigQuery's CSV loading behavior can differ from pandas:
+        - b/409070192: When `header > 0`, BigQuery generate names based on data type
+            (e.g., bool_field_0, string_field_1, etc.), while pandas use the literal
+            content of the specified header row for column names.
+        - b/324483018: BigQuery engine can throw error when column header in the CSV
+            file is not a valid BigQuery identifier (e.g., contains spaces, special characters)
+        """
+        # Cannot infer names if index_col and usecols are specified.
+        if not (index_col is None or index_col == ()) or usecols is not None:
+            return None
+
+        try:
+            # Read only the header by setting nrows=0 for efficiency.
+            pandas_df = pandas.read_csv(
+                filepath_or_buffer,
+                header=header,
+                # Only get the header.
+                nrows=0,
+            )
+            columns = pandas_df.columns.tolist()
+            return columns if columns else None
+        except Exception:
+            msg = bfe.format_message(
+                "Could not infer column names with pandas; "
+                "The BigQuery backend will attempt to infer them instead. "
+            )
+            warnings.warn(msg, UserWarning)
+        finally:
+            if not isinstance(filepath_or_buffer, str):
+                # If the buffer is a BytesIO, we need to reset it to the beginning
+                # so that it can be read again later.
+                filepath_or_buffer.seek(0)
+        
+        return None
 
     def read_pickle(
         self,
