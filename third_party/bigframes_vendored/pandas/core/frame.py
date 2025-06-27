@@ -1762,6 +1762,7 @@ class DataFrame(generic.NDFrame):
         *,
         axis: int | str = 0,
         how: str = "any",
+        thresh: Optional[int] = None,
         subset=None,
         inplace: bool = False,
         ignore_index=False,
@@ -1812,6 +1813,25 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [3 rows x 3 columns]
 
+        Keep rows with at least 2 non-null values.
+
+            >>> df.dropna(thresh=2)
+                            name        toy        born
+            1    Batman  Batmobile  1940-04-25
+            2  Catwoman   Bullwhip        <NA>
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+        Keep columns with at least 2 non-null values:
+
+            >>> df.dropna(axis='columns', thresh=2)
+                name        toy
+            0    Alfred       <NA>
+            1    Batman  Batmobile
+            2  Catwoman   Bullwhip
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
         Define in which columns to look for missing values.
 
             >>> df.dropna(subset=['name', 'toy'])
@@ -1834,6 +1854,8 @@ class DataFrame(generic.NDFrame):
 
                 * 'any' : If any NA values are present, drop that row or column.
                 * 'all' : If all values are NA, drop that row or column.
+            typing(int, optional):
+                Require that many non-NA values. Cannot be combined with how.
             subset (column label or sequence of labels, optional):
                 Labels along other axis to consider, e.g. if you are dropping
                 rows these would be a list of columns to include.
@@ -1851,6 +1873,8 @@ class DataFrame(generic.NDFrame):
         Raises:
             ValueError:
                 If ``how`` is not one of ``any`` or ``all``.
+            TyperError:
+                If both ``how`` and ``thresh`` are specified.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

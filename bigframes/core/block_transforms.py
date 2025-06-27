@@ -523,6 +523,7 @@ def dropna(
     block: blocks.Block,
     column_ids: typing.Sequence[str],
     how: typing.Literal["all", "any"] = "any",
+    thresh: typing.Optional[int] = None,
     subset: Optional[typing.Sequence[str]] = None,
 ):
     """
@@ -531,18 +532,46 @@ def dropna(
     if subset is None:
         subset = column_ids
 
-    predicates = [
-        ops.notnull_op.as_expr(column_id)
-        for column_id in column_ids
-        if column_id in subset
-    ]
-    if len(predicates) == 0:
-        return block
-    if how == "any":
-        predicate = functools.reduce(ops.and_op.as_expr, predicates)
-    else:  # "all"
-        predicate = functools.reduce(ops.or_op.as_expr, predicates)
-    return block.filter(predicate)
+    if thresh is not None:
+        # Count non-null values per row
+        notnull_predicates = [
+            ops.notnull_op.as_expr(column_id)
+            for column_id in column_ids
+            if column_id in subset
+        ]
+
+        if len(notnull_predicates) == 0:
+            return block
+
+        # Handle single predicate case
+        if len(notnull_predicates) == 1:
+            count_expr = ops.AsTypeOp(pd.Int64Dtype()).as_expr(notnull_predicates[0])
+        else:
+            # Sum the boolean expressions to count non-null values
+            count_expr = functools.reduce(
+                lambda a, b: ops.add_op.as_expr(
+                    ops.AsTypeOp(pd.Int64Dtype()).as_expr(a),
+                    ops.AsTypeOp(pd.Int64Dtype()).as_expr(b),
+                ),
+                notnull_predicates,
+            )
+
+        # Filter rows where count >= thresh
+        thresh_predicate = ops.ge_op.as_expr(count_expr, ex.const(thresh))
+        return block.filter(thresh_predicate)
+    else:
+        predicates = [
+            ops.notnull_op.as_expr(column_id)
+            for column_id in column_ids
+            if column_id in subset
+        ]
+        if len(predicates) == 0:
+            return block
+        if how == "any":
+            predicate = functools.reduce(ops.and_op.as_expr, predicates)
+        else:  # "all"
+            predicate = functools.reduce(ops.or_op.as_expr, predicates)
+        return block.filter(predicate)
 
 
 def nsmallest(
