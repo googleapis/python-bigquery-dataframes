@@ -24,7 +24,9 @@ from typing import Any, Dict, List
 
 import google.cloud.bigquery
 import google.cloud.bigquery.table
+import numpy
 import pandas
+import pyarrow
 import pytest
 
 from bigframes.core import pyformat
@@ -94,20 +96,31 @@ def test_pyformat_with_no_variables(session):
             "STRUCT<`empty column` FLOAT>",
             id="empty column",
         ),
+        # Regression tests for b/428190014.
+        #
+        # Test every BigQuery type we support, especially those where the legacy
+        # SQL type name differs from the GoogleSQL type name.
+        #
+        # See:
+        # https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types
+        # and compare to the legacy types at
+        # https://cloud.google.com/bigquery/docs/data-types
+        #
+        # Test these against the real BigQuery dry run API in
+        # tests/system/small/pandas/io/api/test_read_gbq_colab.py
         pytest.param(
             pandas.DataFrame(
                 {
-                    "col1": [1, 2, 3],
-                    "col2": ["a", "b", "c"],
-                    "col3": [
-                        decimal.Decimal(1),
-                        decimal.Decimal(2),
-                        decimal.Decimal(3),
-                    ],
+                    "bool": pandas.Series([True, False, True], dtype="bool"),
+                    "boolean": pandas.Series([True, None, True], dtype="boolean"),
+                    "object": pandas.Series([True, None, True], dtype="object"),
+                    "arrow": pandas.Series(
+                        [True, None, True], dtype=pandas.ArrowDtype(pyarrow.bool_())
+                    ),
                 }
             ),
-            "STRUCT<`col1` INTEGER, `col2` STRING, `col3` NUMERIC>",
-            id="scalars",
+            "STRUCT<`bool` BOOL, `boolean` BOOL, `object` BOOL, `arrow` BOOL>",
+            id="bools",
         ),
         pytest.param(
             pandas.DataFrame(
