@@ -17,7 +17,7 @@ from __future__ import annotations
 from importlib import resources
 import functools
 import math
-from typing import Iterator, TYPE_CHECKING
+from typing import Any, Dict, Iterator, TYPE_CHECKING
 import uuid
 
 import pandas as pd
@@ -49,7 +49,7 @@ class TableWidget(anywidget.AnyWidget):
             dataframe: The Bigframes Dataframe to display in the widget.
         """
         if not ANYWIDGET_INSTALLED:
-            raise ValueError("Anywidget is not installed, cannot create TableWidget.")
+            raise ImportError("Anywidget is not installed, cannot create TableWidget.")
 
         super().__init__()
         self._dataframe = dataframe
@@ -71,7 +71,6 @@ class TableWidget(anywidget.AnyWidget):
         # get the initial page
         self._set_table_html()
 
-    # Use functools.cached_property instead of @property for _esm
     @functools.cached_property
     def _esm(self):
         """Load JavaScript code from external file."""
@@ -83,12 +82,23 @@ class TableWidget(anywidget.AnyWidget):
     table_html = traitlets.Unicode().tag(sync=True)
 
     @traitlets.validate("page")
-    def _validate_page(self, proposal):
-        """Validate and clamp page number to valid range."""
+    def _validate_page(self, proposal: Dict[str, Any]):
+        """
+        Validate and clamp the page number to a valid range.
+
+        Args:
+            proposal:
+                A dictionary from the traitlets library containing the proposed
+                change. The new value is in proposal["value"].
+        """
         value = proposal["value"]
         if self.row_count == 0 or self.page_size == 0:
             return 0
+
+        # Calculate the zero-indexed maximum page number.
         max_page = max(0, math.ceil(self.row_count / self.page_size) - 1)
+
+        # Clamp the proposed value to the valid range [0, max_page].
         return max(0, min(value, max_page))
 
     def _get_next_batch(self) -> bool:
@@ -96,7 +106,7 @@ class TableWidget(anywidget.AnyWidget):
         Gets the next batch of data from the generator and appends to cache.
 
         Return:
-            bool: True if a batch was successfully loaded, False otherwise.
+            True if a batch was successfully loaded, False otherwise.
         """
         if self._all_data_loaded:
             return False
