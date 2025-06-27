@@ -511,6 +511,7 @@ def test_index_item_with_empty(session):
     ],
 )
 def test_index_setitem_different_types(scalars_dfs, key, value):
+    """Tests that custom Index setitem raises TypeError."""
     scalars_df, _ = scalars_dfs
     index = scalars_df.index
 
@@ -518,8 +519,8 @@ def test_index_setitem_different_types(scalars_dfs, key, value):
         index[key] = value
 
 
-def test_custom_index_setitem_error(session):
-    # Create a custom index
+def test_custom_index_setitem_error():
+    """Tests that custom Index setitem raises TypeError."""
     custom_index = bpd.Index([1, 2, 3, 4, 5], name="custom")
 
     with pytest.raises(TypeError, match="Index does not support mutable operations"):
