@@ -97,7 +97,7 @@ def test_pyformat_with_no_variables(session):
         pytest.param(
             # Empty columns default to floating point, just like pandas.
             pandas.DataFrame({"empty column": []}),
-            "STRUCT<`empty column` FLOAT>",
+            "STRUCT<`empty column` FLOAT64>",
             id="empty column",
         ),
         # Regression tests for b/428190014.
@@ -412,14 +412,14 @@ def test_pyformat_with_no_variables(session):
                     ],
                 }
             ),
-            "STRUCT<`array of struct col` ARRAY<STRUCT<`subfield` STRUCT<`subsubfield` INTEGER>, `subfield2` INTEGER>>>",
+            "STRUCT<`array of struct col` ARRAY<STRUCT<`subfield` STRUCT<`subsubfield` INT64>, `subfield2` INT64>>>",
             id="array_of_structs",
         ),
         pytest.param(
             pandas.DataFrame({"c1": [1, 2, 3], "c2": ["a", "b", "c"]}).rename(
                 columns={"c1": "c", "c2": "c"}
             ),
-            "STRUCT<`c` INTEGER, `c_1` STRING>",
+            "STRUCT<`c` INT64, `c_1` STRING>",
             id="duplicate_column_names",
         ),
     ),
