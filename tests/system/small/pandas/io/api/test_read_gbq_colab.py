@@ -17,13 +17,13 @@ from __future__ import annotations
 import datetime
 import decimal
 
-import db_dtypes
-import geopandas
+import db_dtypes  # type: ignore
+import geopandas  # type: ignore
 import numpy
 import pandas
 import pyarrow
 import pytest
-import shapely
+import shapely  # type: ignore
 
 from bigframes.pandas.io import api as module_under_test
 
