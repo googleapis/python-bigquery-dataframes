@@ -17,7 +17,7 @@ from __future__ import annotations
 from importlib import resources
 import functools
 import math
-from typing import Any, Dict, Iterator, TYPE_CHECKING
+from typing import Any, Dict, Iterator, Type, TYPE_CHECKING
 import uuid
 
 import pandas as pd
@@ -35,8 +35,14 @@ else:
     except Exception:
         ANYWIDGET_INSTALLED = False
 
+WIDGET_BASE: Type[Any]
+if ANYWIDGET_INSTALLED:
+    WIDGET_BASE = anywidget.AnyWidget
+else:
+    WIDGET_BASE = object
 
-class TableWidget(anywidget.AnyWidget):
+
+class TableWidget(WIDGET_BASE):
     """
     An interactive, paginated table widget for BigFrames DataFrames.
     """
