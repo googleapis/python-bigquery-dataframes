@@ -789,8 +789,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 return "Interactive table widget (anywidget mode)"
             except (AttributeError, ValueError):
                 # Fallback if anywidget is not available
-                import warnings
-
                 warnings.warn(
                     "Anywidget mode is not available, falling back to deferred mode."
                 )
