@@ -212,7 +212,8 @@ class SQLGlotIR:
             for id, expr in selected_cols
         ]
 
-        new_expr = self._encapsulate_as_cte().select(*selections, append=False)
+        new_expr, _ = self._encapsulate_as_cte()
+        new_expr = new_expr.select(*selections, append=False)
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def order_by(
@@ -247,7 +248,8 @@ class SQLGlotIR:
             )
             for id, expr in projected_cols
         ]
-        new_expr = self._encapsulate_as_cte().select(*projected_cols_expr, append=True)
+        new_expr, _ = self._encapsulate_as_cte()
+        new_expr = new_expr.select(*projected_cols_expr, append=True)
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def filter(
@@ -255,10 +257,58 @@ class SQLGlotIR:
         condition: sge.Expression,
     ) -> SQLGlotIR:
         """Filters the query with the given condition."""
-        new_expr = self._encapsulate_as_cte()
+        new_expr, _ = self._encapsulate_as_cte()
         return SQLGlotIR(
             expr=new_expr.where(condition, append=False), uid_gen=self.uid_gen
         )
+
+    def join(
+        self,
+        right: SQLGlotIR,
+        join_type: typing.Literal["inner", "outer", "left", "right", "cross"],
+        conditions: tuple[tuple[str, str], ...],
+        *,
+        join_nulls: bool = True,
+    ) -> SQLGlotIR:
+        """Joins the current query with another SQLGlotIR instance."""
+        # TODO: add join_nulls support
+        left_select, left_table = self._encapsulate_as_cte()
+        right_select, right_table = right._encapsulate_as_cte()
+
+        left_ctes = left_select.args.pop("with", [])
+        right_ctes = right_select.args.pop("with", [])
+        merged_ctes = [*left_ctes, *right_ctes]
+
+        join_on = (
+            sge.And(
+                expressions=[
+                    sge.EQ(
+                        this=sge.Column(
+                            this=sge.to_identifier(left_id, quoted=self.quoted),
+                            table=left_table,
+                        ),
+                        expression=sge.Column(
+                            this=sge.to_identifier(right_id, quoted=self.quoted),
+                            table=right_table,
+                        ),
+                    )
+                    for left_id, right_id in conditions
+                ]
+            )
+            if len(list(conditions)) > 0
+            else None
+        )
+
+        join_type_str = join_type if join_type != "outer" else "full outer"
+        new_expr = (
+            sge.Select()
+            .select(sge.Star())
+            .from_(left_table)
+            .join(right_table, on=join_on, join_type=join_type_str)
+        )
+        new_expr.set("with", sge.With(expressions=merged_ctes))
+
+        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def insert(
         self,
@@ -382,7 +432,7 @@ class SQLGlotIR:
 
     def _encapsulate_as_cte(
         self,
-    ) -> sge.Select:
+    ) -> typing.Tuple[sge.Select, sge.Table]:
         """Transforms a given sge.Select query by pushing its main SELECT statement
         into a new CTE and then generates a 'SELECT * FROM new_cte_name'
         for the new query."""
@@ -397,11 +447,10 @@ class SQLGlotIR:
             alias=new_cte_name,
         )
         new_with_clause = sge.With(expressions=[*existing_ctes, new_cte])
-        new_select_expr = (
-            sge.Select().select(sge.Star()).from_(sge.Table(this=new_cte_name))
-        )
+        new_table_expr = sge.Table(this=new_cte_name)
+        new_select_expr = sge.Select().select(sge.Star()).from_(new_table_expr)
         new_select_expr.set("with", new_with_clause)
-        return new_select_expr
+        return new_select_expr, new_table_expr
 
 
 def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
