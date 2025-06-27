@@ -23,15 +23,15 @@ import datetime
 import decimal
 from typing import Any, Dict, List
 
-import db_dtypes
-import geopandas
+import db_dtypes  # type: ignore
+import geopandas  # type: ignore
 import google.cloud.bigquery
 import google.cloud.bigquery.table
 import numpy
 import pandas
 import pyarrow
 import pytest
-import shapely
+import shapely  # type: ignore
 
 from bigframes.core import pyformat
 from bigframes.testing import mocks
