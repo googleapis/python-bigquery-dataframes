@@ -19,15 +19,19 @@
 
 from __future__ import annotations
 
+import datetime
 import decimal
 from typing import Any, Dict, List
 
+import db_dtypes
+import geopandas
 import google.cloud.bigquery
 import google.cloud.bigquery.table
 import numpy
 import pandas
 import pyarrow
 import pytest
+import shapely
 
 from bigframes.core import pyformat
 from bigframes.testing import mocks
@@ -111,6 +115,22 @@ def test_pyformat_with_no_variables(session):
         pytest.param(
             pandas.DataFrame(
                 {
+                    "ints": pandas.Series(
+                        [[1], [2], [3]],
+                        dtype=pandas.ArrowDtype(pyarrow.list_(pyarrow.int64())),
+                    ),
+                    "floats": pandas.Series(
+                        [[1.0], [2.0], [3.0]],
+                        dtype=pandas.ArrowDtype(pyarrow.list_(pyarrow.float64())),
+                    ),
+                }
+            ),
+            "STRUCT<`ints` ARRAY<INT64>, `floats` ARRAY<FLOAT64>>",
+            id="arrays",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
                     "bool": pandas.Series([True, False, True], dtype="bool"),
                     "boolean": pandas.Series([True, None, True], dtype="boolean"),
                     "object": pandas.Series([True, None, True], dtype="object"),
@@ -124,22 +144,266 @@ def test_pyformat_with_no_variables(session):
         ),
         pytest.param(
             pandas.DataFrame(
-                {"array col": [[1, 2, 3]], "another array": [["a", "b", "c"]]}
+                {
+                    "bytes": pandas.Series([b"a", b"b", b"c"], dtype=numpy.bytes_),
+                    "object": pandas.Series([b"a", None, b"c"], dtype="object"),
+                    "arrow": pandas.Series(
+                        [b"a", None, b"c"], dtype=pandas.ArrowDtype(pyarrow.binary())
+                    ),
+                }
             ),
-            "STRUCT<`array col` ARRAY<INTEGER>, `another array` ARRAY<STRING>>",
-            id="arrays",
+            "STRUCT<`bytes` BYTES, `object` BYTES, `arrow` BYTES>",
+            id="bytes",
         ),
         pytest.param(
             pandas.DataFrame(
                 {
-                    "struct col": [
-                        {"subfield": {"subsubfield": 1}, "subfield2": 2},
-                    ],
+                    "object": pandas.Series(
+                        [
+                            datetime.date(2023, 11, 23),
+                            None,
+                            datetime.date(1970, 1, 1),
+                        ],
+                        dtype="object",
+                    ),
+                    "arrow": pandas.Series(
+                        [
+                            datetime.date(2023, 11, 23),
+                            None,
+                            datetime.date(1970, 1, 1),
+                        ],
+                        dtype=pandas.ArrowDtype(pyarrow.date32()),
+                    ),
                 }
             ),
-            "STRUCT<`struct col` STRUCT<`subfield` STRUCT<`subsubfield` INTEGER>, `subfield2` INTEGER>>",
+            "STRUCT<`object` DATE, `arrow` DATE>",
+            id="dates",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "object": pandas.Series(
+                        [
+                            datetime.datetime(2023, 11, 23, 13, 14, 15),
+                            None,
+                            datetime.datetime(1970, 1, 1, 0, 0, 0),
+                        ],
+                        dtype="object",
+                    ),
+                    "datetime64": pandas.Series(
+                        [
+                            datetime.datetime(2023, 11, 23, 13, 14, 15),
+                            None,
+                            datetime.datetime(1970, 1, 1, 0, 0, 0),
+                        ],
+                        dtype="datetime64[us]",
+                    ),
+                    "arrow": pandas.Series(
+                        [
+                            datetime.datetime(2023, 11, 23, 13, 14, 15),
+                            None,
+                            datetime.datetime(1970, 1, 1, 0, 0, 0),
+                        ],
+                        dtype=pandas.ArrowDtype(pyarrow.timestamp("us")),
+                    ),
+                }
+            ),
+            "STRUCT<`object` DATETIME, `datetime64` DATETIME, `arrow` DATETIME>",
+            id="datetimes",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "object": pandas.Series(
+                        [
+                            shapely.Point(145.0, -37.8),
+                            None,
+                            shapely.Point(-122.3, 47.6),
+                        ],
+                        dtype="object",
+                    ),
+                    "geopandas": geopandas.GeoSeries(
+                        [
+                            shapely.Point(145.0, -37.8),
+                            None,
+                            shapely.Point(-122.3, 47.6),
+                        ]
+                    ),
+                }
+            ),
+            "STRUCT<`object` GEOGRAPHY, `geopandas` GEOGRAPHY>",
+            id="geographys",
+        ),
+        # TODO(tswast): Add INTERVAL once BigFrames supports it.
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    # TODO(tswast): Is there an equivalent object type we can use here?
+                    # TODO(tswast): Add built-in Arrow extension type
+                    "db_dtypes": pandas.Series(
+                        ["{}", None, "123"],
+                        dtype=pandas.ArrowDtype(db_dtypes.JSONArrowType()),
+                    ),
+                }
+            ),
+            "STRUCT<`db_dtypes` JSON>",
+            id="jsons",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "int64": pandas.Series([1, 2, 3], dtype="int64"),
+                    "Int64": pandas.Series([1, None, 3], dtype="Int64"),
+                    "object": pandas.Series([1, None, 3], dtype="object"),
+                    "arrow": pandas.Series(
+                        [1, None, 3], dtype=pandas.ArrowDtype(pyarrow.int64())
+                    ),
+                }
+            ),
+            "STRUCT<`int64` INT64, `Int64` INT64, `object` INT64, `arrow` INT64>",
+            id="ints",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "object": pandas.Series(
+                        [decimal.Decimal("1.23"), None, decimal.Decimal("4.56")],
+                        dtype="object",
+                    ),
+                    "arrow": pandas.Series(
+                        [decimal.Decimal("1.23"), None, decimal.Decimal("4.56")],
+                        dtype=pandas.ArrowDtype(pyarrow.decimal128(38, 9)),
+                    ),
+                }
+            ),
+            "STRUCT<`object` NUMERIC, `arrow` NUMERIC>",
+            id="numerics",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    # TODO(tswast): Add object type for BIGNUMERIC. Can bigframes disambiguate?
+                    "arrow": pandas.Series(
+                        [decimal.Decimal("1.23"), None, decimal.Decimal("4.56")],
+                        dtype=pandas.ArrowDtype(pyarrow.decimal256(76, 38)),
+                    ),
+                }
+            ),
+            "STRUCT<`arrow` BIGNUMERIC>",
+            id="bignumerics",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "float64": pandas.Series([1.23, None, 4.56], dtype="float64"),
+                    "Float64": pandas.Series([1.23, None, 4.56], dtype="Float64"),
+                    "object": pandas.Series([1.23, None, 4.56], dtype="object"),
+                    "arrow": pandas.Series(
+                        [1.23, None, 4.56], dtype=pandas.ArrowDtype(pyarrow.float64())
+                    ),
+                }
+            ),
+            "STRUCT<`float64` FLOAT64, `Float64` FLOAT64, `object` FLOAT64, `arrow` FLOAT64>",
+            id="floats",
+        ),
+        # TODO(tswast): Add RANGE once BigFrames supports it.
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "string": pandas.Series(["a", "b", "c"], dtype="string[python]"),
+                    "object": pandas.Series(["a", None, "c"], dtype="object"),
+                    "arrow": pandas.Series(["a", None, "c"], dtype="string[pyarrow]"),
+                }
+            ),
+            "STRUCT<`string` STRING, `object` STRING, `arrow` STRING>",
+            id="strings",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    # TODO(tswast): Add object type for STRUCT? How to tell apart from JSON?
+                    "arrow": pandas.Series(
+                        [{"a": 1, "b": 1.0, "c": "c"}],
+                        dtype=pandas.ArrowDtype(
+                            pyarrow.struct(
+                                [
+                                    ("a", pyarrow.int64()),
+                                    ("b", pyarrow.float64()),
+                                    ("c", pyarrow.string()),
+                                ]
+                            )
+                        ),
+                    ),
+                }
+            ),
+            "STRUCT<`arrow` STRUCT<`a` INT64, `b` FLOAT64, `c` STRING>>",
             id="structs",
         ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "object": pandas.Series(
+                        [
+                            datetime.time(0, 0, 0),
+                            None,
+                            datetime.time(13, 7, 11),
+                        ],
+                        dtype="object",
+                    ),
+                    "arrow": pandas.Series(
+                        [
+                            datetime.time(0, 0, 0),
+                            None,
+                            datetime.time(13, 7, 11),
+                        ],
+                        dtype=pandas.ArrowDtype(pyarrow.time64("us")),
+                    ),
+                }
+            ),
+            "STRUCT<`object` TIME, `arrow` TIME>",
+            id="times",
+        ),
+        pytest.param(
+            pandas.DataFrame(
+                {
+                    "object": pandas.Series(
+                        [
+                            datetime.datetime(
+                                2023, 11, 23, 13, 14, 15, tzinfo=datetime.timezone.utc
+                            ),
+                            None,
+                            datetime.datetime(
+                                1970, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc
+                            ),
+                        ],
+                        dtype="object",
+                    ),
+                    "datetime64": pandas.Series(
+                        [
+                            datetime.datetime(2023, 11, 23, 13, 14, 15),
+                            None,
+                            datetime.datetime(1970, 1, 1, 0, 0, 0),
+                        ],
+                        dtype="datetime64[us]",
+                    ).dt.tz_localize("UTC"),
+                    "arrow": pandas.Series(
+                        [
+                            datetime.datetime(
+                                2023, 11, 23, 13, 14, 15, tzinfo=datetime.timezone.utc
+                            ),
+                            None,
+                            datetime.datetime(
+                                1970, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc
+                            ),
+                        ],
+                        dtype=pandas.ArrowDtype(pyarrow.timestamp("us", "UTC")),
+                    ),
+                }
+            ),
+            "STRUCT<`object` TIMESTAMP, `datetime64` TIMESTAMP, `arrow` TIMESTAMP>",
+            id="timestamps",
+        ),
+        # More complicated edge cases:
         pytest.param(
             pandas.DataFrame(
                 {
