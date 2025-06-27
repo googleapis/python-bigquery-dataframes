@@ -24,8 +24,7 @@ import pandas as pd
 
 import bigframes
 
-# Follow the same pattern as Polars
-anywidget_installed = True
+ANYWIDGET_INSTALLED = True
 if TYPE_CHECKING:
     import anywidget
     import traitlets
@@ -34,7 +33,7 @@ else:
         import anywidget
         import traitlets
     except Exception:
-        anywidget_installed = False
+        ANYWIDGET_INSTALLED = False
 
 
 class TableWidget(anywidget.AnyWidget):
@@ -42,13 +41,14 @@ class TableWidget(anywidget.AnyWidget):
     An interactive, paginated table widget for BigFrames DataFrames.
     """
 
-    def __init__(self, dataframe):
+    def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         """
         Initialize the TableWidget.
+
         Args:
-            dataframe: The Bigframes Dataframe to display.
+            dataframe: The Bigframes Dataframe to display in the widget.
         """
-        if not anywidget_installed:
+        if not ANYWIDGET_INSTALLED:
             raise ValueError("Anywidget is not installed, cannot create TableWidget.")
 
         super().__init__()
@@ -62,7 +62,7 @@ class TableWidget(anywidget.AnyWidget):
         self._cached_data = pd.DataFrame(columns=self._dataframe.columns)
         self._table_id = str(uuid.uuid4())
         self._all_data_loaded = False
-        self._batch_iterator = None
+        self._batch_iterator: Iterator[pd.DataFrame] | None = None
 
         # len(dataframe) is expensive, since it will trigger a
         # SELECT COUNT(*) query. It is a must have however.
@@ -94,7 +94,8 @@ class TableWidget(anywidget.AnyWidget):
     def _get_next_batch(self) -> bool:
         """
         Gets the next batch of data from the generator and appends to cache.
-        Returns:
+
+        Return:
             bool: True if a batch was successfully loaded, False otherwise.
         """
         if self._all_data_loaded:
