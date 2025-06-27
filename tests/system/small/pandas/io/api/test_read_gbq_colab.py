@@ -23,7 +23,7 @@ import numpy
 import pandas
 import pyarrow
 import pytest
-import shapely  # type: ignore
+import shapely.geometry  # type: ignore
 
 from bigframes.pandas.io import api as module_under_test
 
@@ -139,17 +139,17 @@ from bigframes.pandas.io import api as module_under_test
                 {
                     "object": pandas.Series(
                         [
-                            shapely.Point(145.0, -37.8),
+                            shapely.geometry.Point(145.0, -37.8),
                             None,
-                            shapely.Point(-122.3, 47.6),
+                            shapely.geometry.Point(-122.3, 47.6),
                         ],
                         dtype="object",
                     ),
                     "geopandas": geopandas.GeoSeries(
                         [
-                            shapely.Point(145.0, -37.8),
+                            shapely.geometry.Point(145.0, -37.8),
                             None,
-                            shapely.Point(-122.3, 47.6),
+                            shapely.geometry.Point(-122.3, 47.6),
                         ]
                     ),
                 }
