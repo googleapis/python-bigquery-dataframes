@@ -33,6 +33,9 @@ def aggregate_output(
     df.shape
     next(iter(df.to_pandas_batches(page_size=PAGE_SIZE)))
 
+    # To simulate very small rows that can only fit a boolean,
+    # some tables don't have an integer column. If an integer column is available,
+    # we prefer to group by that to get a more realistic number of groups.
     group_column = "col_int64_1"
     if group_column not in df.columns:
         group_column = "col_bool_0"
