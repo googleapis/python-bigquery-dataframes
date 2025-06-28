@@ -34,9 +34,18 @@ _COMPATIBLE_NODES = (
     nodes.SelectionNode,
     nodes.SliceNode,
     nodes.AggregateNode,
+    nodes.FilterNode,
 )
 
-_COMPATIBLE_SCALAR_OPS = ()
+_COMPATIBLE_SCALAR_OPS = (
+    bigframes.operations.eq_op,
+    bigframes.operations.eq_null_match_op,
+    bigframes.operations.ne_op,
+    bigframes.operations.gt_op,
+    bigframes.operations.lt_op,
+    bigframes.operations.ge_op,
+    bigframes.operations.le_op,
+)
 _COMPATIBLE_AGG_OPS = (agg_ops.SizeOp, agg_ops.SizeUnaryOp)
 
 
