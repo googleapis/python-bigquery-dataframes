@@ -3010,7 +3010,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             funcnames = []
             for col_label, agg_func in func.items():
                 agg_func_list = agg_func if utils.is_list_like(agg_func) else [agg_func]
-                col_id = self._block.resolve_label_exact_or_error(col_label)
+                col_id = self._block.resolve_label_exact(col_label)
+                if col_id is None:
+                    raise KeyError(f"Column {col_label} does not exist")
                 for agg_func in agg_func_list:
                     agg_op = agg_ops.lookup_agg_func(typing.cast(str, agg_func))
                     agg_expr = (

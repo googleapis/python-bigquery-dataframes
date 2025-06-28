@@ -278,7 +278,7 @@ class Block:
         raises an error. If there is no such a column, raises an error too."""
         col_id = self.resolve_label_exact(label)
         if col_id is None:
-            raise KeyError(f"Label {label} not found. {constants.FEEDBACK_LINK}")
+            raise ValueError(f"Label {label} not found. {constants.FEEDBACK_LINK}")
         return col_id
 
     @functools.cached_property
