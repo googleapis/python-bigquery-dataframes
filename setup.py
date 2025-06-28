@@ -44,7 +44,6 @@ dependencies = [
     "google-cloud-bigquery-storage >= 2.30.0, < 3.0.0",
     "google-cloud-functions >=1.12.0",
     "google-cloud-bigquery-connection >=1.12.0",
-    "google-cloud-iam >=2.12.1",
     "google-cloud-resource-manager >=1.10.3",
     "google-cloud-storage >=2.0.0",
     "numpy >=1.24.0",
