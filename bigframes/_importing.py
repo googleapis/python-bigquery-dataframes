@@ -11,15 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib
+from types import ModuleType
 
-import pytest
+from packaging import version
 
-import bigframes.pandas as bpd
+# Keep this in sync with setup.py
+POLARS_MIN_VERSION = version.Version("1.7.0")
 
-pytest.importorskip("pytest_snapshot")
 
-
-def test_compile_filter(scalar_types_df: bpd.DataFrame, snapshot):
-    bf_df = scalar_types_df[["rowindex", "int64_col"]]
-    bf_filter = bf_df[bf_df["rowindex"] >= 1]
-    snapshot.assert_match(bf_filter.sql, "out.sql")
+def import_polars() -> ModuleType:
+    polars_module = importlib.import_module("polars")
+    imported_version = version.Version(polars_module.build_info()["version"])
+    if imported_version < POLARS_MIN_VERSION:
+        raise ImportError(
+            f"Imported polars version: {imported_version} is below the minimum version: {POLARS_MIN_VERSION}"
+        )
+    return polars_module
