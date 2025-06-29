@@ -21,6 +21,7 @@ from google.cloud import bigquery
 import sqlglot.expressions as sge
 
 from bigframes.core import expression, guid, identifiers, nodes, pyarrow_utils, rewrite
+from bigframes.core.nodes import IsInNode
 from bigframes.core.compile import configs
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
@@ -236,6 +237,39 @@ class SQLGlotCompiler:
         offsets_col = node.offsets_col.sql if (node.offsets_col is not None) else None
         columns = tuple(ref.id.sql for ref in node.column_ids)
         return child.explode(columns, offsets_col)
+
+    @_compile_node.register
+    def compile_isin(
+        self, node: IsInNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        """Compile an IsInNode to a SQLGlotIR."""
+        col_to_check = scalar_compiler.compile_scalar_expression(
+            expression.DerefOp(node.column_id)
+        )
+        value_expressions = [
+            scalar_compiler.compile_scalar_expression(val) for val in node.values
+        ]
+
+        # Handle empty list of values explicitly, as 'col IN ()' is invalid SQL
+        if not value_expressions:
+            if node.negate:
+                # 'col NOT IN ()' should always be true (or IS NULL if col is NULL)
+                # However, SQLGlot might not directly support a TRUE literal in WHERE.
+                # A common way to represent this is '1=1' or let the filter be omitted if possible.
+                # For now, let's assume we want to keep all rows if not negated,
+                # and filter out all if negated and list is empty.
+                # This behavior might need refinement based on desired SQL output for BQ.
+                return child  # Or generate a condition that's always true
+            else:
+                # 'col IN ()' should always be false
+                return child.filter(sge.false())
+
+        isin_condition = sge.In(this=col_to_check, expressions=value_expressions)
+
+        if node.negate:
+            return child.filter(sge.Not(this=isin_condition))
+        else:
+            return child.filter(isin_condition)
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
