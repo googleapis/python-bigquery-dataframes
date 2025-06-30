@@ -1842,7 +1842,7 @@ class DataFrame(generic.NDFrame):
             [2 rows x 3 columns]
 
         Args:
-            axis ({0 or 'index', 1 or 'columns'}, default 'columns'):
+            axis ({0 or 'index', 1 or 'columns'}, default 0):
                 Determine if rows or columns which contain missing values are
                 removed.
 
@@ -1854,7 +1854,7 @@ class DataFrame(generic.NDFrame):
 
                 * 'any' : If any NA values are present, drop that row or column.
                 * 'all' : If all values are NA, drop that row or column.
-            typing(int, optional):
+            thresh (int, optional):
                 Require that many non-NA values. Cannot be combined with how.
             subset (column label or sequence of labels, optional):
                 Labels along other axis to consider, e.g. if you are dropping

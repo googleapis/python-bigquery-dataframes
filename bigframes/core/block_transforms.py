@@ -532,20 +532,20 @@ def dropna(
     if subset is None:
         subset = column_ids
 
+    # Predicates to check for non-null values in the subset of columns
+    predicates = [
+        ops.notnull_op.as_expr(column_id)
+        for column_id in column_ids
+        if column_id in subset
+    ]
+
+    if len(predicates) == 0:
+        return block
+
     if thresh is not None:
-        # Count non-null values per row
-        notnull_predicates = [
-            ops.notnull_op.as_expr(column_id)
-            for column_id in column_ids
-            if column_id in subset
-        ]
-
-        if len(notnull_predicates) == 0:
-            return block
-
         # Handle single predicate case
-        if len(notnull_predicates) == 1:
-            count_expr = ops.AsTypeOp(pd.Int64Dtype()).as_expr(notnull_predicates[0])
+        if len(predicates) == 1:
+            count_expr = ops.AsTypeOp(pd.Int64Dtype()).as_expr(predicates[0])
         else:
             # Sum the boolean expressions to count non-null values
             count_expr = functools.reduce(
@@ -553,25 +553,18 @@ def dropna(
                     ops.AsTypeOp(pd.Int64Dtype()).as_expr(a),
                     ops.AsTypeOp(pd.Int64Dtype()).as_expr(b),
                 ),
-                notnull_predicates,
+                predicates,
             )
 
         # Filter rows where count >= thresh
-        thresh_predicate = ops.ge_op.as_expr(count_expr, ex.const(thresh))
-        return block.filter(thresh_predicate)
+        predicate = ops.ge_op.as_expr(count_expr, ex.const(thresh))
     else:
-        predicates = [
-            ops.notnull_op.as_expr(column_id)
-            for column_id in column_ids
-            if column_id in subset
-        ]
-        if len(predicates) == 0:
-            return block
         if how == "any":
             predicate = functools.reduce(ops.and_op.as_expr, predicates)
         else:  # "all"
             predicate = functools.reduce(ops.or_op.as_expr, predicates)
-        return block.filter(predicate)
+
+    return block.filter(predicate)
 
 
 def nsmallest(

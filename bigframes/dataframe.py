@@ -2850,11 +2850,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return DataFrame(result)
         else:
             if thresh is not None:
-                # Count non-null values per column
-                isnull_block = self._block.multi_apply_unary_op(ops.isnull_op)
+                # Keep columns with at least 'thresh' non-null values
                 notnull_block = self._block.multi_apply_unary_op(ops.notnull_op)
-
-                # Sum non-null values for each column
                 notnull_counts = DataFrame(notnull_block).sum().to_pandas()
 
                 keep_columns = [

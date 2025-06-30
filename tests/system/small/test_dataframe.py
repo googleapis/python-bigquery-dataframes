@@ -1196,45 +1196,60 @@ def test_assign_callable_lambda(scalars_dfs):
 
 
 @pytest.mark.parametrize(
-    ("axis", "how", "ignore_index", "subset", "thresh"),
+    ("axis", "how", "ignore_index", "subset"),
     [
-        (0, "any", False, None, None),
-        (0, "any", True, None, None),
-        (0, "all", False, ["bool_col", "time_col"], None),
-        (0, "any", False, ["bool_col", "time_col"], None),
-        (0, "all", False, "time_col", None),
-        (1, "any", False, None, None),
-        (1, "all", False, None, None),
-        (0, "any", False, None, 2),
-        (0, "any", True, None, 3),
-        (1, "any", False, None, 2),
+        (0, "any", False, None),
+        (0, "any", True, None),
+        (0, "all", False, ["bool_col", "time_col"]),
+        (0, "any", False, ["bool_col", "time_col"]),
+        (0, "all", False, "time_col"),
+        (1, "any", False, None),
+        (1, "all", False, None),
     ],
 )
-def test_df_dropna(scalars_dfs, axis, how, ignore_index, subset, thresh):
+def test_df_dropna_by_how(scalars_dfs, axis, how, ignore_index, subset):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
     pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
-
-    if thresh is not None:
-        df = scalars_df.dropna(
-            axis=axis, thresh=thresh, ignore_index=ignore_index, subset=subset
-        )
-        pd_result = scalars_pandas_df.dropna(
-            axis=axis, thresh=thresh, ignore_index=ignore_index, subset=subset
-        )
-    else:
-        df = scalars_df.dropna(
-            axis=axis, how=how, ignore_index=ignore_index, subset=subset
-        )
-        pd_result = scalars_pandas_df.dropna(
-            axis=axis, how=how, ignore_index=ignore_index, subset=subset
-        )
-
+    df = scalars_df.dropna(axis=axis, how=how, ignore_index=ignore_index, subset=subset)
     bf_result = df.to_pandas()
+    pd_result = scalars_pandas_df.dropna(
+        axis=axis, how=how, ignore_index=ignore_index, subset=subset
+    )
 
     # Pandas uses int64 instead of Int64 (nullable) dtype.
     pd_result.index = pd_result.index.astype(pd.Int64Dtype())
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("axis", "ignore_index", "subset", "thresh"),
+    [
+        (0, False, None, 2),
+        (0, True, None, 3),
+        (1, False, None, 2),
+    ],
+)
+def test_df_dropna_by_thresh(scalars_dfs, axis, ignore_index, subset, thresh):
+    """
+    Tests that dropna correctly keeps rows/columns with a minimum number
+    of non-null values.
+    """
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    df_result = scalars_df.dropna(
+        axis=axis, thresh=thresh, ignore_index=ignore_index, subset=subset
+    )
+    pd_result = scalars_pandas_df.dropna(
+        axis=axis, thresh=thresh, ignore_index=ignore_index, subset=subset
+    )
+
+    bf_result = df_result.to_pandas()
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+    pd.testing.assert_frame_equal(bf_result, pd_result)
 
 
 def test_df_dropna_range_columns(scalars_dfs):
