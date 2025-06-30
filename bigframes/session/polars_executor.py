@@ -32,6 +32,7 @@ _COMPATIBLE_NODES = (
     nodes.OrderByNode,
     nodes.ReversedNode,
     nodes.SelectionNode,
+    nodes.ProjectionNode,
     nodes.SliceNode,
     nodes.AggregateNode,
     nodes.FilterNode,

@@ -44,6 +44,7 @@ from pandas._typing import (
     ReadPickleBuffer,
     StorageOptions,
 )
+import pyarrow as pa
 
 import bigframes._config as config
 import bigframes.core.global_session as global_session
@@ -70,6 +71,21 @@ import bigframes.session.clients
 #    argument, even if we allow a default value.
 # 4. Allows to set BigQuery options for the BigFrames session based on the
 #    method and its arguments.
+
+
+def read_arrow(pa_table: pa.Table) -> bigframes.dataframe.DataFrame:
+    """Load a PyArrow Table to a BigQuery DataFrames DataFrame.
+
+    Args:
+        pa_table (pyarrow.Table):
+            PyArrow table to load data from.
+
+    Returns:
+        bigframes.dataframe.DataFrame:
+            A new DataFrame representing the data from the PyArrow table.
+    """
+    session = global_session.get_global_session()
+    return session.read_arrow(pa_table=pa_table)
 
 
 def read_csv(
@@ -218,8 +234,27 @@ def read_gbq(
 read_gbq.__doc__ = inspect.getdoc(bigframes.session.Session.read_gbq)
 
 
+def _run_read_gbq_colab_sessionless_dry_run(
+    query: str,
+    *,
+    pyformat_args: Dict[str, Any],
+) -> pandas.Series:
+    """Run a dry_run without a session."""
+
+    query_formatted = bigframes.core.pyformat.pyformat(
+        query,
+        pyformat_args=pyformat_args,
+        dry_run=True,
+    )
+    bqclient = _get_bqclient()
+    job = _dry_run(query_formatted, bqclient)
+    return dry_runs.get_query_stats_with_inferred_dtypes(job, (), ())
+
+
 def _try_read_gbq_colab_sessionless_dry_run(
-    create_query: Callable[[], str],
+    query: str,
+    *,
+    pyformat_args: Dict[str, Any],
 ) -> Optional[pandas.Series]:
     """Run a dry_run without a session, only if the session hasn't yet started."""
 
@@ -230,10 +265,9 @@ def _try_read_gbq_colab_sessionless_dry_run(
     # to local data and not any BigQuery tables.
     with _default_location_lock:
         if not config.options.bigquery._session_started:
-            bqclient = _get_bqclient()
-            query = create_query()
-            job = _dry_run(query, bqclient)
-            return dry_runs.get_query_stats_with_inferred_dtypes(job, (), ())
+            return _run_read_gbq_colab_sessionless_dry_run(
+                query, pyformat_args=pyformat_args
+            )
 
     # Explicitly return None to indicate that we didn't run the dry run query.
     return None
@@ -286,21 +320,13 @@ def _read_gbq_colab(
     if pyformat_args is None:
         pyformat_args = {}
 
-    # Delay formatting the query with the special "session-less" logic. This
-    # avoids doing unnecessary work if the session already has a location or has
-    # already started.
-    create_query = functools.partial(
-        bigframes.core.pyformat.pyformat,
-        query_or_table,
-        pyformat_args=pyformat_args,
-        dry_run=True,
-    )
-
     # Only try to set the global location if it's not a dry run. We don't want
     # to bind to a location too early. This is especially important if the query
     # only refers to local data and not any BigQuery tables.
     if dry_run:
-        result = _try_read_gbq_colab_sessionless_dry_run(create_query)
+        result = _try_read_gbq_colab_sessionless_dry_run(
+            query_or_table, pyformat_args=pyformat_args
+        )
 
         if result is not None:
             return result
@@ -309,6 +335,15 @@ def _read_gbq_colab(
         # started. That means we can safely call the "real" _read_gbq_colab,
         # which generates slightly nicer SQL.
     else:
+        # Delay formatting the query with the special "session-less" logic. This
+        # avoids doing unnecessary work if the session already has a location or has
+        # already started.
+        create_query = functools.partial(
+            bigframes.core.pyformat.pyformat,
+            query_or_table,
+            pyformat_args=pyformat_args,
+            dry_run=True,
+        )
         _set_default_session_location_if_possible_deferred_query(create_query)
 
     return global_session.with_default_session(
