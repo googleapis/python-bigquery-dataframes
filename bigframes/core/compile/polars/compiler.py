@@ -122,7 +122,7 @@ if polars_installed:
             self,
             expression: ex.ResolvedDerefOp,
         ) -> pl.Expr:
-            return pl.col(expression.field.id.sql)
+            return pl.col(expression.id.sql)
 
         @compile_expression.register
         def _(

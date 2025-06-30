@@ -432,23 +432,12 @@ class DerefOp(Expression):
 class ResolvedDerefOp(DerefOp):
     """An expression that refers to a column by ID and resolved with schema bound."""
 
-    field: field.Field
+    dtype: dtypes.Dtype
+    nullable: bool = True
 
-    # Re-declare 'id' from the parent to remove it from the __init__ method
-    id: ids.ColumnId = dataclasses.field(init=False)
-
-    def __post_init__(self):
-        # Initialize the parent's 'id' field after the object is created.
-        # We must use object.__setattr__ because the dataclass is frozen.
-        object.__setattr__(self, "id", self.field.id)
-
-    @property
-    def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
-        return (self.field.id,)
-
-    @property
-    def nullable(self) -> bool:
-        return self.field.nullable
+    @classmethod
+    def from_field(cls, f: field.Field):
+        return cls(f.id, f.dtype, f.nullable)
 
     @property
     def is_resolved(self) -> bool:
@@ -456,7 +445,7 @@ class ResolvedDerefOp(DerefOp):
 
     @property
     def output_type(self) -> dtypes.ExpressionType:
-        return self.field.dtype
+        return self.dtype
 
     def bind_variables(
         self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
@@ -469,8 +458,8 @@ class ResolvedDerefOp(DerefOp):
         allow_partial_bindings: bool = False,
     ) -> Expression:
         # TODO: Check if we can remove.
-        if self.field.id in bindings.keys():
-            return bindings[self.field.id]
+        if self.id in bindings.keys():
+            return bindings[self.id]
         return self
 
 
@@ -582,7 +571,9 @@ def bind_schema_fields(
     if expr.is_resolved:
         return expr
 
-    expr_by_id = {id: ResolvedDerefOp(field) for id, field in field_by_id.items()}
+    expr_by_id = {
+        id: ResolvedDerefOp.from_field(field) for id, field in field_by_id.items()
+    }
     return expr.bind_refs(expr_by_id)
 
 
