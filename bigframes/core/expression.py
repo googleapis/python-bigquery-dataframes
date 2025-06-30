@@ -429,18 +429,22 @@ class DerefOp(Expression):
 
 
 @dataclasses.dataclass(frozen=True)
-class SchemaFieldRefExpression(Expression):
-    """An expression representing a schema field. This is essentially a DerefOp with input schema bound."""
+class ResolvedDerefOp(DerefOp):
+    """An expression that refers to a column by ID and resolved with schema bound."""
 
     field: field.Field
+
+    # Re-declare 'id' from the parent to remove it from the __init__ method
+    id: ids.ColumnId = dataclasses.field(init=False)
+
+    def __post_init__(self):
+        # Initialize the parent's 'id' field after the object is created.
+        # We must use object.__setattr__ because the dataclass is frozen.
+        object.__setattr__(self, "id", self.field.id)
 
     @property
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
         return (self.field.id,)
-
-    @property
-    def is_const(self) -> bool:
-        return False
 
     @property
     def nullable(self) -> bool:
@@ -464,19 +468,9 @@ class SchemaFieldRefExpression(Expression):
         bindings: Mapping[ids.ColumnId, Expression],
         allow_partial_bindings: bool = False,
     ) -> Expression:
+        # TODO: Check if we can remove.
         if self.field.id in bindings.keys():
             return bindings[self.field.id]
-        return self
-
-    @property
-    def is_bijective(self) -> bool:
-        return True
-
-    @property
-    def is_identity(self) -> bool:
-        return True
-
-    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
         return self
 
 
@@ -588,9 +582,7 @@ def bind_schema_fields(
     if expr.is_resolved:
         return expr
 
-    expr_by_id = {
-        id: SchemaFieldRefExpression(field) for id, field in field_by_id.items()
-    }
+    expr_by_id = {id: ResolvedDerefOp(field) for id, field in field_by_id.items()}
     return expr.bind_refs(expr_by_id)
 
 

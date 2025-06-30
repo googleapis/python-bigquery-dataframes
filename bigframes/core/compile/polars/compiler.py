@@ -120,7 +120,7 @@ if polars_installed:
         @compile_expression.register
         def _(
             self,
-            expression: ex.SchemaFieldRefExpression,
+            expression: ex.ResolvedDerefOp,
         ) -> pl.Expr:
             return pl.col(expression.field.id.sql)
 
