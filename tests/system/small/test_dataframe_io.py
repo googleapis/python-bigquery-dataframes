@@ -1006,7 +1006,9 @@ def test_to_sql_query_unnamed_index_included(
     assert idx_labels[0] is None
     assert idx_ids[0].startswith("bigframes")
 
-    pd_df = scalars_pandas_df_default_index.reset_index(drop=True)
+    pd_df = scalars_pandas_df_default_index.reset_index(drop=True).drop(
+        columns="duration_col"
+    )
     roundtrip = session.read_gbq(sql, index_col=idx_ids)
     roundtrip.index.names = [None]
     utils.assert_pandas_df_equal(roundtrip.to_pandas(), pd_df, check_index_type=False)
@@ -1026,7 +1028,9 @@ def test_to_sql_query_named_index_included(
     assert idx_labels[0] == "rowindex_2"
     assert idx_ids[0] == "rowindex_2"
 
-    pd_df = scalars_pandas_df_default_index.set_index("rowindex_2", drop=True)
+    pd_df = scalars_pandas_df_default_index.set_index("rowindex_2", drop=True).drop(
+        columns="duration_col"
+    )
     roundtrip = session.read_gbq(sql, index_col=idx_ids)
     utils.assert_pandas_df_equal(roundtrip.to_pandas(), pd_df)
 
@@ -1041,7 +1045,9 @@ def test_to_sql_query_unnamed_index_excluded(
     assert len(idx_labels) == 0
     assert len(idx_ids) == 0
 
-    pd_df = scalars_pandas_df_default_index.reset_index(drop=True)
+    pd_df = scalars_pandas_df_default_index.reset_index(drop=True).drop(
+        columns="duration_col"
+    )
     roundtrip = session.read_gbq(sql)
     utils.assert_pandas_df_equal(
         roundtrip.to_pandas(), pd_df, check_index_type=False, ignore_order=True
@@ -1060,9 +1066,11 @@ def test_to_sql_query_named_index_excluded(
     assert len(idx_labels) == 0
     assert len(idx_ids) == 0
 
-    pd_df = scalars_pandas_df_default_index.set_index(
-        "rowindex_2", drop=True
-    ).reset_index(drop=True)
+    pd_df = (
+        scalars_pandas_df_default_index.set_index("rowindex_2", drop=True)
+        .reset_index(drop=True)
+        .drop(columns="duration_col")
+    )
     roundtrip = session.read_gbq(sql)
     utils.assert_pandas_df_equal(
         roundtrip.to_pandas(), pd_df, check_index_type=False, ignore_order=True

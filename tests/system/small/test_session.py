@@ -1977,16 +1977,14 @@ def test_read_json_gcs_default_engine(session, scalars_dfs, gcs_folder):
 
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
     # numeric and geometry types, so they're skipped here.
-    df = df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
+    df = df.drop(columns=["bytes_col", "numeric_col", "geography_col", "duration_col"])
     scalars_df = scalars_df.drop(
         columns=["bytes_col", "numeric_col", "geography_col", "duration_col"]
     )
 
     # pandas read_json does not respect the dtype overrides for these columns
     df = df.drop(columns=["date_col", "datetime_col", "time_col"])
-    scalars_df = scalars_df.drop(
-        columns=["date_col", "datetime_col", "time_col", "duration_col"]
-    )
+    scalars_df = scalars_df.drop(columns=["date_col", "datetime_col", "time_col"])
 
     assert df.shape[0] == scalars_df.shape[0]
     pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
