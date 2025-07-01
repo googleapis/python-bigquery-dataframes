@@ -642,8 +642,6 @@ class BlobAccessor(base.SeriesMethods):
         if engine is None or engine.casefold() != "opencv":
             raise ValueError("Must specify the engine, supported value is 'opencv'.")
 
-        import base64
-
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
         import bigframes.pandas as bpd
@@ -667,25 +665,25 @@ class BlobAccessor(base.SeriesMethods):
             df["beta"] = beta
             df["norm_type"] = norm_type
             df["ext"] = ext  # type: ignore
-            df["verbose"] = verbose
             res = self._df_apply_udf(df, image_normalize_udf)
 
+            normalized_content_b64_series = res._apply_unary_op(
+                ops.JSONValue(json_path="$.content")
+            )
+            normalized_bytes = bbq.sql_scalar(
+                "FROM_BASE64({0})", columns=[normalized_content_b64_series]
+            )
             if verbose:
                 normalized_status_series = res._apply_unary_op(
                     ops.JSONValue(json_path="$.status")
                 )
-                normalized_content_b64_series = res._apply_unary_op(
-                    ops.JSONValue(json_path="$.content")
-                )
-                # TODO this is not allowed, I need to find another way
-                normalized_bytes = base64.b64decode(normalized_content_b64_series)
                 results_df = bpd.DataFrame(
                     {"status": normalized_status_series, "content": normalized_bytes}
                 )
                 results_struct = bbq.struct(results_df).rename("normalized_results")
                 return results_struct
             else:
-                return res
+                return normalized_bytes.rename("normalized_bytes")
 
         if isinstance(dst, str):
             dst = os.path.join(dst, "")
@@ -713,22 +711,31 @@ class BlobAccessor(base.SeriesMethods):
         df["beta"] = beta
         df["norm_type"] = norm_type
         df["ext"] = ext  # type: ignore
-        # df["verbose"] = verbose
 
         res = self._df_apply_udf(df, image_normalize_udf)
         res.cache()  # to execute the udf
+
+        normalized_content_series = res._apply_unary_op(
+            ops.JSONValue(json_path="$.content")
+        )
+        normalized_content_blobs = normalized_content_series.str.to_blob(
+            connection=connection
+        )
 
         if verbose:
             normalized_status_series = res._apply_unary_op(
                 ops.JSONValue(json_path="$.status")
             )
             results_df = bpd.DataFrame(
-                {"status": normalized_status_series, "content": dst}
+                {
+                    "status": normalized_status_series,
+                    "content": normalized_content_blobs,
+                }
             )
             results_struct = bbq.struct(results_df).rename("normalized_results")
             return results_struct
         else:
-            return dst
+            return normalized_content_blobs.rename("normalized_content")
 
     def pdf_extract(
         self,
@@ -786,7 +793,7 @@ class BlobAccessor(base.SeriesMethods):
 
         extracted_content_series = res._apply_unary_op(
             ops.JSONValue(json_path="$.content")
-        ).rename("extracted_content")
+        )
 
         if verbose:
             status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
@@ -796,7 +803,7 @@ class BlobAccessor(base.SeriesMethods):
             results_struct = bbq.struct(results_df).rename("extracted_results")
             return results_struct
         else:
-            return extracted_content_series
+            return extracted_content_series.rename("extracted_content")
 
     def pdf_chunk(
         self,
@@ -870,9 +877,8 @@ class BlobAccessor(base.SeriesMethods):
 
         res = self._df_apply_udf(df, pdf_chunk_udf)
 
-        chunked_content_series = bbq.json_extract_string_array(res, "$.content").rename(
-            "chunked_content"
-        )
+        chunked_content_series = bbq.json_extract_string_array(res, "$.content")
+
         if verbose:
             status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
             results_df = bpd.DataFrame(
@@ -881,7 +887,7 @@ class BlobAccessor(base.SeriesMethods):
             resultes_struct = bbq.struct(results_df).rename("chunked_results")
             return resultes_struct
         else:
-            return chunked_content_series
+            return chunked_content_series.rename("chunked_content")
 
     def audio_transcribe(
         self,
@@ -939,6 +945,7 @@ class BlobAccessor(base.SeriesMethods):
             model_params={"generationConfig": {"temperature": 0.0}},
         )
 
+
         transcribed_content_series = transcribed_results.struct.field("result").rename(
             "transcribed_content"
         )
@@ -954,4 +961,4 @@ class BlobAccessor(base.SeriesMethods):
             results_struct = bbq.struct(results_df).rename("transcription_results")
             return results_struct
         else:
-            return transcribed_content_series
+            return transcribed_content_series.rename("transcribed_content")

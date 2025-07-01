@@ -228,11 +228,13 @@ def test_blob_image_resize_to_bq(images_mm_df: bpd.DataFrame, bq_connection: str
     assert actual.dtype == dtypes.BYTES_DTYPE
 
 
+@pytest.mark.parametrize("verbose", [True, False])
 def test_blob_image_normalize_to_series(
     images_mm_df: bpd.DataFrame,
     bq_connection: str,
     images_output_uris: list[str],
     session: bigframes.Session,
+    verbose: bool,
 ):
     series = bpd.Series(images_output_uris, session=session).str.to_blob(
         connection=bq_connection
@@ -246,30 +248,48 @@ def test_blob_image_normalize_to_series(
         connection=bq_connection,
         engine="opencv",
     )
-    expected_df = pd.DataFrame(
-        {
-            "uri": images_output_uris,
-            "version": [None, None],
-            "authorizer": [bq_connection.casefold(), bq_connection.casefold()],
-            "details": [None, None],
-        }
-    )
-    pd.testing.assert_frame_equal(
-        actual.struct.explode().to_pandas(),
-        expected_df,
-        check_dtype=False,
-        check_index_type=False,
-    )
 
-    # verify the files exist
-    assert not actual.blob.size().isna().any()
+    if verbose:
+
+        assert hasattr(actual, "struct")
+        actual_exploded = actual.struct.explode()
+        assert "status" in actual_exploded.columns
+        assert "content" in actual_exploded.columns
+
+        status_series = actual_exploded["status"]
+        assert status_series.dtype == dtypes.STRING_DTYPE
+
+        content_series = actual_exploded["content"]
+        # Content should be blob objects for GCS destination
+        assert hasattr(content_series, "blob")
+
+    else:
+        expected_df = pd.DataFrame(
+            {
+                "uri": images_output_uris,
+                "version": [None, None],
+                "authorizer": [bq_connection.casefold(), bq_connection.casefold()],
+                "details": [None, None],
+            }
+        )
+        pd.testing.assert_frame_equal(
+            actual.struct.explode().to_pandas(),
+            expected_df,
+            check_dtype=False,
+            check_index_type=False,
+        )
+
+        # verify the files exist
+        assert not actual.blob.size().isna().any()
 
 
+@pytest.mark.parametrize("verbose", [True, False])
 def test_blob_image_normalize_to_folder(
     images_mm_df: bpd.DataFrame,
     bq_connection: str,
     images_output_folder: str,
     images_output_uris: list[str],
+    verbose: bool,
 ):
     actual = images_mm_df["blob_col"].blob.image_normalize(
         alpha=50.0,
@@ -298,10 +318,7 @@ def test_blob_image_normalize_to_folder(
     assert not actual.blob.size().isna().any()
 
 
-@pytest.mark.parametrize(
-    "verbose",
-    [True, False],
-)
+@pytest.mark.parametrize("verbose", [True, False])
 def test_blob_image_normalize_to_bq(
     images_mm_df: bpd.DataFrame, bq_connection: str, verbose: bool
 ):
