@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import dataclasses
-import typing
 
 from bigframes.core import bigframe_node
 from bigframes.core import expression as ex
@@ -56,14 +55,8 @@ def bind_schema_to_node(
     if isinstance(node, nodes.JoinNode):
         conditions = tuple(
             (
-                typing.cast(
-                    ex.ResolvedDerefOp,
-                    ex.bind_schema_fields(left, node.left_child.field_by_id),
-                ),
-                typing.cast(
-                    ex.ResolvedDerefOp,
-                    ex.bind_schema_fields(right, node.right_child.field_by_id),
-                ),
+                ex.ResolvedDerefOp.from_field(node.left_child.field_by_id[left.id]),
+                ex.ResolvedDerefOp.from_field(node.right_child.field_by_id[right.id]),
             )
             for left, right in node.conditions
         )

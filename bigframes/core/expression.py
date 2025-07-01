@@ -433,34 +433,23 @@ class ResolvedDerefOp(DerefOp):
     """An expression that refers to a column by ID and resolved with schema bound."""
 
     dtype: dtypes.Dtype
-    nullable: bool = True
+    is_nullable: bool
 
     @classmethod
     def from_field(cls, f: field.Field):
-        return cls(f.id, f.dtype, f.nullable)
+        return cls(id=f.id, dtype=f.dtype, is_nullable=f.nullable)
 
     @property
     def is_resolved(self) -> bool:
         return True
 
     @property
+    def nullable(self) -> bool:
+        return self.is_nullable
+
+    @property
     def output_type(self) -> dtypes.ExpressionType:
         return self.dtype
-
-    def bind_variables(
-        self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
-    ) -> Expression:
-        return self
-
-    def bind_refs(
-        self,
-        bindings: Mapping[ids.ColumnId, Expression],
-        allow_partial_bindings: bool = False,
-    ) -> Expression:
-        # TODO: Check if we can remove.
-        if self.id in bindings.keys():
-            return bindings[self.id]
-        return self
 
 
 @dataclasses.dataclass(frozen=True)

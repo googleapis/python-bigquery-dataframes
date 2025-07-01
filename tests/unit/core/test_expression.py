@@ -77,7 +77,9 @@ def test_deref_op_dtype_resolution():
 
 
 def test_field_ref_expr_dtype_resolution_short_circuit():
-    expression = ex.ResolvedDerefOp(id=ids.ColumnId("mycol"), dtype=dtypes.INT_DTYPE)
+    expression = ex.ResolvedDerefOp(
+        id=ids.ColumnId("mycol"), dtype=dtypes.INT_DTYPE, is_nullable=True
+    )
     field_bindings = _create_field_bindings({"anotherCol": dtypes.STRING_DTYPE})
 
     result = ex.bind_schema_fields(expression, field_bindings)
