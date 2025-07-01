@@ -54,7 +54,13 @@ all_write_engines = pytest.mark.parametrize(
 def df_and_local_csv(scalars_df_index):
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
     # datetime, numeric and geometry types, so they're skipped here.
-    drop_columns = ["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+    drop_columns = [
+        "bytes_col",
+        "datetime_col",
+        "numeric_col",
+        "geography_col",
+        "duration_col",
+    ]
     scalars_df_index = scalars_df_index.drop(columns=drop_columns)
 
     with tempfile.TemporaryDirectory() as dir:
@@ -68,7 +74,13 @@ def df_and_local_csv(scalars_df_index):
 def df_and_gcs_csv(scalars_df_index, gcs_folder):
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
     # datetime, numeric and geometry types, so they're skipped here.
-    drop_columns = ["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+    drop_columns = [
+        "bytes_col",
+        "datetime_col",
+        "numeric_col",
+        "geography_col",
+        "duration_col",
+    ]
     scalars_df_index = scalars_df_index.drop(columns=drop_columns)
 
     path = gcs_folder + "test_read_csv_w_gcs_csv*.csv"
