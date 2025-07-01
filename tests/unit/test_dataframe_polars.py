@@ -4088,8 +4088,8 @@ def test_df_to_json_local_file(scalars_df_index, scalars_pandas_df_index):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
     pytest.importorskip("pandas", minversion="2.0.0")
     # duration not fully supported at pandas level
-    scalars_df_index = scalars_df_index.drop("duration_col")
-    scalars_pandas_df_index = scalars_pandas_df_index.drop("duration_col")
+    scalars_df_index = scalars_df_index.drop(columns="duration_col")
+    scalars_pandas_df_index = scalars_pandas_df_index.drop(columns="duration_col")
     with tempfile.TemporaryFile() as bf_result_file, tempfile.TemporaryFile() as pd_result_file:
         scalars_df_index.to_json(bf_result_file, orient="table")
         # default_handler for arrow types that have no default conversion
