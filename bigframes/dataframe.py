@@ -198,6 +198,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             import bigframes.pandas
 
+            if isinstance(dtype, str):
+                dtype = bigframes.dtypes.bigframes_type(dtype)
             pd_dataframe = pandas.DataFrame(
                 data=data,
                 index=index,  # type:ignore

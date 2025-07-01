@@ -86,6 +86,8 @@ class Index(vendored_pandas_index.Index):
             pd_df = pandas.DataFrame(index=data)
             block = df.DataFrame(pd_df, session=session)._block
         else:
+            if isinstance(dtype, str):
+                dtype = bigframes.dtypes.bigframes_type(dtype)
             pd_index = pandas.Index(data=data, dtype=dtype, name=name)
             pd_df = pandas.DataFrame(index=pd_index)
             block = df.DataFrame(pd_df, session=session)._block
