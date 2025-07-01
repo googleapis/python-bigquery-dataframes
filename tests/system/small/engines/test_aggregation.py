@@ -28,6 +28,9 @@ REFERENCE_ENGINE = polars_executor.PolarsExecutor()
 def apply_agg_to_all_valid(
     array: array_value.ArrayValue, op: agg_ops.UnaryAggregateOp, excluded_cols=[]
 ) -> array_value.ArrayValue:
+    """
+    Apply the aggregation to every column in the array that has a compatible datatype.
+    """
     exprs_by_name = []
     for arg in array.column_ids:
         if arg in excluded_cols:

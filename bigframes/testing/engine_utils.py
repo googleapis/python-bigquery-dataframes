@@ -27,7 +27,7 @@ def assert_equivalence_execution(
     e2_result = engine2.execute(node, ordered=True)
     assert e1_result is not None
     assert e2_result is not None
-    # Schemas might have extra nullity markers, normalize to node expected schema, which should be looser
+    # Convert to pandas, as pandas has better comparison utils than arrow
     assert e1_result.schema == e2_result.schema
     e1_table = e1_result.to_pandas()
     e2_table = e2_result.to_pandas()
