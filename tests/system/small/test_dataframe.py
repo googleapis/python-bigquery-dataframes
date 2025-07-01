@@ -389,7 +389,7 @@ def test_mask_series_cond(scalars_df_index, scalars_pandas_df_index):
 def test_where_multi_index(scalars_df_index, scalars_pandas_df_index):
     columns = ["int64_col", "float64_col"]
 
-    # Prepre the multi-index.
+    # Prepare the multi-index.
     index = pd.MultiIndex.from_tuples(
         [
             (0, "a"),
@@ -419,7 +419,7 @@ def test_where_multi_index(scalars_df_index, scalars_pandas_df_index):
     dataframe_bf.columns.name = "test_name"
     dataframe_pd.columns.name = "test_name"
 
-    # Test1: when condition is series and other is None.
+    # Case1: when condition is series and other is None.
     series_cond_bf = dataframe_bf["int64_col"] > 0
     series_cond_pd = dataframe_pd["int64_col"] > 0
 
@@ -435,7 +435,7 @@ def test_where_multi_index(scalars_df_index, scalars_pandas_df_index):
     assert isinstance(bf_result.index, pd.MultiIndex), "Expected a MultiIndex"
     assert isinstance(pd_result.index, pd.MultiIndex), "Expected a MultiIndex"
 
-    # Test2: when condition is series and other is dataframe.
+    # Case2: when condition is series and other is dataframe.
     series_cond_bf = dataframe_bf["int64_col"] > 1000.0
     series_cond_pd = dataframe_pd["int64_col"] > 1000.0
     dataframe_other_bf = dataframe_bf * 100.0
@@ -450,7 +450,7 @@ def test_where_multi_index(scalars_df_index, scalars_pandas_df_index):
         check_dtype=False,
     )
 
-    # Test3: when condition is dataframe and other is a constant.
+    # Case3: when condition is dataframe and other is a constant.
     dataframe_cond_bf = dataframe_bf > 0
     dataframe_cond_pd = dataframe_pd > 0
     other = 0
@@ -464,7 +464,7 @@ def test_where_multi_index(scalars_df_index, scalars_pandas_df_index):
         check_dtype=False,
     )
 
-    # Test4: when condition is dataframe and other is dataframe.
+    # Case4: when condition is dataframe and other is dataframe.
     dataframe_cond_bf = dataframe_bf < 1000.0
     dataframe_cond_pd = dataframe_pd < 1000.0
     dataframe_other_bf = dataframe_bf * -1.0
