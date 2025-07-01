@@ -1695,6 +1695,7 @@ def test_get_dtypes(scalars_df_default_index):
         "string_col": pd.StringDtype(storage="pyarrow"),
         "time_col": pd.ArrowDtype(pa.time64("us")),
         "timestamp_col": pd.ArrowDtype(pa.timestamp("us", tz="UTC")),
+        "duration_col": pd.ArrowDtype(pa.duration("us")),
     }
     pd.testing.assert_series_equal(
         dtypes,

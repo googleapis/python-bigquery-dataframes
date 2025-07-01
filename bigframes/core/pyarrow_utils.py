@@ -74,6 +74,13 @@ def chunk_by_row_count(
         yield buffer.take_as_batches(len(buffer))
 
 
+def cast_batch(batch: pa.RecordBatch, schema: pa.Schema) -> pa.RecordBatch:
+    if batch.schema == schema:
+        return batch
+    # Newer pyarrow versions can directly cast batches, but older supported versions do not.
+    return pa.Table.from_batches([batch]).cast(schema).to_batches()[0]
+
+
 def truncate_pyarrow_iterable(
     batches: Iterable[pa.RecordBatch], max_results: int
 ) -> Iterator[pa.RecordBatch]:

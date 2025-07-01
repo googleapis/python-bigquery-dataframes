@@ -55,7 +55,7 @@ def test_sql_executes(scalars_df_default_index, bigquery_client):
     """
     # Do some operations to make for more complex SQL.
     df = (
-        scalars_df_default_index.drop(columns=["geography_col"])
+        scalars_df_default_index.drop(columns=["geography_col", "duration_col"])
         .groupby("string_col")
         .max()
     )
@@ -87,7 +87,7 @@ def test_sql_executes_and_includes_named_index(
     """
     # Do some operations to make for more complex SQL.
     df = (
-        scalars_df_default_index.drop(columns=["geography_col"])
+        scalars_df_default_index.drop(columns=["geography_col", "duration_col"])
         .groupby("string_col")
         .max()
     )
@@ -120,7 +120,7 @@ def test_sql_executes_and_includes_named_multiindex(
     """
     # Do some operations to make for more complex SQL.
     df = (
-        scalars_df_default_index.drop(columns=["geography_col"])
+        scalars_df_default_index.drop(columns=["geography_col", "duration_col"])
         .groupby(["string_col", "bool_col"])
         .max()
     )
