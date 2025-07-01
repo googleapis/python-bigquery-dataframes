@@ -999,7 +999,7 @@ def test_to_sql_query_unnamed_index_included(
     scalars_df_default_index: bpd.DataFrame,
     scalars_pandas_df_default_index: pd.DataFrame,
 ):
-    bf_df = scalars_df_default_index.reset_index(drop=True)
+    bf_df = scalars_df_default_index.reset_index(drop=True).drop(columns="duration_col")
     sql, idx_ids, idx_labels = bf_df._to_sql_query(include_index=True)
     assert len(idx_labels) == 1
     assert len(idx_ids) == 1
@@ -1017,7 +1017,9 @@ def test_to_sql_query_named_index_included(
     scalars_df_default_index: bpd.DataFrame,
     scalars_pandas_df_default_index: pd.DataFrame,
 ):
-    bf_df = scalars_df_default_index.set_index("rowindex_2", drop=True)
+    bf_df = scalars_df_default_index.set_index("rowindex_2", drop=True).drop(
+        columns="duration_col"
+    )
     sql, idx_ids, idx_labels = bf_df._to_sql_query(include_index=True)
     assert len(idx_labels) == 1
     assert len(idx_ids) == 1
@@ -1034,7 +1036,7 @@ def test_to_sql_query_unnamed_index_excluded(
     scalars_df_default_index: bpd.DataFrame,
     scalars_pandas_df_default_index: pd.DataFrame,
 ):
-    bf_df = scalars_df_default_index.reset_index(drop=True)
+    bf_df = scalars_df_default_index.reset_index(drop=True).drop(columns="duration_col")
     sql, idx_ids, idx_labels = bf_df._to_sql_query(include_index=False)
     assert len(idx_labels) == 0
     assert len(idx_ids) == 0
@@ -1051,7 +1053,9 @@ def test_to_sql_query_named_index_excluded(
     scalars_df_default_index: bpd.DataFrame,
     scalars_pandas_df_default_index: pd.DataFrame,
 ):
-    bf_df = scalars_df_default_index.set_index("rowindex_2", drop=True)
+    bf_df = scalars_df_default_index.set_index("rowindex_2", drop=True).drop(
+        columns="duration_col"
+    )
     sql, idx_ids, idx_labels = bf_df._to_sql_query(include_index=False)
     assert len(idx_labels) == 0
     assert len(idx_ids) == 0
