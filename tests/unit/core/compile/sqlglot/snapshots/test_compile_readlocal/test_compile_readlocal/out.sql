@@ -1,7 +1,7 @@
 WITH `bfcte_0` AS (
   SELECT
     *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` BOOLEAN, `bfcol_2` BYTES, `bfcol_3` DATE, `bfcol_4` DATETIME, `bfcol_5` GEOGRAPHY, `bfcol_6` INT64, `bfcol_7` INT64, `bfcol_8` NUMERIC, `bfcol_9` FLOAT64, `bfcol_10` INT64, `bfcol_11` INT64, `bfcol_12` STRING, `bfcol_13` TIME, `bfcol_14` TIMESTAMP, `bfcol_15` INT64>>[STRUCT(
+  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` BOOLEAN, `bfcol_2` BYTES, `bfcol_3` DATE, `bfcol_4` DATETIME, `bfcol_5` GEOGRAPHY, `bfcol_6` INT64, `bfcol_7` INT64, `bfcol_8` NUMERIC, `bfcol_9` FLOAT64, `bfcol_10` INT64, `bfcol_11` INT64, `bfcol_12` STRING, `bfcol_13` TIME, `bfcol_14` TIMESTAMP, `bfcol_15` INT64, `bfcol_16` INT64>>[STRUCT(
     0,
     TRUE,
     CAST(b'Hello, World!' AS BYTES),
@@ -17,6 +17,7 @@ WITH `bfcte_0` AS (
     'Hello, World!',
     CAST('11:41:43.076160' AS TIME),
     CAST('2021-07-21T17:43:43.945289+00:00' AS TIMESTAMP),
+    4,
     0
   ), STRUCT(
     1,
@@ -34,6 +35,7 @@ WITH `bfcte_0` AS (
     'こんにちは',
     CAST('11:14:34.701606' AS TIME),
     CAST('2021-07-21T17:43:43.945289+00:00' AS TIMESTAMP),
+    -1000000,
     1
   ), STRUCT(
     2,
@@ -51,6 +53,7 @@ WITH `bfcte_0` AS (
     '  ¡Hola Mundo!  ',
     CAST('23:59:59.999999' AS TIME),
     CAST('2023-03-01T10:55:13.250125+00:00' AS TIMESTAMP),
+    0,
     2
   ), STRUCT(
     3,
@@ -68,6 +71,7 @@ WITH `bfcte_0` AS (
     CAST(NULL AS STRING),
     CAST(NULL AS TIME),
     CAST(NULL AS TIMESTAMP),
+    CAST(NULL AS INT64),
     3
   ), STRUCT(
     4,
@@ -85,6 +89,7 @@ WITH `bfcte_0` AS (
     'Hello, World!',
     CAST(NULL AS TIME),
     CAST(NULL AS TIMESTAMP),
+    31540000000000,
     4
   ), STRUCT(
     5,
@@ -102,6 +107,7 @@ WITH `bfcte_0` AS (
     'Güten Tag!',
     CAST('15:16:17.181921' AS TIME),
     CAST('1980-03-14T15:16:17.181921+00:00' AS TIMESTAMP),
+    4,
     5
   ), STRUCT(
     6,
@@ -119,6 +125,7 @@ WITH `bfcte_0` AS (
     'capitalize, This ',
     CAST('01:02:03.456789' AS TIME),
     CAST('2023-05-23T11:42:55.000001+00:00' AS TIMESTAMP),
+    CAST(NULL AS INT64),
     6
   ), STRUCT(
     7,
@@ -136,6 +143,7 @@ WITH `bfcte_0` AS (
     ' سلام',
     CAST('12:00:00.000001' AS TIME),
     CAST('2038-01-19T03:14:17.999999+00:00' AS TIMESTAMP),
+    4,
     7
   ), STRUCT(
     8,
@@ -153,6 +161,7 @@ WITH `bfcte_0` AS (
     'T',
     CAST(NULL AS TIME),
     CAST(NULL AS TIMESTAMP),
+    432000000000,
     8
   )])
 )
@@ -171,7 +180,8 @@ SELECT
   `bfcol_11` AS `rowindex_2`,
   `bfcol_12` AS `string_col`,
   `bfcol_13` AS `time_col`,
-  `bfcol_14` AS `timestamp_col`
+  `bfcol_14` AS `timestamp_col`,
+  `bfcol_15` AS `duration_col`
 FROM `bfcte_0`
 ORDER BY
-  `bfcol_15` ASC NULLS LAST
+  `bfcol_16` ASC NULLS LAST
