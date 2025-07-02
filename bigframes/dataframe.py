@@ -196,10 +196,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=bf_dtype))
 
         else:
+            if isinstance(dtype, str) and dtype.lower() == "json":
+                dtype = bigframes.dtypes.JSON_DTYPE
+
             import bigframes.pandas
 
-            if isinstance(dtype, str):
-                dtype = bigframes.dtypes.bigframes_type(dtype)
             pd_dataframe = pandas.DataFrame(
                 data=data,
                 index=index,  # type:ignore

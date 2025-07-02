@@ -637,19 +637,17 @@ def _dtype_from_string(dtype_string: str) -> typing.Optional[Dtype]:
         return BIGFRAMES_STRING_TO_BIGFRAMES[
             typing.cast(DtypeString, str(dtype_string))
         ]
-    if isinstance(dtype_string, str) and dtype_string.lower() == "json":
-        return JSON_DTYPE
     raise TypeError(
         textwrap.dedent(
             f"""
-                Unexpected data type string `{dtype_string}`. The following
+                Unexpected data type string {dtype_string}. The following
                         dtypes are supppted: 'boolean','Float64','Int64',
-                        'int64[pyarrow]','string','string[pyarrow]','json',
+                        'int64[pyarrow]','string','string[pyarrow]',
                         'timestamp[us, tz=UTC][pyarrow]','timestamp[us][pyarrow]',
                         'date32[day][pyarrow]','time64[us][pyarrow]'.
-                        The following pandas `ExtensionDtype` are supported:
-                        pd.BooleanDtype(), pd.Float64Dtype(),
-                        pd.Int64Dtype(), pd.StringDtype(storage="pyarrow"),
+                        The following pandas.ExtensionDtype are supported:
+                        pandas.BooleanDtype(), pandas.Float64Dtype(),
+                        pandas.Int64Dtype(), pandas.StringDtype(storage="pyarrow"),
                         pd.ArrowDtype(pa.date32()), pd.ArrowDtype(pa.time64("us")),
                         pd.ArrowDtype(pa.timestamp("us")),
                         pd.ArrowDtype(pa.timestamp("us", tz="UTC")).
