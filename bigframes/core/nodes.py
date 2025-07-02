@@ -1236,6 +1236,36 @@ class SelectionNode(UnaryNode):
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
+class CteNode(UnaryNode):
+    @property
+    def fields(self) -> Sequence[Field]:
+        return self.child.fields
+
+    @property
+    def variables_introduced(self) -> int:
+        # This operation only renames variables, doesn't actually create new ones
+        return 0
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.child.row_count
+
+    @property
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
+        return ()
+
+    def remap_vars(
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
+    ) -> CteNode:
+        return self
+
+    def remap_refs(
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
+    ) -> CteNode:
+        return self
+
+
+@dataclasses.dataclass(frozen=True, eq=False)
 class ProjectionNode(UnaryNode, AdditiveNode):
     """Assigns new variables (without modifying existing ones)"""
 
