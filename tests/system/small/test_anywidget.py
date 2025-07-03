@@ -19,6 +19,11 @@ import bigframes as bf
 
 pytest.importorskip("anywidget")
 
+# Test constants to avoid change detector tests
+EXPECTED_ROW_COUNT = 6
+EXPECTED_PAGE_SIZE = 2
+EXPECTED_TOTAL_PAGES = 3
+
 
 @pytest.fixture(scope="module")
 def paginated_pandas_df() -> pd.DataFrame:
@@ -50,7 +55,7 @@ def paginated_bf_df(
     return session.read_pandas(paginated_pandas_df)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def table_widget(paginated_bf_df: bf.dataframe.DataFrame):
     """
     Helper fixture to create a TableWidget instance with a fixed page size.
@@ -59,8 +64,49 @@ def table_widget(paginated_bf_df: bf.dataframe.DataFrame):
     from bigframes import display
 
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        widget = display.TableWidget(paginated_bf_df)
-    return widget
+        # Delay context manager cleanup of `max_rows` until after tests finish.
+        yield display.TableWidget(paginated_bf_df)
+
+
+@pytest.fixture(scope="module")
+def small_pandas_df() -> pd.DataFrame:
+    """Create a DataFrame smaller than the page size for edge case testing."""
+    return pd.DataFrame(
+        {
+            "id": [0, 1],
+            "page_indicator": ["small_row_1", "small_row_2"],
+            "value": [0, 1],
+        }
+    )
+
+
+@pytest.fixture(scope="module")
+def small_bf_df(
+    session: bf.Session, small_pandas_df: pd.DataFrame
+) -> bf.dataframe.DataFrame:
+    return session.read_pandas(small_pandas_df)
+
+
+@pytest.fixture
+def small_widget(small_bf_df):
+    """Helper fixture for tests using a DataFrame smaller than the page size."""
+    from bigframes import display
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 5):
+        yield display.TableWidget(small_bf_df)
+
+
+@pytest.fixture(scope="module")
+def empty_pandas_df() -> pd.DataFrame:
+    """Create an empty DataFrame for edge case testing."""
+    return pd.DataFrame(columns=["id", "page_indicator", "value"])
+
+
+@pytest.fixture(scope="module")
+def empty_bf_df(
+    session: bf.Session, empty_pandas_df: pd.DataFrame
+) -> bf.dataframe.DataFrame:
+    return session.read_pandas(empty_pandas_df)
 
 
 def _assert_html_matches_pandas_slice(
@@ -85,44 +131,24 @@ def _assert_html_matches_pandas_slice(
         assert row["page_indicator"] not in table_html
 
 
-def test_repr_anywidget_initialization_sets_page_to_zero(
+def test_widget_initialization_should_set_default_state(
     paginated_bf_df: bf.dataframe.DataFrame,
 ):
-    """A TableWidget should initialize with the page number set to 0."""
-    with bf.option_context("display.repr_mode", "anywidget"):
+    """
+    A TableWidget should initialize with correct default values for the page,
+    page size, and total row count.
+    """
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
         from bigframes import display
 
         widget = display.TableWidget(paginated_bf_df)
 
         assert widget.page == 0
+        assert widget.page_size == EXPECTED_PAGE_SIZE
+        assert widget.row_count == EXPECTED_ROW_COUNT
 
 
-def test_repr_anywidget_initialization_sets_page_size_from_options(
-    paginated_bf_df: bf.dataframe.DataFrame,
-):
-    """A TableWidget should initialize its page size from bf.options."""
-    with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes import display
-
-        widget = display.TableWidget(paginated_bf_df)
-
-        assert widget.page_size == bf.options.display.max_rows
-
-
-def test_repr_anywidget_initialization_sets_row_count(
-    paginated_bf_df: bf.dataframe.DataFrame,
-    paginated_pandas_df: pd.DataFrame,
-):
-    """A TableWidget should initialize with the correct total row count."""
-    with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes import display
-
-        widget = display.TableWidget(paginated_bf_df)
-
-        assert widget.row_count == len(paginated_pandas_df)
-
-
-def test_repr_anywidget_display_first_page_on_load(
+def test_widget_display_should_show_first_page_on_load(
     table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
@@ -136,7 +162,7 @@ def test_repr_anywidget_display_first_page_on_load(
     _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
 
 
-def test_repr_anywidget_navigate_to_second_page(
+def test_widget_navigation_should_display_second_page(
     table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
@@ -152,7 +178,7 @@ def test_repr_anywidget_navigate_to_second_page(
     _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
 
 
-def test_repr_anywidget_navigate_to_last_page(
+def test_widget_navigation_should_display_last_page(
     table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
@@ -168,7 +194,7 @@ def test_repr_anywidget_navigate_to_last_page(
     _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
 
 
-def test_repr_anywidget_page_clamp_to_zero_for_negative_input(
+def test_widget_navigation_should_clamp_to_zero_for_negative_input(
     table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
@@ -184,7 +210,7 @@ def test_repr_anywidget_page_clamp_to_zero_for_negative_input(
     _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
 
 
-def test_repr_anywidget_page_clamp_to_last_page_for_out_of_bounds_input(
+def test_widget_navigation_should_clamp_to_last_page_for_out_of_bounds_input(
     table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
@@ -211,7 +237,7 @@ def test_repr_anywidget_page_clamp_to_last_page_for_out_of_bounds_input(
         "Page 1 (Rows 3-5)",
     ],
 )
-def test_repr_anywidget_paginate_correctly_with_custom_page_size(
+def test_widget_pagination_should_work_with_custom_page_size(
     paginated_bf_df: bf.dataframe.DataFrame,
     paginated_pandas_df: pd.DataFrame,
     page: int,
@@ -234,3 +260,60 @@ def test_repr_anywidget_paginate_correctly_with_custom_page_size(
 
         assert widget.page == page
         _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+def test_widget_with_few_rows_should_display_all_rows(small_widget, small_pandas_df):
+    """
+    Given a DataFrame smaller than the page size, the widget should
+    display all rows on the first page.
+    """
+    html = small_widget.table_html
+
+    _assert_html_matches_pandas_slice(html, small_pandas_df, small_pandas_df)
+
+
+def test_widget_with_few_rows_should_have_only_one_page(small_widget):
+    """
+    Given a DataFrame smaller than the page size, the widget should
+    clamp page navigation, effectively having only one page.
+    """
+    assert small_widget.page == 0
+
+    # Attempt to navigate past the end
+    small_widget.page = 1
+
+    # Should be clamped back to the only valid page
+    assert small_widget.page == 0
+
+
+def test_widget_page_size_should_be_immutable_after_creation(
+    paginated_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    A widget's page size should be fixed on creation and not be affected
+    by subsequent changes to global options.
+    """
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        from bigframes.display import TableWidget
+
+        widget = TableWidget(paginated_bf_df)
+        assert widget.page_size == 2
+
+        # Navigate to second page to ensure widget is in a non-default state
+        widget.page = 1
+        assert widget.page == 1
+
+        # Change global max_rows - widget should not be affected
+        bf.options.display.max_rows = 10
+
+        assert widget.page_size == 2  # Should remain unchanged
+        assert widget.page == 1  # Should remain on same page
+
+
+# TODO(b/428918844, shuowei): Add test for empty results once this bug is fixed
+# This test is blocked by b/428918844 which causes to_pandas_batches()
+# to return empty iterables for empty DataFrames.
+
+# TODO(shuowei): Add tests for custom index and multiindex
+# This may not be necessary for the SQL Cell use case but should be
+# considered for completeness.

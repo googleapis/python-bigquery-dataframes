@@ -39,6 +39,7 @@ from typing import (
     Union,
 )
 import warnings
+import weakref
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
@@ -87,6 +88,7 @@ import bigframes.session._io.bigquery
 if typing.TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
 
+    from bigframes.display.anywidget import TableWidget
     import bigframes.session
 
     SingleItemValue = Union[bigframes.series.Series, int, float, str, Callable]
@@ -110,6 +112,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     _disable_cache_override: bool = False
     # Must be above 5000 for pandas to delegate to bigframes for binops
     __pandas_priority__ = 15000
+
+    # Type annotation for anywidget instance
+    _anywidget_instance: Optional[weakref.ReferenceType["TableWidget"]] = None
 
     def __init__(
         self,
@@ -779,21 +784,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        if opts.repr_mode == "anywidget":
-            try:
-                from bigframes import display
-
-                # Store the widget for _repr_mimebundle_ to use
-                self._anywidget_instance = display.TableWidget(self)
-                # Return a fallback HTML string
-                return "Interactive table widget (anywidget mode)"
-            except (AttributeError, ValueError):
-                # Fallback if anywidget is not available
-                warnings.warn(
-                    "Anywidget mode is not available, falling back to deferred mode."
-                )
-                return formatter.repr_query_job(self._compute_dry_run())
-
+        # Process blob columns first, regardless of display mode
         self._cached()
         df = self.copy()
         if bigframes.options.display.blob_display:
@@ -805,7 +796,40 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for col in blob_cols:
                 # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
                 df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
+        else:
+            blob_cols = []
 
+        if opts.repr_mode == "anywidget":
+            try:
+                from IPython.display import display as ipython_display
+
+                from bigframes import display
+
+                # Check if widget instance already exists and reuse it
+                widget = None
+                if (
+                    hasattr(self, "_anywidget_instance")
+                    and self._anywidget_instance is not None
+                ):
+                    widget = self._anywidget_instance()
+
+                # If widget doesn't exist or was garbage collected, create a new one
+                if widget is None:
+                    # Pass the processed dataframe (with blob URLs) to the widget
+                    widget = display.TableWidget(df)
+                    self._anywidget_instance = weakref.ref(widget)
+
+                ipython_display(widget)
+                return ""  # Return empty string since we used display()
+
+            except (AttributeError, ValueError, ImportError):
+                # Fallback if anywidget is not available
+                warnings.warn(
+                    "Anywidget mode is not available. Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. Falling back to deferred mode."
+                )
+                return formatter.repr_query_job(self._compute_dry_run())
+
+        # Continue with regular HTML rendering for non-anywidget modes
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -814,7 +838,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         self._set_internal_query_job(query_job)
-
         column_count = len(pandas_df.columns)
 
         with display_options.pandas_repr(opts):
