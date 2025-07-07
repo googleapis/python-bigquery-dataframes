@@ -2827,7 +2827,6 @@ def test_join_different_table_with_duplicate_column_name(
         ["string_col", "int64_col", "int64_too"]
     ].rename(columns={"int64_too": "int64_col"})
     bf_result = bf_df_a.join(bf_df_b, how=how, lsuffix="_l", rsuffix="_r").to_pandas()
-    print(bf_result)
     pd_df_a = scalars_pandas_df_index[["string_col", "int64_col", "int64_too"]].rename(
         columns={"int64_too": "int64_col"}
     )
@@ -2835,7 +2834,6 @@ def test_join_different_table_with_duplicate_column_name(
         ["string_col", "int64_col", "int64_too"]
     ].rename(columns={"int64_too": "int64_col"})
     pd_result = pd_df_a.join(pd_df_b, how=how, lsuffix="_l", rsuffix="_r")
-    print(pd_result)
 
     pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
 
@@ -2892,7 +2890,6 @@ def test_join_param_on_with_duplicate_column_name_on_col(
     bf_result = bf_df_a.join(
         bf_df_b, on="int64_too", how=how, lsuffix="_l", rsuffix="_r"
     ).to_pandas()
-    print(bf_result)
     pd_df_a = scalars_pandas_df_index[
         ["string_col", "datetime_col", "timestamp_col", "int64_too"]
     ].rename(columns={"timestamp_col": "datetime_col"})
@@ -2902,7 +2899,6 @@ def test_join_param_on_with_duplicate_column_name_on_col(
     pd_result = pd_df_a.join(
         pd_df_b, on="int64_too", how=how, lsuffix="_l", rsuffix="_r"
     )
-    print(pd_result)
     pd.testing.assert_frame_equal(
         bf_result.sort_index(),
         pd_result.sort_index(),
