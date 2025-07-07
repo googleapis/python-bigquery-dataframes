@@ -553,7 +553,7 @@ def test_df_info(scalars_dfs):
     expected = (
         "<class 'bigframes.dataframe.DataFrame'>\n"
         "Index: 9 entries, 0 to 8\n"
-        "Data columns (total 13 columns):\n"
+        "Data columns (total 14 columns):\n"
         "  #  Column         Non-Null Count    Dtype\n"
         "---  -------------  ----------------  ------------------------------\n"
         "  0  bool_col       8 non-null        boolean\n"
@@ -569,8 +569,9 @@ def test_df_info(scalars_dfs):
         " 10  string_col     8 non-null        string\n"
         " 11  time_col       6 non-null        time64[us][pyarrow]\n"
         " 12  timestamp_col  6 non-null        timestamp[us, tz=UTC][pyarrow]\n"
-        "dtypes: Float64(1), Int64(3), binary[pyarrow](1), boolean(1), date32[day][pyarrow](1), decimal128(38, 9)[pyarrow](1), geometry(1), string(1), time64[us][pyarrow](1), timestamp[us, tz=UTC][pyarrow](1), timestamp[us][pyarrow](1)\n"
-        "memory usage: 1269 bytes\n"
+        " 13  duration_col   7 non-null        duration[us][pyarrow]\n"
+        "dtypes: Float64(1), Int64(3), binary[pyarrow](1), boolean(1), date32[day][pyarrow](1), decimal128(38, 9)[pyarrow](1), duration[us][pyarrow](1), geometry(1), string(1), time64[us][pyarrow](1), timestamp[us, tz=UTC][pyarrow](1), timestamp[us][pyarrow](1)\n"
+        "memory usage: 1341 bytes\n"
     )
 
     scalars_df, _ = scalars_dfs
@@ -1694,6 +1695,7 @@ def test_get_dtypes(scalars_df_default_index):
         "string_col": pd.StringDtype(storage="pyarrow"),
         "time_col": pd.ArrowDtype(pa.time64("us")),
         "timestamp_col": pd.ArrowDtype(pa.timestamp("us", tz="UTC")),
+        "duration_col": pd.ArrowDtype(pa.duration("us")),
     }
     pd.testing.assert_series_equal(
         dtypes,
@@ -3491,6 +3493,15 @@ def test__dir__with_rename(scalars_dfs):
     assert "drop" in results
 
 
+def test_loc_select_columns_w_repeats(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index[["int64_col", "int64_col", "int64_too"]].to_pandas()
+    pd_result = scalars_pandas_df_index[["int64_col", "int64_col", "int64_too"]]
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 @pytest.mark.parametrize(
     ("start", "stop", "step"),
     [
@@ -4845,6 +4856,9 @@ def test_df_to_json_local_str(scalars_df_index, scalars_pandas_df_index):
 def test_df_to_json_local_file(scalars_df_index, scalars_pandas_df_index):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
     pytest.importorskip("pandas", minversion="2.0.0")
+    # duration not fully supported at pandas level
+    scalars_df_index = scalars_df_index.drop(columns="duration_col")
+    scalars_pandas_df_index = scalars_pandas_df_index.drop(columns="duration_col")
     with tempfile.TemporaryFile() as bf_result_file, tempfile.TemporaryFile() as pd_result_file:
         scalars_df_index.to_json(bf_result_file, orient="table")
         # default_handler for arrow types that have no default conversion
@@ -4956,6 +4970,7 @@ def test_df_to_orc(scalars_df_index, scalars_pandas_df_index):
         "time_col",
         "timestamp_col",
         "geography_col",
+        "duration_col",
     ]
 
     bf_result_file = tempfile.TemporaryFile()
@@ -5612,7 +5627,7 @@ def test_astype_invalid_type_fail(scalars_dfs):
         bf_df.astype(123)
 
 
-def test_agg_with_dict(scalars_dfs):
+def test_agg_with_dict_lists(scalars_dfs):
     bf_df, pd_df = scalars_dfs
     agg_funcs = {
         "int64_too": ["min", "max"],
@@ -5623,6 +5638,38 @@ def test_agg_with_dict(scalars_dfs):
     pd_result = pd_df.agg(agg_funcs)
 
     pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_agg_with_dict_list_and_str(scalars_dfs):
+    bf_df, pd_df = scalars_dfs
+    agg_funcs = {
+        "int64_too": ["min", "max"],
+        "int64_col": "sum",
+    }
+
+    bf_result = bf_df.agg(agg_funcs).to_pandas()
+    pd_result = pd_df.agg(agg_funcs)
+
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_agg_with_dict_strs(scalars_dfs):
+    bf_df, pd_df = scalars_dfs
+    agg_funcs = {
+        "int64_too": "min",
+        "int64_col": "sum",
+        "float64_col": "max",
+    }
+
+    bf_result = bf_df.agg(agg_funcs).to_pandas()
+    pd_result = pd_df.agg(agg_funcs)
+    pd_result.index = pd_result.index.astype("string[pyarrow]")
+
+    pd.testing.assert_series_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
 
