@@ -48,8 +48,6 @@ def q(project_id: str, dataset_id: str, session: bigframes.Session):
     max_revenue_suppliers = joined_data[
         joined_data["TOTAL_REVENUE"] == joined_data["MAX_REVENUE"]
     ]
-
-    max_revenue_suppliers["TOTAL_REVENUE"] = max_revenue_suppliers["TOTAL_REVENUE"]
     q_final = max_revenue_suppliers[
         ["S_SUPPKEY", "S_NAME", "S_ADDRESS", "S_PHONE", "TOTAL_REVENUE"]
     ].sort_values("S_SUPPKEY")
