@@ -76,6 +76,17 @@ def rewrite_slice(node: nodes.BigFrameNode):
         return node
 
     slice_def = (node.start, node.stop, node.step)
+
+    # Handle empty slice cases exlicitly (e.g. [0:0])
+    if (
+        node.start is not None
+        and node.stop is not None
+        and node.start >= node.stop
+        and (node.step is None or node.step > 0)
+    ):
+        # Return empty result by filtering with impossible condition
+        return slice_as_filter(node.child, node.start, node.start, node.step or 1)
+
     # no-op (eg. df[::1])
     if slices.is_noop(slice_def, node.child.row_count):
         return node.child
