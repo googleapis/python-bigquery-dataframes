@@ -24,7 +24,10 @@ import pandas as pd
 
 import bigframes
 
-# Simplified import structure as suggested in review
+# anywidget and traitlets are optional dependencies. We don't want the import of this
+# module to fail if they aren't installed, though. Instead, we try to limit the surface that
+# these packages could affect. This makes unit testing easier and ensures we don't
+# accidentally make these required packages.
 try:
     import anywidget
     import traitlets
@@ -123,7 +126,7 @@ class TableWidget(WIDGET_BASE):
             return False
 
         try:
-            iterator = self._get_batch_iterator()
+            iterator = self._batch_iterator()
             batch = next(iterator)
             self._cached_batches.append(batch)
             return True
@@ -131,7 +134,7 @@ class TableWidget(WIDGET_BASE):
             self._all_data_loaded = True
             return False
 
-    def _get_batch_iterator(self) -> Iterator[pd.DataFrame]:
+    def _batch_iterator(self) -> Iterator[pd.DataFrame]:
         """Lazily initializes and returns the batch iterator."""
         if self._batch_iter is None:
             self._batch_iter = iter(self._batches)
