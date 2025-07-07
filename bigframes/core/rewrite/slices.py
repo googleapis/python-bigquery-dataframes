@@ -76,14 +76,12 @@ def rewrite_slice(node: nodes.BigFrameNode):
         return node
 
     slice_def = (node.start, node.stop, node.step)
-    print(f"DEBUG: Processing slice {slice_def}, row_count={node.child.row_count}")
 
     # Handle empty slice cases explicitly before any row count dependent logic
     # This ensures empty slices always return empty results regardless of statistics
     if _is_empty_slice(node.start, node.stop, node.step):
         # Create a filter that will always return empty results
         # Use start=0, stop=0, step=1 to ensure empty result
-        print("DEBUG: Detected empty slice, returning filtered result")
         return slice_as_filter(node.child, 0, 0, 1)
 
     # no-op (eg. df[::1])
