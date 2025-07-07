@@ -2801,7 +2801,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         *,
         axis: int | str = 0,
-        how: typing.Literal["all", "any"] = "any",
+        how: str = "any",
         thresh: typing.Optional[int] = None,
         subset: typing.Union[None, blocks.Label, Sequence[blocks.Label]] = None,
         inplace: bool = False,
@@ -2811,12 +2811,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(
                 f"'inplace'=True not supported. {constants.FEEDBACK_LINK}"
             )
-        if thresh is not None and how != "any":
-            raise TypeError(
-                "You cannot set both the how and thresh arguments at the same time."
-            )
-        if how not in ("any", "all"):
-            raise ValueError("'how' must be one of 'any', 'all'")
+
+        # Check if both thresh and how are explicitly provided
+        if thresh is not None:
+            # cannot specify both thresh and how parameters
+            if how != "any":
+                raise TypeError(
+                    "You cannot set both the how and thresh arguments at the same time."
+                )
+        else:
+            # Only validate 'how' when thresh is not provided
+            if how not in ("any", "all"):
+                raise ValueError("'how' must be one of 'any', 'all'")
 
         axis_n = utils.get_axis_number(axis)
 

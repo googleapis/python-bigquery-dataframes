@@ -522,7 +522,7 @@ def rank(
 def dropna(
     block: blocks.Block,
     column_ids: typing.Sequence[str],
-    how: typing.Literal["all", "any"] = "any",
+    how: str = "any",
     thresh: typing.Optional[int] = None,
     subset: Optional[typing.Sequence[str]] = None,
 ):
@@ -555,10 +555,10 @@ def dropna(
                 ),
                 predicates,
             )
-
         # Filter rows where count >= thresh
         predicate = ops.ge_op.as_expr(count_expr, ex.const(thresh))
     else:
+        # Only handle 'how' parameter when thresh is not specified
         if how == "any":
             predicate = functools.reduce(ops.and_op.as_expr, predicates)
         else:  # "all"
