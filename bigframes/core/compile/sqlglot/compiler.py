@@ -245,6 +245,28 @@ class SQLGlotCompiler:
         )
 
     @_compile_node.register
+    def compile_isin_join(
+        self, node: nodes.InNode, left: ir.SQLGlotIR, right: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        conditions = tuple(
+            typed_expr.TypedExpr(
+                scalar_compiler.compile_scalar_expression(node.left_col),
+                left.output_type,
+            ),
+            typed_expr.TypedExpr(
+                scalar_compiler.compile_scalar_expression(node.right_col),
+                right.output_type,
+            ),
+        )
+
+        return left.isin_join(
+            right,
+            indicator_col=node.indicator_col.sql,
+            conditions=conditions,
+            joins_nulls=node.joins_nulls,
+        )
+
+    @_compile_node.register
     def compile_concat(
         self, node: nodes.ConcatNode, *children: ir.SQLGlotIR
     ) -> ir.SQLGlotIR:
