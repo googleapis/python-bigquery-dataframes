@@ -3488,63 +3488,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     "Join on columns must match the index level of the other DataFrame. Join on column with multi-index haven't been supported."
                 )
 
-            # Replace all columns names with unique names for reordering.
-            left_col_original_names = left.columns
-            on_col_name = "bigframes_left_col_on"
-            dup_on_col_name = "bigframes_left_col_on_dup"
-            left_col_temp_names = [
-                f"bigframes_left_col_name_{i}" if col_name != on else on_col_name
-                for i, col_name in enumerate(left_col_original_names)
-            ]
-            left.columns = pandas.Index(left_col_temp_names)
-            # if on column is also in right df, we need to duplicate the column
-            # and set it to be the first column
-            if on in col_intersection:
-                left[dup_on_col_name] = left[on_col_name]
-                on_col_name = dup_on_col_name
-                left_col_temp_names = [on_col_name] + left_col_temp_names
-                left = left[left_col_temp_names]
-
-            # Switch left index with on column
-            left_idx_original_names = left.index.names if left._has_index else ()
-            left_idx_names_in_cols = [
-                f"bigframes_left_idx_name_{i}"
-                for i in range(len(left_idx_original_names))
-            ]
-            if left._has_index:
-                left.index.names = left_idx_names_in_cols
-            left = left.reset_index(drop=False)
-            left = left.set_index(on_col_name)
-
-            right_col_original_names = right.columns
-            right_col_temp_names = [
-                f"bigframes_right_col_name_{i}"
-                for i in range(len(right_col_original_names))
-            ]
-            right.columns = pandas.Index(right_col_temp_names)
-
-            # Join on index and switch back
-            combined_df = left._perform_join_by_index(right, how=how)
-            combined_df.index.name = on_col_name
-            combined_df = combined_df.reset_index(drop=False)
-            combined_df = combined_df.set_index(left_idx_names_in_cols)
-
-            # To be consistent with Pandas
-            if combined_df._has_index:
-                combined_df.index.names = (
-                    left_idx_original_names
-                    if how in ("inner", "left")
-                    else ([None] * len(combined_df.index.names))
-                )
-
-            # Reorder columns
-            combined_df = combined_df[left_col_temp_names + right_col_temp_names]
-            return combined_df._add_join_suffix(
-                left_col_original_names,
-                right_col_original_names,
+            return self._join_on_key(
+                other,
+                on=on,
+                how=how,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
-                extra_col=on if on_col_name == dup_on_col_name else None,
+                should_duplicate_on_key=(on in col_intersection),
             )
 
         # Join left index with right index
@@ -3553,6 +3503,74 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return left._perform_join_by_index(right, how=how)._add_join_suffix(
             left.columns, right.columns, lsuffix=lsuffix, rsuffix=rsuffix
+        )
+
+    def _join_on_key(
+        self,
+        other: DataFrame,
+        on: str,
+        how: str,
+        lsuffix: str,
+        rsuffix: str,
+        should_duplicate_on_key: bool,
+    ) -> DataFrame:
+        left, right = self, other
+        # Replace all columns names with unique names for reordering.
+        left_col_original_names = left.columns
+        on_col_name = "bigframes_left_col_on"
+        dup_on_col_name = "bigframes_left_col_on_dup"
+        left_col_temp_names = [
+            f"bigframes_left_col_name_{i}" if col_name != on else on_col_name
+            for i, col_name in enumerate(left_col_original_names)
+        ]
+        left.columns = pandas.Index(left_col_temp_names)
+        # if on column is also in right df, we need to duplicate the column
+        # and set it to be the first column
+        if should_duplicate_on_key:
+            left[dup_on_col_name] = left[on_col_name]
+            on_col_name = dup_on_col_name
+            left_col_temp_names = [on_col_name] + left_col_temp_names
+            left = left[left_col_temp_names]
+
+        # Switch left index with on column
+        left_idx_original_names = left.index.names if left._has_index else ()
+        left_idx_names_in_cols = [
+            f"bigframes_left_idx_name_{i}" for i in range(len(left_idx_original_names))
+        ]
+        if left._has_index:
+            left.index.names = left_idx_names_in_cols
+        left = left.reset_index(drop=False)
+        left = left.set_index(on_col_name)
+
+        right_col_original_names = right.columns
+        right_col_temp_names = [
+            f"bigframes_right_col_name_{i}"
+            for i in range(len(right_col_original_names))
+        ]
+        right.columns = pandas.Index(right_col_temp_names)
+
+        # Join on index and switch back
+        combined_df = left._perform_join_by_index(right, how=how)
+        combined_df.index.name = on_col_name
+        combined_df = combined_df.reset_index(drop=False)
+        combined_df = combined_df.set_index(left_idx_names_in_cols)
+
+        # To be consistent with Pandas
+        if combined_df._has_index:
+            combined_df.index.names = (
+                left_idx_original_names
+                if how in ("inner", "left")
+                else ([None] * len(combined_df.index.names))
+            )
+
+        # Reorder columns
+        combined_df = combined_df[left_col_temp_names + right_col_temp_names]
+        return combined_df._add_join_suffix(
+            left_col_original_names,
+            right_col_original_names,
+            lsuffix=lsuffix,
+            rsuffix=rsuffix,
+            extra_col=on if on_col_name == dup_on_col_name else None,
         )
 
     def _perform_join_by_index(
