@@ -2870,7 +2870,9 @@ def test_join_param_on_with_duplicate_column_name_not_on_col(
         pd_result.sort_index(),
         check_like=True,
         check_index_type=False,
+        check_names=False,
     )
+    pd.testing.assert_index_equal(bf_result.columns, pd_result.columns)
 
 
 @pytest.mark.skipif(
