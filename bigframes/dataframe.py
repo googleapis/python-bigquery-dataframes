@@ -805,19 +805,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
                 from bigframes import display
 
-                # Check if widget instance already exists and reuse it
-                widget = None
-                if (
-                    hasattr(self, "_anywidget_instance")
-                    and self._anywidget_instance is not None
-                ):
-                    widget = self._anywidget_instance()
-
-                # If widget doesn't exist or was garbage collected, create a new one
-                if widget is None:
-                    # Pass the processed dataframe (with blob URLs) to the widget
-                    widget = display.TableWidget(df)
-                    self._anywidget_instance = weakref.ref(widget)
+                # Always create a new widget instance for each display call
+                # This ensures that each cell gets its own widget and prevents
+                # unintended sharing between cells
+                widget = display.TableWidget(df.copy())
 
                 ipython_display(widget)
                 return ""  # Return empty string since we used display()

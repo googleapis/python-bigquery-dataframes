@@ -131,21 +131,26 @@ def _assert_html_matches_pandas_slice(
         assert row["page_indicator"] not in table_html
 
 
-def test_widget_initialization_should_set_default_state(
+def test_widget_initialization_should_calculate_total_row_count(
     paginated_bf_df: bf.dataframe.DataFrame,
 ):
-    """
-    A TableWidget should initialize with correct default values for the page,
-    page size, and total row count.
-    """
-    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        from bigframes import display
+    """A TableWidget should correctly calculate the total row count on creation."""
+    from bigframes import display
 
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
         widget = display.TableWidget(paginated_bf_df)
 
-        assert widget.page == 0
-        assert widget.page_size == EXPECTED_PAGE_SIZE
-        assert widget.row_count == EXPECTED_ROW_COUNT
+    assert widget.row_count == EXPECTED_ROW_COUNT
+
+
+def test_widget_initialization_should_set_default_pagination(
+    table_widget,
+):
+    """A TableWidget should initialize with page 0 and the correct page size."""
+    # The `table_widget` fixture already creates the widget.
+    # Assert its state.
+    assert table_widget.page == 0
+    assert table_widget.page_size == EXPECTED_PAGE_SIZE
 
 
 def test_widget_display_should_show_first_page_on_load(
@@ -310,9 +315,28 @@ def test_widget_page_size_should_be_immutable_after_creation(
         assert widget.page == 1  # Should remain on same page
 
 
-# TODO(b/428918844, shuowei): Add test for empty results once this bug is fixed
-# This test is blocked by b/428918844 which causes to_pandas_batches()
-# to return empty iterables for empty DataFrames.
+def test_empty_widget_should_have_zero_row_count(empty_bf_df: bf.dataframe.DataFrame):
+    """Given an empty DataFrame, the widget's row count should be 0."""
+    with bf.option_context("display.repr_mode", "anywidget"):
+        from bigframes.display import TableWidget
+
+        widget = TableWidget(empty_bf_df)
+
+        assert widget.row_count == 0
+
+
+def test_empty_widget_should_render_table_headers(empty_bf_df: bf.dataframe.DataFrame):
+    """Given an empty DataFrame, the widget should still render table headers."""
+    with bf.option_context("display.repr_mode", "anywidget"):
+        from bigframes.display import TableWidget
+
+        widget = TableWidget(empty_bf_df)
+
+        html = widget.table_html
+
+        assert "<table" in html
+        assert "id" in html
+
 
 # TODO(shuowei): Add tests for custom index and multiindex
 # This may not be necessary for the SQL Cell use case but should be

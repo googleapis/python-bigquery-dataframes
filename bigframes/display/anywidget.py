@@ -126,7 +126,7 @@ class TableWidget(WIDGET_BASE):
             return False
 
         try:
-            iterator = self._batch_iterator()
+            iterator = self._batch_iterator
             batch = next(iterator)
             self._cached_batches.append(batch)
             return True
@@ -134,13 +134,15 @@ class TableWidget(WIDGET_BASE):
             self._all_data_loaded = True
             return False
 
+    @property
     def _batch_iterator(self) -> Iterator[pd.DataFrame]:
         """Lazily initializes and returns the batch iterator."""
         if self._batch_iter is None:
             self._batch_iter = iter(self._batches)
         return self._batch_iter
 
-    def _get_cached_data(self) -> pd.DataFrame:
+    @property
+    def _cached_data(self) -> pd.DataFrame:
         """Combine all cached batches into a single DataFrame."""
         if not self._cached_batches:
             return pd.DataFrame(columns=self._dataframe.columns)
@@ -152,10 +154,10 @@ class TableWidget(WIDGET_BASE):
         end = start + self.page_size
 
         # fetch more data if the requested page is outside our cache
-        cached_data = self._get_cached_data()
+        cached_data = self._cached_data
         while len(cached_data) < end and not self._all_data_loaded:
             if self._get_next_batch():
-                cached_data = self._get_cached_data()
+                cached_data = self._cached_data
             else:
                 break
 
