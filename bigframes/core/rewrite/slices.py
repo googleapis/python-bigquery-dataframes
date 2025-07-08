@@ -76,6 +76,14 @@ def rewrite_slice(node: nodes.BigFrameNode):
         return node
 
     slice_def = (node.start, node.stop, node.step)
+
+    # Handle empty slice cases explicitly before any row count dependent logic
+    # This ensures empty slices always return empty results regardless of statistics
+    if _is_empty_slice(node.start, node.stop, node.step):
+        # Create a filter that will always return empty results
+        # Use start=0, stop=0, step=1 to ensure empty result
+        return slice_as_filter(node.child, 0, 0, 1)
+
     # no-op (eg. df[::1])
     if slices.is_noop(slice_def, node.child.row_count):
         return node.child
@@ -87,6 +95,26 @@ def rewrite_slice(node: nodes.BigFrameNode):
     if node.child.row_count:
         slice_def = slices.to_forward_offsets(slice_def, node.child.row_count)
     return slice_as_filter(node.child, *slice_def)
+
+
+def _is_empty_slice(start, stop, step):
+    """Check if a slice will always return empty results."""
+    if start is None or stop is None:
+        return False
+
+    # Normalize step
+    if step is None:
+        step = 1
+
+    # For positive step, empty if start >= stop
+    # For negative step, empty if start <= stop
+    if step > 0:
+        return start >= stop
+    elif step < 0:
+        return start <= stop
+    else:
+        # step == 0 is invalid, but handle gracefully
+        return True
 
 
 def slice_as_filter(
