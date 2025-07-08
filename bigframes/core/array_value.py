@@ -37,10 +37,10 @@ import bigframes.core.tree_properties
 from bigframes.core.window_spec import WindowSpec
 import bigframes.dtypes
 import bigframes.exceptions as bfe
-import bigframes.operations as ops
-import bigframes.operations.aggregations as agg_ops
 
 if typing.TYPE_CHECKING:
+    # Avoid circular imports.
+    import bigframes.operations.aggregations as agg_ops
     from bigframes.session import Session
 
 ORDER_ID_COLUMN = "bigframes_ordering_id"
@@ -185,6 +185,8 @@ class ArrayValue:
 
     def row_count(self) -> ArrayValue:
         """Get number of rows in ArrayValue as a single-entry ArrayValue."""
+        import bigframes.operations.aggregations as agg_ops  # Avoid circular imports.
+
         return ArrayValue(
             nodes.AggregateNode(
                 child=self.node,
@@ -200,6 +202,8 @@ class ArrayValue:
     # Operations
     def filter_by_id(self, predicate_id: str, keep_null: bool = False) -> ArrayValue:
         """Filter the table on a given expression, the predicate must be a boolean series aligned with the table expression."""
+        import bigframes.operations as ops  # Avoid circular imports.
+
         predicate: ex.Expression = ex.deref(predicate_id)
         if keep_null:
             predicate = ops.fillna_op.as_expr(predicate, ex.const(True))

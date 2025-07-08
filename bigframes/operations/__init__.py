@@ -88,6 +88,8 @@ from bigframes.operations.generic_ops import (
     SqlScalarOp,
     where_op,
 )
+from bigframes.operations.generic_ops.isnull_op import isnull_op
+from bigframes.operations.generic_ops.notnull_op import notnull_op
 from bigframes.operations.geo_ops import (
     geo_area_op,
     geo_st_astext_op,
@@ -102,7 +104,6 @@ from bigframes.operations.geo_ops import (
     GeoStDistanceOp,
     GeoStLengthOp,
 )
-from bigframes.operations.isnull_op import isnull_op, notnull_op
 from bigframes.operations.json_ops import (
     JSONExtract,
     JSONExtractArray,
