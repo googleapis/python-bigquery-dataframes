@@ -247,6 +247,7 @@ DtypeString = Literal[
     "decimal128(38, 9)[pyarrow]",
     "decimal256(76, 38)[pyarrow]",
     "binary[pyarrow]",
+    "duration[us][pyarrow]",
 ]
 
 DTYPE_STRINGS = typing.get_args(DtypeString)
@@ -340,8 +341,9 @@ def is_json_encoding_type(type_: ExpressionType) -> bool:
     return type_ != GEO_DTYPE
 
 
-def is_numeric(type_: ExpressionType) -> bool:
-    return type_ in NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+def is_numeric(type_: ExpressionType, include_bool: bool = True) -> bool:
+    is_numeric = type_ in NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+    return is_numeric if include_bool else is_numeric and type_ != BOOL_DTYPE
 
 
 def is_iterable(type_: ExpressionType) -> bool:
@@ -421,6 +423,8 @@ BIGFRAMES_STRING_TO_BIGFRAMES["string[pyarrow]"] = STRING_DTYPE
 # special case - both "Int64" and "int64[pyarrow]" are accepted
 BIGFRAMES_STRING_TO_BIGFRAMES["int64[pyarrow]"] = INT_DTYPE
 
+BIGFRAMES_STRING_TO_BIGFRAMES["duration[us][pyarrow]"] = TIMEDELTA_DTYPE
+
 # For the purposes of dataframe.memory_usage
 DTYPE_BYTE_SIZES = {
     type_info.dtype: type_info.logical_bytes for type_info in SIMPLE_TYPES
@@ -444,8 +448,35 @@ _ARROW_TO_BIGFRAMES = {
     if mapping.arrow_dtype is not None
 }
 
+# Include types that aren't 1:1 to BigQuery but allowed to be loaded in to BigQuery:
+_ARROW_TO_BIGFRAMES_LOSSLESS = {
+    pa.int8(): INT_DTYPE,
+    pa.int16(): INT_DTYPE,
+    pa.int32(): INT_DTYPE,
+    pa.uint8(): INT_DTYPE,
+    pa.uint16(): INT_DTYPE,
+    pa.uint32(): INT_DTYPE,
+    # uint64 is omitted because uint64 -> BigQuery INT64 is a lossy conversion.
+    pa.float16(): FLOAT_DTYPE,
+    pa.float32(): FLOAT_DTYPE,
+    # TODO(tswast): Can we support datetime/timestamp/time with units larger
+    # than microseconds?
+}
 
-def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
+
+def arrow_dtype_to_bigframes_dtype(
+    arrow_dtype: pa.DataType, allow_lossless_cast: bool = False
+) -> Dtype:
+    """
+    Convert an arrow type into the pandas-y type used to represent it in BigFrames.
+
+    Args:
+        arrow_dtype: Arrow data type.
+        allow_lossless_cast: Allow lossless conversions, such as int32 to int64.
+    """
+    if allow_lossless_cast and arrow_dtype in _ARROW_TO_BIGFRAMES_LOSSLESS:
+        return _ARROW_TO_BIGFRAMES_LOSSLESS[arrow_dtype]
+
     if arrow_dtype in _ARROW_TO_BIGFRAMES:
         return _ARROW_TO_BIGFRAMES[arrow_dtype]
 

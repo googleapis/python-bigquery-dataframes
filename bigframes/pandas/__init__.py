@@ -38,7 +38,9 @@ import bigframes.enums
 import bigframes.functions._utils as bff_utils
 from bigframes.pandas.core.api import to_timedelta
 from bigframes.pandas.io.api import (
+    _read_gbq_colab,
     from_glob_path,
+    read_arrow,
     read_csv,
     read_gbq,
     read_gbq_function,
@@ -116,6 +118,22 @@ def remote_function(
 remote_function.__doc__ = inspect.getdoc(bigframes.session.Session.remote_function)
 
 
+def deploy_remote_function(
+    func,
+    **kwargs,
+):
+    return global_session.with_default_session(
+        bigframes.session.Session.deploy_remote_function,
+        func=func,
+        **kwargs,
+    )
+
+
+deploy_remote_function.__doc__ = inspect.getdoc(
+    bigframes.session.Session.deploy_remote_function
+)
+
+
 def udf(
     *,
     input_types: Union[None, type, Sequence[type]] = None,
@@ -137,6 +155,20 @@ def udf(
 
 
 udf.__doc__ = inspect.getdoc(bigframes.session.Session.udf)
+
+
+def deploy_udf(
+    func,
+    **kwargs,
+):
+    return global_session.with_default_session(
+        bigframes.session.Session.deploy_udf,
+        func=func,
+        **kwargs,
+    )
+
+
+deploy_udf.__doc__ = inspect.getdoc(bigframes.session.Session.deploy_udf)
 
 
 @typing.overload
@@ -329,12 +361,16 @@ _functions = [
     clean_up_by_session_id,
     concat,
     cut,
+    deploy_remote_function,
+    deploy_udf,
     get_default_session_id,
     get_dummies,
     merge,
     qcut,
     read_csv,
+    read_arrow,
     read_gbq,
+    _read_gbq_colab,
     read_gbq_function,
     read_gbq_model,
     read_gbq_object_table,

@@ -404,11 +404,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self.index.name is not None or len(self.index.names) > 1
         )
 
-    def _to_view(self) -> bigquery.TableReference:
+    def _to_placeholder_table(self, dry_run: bool = False) -> bigquery.TableReference:
         """Compiles this DataFrame's expression tree to SQL and saves it to a
-        (temporary) view.
+        (temporary) view or table (in the case of a dry run).
         """
-        return self._block.to_view(include_index=self._should_sql_have_index())
+        return self._block.to_placeholder_table(
+            include_index=self._should_sql_have_index(), dry_run=dry_run
+        )
 
     def _to_sql_query(
         self, include_index: bool, enable_cache: bool = True
@@ -559,17 +561,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             as_pandas.select_dtypes(include=include, exclude=exclude).columns
         )
         return DataFrame(self._block.select_columns(selected_columns))
-
-    def _select_exact_dtypes(
-        self, dtypes: Sequence[bigframes.dtypes.Dtype]
-    ) -> DataFrame:
-        """Selects columns without considering inheritance relationships."""
-        columns = [
-            col_id
-            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
-            if dtype in dtypes
-        ]
-        return DataFrame(self._block.select_columns(columns))
 
     def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
@@ -734,7 +725,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         opts = bigframes.options.display
         max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
             return formatter.repr_query_job(self._compute_dry_run())
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
@@ -783,6 +776,23 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
+        if opts.repr_mode == "anywidget":
+            import anywidget  # type: ignore
+
+            # create an iterator for the data batches
+            batches = self.to_pandas_batches()
+
+            # get the first page result
+            try:
+                first_page = next(iter(batches))
+            except StopIteration:
+                first_page = pandas.DataFrame(columns=self.columns)
+
+            # Instantiate and return the widget. The widget's frontend will
+            # handle the display of the table and pagination
+            return anywidget.AnyWidget(dataframe=first_page)
+
+        self._cached()
         df = self.copy()
         if bigframes.options.display.blob_display:
             blob_cols = [
@@ -2732,9 +2742,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if isinstance(other, bigframes.series.Series):
             raise ValueError("Seires is not a supported replacement type!")
 
-        if self.columns.nlevels > 1 or self.index.nlevels > 1:
+        if self.columns.nlevels > 1:
             raise NotImplementedError(
-                "The dataframe.where() method does not support multi-index and/or multi-column."
+                "The dataframe.where() method does not support multi-column."
             )
 
         aligned_block, (_, _) = self._block.join(cond._block, how="left")
@@ -2995,14 +3005,44 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if utils.is_dict_like(func):
             # Must check dict-like first because dictionaries are list-like
             # according to Pandas.
-            agg_cols = []
+
+            aggs = []
+            labels = []
+            funcnames = []
             for col_label, agg_func in func.items():
-                agg_cols.append(self[col_label].agg(agg_func))
+                agg_func_list = agg_func if utils.is_list_like(agg_func) else [agg_func]
+                col_id = self._block.resolve_label_exact(col_label)
+                if col_id is None:
+                    raise KeyError(f"Column {col_label} does not exist")
+                for agg_func in agg_func_list:
+                    agg_op = agg_ops.lookup_agg_func(typing.cast(str, agg_func))
+                    agg_expr = (
+                        ex.UnaryAggregation(agg_op, ex.deref(col_id))
+                        if isinstance(agg_op, agg_ops.UnaryAggregateOp)
+                        else ex.NullaryAggregation(agg_op)
+                    )
+                    aggs.append(agg_expr)
+                    labels.append(col_label)
+                    funcnames.append(agg_func)
 
-            from bigframes.core.reshape import api as reshape
-
-            return reshape.concat(agg_cols, axis=1)
-
+            # if any list in dict values, format output differently
+            if any(utils.is_list_like(v) for v in func.values()):
+                new_index, _ = self.columns.reindex(labels)
+                new_index = utils.combine_indices(new_index, pandas.Index(funcnames))
+                agg_block, _ = self._block.aggregate(
+                    aggregations=aggs, column_labels=new_index
+                )
+                return DataFrame(agg_block).stack().droplevel(0, axis="index")
+            else:
+                new_index, _ = self.columns.reindex(labels)
+                agg_block, _ = self._block.aggregate(
+                    aggregations=aggs, column_labels=new_index
+                )
+                return bigframes.series.Series(
+                    agg_block.transpose(
+                        single_row_mode=True, original_row_index=pandas.Index([None])
+                    )
+                )
         elif utils.is_list_like(func):
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
 
@@ -3018,7 +3058,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             )
 
-        else:
+        else:  # function name string
             return bigframes.series.Series(
                 self._block.aggregate_all_and_stack(
                     agg_ops.lookup_agg_func(typing.cast(str, func))
@@ -3078,92 +3118,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def describe(self, include: None | Literal["all"] = None) -> DataFrame:
-        if include is None:
-            numeric_df = self._select_exact_dtypes(
-                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
-                + bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
-            )
-            if len(numeric_df.columns) == 0:
-                # Describe eligible non-numeric columns
-                return self._describe_non_numeric()
+        from bigframes.pandas.core.methods import describe
 
-            # Otherwise, only describe numeric columns
-            return self._describe_numeric()
-
-        elif include == "all":
-            numeric_result = self._describe_numeric()
-            non_numeric_result = self._describe_non_numeric()
-
-            if len(numeric_result.columns) == 0:
-                return non_numeric_result
-            elif len(non_numeric_result.columns) == 0:
-                return numeric_result
-            else:
-                import bigframes.core.reshape.api as rs
-
-                # Use reindex after join to preserve the original column order.
-                return rs.concat(
-                    [non_numeric_result, numeric_result], axis=1
-                )._reindex_columns(self.columns)
-
-        else:
-            raise ValueError(f"Unsupported include type: {include}")
-
-    def _describe_numeric(self) -> DataFrame:
-        number_df_result = typing.cast(
-            DataFrame,
-            self._select_exact_dtypes(
-                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
-            ).agg(
-                [
-                    "count",
-                    "mean",
-                    "std",
-                    "min",
-                    "25%",
-                    "50%",
-                    "75%",
-                    "max",
-                ]
-            ),
-        )
-        temporal_df_result = typing.cast(
-            DataFrame,
-            self._select_exact_dtypes(
-                bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
-            ).agg(["count"]),
-        )
-
-        if len(number_df_result.columns) == 0:
-            return temporal_df_result
-        elif len(temporal_df_result.columns) == 0:
-            return number_df_result
-        else:
-            import bigframes.core.reshape.api as rs
-
-            original_columns = self._select_exact_dtypes(
-                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
-                + bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
-            ).columns
-
-            # Use reindex after join to preserve the original column order.
-            return rs.concat(
-                [number_df_result, temporal_df_result],
-                axis=1,
-            )._reindex_columns(original_columns)
-
-    def _describe_non_numeric(self) -> DataFrame:
-        return typing.cast(
-            DataFrame,
-            self._select_exact_dtypes(
-                [
-                    bigframes.dtypes.STRING_DTYPE,
-                    bigframes.dtypes.BOOL_DTYPE,
-                    bigframes.dtypes.BYTES_DTYPE,
-                    bigframes.dtypes.TIME_DTYPE,
-                ]
-            ).agg(["count", "nunique"]),
-        )
+        return typing.cast(DataFrame, describe.describe(self, include))
 
     def skew(self, *, numeric_only: bool = False):
         if not numeric_only:
@@ -3413,8 +3370,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "right",
             "cross",
         ] = "inner",
-        # TODO(garrettwu): Currently can take inner, outer, left and right. To support
-        # cross joins
         on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
         *,
         left_on: Union[blocks.Label, Sequence[blocks.Label], None] = None,

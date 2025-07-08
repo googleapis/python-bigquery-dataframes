@@ -23,9 +23,11 @@ import pandas as pd
 
 import bigframes.core
 from bigframes.core import identifiers, nodes, ordering, window_spec
+from bigframes.core.compile.polars import lowering
 import bigframes.core.expression as ex
 import bigframes.core.guid as guid
 import bigframes.core.rewrite
+import bigframes.core.rewrite.schema_binding
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -118,9 +120,9 @@ if polars_installed:
         @compile_expression.register
         def _(
             self,
-            expression: ex.SchemaFieldRefExpression,
+            expression: ex.ResolvedDerefOp,
         ) -> pl.Expr:
-            return pl.col(expression.field.id.sql)
+            return pl.col(expression.id.sql)
 
         @compile_expression.register
         def _(
@@ -393,7 +395,7 @@ class PolarsCompiler:
     expr_compiler = PolarsExpressionCompiler()
     agg_compiler = PolarsAggregateCompiler()
 
-    def compile(self, array_value: bigframes.core.ArrayValue) -> pl.LazyFrame:
+    def compile(self, plan: nodes.BigFrameNode) -> pl.LazyFrame:
         if not polars_installed:
             raise ValueError(
                 "Polars is not installed, cannot compile to polars engine."
@@ -401,10 +403,12 @@ class PolarsCompiler:
 
         # TODO: Create standard way to configure BFET -> BFET rewrites
         # Polars has incomplete slice support in lazy mode
-        node = array_value.node
+        node = plan
         node = bigframes.core.rewrite.column_pruning(node)
         node = nodes.bottom_up(node, bigframes.core.rewrite.rewrite_slice)
         node = bigframes.core.rewrite.pull_out_window_order(node)
+        node = bigframes.core.rewrite.schema_binding.bind_schema_to_tree(node)
+        node = lowering.lower_ops_to_polars(node)
         return self.compile_node(node)
 
     @functools.singledispatchmethod

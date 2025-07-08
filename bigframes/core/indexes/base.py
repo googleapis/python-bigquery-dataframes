@@ -174,6 +174,11 @@ class Index(vendored_pandas_index.Index):
             index=typing.cast(typing.Tuple, self._block.index.names),
         )
 
+    def __setitem__(self, key, value) -> None:
+        """Index objects are immutable. Use Index constructor to create
+        modified Index."""
+        raise TypeError("Index does not support mutable operations")
+
     @property
     def size(self) -> int:
         return self.shape[0]
@@ -251,7 +256,9 @@ class Index(vendored_pandas_index.Index):
         # metadata, like we do with DataFrame.
         opts = bigframes.options.display
         max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
             _, dry_run_query_job = self._block._compute_dry_run()
             return formatter.repr_query_job(dry_run_query_job)
 

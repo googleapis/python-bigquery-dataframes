@@ -43,3 +43,5 @@ SELECT
   `bfcol_6` AS `numeric_list_col`,
   `bfcol_7` AS `string_list_col`
 FROM `bfcte_0`
+ORDER BY
+  `bfcol_8` ASC NULLS LAST

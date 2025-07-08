@@ -1453,6 +1453,11 @@ def json_value_op_impl(x: ibis_types.Value, op: ops.JSONValue):
     return json_value(json_obj=x, json_path=op.json_path)
 
 
+@scalar_op_compiler.register_unary_op(ops.JSONValueArray, pass_op=True)
+def json_value_array_op_impl(x: ibis_types.Value, op: ops.JSONValueArray):
+    return json_value_array(json_obj=x, json_path=op.json_path)
+
+
 # Blob Ops
 @scalar_op_compiler.register_unary_op(ops.obj_fetch_metadata_op)
 def obj_fetch_metadata_op_impl(obj_ref: ibis_types.Value):
@@ -1498,6 +1503,7 @@ def eq_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    x, y = _coerce_comparables(x, y)
     return x == y
 
 
@@ -1507,6 +1513,7 @@ def eq_nulls_match_op(
     y: ibis_types.Value,
 ):
     """Variant of eq_op where nulls match each other. Only use where dtypes are known to be same."""
+    x, y = _coerce_comparables(x, y)
     literal = ibis_types.literal("$NULL_SENTINEL$")
     if hasattr(x, "fill_null"):
         left = x.cast(ibis_dtypes.str).fill_null(literal)
@@ -1523,6 +1530,7 @@ def ne_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    x, y = _coerce_comparables(x, y)
     return x != y
 
 
@@ -1532,6 +1540,17 @@ def _null_or_value(value: ibis_types.Value, where_value: ibis_types.BooleanValue
         value,
         ibis_types.null(),
     )
+
+
+def _coerce_comparables(
+    x: ibis_types.Value,
+    y: ibis_types.Value,
+):
+    if x.type().is_boolean() and not y.type().is_boolean():
+        x = x.cast(ibis_dtypes.int64)
+    elif y.type().is_boolean() and not x.type().is_boolean():
+        y = y.cast(ibis_dtypes.int64)
+    return x, y
 
 
 @scalar_op_compiler.register_binary_op(ops.and_op)
@@ -1735,6 +1754,7 @@ def lt_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    x, y = _coerce_comparables(x, y)
     return x < y
 
 
@@ -1744,6 +1764,7 @@ def le_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    x, y = _coerce_comparables(x, y)
     return x <= y
 
 
@@ -1753,6 +1774,7 @@ def gt_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    x, y = _coerce_comparables(x, y)
     return x > y
 
 
@@ -1762,6 +1784,7 @@ def ge_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    x, y = _coerce_comparables(x, y)
     return x >= y
 
 
@@ -2160,6 +2183,13 @@ def json_value(  # type: ignore[empty-body]
     json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
 ) -> ibis_dtypes.String:
     """Retrieve value of a JSON field as plain STRING."""
+
+
+@ibis_udf.scalar.builtin(name="json_value_array")
+def json_value_array(  # type: ignore[empty-body]
+    json_obj: ibis_dtypes.JSON, json_path: ibis_dtypes.String
+) -> ibis_dtypes.Array[ibis_dtypes.String]:
+    """Extracts a JSON array and converts it to a SQL ARRAY of STRINGs."""
 
 
 @ibis_udf.scalar.builtin(name="INT64")

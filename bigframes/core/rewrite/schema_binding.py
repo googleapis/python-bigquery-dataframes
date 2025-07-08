@@ -19,7 +19,13 @@ from bigframes.core import expression as ex
 from bigframes.core import nodes
 
 
-def bind_schema_to_expressions(
+def bind_schema_to_tree(
+    node: bigframe_node.BigFrameNode,
+) -> bigframe_node.BigFrameNode:
+    return nodes.bottom_up(node, bind_schema_to_node)
+
+
+def bind_schema_to_node(
     node: bigframe_node.BigFrameNode,
 ) -> bigframe_node.BigFrameNode:
     if isinstance(node, nodes.ProjectionNode):
@@ -45,5 +51,18 @@ def bind_schema_to_expressions(
             bound_bys.append(bound_by)
 
         return dataclasses.replace(node, by=tuple(bound_bys))
+
+    if isinstance(node, nodes.JoinNode):
+        conditions = tuple(
+            (
+                ex.ResolvedDerefOp.from_field(node.left_child.field_by_id[left.id]),
+                ex.ResolvedDerefOp.from_field(node.right_child.field_by_id[right.id]),
+            )
+            for left, right in node.conditions
+        )
+        return dataclasses.replace(
+            node,
+            conditions=conditions,
+        )
 
     return node

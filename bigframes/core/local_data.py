@@ -30,6 +30,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet  # type: ignore
 
+from bigframes.core import pyarrow_utils
 import bigframes.core.schema as schemata
 import bigframes.dtypes
 
@@ -113,7 +114,9 @@ class ManagedArrowTable:
         schema = self.data.schema
         if duration_type == "int":
             schema = _schema_durations_to_ints(schema)
-            batches = map(functools.partial(_cast_pa_batch, schema=schema), batches)
+            batches = map(
+                functools.partial(pyarrow_utils.cast_batch, schema=schema), batches
+            )
 
         if offsets_col is not None:
             return schema.append(pa.field(offsets_col, pa.int64())), _append_offsets(
@@ -336,7 +339,9 @@ def _adapt_arrow_array(array: pa.Array) -> tuple[pa.Array, bigframes.dtypes.Dtyp
     if target_type != array.type:
         # TODO: Maybe warn if lossy conversion?
         array = array.cast(target_type)
-    bf_type = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(target_type)
+    bf_type = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
+        target_type, allow_lossless_cast=True
+    )
 
     storage_type = _get_managed_storage_type(bf_type)
     if storage_type != array.type:
@@ -463,14 +468,6 @@ def _durations_to_ints(type: pa.DataType) -> pa.DataType:
 def _schema_durations_to_ints(schema: pa.Schema) -> pa.Schema:
     return pa.schema(
         pa.field(field.name, _durations_to_ints(field.type)) for field in schema
-    )
-
-
-# TODO: Use RecordBatch.cast once min pyarrow>=16.0
-def _cast_pa_batch(batch: pa.RecordBatch, schema: pa.Schema) -> pa.RecordBatch:
-    return pa.record_batch(
-        [arr.cast(type) for arr, type in zip(batch.columns, schema.types)],
-        schema=schema,
     )
 
 

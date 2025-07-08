@@ -19,7 +19,7 @@ import dataclasses
 import functools
 import itertools
 import typing
-from typing import Generator, Mapping, TypeVar, Union
+from typing import Callable, Generator, Mapping, TypeVar, Union
 
 import pandas as pd
 
@@ -249,6 +249,10 @@ class Expression(abc.ABC):
         """True for identity operation that does not transform input."""
         return False
 
+    @abc.abstractmethod
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
+        ...
+
     def walk(self) -> Generator[Expression, None, None]:
         yield self
         for child in self.children:
@@ -311,6 +315,9 @@ class ScalarConstantExpression(Expression):
 
         return self.value == other.value and self.dtype == other.dtype
 
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
+        return self
+
 
 @dataclasses.dataclass(frozen=True)
 class UnboundVariableExpression(Expression):
@@ -361,6 +368,9 @@ class UnboundVariableExpression(Expression):
     @property
     def is_identity(self) -> bool:
         return True
+
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
+        return self
 
 
 @dataclasses.dataclass(frozen=True)
@@ -414,61 +424,39 @@ class DerefOp(Expression):
     def is_identity(self) -> bool:
         return True
 
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
+        return self
+
 
 @dataclasses.dataclass(frozen=True)
-class SchemaFieldRefExpression(Expression):
-    """An expression representing a schema field. This is essentially a DerefOp with input schema bound."""
+class ResolvedDerefOp(DerefOp):
+    """An expression that refers to a column by ID and resolved with schema bound."""
 
-    field: field.Field
+    dtype: dtypes.Dtype
+    is_nullable: bool
 
-    @property
-    def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
-        return (self.field.id,)
-
-    @property
-    def is_const(self) -> bool:
-        return False
-
-    @property
-    def nullable(self) -> bool:
-        return self.field.nullable
+    @classmethod
+    def from_field(cls, f: field.Field):
+        return cls(id=f.id, dtype=f.dtype, is_nullable=f.nullable)
 
     @property
     def is_resolved(self) -> bool:
         return True
 
     @property
+    def nullable(self) -> bool:
+        return self.is_nullable
+
+    @property
     def output_type(self) -> dtypes.ExpressionType:
-        return self.field.dtype
-
-    def bind_variables(
-        self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
-    ) -> Expression:
-        return self
-
-    def bind_refs(
-        self,
-        bindings: Mapping[ids.ColumnId, Expression],
-        allow_partial_bindings: bool = False,
-    ) -> Expression:
-        if self.field.id in bindings.keys():
-            return bindings[self.field.id]
-        return self
-
-    @property
-    def is_bijective(self) -> bool:
-        return True
-
-    @property
-    def is_identity(self) -> bool:
-        return True
+        return self.dtype
 
 
 @dataclasses.dataclass(frozen=True)
 class OpExpression(Expression):
     """An expression representing a scalar operation applied to 1 or more argument sub-expressions."""
 
-    op: bigframes.operations.RowOp
+    op: bigframes.operations.ScalarOp
     inputs: typing.Tuple[Expression, ...]
 
     @property
@@ -553,6 +541,12 @@ class OpExpression(Expression):
             all(input.deterministic for input in self.inputs) and self.op.deterministic
         )
 
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
+        new_inputs = tuple(t(input) for input in self.inputs)
+        if new_inputs != self.inputs:
+            return dataclasses.replace(self, inputs=new_inputs)
+        return self
+
 
 def bind_schema_fields(
     expr: Expression, field_by_id: Mapping[ids.ColumnId, field.Field]
@@ -567,7 +561,7 @@ def bind_schema_fields(
         return expr
 
     expr_by_id = {
-        id: SchemaFieldRefExpression(field) for id, field in field_by_id.items()
+        id: ResolvedDerefOp.from_field(field) for id, field in field_by_id.items()
     }
     return expr.bind_refs(expr_by_id)
 

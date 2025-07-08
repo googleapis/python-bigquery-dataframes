@@ -53,6 +53,7 @@ SPHINX_VERSION = "sphinx==4.5.0"
 LINT_PATHS = [
     "docs",
     "bigframes",
+    "scripts",
     "tests",
     "third_party",
     "noxfile.py",
@@ -77,9 +78,9 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
 ]
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
-UNIT_TEST_EXTRAS: List[str] = ["tests"]
+UNIT_TEST_EXTRAS: List[str] = ["tests", "anywidget"]
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
-    "3.12": ["tests", "polars", "scikit-learn"],
+    "3.12": ["tests", "polars", "scikit-learn", "anywidget"],
 }
 
 # 3.10 is needed for Windows tests as it is the only version installed in the
@@ -106,9 +107,9 @@ SYSTEM_TEST_LOCAL_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_EXTRAS: List[str] = []
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
-    "3.9": ["tests"],
-    "3.10": ["tests"],
-    "3.12": ["tests", "scikit-learn", "polars"],
+    "3.9": ["tests", "anywidget"],
+    "3.10": ["tests", "polars"],
+    "3.12": ["tests", "scikit-learn", "polars", "anywidget"],
     "3.13": ["tests", "polars"],
 }
 
@@ -275,7 +276,9 @@ def mypy(session):
                 "types-requests",
                 "types-setuptools",
                 "types-tabulate",
+                "types-PyYAML",
                 "polars",
+                "anywidget",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
@@ -518,6 +521,7 @@ def docs(session):
         SPHINX_VERSION,
         "alabaster",
         "recommonmark",
+        "anywidget",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
@@ -560,6 +564,7 @@ def docfx(session):
         "alabaster",
         "recommonmark",
         "gcp-sphinx-docfx-yaml==3.0.1",
+        "anywidget",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
@@ -763,6 +768,7 @@ def notebook(session: nox.Session):
         "google-cloud-aiplatform",
         "matplotlib",
         "seaborn",
+        "anywidget",
     )
 
     notebooks_list = list(pathlib.Path("notebooks/").glob("*/*.ipynb"))
@@ -805,6 +811,9 @@ def notebook(session: nox.Session):
         # continuously tested.
         "notebooks/apps/synthetic_data_generation.ipynb",
         "notebooks/multimodal/multimodal_dataframe.ipynb",  # too slow
+        # This anywidget notebook uses deferred execution, so it won't
+        # produce metrics for the performance benchmark script.
+        "notebooks/dataframes/anywidget_mode.ipynb",
     ]
 
     # TODO: remove exception for Python 3.13 cloud run adds a runtime for it (internal issue 333742751)

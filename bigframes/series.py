@@ -430,7 +430,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         # metadata, like we do with DataFrame.
         opts = bigframes.options.display
         max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
             return formatter.repr_query_job(self._compute_dry_run())
 
         self._cached()
@@ -1293,6 +1295,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     aggregate = agg
     aggregate.__doc__ = inspect.getdoc(vendored_pandas_series.Series.agg)
 
+    def describe(self) -> Series:
+        from bigframes.pandas.core.methods import describe
+
+        return cast(Series, describe.describe(self, include="all"))
+
     def skew(self):
         count = self.count()
         if count < 3:
@@ -1590,6 +1597,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return self.struct.field(key)
         else:
             raise AttributeError(key)
+
+    def __setitem__(self, key, value) -> None:
+        """Set item using direct assignment, delegating to .loc indexer."""
+        self.loc[key] = value
 
     def _apply_aggregation(
         self, op: agg_ops.UnaryAggregateOp | agg_ops.NullaryAggregateOp

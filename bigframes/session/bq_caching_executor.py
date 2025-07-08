@@ -28,6 +28,8 @@ import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
 
+import bigframes
+from bigframes import exceptions as bfe
 import bigframes.constants
 import bigframes.core
 from bigframes.core import compile, local_data, rewrite
@@ -38,9 +40,14 @@ import bigframes.core.ordering as order
 import bigframes.core.schema as schemata
 import bigframes.core.tree_properties as tree_properties
 import bigframes.dtypes
-import bigframes.exceptions as bfe
 import bigframes.features
-from bigframes.session import executor, loader, local_scan_executor, read_api_execution
+from bigframes.session import (
+    executor,
+    loader,
+    local_scan_executor,
+    read_api_execution,
+    semi_executor,
+)
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
 import bigframes.session.planner
@@ -146,6 +153,7 @@ class BigQueryCachingExecutor(executor.Executor):
         *,
         strictly_ordered: bool = True,
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
+        enable_polars_execution: bool = False,
     ):
         self.bqclient = bqclient
         self.storage_manager = storage_manager
@@ -154,14 +162,21 @@ class BigQueryCachingExecutor(executor.Executor):
         self.metrics = metrics
         self.loader = loader
         self.bqstoragereadclient = bqstoragereadclient
-        # Simple left-to-right precedence for now
-        self._semi_executors = (
+        self._enable_polars_execution = enable_polars_execution
+        self._semi_executors: Sequence[semi_executor.SemiExecutor] = (
             read_api_execution.ReadApiSemiExecutor(
                 bqstoragereadclient=bqstoragereadclient,
                 project=self.bqclient.project,
             ),
             local_scan_executor.LocalScanExecutor(),
         )
+        if enable_polars_execution:
+            from bigframes.session import polars_executor
+
+            self._semi_executors = (
+                *self._semi_executors,
+                polars_executor.PolarsExecutor(),
+            )
         self._upload_lock = threading.Lock()
 
     def to_sql(
@@ -415,7 +430,7 @@ class BigQueryCachingExecutor(executor.Executor):
             # Unfortunately, this error type does not have a separate error code or exception type
             if "Resources exceeded during query execution" in e.message:
                 new_message = "Computation is too complex to execute as a single query. Try using DataFrame.cache() on intermediate results, or setting bigframes.options.compute.enable_multi_query_execution."
-                raise bigframes.exceptions.QueryComplexityError(new_message) from e
+                raise bfe.QueryComplexityError(new_message) from e
             else:
                 raise
 
@@ -636,8 +651,8 @@ class BigQueryCachingExecutor(executor.Executor):
         """Just execute whatever plan as is, without further caching or decomposition."""
         # First try to execute fast-paths
         if not output_spec.require_bq_table:
-            for semi_executor in self._semi_executors:
-                maybe_result = semi_executor.execute(plan, ordered=ordered, peek=peek)
+            for exec in self._semi_executors:
+                maybe_result = exec.execute(plan, ordered=ordered, peek=peek)
                 if maybe_result:
                     return maybe_result
 
@@ -688,7 +703,7 @@ class BigQueryCachingExecutor(executor.Executor):
             )
 
         return executor.ExecuteResult(
-            arrow_batches=iterator.to_arrow_iterable(
+            _arrow_batches=iterator.to_arrow_iterable(
                 bqstorage_client=self.bqstoragereadclient
             ),
             schema=plan.schema,

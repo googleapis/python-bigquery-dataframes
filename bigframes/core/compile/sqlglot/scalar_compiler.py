@@ -18,6 +18,13 @@ import functools
 import sqlglot.expressions as sge
 
 from bigframes.core import expression
+from bigframes.core.compile.sqlglot.expressions import (
+    binary_compiler,
+    nary_compiler,
+    ternary_compiler,
+    typed_expr,
+    unary_compiler,
+)
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.operations as ops
 
@@ -32,14 +39,7 @@ def compile_scalar_expression(
 
 @compile_scalar_expression.register
 def compile_deref_expression(expr: expression.DerefOp) -> sge.Expression:
-    return sge.ColumnDef(this=sge.to_identifier(expr.id.sql, quoted=True))
-
-
-@compile_scalar_expression.register
-def compile_field_ref_expression(
-    expr: expression.SchemaFieldRefExpression,
-) -> sge.Expression:
-    return sge.ColumnDef(this=sge.to_identifier(expr.field.id.sql, quoted=True))
+    return sge.Column(this=sge.to_identifier(expr.id.sql, quoted=True))
 
 
 @compile_scalar_expression.register
@@ -50,37 +50,24 @@ def compile_constant_expression(
 
 
 @compile_scalar_expression.register
-def compile_op_expression(expr: expression.OpExpression):
+def compile_op_expression(expr: expression.OpExpression) -> sge.Expression:
     # Non-recursively compiles the children scalar expressions.
-    args = tuple(map(compile_scalar_expression, expr.inputs))
+    args = tuple(
+        typed_expr.TypedExpr(compile_scalar_expression(input), input.output_type)
+        for input in expr.inputs
+    )
 
     op = expr.op
-    op_name = expr.op.__class__.__name__
-    method_name = f"compile_{op_name.lower()}"
-    method = globals().get(method_name, None)
-    if method is None:
-        raise ValueError(
-            f"Compilation method '{method_name}' not found for operator '{op_name}'."
-        )
-
     if isinstance(op, ops.UnaryOp):
-        return method(op, args[0])
+        return unary_compiler.compile(op, args[0])
     elif isinstance(op, ops.BinaryOp):
-        return method(op, args[0], args[1])
+        return binary_compiler.compile(op, args[0], args[1])
     elif isinstance(op, ops.TernaryOp):
-        return method(op, args[0], args[1], args[2])
+        return ternary_compiler.compile(op, args[0], args[1], args[2])
     elif isinstance(op, ops.NaryOp):
-        return method(op, *args)
+        return nary_compiler.compile(op, *args)
     else:
         raise TypeError(
-            f"Operator '{op_name}' has an unrecognized arity or type "
+            f"Operator '{op.name}' has an unrecognized arity or type "
             "and cannot be compiled."
         )
-
-
-# TODO: add parenthesize for operators
-def compile_addop(
-    op: ops.AddOp, left: sge.Expression, right: sge.Expression
-) -> sge.Expression:
-    # TODO: support addop for string dtype.
-    return sge.Add(this=left, expression=right)

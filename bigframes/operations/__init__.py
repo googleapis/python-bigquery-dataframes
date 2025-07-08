@@ -111,6 +111,7 @@ from bigframes.operations.json_ops import (
     JSONQueryArray,
     JSONSet,
     JSONValue,
+    JSONValueArray,
     ParseJSON,
     ToJSONString,
 )
@@ -362,6 +363,7 @@ __all__ = [
     "JSONQueryArray",
     "JSONSet",
     "JSONValue",
+    "JSONValueArray",
     "ParseJSON",
     "ToJSONString",
     # Bool ops

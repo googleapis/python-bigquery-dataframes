@@ -16,25 +16,22 @@ from __future__ import annotations
 
 import re
 import typing
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, Union
 import warnings
 
-import numpy as np
-
-from bigframes import dtypes, exceptions
+from bigframes import dtypes, exceptions, options
 from bigframes.core import guid, log_adapter
 
 
 @log_adapter.class_logger
 class AIAccessor:
-    def __init__(self, df) -> None:
+    def __init__(self, df, base_bqml=None) -> None:
         import bigframes  # Import in the function body to avoid circular imports.
         import bigframes.dataframe
-
-        if not bigframes.options.experiments.ai_operators:
-            raise NotImplementedError()
+        from bigframes.ml import core as ml_core
 
         self._df: bigframes.dataframe.DataFrame = df
+        self._base_bqml: ml_core.BaseBqml = base_bqml or ml_core.BaseBqml(df._session)
 
     def filter(
         self,
@@ -89,6 +86,8 @@ class AIAccessor:
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
+        if not options.experiments.ai_operators:
+            raise NotImplementedError()
 
         answer_col = "answer"
 
@@ -181,6 +180,9 @@ class AIAccessor:
             ValueError: when the instruction refers to a non-existing column, or when no
                 columns are referred to.
         """
+        if not options.experiments.ai_operators:
+            raise NotImplementedError()
+
         import bigframes.dataframe
         import bigframes.series
 
@@ -320,6 +322,8 @@ class AIAccessor:
                 columns are referred to, or when the count of labels does not meet the
                 requirement.
         """
+        if not options.experiments.ai_operators:
+            raise NotImplementedError()
 
         if len(labels) < 2 or len(labels) > 20:
             raise ValueError(
@@ -401,6 +405,9 @@ class AIAccessor:
         Raises:
             ValueError if the amount of data that will be sent for LLM processing is larger than max_rows.
         """
+        if not options.experiments.ai_operators:
+            raise NotImplementedError()
+
         self._validate_model(model)
         columns = self._parse_columns(instruction)
 
@@ -525,6 +532,8 @@ class AIAccessor:
             ValueError: when the search_column is not found from the the data frame.
             TypeError: when the provided model is not TextEmbeddingGenerator.
         """
+        if not options.experiments.ai_operators:
+            raise NotImplementedError()
 
         if search_column not in self._df.columns:
             raise ValueError(f"Column `{search_column}` not found")
@@ -574,204 +583,6 @@ class AIAccessor:
         import bigframes.dataframe
 
         return typing.cast(bigframes.dataframe.DataFrame, search_result)
-
-    def top_k(
-        self,
-        instruction: str,
-        model,
-        k: int = 10,
-        ground_with_google_search: bool = False,
-    ):
-        """
-        Ranks each tuple and returns the k best according to the instruction.
-
-        This method employs a quick select algorithm to efficiently compare the pivot
-        with all other items. By leveraging an LLM (Large Language Model), it then
-        identifies the top 'k' best answers from these comparisons.
-
-        **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> bpd.options.experiments.ai_operators = True
-            >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
-
-            >>> import bigframes.ml.llm as llm
-            >>> model = llm.GeminiTextGenerator(model_name="gemini-2.0-flash-001")
-
-            >>> df = bpd.DataFrame(
-            ... {
-            ...     "Animals": ["Dog", "Bird", "Cat", "Horse"],
-            ...     "Sounds": ["Woof", "Chirp", "Meow", "Neigh"],
-            ... })
-            >>> df.ai.top_k("{Animals} are more popular as pets", model=model, k=2)
-              Animals Sounds
-            0     Dog   Woof
-            2     Cat   Meow
-            <BLANKLINE>
-            [2 rows x 2 columns]
-
-        Args:
-            instruction (str):
-                An instruction on how to map the data. This value must contain
-                column references by name enclosed in braces.
-                For example, to reference a column named "Animals", use "{Animals}" in the
-                instruction, like: "{Animals} are more popular as pets"
-
-            model (bigframes.ml.llm.GeminiTextGenerator):
-                A GeminiTextGenerator provided by the Bigframes ML package.
-
-            k (int, default 10):
-                The number of rows to return.
-
-            ground_with_google_search (bool, default False):
-                Enables Grounding with Google Search for the GeminiTextGenerator model.
-                When set to True, the model incorporates relevant information from Google
-                Search results into its responses, enhancing their accuracy and factualness.
-                Note: Using this feature may impact billing costs. Refer to the pricing
-                page for details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models
-                The default is `False`.
-
-        Returns:
-            bigframes.dataframe.DataFrame: A new DataFrame with the top k rows.
-
-        Raises:
-            NotImplementedError: when the AI operator experiment is off.
-            ValueError: when the instruction refers to a non-existing column, or when no
-                columns are referred to.
-        """
-        import bigframes.dataframe
-        import bigframes.series
-
-        self._validate_model(model)
-        columns = self._parse_columns(instruction)
-        for column in columns:
-            if column not in self._df.columns:
-                raise ValueError(f"Column {column} not found.")
-        if len(columns) > 1:
-            raise NotImplementedError("AI top K are limited to a single column.")
-
-        if ground_with_google_search:
-            msg = exceptions.format_message(
-                "Enables Grounding with Google Search may impact billing cost. See pricing "
-                "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
-            )
-            warnings.warn(msg, category=UserWarning)
-
-        work_estimate = int(len(self._df) * (len(self._df) - 1) / 2)
-        self._confirm_operation(work_estimate)
-
-        df: bigframes.dataframe.DataFrame = self._df[columns].copy()
-        column = columns[0]
-        if df[column].dtype != dtypes.STRING_DTYPE:
-            df[column] = df[column].astype(dtypes.STRING_DTYPE)
-
-        # `index` is reserved for the `reset_index` below.
-        if column == "index":
-            raise ValueError(
-                "Column name 'index' is reserved. Please choose a different name."
-            )
-
-        if k < 1:
-            raise ValueError("k must be an integer greater than or equal to 1.")
-
-        user_instruction = self._format_instruction(instruction, columns)
-
-        n = df.shape[0]
-        if k >= n:
-            return df
-
-        # Create a unique index and duplicate it as the "index" column. This workaround
-        # is needed for the select search algorithm due to unimplemented bigFrame methods.
-        df = df.reset_index().rename(columns={"index": "old_index"}).reset_index()
-
-        # Initialize a status column to track the selection status of each item.
-        #  - None: Unknown/not yet processed
-        #  - 1.0: Selected as part of the top-k items
-        #  - -1.0: Excluded from the top-k items
-        status_column = guid.generate_guid("status")
-        df[status_column] = bigframes.series.Series(
-            None, dtype=dtypes.FLOAT_DTYPE, session=df._session
-        )
-
-        num_selected = 0
-        while num_selected < k:
-            df, num_new_selected = self._topk_partition(
-                df,
-                column,
-                status_column,
-                user_instruction,
-                model,
-                k - num_selected,
-                ground_with_google_search,
-            )
-            num_selected += num_new_selected
-
-        result_df: bigframes.dataframe.DataFrame = self._df.copy()
-        return result_df[df.set_index("old_index")[status_column] > 0.0]
-
-    @staticmethod
-    def _topk_partition(
-        df,
-        column: str,
-        status_column: str,
-        user_instruction: str,
-        model,
-        k: int,
-        ground_with_google_search: bool,
-    ):
-        output_instruction = (
-            "Given a question and two documents, choose the document that best answers "
-            "the question. Respond with 'Document 1' or 'Document 2'.  You must choose "
-            "one, even if neither is ideal. "
-        )
-
-        # Random pivot selection for improved average quickselect performance.
-        pending_df = df[df[status_column].isna()]
-        pivot_iloc = np.random.randint(0, pending_df.shape[0])
-        pivot_index = pending_df.iloc[pivot_iloc]["index"]
-        pivot_df = pending_df[pending_df["index"] == pivot_index]
-
-        # Build a prompt to compare the pivot item's relevance to other pending items.
-        prompt_s = pending_df[pending_df["index"] != pivot_index][column]
-        prompt_s = (
-            f"{output_instruction}\n\nQuestion: {user_instruction}\n"
-            + f"\nDocument 1: {column} "
-            + pivot_df.iloc[0][column]
-            + f"\nDocument 2: {column} "
-            + prompt_s  # type:ignore
-        )
-
-        import bigframes.dataframe
-
-        predict_df = typing.cast(
-            bigframes.dataframe.DataFrame,
-            model.predict(
-                prompt_s,
-                temperature=0.0,
-                ground_with_google_search=ground_with_google_search,
-            ),
-        )
-
-        marks = predict_df["ml_generate_text_llm_result"].str.contains("2")
-        more_relavant: bigframes.dataframe.DataFrame = df[marks]
-        less_relavent: bigframes.dataframe.DataFrame = df[~marks]
-
-        num_more_relavant = more_relavant.shape[0]
-        if k < num_more_relavant:
-            less_relavent[status_column] = -1.0
-            pivot_df[status_column] = -1.0
-            df = df.combine_first(less_relavent).combine_first(pivot_df)
-            return df, 0
-        else:  # k >= num_more_relavant
-            more_relavant[status_column] = 1.0
-            df = df.combine_first(more_relavant)
-            if k >= num_more_relavant + 1:
-                pivot_df[status_column] = 1.0
-                df = df.combine_first(pivot_df)
-                return df, num_more_relavant + 1
-            else:
-                return df, num_more_relavant
 
     def sim_join(
         self,
@@ -834,6 +645,8 @@ class AIAccessor:
         Raises:
             ValueError: when the amount of data to be processed exceeds the specified max_rows.
         """
+        if not options.experiments.ai_operators:
+            raise NotImplementedError()
 
         if left_on not in self._df.columns:
             raise ValueError(f"Left column {left_on} not found")
@@ -882,6 +695,73 @@ class AIAccessor:
             del join_result["distance"]
 
         return join_result
+
+    def forecast(
+        self,
+        timestamp_column: str,
+        data_column: str,
+        *,
+        model: str = "TimesFM 2.0",
+        id_columns: Optional[Iterable[str]] = None,
+        horizon: int = 10,
+        confidence_level: float = 0.95,
+    ):
+        """
+        Forecast time series at future horizon. Using Google Research's open source TimesFM(https://github.com/google-research/timesfm) model.
+
+        .. note::
+
+            This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+            Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+            and might have limited support. For more information, see the launch stage descriptions
+            (https://cloud.google.com/products#product-launch-stages).
+
+        Args:
+            timestamp_column (str):
+                A str value that specified the name of the time points column.
+                The time points column provides the time points used to generate the forecast.
+                The time points column must use one of the following data types: TIMESTAMP, DATE and DATETIME
+            data_column (str):
+                A str value that specifies the name of the data column. The data column contains the data to forecast.
+                The data column must use one of the following data types: INT64, NUMERIC and FLOAT64
+            model (str, default "TimesFM 2.0"):
+                A str value that specifies the name of the model. TimesFM 2.0 is the only supported value, and is the default value.
+            id_columns (Iterable[str] or None, default None):
+                An iterable of str value that specifies the names of one or more ID columns. Each ID identifies a unique time series to forecast.
+                Specify one or more values for this argument in order to forecast multiple time series using a single query.
+                The columns that you specify must use one of the following data types: STRING, INT64, ARRAY<STRING> and ARRAY<INT64>
+            horizon (int, default 10):
+                An int value that specifies the number of time points to forecast. The default value is 10. The valid input range is [1, 10,000].
+            confidence_level (float, default 0.95):
+                A FLOAT64 value that specifies the percentage of the future values that fall in the prediction interval.
+                The default value is 0.95. The valid input range is [0, 1).
+
+        Returns:
+            DataFrame:
+                The forecast dataframe matches that of the BigQuery AI.FORECAST function.
+                See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-ai-forecast
+
+        Raises:
+            ValueError: when referring to a non-existing column.
+        """
+        columns = [timestamp_column, data_column]
+        if id_columns:
+            columns += id_columns
+        for column in columns:
+            if column not in self._df.columns:
+                raise ValueError(f"Column `{column}` not found")
+
+        options: dict[str, Union[int, float, str, Iterable[str]]] = {
+            "data_col": data_column,
+            "timestamp_col": timestamp_column,
+            "model": model,
+            "horizon": horizon,
+            "confidence_level": confidence_level,
+        }
+        if id_columns:
+            options["id_cols"] = id_columns
+
+        return self._base_bqml.ai_forecast(input_data=self._df, options=options)
 
     @staticmethod
     def _attach_embedding(dataframe, source_column: str, embedding_column: str, model):
