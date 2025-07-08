@@ -2531,7 +2531,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         elif items is not None:
             # Behavior matches pandas 2.1+, older pandas versions would reindex
             block = self._block
-            block = self._block
             block, mask_id = block.apply_unary_op(
                 self._block.index_columns[0], ops.IsInOp(values=tuple(items))
             )
