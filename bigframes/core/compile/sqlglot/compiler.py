@@ -16,6 +16,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import typing
+import itertools
 
 from google.cloud import bigquery
 import sqlglot.expressions as sge
@@ -218,6 +219,37 @@ class SQLGlotCompiler:
     ) -> ir.SQLGlotIR:
         condition = scalar_compiler.compile_scalar_expression(node.predicate)
         return child.filter(condition)
+
+    @_compile_node.register
+    def compile_window(self, node: nodes.WindowOpNode, child: ir.SQLGlotIR) -> ir.SQLGlotIR:
+        column_references: tuple[sge.Expression, ...] = tuple(
+            scalar_compiler.compile_scalar_expression(expression.DerefOp(column))
+            for column in expression.column_references
+        )
+
+        # TODO: can_directly_window = not any(map(lambda x: is_window(x), used_exprs))
+        # used_exprs = map(
+        #     scalar_compiler.compile_scalar_expression,
+        #     map(
+        #         expression.DerefOp,
+        #         itertools.chain(
+        #             node.expression.column_references, node.window_spec.all_referenced_columns
+        #         ),
+        #     ),
+        # )
+        # can_directly_window = False
+
+        window_spec = node.window_spec
+        if node.expression.op.order_independent and window_spec.is_unbounded:
+            # notably percentile_cont does not support ordering clause
+            window_spec = window_spec.without_order()
+
+        return child.window(
+            column_references = column_references,
+            window_spec = node.window_spec,
+            output_column = scalar_compiler.compile_scalar_expression(node.output_name),
+            skip_nulls = node.expression.op.skips_nulls and not node.never_skip_nulls
+        )
 
     @_compile_node.register
     def compile_join(

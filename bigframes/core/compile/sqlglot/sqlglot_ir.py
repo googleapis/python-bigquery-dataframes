@@ -25,11 +25,9 @@ import sqlglot.dialects.bigquery
 import sqlglot.expressions as sge
 
 from bigframes import dtypes
-from bigframes.core import guid, utils
+from bigframes.core import guid, utils, window_spec, local_data, schema
 from bigframes.core.compile.sqlglot.expressions import typed_expr
 import bigframes.core.compile.sqlglot.sqlglot_types as sgt
-import bigframes.core.local_data as local_data
-import bigframes.core.schema as bf_schema
 
 # shapely.wkt.dumps was moved to shapely.io.to_wkt in 2.0.
 try:
@@ -68,7 +66,7 @@ class SQLGlotIR:
     def from_pyarrow(
         cls,
         pa_table: pa.Table,
-        schema: bf_schema.ArraySchema,
+        schema: schema.ArraySchema,
         uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Builds SQLGlot expression from a pyarrow table.
@@ -293,13 +291,28 @@ class SQLGlotIR:
             expr=new_expr.where(condition, append=False), uid_gen=self.uid_gen
         )
 
+    def window(
+        self,
+        column_references: tuple[sge.Expression, ...],
+        window_spec: window_spec.WindowSpec,
+        output_name: sge.Expression,
+        skip_nulls: bool,
+    ) -> SQLGlotIR:
+        new_expr = _select_to_cte(
+            self.expr,
+            sge.to_identifier(
+                next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+            ),
+        )
+
+        return self
+
     def join(
         self,
         right: SQLGlotIR,
         join_type: typing.Literal["inner", "outer", "left", "right", "cross"],
         conditions: tuple[tuple[typed_expr.TypedExpr, typed_expr.TypedExpr], ...],
-        *,
-        joins_nulls: bool = True,
+        joins_nulls: bool,
     ) -> SQLGlotIR:
         """Joins the current query with another SQLGlotIR instance."""
         left_cte_name = sge.to_identifier(
