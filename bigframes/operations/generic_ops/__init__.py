@@ -29,22 +29,6 @@ InvertOp = base_ops.create_unary_op(
 )
 invert_op = InvertOp()
 
-IsNullOp = base_ops.create_unary_op(
-    name="isnull",
-    type_signature=op_typing.FixedOutputType(
-        lambda x: True, dtypes.BOOL_DTYPE, description="nullable"
-    ),
-)
-isnull_op = IsNullOp()
-
-NotNullOp = base_ops.create_unary_op(
-    name="notnull",
-    type_signature=op_typing.FixedOutputType(
-        lambda x: True, dtypes.BOOL_DTYPE, description="nullable"
-    ),
-)
-notnull_op = NotNullOp()
-
 HashOp = base_ops.create_unary_op(
     name="hash",
     type_signature=op_typing.FixedOutputType(
