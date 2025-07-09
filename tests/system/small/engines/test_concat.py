@@ -29,8 +29,9 @@ def test_engines_concat_self(
     scalars_array_value: array_value.ArrayValue,
     engine,
 ):
-    catted = scalars_array_value.concat([scalars_array_value, scalars_array_value])
-    assert_equivalence_execution(catted.node, REFERENCE_ENGINE, engine)
+    result = scalars_array_value.concat([scalars_array_value, scalars_array_value])
+
+    assert_equivalence_execution(result.node, REFERENCE_ENGINE, engine)
 
 
 @pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
@@ -45,5 +46,6 @@ def test_engines_concat_filtered_sorted(
         ["float64_col", "int64_too"]
     )
 
-    catted = input_1.concat([input_2, input_1, input_2])
-    assert_equivalence_execution(catted.node, REFERENCE_ENGINE, engine)
+    result = input_1.concat([input_2, input_1, input_2])
+
+    assert_equivalence_execution(result.node, REFERENCE_ENGINE, engine)
