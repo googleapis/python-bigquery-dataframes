@@ -2549,6 +2549,12 @@ def test_scalar_binop(scalars_dfs, op, other_scalar, reverse_operands):
 
 
 def test_dataframe_string_radd_const(scalars_dfs):
+    pytest.importorskip(
+        "pandas",
+        minversion="2.0.0",
+        reason="PyArrow string addition requires pandas 2.0+",
+    )
+
     scalars_df, scalars_pandas_df = scalars_dfs
     columns = ["string_col", "string_col"]
 
