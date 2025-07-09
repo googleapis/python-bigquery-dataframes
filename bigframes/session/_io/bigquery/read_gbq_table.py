@@ -42,17 +42,53 @@ if typing.TYPE_CHECKING:
     import bigframes.session
 
 
+def get_information_schema_metadata(
+    bqclient: bigquery.Client,
+    table_id: str,
+    default_project: Optional[str],
+) -> bigquery.Table:
+    job_config = bigquery.QueryJobConfig(dry_run=True)
+    job = bqclient.query(
+        # TODO: better escaping?
+        f"SELECT * FROM `{table_id}`",
+        job_config=job_config,
+    )
+    parts = table_id.split(".")
+    if len(parts) < 3:
+        project = default_project
+        dataset = parts[0]
+        table_id_short = ".".join(parts[1:])
+    else:
+        project = parts[0]
+        dataset = parts[1]
+        table_id_short = ".".join(parts[2:])
+
+    table = bigquery.Table.from_api_repr(
+        {
+            "tableReference": {
+                "projectId": project,
+                "datasetId": dataset,
+                "tableId": table_id_short,
+            },
+            "location": job.location,
+        }
+    )
+    table.schema = job.schema
+    return table
+
+
 def get_table_metadata(
     bqclient: bigquery.Client,
-    table_ref: google.cloud.bigquery.table.TableReference,
-    bq_time: datetime.datetime,
     *,
-    cache: Dict[bigquery.TableReference, Tuple[datetime.datetime, bigquery.Table]],
+    table_id: str,
+    default_project: Optional[str],
+    bq_time: datetime.datetime,
+    cache: Dict[str, Tuple[datetime.datetime, bigquery.Table]],
     use_cache: bool = True,
 ) -> Tuple[datetime.datetime, google.cloud.bigquery.table.Table]:
     """Get the table metadata, either from cache or via REST API."""
 
-    cached_table = cache.get(table_ref)
+    cached_table = cache.get(table_id)
     if use_cache and cached_table is not None:
         snapshot_timestamp, _ = cached_table
 
@@ -76,7 +112,16 @@ def get_table_metadata(
         warnings.warn(msg, stacklevel=7)
         return cached_table
 
-    table = bqclient.get_table(table_ref)
+    if "INFORMATION_SCHEMA".casefold() in table_id.casefold():
+        table = get_information_schema_metadata(
+            bqclient=bqclient, table_id=table_id, default_project=default_project
+        )
+    else:
+        table_ref = google.cloud.bigquery.table.TableReference.from_string(
+            table_id, default_project=default_project
+        )
+        table = bqclient.get_table(table_ref)
+
     # local time will lag a little bit do to network latency
     # make sure it is at least table creation time.
     # This is relevant if the table was created immediately before loading it here.
@@ -84,7 +129,7 @@ def get_table_metadata(
         bq_time = table.created
 
     cached_table = (bq_time, table)
-    cache[table_ref] = cached_table
+    cache[table_id] = cached_table
     return cached_table
 
 
