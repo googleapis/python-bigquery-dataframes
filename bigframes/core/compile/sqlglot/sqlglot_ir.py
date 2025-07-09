@@ -25,11 +25,9 @@ import sqlglot.dialects.bigquery
 import sqlglot.expressions as sge
 
 from bigframes import dtypes
-from bigframes.core import guid, utils
+from bigframes.core import guid, local_data, schema, utils
 from bigframes.core.compile.sqlglot.expressions import typed_expr
 import bigframes.core.compile.sqlglot.sqlglot_types as sgt
-import bigframes.core.local_data as local_data
-import bigframes.core.schema as bf_schema
 
 # shapely.wkt.dumps was moved to shapely.io.to_wkt in 2.0.
 try:
@@ -68,7 +66,7 @@ class SQLGlotIR:
     def from_pyarrow(
         cls,
         pa_table: pa.Table,
-        schema: bf_schema.ArraySchema,
+        schema: schema.ArraySchema,
         uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Builds SQLGlot expression from a pyarrow table.
@@ -362,6 +360,38 @@ class SQLGlotIR:
         new_expr = _select_to_cte(
             self.expr.select(uuid_expr, append=True), new_cte_name
         ).where(condition, append=False)
+        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+
+    def aggregate(
+        self,
+        aggregations: tuple[tuple[str, sge.Expression], ...],
+        by_column_ids: tuple[sge.Expression, ...],
+    ) -> SQLGlotIR:
+        """Applies the aggregation expressions.
+
+        Args:
+            aggregations: output_column_id, aggregation_expr tuples
+            by_column_ids: column ids of the aggregation key, this is preserved through
+              the transform
+            dropna: whether null keys should be dropped
+        """
+        aggregations_expr = [
+            sge.Alias(
+                this=expr,
+                alias=sge.to_identifier(id, quoted=self.quoted),
+            )
+            for id, expr in aggregations
+        ]
+
+        new_expr = _select_to_cte(
+            self.expr,
+            sge.to_identifier(
+                next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+            ),
+        )
+        new_expr = new_expr.group_by(*by_column_ids).select(
+            *[*by_column_ids, *aggregations_expr], append=False
+        )
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def insert(
