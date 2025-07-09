@@ -16,3 +16,17 @@
 def test_read_gbq_jobs_by_user_returns_schema(session):
     df = session.read_gbq("region-US.INFORMATION_SCHEMA.JOBS_BY_USER")
     assert df.dtypes is not None
+
+
+def test_read_gbq_jobs_by_user_can_be_peeked(unordered_session):
+    df = unordered_session.read_gbq("region-US.INFORMATION_SCHEMA.JOBS_BY_USER")
+    result = df.peek()
+    assert result is not None
+
+
+def test_read_gbq_jobs_by_user_four_parts_can_be_peeked(unordered_session):
+    df = unordered_session.read_gbq(
+        f"{unordered_session.bqclient.project}.region-US.INFORMATION_SCHEMA.JOBS_BY_USER"
+    )
+    result = df.peek()
+    assert result is not None

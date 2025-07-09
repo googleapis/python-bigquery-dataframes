@@ -42,6 +42,32 @@ if typing.TYPE_CHECKING:
     import bigframes.session
 
 
+def _convert_information_schema_table_id_to_table_reference(
+    table_id: str,
+    default_project: Optional[str],
+) -> bigquery.TableReference:
+    """Squeeze an INFORMATION_SCHEMA reference into a TableReference.
+
+    This is kind-of a hack. INFORMATION_SCHEMA is a view that isn't available
+    via the tables.get REST API.
+    """
+    parts = table_id.split(".")
+    parts_casefold = [part.casefold() for part in parts]
+    dataset_index = parts_casefold.index("INFORMATION_SCHEMA".casefold())
+
+    if dataset_index == 0:
+        project = default_project
+    else:
+        project = ".".join(parts[:dataset_index])
+
+    dataset = "INFORMATION_SCHEMA"
+    table_id_short = ".".join(parts[dataset_index + 1 :])
+    return bigquery.TableReference(
+        bigquery.DatasetReference(project, dataset),
+        table_id_short,
+    )
+
+
 def get_information_schema_metadata(
     bqclient: bigquery.Client,
     table_id: str,
@@ -53,24 +79,17 @@ def get_information_schema_metadata(
         f"SELECT * FROM `{table_id}`",
         job_config=job_config,
     )
-    parts = table_id.split(".")
-    if len(parts) < 3:
-        project = default_project
-        dataset = parts[0]
-        table_id_short = ".".join(parts[1:])
-    else:
-        project = parts[0]
-        dataset = parts[1]
-        table_id_short = ".".join(parts[2:])
-
+    table_ref = _convert_information_schema_table_id_to_table_reference(
+        table_id=table_id,
+        default_project=default_project,
+    )
     table = bigquery.Table.from_api_repr(
         {
-            "tableReference": {
-                "projectId": project,
-                "datasetId": dataset,
-                "tableId": table_id_short,
-            },
+            "tableReference": table_ref.to_api_repr(),
             "location": job.location,
+            # Prevent ourselves from trying to read the table with the BQ
+            # Storage API.
+            "type": "VIEW",
         }
     )
     table.schema = job.schema
@@ -112,7 +131,13 @@ def get_table_metadata(
         warnings.warn(msg, stacklevel=7)
         return cached_table
 
-    if "INFORMATION_SCHEMA".casefold() in table_id.casefold():
+    table_id_casefold = table_id.casefold()
+    if (
+        # Ensure we don't have false positives for some user defined dataset
+        # like MY_INFORMATION_SCHEMA or tables called INFORMATION_SCHEMA.
+        ".INFORMATION_SCHEMA.".casefold() in table_id_casefold
+        or table_id_casefold.startswith("INFORMATION_SCHEMA.".casefold())
+    ):
         table = get_information_schema_metadata(
             bqclient=bqclient, table_id=table_id, default_project=default_project
         )
