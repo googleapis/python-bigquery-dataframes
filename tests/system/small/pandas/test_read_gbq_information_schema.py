@@ -18,15 +18,15 @@ def test_read_gbq_jobs_by_user_returns_schema(session):
     assert df.dtypes is not None
 
 
-def test_read_gbq_jobs_by_user_can_be_peeked(unordered_session):
-    df = unordered_session.read_gbq("region-US.INFORMATION_SCHEMA.JOBS_BY_USER")
+def test_read_gbq_schemata_can_be_peeked(unordered_session):
+    df = unordered_session.read_gbq("region-US.INFORMATION_SCHEMA.SCHEMATA")
     result = df.peek()
     assert result is not None
 
 
-def test_read_gbq_jobs_by_user_four_parts_can_be_peeked(unordered_session):
+def test_read_gbq_schemata_four_parts_can_be_peeked(unordered_session):
     df = unordered_session.read_gbq(
-        f"{unordered_session.bqclient.project}.region-US.INFORMATION_SCHEMA.JOBS_BY_USER"
+        f"{unordered_session.bqclient.project}.region-US.INFORMATION_SCHEMA.SCHEMATA"
     )
     result = df.peek()
     assert result is not None
