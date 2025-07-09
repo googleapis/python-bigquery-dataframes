@@ -1053,7 +1053,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     __add__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__add__)
 
-    def __radd__(self, other):
+    def __radd__(self, other) -> DataFrame:
         return self.radd(other)
 
     __radd__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__radd__)

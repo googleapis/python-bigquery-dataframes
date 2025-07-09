@@ -3043,7 +3043,7 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def __radd__(self, other, axis: str | int = "columns") -> DataFrame:
+    def __radd__(self, other) -> DataFrame:
         """Get addition of other and DataFrame, element-wise (binary operator `+`).
 
         Equivalent to ``DataFrame.radd(other)``.
