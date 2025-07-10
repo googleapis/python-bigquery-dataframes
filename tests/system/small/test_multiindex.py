@@ -1407,6 +1407,7 @@ def test_column_multi_index_w_na_stack(scalars_df_index, scalars_pandas_df_index
 )
 def test_multi_index_contains(scalars_df_index, scalars_pandas_df_index, key):
     col_name = ["int64_col", "bool_col"]
-    bf_result = scalars_df_index.set_index(col_name).index.__contains__(key)
-    pd_result = scalars_pandas_df_index.set_index(col_name).index.__contains__(key)
+    bf_result = key in scalars_df_index.set_index(col_name).index
+    pd_result = key in scalars_pandas_df_index.set_index(col_name).index
+
     assert bf_result == pd_result
