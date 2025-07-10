@@ -549,3 +549,102 @@ def test_managed_function_with_connection(
     finally:
         # Clean up the gcp assets created for the managed function.
         cleanup_function_assets(foo, session.bqclient, ignore_failures=False)
+
+
+def test_managed_function_resources(session, dataset_id, scalars_dfs):
+    try:
+
+        def multiply_five(x: int) -> int:
+            return x * 5
+
+        mf_multiply_five = session.udf(
+            dataset=dataset_id,
+            name=prefixer.create_prefix(),
+            max_batching_rows=100,
+            container_cpu=2,
+            container_memory="2Gi",
+        )(multiply_five)
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_int64_df = scalars_df["int64_col"]
+        bf_int64_df_filtered = bf_int64_df.dropna()
+        bf_result = bf_int64_df_filtered.apply(mf_multiply_five).to_pandas()
+
+        pd_int64_df = scalars_pandas_df["int64_col"]
+        pd_int64_df_filtered = pd_int64_df.dropna()
+        pd_result = pd_int64_df_filtered.apply(multiply_five)
+
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+        # Make sure the read_gbq_function path works for this function.
+        multiply_five_ref = session.read_gbq_function(
+            function_name=mf_multiply_five.bigframes_bigquery_function,  # type: ignore
+        )
+        assert mf_multiply_five.bigframes_bigquery_function == multiply_five_ref.bigframes_bigquery_function  # type: ignore
+
+        bf_result = bf_int64_df_filtered.apply(multiply_five_ref).to_pandas()
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+        # Retrieve the routine and validate its runtime configuration.
+        routine = session.bqclient.get_routine(
+            mf_multiply_five.bigframes_bigquery_function
+        )
+        assert routine._properties["externalRuntimeOptions"]["maxBatchingRows"] == "100"
+        assert routine._properties["externalRuntimeOptions"]["containerCpu"] == 2
+        assert routine._properties["externalRuntimeOptions"]["containerMemory"] == "2Gi"
+    finally:
+        # Clean up the gcp assets created for the managed function.
+        cleanup_function_assets(
+            mf_multiply_five, session.bqclient, ignore_failures=False
+        )
+
+
+def test_managed_function_resources_errors(session, dataset_id):
+    def foo(x: int) -> int:
+        return 0
+
+    with pytest.raises(
+        google.api_core.exceptions.BadRequest,
+        match=(
+            "Invalid container_cpu function OPTIONS value: 2.50. "
+            "For CPU Value >= 1.0, the value must be one of \\[1, 2, 4, 6, 8\\]"
+        ),
+    ):
+        session.udf(
+            dataset=dataset_id,
+            name=prefixer.create_prefix(),
+            max_batching_rows=100,
+            container_cpu=2.5,
+            container_memory="2Gi",
+        )(foo)
+
+    with pytest.raises(
+        google.api_core.exceptions.BadRequest,
+        match=(
+            "Invalid container_cpu function OPTIONS value: 0.10. "
+            "For less than 1.0 CPU, the value must be no less than 0.33."
+        ),
+    ):
+        session.udf(
+            dataset=dataset_id,
+            name=prefixer.create_prefix(),
+            max_batching_rows=100,
+            container_cpu=0.10,
+            container_memory="512Mi",
+        )(foo)
+
+    with pytest.raises(
+        google.api_core.exceptions.BadRequest,
+        match=(
+            "Invalid container_memory function OPTIONS value: 1Gi. "
+            "For 8.00 CPU, the memory must be in the range of \\[4Gi, 32Gi\\]."
+        ),
+    ):
+        session.udf(
+            dataset=dataset_id,
+            name=prefixer.create_prefix(),
+            max_batching_rows=100,
+            container_cpu=8,
+            container_memory="1Gi",
+        )(foo)
