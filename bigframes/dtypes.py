@@ -247,6 +247,7 @@ DtypeString = Literal[
     "decimal128(38, 9)[pyarrow]",
     "decimal256(76, 38)[pyarrow]",
     "binary[pyarrow]",
+    "duration[us][pyarrow]",
 ]
 
 DTYPE_STRINGS = typing.get_args(DtypeString)
@@ -340,8 +341,9 @@ def is_json_encoding_type(type_: ExpressionType) -> bool:
     return type_ != GEO_DTYPE
 
 
-def is_numeric(type_: ExpressionType) -> bool:
-    return type_ in NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+def is_numeric(type_: ExpressionType, include_bool: bool = True) -> bool:
+    is_numeric = type_ in NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+    return is_numeric if include_bool else is_numeric and type_ != BOOL_DTYPE
 
 
 def is_iterable(type_: ExpressionType) -> bool:
@@ -420,6 +422,8 @@ BIGFRAMES_STRING_TO_BIGFRAMES["string[pyarrow]"] = STRING_DTYPE
 
 # special case - both "Int64" and "int64[pyarrow]" are accepted
 BIGFRAMES_STRING_TO_BIGFRAMES["int64[pyarrow]"] = INT_DTYPE
+
+BIGFRAMES_STRING_TO_BIGFRAMES["duration[us][pyarrow]"] = TIMEDELTA_DTYPE
 
 # For the purposes of dataframe.memory_usage
 DTYPE_BYTE_SIZES = {

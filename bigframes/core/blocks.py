@@ -29,7 +29,17 @@ import itertools
 import random
 import textwrap
 import typing
-from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import (
+    Iterable,
+    Iterator,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 import warnings
 
 import bigframes_vendored.constants as constants
@@ -50,6 +60,7 @@ import bigframes.core.guid as guid
 import bigframes.core.identifiers
 import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
+import bigframes.core.pyarrow_utils as pyarrow_utils
 import bigframes.core.schema as bf_schema
 import bigframes.core.sql as sql
 import bigframes.core.utils as utils
@@ -86,14 +97,22 @@ LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
-class BlockHolder(typing.Protocol):
+@dataclasses.dataclass
+class PandasBatches(Iterator[pd.DataFrame]):
     """Interface for mutable objects with state represented by a block value object."""
 
-    def _set_block(self, block: Block):
-        """Set the underlying block value of the object"""
+    def __init__(
+        self, pandas_batches: Iterator[pd.DataFrame], total_rows: Optional[int] = 0
+    ):
+        self._dataframes: Iterator[pd.DataFrame] = pandas_batches
+        self._total_rows: Optional[int] = total_rows
 
-    def _get_block(self) -> Block:
-        """Get the underlying block value of the object"""
+    @property
+    def total_rows(self) -> Optional[int]:
+        return self._total_rows
+
+    def __next__(self) -> pd.DataFrame:
+        return next(self._dataframes)
 
 
 @dataclasses.dataclass()
@@ -155,6 +174,36 @@ class Block:
         self._transpose_cache: Optional[Block] = transpose_cache
         self._view_ref: Optional[bigquery.TableReference] = None
         self._view_ref_dry_run: Optional[bigquery.TableReference] = None
+
+    @classmethod
+    def from_pyarrow(
+        cls,
+        data: pa.Table,
+        session: bigframes.Session,
+    ) -> Block:
+        column_labels = data.column_names
+
+        # TODO(tswast): Use array_value.promote_offsets() instead once that node is
+        # supported by the local engine.
+        offsets_col = bigframes.core.guid.generate_guid()
+        index_ids = [offsets_col]
+        index_labels = [None]
+
+        # TODO(https://github.com/googleapis/python-bigquery-dataframes/issues/859):
+        # Allow users to specify the "total ordering" column(s) or allow multiple
+        # such columns.
+        data = pyarrow_utils.append_offsets(data, offsets_col=offsets_col)
+
+        # from_pyarrow will normalize the types for us.
+        managed_data = local_data.ManagedArrowTable.from_pyarrow(data)
+        array_value = core.ArrayValue.from_managed(managed_data, session=session)
+        block = cls(
+            array_value,
+            column_labels=column_labels,
+            index_columns=index_ids,
+            index_labels=index_labels,
+        )
+        return block
 
     @classmethod
     def from_local(
@@ -568,8 +617,7 @@ class Block:
                 self.expr, n, use_explicit_destination=allow_large_results
             )
             df = result.to_pandas()
-            self._copy_index_to_pandas(df)
-            return df
+            return self._copy_index_to_pandas(df)
         else:
             return None
 
@@ -578,8 +626,7 @@ class Block:
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
         allow_large_results: Optional[bool] = None,
-        squeeze: Optional[bool] = False,
-    ):
+    ) -> Iterator[pd.DataFrame]:
         """Download results one message at a time.
 
         page_size and max_results determine the size and number of batches,
@@ -589,28 +636,44 @@ class Block:
             ordered=True,
             use_explicit_destination=allow_large_results,
         )
-        for df in execute_result.to_pandas_batches(
-            page_size=page_size, max_results=max_results
-        ):
-            self._copy_index_to_pandas(df)
-            if squeeze:
-                yield df.squeeze(axis=1)
-            else:
-                yield df
 
-    def _copy_index_to_pandas(self, df: pd.DataFrame):
-        """Set the index on pandas DataFrame to match this block.
+        # To reduce the number of edge cases to consider when working with the
+        # results of this, always return at least one DataFrame. See:
+        # b/428918844.
+        empty_val = pd.DataFrame(
+            {
+                col: pd.Series([], dtype=self.expr.get_column_type(col))
+                for col in itertools.chain(self.value_columns, self.index_columns)
+            }
+        )
+        dfs = map(
+            lambda a: a[0],
+            itertools.zip_longest(
+                execute_result.to_pandas_batches(page_size, max_results),
+                [0],
+                fillvalue=empty_val,
+            ),
+        )
+        dfs = iter(map(self._copy_index_to_pandas, dfs))
 
-        Warning: This method modifies ``df`` inplace.
-        """
+        total_rows = execute_result.total_rows
+        if (total_rows is not None) and (max_results is not None):
+            total_rows = min(total_rows, max_results)
+
+        return PandasBatches(dfs, total_rows)
+
+    def _copy_index_to_pandas(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Set the index on pandas DataFrame to match this block."""
         # Note: If BigQuery DataFrame has null index, a default one will be created for the local materialization.
+        new_df = df.copy()
         if len(self.index_columns) > 0:
-            df.set_index(list(self.index_columns), inplace=True)
+            new_df.set_index(list(self.index_columns), inplace=True)
             # Pandas names is annotated as list[str] rather than the more
             # general Sequence[Label] that BigQuery DataFrames has.
             # See: https://github.com/pandas-dev/pandas-stubs/issues/804
-            df.index.names = self.index.names  # type: ignore
-        df.columns = self.column_labels
+            new_df.index.names = self.index.names  # type: ignore
+        new_df.columns = self.column_labels
+        return new_df
 
     def _materialize_local(
         self, materialize_options: MaterializationOptions = MaterializationOptions()
@@ -677,9 +740,7 @@ class Block:
             )
         else:
             df = execute_result.to_pandas()
-            self._copy_index_to_pandas(df)
-
-        return df, execute_result.query_job
+            return self._copy_index_to_pandas(df), execute_result.query_job
 
     def _downsample(
         self, total_rows: int, sampling_method: str, fraction: float, random_state
@@ -1210,7 +1271,10 @@ class Block:
         return self.select_columns([id])
 
     def select_columns(self, ids: typing.Sequence[str]) -> Block:
-        expr = self._expr.select_columns([*self.index_columns, *ids])
+        # Allow renames as may end up selecting same columns multiple times
+        expr = self._expr.select_columns(
+            [*self.index_columns, *ids], allow_renames=True
+        )
         col_labels = self._get_labels_for_columns(ids)
         return Block(expr, self.index_columns, col_labels, self.index.names)
 
@@ -1541,8 +1605,7 @@ class Block:
         row_count = self.session._executor.execute(self.expr.row_count()).to_py_scalar()
 
         head_df = head_result.to_pandas()
-        self._copy_index_to_pandas(head_df)
-        return head_df, row_count, head_result.query_job
+        return self._copy_index_to_pandas(head_df), row_count, head_result.query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
         expr, result_id = self._expr.promote_offsets()
@@ -1996,7 +2059,7 @@ class Block:
         return block.set_index([resample_label_id])
 
     def _create_stack_column(self, col_label: typing.Tuple, stack_labels: pd.Index):
-        dtype = None
+        input_dtypes = []
         input_columns: list[Optional[str]] = []
         for uvalue in utils.index_as_tuples(stack_labels):
             label_to_match = (*col_label, *uvalue)
@@ -2006,15 +2069,18 @@ class Block:
             matching_ids = self.label_to_col_id.get(label_to_match, [])
             input_id = matching_ids[0] if len(matching_ids) > 0 else None
             if input_id:
-                if dtype and dtype != self._column_type(input_id):
-                    raise NotImplementedError(
-                        "Cannot stack columns with non-matching dtypes."
-                    )
-                else:
-                    dtype = self._column_type(input_id)
+                input_dtypes.append(self._column_type(input_id))
             input_columns.append(input_id)
             # Input column i is the first one that
-        return tuple(input_columns), dtype or pd.Float64Dtype()
+        if len(input_dtypes) > 0:
+            output_dtype = bigframes.dtypes.lcd_type(*input_dtypes)
+            if output_dtype is None:
+                raise NotImplementedError(
+                    "Cannot stack columns with non-matching dtypes."
+                )
+        else:
+            output_dtype = pd.Float64Dtype()
+        return tuple(input_columns), output_dtype
 
     def _column_type(self, col_id: str) -> bigframes.dtypes.Dtype:
         col_offset = self.value_columns.index(col_id)

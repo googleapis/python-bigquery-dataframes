@@ -1046,14 +1046,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         # TODO(swast): Support fill_value parameter.
         # TODO(swast): Support level parameter with MultiIndex.
-        return self.add(other, axis=axis)
+        return self._apply_binop(other, ops.add_op, axis=axis, reverse=True)
 
     def __add__(self, other) -> DataFrame:
         return self.add(other)
 
     __add__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__add__)
 
-    __radd__ = __add__
+    def __radd__(self, other) -> DataFrame:
+        return self.radd(other)
+
+    __radd__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__radd__)
 
     def sub(
         self,
@@ -2741,9 +2744,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if isinstance(other, bigframes.series.Series):
             raise ValueError("Seires is not a supported replacement type!")
 
-        if self.columns.nlevels > 1 or self.index.nlevels > 1:
+        if self.columns.nlevels > 1:
             raise NotImplementedError(
-                "The dataframe.where() method does not support multi-index and/or multi-column."
+                "The dataframe.where() method does not support multi-column."
             )
 
         aligned_block, (_, _) = self._block.join(cond._block, how="left")
@@ -2802,6 +2805,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         axis: int | str = 0,
         how: str = "any",
+        thresh: typing.Optional[int] = None,
         subset: typing.Union[None, blocks.Label, Sequence[blocks.Label]] = None,
         inplace: bool = False,
         ignore_index=False,
@@ -2810,8 +2814,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(
                 f"'inplace'=True not supported. {constants.FEEDBACK_LINK}"
             )
-        if how not in ("any", "all"):
-            raise ValueError("'how' must be one of 'any', 'all'")
+
+        # Check if both thresh and how are explicitly provided
+        if thresh is not None:
+            # cannot specify both thresh and how parameters
+            if how != "any":
+                raise TypeError(
+                    "You cannot set both the how and thresh arguments at the same time."
+                )
+        else:
+            # Only validate 'how' when thresh is not provided
+            if how not in ("any", "all"):
+                raise ValueError("'how' must be one of 'any', 'all'")
 
         axis_n = utils.get_axis_number(axis)
 
@@ -2833,21 +2847,38 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     for id_ in self._block.label_to_col_id[label]
                 ]
 
-            result = block_ops.dropna(self._block, self._block.value_columns, how=how, subset=subset_ids)  # type: ignore
+            result = block_ops.dropna(
+                self._block,
+                self._block.value_columns,
+                how=how,
+                thresh=thresh,
+                subset=subset_ids,
+            )  # type: ignore
             if ignore_index:
                 result = result.reset_index()
             return DataFrame(result)
         else:
-            isnull_block = self._block.multi_apply_unary_op(ops.isnull_op)
-            if how == "any":
-                null_locations = DataFrame(isnull_block).any().to_pandas()
-            else:  # 'all'
-                null_locations = DataFrame(isnull_block).all().to_pandas()
-            keep_columns = [
-                col
-                for col, to_drop in zip(self._block.value_columns, null_locations)
-                if not to_drop
-            ]
+            if thresh is not None:
+                # Keep columns with at least 'thresh' non-null values
+                notnull_block = self._block.multi_apply_unary_op(ops.notnull_op)
+                notnull_counts = DataFrame(notnull_block).sum().to_pandas()
+
+                keep_columns = [
+                    col
+                    for col, count in zip(self._block.value_columns, notnull_counts)
+                    if count >= thresh
+                ]
+            else:
+                isnull_block = self._block.multi_apply_unary_op(ops.isnull_op)
+                if how == "any":
+                    null_locations = DataFrame(isnull_block).any().to_pandas()
+                else:  # 'all'
+                    null_locations = DataFrame(isnull_block).all().to_pandas()
+                keep_columns = [
+                    col
+                    for col, to_drop in zip(self._block.value_columns, null_locations)
+                    if not to_drop
+                ]
             return DataFrame(self._block.select_columns(keep_columns))
 
     def any(
@@ -3004,14 +3035,44 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if utils.is_dict_like(func):
             # Must check dict-like first because dictionaries are list-like
             # according to Pandas.
-            agg_cols = []
+
+            aggs = []
+            labels = []
+            funcnames = []
             for col_label, agg_func in func.items():
-                agg_cols.append(self[col_label].agg(agg_func))
+                agg_func_list = agg_func if utils.is_list_like(agg_func) else [agg_func]
+                col_id = self._block.resolve_label_exact(col_label)
+                if col_id is None:
+                    raise KeyError(f"Column {col_label} does not exist")
+                for agg_func in agg_func_list:
+                    agg_op = agg_ops.lookup_agg_func(typing.cast(str, agg_func))
+                    agg_expr = (
+                        ex.UnaryAggregation(agg_op, ex.deref(col_id))
+                        if isinstance(agg_op, agg_ops.UnaryAggregateOp)
+                        else ex.NullaryAggregation(agg_op)
+                    )
+                    aggs.append(agg_expr)
+                    labels.append(col_label)
+                    funcnames.append(agg_func)
 
-            from bigframes.core.reshape import api as reshape
-
-            return reshape.concat(agg_cols, axis=1)
-
+            # if any list in dict values, format output differently
+            if any(utils.is_list_like(v) for v in func.values()):
+                new_index, _ = self.columns.reindex(labels)
+                new_index = utils.combine_indices(new_index, pandas.Index(funcnames))
+                agg_block, _ = self._block.aggregate(
+                    aggregations=aggs, column_labels=new_index
+                )
+                return DataFrame(agg_block).stack().droplevel(0, axis="index")
+            else:
+                new_index, _ = self.columns.reindex(labels)
+                agg_block, _ = self._block.aggregate(
+                    aggregations=aggs, column_labels=new_index
+                )
+                return bigframes.series.Series(
+                    agg_block.transpose(
+                        single_row_mode=True, original_row_index=pandas.Index([None])
+                    )
+                )
         elif utils.is_list_like(func):
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
 
@@ -3027,7 +3088,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
             )
 
-        else:
+        else:  # function name string
             return bigframes.series.Series(
                 self._block.aggregate_all_and_stack(
                     agg_ops.lookup_agg_func(typing.cast(str, func))
@@ -3339,8 +3400,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "right",
             "cross",
         ] = "inner",
-        # TODO(garrettwu): Currently can take inner, outer, left and right. To support
-        # cross joins
         on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
         *,
         left_on: Union[blocks.Label, Sequence[blocks.Label], None] = None,

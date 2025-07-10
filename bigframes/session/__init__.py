@@ -55,12 +55,14 @@ from pandas._typing import (
     ReadPickleBuffer,
     StorageOptions,
 )
+import pyarrow as pa
 
 from bigframes import exceptions as bfe
 from bigframes import version
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
 import bigframes.constants
+import bigframes.core
 from bigframes.core import blocks, log_adapter, utils
 import bigframes.core.pyformat
 
@@ -337,13 +339,15 @@ class Session(
     @property
     def slot_millis_sum(self):
         """The sum of all slot time used by bigquery jobs in this session."""
-        msg = bfe.format_message(
-            "Queries executed with `allow_large_results=False` within the session will not "
-            "have their slot milliseconds counted in this sum.  If you need precise slot "
-            "milliseconds information, query the `INFORMATION_SCHEMA` tables "
-            "to get relevant metrics.",
-        )
-        warnings.warn(msg, UserWarning)
+        if not bigframes.options._allow_large_results:
+            msg = bfe.format_message(
+                "Queries executed with `allow_large_results=False` within the session will not "
+                "have their slot milliseconds counted in this sum.  If you need precise slot "
+                "milliseconds information, query the `INFORMATION_SCHEMA` tables "
+                "to get relevant metrics.",
+            )
+            warnings.warn(msg, UserWarning)
+
         return self._metrics.slot_millis
 
     @property
@@ -965,6 +969,22 @@ class Session(
         import bigframes.dataframe as dataframe
 
         local_block = blocks.Block.from_local(pandas_dataframe, self)
+        return dataframe.DataFrame(local_block)
+
+    def read_arrow(self, pa_table: pa.Table) -> bigframes.dataframe.DataFrame:
+        """Load a PyArrow Table to a BigQuery DataFrames DataFrame.
+
+        Args:
+            pa_table (pyarrow.Table):
+                PyArrow table to load data from.
+
+        Returns:
+            bigframes.dataframe.DataFrame:
+                A new DataFrame representing the data from the PyArrow table.
+        """
+        import bigframes.dataframe as dataframe
+
+        local_block = blocks.Block.from_pyarrow(pa_table, self)
         return dataframe.DataFrame(local_block)
 
     def read_csv(

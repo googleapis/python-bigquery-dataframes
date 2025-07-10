@@ -22,6 +22,7 @@ import sqlglot.expressions as sge
 
 from bigframes.core import expression, guid, identifiers, nodes, pyarrow_utils, rewrite
 from bigframes.core.compile import configs
+from bigframes.core.compile.sqlglot.expressions import typed_expr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.core.ordering as bf_ordering
@@ -219,6 +220,29 @@ class SQLGlotCompiler:
         return child.filter(condition)
 
     @_compile_node.register
+    def compile_join(
+        self, node: nodes.JoinNode, left: ir.SQLGlotIR, right: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        conditions = tuple(
+            (
+                typed_expr.TypedExpr(
+                    scalar_compiler.compile_scalar_expression(left), left.output_type
+                ),
+                typed_expr.TypedExpr(
+                    scalar_compiler.compile_scalar_expression(right), right.output_type
+                ),
+            )
+            for left, right in node.conditions
+        )
+
+        return left.join(
+            right,
+            join_type=node.type,
+            conditions=conditions,
+            joins_nulls=node.joins_nulls,
+        )
+
+    @_compile_node.register
     def compile_concat(
         self, node: nodes.ConcatNode, *children: ir.SQLGlotIR
     ) -> ir.SQLGlotIR:
@@ -236,6 +260,12 @@ class SQLGlotCompiler:
         offsets_col = node.offsets_col.sql if (node.offsets_col is not None) else None
         columns = tuple(ref.id.sql for ref in node.column_ids)
         return child.explode(columns, offsets_col)
+
+    @_compile_node.register
+    def compile_random_sample(
+        self, node: nodes.RandomSampleNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        return child.sample(node.fraction)
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
