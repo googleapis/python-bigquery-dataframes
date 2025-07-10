@@ -60,6 +60,14 @@ def _convert_information_schema_table_id_to_table_reference(
     else:
         project = ".".join(parts[:dataset_index])
 
+    if project is None:
+        message = (
+            "Could not determine project ID. "
+            "Please provide a project or region in your INFORMATION_SCHEMA table ID, "
+            "For example, 'region-REGION_NAME.INFORMATION_SCHEMA.JOBS'."
+        )
+        raise ValueError(message)
+
     dataset = "INFORMATION_SCHEMA"
     table_id_short = ".".join(parts[dataset_index + 1 :])
     return bigquery.TableReference(
