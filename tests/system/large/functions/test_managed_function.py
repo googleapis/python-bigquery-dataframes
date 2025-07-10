@@ -634,13 +634,13 @@ def test_managed_function_resources_errors(session, dataset_id):
 
     with pytest.raises(
         google.api_core.exceptions.BadRequest,
-        # For 8.00 CPU, the memory must be in the range of [4Gi, 32Gi].
+        # For 2.00 CPU, the memory must be in the range of [256Mi, 8Gi].
         match="Invalid container_memory function OPTIONS value",
     ):
         session.udf(
             dataset=dataset_id,
             name=prefixer.create_prefix(),
             max_batching_rows=100,
-            container_cpu=8,
-            container_memory="1Gi",
+            container_cpu=2,
+            container_memory="64Mi",
         )(foo)
