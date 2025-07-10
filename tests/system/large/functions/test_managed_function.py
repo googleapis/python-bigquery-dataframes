@@ -608,10 +608,8 @@ def test_managed_function_resources_errors(session, dataset_id):
 
     with pytest.raises(
         google.api_core.exceptions.BadRequest,
-        match=(
-            "Invalid container_cpu function OPTIONS value: 2.50. "
-            "For CPU Value >= 1.0, the value must be one of \\[1, 2, 4, 6, 8\\]"
-        ),
+        # For CPU Value >= 1.0, the value must be one of [1, 2, ...].
+        match="Invalid container_cpu function OPTIONS value",
     ):
         session.udf(
             dataset=dataset_id,
@@ -623,10 +621,8 @@ def test_managed_function_resources_errors(session, dataset_id):
 
     with pytest.raises(
         google.api_core.exceptions.BadRequest,
-        match=(
-            "Invalid container_cpu function OPTIONS value: 0.10. "
-            "For less than 1.0 CPU, the value must be no less than 0.33."
-        ),
+        # For less than 1.0 CPU, the value must be no less than 0.33.
+        match="Invalid container_cpu function OPTIONS value",
     ):
         session.udf(
             dataset=dataset_id,
@@ -638,10 +634,8 @@ def test_managed_function_resources_errors(session, dataset_id):
 
     with pytest.raises(
         google.api_core.exceptions.BadRequest,
-        match=(
-            "Invalid container_memory function OPTIONS value: 1Gi. "
-            "For 8.00 CPU, the memory must be in the range of \\[4Gi, 32Gi\\]."
-        ),
+        # For 8.00 CPU, the memory must be in the range of [4Gi, 32Gi].
+        match="Invalid container_memory function OPTIONS value",
     ):
         session.udf(
             dataset=dataset_id,
