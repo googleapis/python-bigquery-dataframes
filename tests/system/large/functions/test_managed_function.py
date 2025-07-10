@@ -590,9 +590,11 @@ def test_managed_function_resources(session, dataset_id, scalars_dfs):
         routine = session.bqclient.get_routine(
             mf_multiply_five.bigframes_bigquery_function
         )
+
         assert routine._properties["externalRuntimeOptions"]["maxBatchingRows"] == "100"
         assert routine._properties["externalRuntimeOptions"]["containerCpu"] == 2
         assert routine._properties["externalRuntimeOptions"]["containerMemory"] == "2Gi"
+
     finally:
         # Clean up the gcp assets created for the managed function.
         cleanup_function_assets(

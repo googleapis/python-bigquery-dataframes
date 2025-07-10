@@ -1820,7 +1820,8 @@ class Session(
             container_memory (str, Optional):
                 The memory limits for containers that run Python UDFs. By
                 default, the memory allocated to each container instance is
-                512 MiB.
+                512 MiB. See details at
+                https://cloud.google.com/bigquery/docs/user-defined-functions-python#configure-container-limits.
         Returns:
             collections.abc.Callable:
                 A managed function object pointing to the cloud assets created

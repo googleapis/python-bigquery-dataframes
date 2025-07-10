@@ -320,9 +320,6 @@ class FunctionClient:
             .replace("__UDF_PLACE_HOLDER__", udf_code)
         )
 
-        print("")
-        print(create_function_ddl)
-        # breakpoint()
         self._ensure_dataset_exists()
         self._create_bq_function(create_function_ddl)
 
