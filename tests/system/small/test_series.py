@@ -424,6 +424,21 @@ def test_series_get_column_default(scalars_dfs):
     assert result == "default_val"
 
 
+@pytest.mark.parametrize(
+    ("key",),
+    [
+        ("hello",),
+        (2,),
+        ("int64_col",),
+        (None,),
+    ],
+)
+def test_series_contains(scalars_df_index, scalars_pandas_df_index, key):
+    bf_result = scalars_df_index["int64_col"].__contains__(key)
+    pd_result = scalars_pandas_df_index["int64_col"].__contains__(key)
+    assert bf_result == pd_result
+
+
 def test_series_equals_identical(scalars_df_index, scalars_pandas_df_index):
     bf_result = scalars_df_index.int64_col.equals(scalars_df_index.int64_col)
     pd_result = scalars_pandas_df_index.int64_col.equals(

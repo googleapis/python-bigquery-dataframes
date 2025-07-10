@@ -374,6 +374,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __iter__(self):
         return iter(self.columns)
 
+    def __contains__(self, key) -> bool:
+        return self.columns.__contains__(key)
+
     def astype(
         self,
         dtype: Union[
