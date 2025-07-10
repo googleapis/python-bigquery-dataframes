@@ -1,20 +1,31 @@
-# This example demonstrates one of the most general usage of transforming raw
-# BigQuery data into a processed table using dbt in BigFrames mode.
+# This example demonstrates one of the most general usages of transforming raw
+# BigQuery data into a processed table using a dbt Python model with BigFrames.
+# See more from: https://cloud.google.com/bigquery/docs/dataframes-dbt.
 #
-# Key defaults when using BigFrames in dbt:
-# - The default materialization is 'table' unless specified otherwise.
-# - The default timeout for the job is 3600 seconds (60 minutes).
+# Key defaults when using BigFrames in a dbt Python model for BigQuery:
+# - The default materialization is 'table' unless specified otherwise. This
+#   means dbt will create a new BigQuery table from the result of this model.
+# - The default timeout for the job is 3600 seconds (60 minutes). This can be
+#   adjusted if your processing requires more time.
 # - If no runtime template is provided, dbt will automatically create and reuse
-#   a default one.
+#   a default one for executing the Python code in BigQuery.
 #
-# This code sample shows a basic pattern for reading a BigQuery public dataset,
-# processing it using pandas-like operations, and outputting a cleaned table.
+# BigFrames provides a pandas-like API for BigQuery data, enabling familiar
+# data manipulation directly within your dbt project. This code sample
+# illustrates a basic pattern for:
+# 1. Reading data from an existing BigQuery dataset.
+# 2. Processing it using pandas-like DataFrame operations powered by BigFrames.
+# 3. Outputting a cleaned and transformed table, managed by dbt.
 
 
 def model(dbt, session):
-    # Optional: override settings from dbt_project.yml. When both are set,
-    # dbt.config takes precedence over dbt_project.yml.
-    # Use BigFrames mode to execute the Python model.
+    # Optional: Override settings from your dbt_project.yml file.
+    # When both are set, dbt.config takes precedence over dbt_project.yml.
+    #
+    # Use `dbt.config(submission_method="bigframes")` to tell dbt to execute
+    # this Python model using BigQuery DataFrames (BigFrames). This allows you
+    # to write pandas-like code that operates directly on BigQuery data
+    # without needing to pull all data into memory.
     dbt.config(submission_method="bigframes")
 
     # Define the BigQuery table path from which to read data.
@@ -24,7 +35,6 @@ def model(dbt, session):
     columns = ["state_name", "county_name", "date_local", "time_local", "sample_measurement"]
 
     # Read data from the specified BigQuery table into a BigFrames DataFrame.
-    # BigFrames allows you to interact with BigQuery tables using a pandas-like API.
     df = session.read_gbq(table, columns=columns)
 
     # Sort the DataFrame by the specified columns. This prepares the data for
