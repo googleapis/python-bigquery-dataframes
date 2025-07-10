@@ -83,7 +83,6 @@ def get_information_schema_metadata(
 ) -> bigquery.Table:
     job_config = bigquery.QueryJobConfig(dry_run=True)
     job = bqclient.query(
-        # TODO: better escaping?
         f"SELECT * FROM `{table_id}`",
         job_config=job_config,
     )
