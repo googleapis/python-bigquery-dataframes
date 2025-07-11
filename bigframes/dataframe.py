@@ -39,7 +39,6 @@ from typing import (
     Union,
 )
 import warnings
-import weakref
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.frame as vendored_pandas_frame
@@ -88,7 +87,6 @@ import bigframes.session._io.bigquery
 if typing.TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
 
-    from bigframes.display.anywidget import TableWidget
     import bigframes.session
 
     SingleItemValue = Union[bigframes.series.Series, int, float, str, Callable]
@@ -112,9 +110,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     _disable_cache_override: bool = False
     # Must be above 5000 for pandas to delegate to bigframes for binops
     __pandas_priority__ = 15000
-
-    # Type annotation for anywidget instance
-    _anywidget_instance: Optional[weakref.ReferenceType["TableWidget"]] = None
 
     def __init__(
         self,
