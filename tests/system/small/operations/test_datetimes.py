@@ -17,7 +17,6 @@ import sys
 import typing
 
 import numpy
-from packaging import version
 from pandas import testing
 import pandas as pd
 import pytest
