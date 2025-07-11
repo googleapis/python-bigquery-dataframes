@@ -1,17 +1,22 @@
 # Contains code from https://github.com/pandas-dev/pandas/blob/main/pandas/core/tools/datetimes.py
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Mapping, Tuple, Union
 
 import pandas as pd
 
-from bigframes import constants, series
+from bigframes import constants, dataframe, series
 
 local_iterables = Union[List, Tuple, pd.Series, pd.DataFrame, Mapping]
 
 
 def to_datetime(
-    arg,
+    arg: Union[
+        Union[int, float, str, datetime, date],
+        local_iterables,
+        series.Series,
+        dataframe.DataFrame,
+    ],
     *,
     utc=False,
     format=None,
