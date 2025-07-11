@@ -16,6 +16,7 @@ import datetime
 import typing
 
 import numpy
+from packaging import version
 from pandas import testing
 import pandas as pd
 import pytest
@@ -558,6 +559,8 @@ def test_timedelta_dt_accessors_on_wrong_type_raise_exception(scalars_dfs, acces
     ["date_col", "datetime_col"],
 )
 def test_to_datetime(scalars_dfs, col):
+    if version.Version(pd.__version__) <= version.Version("2.1.0"):
+        pytest.skip("timezone conversion bug")
     bf_df, pd_df = scalars_dfs
 
     actual_result = typing.cast(
