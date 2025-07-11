@@ -405,7 +405,7 @@ def test_index_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep):
 def test_index_contains(scalars_df_index, scalars_pandas_df_index, key):
     col_name = "int64_col"
     bf_result = key in scalars_df_index.set_index(col_name).index
-    pd_result = key in scalars_pandas_df_index.set_index(col_name)
+    pd_result = key in scalars_pandas_df_index.set_index(col_name).index
 
     assert bf_result == pd_result
 
