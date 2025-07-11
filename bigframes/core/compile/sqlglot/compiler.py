@@ -18,6 +18,7 @@ import functools
 import typing
 
 from google.cloud import bigquery
+import sqlglot as sg
 import sqlglot.expressions as sge
 
 from bigframes.core import expression, guid, identifiers, nodes, pyarrow_utils, rewrite
@@ -218,7 +219,7 @@ class SQLGlotCompiler:
         self, node: nodes.FilterNode, child: ir.SQLGlotIR
     ) -> ir.SQLGlotIR:
         condition = scalar_compiler.compile_scalar_expression(node.predicate)
-        return child.filter(condition)
+        return child.filter(tuple([condition]))
 
     @_compile_node.register
     def compile_join(
@@ -293,12 +294,14 @@ class SQLGlotCompiler:
         )
 
         result = child.aggregate(aggregations, by_cols)
-        # TODO(chelsealin): Support dropna
-        # TODO: Remove dropna field and use filter node instead
-        # if node.dropna:
-        #     for key in node.by_column_ids:
-        #         if node.child.field_by_id[key.id].nullable:
-        #             result = result.filter(operations.notnull_op.as_expr(key))
+        if node.dropna:
+            conditions = []
+            for key, by_col in zip(node.by_column_ids, by_cols):
+                if node.child.field_by_id[key.id].nullable:
+                    conditions.append(
+                        sg.not_(sge.Is(this=by_col, expression=sge.Null()))
+                    )
+            result = result.filter(tuple(conditions))
         return result
 
 

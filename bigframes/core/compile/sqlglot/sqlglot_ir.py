@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import typing
 
 from google.cloud import bigquery
@@ -278,9 +279,13 @@ class SQLGlotIR:
 
     def filter(
         self,
-        condition: sge.Expression,
+        conditions: tuple[sge.Expression, ...],
     ) -> SQLGlotIR:
         """Filters the query by adding a WHERE clause."""
+        condition = _and(conditions)
+        if condition is None:
+            return SQLGlotIR(expr=self.expr.copy(), uid_gen=self.uid_gen)
+
         new_expr = _select_to_cte(
             self.expr,
             sge.to_identifier(
@@ -314,10 +319,11 @@ class SQLGlotIR:
         right_ctes = right_select.args.pop("with", [])
         merged_ctes = [*left_ctes, *right_ctes]
 
-        join_conditions = [
-            _join_condition(left, right, joins_nulls) for left, right in conditions
-        ]
-        join_on = sge.And(expressions=join_conditions) if join_conditions else None
+        join_on = _and(
+            tuple(
+                _join_condition(left, right, joins_nulls) for left, right in conditions
+            )
+        )
 
         join_type_str = join_type if join_type != "outer" else "full outer"
         new_expr = (
@@ -579,6 +585,16 @@ def _table(table: bigquery.TableReference) -> sge.Table:
         this=sg.to_identifier(table.table_id, quoted=True),
         db=sg.to_identifier(table.dataset_id, quoted=True),
         catalog=sg.to_identifier(table.project, quoted=True),
+    )
+
+
+def _and(conditions: tuple[sge.Expression, ...]) -> typing.Optional[sge.Expression]:
+    """Chains multiple expressions together using a logical AND."""
+    if not conditions:
+        return None
+
+    return functools.reduce(
+        lambda left, right: sge.And(this=left, expression=right), conditions
     )
 
 

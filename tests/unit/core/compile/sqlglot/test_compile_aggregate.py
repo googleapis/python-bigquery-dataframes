@@ -22,3 +22,12 @@ pytest.importorskip("pytest_snapshot")
 def test_compile_aggregate(scalar_types_df: bpd.DataFrame, snapshot):
     result = scalar_types_df["int64_too"].groupby(scalar_types_df["bool_col"]).sum()
     snapshot.assert_match(result.to_frame().sql, "out.sql")
+
+
+def test_compile_aggregate_wo_dropna(scalar_types_df: bpd.DataFrame, snapshot):
+    result = (
+        scalar_types_df["int64_too"]
+        .groupby(scalar_types_df["bool_col"], dropna=False)
+        .sum()
+    )
+    snapshot.assert_match(result.to_frame().sql, "out.sql")
