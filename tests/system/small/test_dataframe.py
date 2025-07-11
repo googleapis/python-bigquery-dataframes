@@ -4461,8 +4461,9 @@ def test_df___array__(scalars_df_index, scalars_pandas_df_index):
     ],
 )
 def test_df_contains(scalars_df_index, scalars_pandas_df_index, key):
-    bf_result = scalars_df_index.__contains__(key)
-    pd_result = scalars_pandas_df_index.__contains__(key)
+    bf_result = key in scalars_df_index
+    pd_result = key in scalars_pandas_df_index
+
     assert bf_result == pd_result
 
 
