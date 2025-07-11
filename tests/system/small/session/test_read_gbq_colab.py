@@ -22,6 +22,8 @@ import pytest
 import bigframes
 import bigframes.pandas
 
+pytest.importorskip("polars")
+
 
 def test_read_gbq_colab_to_pandas_batches_preserves_order_by(maybe_ordered_session):
     # This query should return enough results to be too big to fit in a single
