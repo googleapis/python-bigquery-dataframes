@@ -78,10 +78,20 @@ def cast_batch(batch: pa.RecordBatch, schema: pa.Schema) -> pa.RecordBatch:
     if batch.schema == schema:
         return batch
     # TODO: Use RecordBatch.cast once min pyarrow>=16.0
-    return pa.record_batch(
-        [arr.cast(type) for arr, type in zip(batch.columns, schema.types)],
-        schema=schema,
-    )
+    # return pa.record_batch(
+    #    [arr.cast(type) for arr, type in zip(batch.columns, schema.types)],
+    #    schema=schema,
+    # )
+    arrs = []
+
+    for arr, type in zip(batch.columns, schema.types):
+        try:
+            value = arr.cast(type)
+        except Exception as e:
+            print(e)
+            raise
+        arrs.append(value)
+    return pa.record_batch(arrs, schema=schema)
 
 
 def truncate_pyarrow_iterable(
