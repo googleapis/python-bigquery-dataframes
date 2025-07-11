@@ -63,7 +63,7 @@ def to_datetime(
         dtype: timestamp[us, tz=UTC][pyarrow]
 
     Args:
-        arg (int, float, str, datetime, list, tuple, 1-d array, Series):
+        arg (int, float, str, datetime, date, list, tuple, 1-d array, Series):
             The object to convert to a datetime.
         utc (bool, default False):
             Control timezone-related parsing, localization and conversion. If True, the
