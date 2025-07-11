@@ -50,6 +50,10 @@ def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
         # Need to do this before replacing unsupported ops, as that will rewrite slice ops
         result_node = rewrites.pull_up_limits(result_node)
     result_node = _replace_unsupported_ops(result_node)
+
+    # must extract ctes before column pruning, which pushes constraints down
+    result_node = cast(nodes.ResultNode, rewrites.extract_ctes(result_node))
+
     # prune before pulling up order to avoid unnnecessary row_number() ops
     result_node = cast(nodes.ResultNode, rewrites.column_pruning(result_node))
     result_node = rewrites.defer_order(
@@ -284,3 +288,10 @@ def compile_explode(node: nodes.ExplodeNode, child: compiled.UnorderedIR):
 @_compile_node.register
 def compile_random_sample(node: nodes.RandomSampleNode, child: compiled.UnorderedIR):
     return child._uniform_sampling(node.fraction)
+
+
+@_compile_node.register
+def compile_cte_node(node: nodes.CteNode, child: compiled.UnorderedIR):
+    # CTE node is just an optimization barrier for ibis compiler
+    # Ibis itself will identify cte candidates and extract them
+    return child
