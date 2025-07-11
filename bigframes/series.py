@@ -258,7 +258,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def __contains__(self, key) -> bool:
-        return self.index.__contains__(key)
+        return key in self.index
 
     def copy(self) -> Series:
         return Series(self._block)

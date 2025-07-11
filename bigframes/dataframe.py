@@ -375,7 +375,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return iter(self.columns)
 
     def __contains__(self, key) -> bool:
-        return self.columns.__contains__(key)
+        return key in self.columns
 
     def astype(
         self,
