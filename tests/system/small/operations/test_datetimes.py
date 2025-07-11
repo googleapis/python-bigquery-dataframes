@@ -557,7 +557,7 @@ def test_timedelta_dt_accessors_on_wrong_type_raise_exception(scalars_dfs, acces
 @pytest.mark.parametrize("utc", [True, False])
 @pytest.mark.parametrize("col", ["date_col", "datetime_col"])
 def test_to_datetime(scalars_dfs, col, utc):
-    if version.Version(sys.version) <= version.Version("3.9"):
+    if sys.version_info <= (3, 9):
         pytest.skip("timezone comparison is not well-supported.")
 
     bf_df, pd_df = scalars_dfs
