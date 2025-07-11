@@ -179,7 +179,7 @@ class SubOp(base_ops.BinaryOp):
         left_type = input_types[0]
         right_type = input_types[1]
 
-        if dtypes.is_datetime_like(left_type) and dtypes.is_datetime_like(right_type):
+        if left_type == dtypes.DATETIME_DTYPE and right_type == dtypes.DATETIME_DTYPE:
             return dtypes.TIMEDELTA_DTYPE
 
         if left_type == dtypes.DATE_DTYPE and right_type == dtypes.DATE_DTYPE:

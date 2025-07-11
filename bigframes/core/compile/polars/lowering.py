@@ -26,6 +26,7 @@ import bigframes.operations as ops
 @dataclasses.dataclass
 class CoerceArgsRule(op_lowering.OpLoweringRule):
     op_type: type[ops.BinaryOp]
+    bools_only: bool = False
 
     @property
     def op(self) -> type[ops.ScalarOp]:
@@ -33,7 +34,9 @@ class CoerceArgsRule(op_lowering.OpLoweringRule):
 
     def lower(self, expr: expression.OpExpression) -> expression.Expression:
         assert isinstance(expr.op, self.op_type)
-        larg, rarg = _coerce_comparables(expr.children[0], expr.children[1])
+        larg, rarg = _coerce_comparables(
+            expr.children[0], expr.children[1], bools_only=self.bools_only
+        )
         return expr.op.as_expr(larg, rarg)
 
 
@@ -56,7 +59,18 @@ class LowerFloorDivRule(op_lowering.OpLoweringRule):
         return ops.where_op.as_expr(zero_result, divisor_is_zero, expr)
 
 
-def _coerce_comparables(expr1: expression.Expression, expr2: expression.Expression):
+def _coerce_comparables(
+    expr1: expression.Expression,
+    expr2: expression.Expression,
+    *,
+    bools_only: bool = False
+):
+    if bools_only:
+        if (
+            expr1.output_type != dtypes.BOOL_DTYPE
+            and expr2.output_type != dtypes.BOOL_DTYPE
+        ):
+            return expr1, expr2
 
     target_type = dtypes.coerce_to_common(expr1.output_type, expr2.output_type)
     if expr1.output_type != target_type:
@@ -88,8 +102,20 @@ LOWER_COMPARISONS = tuple(
     )
 )
 
+LOWER_NUMERICS = tuple(
+    CoerceArgsRule(op, bools_only=True)
+    for op in (
+        numeric_ops.AddOp,
+        numeric_ops.SubOp,
+        numeric_ops.MulOp,
+        numeric_ops.DivOp,
+        numeric_ops.FloorDivOp,
+        numeric_ops.ModOp,
+    )
+)
 POLARS_LOWERING_RULES = (
     *LOWER_COMPARISONS,
+    *LOWER_NUMERICS,
     LowerFloorDivRule(),
 )
 
