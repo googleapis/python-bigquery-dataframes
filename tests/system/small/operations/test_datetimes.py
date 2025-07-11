@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import datetime
+import sys
 import typing
 
 import numpy
+from packaging import version
 from pandas import testing
 import pandas as pd
 import pytest
@@ -555,6 +557,9 @@ def test_timedelta_dt_accessors_on_wrong_type_raise_exception(scalars_dfs, acces
 @pytest.mark.parametrize("utc", [True, False])
 @pytest.mark.parametrize("col", ["date_col", "datetime_col"])
 def test_to_datetime(scalars_dfs, col, utc):
+    if version.Version(sys.version) <= version.Version("3.9"):
+        pytest.skip("timezone comparison is not well-supported.")
+
     bf_df, pd_df = scalars_dfs
 
     actual_result = typing.cast(
