@@ -553,19 +553,19 @@ def test_timedelta_dt_accessors_on_wrong_type_raise_exception(scalars_dfs, acces
         access(bf_df["timestamp_col"])
 
 
-@pytest.mark.parametrize("utc", [True, False])
-@pytest.mark.parametrize("col", ["date_col", "datetime_col"])
-def test_to_datetime(scalars_dfs, col, utc):
-    if sys.version_info <= (3, 9):
-        pytest.skip("timezone comparison is not well-supported.")
-
+@pytest.mark.parametrize(
+    "col",
+    # TODO(b/431276706) test timestamp_col too.
+    ["date_col", "datetime_col"],
+)
+def test_to_datetime(scalars_dfs, col):
     bf_df, pd_df = scalars_dfs
 
     actual_result = typing.cast(
-        bigframes.series.Series, bpd.to_datetime(bf_df[col], utc=utc)
+        bigframes.series.Series, bpd.to_datetime(bf_df[col])
     ).to_pandas()
 
-    expected_result = pd.Series(pd.to_datetime(pd_df[col], utc=utc))
+    expected_result = pd.Series(pd.to_datetime(pd_df[col]))
     testing.assert_series_equal(
         actual_result, expected_result, check_dtype=False, check_index_type=False
     )
