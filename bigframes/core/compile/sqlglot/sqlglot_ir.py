@@ -371,15 +371,15 @@ class SQLGlotIR:
     def aggregate(
         self,
         aggregations: tuple[tuple[str, sge.Expression], ...],
-        by_column_ids: tuple[sge.Expression, ...],
+        by_cols: tuple[sge.Expression, ...],
+        dropna_cols: tuple[sge.Expression, ...],
     ) -> SQLGlotIR:
         """Applies the aggregation expressions.
 
         Args:
             aggregations: output_column_id, aggregation_expr tuples
-            by_column_ids: column ids of the aggregation key, this is preserved through
-              the transform
-            dropna: whether null keys should be dropped
+            by_cols: column expressions for aggregation
+            dropna_cols: columns whether null keys should be dropped
         """
         aggregations_expr = [
             sge.Alias(
@@ -395,9 +395,18 @@ class SQLGlotIR:
                 next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
             ),
         )
-        new_expr = new_expr.group_by(*by_column_ids).select(
-            *[*by_column_ids, *aggregations_expr], append=False
+        new_expr = new_expr.group_by(*by_cols).select(
+            *[*by_cols, *aggregations_expr], append=False
         )
+
+        condition = _and(
+            tuple(
+                sg.not_(sge.Is(this=drop_col, expression=sge.Null()))
+                for drop_col in dropna_cols
+            )
+        )
+        if condition is not None:
+            new_expr = new_expr.where(condition, append=False)
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def insert(

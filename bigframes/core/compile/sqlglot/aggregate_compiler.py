@@ -30,7 +30,6 @@ def compile_aggregate(
     order_by: tuple[sge.Expression, ...],
 ) -> sge.Expression:
     """Compiles BigFrames aggregation expression into SQLGlot expression."""
-    # TODO: try to remove type: ignore
     if isinstance(aggregate, expression.NullaryAggregation):
         return compile_nullary_agg(aggregate.op)
     if isinstance(aggregate, expression.UnaryAggregation):
@@ -39,9 +38,9 @@ def compile_aggregate(
             aggregate.arg.output_type,
         )
         if not aggregate.op.order_independent:
-            return compile_ordered_unary_agg(aggregate.op, column, order_by=order_by)  # type: ignore
+            return compile_ordered_unary_agg(aggregate.op, column, order_by=order_by)
         else:
-            return compile_unary_agg(aggregate.op, column)  # type: ignore
+            return compile_unary_agg(aggregate.op, column)
     elif isinstance(aggregate, expression.BinaryAggregation):
         left = typed_expr.TypedExpr(
             scalar_compiler.compile_scalar_expression(aggregate.left),
@@ -51,7 +50,7 @@ def compile_aggregate(
             scalar_compiler.compile_scalar_expression(aggregate.right),
             aggregate.right.output_type,
         )
-        return compile_binary_agg(aggregate.op, left, right)  # type: ignore
+        return compile_binary_agg(aggregate.op, left, right)
     else:
         raise ValueError(f"Unexpected aggregation: {aggregate}")
 
@@ -88,11 +87,11 @@ def compile_ordered_unary_agg(
     op: ops.aggregations.WindowOp,
     column: typed_expr.TypedExpr,
     window: typing.Optional[window_spec.WindowSpec] = None,
+    order_by: typing.Sequence[sge.Expression] = [],
 ) -> sge.Expression:
     raise ValueError(f"Can't compile unrecognized operation: {op}")
 
 
-# TODO: check @numeric_op
 @compile_unary_agg.register
 def _(
     op: ops.aggregations.SumOp,
@@ -101,7 +100,6 @@ def _(
 ) -> sge.Expression:
     # Will be null if all inputs are null. Pandas defaults to zero sum though.
     expr = _apply_window_if_present(sge.func("SUM", column.expr), window)
-    # TODO (b/430350912): check `column.dtype` works for all?
     return sge.func("IFNULL", expr, ir._literal(0, column.dtype))
 
 

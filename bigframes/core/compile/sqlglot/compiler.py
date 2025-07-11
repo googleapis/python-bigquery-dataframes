@@ -18,7 +18,6 @@ import functools
 import typing
 
 from google.cloud import bigquery
-import sqlglot as sg
 import sqlglot.expressions as sge
 
 from bigframes.core import expression, guid, identifiers, nodes, pyarrow_utils, rewrite
@@ -279,7 +278,6 @@ class SQLGlotCompiler:
                     ordering.scalar_expression
                 ),
                 desc=ordering.direction.is_ascending is False,
-                # TODO: _convert_row_ordering_to_table_values for overwrite.
                 nulls_first=ordering.na_last is False,
             )
             for ordering in node.order_by
@@ -293,16 +291,13 @@ class SQLGlotCompiler:
             for by_col in node.by_column_ids
         )
 
-        result = child.aggregate(aggregations, by_cols)
+        dropna_cols = []
         if node.dropna:
-            conditions = []
             for key, by_col in zip(node.by_column_ids, by_cols):
                 if node.child.field_by_id[key.id].nullable:
-                    conditions.append(
-                        sg.not_(sge.Is(this=by_col, expression=sge.Null()))
-                    )
-            result = result.filter(tuple(conditions))
-        return result
+                    dropna_cols.append(by_col)
+
+        return child.aggregate(aggregations, by_cols, tuple(dropna_cols))
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
