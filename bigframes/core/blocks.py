@@ -2488,6 +2488,11 @@ class Block:
             )
             if result is not None:
                 return result
+
+            # For block identify joins with null indices, perform cross join
+            if block_identity_join and how == "left":
+                return join_with_single_row(self, other)
+
             raise bigframes.exceptions.NullIndexError(
                 "Cannot implicitly align objects. Set an explicit index using set_index."
             )

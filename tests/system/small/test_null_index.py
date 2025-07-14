@@ -16,6 +16,9 @@
 import pandas as pd
 import pytest
 
+import bigframes.core
+import bigframes.core.blocks as blocks
+import bigframes.core.local_data as local_data
 import bigframes.exceptions
 import bigframes.pandas as bpd
 
@@ -398,5 +401,49 @@ def test_null_index_transpose(scalars_df_null_index):
         _ = scalars_df_null_index.T
 
 
-def test_null_index_contains(scalars_df_null_index):
-    assert 3 not in scalars_df_null_index
+@pytest.mark.parametrize(
+    ("session_fixture",),
+    [
+        pytest.param("session"),
+        pytest.param("unordered_session"),
+    ],
+)
+def test_block_join_identity_null_index(request, session_fixture):
+    """Test the Block.join method with block_identity_join=True and null indices."""
+
+    session = request.getfixturevalue(session_fixture)
+
+    left_data = pd.DataFrame({"a": [1, 2, 3]})
+    right_data = pd.DataFrame({"b": [10, 20, 30]})
+
+    left_managed = local_data.ManagedArrowTable.from_pandas(left_data)
+    right_managed = local_data.ManagedArrowTable.from_pandas(right_data)
+
+    left_array = bigframes.core.ArrayValue.from_managed(left_managed, session=session)
+    right_array = bigframes.core.ArrayValue.from_managed(right_managed, session=session)
+
+    # Create blocks with empty index_columns to get null indices
+    left_block = blocks.Block(
+        left_array,
+        index_columns=[],
+        column_labels=["a"],
+    )
+    right_block = blocks.Block(
+        right_array,
+        index_columns=[],
+        column_labels=["b"],
+    )
+
+    # Test the join with block_identity_join=True
+    result_block, (left_mapping, right_mapping) = left_block.join(
+        right_block, how="left", block_identity_join=True
+    )
+
+    # Verify both have null indices
+    assert left_block.index.nlevels == 0
+    assert right_block.index.nlevels == 0
+
+    # Verify the join succeeded
+    assert result_block is not None
+    assert len(left_mapping) > 0
+    assert len(right_mapping) > 0

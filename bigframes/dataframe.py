@@ -2289,7 +2289,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self, label: str, series: bigframes.series.Series
     ) -> DataFrame:
         block, (get_column_left, get_column_right) = self._block.join(
-            series._block, how="left"
+            series._block, how="left", block_identity_join=True
         )
 
         column_ids = [
