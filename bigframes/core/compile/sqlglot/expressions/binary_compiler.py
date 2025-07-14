@@ -39,6 +39,26 @@ def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return sge.Add(this=left.expr, expression=right.expr)
 
 
+@BINARY_OP_REGISTRATION.register(ops.sub_op)
+def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.Sub(this=left.expr, expression=right.expr)
+
+
+@BINARY_OP_REGISTRATION.register(ops.mul_op)
+def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.Mul(this=left.expr, expression=right.expr)
+
+
+@BINARY_OP_REGISTRATION.register(ops.div_op)
+def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.Div(this=left.expr, expression=right.expr)
+
+
+@BINARY_OP_REGISTRATION.register(ops.eq_op)
+def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.EQ(this=left.expr, expression=right.expr)
+
+
 @BINARY_OP_REGISTRATION.register(ops.ge_op)
 def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return sge.GTE(this=left.expr, expression=right.expr)

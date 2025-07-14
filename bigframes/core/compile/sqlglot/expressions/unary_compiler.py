@@ -73,6 +73,31 @@ def _(op: ops.ArraySliceOp, expr: TypedExpr) -> sge.Expression:
 
 
 # JSON Ops
+@UNARY_OP_REGISTRATION.register(ops.isnull_op)
+def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Is(this=expr.expr, expression=sge.Null())
+
+
+@UNARY_OP_REGISTRATION.register(ops.notnull_op)
+def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Is(this=expr.expr, expression=sge.Null()).not_()
+
+
+@UNARY_OP_REGISTRATION.register(ops.invert_op)
+def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Not(this=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.pos_op)
+def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return expr.expr
+
+
+@UNARY_OP_REGISTRATION.register(ops.neg_op)
+def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Neg(this=expr.expr)
+
+
 @UNARY_OP_REGISTRATION.register(ops.JSONExtract)
 def _(op: ops.JSONExtract, expr: TypedExpr) -> sge.Expression:
     return sge.func("JSON_EXTRACT", expr.expr, sge.convert(op.json_path))

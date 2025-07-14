@@ -20,68 +20,31 @@ import bigframes.pandas as bpd
 pytest.importorskip("pytest_snapshot")
 
 
-def test_array_to_string(repeated_types_df: bpd.DataFrame, snapshot):
-    result = bbq.array_to_string(repeated_types_df["string_list_col"], ".")
+def test_isnull(scalar_types_df: bpd.DataFrame, snapshot):
+    result = scalar_types_df["int64_col"].isnull()
 
     snapshot.assert_match(result.to_frame().sql, "out.sql")
 
 
-def test_array_index(repeated_types_df: bpd.DataFrame, snapshot):
-    result = repeated_types_df["string_list_col"].list[1]
+def test_notnull(scalar_types_df: bpd.DataFrame, snapshot):
+    result = scalar_types_df["int64_col"].notnull()
 
     snapshot.assert_match(result.to_frame().sql, "out.sql")
 
 
-def test_array_slice_with_only_start(repeated_types_df: bpd.DataFrame, snapshot):
-    result = repeated_types_df["string_list_col"].list[1:]
+def test_invert(scalar_types_df: bpd.DataFrame, snapshot):
+    result = ~scalar_types_df["bool_col"]
 
     snapshot.assert_match(result.to_frame().sql, "out.sql")
 
 
-def test_array_slice_with_start_and_stop(repeated_types_df: bpd.DataFrame, snapshot):
-    result = repeated_types_df["string_list_col"].list[1:5]
+def test_pos(scalar_types_df: bpd.DataFrame, snapshot):
+    result = +scalar_types_df["int64_col"]
 
     snapshot.assert_match(result.to_frame().sql, "out.sql")
 
 
-# JSON Ops
-def test_json_extract(json_types_df: bpd.DataFrame, snapshot):
-    result = bbq.json_extract(json_types_df["json_col"], "$")
-    expected_sql = "JSON_EXTRACT(`bfcol_1`, '$') AS `bfcol_4`"
-    assert expected_sql in result.to_frame().sql
-    snapshot.assert_match(result.to_frame().sql, "out.sql")
+def test_neg(scalar_types_df: bpd.DataFrame, snapshot):
+    result = -scalar_types_df["int64_col"]
 
-
-def test_json_extract_array(json_types_df: bpd.DataFrame):
-    result = bbq.json_extract_array(json_types_df["json_col"], "$")
-    expected_sql = "JSON_EXTRACT_ARRAY(`bfcol_1`, '$') AS `bfcol_4`"
-    assert expected_sql in result.to_frame().sql
-
-
-def test_json_extract_string_array(json_types_df: bpd.DataFrame):
-    result = bbq.json_extract_string_array(json_types_df["json_col"], "$")
-    expected_sql = "JSON_EXTRACT_STRING_ARRAY(`bfcol_1`, '$') AS `bfcol_4`"
-    assert expected_sql in result.to_frame().sql
-
-
-def test_json_query(json_types_df: bpd.DataFrame):
-    result = bbq.json_query(json_types_df["json_col"], "$")
-    expected_sql = "JSON_QUERY(`bfcol_1`, '$') AS `bfcol_4`"
-    assert expected_sql in result.to_frame().sql
-
-
-def test_json_query_array(json_types_df: bpd.DataFrame):
-    result = bbq.json_query_array(json_types_df["json_col"], "$")
-    expected_sql = "JSON_QUERY_ARRAY(`bfcol_1`, '$') AS `bfcol_4`"
-    assert expected_sql in result.to_frame().sql
-
-
-def test_json_value(json_types_df: bpd.DataFrame):
-    result = bbq.json_value(json_types_df["json_col"], "$")
-    expected_sql = "JSON_VALUE(`bfcol_1`, '$') AS `bfcol_4`"
-    assert expected_sql in result.to_frame().sql
-
-
-def test_parse_json(scalar_types_df: bpd.DataFrame, snapshot):
-    result = bbq.json_value(scalar_types_df["string_col"], "$")
     snapshot.assert_match(result.to_frame().sql, "out.sql")

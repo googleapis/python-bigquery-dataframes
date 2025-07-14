@@ -44,6 +44,38 @@ def test_add_string(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(bf_df.sql, "out.sql")
 
 
+def test_sub_numeric(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col"]]
+
+    bf_df["int64_col"] = bf_df["int64_col"] - bf_df["int64_col"]
+
+    snapshot.assert_match(bf_df.sql, "out.sql")
+
+
+def test_mul_numeric(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col"]]
+
+    bf_df["int64_col"] = bf_df["int64_col"] * bf_df["int64_col"]
+
+    snapshot.assert_match(bf_df.sql, "out.sql")
+
+
+def test_div_numeric(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col"]]
+
+    bf_df["int64_col"] = bf_df["int64_col"] / bf_df["int64_col"]
+
+    snapshot.assert_match(bf_df.sql, "out.sql")
+
+
+def test_eq_numeric(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col"]]
+
+    bf_df["int64_col"] = bf_df["int64_col"] == bf_df["int64_col"]
+
+    snapshot.assert_match(bf_df.sql, "out.sql")
+
+
 def test_json_set(json_types_df: bpd.DataFrame, snapshot):
     result = bbq.json_set(json_types_df["json_col"], [("$.a", 100), ("$.b", "hi")])
     snapshot.assert_match(result.to_frame().sql, "out.sql")
