@@ -12,25 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Compiler for BigFrames expression to Ibis expression.
+
+Make sure to import all ibis_compiler implementations here so that they get
+registered.
+"""
+
 from __future__ import annotations
 
-import dataclasses
-from typing import ClassVar
-
-from bigframes import dtypes
-from bigframes.operations import base_ops
-
-
-@dataclasses.dataclass(frozen=True)
-class IsNullOp(base_ops.UnaryOp):
-    name: ClassVar[str] = "isnull"
-
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return dtypes.BOOL_DTYPE
-
-
-isnull_op = IsNullOp()
-__all__ = [
-    "IsNullOp",
-    "isnull_op",
-]
+import bigframes.core.compile.ibis_compiler.operations.generic_ops.isnull_op  # noqa: F401
+import bigframes.core.compile.ibis_compiler.operations.generic_ops.notnull_op  # noqa: F401
+import bigframes.core.compile.ibis_compiler.scalar_op_registry  # noqa: F401

@@ -27,10 +27,10 @@ import pandas as pd
 
 from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
 import bigframes.core.compile.default_ordering
-import bigframes.core.compile.ibis_types
-from bigframes.core.compile.scalar_op_compiler import (
+from bigframes.core.compile.ibis_compiler.scalar_op_compiler import (
     scalar_op_compiler,  # TODO(tswast): avoid import of variables
 )
+import bigframes.core.compile.ibis_types
 import bigframes.operations as ops
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))

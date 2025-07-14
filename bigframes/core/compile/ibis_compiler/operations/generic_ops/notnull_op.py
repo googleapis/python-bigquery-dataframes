@@ -17,20 +17,36 @@ from __future__ import annotations
 import dataclasses
 from typing import ClassVar
 
+# Imports for Ibis compilation
+from bigframes_vendored.ibis.expr import types as ibis_types
+
+# Direct imports from bigframes
 from bigframes import dtypes
+from bigframes.core.compile.ibis_compiler import scalar_op_compiler
 from bigframes.operations import base_ops
 
 
 @dataclasses.dataclass(frozen=True)
-class IsNullOp(base_ops.UnaryOp):
-    name: ClassVar[str] = "isnull"
+class NotNullOp(base_ops.UnaryOp):
+    name: ClassVar[str] = "notnull"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return dtypes.BOOL_DTYPE
 
 
-isnull_op = IsNullOp()
+notnull_op = NotNullOp()
+
+
+def _ibis_notnull_op_impl(x: ibis_types.Value):
+    return x.notnull()
+
+
+scalar_op_compiler.scalar_op_compiler.register_unary_op(notnull_op)(
+    _ibis_notnull_op_impl
+)
+
+
 __all__ = [
-    "IsNullOp",
-    "isnull_op",
+    "NotNullOp",
+    "notnull_op",
 ]

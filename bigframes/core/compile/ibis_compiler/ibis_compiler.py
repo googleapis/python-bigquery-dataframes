@@ -177,7 +177,7 @@ def compile_readlocal(node: nodes.ReadLocalNode, *args):
 
 @_compile_node.register
 def compile_readtable(node: nodes.ReadTableNode, *args):
-    from bigframes.core.compile import scalar_op_registry
+    from bigframes.core.compile.ibis_compiler import scalar_op_registry
 
     ibis_table = _table_to_ibis(
         node.source, scan_cols=[col.source_id for col in node.scan_list.items]

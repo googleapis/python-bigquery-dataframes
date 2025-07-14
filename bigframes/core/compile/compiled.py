@@ -32,8 +32,8 @@ import pyarrow as pa
 from bigframes.core import utils
 import bigframes.core.compile.aggregate_compiler as agg_compiler
 import bigframes.core.compile.googlesql
+import bigframes.core.compile.ibis_compiler.scalar_op_compiler as op_compilers
 import bigframes.core.compile.ibis_types
-import bigframes.core.compile.scalar_op_compiler as op_compilers
 import bigframes.core.expression as ex
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.sql
@@ -47,7 +47,7 @@ op_compiler = op_compilers.scalar_op_compiler
 # This must be the last import. Currently depending on side-effects.
 # TODO(tswast): Refactor all ops to register in the same file as where they are
 # defined so we don't need this.
-import bigframes.core.compile.scalar_op_registry  # noqa: F401,E402
+import bigframes.core.compile.ibis_compiler.scalar_op_registry  # noqa: F401,E402
 
 
 # Ibis Implementations
@@ -684,7 +684,7 @@ def _join_condition(
 
 
 def _as_groupable(value: ibis_types.Value):
-    from bigframes.core.compile import scalar_op_registry
+    from bigframes.core.compile.ibis_compiler import scalar_op_registry
 
     # Some types need to be converted to another type to enable groupby
     if value.type().is_float64():

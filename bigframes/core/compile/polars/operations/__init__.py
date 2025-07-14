@@ -12,25 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import annotations
+"""Operation implementations for the Polars LazyFrame compiler.
 
-import dataclasses
-from typing import ClassVar
+This directory structure should reflect the same layout as the
+`bigframes/operations` directory where the operations are defined.
 
-from bigframes import dtypes
-from bigframes.operations import base_ops
-
-
-@dataclasses.dataclass(frozen=True)
-class IsNullOp(base_ops.UnaryOp):
-    name: ClassVar[str] = "isnull"
-
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return dtypes.BOOL_DTYPE
-
-
-isnull_op = IsNullOp()
-__all__ = [
-    "IsNullOp",
-    "isnull_op",
-]
+Prefer one file per op to keep file sizes manageable for text editors and LLMs.
+"""

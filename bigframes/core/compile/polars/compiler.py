@@ -233,14 +233,6 @@ if polars_installed:
             else:
                 return input.is_in(op.values) or input.is_null()
 
-        @compile_op.register(gen_ops.IsNullOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return input.is_null()
-
-        @compile_op.register(gen_ops.NotNullOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return input.is_not_null()
-
         @compile_op.register(gen_ops.FillNaOp)
         @compile_op.register(gen_ops.CoalesceOp)
         def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:

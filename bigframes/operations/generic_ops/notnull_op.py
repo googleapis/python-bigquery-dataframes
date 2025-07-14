@@ -17,12 +17,7 @@ from __future__ import annotations
 import dataclasses
 from typing import ClassVar
 
-# Imports for Ibis compilation
-from bigframes_vendored.ibis.expr import types as ibis_types
-
-# Direct imports from bigframes
 from bigframes import dtypes
-from bigframes.core.compile import scalar_op_compiler
 from bigframes.operations import base_ops
 
 
@@ -35,15 +30,6 @@ class NotNullOp(base_ops.UnaryOp):
 
 
 notnull_op = NotNullOp()
-
-
-def _ibis_notnull_op_impl(x: ibis_types.Value):
-    return x.notnull()
-
-
-scalar_op_compiler.scalar_op_compiler.register_unary_op(notnull_op)(
-    _ibis_notnull_op_impl
-)
 
 
 __all__ = [

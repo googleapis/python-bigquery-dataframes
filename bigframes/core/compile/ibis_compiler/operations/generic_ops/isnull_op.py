@@ -14,23 +14,12 @@
 
 from __future__ import annotations
 
-import dataclasses
-from typing import ClassVar
+from bigframes_vendored.ibis.expr import types as ibis_types
 
-from bigframes import dtypes
-from bigframes.operations import base_ops
-
-
-@dataclasses.dataclass(frozen=True)
-class IsNullOp(base_ops.UnaryOp):
-    name: ClassVar[str] = "isnull"
-
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return dtypes.BOOL_DTYPE
+from bigframes.core.compile.ibis_compiler import scalar_op_compiler
+from bigframes.operations.generic_ops import isnull_op
 
 
-isnull_op = IsNullOp()
-__all__ = [
-    "IsNullOp",
-    "isnull_op",
-]
+@scalar_op_compiler.scalar_op_compiler.register_unary_op(isnull_op.isnull_op)
+def _ibis_isnull_op_impl(x: ibis_types.Value):
+    return x.isnull()
