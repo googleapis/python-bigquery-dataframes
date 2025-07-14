@@ -30,6 +30,24 @@ def compile(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return UNARY_OP_REGISTRATION[op](op, expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.arccos_op)
+def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.If(
+        this=sge.LTE(this=sge.Abs(this=expr.expr), expression=sge.convert(1)),
+        true=sge.func("ACOS", expr.expr),
+        false=sge.Cast(this=sge.convert("NaN"), to=sge.DataType(this=sge.DataType.Type.FLOAT)),
+    )
+
+
+@UNARY_OP_REGISTRATION.register(ops.arcsin_op)
+def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.If(
+        this=sge.LTE(this=sge.Abs(this=expr.expr), expression=sge.convert(1)),
+        true=sge.func("ASIN", expr.expr),
+        false=sge.Cast(this=sge.convert("NaN"), to=sge.DataType(this=sge.DataType.Type.FLOAT)),
+    )
+
+
 @UNARY_OP_REGISTRATION.register(ops.ArrayToStringOp)
 def _(op: ops.ArrayToStringOp, expr: TypedExpr) -> sge.Expression:
     return sge.ArrayToString(this=expr.expr, expression=f"'{op.delimiter}'")
@@ -72,6 +90,16 @@ def _(op: ops.ArraySliceOp, expr: TypedExpr) -> sge.Expression:
     return sge.array(selected_elements)
 
 
+@UNARY_OP_REGISTRATION.register(ops.cos_op)
+def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("COS", expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.hash_op)
+def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("FARM_FINGERPRINT", expr.expr)
+
+
 # JSON Ops
 @UNARY_OP_REGISTRATION.register(ops.isnull_op)
 def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
@@ -96,6 +124,16 @@ def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 @UNARY_OP_REGISTRATION.register(ops.neg_op)
 def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Neg(this=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.sin_op)
+def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("SIN", expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.tan_op)
+def _(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("TAN", expr.expr)
 
 
 @UNARY_OP_REGISTRATION.register(ops.JSONExtract)

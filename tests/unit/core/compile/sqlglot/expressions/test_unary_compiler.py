@@ -48,3 +48,39 @@ def test_neg(scalar_types_df: bpd.DataFrame, snapshot):
     result = -scalar_types_df["int64_col"]
 
     snapshot.assert_match(result.to_frame().sql, "out.sql")
+
+
+def test_arccos(scalar_types_df: bpd.DataFrame, snapshot):
+    result = scalar_types_df["int64_col"].acos()
+
+    snapshot.assert_match(result.to_frame().sql, "out.sql")
+
+
+def test_arcsin(scalar_types_df: bpd.DataFrame, snapshot):
+    result = scalar_types_df["int64_col"].asin()
+
+    snapshot.assert_match(result.to_frame().sql, "out.sql")
+
+
+def test_cos(scalar_types_df: bpd.DataFrame, snapshot):
+    result = scalar_types_df["int64_col"].cos()
+
+    snapshot.assert_match(result.to_frame().sql, "out.sql")
+
+
+def test_hash(scalar_types_df: bpd.DataFrame, snapshot):
+    result = scalar_types_df["string_col"].hash_values()
+
+    snapshot.assert_match(result.to_frame().sql, "out.sql")
+
+
+def test_sin(scalar_types_df: bpd.DataFrame, snapshot):
+    result = scalar_types_df["int64_col"].sin()
+
+    snapshot.assert_match(result.to_frame().sql, "out.sql")
+
+
+def test_tan(scalar_types_df: bpd.DataFrame, snapshot):
+    result = scalar_types_df["int64_col"].tan()
+
+    snapshot.assert_match(result.to_frame().sql, "out.sql")

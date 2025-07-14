@@ -1222,6 +1222,24 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def abs(self) -> Series:
         return self._apply_unary_op(ops.abs_op)
 
+    def acos(self) -> Series:
+        return self._apply_unary_op(ops.arccos_op)
+
+    def asin(self) -> Series:
+        return self._apply_unary_op(ops.arcsin_op)
+
+    def cos(self) -> Series:
+        return self._apply_unary_op(ops.cos_op)
+
+    def hash_values(self) -> Series:
+        return self._apply_unary_op(ops.hash_op)
+
+    def sin(self) -> Series:
+        return self._apply_unary_op(ops.sin_op)
+
+    def tan(self) -> Series:
+        return self._apply_unary_op(ops.tan_op)
+
     def round(self, decimals=0) -> "Series":
         return self._apply_binary_op(decimals, ops.round_op)
 
