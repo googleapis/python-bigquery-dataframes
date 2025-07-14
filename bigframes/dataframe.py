@@ -196,6 +196,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=bf_dtype))
 
         else:
+            if isinstance(dtype, str) and dtype.lower() == "json":
+                dtype = bigframes.dtypes.JSON_DTYPE
+
             import bigframes.pandas
 
             pd_dataframe = pandas.DataFrame(
@@ -370,6 +373,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def __iter__(self):
         return iter(self.columns)
+
+    def __contains__(self, key) -> bool:
+        return key in self.columns
 
     def astype(
         self,
@@ -776,22 +782,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        if opts.repr_mode == "anywidget":
-            import anywidget  # type: ignore
-
-            # create an iterator for the data batches
-            batches = self.to_pandas_batches()
-
-            # get the first page result
-            try:
-                first_page = next(iter(batches))
-            except StopIteration:
-                first_page = pandas.DataFrame(columns=self.columns)
-
-            # Instantiate and return the widget. The widget's frontend will
-            # handle the display of the table and pagination
-            return anywidget.AnyWidget(dataframe=first_page)
-
+        # Process blob columns first, regardless of display mode
         self._cached()
         df = self.copy()
         if bigframes.options.display.blob_display:
@@ -803,7 +794,31 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for col in blob_cols:
                 # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
                 df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
+        else:
+            blob_cols = []
 
+        if opts.repr_mode == "anywidget":
+            try:
+                from IPython.display import display as ipython_display
+
+                from bigframes import display
+
+                # Always create a new widget instance for each display call
+                # This ensures that each cell gets its own widget and prevents
+                # unintended sharing between cells
+                widget = display.TableWidget(df.copy())
+
+                ipython_display(widget)
+                return ""  # Return empty string since we used display()
+
+            except (AttributeError, ValueError, ImportError):
+                # Fallback if anywidget is not available
+                warnings.warn(
+                    "Anywidget mode is not available. Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. Falling back to deferred mode."
+                )
+                return formatter.repr_query_job(self._compute_dry_run())
+
+        # Continue with regular HTML rendering for non-anywidget modes
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -812,7 +827,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         self._set_internal_query_job(query_job)
-
         column_count = len(pandas_df.columns)
 
         with display_options.pandas_repr(opts):
@@ -1046,14 +1060,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         # TODO(swast): Support fill_value parameter.
         # TODO(swast): Support level parameter with MultiIndex.
-        return self.add(other, axis=axis)
+        return self._apply_binop(other, ops.add_op, axis=axis, reverse=True)
 
     def __add__(self, other) -> DataFrame:
         return self.add(other)
 
     __add__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__add__)
 
-    __radd__ = __add__
+    def __radd__(self, other) -> DataFrame:
+        return self.radd(other)
+
+    __radd__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__radd__)
 
     def sub(
         self,
@@ -2802,6 +2819,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         axis: int | str = 0,
         how: str = "any",
+        thresh: typing.Optional[int] = None,
         subset: typing.Union[None, blocks.Label, Sequence[blocks.Label]] = None,
         inplace: bool = False,
         ignore_index=False,
@@ -2810,8 +2828,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(
                 f"'inplace'=True not supported. {constants.FEEDBACK_LINK}"
             )
-        if how not in ("any", "all"):
-            raise ValueError("'how' must be one of 'any', 'all'")
+
+        # Check if both thresh and how are explicitly provided
+        if thresh is not None:
+            # cannot specify both thresh and how parameters
+            if how != "any":
+                raise TypeError(
+                    "You cannot set both the how and thresh arguments at the same time."
+                )
+        else:
+            # Only validate 'how' when thresh is not provided
+            if how not in ("any", "all"):
+                raise ValueError("'how' must be one of 'any', 'all'")
 
         axis_n = utils.get_axis_number(axis)
 
@@ -2833,21 +2861,38 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     for id_ in self._block.label_to_col_id[label]
                 ]
 
-            result = block_ops.dropna(self._block, self._block.value_columns, how=how, subset=subset_ids)  # type: ignore
+            result = block_ops.dropna(
+                self._block,
+                self._block.value_columns,
+                how=how,
+                thresh=thresh,
+                subset=subset_ids,
+            )  # type: ignore
             if ignore_index:
                 result = result.reset_index()
             return DataFrame(result)
         else:
-            isnull_block = self._block.multi_apply_unary_op(ops.isnull_op)
-            if how == "any":
-                null_locations = DataFrame(isnull_block).any().to_pandas()
-            else:  # 'all'
-                null_locations = DataFrame(isnull_block).all().to_pandas()
-            keep_columns = [
-                col
-                for col, to_drop in zip(self._block.value_columns, null_locations)
-                if not to_drop
-            ]
+            if thresh is not None:
+                # Keep columns with at least 'thresh' non-null values
+                notnull_block = self._block.multi_apply_unary_op(ops.notnull_op)
+                notnull_counts = DataFrame(notnull_block).sum().to_pandas()
+
+                keep_columns = [
+                    col
+                    for col, count in zip(self._block.value_columns, notnull_counts)
+                    if count >= thresh
+                ]
+            else:
+                isnull_block = self._block.multi_apply_unary_op(ops.isnull_op)
+                if how == "any":
+                    null_locations = DataFrame(isnull_block).any().to_pandas()
+                else:  # 'all'
+                    null_locations = DataFrame(isnull_block).all().to_pandas()
+                keep_columns = [
+                    col
+                    for col, to_drop in zip(self._block.value_columns, null_locations)
+                    if not to_drop
+                ]
             return DataFrame(self._block.select_columns(keep_columns))
 
     def any(

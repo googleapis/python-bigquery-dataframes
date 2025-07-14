@@ -36,6 +36,8 @@ _COMPATIBLE_NODES = (
     nodes.SliceNode,
     nodes.AggregateNode,
     nodes.FilterNode,
+    nodes.ConcatNode,
+    nodes.JoinNode,
 )
 
 _COMPATIBLE_SCALAR_OPS = (

@@ -180,6 +180,26 @@ def test_df_construct_from_dict():
     )
 
 
+@pytest.mark.parametrize(
+    ("json_type"),
+    [
+        pytest.param(dtypes.JSON_DTYPE),
+        pytest.param("json"),
+    ],
+)
+def test_df_construct_w_json_dtype(json_type):
+    data = [
+        "1",
+        "false",
+        '["a", {"b": 1}, null]',
+        None,
+    ]
+    df = dataframe.DataFrame({"json_col": data}, dtype=json_type)
+
+    assert df["json_col"].dtype == dtypes.JSON_DTYPE
+    assert df["json_col"][1] == "false"
+
+
 def test_df_construct_inline_respects_location(reset_default_session_and_location):
     # Note: This starts a thread-local session.
     with bpd.option_context("bigquery.location", "europe-west1"):
@@ -871,6 +891,21 @@ def test_filter_df(scalars_dfs):
     assert_pandas_df_equal(bf_result, pd_result)
 
 
+def test_df_to_pandas_batches(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    capped_unfiltered_batches = scalars_df.to_pandas_batches(page_size=2, max_results=6)
+    bf_bool_series = scalars_df["bool_col"]
+    filtered_batches = scalars_df[bf_bool_series].to_pandas_batches()
+
+    pd_bool_series = scalars_pandas_df["bool_col"]
+    pd_result = scalars_pandas_df[pd_bool_series]
+
+    assert 6 == capped_unfiltered_batches.total_rows
+    assert len(pd_result) == filtered_batches.total_rows
+    assert_pandas_df_equal(pd.concat(filtered_batches), pd_result)
+
+
 def test_assign_new_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     kwargs = {"new_col": 2}
@@ -1192,7 +1227,7 @@ def test_assign_callable_lambda(scalars_dfs):
         (1, "all", False, None),
     ],
 )
-def test_df_dropna(scalars_dfs, axis, how, ignore_index, subset):
+def test_df_dropna_by_how(scalars_dfs, axis, how, ignore_index, subset):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
     pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -1205,6 +1240,36 @@ def test_df_dropna(scalars_dfs, axis, how, ignore_index, subset):
     # Pandas uses int64 instead of Int64 (nullable) dtype.
     pd_result.index = pd_result.index.astype(pd.Int64Dtype())
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("axis", "ignore_index", "subset", "thresh"),
+    [
+        (0, False, None, 2),
+        (0, True, None, 3),
+        (1, False, None, 2),
+    ],
+)
+def test_df_dropna_by_thresh(scalars_dfs, axis, ignore_index, subset, thresh):
+    """
+    Tests that dropna correctly keeps rows/columns with a minimum number
+    of non-null values.
+    """
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    df_result = scalars_df.dropna(
+        axis=axis, thresh=thresh, ignore_index=ignore_index, subset=subset
+    )
+    pd_result = scalars_pandas_df.dropna(
+        axis=axis, thresh=thresh, ignore_index=ignore_index, subset=subset
+    )
+
+    bf_result = df_result.to_pandas()
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+    pd.testing.assert_frame_equal(bf_result, pd_result)
 
 
 def test_df_dropna_range_columns(scalars_dfs):
@@ -2533,6 +2598,22 @@ def test_scalar_binop(scalars_dfs, op, other_scalar, reverse_operands):
     assert_pandas_df_equal(bf_result, pd_result)
 
 
+def test_dataframe_string_radd_const(scalars_dfs):
+    pytest.importorskip(
+        "pandas",
+        minversion="2.0.0",
+        reason="PyArrow string addition requires pandas 2.0+",
+    )
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    columns = ["string_col", "string_col"]
+
+    bf_result = ("prefix" + scalars_df[columns]).to_pandas()
+    pd_result = "prefix" + scalars_pandas_df[columns]
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
 @pytest.mark.parametrize(("other_scalar"), [1, -2])
 def test_mod(scalars_dfs, other_scalar):
     # Zero case excluded as pandas produces 0 result for Int64 inputs rather than NA/NaN.
@@ -3435,6 +3516,24 @@ def test_loc_select_columns_w_repeats(scalars_df_index, scalars_pandas_df_index)
     ],
 )
 def test_iloc_slice(scalars_df_index, scalars_pandas_df_index, start, stop, step):
+    bf_result = scalars_df_index.iloc[start:stop:step].to_pandas()
+    pd_result = scalars_pandas_df_index.iloc[start:stop:step]
+    pd.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("start", "stop", "step"),
+    [
+        (0, 0, None),
+    ],
+)
+def test_iloc_slice_after_cache(
+    scalars_df_index, scalars_pandas_df_index, start, stop, step
+):
+    scalars_df_index.cache()
     bf_result = scalars_df_index.iloc[start:stop:step].to_pandas()
     pd_result = scalars_pandas_df_index.iloc[start:stop:step]
     pd.testing.assert_frame_equal(
@@ -4350,6 +4449,22 @@ def test_df___array__(scalars_df_index, scalars_pandas_df_index):
     pd.testing.assert_frame_equal(
         pd.DataFrame(bf_result), pd.DataFrame(pd_result), check_dtype=False
     )
+
+
+@pytest.mark.parametrize(
+    ("key",),
+    [
+        ("hello",),
+        (2,),
+        ("int64_col",),
+        (None,),
+    ],
+)
+def test_df_contains(scalars_df_index, scalars_pandas_df_index, key):
+    bf_result = key in scalars_df_index
+    pd_result = key in scalars_pandas_df_index
+
+    assert bf_result == pd_result
 
 
 def test_df_getattr_attribute_error_when_pandas_has(scalars_df_index):

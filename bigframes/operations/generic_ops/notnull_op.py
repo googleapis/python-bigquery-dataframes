@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import ClassVar, TYPE_CHECKING
+from typing import ClassVar
 
 # Imports for Ibis compilation
 from bigframes_vendored.ibis.expr import types as ibis_types
@@ -23,11 +23,7 @@ from bigframes_vendored.ibis.expr import types as ibis_types
 # Direct imports from bigframes
 from bigframes import dtypes
 from bigframes.core.compile import scalar_op_compiler
-import bigframes.core.compile.polars.compiler as polars_compiler
 from bigframes.operations import base_ops
-
-if TYPE_CHECKING:
-    import polars as pl
 
 
 @dataclasses.dataclass(frozen=True)
@@ -48,22 +44,6 @@ def _ibis_notnull_op_impl(x: ibis_types.Value):
 scalar_op_compiler.scalar_op_compiler.register_unary_op(notnull_op)(
     _ibis_notnull_op_impl
 )
-
-
-if hasattr(polars_compiler, "PolarsExpressionCompiler"):
-
-    def _polars_notnull_op_impl(
-        compiler: polars_compiler.PolarsExpressionCompiler,
-        op: NotNullOp,
-        input: pl.Expr,
-    ) -> pl.Expr:
-        return input.is_not_null()
-
-    # TODO(https://github.com/python/mypy/issues/13040): remove `type: ignore`
-    # when mypy can better handle singledispatch.
-    polars_compiler.PolarsExpressionCompiler.compile_op.register(  # type: ignore
-        NotNullOp, _polars_notnull_op_impl
-    )
 
 
 __all__ = [
