@@ -14,7 +14,6 @@
 import pathlib
 
 import benchmark.utils as utils
-import pytest
 
 import bigframes.session
 
