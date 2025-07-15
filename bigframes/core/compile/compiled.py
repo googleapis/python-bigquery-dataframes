@@ -44,12 +44,6 @@ import bigframes.operations.aggregations as agg_ops
 op_compiler = op_compilers.scalar_op_compiler
 
 
-# This must be the last import. Currently depending on side-effects.
-# TODO(tswast): Refactor all ops to register in the same file as where they are
-# defined so we don't need this.
-import bigframes.core.compile.ibis_compiler.scalar_op_registry  # noqa: F401,E402
-
-
 # Ibis Implementations
 class UnorderedIR:
     def __init__(
