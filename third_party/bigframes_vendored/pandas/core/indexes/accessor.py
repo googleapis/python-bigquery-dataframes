@@ -156,8 +156,6 @@ class DatetimeProperties:
 
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    day_of_year = dayofyear
-
     @property
     def date(self):
         """Returns a Series with the date part of Timestamps without time and
