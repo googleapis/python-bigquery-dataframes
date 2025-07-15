@@ -454,3 +454,27 @@ def test_blob_transcribe(
         assert (
             keyword.lower() in actual_text.lower()
         ), f"Item (verbose={verbose}): Expected keyword '{keyword}' not found in transcribed text. "
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "gemini-2.0-flash-001",
+        "gemini-2.0-flash-lite-001",
+    ],
+)
+def test_audio_transcribe_partial_ordering_integration(
+    audio_mm_df_partial_ordering: bpd.DataFrame,
+    model_name: str,
+):
+    """Integration test for audio_transcribe with partial ordering mode."""
+    df = audio_mm_df_partial_ordering.copy()
+
+    bpd.options.bigquery.ordering_mode = "partial"
+
+    df["transcribed_text"] = df["audio"].blob.audio_transcribe(model_name=model_name)
+    result = df.to_pandas(ordered=False)
+
+    assert "transcribed_text" in result.columns
+    assert len(result) > 0
+    assert result["transcribed_text"].iloc[0] is not None
