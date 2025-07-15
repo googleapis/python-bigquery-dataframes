@@ -82,7 +82,7 @@ class DatetimeProperties:
             >>> s = bpd.Series(
             ...     pd.date_range('2016-12-31', '2017-01-08', freq='D').to_series()
             ... )
-            >>> s.dt.dayofweek
+            >>> s.dt.day_of_week
             2016-12-31 00:00:00    5
             2017-01-01 00:00:00    6
             2017-01-02 00:00:00    0
@@ -140,7 +140,7 @@ class DatetimeProperties:
             >>> s = bpd.Series(
             ...     pd.date_range('2016-12-28', '2017-01-03', freq='D').to_series()
             ... )
-            >>> s.dt.dayofyear
+            >>> s.dt.day_of_year
             2016-12-28 00:00:00    363
             2016-12-29 00:00:00    364
             2016-12-30 00:00:00    365
