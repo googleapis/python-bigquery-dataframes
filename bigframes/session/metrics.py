@@ -118,13 +118,12 @@ def write_stats_to_disk(
     test_name = os.environ[LOGGING_NAME_ENV_VAR]
     current_directory = os.getcwd()
 
-    if slot_millis is not None:
+    if (slot_millis is not None) and (exec_seconds is not None):
         # store slot milliseconds
         slot_file = os.path.join(current_directory, test_name + ".slotmillis")
         with open(slot_file, "a") as f:
             f.write(str(slot_millis) + "\n")
 
-    if exec_seconds is not None:
         # store execution time seconds
         exec_time_file = os.path.join(
             current_directory, test_name + ".bq_exec_time_seconds"
