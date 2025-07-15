@@ -1818,7 +1818,8 @@ class Session(
                 automatically.
             container_cpu (float, Optional):
                 The CPU limits for containers that run Python UDFs. By default,
-                the CPU allocated is 0.33 vCPU.
+                the CPU allocated is 0.33 vCPU. See details at
+                https://cloud.google.com/bigquery/docs/user-defined-functions-python#configure-container-limits.
             container_memory (str, Optional):
                 The memory limits for containers that run Python UDFs. By
                 default, the memory allocated to each container instance is

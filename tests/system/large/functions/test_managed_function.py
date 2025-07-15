@@ -551,7 +551,7 @@ def test_managed_function_with_connection(
         cleanup_function_assets(foo, session.bqclient, ignore_failures=False)
 
 
-def test_managed_function_resources(session, dataset_id, scalars_dfs):
+def test_managed_function_options(session, dataset_id, scalars_dfs):
     try:
 
         def multiply_five(x: int) -> int:
@@ -591,6 +591,9 @@ def test_managed_function_resources(session, dataset_id, scalars_dfs):
             mf_multiply_five.bigframes_bigquery_function
         )
 
+        # TODO(jialuo): Use the newly exposed class properties instead of
+        # accessing the hidden _properties after resolve of this issue:
+        # https://github.com/googleapis/python-bigquery/issues/2240.
         assert routine._properties["externalRuntimeOptions"]["maxBatchingRows"] == "100"
         assert routine._properties["externalRuntimeOptions"]["containerCpu"] == 2
         assert routine._properties["externalRuntimeOptions"]["containerMemory"] == "2Gi"
@@ -602,7 +605,7 @@ def test_managed_function_resources(session, dataset_id, scalars_dfs):
         )
 
 
-def test_managed_function_resources_errors(session, dataset_id):
+def test_managed_function_options_errors(session, dataset_id):
     def foo(x: int) -> int:
         return 0
 
