@@ -2288,8 +2288,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _assign_series_join_on_index(
         self, label: str, series: bigframes.series.Series
     ) -> DataFrame:
+        # Only use block_identity_join for null indices
+        use_block_identity_join = (
+            self._block.index.nlevels == 0 and series._block.index.nlevels == 0
+        )
+
         block, (get_column_left, get_column_right) = self._block.join(
-            series._block, how="left", block_identity_join=True
+            series._block, how="left", block_identity_join=use_block_identity_join
         )
 
         column_ids = [
