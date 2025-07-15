@@ -86,6 +86,7 @@ def test_dt_dayofweek(scalars_dfs, col_name):
     pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
+
     bf_result = bf_series.dt.dayofweek.to_pandas()
     pd_result = scalars_pandas_df[col_name].dt.dayofweek
 
@@ -97,10 +98,10 @@ def test_dt_dayofweek(scalars_dfs, col_name):
     DATE_COLUMNS,
 )
 def test_dt_day_of_week(scalars_dfs, col_name):
-    # TODO: supply a reason why this isn't compatible with pandas 1.x
     pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
+
     bf_result = bf_series.dt.day_of_week.to_pandas()
     pd_result = scalars_pandas_df[col_name].dt.day_of_week
 
@@ -115,6 +116,7 @@ def test_dt_dayofyear(scalars_dfs, col_name):
     pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
+
     bf_result = bf_series.dt.dayofyear.to_pandas()
     pd_result = scalars_pandas_df[col_name].dt.dayofyear
 
@@ -129,6 +131,7 @@ def test_dt_day_of_year(scalars_dfs, col_name):
     pytest.importorskip("pandas", minversion="2.0.0")
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_series: bigframes.series.Series = scalars_df[col_name]
+
     bf_result = bf_series.dt.day_of_year.to_pandas()
     pd_result = scalars_pandas_df[col_name].dt.day_of_year
 
