@@ -469,7 +469,6 @@ def test_audio_transcribe_partial_ordering_integration(
 ):
     """Integration test for audio_transcribe with partial ordering mode."""
     df = audio_mm_df_partial_ordering.copy()
-
     bpd.options.bigquery.ordering_mode = "partial"
 
     df["transcribed_text"] = df["audio"].blob.audio_transcribe(model_name=model_name)

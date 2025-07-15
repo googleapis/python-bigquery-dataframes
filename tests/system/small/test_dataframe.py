@@ -2956,7 +2956,6 @@ def test_assign_series_with_null_index_should_add_column_correctly(
     """Test that DataFrame column assignment works with null indices in partial ordering mode."""
     df = scalars_df_null_index_partial_ordering[["int64_col", "string_col"]].head(3)
     series_to_assign = scalars_series_null_index_partial_ordering.head(3)
-
     expected_series = pd.Series(
         [
             -987654321,
