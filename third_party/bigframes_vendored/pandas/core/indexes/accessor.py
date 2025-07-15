@@ -66,6 +66,8 @@ class DatetimeProperties:
 
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    day_of_week = dayofweek
+
     @property
     def dayofyear(self):
         """The ordinal day of the year.
@@ -93,6 +95,8 @@ class DatetimeProperties:
         """
 
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    day_of_year = dayofyear
 
     @property
     def date(self):
