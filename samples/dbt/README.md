@@ -23,3 +23,40 @@ Before using this project, ensure you have:
 For more, see:
 - https://docs.getdbt.com/guides/dbt-python-bigframes
 - https://cloud.google.com/bigquery/docs/dataframes-dbt
+
+## Run Locally
+
+Follow these steps to run the Python models using dbt Core.
+
+1. **Install the dbt BigQuery adapter:**
+
+    ```bash
+    pip install dbt-bigquery
+    ```
+
+2. **Initialize a dbt project (if not already done):**
+
+    ```bash
+    dbt init
+    ```
+
+    Follow the prompts to complete setup
+
+3. **Finish the configuration and add sample code:**
+
+    - Edit `~/.dbt/profiles.yml` to finish the configuration.
+    - Replace or add code samples in `.../models/example`.
+
+4. **Run your dbt models:**
+
+    To run all models:
+
+    ```bash
+    dbt run
+    ```
+
+    Or run a specific model:
+
+    ```bash
+    dbt run --select your_model_name
+    ```
