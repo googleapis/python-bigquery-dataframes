@@ -22,6 +22,7 @@ import pytest
 import bigframes
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.exceptions
+import bigframes.pandas as bpd
 
 
 @pytest.mark.parametrize(
@@ -177,6 +178,33 @@ def test_location_set_to_invalid_warning(invalid_location, possibility):
             )
             # The message might contain newlines added by textwrap.fill.
             assert possibility in str(w[0].message).replace("\n", "")
+
+
+def test_location_set_same_location_after_session_starts():
+    bpd.options.bigquery.location = "us"
+    assert bpd.options.bigquery.location == "US"
+
+    # Start a session when creating a dataframe.
+    bpd.DataFrame({"a": [0]})
+
+    bpd.options.bigquery.location = "us"
+    assert bpd.options.bigquery.location == "US"
+
+
+def test_location_set_different_location_after_session_starts():
+    bpd.options.bigquery.location = "us"
+    # Start a session when creating a dataframe.
+    bpd.DataFrame({"a": [0]})
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "Cannot change 'location' once a session has started. Call "
+            "bigframes.pandas.close_session\\(\\) first, if you are using the "
+            "bigframes.pandas API."
+        ),
+    ):
+        bpd.options.bigquery.location = "us-central1"
 
 
 def test_client_endpoints_override_set_shows_warning():
