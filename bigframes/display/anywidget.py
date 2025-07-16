@@ -62,8 +62,9 @@ class TableWidget(WIDGET_BASE):
         super().__init__()
         self._dataframe = dataframe
 
-        # respect display options
-        self.page_size = bigframes.options.display.max_rows
+        # respect display options for initial page size
+        initial_page_size = bigframes.options.display.max_rows
+        self.page_size = initial_page_size
 
         # Initialize data fetching attributes.
         self._batches = dataframe.to_pandas_batches(page_size=self.page_size)
@@ -91,6 +92,11 @@ class TableWidget(WIDGET_BASE):
         """Load JavaScript code from external file."""
         return resources.read_text(bigframes.display, "table_widget.js")
 
+    @functools.cached_property
+    def _css(self):
+        """Load CSS code from external file."""
+        return resources.read_text(bigframes.display, "table_widget.css")
+
     page = traitlets.Int(0).tag(sync=True)
     page_size = traitlets.Int(25).tag(sync=True)
     row_count = traitlets.Int(0).tag(sync=True)
@@ -114,6 +120,23 @@ class TableWidget(WIDGET_BASE):
 
         # Clamp the proposed value to the valid range [0, max_page].
         return max(0, min(value, max_page))
+
+    @traitlets.validate("page_size")
+    def _validate_page_size(self, proposal: Dict[str, Any]):
+        """Validate page size to ensure it's positive and reasonable.
+        Args:
+            proposal: A dictionary from the traitlets library containing the
+                proposed change. The new value is in proposal["value"].
+        """
+        value = proposal["value"]
+
+        # Ensure page size is positive and within reasonable bounds
+        if value <= 0:
+            return self.page_size  # Keep current value
+
+        # Cap at reasonable maximum to prevent performance issues
+        max_page_size = 1000
+        return min(value, max_page_size)
 
     def _get_next_batch(self) -> bool:
         """
@@ -148,6 +171,13 @@ class TableWidget(WIDGET_BASE):
             return pd.DataFrame(columns=self._dataframe.columns)
         return pd.concat(self._cached_batches, ignore_index=True)
 
+    def _reset_batches_for_new_page_size(self):
+        """Reset the batch iterator when page size changes."""
+        self._batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
+        self._cached_batches = []
+        self._batch_iter = None
+        self._all_data_loaded = False
+
     def _set_table_html(self):
         """Sets the current html data based on the current page and page size."""
         start = self.page * self.page_size
@@ -174,6 +204,18 @@ class TableWidget(WIDGET_BASE):
         )
 
     @traitlets.observe("page")
-    def _page_changed(self, change):
+    def _page_changed(self, _change: Dict[str, Any]):
         """Handler for when the page number is changed from the frontend."""
+        self._set_table_html()
+
+    @traitlets.observe("page_size")
+    def _page_size_changed(self, _change: Dict[str, Any]):
+        """Handler for when the page size is changed from the frontend."""
+        # Reset the page to 0 when page size changes to avoid invalid page states
+        self.page = 0
+
+        # Reset batches to use new page size for future data fetching
+        self._reset_batches_for_new_page_size()
+
+        # Update the table display
         self._set_table_html()
