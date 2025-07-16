@@ -180,6 +180,26 @@ def test_df_construct_from_dict():
     )
 
 
+@pytest.mark.parametrize(
+    ("json_type"),
+    [
+        pytest.param(dtypes.JSON_DTYPE),
+        pytest.param("json"),
+    ],
+)
+def test_df_construct_w_json_dtype(json_type):
+    data = [
+        "1",
+        "false",
+        '["a", {"b": 1}, null]',
+        None,
+    ]
+    df = dataframe.DataFrame({"json_col": data}, dtype=json_type)
+
+    assert df["json_col"].dtype == dtypes.JSON_DTYPE
+    assert df["json_col"][1] == "false"
+
+
 def test_df_construct_inline_respects_location(reset_default_session_and_location):
     # Note: This starts a thread-local session.
     with bpd.option_context("bigquery.location", "europe-west1"):
@@ -2578,6 +2598,22 @@ def test_scalar_binop(scalars_dfs, op, other_scalar, reverse_operands):
     assert_pandas_df_equal(bf_result, pd_result)
 
 
+def test_dataframe_string_radd_const(scalars_dfs):
+    pytest.importorskip(
+        "pandas",
+        minversion="2.0.0",
+        reason="PyArrow string addition requires pandas 2.0+",
+    )
+
+    scalars_df, scalars_pandas_df = scalars_dfs
+    columns = ["string_col", "string_col"]
+
+    bf_result = ("prefix" + scalars_df[columns]).to_pandas()
+    pd_result = "prefix" + scalars_pandas_df[columns]
+
+    assert_pandas_df_equal(bf_result, pd_result)
+
+
 @pytest.mark.parametrize(("other_scalar"), [1, -2])
 def test_mod(scalars_dfs, other_scalar):
     # Zero case excluded as pandas produces 0 result for Int64 inputs rather than NA/NaN.
@@ -4413,6 +4449,22 @@ def test_df___array__(scalars_df_index, scalars_pandas_df_index):
     pd.testing.assert_frame_equal(
         pd.DataFrame(bf_result), pd.DataFrame(pd_result), check_dtype=False
     )
+
+
+@pytest.mark.parametrize(
+    ("key",),
+    [
+        ("hello",),
+        (2,),
+        ("int64_col",),
+        (None,),
+    ],
+)
+def test_df_contains(scalars_df_index, scalars_pandas_df_index, key):
+    bf_result = key in scalars_df_index
+    pd_result = key in scalars_pandas_df_index
+
+    assert bf_result == pd_result
 
 
 def test_df_getattr_attribute_error_when_pandas_has(scalars_df_index):
