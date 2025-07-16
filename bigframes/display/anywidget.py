@@ -87,6 +87,11 @@ class TableWidget(WIDGET_BASE):
         self._set_table_html()
 
     @functools.cached_property
+    def _css(self):
+        """Load JavaScript code from external file."""
+        return resources.read_text(bigframes.display, "table_widget.css")
+
+    @functools.cached_property
     def _esm(self):
         """Load JavaScript code from external file."""
         return resources.read_text(bigframes.display, "table_widget.js")
@@ -177,3 +182,8 @@ class TableWidget(WIDGET_BASE):
     def _page_changed(self, change):
         """Handler for when the page number is changed from the frontend."""
         self._set_table_html()
+
+    @traitlets.observe('page_size')
+    def _page_size_changed(self, change):
+      """Handler for when the page size is changed from the frontend."""
+      self._set_table_html()
