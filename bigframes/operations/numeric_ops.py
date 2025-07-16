@@ -183,6 +183,9 @@ class SubOp(base_ops.BinaryOp):
         if left_type == dtypes.DATETIME_DTYPE and right_type == dtypes.DATETIME_DTYPE:
             return dtypes.TIMEDELTA_DTYPE
 
+        if left_type == dtypes.TIMESTAMP_DTYPE and right_type == dtypes.TIMESTAMP_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+
         if left_type == dtypes.DATE_DTYPE and right_type == dtypes.DATE_DTYPE:
             return dtypes.TIMEDELTA_DTYPE
 
