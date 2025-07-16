@@ -22,7 +22,6 @@ import pytest
 import bigframes
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.exceptions
-import bigframes.pandas as bpd
 
 
 @pytest.mark.parametrize(
@@ -57,6 +56,18 @@ def test_setter_raises_if_session_started(attribute, original_value, new_value):
 
     assert getattr(options, attribute) is original_value
     assert getattr(options, attribute) is not new_value
+
+
+def test_location_set_us_twice():
+    """This test ensures the fix for b/423220936 is working as expected."""
+    options = bigquery_options.BigQueryOptions()
+    setattr(options, "location", "us")
+    assert getattr(options, "location") == "US"
+
+    options._session_started = True
+
+    setattr(options, "location", "us")
+    assert getattr(options, "location") == "US"
 
 
 @pytest.mark.parametrize(
@@ -178,34 +189,6 @@ def test_location_set_to_invalid_warning(invalid_location, possibility):
             )
             # The message might contain newlines added by textwrap.fill.
             assert possibility in str(w[0].message).replace("\n", "")
-
-
-def test_location_set_same_location_after_session_starts():
-    bpd.close_session()
-    bpd.options.bigquery.location = "us"
-    assert bpd.options.bigquery.location == "US"
-
-    bpd.get_global_session()
-
-    bpd.options.bigquery.location = "us"
-    assert bpd.options.bigquery.location == "US"
-
-
-def test_location_set_different_location_after_session_starts():
-    bpd.close_session()
-    bpd.options.bigquery.location = "us"
-
-    bpd.get_global_session()
-
-    with pytest.raises(
-        ValueError,
-        match=(
-            "Cannot change 'location' once a session has started. Call "
-            "bigframes.pandas.close_session\\(\\) first, if you are using the "
-            "bigframes.pandas API."
-        ),
-    ):
-        bpd.options.bigquery.location = "us-central1"
 
 
 def test_client_endpoints_override_set_shows_warning():
