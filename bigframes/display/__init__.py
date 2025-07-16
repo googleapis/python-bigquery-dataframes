@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "2.11.0"
+from __future__ import annotations
 
-# {x-release-please-start-date}
-__release_date__ = "2025-07-15"
-# {x-release-please-end}
+try:
+    import anywidget  # noqa
+
+    from bigframes.display.anywidget import TableWidget
+
+    __all__ = ["TableWidget"]
+except Exception:
+    pass
