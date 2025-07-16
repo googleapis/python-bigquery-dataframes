@@ -181,6 +181,7 @@ def test_location_set_to_invalid_warning(invalid_location, possibility):
 
 
 def test_location_set_same_location_after_session_starts():
+    bpd.close_session()
     bpd.options.bigquery.location = "us"
     assert bpd.options.bigquery.location == "US"
 
@@ -192,6 +193,7 @@ def test_location_set_same_location_after_session_starts():
 
 
 def test_location_set_different_location_after_session_starts():
+    bpd.close_session()
     bpd.options.bigquery.location = "us"
     # Start a session when creating a dataframe.
     bpd.DataFrame({"a": [0]})
