@@ -251,8 +251,8 @@ class DivOp(base_ops.BinaryOp):
         left_type = input_types[0]
         right_type = input_types[1]
 
-        if left_type == dtypes.TIMEDELTA_DTYPE and right_type == (dtypes.INT_DTYPE):
-            # will fail outright if right value is zero though
+        if left_type == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right_type):
+            # will fail outright if result undefined or otherwise can't be coerced back into an int
             return dtypes.TIMEDELTA_DTYPE
 
         if left_type == dtypes.TIMEDELTA_DTYPE and right_type == dtypes.TIMEDELTA_DTYPE:

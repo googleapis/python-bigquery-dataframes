@@ -159,13 +159,14 @@ class LowerDivRule(op_lowering.OpLoweringRule):
         dividend = expr.children[0]
         divisor = expr.children[1]
 
-        if (
-            dividend.output_type == dtypes.TIMEDELTA_DTYPE
-            and divisor.output_type == dtypes.INT_DTYPE
+        if dividend.output_type == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(
+            divisor.output_type
         ):
-            int_result = expr.op.as_expr(
+            # exact same as floordiv impl for timedelta
+            numeric_result = ops.floordiv_op.as_expr(
                 ops.AsTypeOp(to_type=dtypes.INT_DTYPE).as_expr(dividend), divisor
             )
+            int_result = ops.AsTypeOp(to_type=dtypes.INT_DTYPE).as_expr(numeric_result)
             return ops.AsTypeOp(to_type=dtypes.TIMEDELTA_DTYPE).as_expr(int_result)
 
         if (

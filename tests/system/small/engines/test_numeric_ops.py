@@ -106,6 +106,12 @@ def test_engines_project_div_durations(
             ),
             ops.div_op.as_expr(expression.deref("duration_col"), expression.const(4)),
             ops.div_op.as_expr(expression.deref("duration_col"), expression.const(-4)),
+            ops.div_op.as_expr(
+                expression.deref("duration_col"), expression.const(55.55)
+            ),
+            ops.div_op.as_expr(
+                expression.deref("duration_col"), expression.const(-55.55)
+            ),
         ]
     )
     assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
@@ -143,6 +149,12 @@ def test_engines_project_floordiv_durations(
             ),
             ops.floordiv_op.as_expr(
                 expression.deref("duration_col"), expression.const(-4)
+            ),
+            ops.floordiv_op.as_expr(
+                expression.deref("duration_col"), expression.const(55.55)
+            ),
+            ops.floordiv_op.as_expr(
+                expression.deref("duration_col"), expression.const(-55.55)
             ),
         ]
     )
