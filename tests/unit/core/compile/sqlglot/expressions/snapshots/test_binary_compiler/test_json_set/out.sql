@@ -8,13 +8,9 @@ WITH `bfcte_0` AS (
     *,
     JSON_SET(`bfcol_1`, '$.a', 100) AS `bfcol_4`
   FROM `bfcte_0`
-), `bfcte_2` AS (
-  SELECT
-    *,
-    JSON_SET(`bfcol_4`, '$.b', 'hi') AS `bfcol_7`
-  FROM `bfcte_1`
 )
 SELECT
-  `bfcol_0` AS `rowindex`,
-  `bfcol_7` AS `json_col`
-FROM `bfcte_2`
+  `bfcol_0` AS `bfuid_col_5`,
+  `bfcol_1` AS `json_col`,
+  `bfcol_4` AS `bfuid_col_6`
+FROM `bfcte_1`

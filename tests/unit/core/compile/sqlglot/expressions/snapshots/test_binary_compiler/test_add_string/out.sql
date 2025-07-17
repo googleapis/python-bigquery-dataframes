@@ -6,11 +6,11 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    `bfcol_0` AS `bfcol_4`,
-    CONCAT(`bfcol_1`, 'a') AS `bfcol_5`
+    CONCAT(`bfcol_1`, 'a') AS `bfcol_4`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_4` AS `rowindex`,
-  `bfcol_5` AS `string_col`
+  `bfcol_0` AS `bfuid_col_1`,
+  `bfcol_1` AS `string_col`,
+  `bfcol_4` AS `bfuid_col_4`
 FROM `bfcte_1`

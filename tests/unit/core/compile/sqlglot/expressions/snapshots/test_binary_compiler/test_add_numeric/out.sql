@@ -6,11 +6,11 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    `bfcol_1` AS `bfcol_4`,
-    `bfcol_0` + `bfcol_0` AS `bfcol_5`
+    `bfcol_0` + `bfcol_0` AS `bfcol_4`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_4` AS `rowindex`,
-  `bfcol_5` AS `int64_col`
+  `bfcol_1` AS `bfuid_col_1`,
+  `bfcol_0` AS `int64_col`,
+  `bfcol_4` AS `bfuid_col_2`
 FROM `bfcte_1`
