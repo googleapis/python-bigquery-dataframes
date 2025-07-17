@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,15 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from __future__ import annotations
 
-from bigframes.core.compile.api import test_only_ibis_inferred_schema
-from bigframes.core.compile.configs import CompileRequest, CompileResult
-from bigframes.core.compile.ibis_compiler.ibis_compiler import compile_sql
+"""Operation implementations for the Ibis-based compiler.
 
-__all__ = [
-    "test_only_ibis_inferred_schema",
-    "compile_sql",
-    "CompileRequest",
-    "CompileResult",
-]
+This directory structure should reflect the same layout as the
+`bigframes/operations` directory where the operations are defined.
+
+Prefer one file per op to keep file sizes manageable for text editors and LLMs.
+"""
