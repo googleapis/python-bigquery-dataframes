@@ -185,6 +185,47 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Extract(this=sge.Identifier(this="DAY"), expression=expr.expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.dayofweek_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Extract(this=sge.Identifier(this="DAYOFWEEK"), expression=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.dayofyear_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Extract(this=sge.Identifier(this="DAYOFYEAR"), expression=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.exp_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=expr.expr > sge.convert(709.78),
+                true=sge.func("IEEE_DIVIDE", sge.convert(1), sge.convert(0)),
+            )
+        ],
+        default=sge.func("EXP", expr.expr),
+    )
+
+
+@UNARY_OP_REGISTRATION.register(ops.expm1_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=expr.expr > sge.convert(709.78),
+                true=sge.func("IEEE_DIVIDE", sge.convert(1), sge.convert(0)),
+            )
+        ],
+        default=sge.func("EXP", expr.expr),
+    ) - sge.convert(1)
+
+
+@UNARY_OP_REGISTRATION.register(ops.floor_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Floor(this=expr.expr)
+
+
 @UNARY_OP_REGISTRATION.register(ops.hash_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("FARM_FINGERPRINT", expr.expr)
