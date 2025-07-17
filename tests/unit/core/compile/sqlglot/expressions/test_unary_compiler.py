@@ -100,6 +100,36 @@ def test_day(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_dayofweek(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col"]]
+    sql = _apply_unary_op(bf_df, ops.dayofweek_op, "timestamp_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_dayofyear(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col"]]
+    sql = _apply_unary_op(bf_df, ops.dayofyear_op, "timestamp_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_exp(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.exp_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_expm1(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.expm1_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_floor(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.floor_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_array_to_string(repeated_types_df: bpd.DataFrame, snapshot):
     bf_df = repeated_types_df[["string_list_col"]]
     sql = _apply_unary_op(bf_df, ops.ArrayToStringOp(delimiter="."), "string_list_col")
