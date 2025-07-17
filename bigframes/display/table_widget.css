@@ -15,7 +15,7 @@
  */
 
 .table-container {
-	max-height: 500px;
+	max-height: 620px;
 	overflow: auto;
 }
 
@@ -53,7 +53,8 @@ table {
 }
 
 th {
-	background-color: #f8f9fa;
+	background-color: var(--colab-primary-surface-color, var(--jp-layout-color0));
+	/* Uncomment once we support sorting cursor: pointer; */
 	position: sticky;
 	top: 0;
 	z-index: 1;
