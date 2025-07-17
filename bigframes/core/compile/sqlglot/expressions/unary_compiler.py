@@ -72,6 +72,31 @@ def _(op: ops.ArraySliceOp, expr: TypedExpr) -> sge.Expression:
     return sge.array(selected_elements)
 
 
+@UNARY_OP_REGISTRATION.register(ops.cos_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("cos", expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.hash_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("FARM_FINGERPRINT", expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.isnull_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Is(this=expr.expr, expression=sge.Null())
+
+
+@UNARY_OP_REGISTRATION.register(ops.notnull_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Not(this=sge.Is(this=expr.expr, expression=sge.Null()))
+
+
+@UNARY_OP_REGISTRATION.register(ops.sin_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("sin", expr.expr)
+
+
 # JSON Ops
 @UNARY_OP_REGISTRATION.register(ops.JSONExtract)
 def _(op: ops.JSONExtract, expr: TypedExpr) -> sge.Expression:

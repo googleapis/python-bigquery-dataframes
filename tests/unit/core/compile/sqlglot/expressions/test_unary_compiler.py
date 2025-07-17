@@ -58,6 +58,36 @@ def test_array_slice_with_start_and_stop(repeated_types_df: bpd.DataFrame, snaps
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_cos(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.cos_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_hash(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.hash_op, "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_isnull(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.isnull_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_notnull(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.notnull_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_sin(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.sin_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_json_extract(json_types_df: bpd.DataFrame, snapshot):
     bf_df = json_types_df[["json_col"]]
     sql = _apply_unary_op(bf_df, ops.JSONExtract(json_path="$"), "json_col")
