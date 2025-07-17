@@ -202,6 +202,48 @@ def test_isdecimal(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_isdigit(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.isdigit_op, "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_islower(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.islower_op, "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_isnumeric(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.isnumeric_op, "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_isspace(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.isspace_op, "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_isupper(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.isupper_op, "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_iso_day(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col"]]
+    sql = _apply_unary_op(bf_df, ops.iso_day_op, "timestamp_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_iso_week(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col"]]
+    sql = _apply_unary_op(bf_df, ops.iso_week_op, "timestamp_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_isnull(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["float64_col"]]
     sql = _apply_unary_op(bf_df, ops.isnull_op, "float64_col")
