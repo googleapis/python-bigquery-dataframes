@@ -259,6 +259,61 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.RegexpLike(this=expr.expr, expression=sge.convert(r"^\d+$"))
 
 
+@UNARY_OP_REGISTRATION.register(ops.isdigit_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.RegexpLike(this=expr.expr, expression=sge.convert(r"^\p{Nd}+$"))
+
+
+@UNARY_OP_REGISTRATION.register(ops.islower_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.And(
+        this=sge.EQ(
+            this=sge.Lower(this=expr.expr),
+            expression=expr.expr,
+        ),
+        expression=sge.NEQ(
+            this=sge.Upper(this=expr.expr),
+            expression=expr.expr,
+        ),
+    )
+
+
+@UNARY_OP_REGISTRATION.register(ops.isnumeric_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.RegexpLike(this=expr.expr, expression=sge.convert(r"^\pN+$"))
+
+
+@UNARY_OP_REGISTRATION.register(ops.isspace_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.RegexpLike(this=expr.expr, expression=sge.convert(r"^\s+$"))
+
+
+@UNARY_OP_REGISTRATION.register(ops.isupper_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.And(
+        this=sge.EQ(
+            this=sge.Upper(this=expr.expr),
+            expression=expr.expr,
+        ),
+        expression=sge.NEQ(
+            this=sge.Lower(this=expr.expr),
+            expression=expr.expr,
+        ),
+    )
+
+
+@UNARY_OP_REGISTRATION.register(ops.iso_day_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Extract(
+        this=sge.Identifier(this="DAYOFWEEK"), expression=expr.expr
+    ) + sge.convert(1)
+
+
+@UNARY_OP_REGISTRATION.register(ops.iso_week_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Extract(this=sge.Identifier(this="ISOWEEK"), expression=expr.expr)
+
+
 @UNARY_OP_REGISTRATION.register(ops.isnull_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Is(this=expr.expr, expression=sge.Null())
