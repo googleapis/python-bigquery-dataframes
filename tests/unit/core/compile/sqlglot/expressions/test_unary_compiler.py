@@ -73,6 +73,36 @@ def test_arctanh(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_abs(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.abs_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_capitalize(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.capitalize_op, "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_ceil(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.ceil_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_date(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col"]]
+    sql = _apply_unary_op(bf_df, ops.date_op, "timestamp_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_day(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col"]]
+    sql = _apply_unary_op(bf_df, ops.day_op, "timestamp_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_array_to_string(repeated_types_df: bpd.DataFrame, snapshot):
     bf_df = repeated_types_df[["string_list_col"]]
     sql = _apply_unary_op(bf_df, ops.ArrayToStringOp(delimiter="."), "string_list_col")

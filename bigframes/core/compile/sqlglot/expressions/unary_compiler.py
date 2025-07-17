@@ -38,6 +38,11 @@ def compile(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return UNARY_OP_REGISTRATION[op](op, expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.abs_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Abs(this=expr.expr)
+
+
 @UNARY_OP_REGISTRATION.register(ops.arccosh_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Case(
@@ -142,6 +147,16 @@ def _(op: ops.ArraySliceOp, expr: TypedExpr) -> sge.Expression:
     return sge.array(selected_elements)
 
 
+@UNARY_OP_REGISTRATION.register(ops.capitalize_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Initcap(this=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.ceil_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Ceil(this=expr.expr)
+
+
 @UNARY_OP_REGISTRATION.register(ops.cos_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("COS", expr.expr)
@@ -158,6 +173,16 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ],
         default=sge.func("COSH", expr.expr),
     )
+
+
+@UNARY_OP_REGISTRATION.register(ops.date_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Date(this=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.day_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Extract(this=sge.Identifier(this="DAY"), expression=expr.expr)
 
 
 @UNARY_OP_REGISTRATION.register(ops.hash_op)
