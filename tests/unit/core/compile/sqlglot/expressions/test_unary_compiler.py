@@ -194,6 +194,36 @@ def test_hash(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_hour(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col"]]
+    sql = _apply_unary_op(bf_df, ops.hour_op, "timestamp_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_invert(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col"]]
+    sql = _apply_unary_op(bf_df, ops.invert_op, "int64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_isalnum(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.isalnum_op, "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_isalpha(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.isalpha_op, "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_isdecimal(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.isdecimal_op, "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_isnull(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["float64_col"]]
     sql = _apply_unary_op(bf_df, ops.isnull_op, "float64_col")

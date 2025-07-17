@@ -234,6 +234,31 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("FARM_FINGERPRINT", expr.expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.hour_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Extract(this=sge.Identifier(this="HOUR"), expression=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.invert_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.BitwiseNot(this=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.isalnum_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.RegexpLike(this=expr.expr, expression=sge.convert(r"^(\p{N}|\p{L})+$"))
+
+
+@UNARY_OP_REGISTRATION.register(ops.isalpha_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.RegexpLike(this=expr.expr, expression=sge.convert(r"^\p{L}+$"))
+
+
+@UNARY_OP_REGISTRATION.register(ops.isdecimal_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.RegexpLike(this=expr.expr, expression=sge.convert(r"^\d+$"))
+
+
 @UNARY_OP_REGISTRATION.register(ops.isnull_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Is(this=expr.expr, expression=sge.Null())
