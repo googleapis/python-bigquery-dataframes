@@ -34,6 +34,12 @@ def _apply_unary_op(obj: bpd.DataFrame, op: ops.UnaryOp, arg: str) -> str:
     return sql
 
 
+def test_arccosh(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.arccosh_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_arccos(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["float64_col"]]
     sql = _apply_unary_op(bf_df, ops.arccos_op, "float64_col")
@@ -48,10 +54,22 @@ def test_arcsin(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_arcsinh(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.arcsinh_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_arctan(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["float64_col"]]
     sql = _apply_unary_op(bf_df, ops.arctan_op, "float64_col")
 
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_arctanh(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.arctanh_op, "float64_col")
     snapshot.assert_match(sql, "out.sql")
 
 
@@ -87,6 +105,12 @@ def test_cos(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["float64_col"]]
     sql = _apply_unary_op(bf_df, ops.cos_op, "float64_col")
 
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_cosh(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.cosh_op, "float64_col")
     snapshot.assert_match(sql, "out.sql")
 
 
@@ -129,6 +153,12 @@ def test_tan(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["float64_col"]]
     sql = _apply_unary_op(bf_df, ops.tan_op, "float64_col")
 
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_tanh(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.tanh_op, "float64_col")
     snapshot.assert_match(sql, "out.sql")
 
 

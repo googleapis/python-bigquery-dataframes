@@ -38,6 +38,19 @@ def compile(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return UNARY_OP_REGISTRATION[op](op, expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.arccosh_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=expr.expr < sge.convert(1),
+                true=sge.func("IEEE_DIVIDE", sge.convert(0), sge.convert(0)),
+            )
+        ],
+        default=sge.func("ACOSH", expr.expr),
+    )
+
+
 @UNARY_OP_REGISTRATION.register(ops.arccos_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Case(
@@ -64,9 +77,27 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     )
 
 
+@UNARY_OP_REGISTRATION.register(ops.arcsinh_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("ASINH", expr.expr)
+
+
 @UNARY_OP_REGISTRATION.register(ops.arctan_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("ATAN", expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.arctanh_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=sge.func("ABS", expr.expr) > sge.convert(1),
+                true=sge.func("IEEE_DIVIDE", sge.convert(0), sge.convert(0)),
+            )
+        ],
+        default=sge.func("ATANH", expr.expr),
+    )
 
 
 @UNARY_OP_REGISTRATION.register(ops.ArrayToStringOp)
@@ -116,6 +147,19 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("COS", expr.expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.cosh_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=sge.func("ABS", expr.expr) > sge.convert(709.78),
+                true=sge.func("IEEE_DIVIDE", sge.convert(1), sge.convert(0)),
+            )
+        ],
+        default=sge.func("COSH", expr.expr),
+    )
+
+
 @UNARY_OP_REGISTRATION.register(ops.hash_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("FARM_FINGERPRINT", expr.expr)
@@ -152,6 +196,11 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 @UNARY_OP_REGISTRATION.register(ops.tan_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("TAN", expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.tanh_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("TANH", expr.expr)
 
 
 # JSON Ops
