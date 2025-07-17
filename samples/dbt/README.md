@@ -40,7 +40,7 @@ Follow these steps to run the Python models using dbt Core.
     dbt init
     ```
 
-    Follow the prompts to complete setup
+    Follow the prompts to complete setup.
 
 3. **Finish the configuration and add sample code:**
 
