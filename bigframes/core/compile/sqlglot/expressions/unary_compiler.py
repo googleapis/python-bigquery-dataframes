@@ -30,6 +30,37 @@ def compile(op: ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return UNARY_OP_REGISTRATION[op](op, expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.arccos_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=sge.func("ABS", expr.expr) > sge.convert(1),
+                true=sge.func("IEEE_DIVIDE", sge.convert(0), sge.convert(0)),
+            )
+        ],
+        default=sge.func("ACOS", expr.expr),
+    )
+
+
+@UNARY_OP_REGISTRATION.register(ops.arcsin_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=sge.func("ABS", expr.expr) > sge.convert(1),
+                true=sge.func("IEEE_DIVIDE", sge.convert(0), sge.convert(0)),
+            )
+        ],
+        default=sge.func("ASIN", expr.expr),
+    )
+
+
+@UNARY_OP_REGISTRATION.register(ops.arctan_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("ATAN", expr.expr)
+
+
 @UNARY_OP_REGISTRATION.register(ops.ArrayToStringOp)
 def _(op: ops.ArrayToStringOp, expr: TypedExpr) -> sge.Expression:
     return sge.ArrayToString(this=expr.expr, expression=f"'{op.delimiter}'")
@@ -95,6 +126,25 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 @UNARY_OP_REGISTRATION.register(ops.sin_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("sin", expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.sinh_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=sge.func("ABS", expr.expr) > sge.convert(709.78),
+                true=sge.func("SIGN", expr.expr)
+                * sge.func("IEEE_DIVIDE", sge.convert(1), sge.convert(0)),
+            )
+        ],
+        default=sge.func("SINH", expr.expr),
+    )
+
+
+@UNARY_OP_REGISTRATION.register(ops.tan_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("TAN", expr.expr)
 
 
 # JSON Ops

@@ -34,6 +34,24 @@ def _apply_unary_op(obj: bpd.DataFrame, op: ops.UnaryOp, arg: str) -> str:
     return sql
 
 
+def test_arccos(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.arccos_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_arcsin(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.arcsin_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_arctan(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.arctan_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_array_to_string(repeated_types_df: bpd.DataFrame, snapshot):
     bf_df = repeated_types_df[["string_list_col"]]
     sql = _apply_unary_op(bf_df, ops.ArrayToStringOp(delimiter="."), "string_list_col")
@@ -85,6 +103,18 @@ def test_notnull(scalar_types_df: bpd.DataFrame, snapshot):
 def test_sin(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["float64_col"]]
     sql = _apply_unary_op(bf_df, ops.sin_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_sinh(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.sinh_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_tan(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.tan_op, "float64_col")
     snapshot.assert_match(sql, "out.sql")
 
 
