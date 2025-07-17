@@ -17,64 +17,92 @@ import pytest
 import bigframes.bigquery as bbq
 import bigframes.pandas as bpd
 
+from bigframes import operations as ops
+import bigframes.core.expression as ex
+from bigframes.operations._op_converters import convert_index, convert_slice
+import bigframes.pandas as bpd
+
 pytest.importorskip("pytest_snapshot")
+
+def _apply_unary_op(
+    obj: bpd.DataFrame | bpd.Series,
+    op: ops.UnaryOp,
+    arg: str | ex.Expression,
+) -> str:
+    array_value = obj._block.expr
+    op_expr = op.as_expr(arg)
+    result, _ = array_value.compute_values([op_expr])
+    sql = result.session._executor.to_sql(result, enable_cache=False)
+    return sql
 
 
 def test_array_to_string(repeated_types_df: bpd.DataFrame, snapshot):
-    result = bbq.array_to_string(repeated_types_df["string_list_col"], ".")
-
-    snapshot.assert_match(result.to_frame().sql, "out.sql")
+    bf_df = repeated_types_df[["string_list_col"]]
+    sql = _apply_unary_op(bf_df, ops.ArrayToStringOp(delimiter="."), "string_list_col")
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_array_index(repeated_types_df: bpd.DataFrame, snapshot):
-    result = repeated_types_df["string_list_col"].list[1]
-
-    snapshot.assert_match(result.to_frame().sql, "out.sql")
+    bf_df = repeated_types_df[["string_list_col"]]
+    sql = _apply_unary_op(bf_df, convert_index(1), "string_list_col")
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_array_slice_with_only_start(repeated_types_df: bpd.DataFrame, snapshot):
-    result = repeated_types_df["string_list_col"].list[1:]
-
-    snapshot.assert_match(result.to_frame().sql, "out.sql")
+    bf_df = repeated_types_df[["string_list_col"]]
+    sql = _apply_unary_op(bf_df, convert_slice(slice(1, None)), "string_list_col")
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_array_slice_with_start_and_stop(repeated_types_df: bpd.DataFrame, snapshot):
-    result = repeated_types_df["string_list_col"].list[1:5]
+    bf_df = repeated_types_df[["string_list_col"]]
+    sql = _apply_unary_op(bf_df, convert_slice(slice(1, 5)), "string_list_col")
+    snapshot.assert_match(sql, "out.sql")
 
-    snapshot.assert_match(result.to_frame().sql, "out.sql")
 
-
-# JSON Ops
 def test_json_extract(json_types_df: bpd.DataFrame, snapshot):
-    result = bbq.json_extract(json_types_df["json_col"], "$")
-    snapshot.assert_match(result.to_frame().sql, "out.sql")
+    bf_df = json_types_df[["json_col"]]
+    sql = _apply_unary_op(bf_df, ops.JSONExtract(json_path="$"), "json_col")
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_json_extract_array(json_types_df: bpd.DataFrame, snapshot):
-    result = bbq.json_extract_array(json_types_df["json_col"], "$")
-    snapshot.assert_match(result.to_frame().sql, "out.sql")
+    bf_df = json_types_df[["json_col"]]
+    sql = _apply_unary_op(bf_df, ops.JSONExtractArray(json_path="$"), "json_col")
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_json_extract_string_array(json_types_df: bpd.DataFrame, snapshot):
-    result = bbq.json_extract_string_array(json_types_df["json_col"], "$")
-    snapshot.assert_match(result.to_frame().sql, "out.sql")
+    bf_df = json_types_df[["json_col"]]
+    sql = _apply_unary_op(bf_df, ops.JSONExtractStringArray(json_path="$"), "json_col")
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_json_query(json_types_df: bpd.DataFrame, snapshot):
-    result = bbq.json_query(json_types_df["json_col"], "$")
-    snapshot.assert_match(result.to_frame().sql, "out.sql")
+    bf_df = json_types_df[["json_col"]]
+    sql = _apply_unary_op(bf_df, ops.JSONQuery(json_path="$"), "json_col")
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_json_query_array(json_types_df: bpd.DataFrame, snapshot):
-    result = bbq.json_query_array(json_types_df["json_col"], "$")
-    snapshot.assert_match(result.to_frame().sql, "out.sql")
+    bf_df = json_types_df[["json_col"]]
+    sql = _apply_unary_op(bf_df, ops.JSONQueryArray(json_path="$"), "json_col")
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_json_value(json_types_df: bpd.DataFrame, snapshot):
-    result = bbq.json_value(json_types_df["json_col"], "$")
-    snapshot.assert_match(result.to_frame().sql, "out.sql")
+    bf_df = json_types_df[["json_col"]]
+    sql = _apply_unary_op(bf_df, ops.JSONValue(json_path="$"), "json_col")
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_parse_json(scalar_types_df: bpd.DataFrame, snapshot):
-    result = bbq.json_value(scalar_types_df["string_col"], "$")
-    snapshot.assert_match(result.to_frame().sql, "out.sql")
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.JSONValue(json_path="$"), "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_to_json_string(json_types_df: bpd.DataFrame, snapshot):
+    bf_df = json_types_df[["json_col"]]
+    sql = _apply_unary_op(bf_df, ops.ToJSONString(), "json_col")
+    snapshot.assert_match(sql, "out.sql")

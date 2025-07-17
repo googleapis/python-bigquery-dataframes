@@ -6,11 +6,11 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    JSON_EXTRACT_STRING_ARRAY(`bfcol_1`, '$') AS `bfcol_4`
+    TO_JSON_STRING(`bfcol_1`) AS `bfcol_4`
   FROM `bfcte_0`
 )
 SELECT
   `bfcol_0` AS `bfuid_col_6`,
   `bfcol_1` AS `json_col`,
-  `bfcol_4` AS `bfuid_col_9`
+  `bfcol_4` AS `bfuid_col_15`
 FROM `bfcte_1`

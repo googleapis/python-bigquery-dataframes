@@ -10,6 +10,7 @@ WITH `bfcte_0` AS (
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_0` AS `rowindex`,
-  `bfcol_4` AS `json_col`
+  `bfcol_0` AS `bfuid_col_6`,
+  `bfcol_1` AS `json_col`,
+  `bfcol_4` AS `bfuid_col_8`
 FROM `bfcte_1`

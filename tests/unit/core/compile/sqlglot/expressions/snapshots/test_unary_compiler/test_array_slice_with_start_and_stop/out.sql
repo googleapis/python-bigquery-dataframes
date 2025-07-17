@@ -16,6 +16,7 @@ WITH `bfcte_0` AS (
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_0` AS `rowindex`,
-  `bfcol_4` AS `string_list_col`
+  `bfcol_0` AS `bfuid_col_1`,
+  `bfcol_1` AS `string_list_col`,
+  `bfcol_4` AS `bfuid_col_5`
 FROM `bfcte_1`
