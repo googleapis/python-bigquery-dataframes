@@ -14,24 +14,22 @@
 
 import pytest
 
-import bigframes.bigquery as bbq
-import bigframes.pandas as bpd
-
 from bigframes import operations as ops
-import bigframes.core.expression as ex
 from bigframes.operations._op_converters import convert_index, convert_slice
 import bigframes.pandas as bpd
 
 pytest.importorskip("pytest_snapshot")
 
-def _apply_unary_op(
-    obj: bpd.DataFrame | bpd.Series,
-    op: ops.UnaryOp,
-    arg: str | ex.Expression,
-) -> str:
+
+def _apply_unary_op(obj: bpd.DataFrame, op: ops.UnaryOp, arg: str) -> str:
     array_value = obj._block.expr
     op_expr = op.as_expr(arg)
-    result, _ = array_value.compute_values([op_expr])
+    result, col_ids = array_value.compute_values([op_expr])
+
+    # Rename columns for deterministic golden SQL results.
+    assert len(col_ids) == 1
+    result = result.rename_columns({col_ids[0]: arg}).select_columns([arg])
+
     sql = result.session._executor.to_sql(result, enable_cache=False)
     return sql
 
@@ -98,7 +96,7 @@ def test_json_value(json_types_df: bpd.DataFrame, snapshot):
 
 def test_parse_json(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["string_col"]]
-    sql = _apply_unary_op(bf_df, ops.JSONValue(json_path="$"), "string_col")
+    sql = _apply_unary_op(bf_df, ops.ParseJSON(), "string_col")
     snapshot.assert_match(sql, "out.sql")
 
 

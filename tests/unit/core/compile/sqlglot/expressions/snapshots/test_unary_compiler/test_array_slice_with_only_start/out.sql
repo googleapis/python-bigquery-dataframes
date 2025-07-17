@@ -1,7 +1,6 @@
 WITH `bfcte_0` AS (
   SELECT
-    `rowindex` AS `bfcol_0`,
-    `string_list_col` AS `bfcol_1`
+    `string_list_col` AS `bfcol_0`
   FROM `bigframes-dev`.`sqlglot_test`.`repeated_types`
 ), `bfcte_1` AS (
   SELECT
@@ -9,14 +8,12 @@ WITH `bfcte_0` AS (
     ARRAY(
       SELECT
         el
-      FROM UNNEST(`bfcol_1`) AS el WITH OFFSET AS slice_idx
+      FROM UNNEST(`bfcol_0`) AS el WITH OFFSET AS slice_idx
       WHERE
         slice_idx >= 1
-    ) AS `bfcol_4`
+    ) AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_0` AS `bfuid_col_1`,
-  `bfcol_1` AS `string_list_col`,
-  `bfcol_4` AS `bfuid_col_4`
+  `bfcol_1` AS `string_list_col`
 FROM `bfcte_1`

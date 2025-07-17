@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
+
 import pytest
 
 from bigframes import operations as ops
@@ -22,14 +24,19 @@ pytest.importorskip("pytest_snapshot")
 
 
 def _apply_binary_op(
-    obj: bpd.DataFrame | bpd.Series,
+    obj: bpd.DataFrame,
     op: ops.BinaryOp,
-    l_arg: str | ex.Expression,
-    r_arg: str | ex.Expression,
+    l_arg: str,
+    r_arg: typing.Union[str, ex.Expression],
 ) -> str:
     array_value = obj._block.expr
     op_expr = op.as_expr(l_arg, r_arg)
-    result, _ = array_value.compute_values([op_expr])
+    result, col_ids = array_value.compute_values([op_expr])
+
+    # Rename columns for deterministic golden SQL results.
+    assert len(col_ids) == 1
+    result = result.rename_columns({col_ids[0]: l_arg}).select_columns([l_arg])
+
     sql = result.session._executor.to_sql(result, enable_cache=False)
     return sql
 
@@ -54,5 +61,7 @@ def test_add_string(scalar_types_df: bpd.DataFrame, snapshot):
 
 def test_json_set(json_types_df: bpd.DataFrame, snapshot):
     bf_df = json_types_df[["json_col"]]
-    sql = _apply_binary_op(bf_df, ops.JSONSet(json_path="$.a"), "json_col", ex.const(100))
+    sql = _apply_binary_op(
+        bf_df, ops.JSONSet(json_path="$.a"), "json_col", ex.const(100)
+    )
     snapshot.assert_match(sql, "out.sql")
