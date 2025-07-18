@@ -291,28 +291,28 @@ def test_widget_with_few_rows_should_have_only_one_page(small_widget):
     assert small_widget.page == 0
 
 
-def test_widget_page_size_should_be_immutable_after_creation(
-    paginated_bf_df: bf.dataframe.DataFrame,
+def test_widget_page_size_should_be_mutable_after_creation(
+    table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
-    A widget's page size should be fixed on creation and not be affected
-    by subsequent changes to global options.
+    A widget's page size can be changed after creation.
     """
-    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        from bigframes.display import TableWidget
+    # Check initial state
+    assert table_widget.page_size == 2
+    expected_slice = paginated_pandas_df.iloc[0:2]
+    _assert_html_matches_pandas_slice(
+        table_widget.table_html, expected_slice, paginated_pandas_df
+    )
 
-        widget = TableWidget(paginated_bf_df)
-        assert widget.page_size == 2
+    # Change page size
+    table_widget.page_size = 3
+    assert table_widget.page_size == 3
 
-        # Navigate to second page to ensure widget is in a non-default state
-        widget.page = 1
-        assert widget.page == 1
-
-        # Change global max_rows - widget should not be affected
-        bf.options.display.max_rows = 10
-
-        assert widget.page_size == 2  # Should remain unchanged
-        assert widget.page == 1  # Should remain on same page
+    # Check that the table content updates
+    expected_slice = paginated_pandas_df.iloc[0:3]
+    _assert_html_matches_pandas_slice(
+        table_widget.table_html, expected_slice, paginated_pandas_df
+    )
 
 
 def test_empty_widget_should_have_zero_row_count(empty_bf_df: bf.dataframe.DataFrame):
