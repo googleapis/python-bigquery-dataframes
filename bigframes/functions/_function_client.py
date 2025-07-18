@@ -247,7 +247,7 @@ class FunctionClient:
         # Augment user package requirements with any internal package
         # requirements.
         packages = _utils._get_updated_package_requirements(
-            packages, is_row_processor, capture_references
+            packages, is_row_processor, capture_references, ignore_numpy_version=True
         )
         if packages:
             managed_function_options["packages"] = packages
@@ -277,7 +277,7 @@ class FunctionClient:
             import cloudpickle
 
             pickled = cloudpickle.dumps(func)
-            udf_code = textwrap.dedent(
+            func_code = textwrap.dedent(
                 f"""
                 import cloudpickle
                 {udf_name} = cloudpickle.loads({pickled})
@@ -287,11 +287,26 @@ class FunctionClient:
             # This code path ensures that if the udf body is self contained,
             # i.e. there are no references to variables or imports outside the
             # body.
-            udf_code = textwrap.dedent(inspect.getsource(func))
-            match = re.search(r"^def ", udf_code, flags=re.MULTILINE)
+            func_code = textwrap.dedent(inspect.getsource(func))
+            match = re.search(r"^def ", func_code, flags=re.MULTILINE)
             if match is None:
                 raise ValueError("The UDF is not defined correctly.")
-            udf_code = udf_code[match.start() :]
+            func_code = func_code[match.start() :]
+
+        if is_row_processor:
+            udf_code = textwrap.dedent(inspect.getsource(bff_template.get_pd_series))
+            udf_code = udf_code[udf_code.index("def") :]
+            bigframes_handler_code = textwrap.dedent(
+                f"""def bigframes_handler(str_arg):
+                    return {udf_name}({bff_template.get_pd_series.__name__}(str_arg))"""
+            )
+        else:
+            udf_code = ""
+            bigframes_handler_code = textwrap.dedent(
+                f"""def bigframes_handler(*args):
+                    return {udf_name}(*args)"""
+            )
+        udf_code = f"{udf_code}\n{func_code}"
 
         with_connection_clause = (
             (
@@ -311,8 +326,7 @@ class FunctionClient:
                 OPTIONS ({managed_function_options_str})
                 AS r'''
                 __UDF_PLACE_HOLDER__
-                def bigframes_handler(*args):
-                    return {udf_name}(*args)
+                {bigframes_handler_code}
                 '''
             """
             )
