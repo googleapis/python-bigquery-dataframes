@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-def test_sessions_and_io(project_id, dataset_id) -> None:
+def test_sessions_and_io(project_id: str, dataset_id: str) -> None:
     YOUR_PROJECT_ID = project_id
     YOUR_LOCATION = "us"
 
@@ -104,6 +104,8 @@ def test_sessions_and_io(project_id, dataset_id) -> None:
     # Convert Pandas dataframe to BigQuery DataFrame with the dataframe constructor
     df_2 = bpd.DataFrame(pd_df)
     # [END bigquery_dataframes_create_dataframe_from_pandas]
+    assert df_1 is not None
+    assert df_2 is not None
 
     # [START bigquery_dataframes_convert_bq_dataframe_to_pandas]
     import bigframes.pandas as bpd
