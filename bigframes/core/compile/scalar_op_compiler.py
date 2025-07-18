@@ -20,6 +20,7 @@ import typing
 import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
 import bigframes_vendored.ibis.expr.operations.generic as ibis_generic
+import bigframes_vendored.ibis.expr.operations.sql as ibis_sql
 import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import bigframes_vendored.ibis.expr.types as ibis_types
 import numpy as np
@@ -67,6 +68,18 @@ class ScalarOpCompiler:
         bindings: typing.Dict[str, ibis_types.Value],
     ) -> ibis_types.Value:
         raise NotImplementedError(f"Unrecognized expression: {expression}")
+
+    @compile_expression.register
+    def _(
+        self,
+        expression: ex.RawSqlExpression,
+        bindings: typing.Dict[str, ibis_types.Value],
+    ) -> ibis_types.Value:
+        assert expression.context is not None
+        ibis_dtype = bigframes.core.compile.ibis_types.bigframes_dtype_to_ibis_dtype(
+            expression.output_type
+        )
+        return ibis_sql.RawSql(expression.sql, ibis_dtype, ()).to_expr()
 
     @compile_expression.register
     def _(

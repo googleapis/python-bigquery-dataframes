@@ -151,7 +151,7 @@ class ArrayValue:
     @property
     def column_ids(self) -> typing.Sequence[str]:
         """Returns column ids as strings."""
-        return self.schema.names
+        return tuple(id.name for id in self.node.ids)
 
     @property
     def session(self) -> Session:
@@ -361,7 +361,7 @@ class ArrayValue:
     def rename_columns(self, col_id_overrides: Mapping[str, str]) -> ArrayValue:
         if not col_id_overrides:
             return self
-        output_ids = [col_id_overrides.get(id, id) for id in self.node.schema.names]
+        output_ids = [col_id_overrides.get(id, id) for id in self.column_ids]
         return ArrayValue(
             nodes.SelectionNode(
                 self.node,

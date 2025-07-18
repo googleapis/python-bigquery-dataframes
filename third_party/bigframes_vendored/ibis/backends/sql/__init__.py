@@ -571,6 +571,10 @@ class SQLBackend(BaseBackend, _DatabaseSchemaHandler):
         # _most_ sqlglot backends
         self.con.close()
 
+    def _compile_rawsql(self, sql_node: ops.RawSql) -> None:
+        """Compile a built-in UDF. No-op by default."""
+        return sg.parse_one(sql_node.sql).as_("val")
+
     def _compile_builtin_udf(self, udf_node: ops.ScalarUDF | ops.AggUDF) -> None:
         """Compile a built-in UDF. No-op by default."""
 

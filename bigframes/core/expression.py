@@ -19,7 +19,7 @@ import dataclasses
 import functools
 import itertools
 import typing
-from typing import Callable, Generator, Mapping, TypeVar, Union
+from typing import Callable, Generator, Mapping, Optional, TypeVar, Union
 
 import pandas as pd
 
@@ -545,6 +545,95 @@ class OpExpression(Expression):
         new_inputs = tuple(t(input) for input in self.inputs)
         if new_inputs != self.inputs:
             return dataclasses.replace(self, inputs=new_inputs)
+        return self
+
+
+@dataclasses.dataclass(frozen=True)
+class SqlFragmentContext:
+    dependencies: tuple[str, ...]
+    output_type: dtypes.Dtype
+
+
+@dataclasses.dataclass(frozen=True)
+class RawSqlExpression(Expression):
+    """An expression representing unresolved sql text.
+
+    These are fragile, and should mostly not be disturbed by any optimization.
+    """
+
+    sql: str
+    context: Optional[SqlFragmentContext] = None
+
+    @property
+    def column_references(
+        self,
+    ) -> typing.Tuple[bigframes.core.identifiers.ColumnId, ...]:
+        if self.context:
+            # these are usually just set to everything to be conservative
+            return tuple(ids.ColumnId(id) for id in self.context.dependencies)
+        else:
+            raise ValueError("Column references not resolved")
+
+    @property
+    def free_variables(self) -> typing.Tuple[str, ...]:
+        return ()
+
+    @property
+    def is_const(self) -> bool:
+        return False
+
+    @property
+    def children(self):
+        return ()
+
+    @property
+    def nullable(self) -> bool:
+        # This is very conservative, need to label null properties of individual ops to get more precise
+        return True
+
+    @property
+    def is_resolved(self) -> bool:
+        return False
+
+    @property
+    def output_type(self) -> dtypes.ExpressionType:
+        if self.context is not None:
+            return self.context.output_type
+        else:
+            raise ValueError(f"Output type of raw sql expr: {self.sql} not yet known")
+
+    def bind_variables(
+        self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
+    ) -> OpExpression:
+        raise ValueError("Cannot rebind variables for sql fragments")
+
+    def bind_refs(
+        self,
+        bindings: Mapping[ids.ColumnId, Expression],
+        allow_partial_bindings: bool = False,
+    ) -> RawSqlExpression:
+        # cannot parse dependencies explicitly, so only allow rebindings that don't change validity
+        for id, value in bindings.items():
+            if self.context and id.name not in self.context.dependencies:
+                continue
+            elif isinstance(value, DerefOp) and value.id == id:
+                continue
+            else:
+                raise ValueError(
+                    "cannot rebind references for unresolved sql fragments"
+                )
+        return self
+
+    @property
+    def is_bijective(self) -> bool:
+        # TODO: Mark individual functions as bijective?
+        return False
+
+    @property
+    def deterministic(self) -> bool:
+        return False  # This is conservative, maybe allow override?
+
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
         return self
 
 

@@ -83,7 +83,7 @@ def close_session() -> None:
         bigframes._config.options.bigquery._session_started = False
 
 
-def get_global_session():
+def get_global_session() -> bigframes.session.Session:
     """Gets the global session.
 
     Creates the global session if it does not exist.

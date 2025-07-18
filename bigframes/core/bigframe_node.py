@@ -20,24 +20,11 @@ import dataclasses
 import functools
 import itertools
 import typing
-from typing import (
-    Callable,
-    Dict,
-    Generator,
-    Iterable,
-    Mapping,
-    Sequence,
-    Set,
-    Tuple,
-    Union,
-)
+from typing import Callable, Dict, Generator, Mapping, Sequence, Set, Tuple, Union
 
 from bigframes.core import expression, field, identifiers
 import bigframes.core.schema as schemata
 import bigframes.dtypes
-
-if typing.TYPE_CHECKING:
-    import bigframes.session
 
 COLUMN_SET = frozenset[identifiers.ColumnId]
 
@@ -159,9 +146,10 @@ class BigFrameNode:
         ...
 
     @property
-    def ids(self) -> Iterable[identifiers.ColumnId]:
+    @abc.abstractmethod
+    def ids(self) -> Sequence[identifiers.ColumnId]:
         """All output ids from the node."""
-        return (field.id for field in self.fields)
+        ...
 
     @property
     @abc.abstractmethod

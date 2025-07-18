@@ -107,6 +107,9 @@ def _rewrite_expressions(expr: ex.Expression, schema: schema.ArraySchema) -> _Ty
         )
         return _rewrite_op_expr(expr, updated_inputs)
 
+    if isinstance(expr, ex.RawSqlExpression):
+        return _TypedExpr(expr, expr.output_type)
+
     raise AssertionError(f"Unexpected expression type: {type(expr)}")
 
 

@@ -1232,6 +1232,10 @@ class SQLGlotCompiler(abc.ABC):
             self.dialect
         )
 
+    def visit_RawSql(self, op, **kw) -> None:
+        """Compile a built-in UDF. No-op by default."""
+        return sg.parse_one(op.sql)
+
     def visit_ScalarUDF(self, op, **kw):
         return self.f[self.__sql_name__(op)](*kw.values())
 
