@@ -741,6 +741,41 @@ class Index:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def get_loc(self, key):
+        """
+        Get integer location, slice or boolean mask for requested label.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> unique_index = bpd.Index(list('abc'))
+            >>> unique_index.get_loc('b')
+            1
+
+            >>> monotonic_index = bpd.Index(list('abbc'))
+            >>> monotonic_index.get_loc('b')
+            slice(1, 3, None)
+
+            >>> non_monotonic_index = bpd.Index(list('abcb'))
+            >>> non_monotonic_index.get_loc('b')
+            array([False,  True, False,  True])
+
+        Args:
+            key: Label to get the location for.
+
+        Returns:
+            int if unique index, slice if monotonic index with duplicates, else boolean array:
+                Integer position of the label for unique indexes.
+                Slice object for monotonic indexes with duplicates.
+                Boolean array mask for non-monotonic indexes with duplicates.
+
+        Raises:
+            KeyError: If the key is not found in the index.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def argmax(self) -> int:
         """
         Return int position of the largest value in the Series.

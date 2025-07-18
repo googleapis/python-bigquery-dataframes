@@ -27,16 +27,21 @@ import numpy as np
 import pandas
 
 from bigframes import dtypes
+from bigframes.core.array_value import ArrayValue
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
+import bigframes.core.identifiers as ids
+import bigframes.core.nodes as nodes
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
+import bigframes.core.window_spec as window_spec
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+import bigframes.series
 
 if typing.TYPE_CHECKING:
     import bigframes.dataframe
@@ -246,6 +251,95 @@ class Index(vendored_pandas_index.Index):
             _, query_job = self._block._compute_dry_run()
             self._query_job = query_job
         return self._query_job
+
+    def get_loc(self, key):
+        """Get integer location, slice or boolean mask for requested label.
+
+        Args:
+            key: The label to search for in the index.
+
+        Returns:
+            An integer, slice, or boolean mask representing the location(s) of the key.
+
+        Raises:
+            NotImplementedError: If the index has more than one level.
+            KeyError: If the key is not found in the index.
+        """
+
+        if self.nlevels != 1:
+            raise NotImplementedError("get_loc only supports single-level indexes")
+
+        # Get the index column from the block
+        index_column = self._block.index_columns[0]
+
+        # Apply row numbering to the original data
+        win_spec = window_spec.unbound()
+        row_num_agg = ex.NullaryAggregation(agg_ops.RowNumberOp())
+        row_num_col_id = ids.ColumnId.unique()
+
+        window_node = nodes.WindowOpNode(
+            child=self._block._expr.node,
+            expression=row_num_agg,
+            window_spec=win_spec,
+            output_name=row_num_col_id,
+            never_skip_nulls=True,
+        )
+
+        windowed_array = ArrayValue(window_node)
+        windowed_block = self._block.__class__(
+            windowed_array,
+            index_columns=self._block.index_columns,
+            column_labels=self._block.column_labels.insert(
+                len(self._block.column_labels), None
+            ),
+            index_labels=self._block._index_labels,
+        )
+
+        # Create expression to find matching positions
+        match_expr = ops.eq_op.as_expr(ex.deref(index_column), ex.const(key))
+        windowed_block, match_col_id = windowed_block.project_expr(match_expr)
+
+        # Filter to only rows where the key matches
+        filtered_block = windowed_block.filter_by_id(match_col_id)
+
+        # Check if key exists at all by counting on the filtered block
+        count_agg = ex.UnaryAggregation(agg_ops.count_op, ex.deref(row_num_col_id.name))
+        count_result = filtered_block._expr.aggregate([(count_agg, "count")])
+        count_scalar = self._block.session._executor.execute(
+            count_result
+        ).to_py_scalar()
+
+        if count_scalar == 0:
+            raise KeyError(f"'{key}' is not in index")
+
+        # If only one match, return integer position
+        if count_scalar == 1:
+            min_agg = ex.UnaryAggregation(agg_ops.min_op, ex.deref(row_num_col_id.name))
+            position_result = filtered_block._expr.aggregate([(min_agg, "position")])
+            position_scalar = self._block.session._executor.execute(
+                position_result
+            ).to_py_scalar()
+            return int(position_scalar)
+
+        # Multiple matches - need to determine if monotonic or not
+        is_monotonic = self.is_monotonic_increasing or self.is_monotonic_decreasing
+        if is_monotonic:
+            # Get min and max positions for slice
+            min_agg = ex.UnaryAggregation(agg_ops.min_op, ex.deref(row_num_col_id.name))
+            max_agg = ex.UnaryAggregation(agg_ops.max_op, ex.deref(row_num_col_id.name))
+            min_result = filtered_block._expr.aggregate([(min_agg, "min_pos")])
+            max_result = filtered_block._expr.aggregate([(max_agg, "max_pos")])
+            min_pos = self._block.session._executor.execute(min_result).to_py_scalar()
+            max_pos = self._block.session._executor.execute(max_result).to_py_scalar()
+
+            # create slice
+            start = int(min_pos)
+            stop = int(max_pos) + 1  # exclusive
+            return slice(start, stop, None)
+        else:
+            # Return boolean mask for non-monotonic duplicates
+            mask_block = windowed_block.select_columns([match_col_id])
+            return bigframes.series.Series(mask_block)
 
     def __repr__(self) -> str:
         # Protect against errors with uninitialized Series. See:
