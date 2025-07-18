@@ -303,6 +303,65 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Extract(this=sge.Identifier(this="ISOWEEK"), expression=expr.expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.iso_year_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Extract(this=sge.Identifier(this="ISOYEAR"), expression=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.len_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Length(this=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.ln_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=expr.expr <= sge.convert(0),
+                true=sge.func("IEEE_DIVIDE", sge.convert(0), sge.convert(0)),
+            )
+        ],
+        default=sge.Ln(this=expr.expr),
+    )
+
+
+@UNARY_OP_REGISTRATION.register(ops.log10_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=expr.expr <= sge.convert(0),
+                true=sge.func("IEEE_DIVIDE", sge.convert(0), sge.convert(0)),
+            )
+        ],
+        default=sge.Log(this=expr.expr, expression=sge.convert(10)),
+    )
+
+
+@UNARY_OP_REGISTRATION.register(ops.log1p_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=expr.expr <= sge.convert(-1),
+                true=sge.func("IEEE_DIVIDE", sge.convert(0), sge.convert(0)),
+            )
+        ],
+        default=sge.Ln(this=expr.expr + sge.convert(1)),
+    )
+
+
+@UNARY_OP_REGISTRATION.register(ops.lower_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Lower(this=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.minute_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Extract(this=sge.Identifier(this="MINUTE"), expression=expr.expr)
+
+
 @UNARY_OP_REGISTRATION.register(ops.isnull_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Is(this=expr.expr, expression=sge.Null())

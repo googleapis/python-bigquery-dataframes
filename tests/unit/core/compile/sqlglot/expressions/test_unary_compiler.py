@@ -244,6 +244,48 @@ def test_iso_week(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_iso_year(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col"]]
+    sql = _apply_unary_op(bf_df, ops.iso_year_op, "timestamp_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_len(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.len_op, "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_ln(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.ln_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_log10(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.log10_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_log1p(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["float64_col"]]
+    sql = _apply_unary_op(bf_df, ops.log1p_op, "float64_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_lower(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.lower_op, "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_minute(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col"]]
+    sql = _apply_unary_op(bf_df, ops.minute_op, "timestamp_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_isnull(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["float64_col"]]
     sql = _apply_unary_op(bf_df, ops.isnull_op, "float64_col")
