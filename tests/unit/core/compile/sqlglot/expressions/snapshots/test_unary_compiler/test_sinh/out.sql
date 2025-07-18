@@ -7,7 +7,7 @@ WITH `bfcte_0` AS (
     *,
     CASE
       WHEN ABS(`bfcol_0`) > 709.78
-      THEN SIGN(`bfcol_0`) * IEEE_DIVIDE(1, 0)
+      THEN SIGN(`bfcol_0`) * CAST('Infinity' AS FLOAT64)
       ELSE SINH(`bfcol_0`)
     END AS `bfcol_1`
   FROM `bfcte_0`

@@ -5,7 +5,7 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    CASE WHEN ABS(`bfcol_0`) > 1 THEN IEEE_DIVIDE(0, 0) ELSE ACOS(`bfcol_0`) END AS `bfcol_1`
+    CASE WHEN ABS(`bfcol_0`) > 1 THEN CAST('NaN' AS FLOAT64) ELSE ACOS(`bfcol_0`) END AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT

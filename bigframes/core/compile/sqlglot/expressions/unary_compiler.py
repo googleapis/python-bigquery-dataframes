@@ -23,6 +23,14 @@ from bigframes import operations as ops
 from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 
+_NAN = sge.Cast(this=sge.convert("NaN"), to="FLOAT64")
+_INF = sge.Cast(this=sge.convert("Infinity"), to="FLOAT64")
+
+# Approx Highest number you can pass in to EXP function and get a valid FLOAT64 result
+# FLOAT64 has 11 exponent bits, so max values is about 2**(2**10)
+# ln(2**(2**10)) == (2**10)*ln(2) ~= 709.78, so EXP(x) for x>709.78 will overflow.
+_FLOAT64_EXP_BOUND = sge.convert(709.78)
+
 UNARY_OP_REGISTRATION = OpRegistration()
 
 
@@ -36,7 +44,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=sge.func("ABS", expr.expr) > sge.convert(1),
-                true=sge.func("IEEE_DIVIDE", sge.convert(0), sge.convert(0)),
+                true=_NAN,
             )
         ],
         default=sge.func("ACOS", expr.expr),
@@ -49,7 +57,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=sge.func("ABS", expr.expr) > sge.convert(1),
-                true=sge.func("IEEE_DIVIDE", sge.convert(0), sge.convert(0)),
+                true=_NAN,
             )
         ],
         default=sge.func("ASIN", expr.expr),
@@ -105,7 +113,7 @@ def _(op: ops.ArraySliceOp, expr: TypedExpr) -> sge.Expression:
 
 @UNARY_OP_REGISTRATION.register(ops.cos_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
-    return sge.func("cos", expr.expr)
+    return sge.func("COS", expr.expr)
 
 
 @UNARY_OP_REGISTRATION.register(ops.hash_op)
@@ -125,7 +133,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 
 @UNARY_OP_REGISTRATION.register(ops.sin_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
-    return sge.func("sin", expr.expr)
+    return sge.func("SIN", expr.expr)
 
 
 @UNARY_OP_REGISTRATION.register(ops.sinh_op)
@@ -133,9 +141,8 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Case(
         ifs=[
             sge.If(
-                this=sge.func("ABS", expr.expr) > sge.convert(709.78),
-                true=sge.func("SIGN", expr.expr)
-                * sge.func("IEEE_DIVIDE", sge.convert(1), sge.convert(0)),
+                this=sge.func("ABS", expr.expr) > _FLOAT64_EXP_BOUND,
+                true=sge.func("SIGN", expr.expr) * _INF,
             )
         ],
         default=sge.func("SINH", expr.expr),
