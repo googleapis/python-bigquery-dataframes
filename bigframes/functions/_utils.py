@@ -61,7 +61,10 @@ def get_remote_function_locations(bq_location):
 
 
 def _get_updated_package_requirements(
-    package_requirements=None, is_row_processor=False, capture_references=True
+    package_requirements=None,
+    is_row_processor=False,
+    capture_references=True,
+    ignore_numpy_version=False,
 ):
     requirements = []
     if capture_references:
@@ -72,9 +75,16 @@ def _get_updated_package_requirements(
         # would be converted to a pandas series and processed Ensure numpy
         # versions match to avoid unpickling problems. See internal issue
         # b/347934471.
-        requirements.append(f"numpy=={numpy.__version__}")
         requirements.append(f"pandas=={pandas.__version__}")
         requirements.append(f"pyarrow=={pyarrow.__version__}")
+        # TODO(jialuo): Add back the version after b/410924784 is resolved.
+        # Due to current limitations on the numpy version in Python UDFs, we use
+        # `ignore_numpy_version` to optionally omit the version for managed
+        # functions only.
+        numpy_package = (
+            "numpy" if ignore_numpy_version else f"numpy=={numpy.__version__}"
+        )
+        requirements.append(numpy_package)
 
     if package_requirements:
         requirements.extend(package_requirements)
