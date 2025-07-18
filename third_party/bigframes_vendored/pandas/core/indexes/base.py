@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections.abc import Hashable
 import typing
 
+import bigframes
 from bigframes import constants
 
 
@@ -741,7 +742,9 @@ class Index:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def get_loc(self, key):
+    def get_loc(
+        self, key: typing.Any
+    ) -> typing.Union[int, slice, bigframes.series.Series]:
         """
         Get integer location, slice or boolean mask for requested label.
 
@@ -760,16 +763,20 @@ class Index:
 
             >>> non_monotonic_index = bpd.Index(list('abcb'))
             >>> non_monotonic_index.get_loc('b')
-            array([False,  True, False,  True])
+            0    False
+            1     True
+            2    False
+            3     True
+            dtype: boolean
 
         Args:
             key: Label to get the location for.
 
         Returns:
-            int if unique index, slice if monotonic index with duplicates, else boolean array:
+            Union[int, slice, bigframes.pandas.Series]:
                 Integer position of the label for unique indexes.
                 Slice object for monotonic indexes with duplicates.
-                Boolean array mask for non-monotonic indexes with duplicates.
+                Boolean Series mask for non-monotonic indexes with duplicates.
 
         Raises:
             KeyError: If the key is not found in the index.

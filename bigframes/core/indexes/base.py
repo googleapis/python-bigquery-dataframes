@@ -252,7 +252,9 @@ class Index(vendored_pandas_index.Index):
             self._query_job = query_job
         return self._query_job
 
-    def get_loc(self, key):
+    def get_loc(
+        self, key: typing.Any
+    ) -> typing.Union[int, slice, "bigframes.series.Series"]:
         """Get integer location, slice or boolean mask for requested label.
 
         Args:
