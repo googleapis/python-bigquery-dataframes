@@ -35,6 +35,7 @@ import bigframes.operations.bool_ops as bool_ops
 import bigframes.operations.comparison_ops as comp_ops
 import bigframes.operations.generic_ops as gen_ops
 import bigframes.operations.numeric_ops as num_ops
+import bigframes.operations.string_ops as string_ops
 
 polars_installed = True
 if TYPE_CHECKING:
@@ -146,6 +147,14 @@ if polars_installed:
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
             return input.abs()
 
+        @compile_op.register(num_ops.FloorOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.floor()
+
+        @compile_op.register(num_ops.CeilOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.ceil()
+
         @compile_op.register(num_ops.PosOp)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
             return input.__pos__()
@@ -177,10 +186,6 @@ if polars_installed:
         @compile_op.register(num_ops.DivOp)
         def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
             return l_input / r_input
-
-        @compile_op.register(num_ops.FloorDivOp)
-        def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
-            return l_input // r_input
 
         @compile_op.register(num_ops.FloorDivOp)
         def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
@@ -269,6 +274,11 @@ if polars_installed:
             # TODO: Polars casting works differently, need to lower instead to specific conversion ops.
             # eg. We want "True" instead of "true" for bool to strin
             return input.cast(_DTYPE_MAPPING[op.to_type], strict=not op.safe)
+
+        @compile_op.register(string_ops.StrConcatOp)
+        def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, string_ops.StrConcatOp)
+            return pl.concat_str(l_input, r_input)
 
     @dataclasses.dataclass(frozen=True)
     class PolarsAggregateCompiler:
@@ -487,8 +497,14 @@ class PolarsCompiler:
     def compile_join(self, node: nodes.JoinNode):
         left = self.compile_node(node.left_child)
         right = self.compile_node(node.right_child)
-        left_on = [l_name.id.sql for l_name, _ in node.conditions]
-        right_on = [r_name.id.sql for _, r_name in node.conditions]
+
+        left_on = []
+        right_on = []
+        for left_ex, right_ex in node.conditions:
+            left_ex, right_ex = lowering._coerce_comparables(left_ex, right_ex)
+            left_on.append(self.expr_compiler.compile_expression(left_ex))
+            right_on.append(self.expr_compiler.compile_expression(right_ex))
+
         if node.type == "right":
             return self._ordered_join(
                 right, left, "left", right_on, left_on, node.joins_nulls
@@ -502,8 +518,8 @@ class PolarsCompiler:
         left_frame: pl.LazyFrame,
         right_frame: pl.LazyFrame,
         how: Literal["inner", "outer", "left", "cross"],
-        left_on: Sequence[str],
-        right_on: Sequence[str],
+        left_on: Sequence[pl.Expr],
+        right_on: Sequence[pl.Expr],
         join_nulls: bool,
     ):
         if how == "right":
