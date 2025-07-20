@@ -279,6 +279,7 @@ def _read_gbq_colab(  # type: ignore[overload-overlap]
     *,
     pyformat_args: Optional[Dict[str, Any]] = ...,
     dry_run: Literal[False] = ...,
+    use_hybrid_engine: bool = ...,
 ) -> bigframes.dataframe.DataFrame:
     ...
 
@@ -289,6 +290,7 @@ def _read_gbq_colab(
     *,
     pyformat_args: Optional[Dict[str, Any]] = ...,
     dry_run: Literal[True] = ...,
+    use_hybrid_engine: bool = ...,
 ) -> pandas.Series:
     ...
 
@@ -298,6 +300,7 @@ def _read_gbq_colab(
     *,
     pyformat_args: Optional[Dict[str, Any]] = None,
     dry_run: bool = False,
+    use_hybrid_engine: bool = False,
 ) -> bigframes.dataframe.DataFrame | pandas.Series:
     """A Colab-specific version of read_gbq.
 
@@ -312,7 +315,9 @@ def _read_gbq_colab(
         dry_run (bool):
             If True, estimates the query results size without returning data.
             The return will be a pandas Series with query metadata.
-
+        use_hybrid_engine (bool):
+            If True, and session not started, new session started will use
+            hybrid execution which pushes some execution to local cpu.
     Returns:
         Union[bigframes.dataframe.DataFrame, pandas.Series]:
             A BigQuery DataFrame if `dry_run` is False, otherwise a pandas Series.
@@ -345,7 +350,7 @@ def _read_gbq_colab(
             dry_run=True,
         )
         _set_default_session_location_if_possible_deferred_query(create_query)
-        if not config.options.bigquery._session_started:
+        if use_hybrid_engine and not config.options.bigquery._session_started:
             config.options.bigquery.enable_polars_execution = True
 
     return global_session.with_default_session(
