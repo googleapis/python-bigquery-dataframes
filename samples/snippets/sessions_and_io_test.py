@@ -118,7 +118,7 @@ def test_sessions_and_io(project_id: str, dataset_id: str) -> None:
     # Returns a Pandas Series
     bf_s.to_pandas()
     # [END bigquery_dataframes_convert_bq_dataframe_to_pandas]
-    assert bf_s.to_pandas is not None
+    assert bf_s.to_pandas() is not None
 
     # [START bigquery_dataframes_to_pandas_dry_run]
     import bigframes.pandas as bpd
