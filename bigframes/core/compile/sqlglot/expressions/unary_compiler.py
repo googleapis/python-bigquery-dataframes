@@ -49,7 +49,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=expr.expr < sge.convert(1),
-                true=sge.func("IEEE_DIVIDE", sge.convert(0), sge.convert(0)),
+                true=_NAN,
             )
         ],
         default=sge.func("ACOSH", expr.expr),
@@ -98,7 +98,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=sge.func("ABS", expr.expr) > sge.convert(1),
-                true=sge.func("IEEE_DIVIDE", sge.convert(0), sge.convert(0)),
+                true=_NAN,
             )
         ],
         default=sge.func("ATANH", expr.expr),
@@ -168,7 +168,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=sge.func("ABS", expr.expr) > sge.convert(709.78),
-                true=sge.func("IEEE_DIVIDE", sge.convert(1), sge.convert(0)),
+                true=_INF,
             )
         ],
         default=sge.func("COSH", expr.expr),
