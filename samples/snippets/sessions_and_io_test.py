@@ -130,19 +130,19 @@ def test_sessions_and_io(project_id: str, dataset_id: str) -> None:
     # [END bigquery_dataframes_to_pandas_dry_run]
     assert df.to_pandas(dry_run=True) is not None
 
-    # [START bigquery_dataframes_load_data_from_csv]
+    # [START bigquery_dataframes_read_data_from_csv]
     import bigframes.pandas as bpd
 
     # Read a CSV file from GCS
     df = bpd.read_csv("gs://cloud-samples-data/bigquery/us-states/us-states.csv")
-    # [END bigquery_dataframes_load_data_from_csv]
+    # [END bigquery_dataframes_read_data_from_csv]
     assert df is not None
 
-    # [START bigquery_dataframes_load_data_from_bigquery]
+    # [START bigquery_dataframes_read_data_from_bigquery_table]
     import bigframes.pandas as bpd
 
     df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
-    # [END bigquery_dataframes_load_data_from_bigquery]
+    # [END bigquery_dataframes_read_data_from_bigquery_table]
     assert df is not None
 
     # [START bigquery_dataframes_read_from_sql_query]
