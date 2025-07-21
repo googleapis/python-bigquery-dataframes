@@ -200,8 +200,8 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Case(
         ifs=[
             sge.If(
-                this=expr.expr > sge.convert(709.78),
-                true=sge.func("IEEE_DIVIDE", sge.convert(1), sge.convert(0)),
+                this=expr.expr > _FLOAT64_EXP_BOUND,
+                true=_INF,
             )
         ],
         default=sge.func("EXP", expr.expr),
@@ -213,8 +213,8 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Case(
         ifs=[
             sge.If(
-                this=expr.expr > sge.convert(709.78),
-                true=sge.func("IEEE_DIVIDE", sge.convert(1), sge.convert(0)),
+                this=expr.expr > _FLOAT64_EXP_BOUND,
+                true=_INF,
             )
         ],
         default=sge.func("EXP", expr.expr),

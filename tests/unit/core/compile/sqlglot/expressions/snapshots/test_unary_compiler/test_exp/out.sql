@@ -5,7 +5,11 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    CASE WHEN `bfcol_0` > 709.78 THEN IEEE_DIVIDE(1, 0) ELSE EXP(`bfcol_0`) END AS `bfcol_1`
+    CASE
+      WHEN `bfcol_0` > 709.78
+      THEN CAST('Infinity' AS FLOAT64)
+      ELSE EXP(`bfcol_0`)
+    END AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT
