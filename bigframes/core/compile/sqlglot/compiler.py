@@ -18,14 +18,16 @@ import functools
 import typing
 
 from google.cloud import bigquery
-import pyarrow as pa
 import sqlglot.expressions as sge
 
-from bigframes.core import expression, guid, identifiers, nodes, rewrite
+from bigframes.core import expression, guid, identifiers, nodes, pyarrow_utils, rewrite
 from bigframes.core.compile import configs
+import bigframes.core.compile.sqlglot.aggregate_compiler as aggregate_compiler
+from bigframes.core.compile.sqlglot.expressions import typed_expr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.core.ordering as bf_ordering
+from bigframes.core.rewrite import schema_binding
 
 
 class SQLGlotCompiler:
@@ -87,6 +89,9 @@ class SQLGlotCompiler:
                 nodes.ResultNode, rewrite.column_pruning(result_node)
             )
             result_node = self._remap_variables(result_node)
+            result_node = typing.cast(
+                nodes.ResultNode, rewrite.defer_selection(result_node)
+            )
             sql = self._compile_result_node(result_node)
             return configs.CompileResult(
                 sql, result_node.schema.to_bigquery(), result_node.order_by
@@ -97,6 +102,9 @@ class SQLGlotCompiler:
         result_node = typing.cast(nodes.ResultNode, rewrite.column_pruning(result_node))
 
         result_node = self._remap_variables(result_node)
+        result_node = typing.cast(
+            nodes.ResultNode, rewrite.defer_selection(result_node)
+        )
         sql = self._compile_result_node(result_node)
         # Return the ordering iff no extra columns are needed to define the row order
         if ordering is not None:
@@ -119,8 +127,30 @@ class SQLGlotCompiler:
         return typing.cast(nodes.ResultNode, result_node)
 
     def _compile_result_node(self, root: nodes.ResultNode) -> str:
-        sqlglot_ir = self.compile_node(root.child)
-        # TODO: add order_by, limit, and selections to sqlglot_expr
+        # Have to bind schema as the final step before compilation.
+        root = typing.cast(nodes.ResultNode, schema_binding.bind_schema_to_tree(root))
+        selected_cols: tuple[tuple[str, sge.Expression], ...] = tuple(
+            (name, scalar_compiler.compile_scalar_expression(ref))
+            for ref, name in root.output_cols
+        )
+        sqlglot_ir = self.compile_node(root.child).select(selected_cols)
+
+        if root.order_by is not None:
+            ordering_cols = tuple(
+                sge.Ordered(
+                    this=scalar_compiler.compile_scalar_expression(
+                        ordering.scalar_expression
+                    ),
+                    desc=ordering.direction.is_ascending is False,
+                    nulls_first=ordering.na_last is False,
+                )
+                for ordering in root.order_by.all_ordering_columns
+            )
+            sqlglot_ir = sqlglot_ir.order_by(ordering_cols)
+
+        if root.limit is not None:
+            sqlglot_ir = sqlglot_ir.limit(root.limit)
+
         return sqlglot_ir.sql
 
     @functools.lru_cache(maxsize=5000)
@@ -147,11 +177,21 @@ class SQLGlotCompiler:
 
         offsets = node.offsets_col.sql if node.offsets_col else None
         if offsets:
-            pa_table = pa_table.append_column(
-                offsets, pa.array(range(pa_table.num_rows), type=pa.int64())
-            )
+            pa_table = pyarrow_utils.append_offsets(pa_table, offsets)
 
         return ir.SQLGlotIR.from_pyarrow(pa_table, node.schema, uid_gen=self.uid_gen)
+
+    @_compile_node.register
+    def compile_readtable(self, node: nodes.ReadTableNode, *args):
+        table = node.source.table
+        return ir.SQLGlotIR.from_table(
+            table.project_id,
+            table.dataset_id,
+            table.table_id,
+            col_names=[col.source_id for col in node.scan_list.items],
+            alias_names=[col.id.sql for col in node.scan_list.items],
+            uid_gen=self.uid_gen,
+        )
 
     @_compile_node.register
     def compile_selection(
@@ -173,9 +213,94 @@ class SQLGlotCompiler:
         )
         return child.project(projected_cols)
 
+    @_compile_node.register
+    def compile_filter(
+        self, node: nodes.FilterNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        condition = scalar_compiler.compile_scalar_expression(node.predicate)
+        return child.filter(tuple([condition]))
+
+    @_compile_node.register
+    def compile_join(
+        self, node: nodes.JoinNode, left: ir.SQLGlotIR, right: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        conditions = tuple(
+            (
+                typed_expr.TypedExpr(
+                    scalar_compiler.compile_scalar_expression(left), left.output_type
+                ),
+                typed_expr.TypedExpr(
+                    scalar_compiler.compile_scalar_expression(right), right.output_type
+                ),
+            )
+            for left, right in node.conditions
+        )
+
+        return left.join(
+            right,
+            join_type=node.type,
+            conditions=conditions,
+            joins_nulls=node.joins_nulls,
+        )
+
+    @_compile_node.register
+    def compile_concat(
+        self, node: nodes.ConcatNode, *children: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        output_ids = [id.sql for id in node.output_ids]
+        return ir.SQLGlotIR.from_union(
+            [child.expr for child in children],
+            output_ids=output_ids,
+            uid_gen=self.uid_gen,
+        )
+
+    @_compile_node.register
+    def compile_explode(
+        self, node: nodes.ExplodeNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        offsets_col = node.offsets_col.sql if (node.offsets_col is not None) else None
+        columns = tuple(ref.id.sql for ref in node.column_ids)
+        return child.explode(columns, offsets_col)
+
+    @_compile_node.register
+    def compile_random_sample(
+        self, node: nodes.RandomSampleNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        return child.sample(node.fraction)
+
+    @_compile_node.register
+    def compile_aggregate(
+        self, node: nodes.AggregateNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        ordering_cols = tuple(
+            sge.Ordered(
+                this=scalar_compiler.compile_scalar_expression(
+                    ordering.scalar_expression
+                ),
+                desc=ordering.direction.is_ascending is False,
+                nulls_first=ordering.na_last is False,
+            )
+            for ordering in node.order_by
+        )
+        aggregations: tuple[tuple[str, sge.Expression], ...] = tuple(
+            (id.sql, aggregate_compiler.compile_aggregate(agg, order_by=ordering_cols))
+            for agg, id in node.aggregations
+        )
+        by_cols: tuple[sge.Expression, ...] = tuple(
+            scalar_compiler.compile_scalar_expression(by_col)
+            for by_col in node.by_column_ids
+        )
+
+        dropna_cols = []
+        if node.dropna:
+            for key, by_col in zip(node.by_column_ids, by_cols):
+                if node.child.field_by_id[key.id].nullable:
+                    dropna_cols.append(by_col)
+
+        return child.aggregate(aggregations, by_cols, tuple(dropna_cols))
+
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
     node = nodes.bottom_up(node, rewrite.rewrite_slice)
-    node = nodes.bottom_up(node, rewrite.rewrite_timedelta_expressions)
     node = nodes.bottom_up(node, rewrite.rewrite_range_rolling)
     return node

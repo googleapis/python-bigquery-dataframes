@@ -45,7 +45,7 @@ class GBQIOMixin:
         * (Recommended) Set the ``index_col`` argument to one or more columns.
           Unique values for the row labels are recommended. Duplicate labels
           are possible, but note that joins on a non-unique index can duplicate
-          rows via pandas-like outer join behavior.
+          rows via pandas-compatible outer join behavior.
 
         .. note::
             By default, even SQL query inputs with an ORDER BY clause create a
@@ -67,6 +67,7 @@ class GBQIOMixin:
             >>> df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
 
         Read table path with wildcard suffix and filters:
+
             >>> df = bpd.read_gbq_table("bigquery-public-data.noaa_gsod.gsod19*", filters=[("_table_suffix", ">=", "30"), ("_table_suffix", "<=", "39")])
 
         Preserve ordering in a query input.

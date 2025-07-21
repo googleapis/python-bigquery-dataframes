@@ -32,13 +32,18 @@ from bigframes.bigquery._operations.geo import (
     st_difference,
     st_distance,
     st_intersection,
+    st_isclosed,
+    st_length,
 )
 from bigframes.bigquery._operations.json import (
     json_extract,
     json_extract_array,
     json_extract_string_array,
+    json_query,
+    json_query_array,
     json_set,
     json_value,
+    json_value_array,
     parse_json,
 )
 from bigframes.bigquery._operations.search import create_vector_index, vector_search
@@ -57,12 +62,17 @@ __all__ = [
     "st_difference",
     "st_distance",
     "st_intersection",
+    "st_isclosed",
+    "st_length",
     # json ops
-    "json_set",
     "json_extract",
     "json_extract_array",
     "json_extract_string_array",
+    "json_query",
+    "json_query_array",
+    "json_set",
     "json_value",
+    "json_value_array",
     "parse_json",
     # search ops
     "create_vector_index",

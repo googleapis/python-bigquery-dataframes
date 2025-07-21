@@ -74,6 +74,16 @@ def chunk_by_row_count(
         yield buffer.take_as_batches(len(buffer))
 
 
+def cast_batch(batch: pa.RecordBatch, schema: pa.Schema) -> pa.RecordBatch:
+    if batch.schema == schema:
+        return batch
+    # TODO: Use RecordBatch.cast once min pyarrow>=16.0
+    return pa.record_batch(
+        [arr.cast(type) for arr, type in zip(batch.columns, schema.types)],
+        schema=schema,
+    )
+
+
 def truncate_pyarrow_iterable(
     batches: Iterable[pa.RecordBatch], max_results: int
 ) -> Iterator[pa.RecordBatch]:
@@ -85,3 +95,18 @@ def truncate_pyarrow_iterable(
         else:
             yield batch
             total_yielded += batch.num_rows
+
+
+def append_offsets(
+    pa_table: pa.Table,
+    offsets_col: str,
+) -> pa.Table:
+    return pa_table.append_column(
+        offsets_col, pa.array(range(pa_table.num_rows), type=pa.int64())
+    )
+
+
+def as_nullable(pa_table: pa.Table):
+    """Normalizes schema to nullable for value-wise comparisons."""
+    nullable_schema = pa.schema(field.with_nullable(True) for field in pa_table.schema)
+    return pa_table.cast(nullable_schema)

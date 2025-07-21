@@ -11,12 +11,13 @@ labeling information
 """
 from __future__ import annotations
 
-from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
+from typing import Hashable, Iterable, Literal, Optional, Sequence, Union
 
 from bigframes_vendored import constants
 import bigframes_vendored.pandas.core.generic as generic
 import numpy as np
 import pandas as pd
+from pandas.api import extensions as pd_ext
 
 # -----------------------------------------------------------------------
 # DataFrame class
@@ -369,7 +370,7 @@ class DataFrame(generic.NDFrame):
         self,
         dtype=None,
         copy=False,
-        na_value=None,
+        na_value=pd_ext.no_default,
         *,
         allow_large_results=None,
         **kwargs,
@@ -1391,8 +1392,9 @@ class DataFrame(generic.NDFrame):
     def rename(
         self,
         *,
-        columns: Mapping,
-    ) -> DataFrame:
+        columns,
+        inplace,
+    ):
         """Rename columns.
 
         Dict values must be unique (1-to-1). Labels not contained in a dict
@@ -1425,16 +1427,20 @@ class DataFrame(generic.NDFrame):
         Args:
             columns (Mapping):
                 Dict-like from old column labels to new column labels.
+            inplace (bool):
+                Default False. Whether to modify the DataFrame rather than
+                creating a new one.
 
         Returns:
-            bigframes.pandas.DataFrame: DataFrame with the renamed axis labels.
+            bigframes.pandas.DataFrame | None:
+                DataFrame with the renamed axis labels or None if ``inplace=True``.
 
         Raises:
             KeyError: If any of the labels is not found.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename_axis(self, mapper: Optional[str], **kwargs) -> DataFrame:
+    def rename_axis(self, mapper, *, inplace, **kwargs):
         """
         Set the name of the axis for the index.
 
@@ -1442,11 +1448,15 @@ class DataFrame(generic.NDFrame):
             Currently only accepts a single string parameter (the new name of the index).
 
         Args:
-            mapper str:
+            mapper (str):
                 Value to set the axis name attribute.
+            inplace (bool):
+                Default False. Modifies the object directly, instead of
+                creating a new Series or DataFrame.
 
         Returns:
-            bigframes.pandas.DataFrame: DataFrame with the new index name
+            bigframes.pandas.DataFrame | None:
+                DataFrame with the new index name or None if ``inplace=True``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1752,6 +1762,7 @@ class DataFrame(generic.NDFrame):
         *,
         axis: int | str = 0,
         how: str = "any",
+        thresh: Optional[int] = None,
         subset=None,
         inplace: bool = False,
         ignore_index=False,
@@ -1802,6 +1813,25 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [3 rows x 3 columns]
 
+        Keep rows with at least 2 non-null values.
+
+            >>> df.dropna(thresh=2)
+                            name        toy        born
+            1    Batman  Batmobile  1940-04-25
+            2  Catwoman   Bullwhip        <NA>
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+        Keep columns with at least 2 non-null values:
+
+            >>> df.dropna(axis='columns', thresh=2)
+                name        toy
+            0    Alfred       <NA>
+            1    Batman  Batmobile
+            2  Catwoman   Bullwhip
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
         Define in which columns to look for missing values.
 
             >>> df.dropna(subset=['name', 'toy'])
@@ -1812,7 +1842,7 @@ class DataFrame(generic.NDFrame):
             [2 rows x 3 columns]
 
         Args:
-            axis ({0 or 'index', 1 or 'columns'}, default 'columns'):
+            axis ({0 or 'index', 1 or 'columns'}, default 0):
                 Determine if rows or columns which contain missing values are
                 removed.
 
@@ -1824,6 +1854,8 @@ class DataFrame(generic.NDFrame):
 
                 * 'any' : If any NA values are present, drop that row or column.
                 * 'all' : If all values are NA, drop that row or column.
+            thresh (int, optional):
+                Require that many non-NA values. Cannot be combined with how.
             subset (column label or sequence of labels, optional):
                 Labels along other axis to consider, e.g. if you are dropping
                 rows these would be a list of columns to include.
@@ -1841,6 +1873,8 @@ class DataFrame(generic.NDFrame):
         Raises:
             ValueError:
                 If ``how`` is not one of ``any`` or ``all``.
+            TyperError:
+                If both ``how`` and ``thresh`` are specified.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -3033,6 +3067,20 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __radd__(self, other) -> DataFrame:
+        """Get addition of other and DataFrame, element-wise (binary operator `+`).
+
+        Equivalent to ``DataFrame.radd(other)``.
+
+        Args:
+            other (float, int, or Series):
+                Any single or multiple element data structure, or list-like object.
+
+        Returns:
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def sub(self, other, axis: str | int = "columns") -> DataFrame:
         """Get subtraction of DataFrame and other, element-wise (binary operator `-`).
 
@@ -4114,6 +4162,7 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'A': [[0, 1, 2], [], [], [3, 4]],
@@ -4243,6 +4292,7 @@ class DataFrame(generic.NDFrame):
         correlations.
 
         **Examples:**
+
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
@@ -4736,7 +4786,7 @@ class DataFrame(generic.NDFrame):
             right:
                 Object to merge with.
             how:
-                ``{'left', 'right', 'outer', 'inner'}, default 'inner'``
+                ``{'left', 'right', 'outer', 'inner', 'cross'}, default 'inner'``
                 Type of merge to be performed.
                 ``left``: use only keys from left frame, similar to a SQL left outer join;
                 preserve key order.
@@ -6211,7 +6261,7 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def describe(self):
+    def describe(self, include: None | Literal["all"] = None):
         """
         Generate descriptive statistics.
 
@@ -6219,7 +6269,10 @@ class DataFrame(generic.NDFrame):
         tendency, dispersion and shape of a
         dataset's distribution, excluding ``NaN`` values.
 
-        Only supports numeric columns.
+        Args:
+            include ("all" or None, optional):
+                If "all": All columns of the input will be included in the output.
+                If None: The result will include all numeric columns.
 
         .. note::
             Percentile values are approximates only.
@@ -6236,27 +6289,43 @@ class DataFrame(generic.NDFrame):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [0, 2, 8]})
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [0, 2, 8], "C": ["cat", "cat", "dog"]})
             >>> df
-                A	B
-            0	3	0
-            1	1	2
-            2	2	8
+               A  B    C
+            0  3  0  cat
+            1  1  2  cat
+            2  2  8  dog
             <BLANKLINE>
-            [3 rows x 2 columns]
+            [3 rows x 3 columns]
 
             >>> df.describe()
-                          A	          B
-            count       3.0	        3.0
-            mean        2.0	   3.333333
-            std	        1.0	   4.163332
-            min	        1.0	        0.0
-            25%	        1.0	        0.0
-            50%	        2.0	        2.0
-            75%	        3.0	        8.0
-            max	        3.0	        8.0
+                     A         B
+            count  3.0       3.0
+            mean   2.0  3.333333
+            std    1.0  4.163332
+            min    1.0       0.0
+            25%    1.0       0.0
+            50%    2.0       2.0
+            75%    3.0       8.0
+            max    3.0       8.0
             <BLANKLINE>
             [8 rows x 2 columns]
+
+
+        Using describe with include = "all":
+            >>> df.describe(include="all")
+                        A         B     C
+            count     3.0       3.0     3
+            nunique  <NA>      <NA>     2
+            mean      2.0  3.333333  <NA>
+            std       1.0  4.163332  <NA>
+            min       1.0       0.0  <NA>
+            25%       1.0       0.0  <NA>
+            50%       2.0       2.0  <NA>
+            75%       3.0       8.0  <NA>
+            max       3.0       8.0  <NA>
+            <BLANKLINE>
+            [9 rows x 3 columns]
 
         Returns:
             bigframes.pandas.DataFrame:

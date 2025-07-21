@@ -31,7 +31,7 @@ from shapely.geometry import (  # type: ignore
 import bigframes.geopandas
 import bigframes.pandas
 import bigframes.series
-from tests.system.utils import assert_series_equal
+from bigframes.testing.utils import assert_series_equal
 
 
 @pytest.fixture(scope="session")
@@ -94,6 +94,17 @@ def test_geo_area_not_supported():
         ),
     ):
         bf_series.area
+
+
+def test_geoseries_length_property_not_implemented(session):
+    gs = bigframes.geopandas.GeoSeries([Point(0, 0)], session=session)
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            "GeoSeries.length is not yet implemented. Please use bigframes.bigquery.st_length(geoseries) instead."
+        ),
+    ):
+        _ = gs.length
 
 
 def test_geo_distance_not_supported():

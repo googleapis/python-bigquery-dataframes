@@ -109,11 +109,6 @@ CLUSTERED_OR_PARTITIONED_TABLES = [
     ("kwargs", "match"),
     [
         pytest.param(
-            {"engine": "bigquery", "dtype": {}},
-            "BigQuery engine does not support the `dtype` argument",
-            id="with_dtype",
-        ),
-        pytest.param(
             {"engine": "bigquery", "usecols": [1, 2]},
             "BigQuery engine only supports an iterable of strings for `usecols`.",
             id="with_usecols_invalid",
@@ -215,6 +210,17 @@ def test_read_csv_w_bigquery_engine_raises_error_for_invalid_names(
         session.read_csv("path/to/csv.csv", engine="bigquery", names=names)
 
 
+def test_read_csv_w_bigquery_engine_raises_error_for_invalid_dtypes():
+    session = mocks.create_bigquery_session()
+
+    with pytest.raises(ValueError, match="dtype should be a dict-like object."):
+        session.read_csv(
+            "path/to/csv.csv",
+            engine="bigquery",
+            dtype=["a", "b", "c"],  # type: ignore[arg-type]
+        )
+
+
 @pytest.mark.parametrize("missing_parts_table_id", [(""), ("table")])
 def test_read_gbq_missing_parts(missing_parts_table_id):
     session = mocks.create_bigquery_session()
@@ -267,7 +273,11 @@ def test_default_index_warning_raised_by_read_gbq(table):
     bqclient.project = "test-project"
     bqclient.get_table.return_value = table
     bqclient.query_and_wait.return_value = ({"total_count": 3, "distinct_count": 2},)
-    session = mocks.create_bigquery_session(bqclient=bqclient)
+    session = mocks.create_bigquery_session(
+        bqclient=bqclient,
+        # DefaultIndexWarning is only relevant for strict mode.
+        ordering_mode="strict",
+    )
     table._properties["location"] = session._location
 
     with pytest.warns(bigframes.exceptions.DefaultIndexWarning):
@@ -290,7 +300,11 @@ def test_default_index_warning_not_raised_by_read_gbq_index_col_sequential_int64
     bqclient.project = "test-project"
     bqclient.get_table.return_value = table
     bqclient.query_and_wait.return_value = ({"total_count": 4, "distinct_count": 3},)
-    session = mocks.create_bigquery_session(bqclient=bqclient)
+    session = mocks.create_bigquery_session(
+        bqclient=bqclient,
+        # DefaultIndexWarning is only relevant for strict mode.
+        ordering_mode="strict",
+    )
     table._properties["location"] = session._location
 
     # No warnings raised because we set the option allowing the default indexes.
@@ -338,7 +352,10 @@ def test_default_index_warning_not_raised_by_read_gbq_index_col_columns(
         {"total_count": total_count, "distinct_count": distinct_count},
     )
     session = mocks.create_bigquery_session(
-        bqclient=bqclient, table_schema=table.schema
+        bqclient=bqclient,
+        table_schema=table.schema,
+        # DefaultIndexWarning is only relevant for strict mode.
+        ordering_mode="strict",
     )
     table._properties["location"] = session._location
 
@@ -380,7 +397,10 @@ def test_default_index_warning_not_raised_by_read_gbq_primary_key(table):
     bqclient.project = "test-project"
     bqclient.get_table.return_value = table
     session = mocks.create_bigquery_session(
-        bqclient=bqclient, table_schema=table.schema
+        bqclient=bqclient,
+        table_schema=table.schema,
+        # DefaultIndexWarning is only relevant for strict mode.
+        ordering_mode="strict",
     )
     table._properties["location"] = session._location
 
@@ -484,7 +504,7 @@ def test_session_init_warns_if_bf_version_is_too_old(monkeypatch):
         mocks.create_bigquery_session()
 
 
-@mock.patch("bigframes.session.MAX_INLINE_DF_BYTES", 1)
+@mock.patch("bigframes.constants.MAX_INLINE_BYTES", 1)
 def test_read_pandas_inline_exceeds_limit_raises_error():
     session = mocks.create_bigquery_session()
     pd_df = pd.DataFrame([[1, 2, 3], [4, 5, 6]])

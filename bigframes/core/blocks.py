@@ -29,7 +29,17 @@ import itertools
 import random
 import textwrap
 import typing
-from typing import Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import (
+    Iterable,
+    Iterator,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 import warnings
 
 import bigframes_vendored.constants as constants
@@ -50,6 +60,7 @@ import bigframes.core.guid as guid
 import bigframes.core.identifiers
 import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
+import bigframes.core.pyarrow_utils as pyarrow_utils
 import bigframes.core.schema as bf_schema
 import bigframes.core.sql as sql
 import bigframes.core.utils as utils
@@ -86,14 +97,22 @@ LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
-class BlockHolder(typing.Protocol):
+@dataclasses.dataclass
+class PandasBatches(Iterator[pd.DataFrame]):
     """Interface for mutable objects with state represented by a block value object."""
 
-    def _set_block(self, block: Block):
-        """Set the underlying block value of the object"""
+    def __init__(
+        self, pandas_batches: Iterator[pd.DataFrame], total_rows: Optional[int] = 0
+    ):
+        self._dataframes: Iterator[pd.DataFrame] = pandas_batches
+        self._total_rows: Optional[int] = total_rows
 
-    def _get_block(self) -> Block:
-        """Get the underlying block value of the object"""
+    @property
+    def total_rows(self) -> Optional[int]:
+        return self._total_rows
+
+    def __next__(self) -> pd.DataFrame:
+        return next(self._dataframes)
 
 
 @dataclasses.dataclass()
@@ -154,6 +173,37 @@ class Block:
         self._stats_cache[" ".join(self.index_columns)] = {}
         self._transpose_cache: Optional[Block] = transpose_cache
         self._view_ref: Optional[bigquery.TableReference] = None
+        self._view_ref_dry_run: Optional[bigquery.TableReference] = None
+
+    @classmethod
+    def from_pyarrow(
+        cls,
+        data: pa.Table,
+        session: bigframes.Session,
+    ) -> Block:
+        column_labels = data.column_names
+
+        # TODO(tswast): Use array_value.promote_offsets() instead once that node is
+        # supported by the local engine.
+        offsets_col = bigframes.core.guid.generate_guid()
+        index_ids = [offsets_col]
+        index_labels = [None]
+
+        # TODO(https://github.com/googleapis/python-bigquery-dataframes/issues/859):
+        # Allow users to specify the "total ordering" column(s) or allow multiple
+        # such columns.
+        data = pyarrow_utils.append_offsets(data, offsets_col=offsets_col)
+
+        # from_pyarrow will normalize the types for us.
+        managed_data = local_data.ManagedArrowTable.from_pyarrow(data)
+        array_value = core.ArrayValue.from_managed(managed_data, session=session)
+        block = cls(
+            array_value,
+            column_labels=column_labels,
+            index_columns=index_ids,
+            index_labels=index_labels,
+        )
+        return block
 
     @classmethod
     def from_local(
@@ -567,8 +617,7 @@ class Block:
                 self.expr, n, use_explicit_destination=allow_large_results
             )
             df = result.to_pandas()
-            self._copy_index_to_pandas(df)
-            return df
+            return self._copy_index_to_pandas(df)
         else:
             return None
 
@@ -577,8 +626,7 @@ class Block:
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
         allow_large_results: Optional[bool] = None,
-        squeeze: Optional[bool] = False,
-    ):
+    ) -> Iterator[pd.DataFrame]:
         """Download results one message at a time.
 
         page_size and max_results determine the size and number of batches,
@@ -588,28 +636,44 @@ class Block:
             ordered=True,
             use_explicit_destination=allow_large_results,
         )
-        for df in execute_result.to_pandas_batches(
-            page_size=page_size, max_results=max_results
-        ):
-            self._copy_index_to_pandas(df)
-            if squeeze:
-                yield df.squeeze(axis=1)
-            else:
-                yield df
 
-    def _copy_index_to_pandas(self, df: pd.DataFrame):
-        """Set the index on pandas DataFrame to match this block.
+        # To reduce the number of edge cases to consider when working with the
+        # results of this, always return at least one DataFrame. See:
+        # b/428918844.
+        empty_val = pd.DataFrame(
+            {
+                col: pd.Series([], dtype=self.expr.get_column_type(col))
+                for col in itertools.chain(self.value_columns, self.index_columns)
+            }
+        )
+        dfs = map(
+            lambda a: a[0],
+            itertools.zip_longest(
+                execute_result.to_pandas_batches(page_size, max_results),
+                [0],
+                fillvalue=empty_val,
+            ),
+        )
+        dfs = iter(map(self._copy_index_to_pandas, dfs))
 
-        Warning: This method modifies ``df`` inplace.
-        """
+        total_rows = execute_result.total_rows
+        if (total_rows is not None) and (max_results is not None):
+            total_rows = min(total_rows, max_results)
+
+        return PandasBatches(dfs, total_rows)
+
+    def _copy_index_to_pandas(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Set the index on pandas DataFrame to match this block."""
         # Note: If BigQuery DataFrame has null index, a default one will be created for the local materialization.
+        new_df = df.copy()
         if len(self.index_columns) > 0:
-            df.set_index(list(self.index_columns), inplace=True)
+            new_df.set_index(list(self.index_columns), inplace=True)
             # Pandas names is annotated as list[str] rather than the more
             # general Sequence[Label] that BigQuery DataFrames has.
             # See: https://github.com/pandas-dev/pandas-stubs/issues/804
-            df.index.names = self.index.names  # type: ignore
-        df.columns = self.column_labels
+            new_df.index.names = self.index.names  # type: ignore
+        new_df.columns = self.column_labels
+        return new_df
 
     def _materialize_local(
         self, materialize_options: MaterializationOptions = MaterializationOptions()
@@ -676,9 +740,7 @@ class Block:
             )
         else:
             df = execute_result.to_pandas()
-            self._copy_index_to_pandas(df)
-
-        return df, execute_result.query_job
+            return self._copy_index_to_pandas(df), execute_result.query_job
 
     def _downsample(
         self, total_rows: int, sampling_method: str, fraction: float, random_state
@@ -1013,15 +1075,33 @@ class Block:
         skip_reproject_unsafe: bool = False,
         never_skip_nulls: bool = False,
     ) -> typing.Tuple[Block, str]:
+        agg_expr = ex.UnaryAggregation(op, ex.deref(column))
+        return self.apply_analytic(
+            agg_expr,
+            window_spec,
+            result_label,
+            skip_reproject_unsafe=skip_reproject_unsafe,
+            never_skip_nulls=never_skip_nulls,
+            skip_null_groups=skip_null_groups,
+        )
+
+    def apply_analytic(
+        self,
+        agg_expr: ex.Aggregation,
+        window: windows.WindowSpec,
+        result_label: Label,
+        *,
+        skip_reproject_unsafe: bool = False,
+        never_skip_nulls: bool = False,
+        skip_null_groups: bool = False,
+    ) -> typing.Tuple[Block, str]:
         block = self
         if skip_null_groups:
-            for key in window_spec.grouping_keys:
-                block, not_null_id = block.apply_unary_op(key.id.name, ops.notnull_op)
-                block = block.filter_by_id(not_null_id).drop_columns([not_null_id])
-        expr, result_id = block._expr.project_window_op(
-            column,
-            op,
-            window_spec,
+            for key in window.grouping_keys:
+                block = block.filter(ops.notnull_op.as_expr(key.id.name))
+        expr, result_id = block._expr.project_window_expr(
+            agg_expr,
+            window,
             skip_reproject_unsafe=skip_reproject_unsafe,
             never_skip_nulls=never_skip_nulls,
         )
@@ -1191,7 +1271,10 @@ class Block:
         return self.select_columns([id])
 
     def select_columns(self, ids: typing.Sequence[str]) -> Block:
-        expr = self._expr.select_columns([*self.index_columns, *ids])
+        # Allow renames as may end up selecting same columns multiple times
+        expr = self._expr.select_columns(
+            [*self.index_columns, *ids], allow_renames=True
+        )
         col_labels = self._get_labels_for_columns(ids)
         return Block(expr, self.index_columns, col_labels, self.index.names)
 
@@ -1522,8 +1605,7 @@ class Block:
         row_count = self.session._executor.execute(self.expr.row_count()).to_py_scalar()
 
         head_df = head_result.to_pandas()
-        self._copy_index_to_pandas(head_df)
-        return head_df, row_count, head_result.query_job
+        return self._copy_index_to_pandas(head_df), row_count, head_result.query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:
         expr, result_id = self._expr.promote_offsets()
@@ -1977,7 +2059,7 @@ class Block:
         return block.set_index([resample_label_id])
 
     def _create_stack_column(self, col_label: typing.Tuple, stack_labels: pd.Index):
-        dtype = None
+        input_dtypes = []
         input_columns: list[Optional[str]] = []
         for uvalue in utils.index_as_tuples(stack_labels):
             label_to_match = (*col_label, *uvalue)
@@ -1987,15 +2069,18 @@ class Block:
             matching_ids = self.label_to_col_id.get(label_to_match, [])
             input_id = matching_ids[0] if len(matching_ids) > 0 else None
             if input_id:
-                if dtype and dtype != self._column_type(input_id):
-                    raise NotImplementedError(
-                        "Cannot stack columns with non-matching dtypes."
-                    )
-                else:
-                    dtype = self._column_type(input_id)
+                input_dtypes.append(self._column_type(input_id))
             input_columns.append(input_id)
             # Input column i is the first one that
-        return tuple(input_columns), dtype or pd.Float64Dtype()
+        if len(input_dtypes) > 0:
+            output_dtype = bigframes.dtypes.lcd_type(*input_dtypes)
+            if output_dtype is None:
+                raise NotImplementedError(
+                    "Cannot stack columns with non-matching dtypes."
+                )
+        else:
+            output_dtype = pd.Float64Dtype()
+        return tuple(input_columns), output_dtype
 
     def _column_type(self, col_id: str) -> bigframes.dtypes.Dtype:
         col_offset = self.value_columns.index(col_id)
@@ -2166,7 +2251,7 @@ class Block:
                 result_columns.append(get_column_left[col_id])
         for col_id in other.value_columns:
             if col_id in right_join_ids:
-                if other.col_id_to_label[matching_right_id] in matching_join_labels:
+                if other.col_id_to_label[col_id] in matching_join_labels:
                     pass
                 else:
                     result_columns.append(get_column_right[col_id])
@@ -2441,19 +2526,19 @@ class Block:
     ) -> bool:
         return self._is_monotonic(column_id, increasing=False)
 
-    def to_sql_query(
-        self, include_index: bool, enable_cache: bool = True
-    ) -> typing.Tuple[str, list[str], list[Label]]:
+    def _array_value_for_output(
+        self, *, include_index: bool
+    ) -> Tuple[bigframes.core.ArrayValue, list[str], list[Label]]:
         """
-        Compiles this DataFrame's expression tree to SQL, optionally
-        including index columns.
+        Creates the expression tree with user-visible column names, such as for
+        SQL output.
 
         Args:
             include_index (bool):
                 whether to include index columns.
 
         Returns:
-            a tuple of (sql_string, index_column_id_list, index_column_label_list).
+            a tuple of (ArrayValue, index_column_id_list, index_column_label_list).
                 If include_index is set to False, index_column_id_list and index_column_label_list
                 return empty lists.
         """
@@ -2476,25 +2561,72 @@ class Block:
             # the BigQuery unicode column name feature?
             substitutions[old_id] = new_id
 
-        # Note: this uses the sql from the executor, so is coupled tightly to execution
-        # implementaton. It will reference cached tables instead of original data sources.
-        # Maybe should just compile raw BFET? Depends on user intent.
-        sql = self.session._executor.to_sql(
-            array_value.rename_columns(substitutions), enable_cache=enable_cache
-        )
         return (
-            sql,
+            array_value.rename_columns(substitutions),
             new_ids[: len(idx_labels)],
             idx_labels,
         )
 
-    def to_view(self, include_index: bool) -> bigquery.TableReference:
+    def to_sql_query(
+        self, include_index: bool, enable_cache: bool = True
+    ) -> Tuple[str, list[str], list[Label]]:
         """
-        Creates a temporary BigQuery VIEW with the SQL corresponding to this block.
+        Compiles this DataFrame's expression tree to SQL, optionally
+        including index columns.
+
+        Args:
+            include_index (bool):
+                whether to include index columns.
+
+        Returns:
+            a tuple of (sql_string, index_column_id_list, index_column_label_list).
+                If include_index is set to False, index_column_id_list and index_column_label_list
+                return empty lists.
+        """
+        array_value, idx_ids, idx_labels = self._array_value_for_output(
+            include_index=include_index
+        )
+
+        # Note: this uses the sql from the executor, so is coupled tightly to execution
+        # implementaton. It will reference cached tables instead of original data sources.
+        # Maybe should just compile raw BFET? Depends on user intent.
+        sql = self.session._executor.to_sql(array_value, enable_cache=enable_cache)
+        return (
+            sql,
+            idx_ids,
+            idx_labels,
+        )
+
+    def to_placeholder_table(
+        self, include_index: bool, *, dry_run: bool = False
+    ) -> bigquery.TableReference:
+        """
+        Creates a temporary BigQuery VIEW (or empty table if dry_run) with the
+        SQL corresponding to this block.
         """
         if self._view_ref is not None:
             return self._view_ref
 
+        # Prefer the real view if it exists, but since dry_run might be called
+        # many times before the real query, we cache that empty table reference
+        # with the correct schema too.
+        if dry_run:
+            if self._view_ref_dry_run is not None:
+                return self._view_ref_dry_run
+
+            # Create empty temp table with the right schema.
+            array_value, _, _ = self._array_value_for_output(
+                include_index=include_index
+            )
+            temp_table_schema = array_value.schema.to_bigquery()
+            self._view_ref_dry_run = self.session._create_temp_table(
+                schema=temp_table_schema
+            )
+            return self._view_ref_dry_run
+
+        # We shouldn't run `to_sql_query` if we have a `dry_run`, because it
+        # could cause us to make unnecessary API calls to upload local node
+        # data.
         sql, _, _ = self.to_sql_query(include_index=include_index)
         self._view_ref = self.session._create_temp_view(sql)
         return self._view_ref
@@ -2895,7 +3027,7 @@ def join_with_single_row(
         combined_expr,
         index_columns=index_cols_post_join,
         column_labels=left.column_labels.append(single_row_block.column_labels),
-        index_labels=[left.index.name],
+        index_labels=left.index.names,
     )
     return (
         block,

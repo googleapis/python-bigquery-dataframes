@@ -17,6 +17,7 @@ from __future__ import annotations
 import dataclasses
 import math
 import os
+import threading
 from typing import cast, Literal, Mapping, Optional, Sequence, Tuple, Union
 import warnings
 import weakref
@@ -27,8 +28,11 @@ import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
 
+import bigframes
+from bigframes import exceptions as bfe
+import bigframes.constants
 import bigframes.core
-from bigframes.core import compile, rewrite
+from bigframes.core import compile, local_data, rewrite
 import bigframes.core.compile.sqlglot.sqlglot_ir as sqlglot_ir
 import bigframes.core.guid
 import bigframes.core.nodes as nodes
@@ -36,9 +40,14 @@ import bigframes.core.ordering as order
 import bigframes.core.schema as schemata
 import bigframes.core.tree_properties as tree_properties
 import bigframes.dtypes
-import bigframes.exceptions as bfe
 import bigframes.features
-from bigframes.session import executor, local_scan_executor, read_api_execution
+from bigframes.session import (
+    executor,
+    loader,
+    local_scan_executor,
+    read_api_execution,
+    semi_executor,
+)
 import bigframes.session._io.bigquery as bq_io
 import bigframes.session.metrics
 import bigframes.session.planner
@@ -67,12 +76,19 @@ def _get_default_output_spec() -> OutputSpec:
     )
 
 
+SourceIdMapping = Mapping[str, str]
+
+
 class ExecutionCache:
     def __init__(self):
         # current assumption is only 1 cache of a given node
         # in future, might have multiple caches, with different layout, localities
         self._cached_executions: weakref.WeakKeyDictionary[
-            nodes.BigFrameNode, nodes.BigFrameNode
+            nodes.BigFrameNode, nodes.CachedTableNode
+        ] = weakref.WeakKeyDictionary()
+        self._uploaded_local_data: weakref.WeakKeyDictionary[
+            local_data.ManagedArrowTable,
+            tuple[nodes.BigqueryDataSource, SourceIdMapping],
         ] = weakref.WeakKeyDictionary()
 
     @property
@@ -84,6 +100,7 @@ class ExecutionCache:
         original_root: nodes.BigFrameNode,
         table: bigquery.Table,
         ordering: order.RowOrdering,
+        num_rows: Optional[int] = None,
     ):
         # Assumption: GBQ cached table uses field name as bq column name
         scan_list = nodes.ScanList(
@@ -96,7 +113,7 @@ class ExecutionCache:
             source=nodes.BigqueryDataSource(
                 nodes.GbqTable.from_table(table),
                 ordering=ordering,
-                n_rows=table.num_rows,
+                n_rows=num_rows,
             ),
             scan_list=scan_list,
             table_session=original_root.session,
@@ -104,6 +121,19 @@ class ExecutionCache:
         )
         assert original_root.schema == cached_replacement.schema
         self._cached_executions[original_root] = cached_replacement
+
+    def cache_remote_replacement(
+        self,
+        local_data: local_data.ManagedArrowTable,
+        bq_data: nodes.BigqueryDataSource,
+    ):
+        # bq table has one extra column for offsets, those are implicit for local data
+        assert len(local_data.schema.items) + 1 == len(bq_data.table.physical_schema)
+        mapping = {
+            local_data.schema.items[i].column: bq_data.table.physical_schema[i].name
+            for i in range(len(local_data.schema))
+        }
+        self._uploaded_local_data[local_data] = (bq_data, mapping)
 
 
 class BigQueryCachingExecutor(executor.Executor):
@@ -120,24 +150,35 @@ class BigQueryCachingExecutor(executor.Executor):
         bqclient: bigquery.Client,
         storage_manager: bigframes.session.temporary_storage.TemporaryStorageManager,
         bqstoragereadclient: google.cloud.bigquery_storage_v1.BigQueryReadClient,
+        loader: loader.GbqDataLoader,
         *,
         strictly_ordered: bool = True,
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
+        enable_polars_execution: bool = False,
     ):
         self.bqclient = bqclient
         self.storage_manager = storage_manager
         self.strictly_ordered: bool = strictly_ordered
         self.cache: ExecutionCache = ExecutionCache()
         self.metrics = metrics
+        self.loader = loader
         self.bqstoragereadclient = bqstoragereadclient
-        # Simple left-to-right precedence for now
-        self._semi_executors = (
+        self._enable_polars_execution = enable_polars_execution
+        self._semi_executors: Sequence[semi_executor.SemiExecutor] = (
             read_api_execution.ReadApiSemiExecutor(
                 bqstoragereadclient=bqstoragereadclient,
                 project=self.bqclient.project,
             ),
             local_scan_executor.LocalScanExecutor(),
         )
+        if enable_polars_execution:
+            from bigframes.session import polars_executor
+
+            self._semi_executors = (
+                *self._semi_executors,
+                polars_executor.PolarsExecutor(),
+            )
+        self._upload_lock = threading.Lock()
 
     def to_sql(
         self,
@@ -149,6 +190,7 @@ class BigQueryCachingExecutor(executor.Executor):
         if offset_column:
             array_value, _ = array_value.promote_offsets()
         node = self.logical_plan(array_value.node) if enable_cache else array_value.node
+        node = self._substitute_large_local_sources(node)
         compiled = compile.compile_sql(compile.CompileRequest(node, sort_rows=ordered))
         return compiled.sql
 
@@ -294,6 +336,10 @@ class BigQueryCachingExecutor(executor.Executor):
             export_data_statement,
             job_config=bigquery.QueryJobConfig(),
             metrics=self.metrics,
+            project=None,
+            location=None,
+            timeout=None,
+            query_with_job=True,
         )
         return query_job
 
@@ -357,20 +403,35 @@ class BigQueryCachingExecutor(executor.Executor):
             job_config.labels["bigframes-mode"] = "unordered"
 
         try:
-            iterator, query_job = bq_io.start_query_with_client(
-                self.bqclient,
-                sql,
-                job_config=job_config,
-                metrics=self.metrics,
-                query_with_job=query_with_job,
-            )
-            return iterator, query_job
+            # Trick the type checker into thinking we got a literal.
+            if query_with_job:
+                return bq_io.start_query_with_client(
+                    self.bqclient,
+                    sql,
+                    job_config=job_config,
+                    metrics=self.metrics,
+                    project=None,
+                    location=None,
+                    timeout=None,
+                    query_with_job=True,
+                )
+            else:
+                return bq_io.start_query_with_client(
+                    self.bqclient,
+                    sql,
+                    job_config=job_config,
+                    metrics=self.metrics,
+                    project=None,
+                    location=None,
+                    timeout=None,
+                    query_with_job=False,
+                )
 
         except google.api_core.exceptions.BadRequest as e:
             # Unfortunately, this error type does not have a separate error code or exception type
             if "Resources exceeded during query execution" in e.message:
                 new_message = "Computation is too complex to execute as a single query. Try using DataFrame.cache() on intermediate results, or setting bigframes.options.compute.enable_multi_query_execution."
-                raise bigframes.exceptions.QueryComplexityError(new_message) from e
+                raise bfe.QueryComplexityError(new_message) from e
             else:
                 raise
 
@@ -402,19 +463,22 @@ class BigQueryCachingExecutor(executor.Executor):
     ):
         """Executes the query and uses the resulting table to rewrite future executions."""
         plan = self.logical_plan(array_value.node)
+        plan = self._substitute_large_local_sources(plan)
         compiled = compile.compile_sql(
             compile.CompileRequest(
                 plan, sort_rows=False, materialize_all_order_keys=True
             )
         )
-        tmp_table_ref = self._sql_as_cached_temp_table(
+        tmp_table_ref, num_rows = self._sql_as_cached_temp_table(
             compiled.sql,
             compiled.sql_schema,
             cluster_cols=bq_io.select_cluster_cols(compiled.sql_schema, cluster_cols),
         )
         tmp_table = self.bqclient.get_table(tmp_table_ref)
         assert compiled.row_order is not None
-        self.cache.cache_results_table(array_value.node, tmp_table, compiled.row_order)
+        self.cache.cache_results_table(
+            array_value.node, tmp_table, compiled.row_order, num_rows=num_rows
+        )
 
     def _cache_with_offsets(self, array_value: bigframes.core.ArrayValue):
         """Executes the query and uses the resulting table to rewrite future executions."""
@@ -422,18 +486,20 @@ class BigQueryCachingExecutor(executor.Executor):
         w_offsets, offset_column = array_value.promote_offsets()
         compiled = compile.compile_sql(
             compile.CompileRequest(
-                self.logical_plan(w_offsets.node),
+                self.logical_plan(self._substitute_large_local_sources(w_offsets.node)),
                 sort_rows=False,
             )
         )
-        tmp_table_ref = self._sql_as_cached_temp_table(
+        tmp_table_ref, num_rows = self._sql_as_cached_temp_table(
             compiled.sql,
             compiled.sql_schema,
             cluster_cols=[offset_column],
         )
         tmp_table = self.bqclient.get_table(tmp_table_ref)
         assert compiled.row_order is not None
-        self.cache.cache_results_table(array_value.node, tmp_table, compiled.row_order)
+        self.cache.cache_results_table(
+            array_value.node, tmp_table, compiled.row_order, num_rows=num_rows
+        )
 
     def _cache_with_session_awareness(
         self,
@@ -491,7 +557,7 @@ class BigQueryCachingExecutor(executor.Executor):
         sql: str,
         schema: Sequence[bigquery.SchemaField],
         cluster_cols: Sequence[str],
-    ) -> bigquery.TableReference:
+    ) -> tuple[bigquery.TableReference, Optional[int]]:
         assert len(cluster_cols) <= _MAX_CLUSTER_COLUMNS
         temp_table = self.storage_manager.create_temp_table(schema, cluster_cols)
 
@@ -506,8 +572,8 @@ class BigQueryCachingExecutor(executor.Executor):
             job_config=job_config,
         )
         assert query_job is not None
-        query_job.result()
-        return query_job.destination
+        iter = query_job.result()
+        return query_job.destination, iter.total_rows
 
     def _validate_result_schema(
         self,
@@ -532,6 +598,54 @@ class BigQueryCachingExecutor(executor.Executor):
                 f"This error should only occur while testing. Ibis schema: {ibis_schema} does not match actual schema: {actual_schema}"
             )
 
+    def _substitute_large_local_sources(self, original_root: nodes.BigFrameNode):
+        """
+        Replace large local sources with the uploaded version of those datasources.
+        """
+        # Step 1: Upload all previously un-uploaded data
+        for leaf in original_root.unique_nodes():
+            if isinstance(leaf, nodes.ReadLocalNode):
+                if (
+                    leaf.local_data_source.metadata.total_bytes
+                    > bigframes.constants.MAX_INLINE_BYTES
+                ):
+                    self._upload_local_data(leaf.local_data_source)
+
+        # Step 2: Replace local scans with remote scans
+        def map_local_scans(node: nodes.BigFrameNode):
+            if not isinstance(node, nodes.ReadLocalNode):
+                return node
+            if node.local_data_source not in self.cache._uploaded_local_data:
+                return node
+            bq_source, source_mapping = self.cache._uploaded_local_data[
+                node.local_data_source
+            ]
+            scan_list = node.scan_list.remap_source_ids(source_mapping)
+            # offsets_col isn't part of ReadTableNode, so emulate by adding to end of scan_list
+            if node.offsets_col is not None:
+                # Offsets are always implicitly the final column of uploaded data
+                # See: Loader.load_data
+                scan_list = scan_list.append(
+                    bq_source.table.physical_schema[-1].name,
+                    bigframes.dtypes.INT_DTYPE,
+                    node.offsets_col,
+                )
+            return nodes.ReadTableNode(bq_source, scan_list, node.session)
+
+        return original_root.bottom_up(map_local_scans)
+
+    def _upload_local_data(self, local_table: local_data.ManagedArrowTable):
+        if local_table in self.cache._uploaded_local_data:
+            return
+        # Lock prevents concurrent repeated work, but slows things down.
+        # Might be better as a queue and a worker thread
+        with self._upload_lock:
+            if local_table not in self.cache._uploaded_local_data:
+                uploaded = self.loader.load_data(
+                    local_table, bigframes.core.guid.generate_guid()
+                )
+                self.cache.cache_remote_replacement(local_table, uploaded)
+
     def _execute_plan(
         self,
         plan: nodes.BigFrameNode,
@@ -542,8 +656,8 @@ class BigQueryCachingExecutor(executor.Executor):
         """Just execute whatever plan as is, without further caching or decomposition."""
         # First try to execute fast-paths
         if not output_spec.require_bq_table:
-            for semi_executor in self._semi_executors:
-                maybe_result = semi_executor.execute(plan, ordered=ordered, peek=peek)
+            for exec in self._semi_executors:
+                maybe_result = exec.execute(plan, ordered=ordered, peek=peek)
                 if maybe_result:
                     return maybe_result
 
@@ -562,6 +676,8 @@ class BigQueryCachingExecutor(executor.Executor):
         # Use explicit destination to avoid 10GB limit of temporary table
         if destination_table is not None:
             job_config.destination = destination_table
+
+        plan = self._substitute_large_local_sources(plan)
         compiled = compile.compile_sql(
             compile.CompileRequest(plan, sort_rows=ordered, peek_count=peek)
         )
@@ -592,7 +708,7 @@ class BigQueryCachingExecutor(executor.Executor):
             )
 
         return executor.ExecuteResult(
-            arrow_batches=iterator.to_arrow_iterable(
+            _arrow_batches=iterator.to_arrow_iterable(
                 bqstorage_client=self.bqstoragereadclient
             ),
             schema=plan.schema,

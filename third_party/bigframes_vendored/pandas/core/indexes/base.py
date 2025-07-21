@@ -1,6 +1,7 @@
 # Contains code from https://github.com/pandas-dev/pandas/blob/main/pandas/core/indexes/base.py
 from __future__ import annotations
 
+from collections.abc import Hashable
 import typing
 
 from bigframes import constants
@@ -940,7 +941,7 @@ class Index:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename(self, name) -> Index:
+    def rename(self, name, *, inplace):
         """
         Alter Index or MultiIndex name.
 
@@ -959,10 +960,13 @@ class Index:
         Args:
             name (label or list of labels):
                 Name(s) to set.
+            inplace (bool):
+                Default False.  Modifies the object directly, instead of
+                creating a new Index or MultiIndex.
 
         Returns:
-            bigframes.pandas.Index:
-                The same type as the caller.
+            bigframes.pandas.Index | None:
+                The same type as the caller or None if ``inplace=True``.
 
         Raises:
             ValueError:
@@ -1058,6 +1062,47 @@ class Index:
 
         Returns:
             bigframes.pandas.Index
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def unique(self, level: Hashable | int | None = None):
+        """
+        Returns unique values in the index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> idx = bpd.Index([1, 1, 2, 3, 3])
+            >>> idx.unique()
+            Index([1, 2, 3], dtype='Int64')
+
+        Args:
+            level (int or hashable, optional):
+                Only return values from specified level (for MultiIndex).
+                If int, gets the level by integer position, else by level name.
+
+        Returns:
+            bigframes.pandas.Index
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def item(self, *args, **kwargs):
+        """Return the first element of the underlying data as a Python scalar.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([1], index=['a'])
+            >>> s.index.item()
+            'a'
+
+        Returns:
+            scalar: The first element of Index.
+
+        Raises:
+            ValueError: If the data is not length = 1.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

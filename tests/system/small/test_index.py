@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
 import numpy
 import pandas as pd
 import pytest
 
+from bigframes import dtypes
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_index_equal_ignore_index_type
+from bigframes.testing.utils import assert_pandas_index_equal_ignore_index_type
 
 
 def test_index_construct_from_list():
@@ -57,6 +60,26 @@ def test_index_construct_from_index():
         pd_index_input, dtype=pd.Int64Dtype(), name="index_name"
     )
     pd.testing.assert_index_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("json_type"),
+    [
+        pytest.param(dtypes.JSON_DTYPE),
+        pytest.param("json"),
+    ],
+)
+def test_index_construct_w_json_dtype(json_type):
+    data = [
+        "1",
+        "false",
+        '["a", {"b": 1}, null]',
+        None,
+    ]
+    index = bpd.Index(data, dtype=json_type)
+
+    assert index.dtype == dtypes.JSON_DTYPE
+    assert index[1] == "false"
 
 
 def test_get_index(scalars_df_index, scalars_pandas_df_index):
@@ -375,10 +398,54 @@ def test_index_drop_duplicates(scalars_df_index, scalars_pandas_df_index, keep):
     )
 
 
-def test_index_isin(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("key",),
+    [("hello",), (2,), (123123321,), (2.0,), (False,), ((2,),), (pd.NA,)],
+)
+def test_index_contains(scalars_df_index, scalars_pandas_df_index, key):
+    col_name = "int64_col"
+    bf_result = key in scalars_df_index.set_index(col_name).index
+    pd_result = key in scalars_pandas_df_index.set_index(col_name).index
+
+    assert bf_result == pd_result
+
+
+def test_index_isin_list(scalars_df_index, scalars_pandas_df_index):
     col_name = "int64_col"
     bf_series = (
         scalars_df_index.set_index(col_name).index.isin([2, 55555, 4]).to_pandas()
+    )
+    pd_result_array = scalars_pandas_df_index.set_index(col_name).index.isin(
+        [2, 55555, 4]
+    )
+    pd.testing.assert_index_equal(
+        pd.Index(pd_result_array).set_names(col_name),
+        bf_series,
+    )
+
+
+def test_index_isin_bf_series(scalars_df_index, scalars_pandas_df_index, session):
+    col_name = "int64_col"
+    bf_series = (
+        scalars_df_index.set_index(col_name)
+        .index.isin(bpd.Series([2, 55555, 4], session=session))
+        .to_pandas()
+    )
+    pd_result_array = scalars_pandas_df_index.set_index(col_name).index.isin(
+        [2, 55555, 4]
+    )
+    pd.testing.assert_index_equal(
+        pd.Index(pd_result_array).set_names(col_name),
+        bf_series,
+    )
+
+
+def test_index_isin_bf_index(scalars_df_index, scalars_pandas_df_index, session):
+    col_name = "int64_col"
+    bf_series = (
+        scalars_df_index.set_index(col_name)
+        .index.isin(bpd.Index([2, 55555, 4], session=session))
+        .to_pandas()
     )
     pd_result_array = scalars_pandas_df_index.set_index(col_name).index.isin(
         [2, 55555, 4]
@@ -426,3 +493,68 @@ def test_multiindex_repr_includes_all_names(session):
     )
     index = session.read_pandas(df).set_index(["A", "B"]).index
     assert "names=['A', 'B']" in repr(index)
+
+
+def test_index_item(session):
+    # Test with a single item
+    bf_idx_single = bpd.Index([42], session=session)
+    pd_idx_single = pd.Index([42])
+    assert bf_idx_single.item() == pd_idx_single.item()
+
+
+def test_index_item_with_multiple(session):
+    # Test with multiple items
+    bf_idx_multiple = bpd.Index([1, 2, 3], session=session)
+    pd_idx_multiple = pd.Index([1, 2, 3])
+
+    try:
+        pd_idx_multiple.item()
+    except ValueError as e:
+        expected_message = str(e)
+    else:
+        raise AssertionError("Expected ValueError from pandas, but didn't get one")
+
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
+        bf_idx_multiple.item()
+
+
+def test_index_item_with_empty(session):
+    # Test with an empty Index
+    bf_idx_empty = bpd.Index([], dtype="Int64", session=session)
+    pd_idx_empty: pd.Index = pd.Index([], dtype="Int64")
+
+    try:
+        pd_idx_empty.item()
+    except ValueError as e:
+        expected_message = str(e)
+    else:
+        raise AssertionError("Expected ValueError from pandas, but didn't get one")
+
+    with pytest.raises(ValueError, match=re.escape(expected_message)):
+        bf_idx_empty.item()
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        (0, "string_value"),
+        (1, 42),
+        ("label", None),
+        (-1, 3.14),
+    ],
+)
+def test_index_setitem_different_types(scalars_dfs, key, value):
+    """Tests that custom Index setitem raises TypeError."""
+    scalars_df, _ = scalars_dfs
+    index = scalars_df.index
+
+    with pytest.raises(TypeError, match="Index does not support mutable operations"):
+        index[key] = value
+
+
+def test_custom_index_setitem_error():
+    """Tests that custom Index setitem raises TypeError."""
+    custom_index = bpd.Index([1, 2, 3, 4, 5], name="custom")
+
+    with pytest.raises(TypeError, match="Index does not support mutable operations"):
+        custom_index[2] = 999

@@ -16,8 +16,9 @@
 
 from __future__ import annotations
 
+import functools
 import typing
-from typing import Hashable, Literal, Optional, overload, Sequence, Union
+from typing import cast, Hashable, Literal, Optional, overload, Sequence, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
@@ -86,6 +87,8 @@ class Index(vendored_pandas_index.Index):
             pd_df = pandas.DataFrame(index=data)
             block = df.DataFrame(pd_df, session=session)._block
         else:
+            if isinstance(dtype, str) and dtype.lower() == "json":
+                dtype = bigframes.dtypes.JSON_DTYPE
             pd_index = pandas.Index(data=data, dtype=dtype, name=name)
             pd_df = pandas.DataFrame(index=pd_index)
             block = df.DataFrame(pd_df, session=session)._block
@@ -145,12 +148,7 @@ class Index(vendored_pandas_index.Index):
 
     @names.setter
     def names(self, values: typing.Sequence[blocks.Label]):
-        new_block = self._block.with_index_labels(values)
-        if self._linked_frame is not None:
-            self._linked_frame._set_block(
-                self._linked_frame._block.with_index_labels(values)
-            )
-        self._block = new_block
+        self.rename(values, inplace=True)
 
     @property
     def nlevels(self) -> int:
@@ -178,6 +176,11 @@ class Index(vendored_pandas_index.Index):
             data=self._block.index.dtypes,
             index=typing.cast(typing.Tuple, self._block.index.names),
         )
+
+    def __setitem__(self, key, value) -> None:
+        """Index objects are immutable. Use Index constructor to create
+        modified Index."""
+        raise TypeError("Index does not support mutable operations")
 
     @property
     def size(self) -> int:
@@ -256,7 +259,9 @@ class Index(vendored_pandas_index.Index):
         # metadata, like we do with DataFrame.
         opts = bigframes.options.display
         max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
             _, dry_run_query_job = self._block._compute_dry_run()
             return formatter.repr_query_job(dry_run_query_job)
 
@@ -411,11 +416,62 @@ class Index(vendored_pandas_index.Index):
             ops.fillna_op.as_expr(ex.free_var("arg"), ex.const(value))
         )
 
-    def rename(self, name: Union[str, Sequence[str]]) -> Index:
-        names = [name] if isinstance(name, str) else list(name)
+    @overload
+    def rename(
+        self,
+        name: Union[blocks.Label, Sequence[blocks.Label]],
+    ) -> Index:
+        ...
+
+    @overload
+    def rename(
+        self,
+        name: Union[blocks.Label, Sequence[blocks.Label]],
+        *,
+        inplace: Literal[False],
+    ) -> Index:
+        ...
+
+    @overload
+    def rename(
+        self,
+        name: Union[blocks.Label, Sequence[blocks.Label]],
+        *,
+        inplace: Literal[True],
+    ) -> None:
+        ...
+
+    def rename(
+        self,
+        name: Union[blocks.Label, Sequence[blocks.Label]],
+        *,
+        inplace: bool = False,
+    ) -> Optional[Index]:
+        # Tuples are allowed as a label, but we specifically exclude them here.
+        # This is because tuples are hashable, but we want to treat them as a
+        # sequence. If name is iterable, we want to assume we're working with a
+        # MultiIndex. Unfortunately, strings are iterable and we don't want a
+        # list of all the characters, so specifically exclude the non-tuple
+        # hashables.
+        if isinstance(name, blocks.Label) and not isinstance(name, tuple):
+            names = [name]
+        else:
+            names = list(name)
+
         if len(names) != self.nlevels:
             raise ValueError("'name' must be same length as levels")
-        return Index(self._block.with_index_labels(names))
+
+        new_block = self._block.with_index_labels(names)
+
+        if inplace:
+            if self._linked_frame is not None:
+                self._linked_frame._set_block(
+                    self._linked_frame._block.with_index_labels(names)
+                )
+            self._block = new_block
+            return None
+        else:
+            return Index(new_block)
 
     def drop(
         self,
@@ -451,7 +507,17 @@ class Index(vendored_pandas_index.Index):
         block = block_ops.drop_duplicates(self._block, self._block.index_columns, keep)
         return Index(block)
 
+    def unique(self, level: Hashable | int | None = None) -> Index:
+        if level is None:
+            return self.drop_duplicates()
+
+        return self.get_level_values(level).drop_duplicates()
+
     def isin(self, values) -> Index:
+        import bigframes.series as series
+
+        if isinstance(values, (series.Series, Index)):
+            return Index(self.to_series().isin(values))
         if not utils.is_list_like(values):
             raise TypeError(
                 "only list-like objects are allowed to be passed to "
@@ -463,6 +529,29 @@ class Index(vendored_pandas_index.Index):
                 ex.free_var("arg")
             )
         ).fillna(value=False)
+
+    def __contains__(self, key) -> bool:
+        hash(key)  # to throw for unhashable values
+        if self.nlevels == 0:
+            return False
+
+        if (not isinstance(key, tuple)) or (self.nlevels == 1):
+            key = (key,)
+
+        match_exprs = []
+        for key_part, index_col, dtype in zip(
+            key, self._block.index_columns, self._block.index.dtypes
+        ):
+            key_type = bigframes.dtypes.is_compatible(key_part, dtype)
+            if key_type is None:
+                return False
+            key_expr = ex.const(key_part, key_type)
+            match_expr = ops.eq_null_match_op.as_expr(ex.deref(index_col), key_expr)
+            match_exprs.append(match_expr)
+
+        match_expr_final = functools.reduce(ops.and_op.as_expr, match_exprs)
+        block, match_col = self._block.project_expr(match_expr_final)
+        return cast(bool, block.get_stat(match_col, agg_ops.AnyOp()))
 
     def _apply_unary_expr(
         self,
@@ -561,6 +650,10 @@ class Index(vendored_pandas_index.Index):
 
     def __len__(self):
         return self.shape[0]
+
+    def item(self):
+        # Docstring is in third_party/bigframes_vendored/pandas/core/indexes/base.py
+        return self.to_series().peek(2).item()
 
 
 def _should_create_datetime_index(block: blocks.Block) -> bool:

@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import os
-from typing import cast, Optional, Union
+from typing import cast, Literal, Optional, Union
 import warnings
 
 import IPython.display as ipy_display
@@ -303,6 +303,7 @@ class BlobAccessor(base.SeriesMethods):
     def exif(
         self,
         *,
+        engine: Literal[None, "pillow"] = None,
         connection: Optional[str] = None,
         max_batching_rows: int = 8192,
         container_cpu: Union[float, int] = 0.33,
@@ -311,6 +312,7 @@ class BlobAccessor(base.SeriesMethods):
         """Extract EXIF data. Now only support image types.
 
         Args:
+            engine ('pillow' or None, default None): The engine (bigquery or third party library) used for the function. The value must be specified.
             connection (str or None, default None): BQ connection used for function internet transactions, and the output blob if "dst" is str. If None, uses default connection of the session.
             max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
             container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
@@ -319,6 +321,8 @@ class BlobAccessor(base.SeriesMethods):
         Returns:
             bigframes.series.Series: JSON series of key-value pairs.
         """
+        if engine is None or engine.casefold() != "pillow":
+            raise ValueError("Must specify the engine, supported value is 'pillow'.")
 
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
@@ -344,6 +348,7 @@ class BlobAccessor(base.SeriesMethods):
         self,
         ksize: tuple[int, int],
         *,
+        engine: Literal[None, "opencv"] = None,
         dst: Optional[Union[str, bigframes.series.Series]] = None,
         connection: Optional[str] = None,
         max_batching_rows: int = 8192,
@@ -354,6 +359,7 @@ class BlobAccessor(base.SeriesMethods):
 
         Args:
             ksize (tuple(int, int)): Kernel size.
+            engine ('opencv' or None, default None): The engine (bigquery or third party library) used for the function. The value must be specified.
             dst (str or bigframes.series.Series or None, default None): Output destination. Can be one of:
                 str: GCS folder str. The output filenames are the same as the input files.
                 blob Series: The output file paths are determined by the uris of the blob Series.
@@ -367,6 +373,9 @@ class BlobAccessor(base.SeriesMethods):
         Returns:
             bigframes.series.Series: blob Series if destination is GCS. Or bytes Series if destination is BQ.
         """
+        if engine is None or engine.casefold() != "opencv":
+            raise ValueError("Must specify the engine, supported value is 'opencv'.")
+
         import bigframes.blob._functions as blob_func
 
         connection = self._resolve_connection(connection)
@@ -424,6 +433,7 @@ class BlobAccessor(base.SeriesMethods):
         self,
         dsize: tuple[int, int] = (0, 0),
         *,
+        engine: Literal[None, "opencv"] = None,
         fx: float = 0.0,
         fy: float = 0.0,
         dst: Optional[Union[str, bigframes.series.Series]] = None,
@@ -436,6 +446,7 @@ class BlobAccessor(base.SeriesMethods):
 
         Args:
             dsize (tuple(int, int), default (0, 0)): Destination size. If set to 0, fx and fy parameters determine the size.
+            engine ('opencv' or None, default None): The engine (bigquery or third party library) used for the function. The value must be specified.
             fx (float, default 0.0): scale factor along the horizontal axis. If set to 0.0, dsize parameter determines the output size.
             fy (float, defalut 0.0): scale factor along the vertical axis. If set to 0.0, dsize parameter determines the output size.
             dst (str or bigframes.series.Series or None, default None): Output destination. Can be one of:
@@ -451,6 +462,9 @@ class BlobAccessor(base.SeriesMethods):
         Returns:
             bigframes.series.Series: blob Series if destination is GCS. Or bytes Series if destination is BQ.
         """
+        if engine is None or engine.casefold() != "opencv":
+            raise ValueError("Must specify the engine, supported value is 'opencv'.")
+
         dsize_set = dsize[0] > 0 and dsize[1] > 0
         fsize_set = fx > 0.0 and fy > 0.0
         if not dsize_set ^ fsize_set:
@@ -516,6 +530,7 @@ class BlobAccessor(base.SeriesMethods):
     def image_normalize(
         self,
         *,
+        engine: Literal[None, "opencv"] = None,
         alpha: float = 1.0,
         beta: float = 0.0,
         norm_type: str = "l2",
@@ -528,6 +543,7 @@ class BlobAccessor(base.SeriesMethods):
         """Normalize images.
 
         Args:
+            engine ('opencv' or None, default None): The engine (bigquery or third party library) used for the function. The value must be specified.
             alpha (float, default 1.0): Norm value to normalize to or the lower range boundary in case of the range normalization.
             beta (float, default 0.0): Upper range boundary in case of the range normalization; it is not used for the norm normalization.
             norm_type (str, default "l2"): Normalization type. Accepted values are "inf", "l1", "l2" and "minmax".
@@ -544,6 +560,9 @@ class BlobAccessor(base.SeriesMethods):
         Returns:
             bigframes.series.Series: blob Series if destination is GCS. Or bytes Series if destination is BQ.
         """
+        if engine is None or engine.casefold() != "opencv":
+            raise ValueError("Must specify the engine, supported value is 'opencv'.")
+
         import bigframes.blob._functions as blob_func
 
         connection = self._resolve_connection(connection)
@@ -604,6 +623,7 @@ class BlobAccessor(base.SeriesMethods):
     def pdf_extract(
         self,
         *,
+        engine: Literal[None, "pypdf"] = None,
         connection: Optional[str] = None,
         max_batching_rows: int = 1,
         container_cpu: Union[float, int] = 2,
@@ -613,6 +633,7 @@ class BlobAccessor(base.SeriesMethods):
         """Extracts text from PDF URLs and saves the text as string.
 
         Args:
+            engine ('pypdf' or None, default None): The engine (bigquery or third party library) used for the function. The value must be specified.
             connection (str or None, default None): BQ connection used for
                 function internet transactions, and the output blob if "dst"
                 is str. If None, uses default connection of the session.
@@ -631,6 +652,9 @@ class BlobAccessor(base.SeriesMethods):
                 Contains the extracted text from the PDF file.
                 Includes error messages if verbosity is enabled.
         """
+        if engine is None or engine.casefold() != "pypdf":
+            raise ValueError("Must specify the engine, supported value is 'pypdf'.")
+
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
         import bigframes.pandas as bpd
@@ -663,6 +687,7 @@ class BlobAccessor(base.SeriesMethods):
     def pdf_chunk(
         self,
         *,
+        engine: Literal[None, "pypdf"] = None,
         connection: Optional[str] = None,
         chunk_size: int = 2000,
         overlap_size: int = 200,
@@ -675,6 +700,7 @@ class BlobAccessor(base.SeriesMethods):
            arrays of strings.
 
         Args:
+            engine ('pypdf' or None, default None): The engine (bigquery or third party library) used for the function. The value must be specified.
             connection (str or None, default None): BQ connection used for
                 function internet transactions, and the output blob if "dst"
                 is str. If None, uses default connection of the session.
@@ -698,6 +724,8 @@ class BlobAccessor(base.SeriesMethods):
                 where each string is a chunk of text extracted from PDF.
                 Includes error messages if verbosity is enabled.
         """
+        if engine is None or engine.casefold() != "pypdf":
+            raise ValueError("Must specify the engine, supported value is 'pypdf'.")
 
         import bigframes.bigquery as bbq
         import bigframes.blob._functions as blob_func
@@ -736,3 +764,82 @@ class BlobAccessor(base.SeriesMethods):
             return struct_series
         else:
             return content_series
+
+    def audio_transcribe(
+        self,
+        *,
+        engine: Literal["bigquery"] = "bigquery",
+        connection: Optional[str] = None,
+        model_name: Optional[
+            Literal[
+                "gemini-2.0-flash-001",
+                "gemini-2.0-flash-lite-001",
+            ]
+        ] = None,
+        verbose: bool = False,
+    ) -> bigframes.series.Series:
+        """
+        Transcribe audio content using a Gemini multimodal model.
+
+        Args:
+            engine ('bigquery'): The engine (bigquery or third party library) used for the function.
+            connection (str or None, default None): BQ connection used for
+                function internet transactions, and the output blob if "dst"
+                is str. If None, uses default connection of the session.
+            model_name (str): The model for natural language tasks. Accepted
+                values are "gemini-2.0-flash-lite-001", and "gemini-2.0-flash-001".
+                See "https://ai.google.dev/gemini-api/docs/models" for model choices.
+            verbose (bool, default "False"): controls the verbosity of the output.
+                When set to True, both error messages and the transcribed content
+                are displayed. Conversely, when set to False, only the transcribed
+                content is presented, suppressing error messages.
+
+        Returns:
+            bigframes.series.Series: str or struct[str, str],
+                depend on the "verbose" parameter.
+                Contains the transcribed text from the audio file.
+                Includes error messages if verbosity is enabled.
+        """
+        if engine.casefold() != "bigquery":
+            raise ValueError("Must specify the engine, supported value is 'bigquery'.")
+
+        import bigframes.bigquery as bbq
+        import bigframes.ml.llm as llm
+        import bigframes.pandas as bpd
+
+        # col name doesn't matter here. Rename to avoid column name conflicts
+        audio_series = bigframes.series.Series(self._block)
+
+        prompt_text = "**Task:** Transcribe the provided audio. **Instructions:** - Your response must contain only the verbatim transcription of the audio. - Do not include any introductory text, summaries, or conversational filler in your response. The output should begin directly with the first word of the audio."
+
+        llm_model = llm.GeminiTextGenerator(
+            model_name=model_name,
+            session=self._block.session,
+            connection_name=connection,
+        )
+
+        # transcribe audio using ML.GENERATE_TEXT
+        transcribed_results = llm_model.predict(
+            X=audio_series,
+            prompt=[prompt_text, audio_series],
+            temperature=0.0,
+        )
+
+        transcribed_content_series = cast(
+            bpd.Series, transcribed_results["ml_generate_text_llm_result"]
+        ).rename("transcribed_content")
+
+        if verbose:
+            transcribed_status_series = cast(
+                bpd.Series, transcribed_results["ml_generate_text_status"]
+            )
+            results_df = bpd.DataFrame(
+                {
+                    "status": transcribed_status_series,
+                    "content": transcribed_content_series,
+                }
+            )
+            results_struct = bbq.struct(results_df).rename("transcription_results")
+            return results_struct
+        else:
+            return transcribed_content_series

@@ -36,7 +36,7 @@ import bigframes
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.ml.linear_model
-from tests.system import utils
+from bigframes.testing import utils
 
 all_write_engines = pytest.mark.parametrize(
     "write_engine",
@@ -54,7 +54,13 @@ all_write_engines = pytest.mark.parametrize(
 def df_and_local_csv(scalars_df_index):
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
     # datetime, numeric and geometry types, so they're skipped here.
-    drop_columns = ["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+    drop_columns = [
+        "bytes_col",
+        "datetime_col",
+        "numeric_col",
+        "geography_col",
+        "duration_col",
+    ]
     scalars_df_index = scalars_df_index.drop(columns=drop_columns)
 
     with tempfile.TemporaryDirectory() as dir:
@@ -68,7 +74,13 @@ def df_and_local_csv(scalars_df_index):
 def df_and_gcs_csv(scalars_df_index, gcs_folder):
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
     # datetime, numeric and geometry types, so they're skipped here.
-    drop_columns = ["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+    drop_columns = [
+        "bytes_col",
+        "datetime_col",
+        "numeric_col",
+        "geography_col",
+        "duration_col",
+    ]
     scalars_df_index = scalars_df_index.drop(columns=drop_columns)
 
     path = gcs_folder + "test_read_csv_w_gcs_csv*.csv"
@@ -146,9 +158,7 @@ def test_read_gbq_w_unknown_column(
 ):
     with pytest.raises(
         ValueError,
-        match=re.escape(
-            "Column 'int63_col' of `columns` not found in this table. Did you mean 'int64_col'?"
-        ),
+        match=re.escape("Column 'int63_col' is not found. Did you mean 'int64_col'?"),
     ):
         session.read_gbq(
             scalars_table_id,
@@ -1320,10 +1330,6 @@ def test_read_csv_for_names_less_than_columns(session, df_and_gcs_csv_for_two_co
     assert bf_df.shape == pd_df.shape
     assert bf_df.columns.tolist() == pd_df.columns.tolist()
 
-    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
-    # (b/280889935) or guarantee row ordering.
-    bf_df = bf_df.sort_index()
-
     # Pandas's index name is None, while BigFrames's index name is "rowindex".
     pd_df.index.name = "rowindex"
     pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
@@ -1367,6 +1373,171 @@ def test_read_csv_for_names_and_index_col(
     pd.testing.assert_frame_equal(
         bf_df.to_pandas(), pd_df.to_pandas(), check_index_type=False
     )
+
+
+@pytest.mark.parametrize(
+    "usecols",
+    [
+        pytest.param(["a", "b", "c"], id="same"),
+        pytest.param(["a", "c"], id="less_than_names"),
+    ],
+)
+def test_read_csv_for_names_and_usecols(
+    session, usecols, df_and_gcs_csv_for_two_columns
+):
+    _, path = df_and_gcs_csv_for_two_columns
+
+    names = ["a", "b", "c"]
+    bf_df = session.read_csv(path, engine="bigquery", names=names, usecols=usecols)
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    pd_df = session.read_csv(
+        path, names=names, usecols=usecols, dtype=bf_df.dtypes.to_dict()
+    )
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.set_index(names[0]).sort_index()
+    pd_df = pd_df.set_index(names[0])
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+def test_read_csv_for_names_and_invalid_usecols(
+    session, df_and_gcs_csv_for_two_columns
+):
+    _, path = df_and_gcs_csv_for_two_columns
+
+    names = ["a", "b", "c"]
+    usecols = ["a", "X"]
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Column 'X' is not found. "),
+    ):
+        session.read_csv(path, engine="bigquery", names=names, usecols=usecols)
+
+
+@pytest.mark.parametrize(
+    ("usecols", "index_col"),
+    [
+        pytest.param(["a", "b", "c"], "a", id="same"),
+        pytest.param(["a", "b", "c"], ["a", "b"], id="same_two_index"),
+        pytest.param(["a", "c"], 0, id="less_than_names"),
+    ],
+)
+def test_read_csv_for_names_and_usecols_and_indexcol(
+    session, usecols, index_col, df_and_gcs_csv_for_two_columns
+):
+    _, path = df_and_gcs_csv_for_two_columns
+
+    names = ["a", "b", "c"]
+    bf_df = session.read_csv(
+        path, engine="bigquery", names=names, usecols=usecols, index_col=index_col
+    )
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    pd_df = session.read_csv(
+        path,
+        names=names,
+        usecols=usecols,
+        index_col=index_col,
+        dtype=bf_df.reset_index().dtypes.to_dict(),
+    )
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+def test_read_csv_for_names_less_than_columns_and_same_usecols(
+    session, df_and_gcs_csv_for_two_columns
+):
+    _, path = df_and_gcs_csv_for_two_columns
+    names = ["a", "c"]
+    usecols = ["a", "c"]
+    bf_df = session.read_csv(path, engine="bigquery", names=names, usecols=usecols)
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    pd_df = session.read_csv(
+        path, names=names, usecols=usecols, dtype=bf_df.dtypes.to_dict()
+    )
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.set_index(names[0]).sort_index()
+    pd_df = pd_df.set_index(names[0])
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+def test_read_csv_for_names_less_than_columns_and_mismatched_usecols(
+    session, df_and_gcs_csv_for_two_columns
+):
+    _, path = df_and_gcs_csv_for_two_columns
+    names = ["a", "b"]
+    usecols = ["a"]
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Number of passed names did not match number"),
+    ):
+        session.read_csv(path, engine="bigquery", names=names, usecols=usecols)
+
+
+def test_read_csv_for_names_less_than_columns_and_different_usecols(
+    session, df_and_gcs_csv_for_two_columns
+):
+    _, path = df_and_gcs_csv_for_two_columns
+    names = ["a", "b"]
+    usecols = ["a", "c"]
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Usecols do not match columns"),
+    ):
+        session.read_csv(path, engine="bigquery", names=names, usecols=usecols)
+
+
+def test_read_csv_for_dtype(session, df_and_gcs_csv_for_two_columns):
+    _, path = df_and_gcs_csv_for_two_columns
+
+    dtype = {"bool_col": pd.BooleanDtype(), "int64_col": pd.Float64Dtype()}
+    bf_df = session.read_csv(path, engine="bigquery", dtype=dtype)
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    pd_df = session.read_csv(path, dtype=dtype)
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.set_index("rowindex").sort_index()
+    pd_df = pd_df.set_index("rowindex")
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+def test_read_csv_for_dtype_w_names(session, df_and_gcs_csv_for_two_columns):
+    _, path = df_and_gcs_csv_for_two_columns
+
+    names = ["a", "b", "c"]
+    dtype = {"b": pd.BooleanDtype(), "c": pd.Float64Dtype()}
+    bf_df = session.read_csv(path, engine="bigquery", names=names, dtype=dtype)
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    pd_df = session.read_csv(path, names=names, dtype=dtype)
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.set_index("a").sort_index()
+    pd_df = pd_df.set_index("a")
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
 @pytest.mark.parametrize(
@@ -1440,41 +1611,70 @@ def test_read_csv_for_gcs_file_w_header(session, df_and_gcs_csv, header):
 def test_read_csv_w_usecols(session, df_and_local_csv):
     # Compares results for pandas and bigframes engines
     scalars_df, path = df_and_local_csv
+    usecols = ["rowindex", "bool_col"]
     with open(path, "rb") as buffer:
         bf_df = session.read_csv(
             buffer,
             engine="bigquery",
-            usecols=["bool_col"],
+            usecols=usecols,
         )
     with open(path, "rb") as buffer:
         # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
         pd_df = session.read_csv(
             buffer,
-            usecols=["bool_col"],
+            usecols=usecols,
             dtype=scalars_df[["bool_col"]].dtypes.to_dict(),
         )
 
-    # Cannot compare two dataframe due to b/408499371.
-    assert len(bf_df.columns) == 1
-    assert len(pd_df.columns) == 1
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+
+    # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
+    # (b/280889935) or guarantee row ordering.
+    bf_df = bf_df.set_index("rowindex").sort_index()
+    pd_df = pd_df.set_index("rowindex")
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
-@pytest.mark.parametrize(
-    "engine",
-    [
-        pytest.param("bigquery", id="bq_engine"),
-        pytest.param(None, id="default_engine"),
-    ],
-)
-def test_read_csv_local_w_usecols(session, scalars_pandas_df_index, engine):
-    with tempfile.TemporaryDirectory() as dir:
-        path = dir + "/test_read_csv_local_w_usecols.csv"
-        # Using the pandas to_csv method because the BQ one does not support local write.
-        scalars_pandas_df_index.to_csv(path, index=False)
+def test_read_csv_w_usecols_and_indexcol(session, df_and_local_csv):
+    # Compares results for pandas and bigframes engines
+    scalars_df, path = df_and_local_csv
+    usecols = ["rowindex", "bool_col"]
+    with open(path, "rb") as buffer:
+        bf_df = session.read_csv(
+            buffer,
+            engine="bigquery",
+            usecols=usecols,
+            index_col="rowindex",
+        )
+    with open(path, "rb") as buffer:
+        # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+        pd_df = session.read_csv(
+            buffer,
+            usecols=usecols,
+            index_col="rowindex",
+            dtype=scalars_df[["bool_col"]].dtypes.to_dict(),
+        )
 
-        # df should only have 1 column which is bool_col.
-        df = session.read_csv(path, usecols=["bool_col"], engine=engine)
-        assert len(df.columns) == 1
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
+
+
+def test_read_csv_w_indexcol_not_in_usecols(session, df_and_local_csv):
+    _, path = df_and_local_csv
+    with open(path, "rb") as buffer:
+        with pytest.raises(
+            ValueError,
+            match=re.escape("The specified index column(s) were not found"),
+        ):
+            session.read_csv(
+                buffer,
+                engine="bigquery",
+                usecols=["bool_col"],
+                index_col="rowindex",
+            )
 
 
 @pytest.mark.parametrize(
@@ -1514,9 +1714,6 @@ def test_read_csv_local_w_encoding(session, penguins_pandas_df_default_index):
         bf_df = session.read_csv(
             path, engine="bigquery", index_col="rowindex", encoding="ISO-8859-1"
         )
-        # BigFrames requires `sort_index()` because BigQuery doesn't preserve row IDs
-        # (b/280889935) or guarantee row ordering.
-        bf_df = bf_df.sort_index()
         pd.testing.assert_frame_equal(
             bf_df.to_pandas(), penguins_pandas_df_default_index
         )
@@ -1623,6 +1820,7 @@ def test_read_parquet_gcs(
     df_out = df_out.assign(
         datetime_col=df_out["datetime_col"].astype("timestamp[us][pyarrow]"),
         timestamp_col=df_out["timestamp_col"].astype("timestamp[us, tz=UTC][pyarrow]"),
+        duration_col=df_out["duration_col"].astype("duration[us][pyarrow]"),
     )
 
     # Make sure we actually have at least some values before comparing.
@@ -1671,7 +1869,8 @@ def test_read_parquet_gcs_compressed(
     # DATETIME gets loaded as TIMESTAMP in parquet. See:
     # https://cloud.google.com/bigquery/docs/exporting-data#parquet_export_details
     df_out = df_out.assign(
-        datetime_col=df_out["datetime_col"].astype("timestamp[us][pyarrow]")
+        datetime_col=df_out["datetime_col"].astype("timestamp[us][pyarrow]"),
+        duration_col=df_out["duration_col"].astype("duration[us][pyarrow]"),
     )
 
     # Make sure we actually have at least some values before comparing.
@@ -1729,9 +1928,23 @@ def test_read_json_gcs_bq_engine(session, scalars_dfs, gcs_folder):
 
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
     # datetime, numeric and geometry types, so they're skipped here.
-    df = df.drop(columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"])
+    df = df.drop(
+        columns=[
+            "bytes_col",
+            "datetime_col",
+            "numeric_col",
+            "geography_col",
+            "duration_col",
+        ]
+    )
     scalars_df = scalars_df.drop(
-        columns=["bytes_col", "datetime_col", "numeric_col", "geography_col"]
+        columns=[
+            "bytes_col",
+            "datetime_col",
+            "numeric_col",
+            "geography_col",
+            "duration_col",
+        ]
     )
     assert df.shape[0] == scalars_df.shape[0]
     pd.testing.assert_series_equal(
@@ -1764,8 +1977,10 @@ def test_read_json_gcs_default_engine(session, scalars_dfs, gcs_folder):
 
     # The auto detects of BigQuery load job have restrictions to detect the bytes,
     # numeric and geometry types, so they're skipped here.
-    df = df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
-    scalars_df = scalars_df.drop(columns=["bytes_col", "numeric_col", "geography_col"])
+    df = df.drop(columns=["bytes_col", "numeric_col", "geography_col", "duration_col"])
+    scalars_df = scalars_df.drop(
+        columns=["bytes_col", "numeric_col", "geography_col", "duration_col"]
+    )
 
     # pandas read_json does not respect the dtype overrides for these columns
     df = df.drop(columns=["date_col", "datetime_col", "time_col"])
@@ -1773,16 +1988,6 @@ def test_read_json_gcs_default_engine(session, scalars_dfs, gcs_folder):
 
     assert df.shape[0] == scalars_df.shape[0]
     pd.testing.assert_series_equal(df.dtypes, scalars_df.dtypes)
-
-
-def test_read_gbq_test(test_session: bigframes.Session):
-    test_project_id = "bigframes-dev"
-    test_dataset_id = "test_env_only"
-    test_table_id = "one_table"
-    table_id = f"{test_project_id}.{test_dataset_id}.{test_table_id}"
-    actual = test_session.read_gbq(table_id).to_pandas()
-
-    assert actual.shape == (1, 1)
 
 
 @pytest.mark.parametrize(
@@ -1899,9 +2104,11 @@ def _assert_query_dry_run_stats_are_valid(result: pd.Series):
             "columnDtypes",
             "indexLevel",
             "indexDtypes",
+            "bigquerySchema",
             "projectId",
             "location",
             "jobType",
+            "dispatchedSql",
             "destinationTable",
             "useLegacySql",
             "referencedTables",
@@ -1922,6 +2129,7 @@ def _assert_table_dry_run_stats_are_valid(result: pd.Series):
             "isQuery",
             "columnCount",
             "columnDtypes",
+            "bigquerySchema",
             "numBytes",
             "numRows",
             "location",

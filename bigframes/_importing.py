@@ -11,21 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib
+from types import ModuleType
 
-import pandas as pd
-import pytest
+from packaging import version
 
-import bigframes
-import bigframes.pandas as bpd
-
-pytest.importorskip("pytest_snapshot")
+# Keep this in sync with setup.py
+POLARS_MIN_VERSION = version.Version("1.7.0")
 
 
-def test_compile_projection(
-    scalars_types_pandas_df: pd.DataFrame, compiler_session: bigframes.Session, snapshot
-):
-    bf_df = bpd.DataFrame(
-        scalars_types_pandas_df[["int64_col"]], session=compiler_session
-    )
-    bf_df["int64_col"] = bf_df["int64_col"] + 1
-    snapshot.assert_match(bf_df.sql, "out.sql")
+def import_polars() -> ModuleType:
+    polars_module = importlib.import_module("polars")
+    imported_version = version.Version(polars_module.build_info()["version"])
+    if imported_version < POLARS_MIN_VERSION:
+        raise ImportError(
+            f"Imported polars version: {imported_version} is below the minimum version: {POLARS_MIN_VERSION}"
+        )
+    return polars_module

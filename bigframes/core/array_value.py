@@ -34,7 +34,6 @@ from bigframes.core.ordering import OrderingExpression
 import bigframes.core.ordering as orderings
 import bigframes.core.schema as schemata
 import bigframes.core.tree_properties
-import bigframes.core.utils
 from bigframes.core.window_spec import WindowSpec
 import bigframes.dtypes
 import bigframes.exceptions as bfe
@@ -133,8 +132,17 @@ class ArrayValue:
             ordering=ordering,
             n_rows=n_rows,
         )
+        return cls.from_bq_data_source(source_def, scan_list, session)
+
+    @classmethod
+    def from_bq_data_source(
+        cls,
+        source: nodes.BigqueryDataSource,
+        scan_list: nodes.ScanList,
+        session: Session,
+    ):
         node = nodes.ReadTableNode(
-            source=source_def,
+            source=source,
             scan_list=scan_list,
             table_session=session,
         )
@@ -322,12 +330,27 @@ class ArrayValue:
 
         return self.project_to_id(ex.const(value, dtype))
 
-    def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
+    def select_columns(
+        self, column_ids: typing.Sequence[str], allow_renames: bool = False
+    ) -> ArrayValue:
         # This basically just drops and reorders columns - logically a no-op except as a final step
-        selections = (
-            bigframes.core.nodes.AliasedRef.identity(ids.ColumnId(col_id))
-            for col_id in column_ids
-        )
+        selections = []
+        seen = set()
+
+        for id in column_ids:
+            if id not in seen:
+                ref = nodes.AliasedRef.identity(ids.ColumnId(id))
+            elif allow_renames:
+                ref = nodes.AliasedRef(
+                    ex.deref(id), ids.ColumnId(bigframes.core.guid.generate_guid())
+                )
+            else:
+                raise ValueError(
+                    "Must set allow_renames=True to select columns repeatedly"
+                )
+            selections.append(ref)
+            seen.add(id)
+
         return ArrayValue(
             nodes.SelectionNode(
                 child=self.node,
@@ -395,8 +418,23 @@ class ArrayValue:
         never_skip_nulls: will disable null skipping for operators that would otherwise do so
         skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
         """
+
+        return self.project_window_expr(
+            ex.UnaryAggregation(op, ex.deref(column_name)),
+            window_spec,
+            never_skip_nulls,
+            skip_reproject_unsafe,
+        )
+
+    def project_window_expr(
+        self,
+        expression: ex.Aggregation,
+        window: WindowSpec,
+        never_skip_nulls=False,
+        skip_reproject_unsafe: bool = False,
+    ):
         # TODO: Support non-deterministic windowing
-        if window_spec.is_row_bounded or not op.order_independent:
+        if window.is_row_bounded or not expression.op.order_independent:
             if self.node.order_ambiguous and not self.session._strictly_ordered:
                 if not self.session._allows_ambiguity:
                     raise ValueError(
@@ -407,14 +445,13 @@ class ArrayValue:
                         "Window ordering may be ambiguous, this can cause unstable results."
                     )
                     warnings.warn(msg, category=bfe.AmbiguousWindowWarning)
-
         output_name = self._gen_namespaced_uid()
         return (
             ArrayValue(
                 nodes.WindowOpNode(
                     child=self.node,
-                    expression=ex.UnaryAggregation(op, ex.deref(column_name)),
-                    window_spec=window_spec,
+                    expression=expression,
+                    window_spec=window,
                     output_name=ids.ColumnId(output_name),
                     never_skip_nulls=never_skip_nulls,
                     skip_reproject_unsafe=skip_reproject_unsafe,

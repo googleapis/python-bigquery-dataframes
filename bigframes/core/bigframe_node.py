@@ -20,9 +20,19 @@ import dataclasses
 import functools
 import itertools
 import typing
-from typing import Callable, Dict, Generator, Iterable, Mapping, Sequence, Set, Tuple
+from typing import (
+    Callable,
+    Dict,
+    Generator,
+    Iterable,
+    Mapping,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
-from bigframes.core import identifiers
+from bigframes.core import expression, field, identifiers
 import bigframes.core.schema as schemata
 import bigframes.dtypes
 
@@ -32,23 +42,6 @@ if typing.TYPE_CHECKING:
 COLUMN_SET = frozenset[identifiers.ColumnId]
 
 T = typing.TypeVar("T")
-
-
-@dataclasses.dataclass(frozen=True)
-class Field:
-    id: identifiers.ColumnId
-    dtype: bigframes.dtypes.Dtype
-    # Best effort, nullable=True if not certain
-    nullable: bool = True
-
-    def with_nullable(self) -> Field:
-        return Field(self.id, self.dtype, nullable=True)
-
-    def with_nonnull(self) -> Field:
-        return Field(self.id, self.dtype, nullable=False)
-
-    def with_id(self, id: identifiers.ColumnId) -> Field:
-        return Field(id, self.dtype, nullable=self.nullable)
 
 
 @dataclasses.dataclass(eq=False, frozen=True)
@@ -162,7 +155,7 @@ class BigFrameNode:
     # TODO: Store some local data lazily for select, aggregate nodes.
     @property
     @abc.abstractmethod
-    def fields(self) -> Sequence[Field]:
+    def fields(self) -> Sequence[field.Field]:
         ...
 
     @property
@@ -292,8 +285,15 @@ class BigFrameNode:
         return {field.id: field.dtype for field in self.fields}
 
     @functools.cached_property
-    def field_by_id(self) -> Mapping[identifiers.ColumnId, Field]:
+    def field_by_id(self) -> Mapping[identifiers.ColumnId, field.Field]:
         return {field.id: field for field in self.fields}
+
+    @property
+    def _node_expressions(
+        self,
+    ) -> Sequence[Union[expression.Expression, expression.Aggregation]]:
+        """List of scalar expressions. Intended for checking engine compatibility with used ops."""
+        return ()
 
     # Plan algorithms
     def unique_nodes(

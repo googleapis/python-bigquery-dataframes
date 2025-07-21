@@ -47,6 +47,7 @@ import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
+from pandas.api import extensions as pd_ext
 import pandas.io.formats.format
 import pyarrow
 import tabulate
@@ -73,6 +74,7 @@ import bigframes.core.window_spec as windows
 import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as formatter
+import bigframes.functions
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.ai
@@ -194,6 +196,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=bf_dtype))
 
         else:
+            if isinstance(dtype, str) and dtype.lower() == "json":
+                dtype = bigframes.dtypes.JSON_DTYPE
+
             import bigframes.pandas
 
             pd_dataframe = pandas.DataFrame(
@@ -369,6 +374,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __iter__(self):
         return iter(self.columns)
 
+    def __contains__(self, key) -> bool:
+        return key in self.columns
+
     def astype(
         self,
         dtype: Union[
@@ -402,11 +410,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self.index.name is not None or len(self.index.names) > 1
         )
 
-    def _to_view(self) -> bigquery.TableReference:
+    def _to_placeholder_table(self, dry_run: bool = False) -> bigquery.TableReference:
         """Compiles this DataFrame's expression tree to SQL and saves it to a
-        (temporary) view.
+        (temporary) view or table (in the case of a dry run).
         """
-        return self._block.to_view(include_index=self._should_sql_have_index())
+        return self._block.to_placeholder_table(
+            include_index=self._should_sql_have_index(), dry_run=dry_run
+        )
 
     def _to_sql_query(
         self, include_index: bool, enable_cache: bool = True
@@ -557,17 +567,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             as_pandas.select_dtypes(include=include, exclude=exclude).columns
         )
         return DataFrame(self._block.select_columns(selected_columns))
-
-    def _select_exact_dtypes(
-        self, dtypes: Sequence[bigframes.dtypes.Dtype]
-    ) -> DataFrame:
-        """Selects columns without considering inheritance relationships."""
-        columns = [
-            col_id
-            for col_id, dtype in zip(self._block.value_columns, self._block.dtypes)
-            if dtype in dtypes
-        ]
-        return DataFrame(self._block.select_columns(columns))
 
     def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
@@ -732,7 +731,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         opts = bigframes.options.display
         max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
             return formatter.repr_query_job(self._compute_dry_run())
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
@@ -781,6 +782,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
+        # Process blob columns first, regardless of display mode
+        self._cached()
         df = self.copy()
         if bigframes.options.display.blob_display:
             blob_cols = [
@@ -791,7 +794,31 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for col in blob_cols:
                 # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
                 df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
+        else:
+            blob_cols = []
 
+        if opts.repr_mode == "anywidget":
+            try:
+                from IPython.display import display as ipython_display
+
+                from bigframes import display
+
+                # Always create a new widget instance for each display call
+                # This ensures that each cell gets its own widget and prevents
+                # unintended sharing between cells
+                widget = display.TableWidget(df.copy())
+
+                ipython_display(widget)
+                return ""  # Return empty string since we used display()
+
+            except (AttributeError, ValueError, ImportError):
+                # Fallback if anywidget is not available
+                warnings.warn(
+                    "Anywidget mode is not available. Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. Falling back to deferred mode."
+                )
+                return formatter.repr_query_job(self._compute_dry_run())
+
+        # Continue with regular HTML rendering for non-anywidget modes
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -800,7 +827,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         self._set_internal_query_job(query_job)
-
         column_count = len(pandas_df.columns)
 
         with display_options.pandas_repr(opts):
@@ -1034,14 +1060,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         # TODO(swast): Support fill_value parameter.
         # TODO(swast): Support level parameter with MultiIndex.
-        return self.add(other, axis=axis)
+        return self._apply_binop(other, ops.add_op, axis=axis, reverse=True)
 
     def __add__(self, other) -> DataFrame:
         return self.add(other)
 
     __add__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__add__)
 
-    __radd__ = __add__
+    def __radd__(self, other) -> DataFrame:
+        return self.radd(other)
+
+    __radd__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__radd__)
 
     def sub(
         self,
@@ -2081,15 +2110,67 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _resolve_levels(self, level: LevelsType) -> typing.Sequence[str]:
         return self._block.index.resolve_level(level)
 
+    @overload
     def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame:
+        ...
+
+    @overload
+    def rename(
+        self, *, columns: Mapping[blocks.Label, blocks.Label], inplace: Literal[False]
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def rename(
+        self, *, columns: Mapping[blocks.Label, blocks.Label], inplace: Literal[True]
+    ) -> None:
+        ...
+
+    def rename(
+        self, *, columns: Mapping[blocks.Label, blocks.Label], inplace: bool = False
+    ) -> Optional[DataFrame]:
         block = self._block.rename(columns=columns)
-        return DataFrame(block)
+
+        if inplace:
+            self._block = block
+            return None
+        else:
+            return DataFrame(block)
+
+    @overload
+    def rename_axis(
+        self,
+        mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def rename_axis(
+        self,
+        mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        *,
+        inplace: Literal[False],
+        **kwargs,
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def rename_axis(
+        self,
+        mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        *,
+        inplace: Literal[True],
+        **kwargs,
+    ) -> None:
+        ...
 
     def rename_axis(
         self,
         mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        *,
+        inplace: bool = False,
         **kwargs,
-    ) -> DataFrame:
+    ) -> Optional[DataFrame]:
         if len(kwargs) != 0:
             raise NotImplementedError(
                 f"rename_axis does not currently support any keyword arguments. {constants.FEEDBACK_LINK}"
@@ -2099,7 +2180,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             labels = mapper
         else:
             labels = [mapper]
-        return DataFrame(self._block.with_index_labels(labels))
+
+        block = self._block.with_index_labels(labels)
+
+        if inplace:
+            self._block = block
+            return None
+        else:
+            return DataFrame(block)
 
     @validations.requires_ordering()
     def equals(self, other: typing.Union[bigframes.series.Series, DataFrame]) -> bool:
@@ -2670,9 +2758,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if isinstance(other, bigframes.series.Series):
             raise ValueError("Seires is not a supported replacement type!")
 
-        if self.columns.nlevels > 1 or self.index.nlevels > 1:
+        if self.columns.nlevels > 1:
             raise NotImplementedError(
-                "The dataframe.where() method does not support multi-index and/or multi-column."
+                "The dataframe.where() method does not support multi-column."
             )
 
         aligned_block, (_, _) = self._block.join(cond._block, how="left")
@@ -2731,6 +2819,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         axis: int | str = 0,
         how: str = "any",
+        thresh: typing.Optional[int] = None,
         subset: typing.Union[None, blocks.Label, Sequence[blocks.Label]] = None,
         inplace: bool = False,
         ignore_index=False,
@@ -2739,8 +2828,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(
                 f"'inplace'=True not supported. {constants.FEEDBACK_LINK}"
             )
-        if how not in ("any", "all"):
-            raise ValueError("'how' must be one of 'any', 'all'")
+
+        # Check if both thresh and how are explicitly provided
+        if thresh is not None:
+            # cannot specify both thresh and how parameters
+            if how != "any":
+                raise TypeError(
+                    "You cannot set both the how and thresh arguments at the same time."
+                )
+        else:
+            # Only validate 'how' when thresh is not provided
+            if how not in ("any", "all"):
+                raise ValueError("'how' must be one of 'any', 'all'")
 
         axis_n = utils.get_axis_number(axis)
 
@@ -2762,21 +2861,38 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     for id_ in self._block.label_to_col_id[label]
                 ]
 
-            result = block_ops.dropna(self._block, self._block.value_columns, how=how, subset=subset_ids)  # type: ignore
+            result = block_ops.dropna(
+                self._block,
+                self._block.value_columns,
+                how=how,
+                thresh=thresh,
+                subset=subset_ids,
+            )  # type: ignore
             if ignore_index:
                 result = result.reset_index()
             return DataFrame(result)
         else:
-            isnull_block = self._block.multi_apply_unary_op(ops.isnull_op)
-            if how == "any":
-                null_locations = DataFrame(isnull_block).any().to_pandas()
-            else:  # 'all'
-                null_locations = DataFrame(isnull_block).all().to_pandas()
-            keep_columns = [
-                col
-                for col, to_drop in zip(self._block.value_columns, null_locations)
-                if not to_drop
-            ]
+            if thresh is not None:
+                # Keep columns with at least 'thresh' non-null values
+                notnull_block = self._block.multi_apply_unary_op(ops.notnull_op)
+                notnull_counts = DataFrame(notnull_block).sum().to_pandas()
+
+                keep_columns = [
+                    col
+                    for col, count in zip(self._block.value_columns, notnull_counts)
+                    if count >= thresh
+                ]
+            else:
+                isnull_block = self._block.multi_apply_unary_op(ops.isnull_op)
+                if how == "any":
+                    null_locations = DataFrame(isnull_block).any().to_pandas()
+                else:  # 'all'
+                    null_locations = DataFrame(isnull_block).all().to_pandas()
+                keep_columns = [
+                    col
+                    for col, to_drop in zip(self._block.value_columns, null_locations)
+                    if not to_drop
+                ]
             return DataFrame(self._block.select_columns(keep_columns))
 
     def any(
@@ -2925,9 +3041,53 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return bigframes.series.Series(block)
 
     def agg(
-        self, func: str | typing.Sequence[str]
+        self,
+        func: str
+        | typing.Sequence[str]
+        | typing.Mapping[blocks.Label, typing.Sequence[str] | str],
     ) -> DataFrame | bigframes.series.Series:
-        if utils.is_list_like(func):
+        if utils.is_dict_like(func):
+            # Must check dict-like first because dictionaries are list-like
+            # according to Pandas.
+
+            aggs = []
+            labels = []
+            funcnames = []
+            for col_label, agg_func in func.items():
+                agg_func_list = agg_func if utils.is_list_like(agg_func) else [agg_func]
+                col_id = self._block.resolve_label_exact(col_label)
+                if col_id is None:
+                    raise KeyError(f"Column {col_label} does not exist")
+                for agg_func in agg_func_list:
+                    agg_op = agg_ops.lookup_agg_func(typing.cast(str, agg_func))
+                    agg_expr = (
+                        ex.UnaryAggregation(agg_op, ex.deref(col_id))
+                        if isinstance(agg_op, agg_ops.UnaryAggregateOp)
+                        else ex.NullaryAggregation(agg_op)
+                    )
+                    aggs.append(agg_expr)
+                    labels.append(col_label)
+                    funcnames.append(agg_func)
+
+            # if any list in dict values, format output differently
+            if any(utils.is_list_like(v) for v in func.values()):
+                new_index, _ = self.columns.reindex(labels)
+                new_index = utils.combine_indices(new_index, pandas.Index(funcnames))
+                agg_block, _ = self._block.aggregate(
+                    aggregations=aggs, column_labels=new_index
+                )
+                return DataFrame(agg_block).stack().droplevel(0, axis="index")
+            else:
+                new_index, _ = self.columns.reindex(labels)
+                agg_block, _ = self._block.aggregate(
+                    aggregations=aggs, column_labels=new_index
+                )
+                return bigframes.series.Series(
+                    agg_block.transpose(
+                        single_row_mode=True, original_row_index=pandas.Index([None])
+                    )
+                )
+        elif utils.is_list_like(func):
             aggregations = [agg_ops.lookup_agg_func(f) for f in func]
 
             for dtype, agg in itertools.product(self.dtypes, aggregations):
@@ -2941,7 +3101,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     aggregations,
                 )
             )
-        else:
+
+        else:  # function name string
             return bigframes.series.Series(
                 self._block.aggregate_all_and_stack(
                     agg_ops.lookup_agg_func(typing.cast(str, func))
@@ -3001,92 +3162,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
     def describe(self, include: None | Literal["all"] = None) -> DataFrame:
-        if include is None:
-            numeric_df = self._select_exact_dtypes(
-                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
-                + bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
-            )
-            if len(numeric_df.columns) == 0:
-                # Describe eligible non-numeric columns
-                return self._describe_non_numeric()
+        from bigframes.pandas.core.methods import describe
 
-            # Otherwise, only describe numeric columns
-            return self._describe_numeric()
-
-        elif include == "all":
-            numeric_result = self._describe_numeric()
-            non_numeric_result = self._describe_non_numeric()
-
-            if len(numeric_result.columns) == 0:
-                return non_numeric_result
-            elif len(non_numeric_result.columns) == 0:
-                return numeric_result
-            else:
-                import bigframes.core.reshape.api as rs
-
-                # Use reindex after join to preserve the original column order.
-                return rs.concat(
-                    [non_numeric_result, numeric_result], axis=1
-                )._reindex_columns(self.columns)
-
-        else:
-            raise ValueError(f"Unsupported include type: {include}")
-
-    def _describe_numeric(self) -> DataFrame:
-        number_df_result = typing.cast(
-            DataFrame,
-            self._select_exact_dtypes(
-                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
-            ).agg(
-                [
-                    "count",
-                    "mean",
-                    "std",
-                    "min",
-                    "25%",
-                    "50%",
-                    "75%",
-                    "max",
-                ]
-            ),
-        )
-        temporal_df_result = typing.cast(
-            DataFrame,
-            self._select_exact_dtypes(
-                bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
-            ).agg(["count"]),
-        )
-
-        if len(number_df_result.columns) == 0:
-            return temporal_df_result
-        elif len(temporal_df_result.columns) == 0:
-            return number_df_result
-        else:
-            import bigframes.core.reshape.api as rs
-
-            original_columns = self._select_exact_dtypes(
-                bigframes.dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
-                + bigframes.dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
-            ).columns
-
-            # Use reindex after join to preserve the original column order.
-            return rs.concat(
-                [number_df_result, temporal_df_result],
-                axis=1,
-            )._reindex_columns(original_columns)
-
-    def _describe_non_numeric(self) -> DataFrame:
-        return typing.cast(
-            DataFrame,
-            self._select_exact_dtypes(
-                [
-                    bigframes.dtypes.STRING_DTYPE,
-                    bigframes.dtypes.BOOL_DTYPE,
-                    bigframes.dtypes.BYTES_DTYPE,
-                    bigframes.dtypes.TIME_DTYPE,
-                ]
-            ).agg(["count", "nunique"]),
-        )
+        return typing.cast(DataFrame, describe.describe(self, include))
 
     def skew(self, *, numeric_only: bool = False):
         if not numeric_only:
@@ -3336,8 +3414,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             "right",
             "cross",
         ] = "inner",
-        # TODO(garrettwu): Currently can take inner, outer, left and right. To support
-        # cross joins
         on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
         *,
         left_on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
@@ -3358,15 +3434,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
             return DataFrame(result_block)
 
-        if on is None:
-            if left_on is None or right_on is None:
-                raise ValueError("Must specify `on` or `left_on` + `right_on`.")
-        else:
-            if left_on is not None or right_on is not None:
-                raise ValueError(
-                    "Can not pass both `on` and `left_on` + `right_on` params."
-                )
-            left_on, right_on = on, on
+        left_on, right_on = self._validate_left_right_on(
+            right, on, left_on=left_on, right_on=right_on
+        )
 
         if utils.is_list_like(left_on):
             left_on = list(left_on)  # type: ignore
@@ -3402,6 +3472,41 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             suffixes=suffixes,
         )
         return DataFrame(block)
+
+    def _validate_left_right_on(
+        self,
+        right: DataFrame,
+        on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
+        *,
+        left_on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
+        right_on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
+    ):
+        if on is not None:
+            if left_on is not None or right_on is not None:
+                raise ValueError(
+                    "Can not pass both `on` and `left_on` + `right_on` params."
+                )
+            return on, on
+
+        if left_on is not None and right_on is not None:
+            return left_on, right_on
+
+        left_cols = self.columns
+        right_cols = right.columns
+        common_cols = left_cols.intersection(right_cols)
+        if len(common_cols) == 0:
+            raise ValueError(
+                "No common columns to perform merge on."
+                f"Merge options: left_on={left_on}, "
+                f"right_on={right_on}, "
+            )
+        if (
+            not left_cols.join(common_cols, how="inner").is_unique
+            or not right_cols.join(common_cols, how="inner").is_unique
+        ):
+            raise ValueError(f"Data columns not unique: {repr(common_cols)}")
+
+        return common_cols, common_cols
 
     def join(
         self,
@@ -4082,7 +4187,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self,
         dtype=None,
         copy=False,
-        na_value=None,
+        na_value=pd_ext.no_default,
         *,
         allow_large_results=None,
         **kwargs,
@@ -4395,7 +4500,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return array_value, id_overrides
 
     def map(self, func, na_action: Optional[str] = None) -> DataFrame:
-        if not callable(func):
+        if not isinstance(func, bigframes.functions.BigqueryCallableRoutine):
             raise TypeError("the first argument must be callable")
 
         if na_action not in {None, "ignore"}:
@@ -4403,7 +4508,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         # TODO(shobs): Support **kwargs
         return self._apply_unary_op(
-            ops.RemoteFunctionOp(func=func, apply_on_null=(na_action is None))
+            ops.RemoteFunctionOp(
+                function_def=func.udf_def, apply_on_null=(na_action is None)
+            )
         )
 
     def apply(self, func, *, axis=0, args: typing.Tuple = (), **kwargs):
@@ -4417,13 +4524,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
             warnings.warn(msg, category=bfe.FunctionAxisOnePreviewWarning)
 
-            if not hasattr(func, "bigframes_bigquery_function"):
+            if not isinstance(
+                func,
+                (
+                    bigframes.functions.BigqueryCallableRoutine,
+                    bigframes.functions.BigqueryCallableRowRoutine,
+                ),
+            ):
                 raise ValueError(
                     "For axis=1 a BigFrames BigQuery function must be used."
                 )
 
-            is_row_processor = getattr(func, "is_row_processor")
-            if is_row_processor:
+            if func.is_row_processor:
                 # Early check whether the dataframe dtypes are currently supported
                 # in the bigquery function
                 # NOTE: Keep in sync with the value converters used in the gcf code
@@ -4477,7 +4589,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
                 # Apply the function
                 result_series = rows_as_json_series._apply_unary_op(
-                    ops.RemoteFunctionOp(func=func, apply_on_null=True)
+                    ops.RemoteFunctionOp(function_def=func.udf_def, apply_on_null=True)
                 )
             else:
                 # This is a special case where we are providing not-pandas-like
@@ -4492,7 +4604,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 #      compatible with the data types of the input params
                 #   3. The order of the columns in the dataframe must correspond
                 #      to the order of the input params in the function
-                udf_input_dtypes = getattr(func, "input_dtypes")
+                udf_input_dtypes = func.udf_def.signature.bf_input_types
                 if len(udf_input_dtypes) != len(self.columns):
                     raise ValueError(
                         f"BigFrames BigQuery function takes {len(udf_input_dtypes)}"
@@ -4506,25 +4618,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
                 series_list = [self[col] for col in self.columns]
                 result_series = series_list[0]._apply_nary_op(
-                    ops.NaryRemoteFunctionOp(func=func), series_list[1:]
+                    ops.NaryRemoteFunctionOp(function_def=func.udf_def), series_list[1:]
                 )
             result_series.name = None
 
-            # If the result type is string but the function output is intended
-            # to be an array, reconstruct the array from the string assuming it
-            # is a json serialized form of the array.
-            if bigframes.dtypes.is_string_like(
-                result_series.dtype
-            ) and bigframes.dtypes.is_array_like(func.output_dtype):
-                import bigframes.bigquery as bbq
-
-                result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
-                    func.output_dtype.pyarrow_dtype.value_type
-                )
-                result_series = bbq.json_extract_string_array(
-                    result_series, value_dtype=result_dtype
-                )
-
+            result_series = func._post_process_series(result_series)
             return result_series
 
         # At this point column-wise or element-wise bigquery function operation will
