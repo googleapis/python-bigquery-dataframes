@@ -256,13 +256,10 @@ class Index(vendored_pandas_index.Index):
         self, key: typing.Any
     ) -> typing.Union[int, slice, "bigframes.series.Series"]:
         """Get integer location, slice or boolean mask for requested label.
-
         Args:
             key: The label to search for in the index.
-
         Returns:
             An integer, slice, or boolean mask representing the location(s) of the key.
-
         Raises:
             NotImplementedError: If the index has more than one level.
             KeyError: If the key is not found in the index.
@@ -274,15 +271,12 @@ class Index(vendored_pandas_index.Index):
         # Get the index column from the block
         index_column = self._block.index_columns[0]
 
-        # Apply row numbering to the original data
-        win_spec = window_spec.unbound()
-        row_num_agg = ex.NullaryAggregation(agg_ops.RowNumberOp())
+        # Apply row numbering to the original data - inline single-use variables
         row_num_col_id = ids.ColumnId.unique()
-
         window_node = nodes.WindowOpNode(
             child=self._block._expr.node,
-            expression=row_num_agg,
-            window_spec=win_spec,
+            expression=ex.NullaryAggregation(agg_ops.RowNumberOp()),
+            window_spec=window_spec.unbound(),
             output_name=row_num_col_id,
             never_skip_nulls=True,
         )
@@ -326,22 +320,28 @@ class Index(vendored_pandas_index.Index):
         # Multiple matches - need to determine if monotonic or not
         is_monotonic = self.is_monotonic_increasing or self.is_monotonic_decreasing
         if is_monotonic:
-            # Get min and max positions for slice
-            min_agg = ex.UnaryAggregation(agg_ops.min_op, ex.deref(row_num_col_id.name))
-            max_agg = ex.UnaryAggregation(agg_ops.max_op, ex.deref(row_num_col_id.name))
-            min_result = filtered_block._expr.aggregate([(min_agg, "min_pos")])
-            max_result = filtered_block._expr.aggregate([(max_agg, "max_pos")])
-            min_pos = self._block.session._executor.execute(min_result).to_py_scalar()
-            max_pos = self._block.session._executor.execute(max_result).to_py_scalar()
-
-            # create slice
-            start = int(min_pos)
-            stop = int(max_pos) + 1  # exclusive
-            return slice(start, stop, None)
+            return self._get_monotonic_slice(filtered_block, row_num_col_id)
         else:
             # Return boolean mask for non-monotonic duplicates
             mask_block = windowed_block.select_columns([match_col_id])
             return bigframes.series.Series(mask_block)
+
+    def _get_monotonic_slice(self, filtered_block, row_num_col_id):
+        """Helper method to get slice for monotonic duplicates with optimized query."""
+        # Combine min and max aggregations into single query using to_pandas()
+        min_agg = ex.UnaryAggregation(agg_ops.min_op, ex.deref(row_num_col_id.name))
+        max_agg = ex.UnaryAggregation(agg_ops.max_op, ex.deref(row_num_col_id.name))
+        combined_result = filtered_block._expr.aggregate(
+            [(min_agg, "min_pos"), (max_agg, "max_pos")]
+        )
+        result_df = self._block.session._executor.execute(combined_result).to_pandas()
+        min_pos = result_df["min_pos"].iloc[0]
+        max_pos = result_df["max_pos"].iloc[0]
+
+        # Create slice
+        start = int(min_pos)
+        stop = int(max_pos) + 1  # exclusive
+        return slice(start, stop, None)
 
     def __repr__(self) -> str:
         # Protect against errors with uninitialized Series. See:
