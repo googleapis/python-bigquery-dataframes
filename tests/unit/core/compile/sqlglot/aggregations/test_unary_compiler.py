@@ -40,10 +40,12 @@ def _apply_unary_op(obj: bpd.DataFrame, op: agg_ops.UnaryWindowOp, arg: str) -> 
 def test_size(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["string_col"]]
     sql = _apply_unary_op(bf_df, agg_ops.SizeUnaryOp(), "string_col")
+
     snapshot.assert_match(sql, "out.sql")
 
 
 def test_sum(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["int64_col"]]
     sql = _apply_unary_op(bf_df, agg_ops.SumOp(), "int64_col")
+
     snapshot.assert_match(sql, "out.sql")

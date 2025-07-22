@@ -32,7 +32,7 @@ def test_register_then_get():
     assert reg[agg_ops.SizeOp.name](op, input) == test_func(op, input)
 
 
-def test_register_function_first_argument_is_not_scalar_op_raise_error():
+def test_register_function_first_argument_is_not_agg_op_raise_error():
     reg = op_registration.OpRegistration()
 
     @reg.register(agg_ops.SizeOp)
