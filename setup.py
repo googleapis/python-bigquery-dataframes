@@ -61,6 +61,7 @@ dependencies = [
     "matplotlib >=3.7.1",
     "db-dtypes >=1.4.2",
     # For vendored ibis-framework.
+    "ibis-framework==6.2.0",
     "atpublic>=2.3,<6",
     "python-dateutil>=2.8.2,<3",
     "pytz>=2022.7",
