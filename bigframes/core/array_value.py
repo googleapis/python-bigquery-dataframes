@@ -21,7 +21,6 @@ from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
 import warnings
 
 import google.cloud.bigquery
-import pandas
 import pyarrow as pa
 
 import bigframes.core.expression as ex
