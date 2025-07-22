@@ -280,6 +280,10 @@ def test_literal_to_ibis_scalar_throws_on_incompatible_literal():
         (pa.scalar(1_000_000_000, type=pa.int64()), bigframes.dtypes.INT_DTYPE),
         (pa.scalar(True, type=pa.bool_()), bigframes.dtypes.BOOL_DTYPE),
         (pa.scalar("hello", type=pa.string()), bigframes.dtypes.STRING_DTYPE),
+        # Support NULL scalars.
+        (pa.scalar(None, type=pa.int64()), bigframes.dtypes.INT_DTYPE),
+        (pa.scalar(None, type=pa.bool_()), bigframes.dtypes.BOOL_DTYPE),
+        (pa.scalar(None, type=pa.string()), bigframes.dtypes.STRING_DTYPE),
     ],
 )
 def test_infer_literal_type_arrow_scalar(scalar, expected_dtype):
