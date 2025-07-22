@@ -674,14 +674,14 @@ def infer_literal_type(literal) -> typing.Optional[Dtype]:
                 pa.field(key, field_type, nullable=(not pa.types.is_list(field_type)))
             )
         return pd.ArrowDtype(pa.struct(fields))
-    if pd.isna(literal):
-        return None  # Null value without a definite type
     # Make sure to check datetime before date as datetimes are also dates
     if isinstance(literal, (datetime.datetime, pd.Timestamp)):
         if literal.tzinfo is not None:
             return TIMESTAMP_DTYPE
         else:
             return DATETIME_DTYPE
+    if pd.isna(literal):
+        return None  # Null value without a definite type
     from_python_type = _infer_dtype_from_python_type(type(literal))
     if from_python_type is not None:
         return from_python_type

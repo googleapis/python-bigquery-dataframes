@@ -3764,6 +3764,12 @@ def test_at_no_duplicate(scalars_df_index, scalars_pandas_df_index):
     assert bf_result == pd_result
 
 
+def test_setitem_w_timestamp_none():
+    b_df = bpd.DataFrame({'rowindex': [1, 2, 3]})
+    b_df['temp_timestamp'] = pd.Timestamp(ts_input=None, unit="us", tz="utc")
+    assert b_df['temp_timestamp'].dtype == "timestamp[us][pyarrow]"
+
+
 def test_loc_setitem_bool_series_scalar_new_col(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_df = scalars_df.copy()

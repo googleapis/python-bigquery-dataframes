@@ -324,10 +324,6 @@ class ArrayValue:
         value: typing.Any,
         dtype: typing.Optional[bigframes.dtypes.Dtype],
     ) -> Tuple[ArrayValue, str]:
-        if pandas.isna(value):
-            # Need to assign a data type when value is NaN.
-            dtype = dtype or bigframes.dtypes.DEFAULT_DTYPE
-
         return self.project_to_id(ex.const(value, dtype))
 
     def select_columns(
