@@ -187,7 +187,10 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 
 @UNARY_OP_REGISTRATION.register(ops.dayofweek_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
-    return sge.Extract(this=sge.Identifier(this="DAYOFWEEK"), expression=expr.expr)
+    # Adjust the 1-based day-of-week index (from SQL) to a 0-based index.
+    return sge.Extract(
+        this=sge.Identifier(this="DAYOFWEEK"), expression=expr.expr
+    ) - sge.convert(1)
 
 
 @UNARY_OP_REGISTRATION.register(ops.dayofyear_op)
