@@ -74,13 +74,15 @@ def test_get_loc_should_return_mask_for_non_monotonic_duplicates():
     bf_index = bpd.Index(["a", "b", "c", "b"])
     pd_index = pd.Index(["a", "b", "c", "b"])
 
+    pd_result = pd_index.get_loc("b")
     bf_result = bf_index.get_loc("b")
+
+    assert not isinstance(bf_result, (int, slice))
+
     if hasattr(bf_result, "to_numpy"):
         bf_array = bf_result.to_numpy()
     else:
         bf_array = bf_result.to_pandas().to_numpy()
-    pd_result = pd_index.get_loc("b")
-
     numpy.testing.assert_array_equal(bf_array, pd_result)
 
 
@@ -89,13 +91,15 @@ def test_get_loc_should_return_mask_for_non_monotonic_numeric_duplicates():
     bf_index = bpd.Index([1, 2, 3, 2])
     pd_index = pd.Index([1, 2, 3, 2])
 
+    pd_result = pd_index.get_loc(2)
     bf_result = bf_index.get_loc(2)
+
+    assert not isinstance(bf_result, (int, slice))
+
     if hasattr(bf_result, "to_numpy"):
         bf_array = bf_result.to_numpy()
     else:
         bf_array = bf_result.to_pandas().to_numpy()
-    pd_result = pd_index.get_loc(2)
-
     numpy.testing.assert_array_equal(bf_array, pd_result)
 
 
