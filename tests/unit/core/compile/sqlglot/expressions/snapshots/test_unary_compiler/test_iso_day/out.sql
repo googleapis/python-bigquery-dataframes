@@ -5,7 +5,7 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    EXTRACT(DAYOFWEEK FROM `bfcol_0`) + 1 AS `bfcol_1`
+    EXTRACT(DAYOFWEEK FROM `bfcol_0`) AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT

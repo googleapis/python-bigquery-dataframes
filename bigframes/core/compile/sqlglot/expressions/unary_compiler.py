@@ -304,9 +304,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 
 @UNARY_OP_REGISTRATION.register(ops.iso_day_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
-    return sge.Extract(
-        this=sge.Identifier(this="DAYOFWEEK"), expression=expr.expr
-    ) + sge.convert(1)
+    return sge.Extract(this=sge.Identifier(this="DAYOFWEEK"), expression=expr.expr)
 
 
 @UNARY_OP_REGISTRATION.register(ops.iso_week_op)
