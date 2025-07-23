@@ -62,21 +62,20 @@ class TableWidget(WIDGET_BASE):
         super().__init__()
         self._dataframe = dataframe
 
-        # respect display options for initial page size
-        initial_page_size = bigframes.options.display.max_rows
-        self.page_size = initial_page_size
-
-        # Initialize data fetching attributes.
-        self._batches = dataframe.to_pandas_batches(page_size=self.page_size)
-
-        # Use list of DataFrames to avoid memory copies from concatenation
-        self._cached_batches: List[pd.DataFrame] = []
-
-        # Unique identifier for HTML table element
+        # Initialize attributes that might be needed by observers FIRST
         self._table_id = str(uuid.uuid4())
         self._all_data_loaded = False
-        # Renamed from _batch_iterator to _batch_iter to avoid naming conflict
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
+        self._cached_batches: List[pd.DataFrame] = []
+
+        # respect display options for initial page size
+        initial_page_size = bigframes.options.display.max_rows
+
+        # Initialize data fetching attributes.
+        self._batches = dataframe.to_pandas_batches(page_size=initial_page_size)
+
+        # Now it's safe to set traitlets properties that trigger observers
+        self.page_size = initial_page_size
 
         # len(dataframe) is expensive, since it will trigger a
         # SELECT COUNT(*) query. It is a must have however.
