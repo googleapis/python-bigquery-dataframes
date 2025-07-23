@@ -74,7 +74,7 @@ class TableWidget(WIDGET_BASE):
         # Initialize data fetching attributes.
         self._batches = dataframe.to_pandas_batches(page_size=initial_page_size)
 
-        # Now it's safe to set traitlets properties that trigger observers
+        # set traitlets properties that trigger observers
         self.page_size = initial_page_size
 
         # len(dataframe) is expensive, since it will trigger a
@@ -102,12 +102,15 @@ class TableWidget(WIDGET_BASE):
     table_html = traitlets.Unicode().tag(sync=True)
 
     @traitlets.validate("page")
-    def _validate_page(self, proposal: Dict[str, Any]):
+    def _validate_page(self, proposal: Dict[str, Any]) -> int:
         """Validate and clamp the page number to a valid range.
 
         Args:
             proposal: A dictionary from the traitlets library containing the
                 proposed change. The new value is in proposal["value"].
+
+        Returns:
+            The validated and clamped page number as an integer.
         """
 
         value = proposal["value"]
@@ -121,11 +124,15 @@ class TableWidget(WIDGET_BASE):
         return max(0, min(value, max_page))
 
     @traitlets.validate("page_size")
-    def _validate_page_size(self, proposal: Dict[str, Any]):
+    def _validate_page_size(self, proposal: Dict[str, Any]) -> int:
         """Validate page size to ensure it's positive and reasonable.
+
         Args:
             proposal: A dictionary from the traitlets library containing the
                 proposed change. The new value is in proposal["value"].
+
+        Returns:
+            The validated page size as an integer.
         """
         value = proposal["value"]
 
@@ -141,7 +148,7 @@ class TableWidget(WIDGET_BASE):
         """
         Gets the next batch of data from the generator and appends to cache.
 
-        Return:
+        Returns:
             True if a batch was successfully loaded, False otherwise.
         """
         if self._all_data_loaded:
