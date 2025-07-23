@@ -77,8 +77,7 @@ def test_read_gbq_colab_fresh_session_is_hybrid():
         GROUP BY name
         ORDER BY total DESC
         LIMIT 300
-        """,
-        use_hybrid_engine=True,
+        """
     )
     session = df._session
     executions_before_python = session._metrics.execution_count
