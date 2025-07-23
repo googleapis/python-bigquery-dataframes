@@ -330,8 +330,9 @@ class Index(vendored_pandas_index.Index):
             # Return boolean mask for non-monotonic duplicates
             mask_block = windowed_block.select_columns([match_col_id])
             # Reset the index to use positional integers instead of original index values
-            result_series = bigframes.series.Series(mask_block)
+            mask_block = mask_block.reset_index(drop=True)
             # Ensure correct dtype and name to match pandas behavior
+            result_series = bigframes.series.Series(mask_block)
             return result_series.astype("boolean")
 
     def _get_monotonic_slice(
