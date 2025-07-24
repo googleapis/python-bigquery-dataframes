@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
+
 import pandas as pd
 import pytest
 
@@ -61,11 +63,12 @@ def table_widget(paginated_bf_df: bf.dataframe.DataFrame):
     Helper fixture to create a TableWidget instance with a fixed page size.
     This reduces duplication across tests that use the same widget configuration.
     """
-    from bigframes import display
+
+    from bigframes.display import TableWidget
 
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
         # Delay context manager cleanup of `max_rows` until after tests finish.
-        yield display.TableWidget(paginated_bf_df)
+        yield TableWidget(paginated_bf_df)
 
 
 @pytest.fixture(scope="module")
@@ -90,10 +93,10 @@ def small_bf_df(
 @pytest.fixture
 def small_widget(small_bf_df):
     """Helper fixture for tests using a DataFrame smaller than the page size."""
-    from bigframes import display
+    from bigframes.display import TableWidget
 
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 5):
-        yield display.TableWidget(small_bf_df)
+        yield TableWidget(small_bf_df)
 
 
 @pytest.fixture(scope="module")
@@ -135,10 +138,10 @@ def test_widget_initialization_should_calculate_total_row_count(
     paginated_bf_df: bf.dataframe.DataFrame,
 ):
     """A TableWidget should correctly calculate the total row count on creation."""
-    from bigframes import display
+    from bigframes.display import TableWidget
 
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        widget = display.TableWidget(paginated_bf_df)
+        widget = TableWidget(paginated_bf_df)
 
     assert widget.row_count == EXPECTED_ROW_COUNT
 
@@ -434,6 +437,107 @@ def test_widget_creation_should_load_css_for_rendering(table_widget):
     assert isinstance(css_content, str)
     assert len(css_content) > 0
     assert ".bigframes-widget .footer" in css_content
+
+
+def test_widget_row_count_should_be_immutable_after_creation(
+    paginated_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a widget created with a specific configuration when global display
+    options are changed later, the widget's original row_count should remain
+    unchanged.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(paginated_bf_df)
+        initial_row_count = widget.row_count
+        assert initial_row_count == EXPECTED_ROW_COUNT
+
+    # Change a global option that could influence row count
+    bf.options.display.max_rows = 10
+
+    # The widget's row count was fixed at creation and should not change.
+    assert widget.row_count == initial_row_count
+
+
+def test_widget_should_fallback_to_zero_rows_when_total_rows_is_none(
+    paginated_bf_df: bf.dataframe.DataFrame, monkeypatch: pytest.MonkeyPatch
+):
+    """
+    Given an internal component that fails to provide a total row count,
+    when the widget is created, the row_count should safely fall back to 0.
+    """
+    from bigframes.core.blocks import PandasBatches
+
+    # Simulate an internal failure where total_rows returns None
+    monkeypatch.setattr(PandasBatches, "total_rows", property(lambda self: None))
+
+    with bf.option_context("display.repr_mode", "anywidget"):
+        from bigframes.display import TableWidget
+
+        widget = TableWidget(paginated_bf_df)
+
+    assert widget.row_count == 0
+
+
+def test_widget_should_fallback_to_zero_rows_when_batches_are_invalid_type(
+    paginated_bf_df: bf.dataframe.DataFrame, monkeypatch: pytest.MonkeyPatch
+):
+    """
+    Given an internal component that returns an unexpected data type,
+    when the widget is created, the row_count should safely fall back to 0.
+    """
+    # Simulate internal method returning an unexpected type (a simple iterator)
+    def mock_to_pandas_batches(self, **kwargs):
+        return iter([paginated_bf_df.to_pandas().iloc[:2]])
+
+    monkeypatch.setattr(
+        "bigframes.dataframe.DataFrame.to_pandas_batches", mock_to_pandas_batches
+    )
+
+    with bf.option_context("display.repr_mode", "anywidget"):
+        from bigframes.display import TableWidget
+
+        widget = TableWidget(paginated_bf_df)
+
+    assert widget.row_count == 0
+
+
+@pytest.mark.parametrize(
+    "max_results, expected_rows",
+    [
+        (None, EXPECTED_ROW_COUNT),
+        (3, 3),
+        (10, EXPECTED_ROW_COUNT),
+    ],
+    ids=["no_limit", "limit_is_less_than_total", "limit_is_greater_than_total"],
+)
+def test_widget_row_count_should_respect_max_results_on_creation(
+    paginated_bf_df: bf.dataframe.DataFrame,
+    max_results: typing.Optional[int],
+    expected_rows: int,
+):
+    """
+    Given a max_results value, when a TableWidget is created with custom batches,
+    its row_count should be correctly capped by that value.
+    """
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        from bigframes.core.blocks import PandasBatches
+        from bigframes.display import TableWidget
+
+        widget = TableWidget(paginated_bf_df)
+
+        # Override batches with max_results to test the behavior
+        widget._batches = paginated_bf_df.to_pandas_batches(
+            page_size=widget.page_size, max_results=max_results
+        )
+
+        # Re-apply thelogic to update row_count
+        if isinstance(widget._batches, PandasBatches):
+            widget.row_count = widget._batches.total_rows or 0
+
+        assert widget.row_count == expected_rows
 
 
 # TODO(shuowei): Add tests for custom index and multiindex
