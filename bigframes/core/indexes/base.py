@@ -283,7 +283,7 @@ class Index(vendored_pandas_index.Index):
         )
 
         windowed_array = ArrayValue(window_node)
-        windowed_block = self._block.__class__(
+        windowed_block = blocks.Block(
             windowed_array,
             index_columns=self._block.index_columns,
             column_labels=self._block.column_labels.insert(
