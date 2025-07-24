@@ -42,6 +42,7 @@ if ANYWIDGET_INSTALLED:
 else:
     WIDGET_BASE = object
 
+_DEFAULT_PAGE_SIZE = 25
 
 class TableWidget(WIDGET_BASE):
     """
@@ -63,10 +64,10 @@ class TableWidget(WIDGET_BASE):
         self._dataframe = dataframe
 
         # respect display options
-        self.page_size = bigframes.options.display.max_rows
+        page_size = bigframes.options.display.max_rows
 
         # Initialize data fetching attributes.
-        self._batches = dataframe.to_pandas_batches(page_size=self.page_size)
+        self._batches = dataframe.to_pandas_batches(page_size=page_size)
 
         # Use list of DataFrames to avoid memory copies from concatenation
         self._cached_batches: List[pd.DataFrame] = []
@@ -82,9 +83,12 @@ class TableWidget(WIDGET_BASE):
         # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
         # before we get here so that the count might already be cached.
         self.row_count = len(dataframe)
-
-        # get the initial page
-        self._set_table_html()
+        # get the initial page, either through resetting the page_size or
+        # explicitly.
+        if page_size != self.page_size:
+          self.page_size = page_size
+        else:
+          self._set_table_html()
 
     @functools.cached_property
     def _css(self):
