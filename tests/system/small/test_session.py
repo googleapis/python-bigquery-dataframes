@@ -33,6 +33,7 @@ import pyarrow as pa
 import pytest
 
 import bigframes
+import bigframes.core.nodes as nodes
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.ml.linear_model
@@ -638,6 +639,37 @@ def test_read_gbq_with_configuration(
     df = session.read_gbq(query, configuration=config)
 
     assert df.shape == (9, 3)
+
+
+def test_read_gbq_query_w_allow_large_results(session: bigframes.Session):
+    if not hasattr(session.bqclient, "default_job_creation_mode"):
+        pytest.skip("Jobless query only available on newer google-cloud-bigquery.")
+
+    query = "SELECT 1"
+
+    # Make sure we don't get a cached table.
+    configuration = {"query": {"useQueryCache": False}}
+
+    # Very small results should wrap a local node.
+    df_false = session.read_gbq(
+        query,
+        configuration=configuration,
+        allow_large_results=False,
+    )
+    assert df_false.shape == (1, 1)
+    roots_false = df_false._get_block().expr.node.roots
+    assert any(isinstance(node, nodes.ReadLocalNode) for node in roots_false)
+    assert not any(isinstance(node, nodes.ReadTableNode) for node in roots_false)
+
+    # Large results allowed should wrap a table.
+    df_true = session.read_gbq(
+        query,
+        configuration=configuration,
+        allow_large_results=True,
+    )
+    assert df_true.shape == (1, 1)
+    roots_true = df_true._get_block().expr.node.roots
+    assert any(isinstance(node, nodes.ReadTableNode) for node in roots_true)
 
 
 def test_read_gbq_with_custom_global_labels(
