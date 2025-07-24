@@ -529,7 +529,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 
 @UNARY_OP_REGISTRATION.register(ops.time_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
-    return sge.Time(this=expr.expr)
+    return sge.func("TIME", expr.expr)
 
 
 @UNARY_OP_REGISTRATION.register(ops.timedelta_floor_op)
