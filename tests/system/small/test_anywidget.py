@@ -533,7 +533,7 @@ def test_widget_row_count_should_respect_max_results_on_creation(
             page_size=widget.page_size, max_results=max_results
         )
 
-        # Re-apply thelogic to update row_count
+        # Re-apply the logic to update row_count
         if isinstance(widget._batches, PandasBatches):
             widget.row_count = widget._batches.total_rows or 0
 
