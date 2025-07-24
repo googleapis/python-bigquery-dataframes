@@ -14,22 +14,23 @@
  * limitations under the License.
  */
 
-.table-container {
+.bigframes-widget .table-container {
 	max-height: 620px;
 	overflow: auto;
 }
 
-.footer {
+.bigframes-widget .footer {
 	align-items: center;
 	display: flex;
 	font-size: 0.8rem;
+	padding-top: 8px;
 }
 
-.footer > * {
+.bigframes-widget .footer > * {
 	flex: 1;
 }
 
-.pagination {
+.bigframes-widget .pagination {
 	align-items: center;
 	display: flex;
 	flex-direction: row;
@@ -38,7 +39,7 @@
 	padding: 4px;
 }
 
-.page-size {
+.bigframes-widget .page-size {
 	align-items: center;
 	display: flex;
 	flex-direction: row;
@@ -46,21 +47,21 @@
 	justify-content: end;
 }
 
-table {
+.bigframes-widget table {
 	border-collapse: collapse;
 	text-align: left;
 	width: 100%;
 }
 
-th {
+.bigframes-widget th {
 	background-color: var(--colab-primary-surface-color, var(--jp-layout-color0));
-	/* Uncomment once we support sorting cursor: pointer; */
+	/* Uncomment once we support sorting: cursor: pointer; */
 	position: sticky;
 	top: 0;
 	z-index: 1;
 }
 
-button {
+.bigframes-widget button {
 	cursor: pointer;
 	display: inline-block;
 	text-align: center;
@@ -69,7 +70,7 @@ button {
 	vertical-align: middle;
 }
 
-button:disabled {
+.bigframes-widget button:disabled {
 	opacity: 0.65;
 	pointer-events: none;
 }

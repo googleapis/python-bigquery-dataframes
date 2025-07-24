@@ -15,10 +15,10 @@
  */
 
 const ModelProperty = {
-	TABLE_HTML: "table_html",
-	ROW_COUNT: "row_count",
-	PAGE_SIZE: "page_size",
 	PAGE: "page",
+	PAGE_SIZE: "page_size",
+	ROW_COUNT: "row_count",
+	TABLE_HTML: "table_html",
 };
 
 const Event = {
@@ -28,39 +28,48 @@ const Event = {
 };
 
 /**
- * Renders a paginated table and its controls into a given element.
+ * Renders the interactive table widget.
  * @param {{
- * model: !Backbone.Model,
- * el: !HTMLElement
+ * model: any,
+ * el: HTMLElement
  * }} options
  */
 function render({ model, el }) {
-	// Structure
+	// Main container with a unique class for CSS scoping
 	const container = document.createElement("div");
+	container.classList.add("bigframes-widget");
+
+	// Structure
 	const tableContainer = document.createElement("div");
 	const footer = document.createElement("div");
-	// Total rows label
+
+	// Footer: Total rows label
 	const rowCountLabel = document.createElement("div");
-	// Pagination controls
+
+	// Footer: Pagination controls
 	const paginationContainer = document.createElement("div");
 	const prevPage = document.createElement("button");
 	const paginationLabel = document.createElement("span");
 	const nextPage = document.createElement("button");
-	// Page size controls
+
+	// Footer: Page size controls
 	const pageSizeContainer = document.createElement("div");
 	const pageSizeLabel = document.createElement("label");
 	const pageSizeSelect = document.createElement("select");
 
+	// Add CSS classes
 	tableContainer.classList.add("table-container");
 	footer.classList.add("footer");
 	paginationContainer.classList.add("pagination");
 	pageSizeContainer.classList.add("page-size");
 
+	// Configure pagination buttons
 	prevPage.type = "button";
 	nextPage.type = "button";
 	prevPage.textContent = "Prev";
 	nextPage.textContent = "Next";
 
+	// Configure page size selector
 	pageSizeLabel.textContent = "Page Size";
 	for (const size of [10, 25, 50, 100]) {
 		const option = document.createElement("option");
@@ -72,39 +81,34 @@ function render({ model, el }) {
 		pageSizeSelect.appendChild(option);
 	}
 
-	/** Updates the button states and page label based on the model. */
+	/** Updates the footer states and page label based on the model. */
 	function updateButtonStates() {
 		const rowCount = model.get(ModelProperty.ROW_COUNT);
-		rowCountLabel.textContent = `${rowCount.toLocaleString()} total rows`;
-
-		const totalPages = Math.ceil(
-			model.get(ModelProperty.ROW_COUNT) / model.get(ModelProperty.PAGE_SIZE),
-		);
+		const pageSize = model.get(ModelProperty.PAGE_SIZE);
 		const currentPage = model.get(ModelProperty.PAGE);
+		const totalPages = Math.ceil(rowCount / pageSize);
 
-		paginationLabel.textContent = `Page ${currentPage + 1} of ${totalPages}`;
+		rowCountLabel.textContent = `${rowCount.toLocaleString()} total rows`;
+		paginationLabel.textContent = `Page ${currentPage + 1} of ${totalPages || 1}`;
 		prevPage.disabled = currentPage === 0;
 		nextPage.disabled = currentPage >= totalPages - 1;
-
-		// Update page size selector
-		pageSizeSelect.value = model.get(ModelProperty.PAGE_SIZE);
+		pageSizeSelect.value = pageSize;
 	}
 
 	/**
-	 * Updates the page in the model.
-	 * @param {number} direction -1 for previous, 1 for next.
+	 * Increments or decrements the page in the model.
+	 * @param {number} direction - `1` for next, `-1` for previous.
 	 */
 	function handlePageChange(direction) {
-		const currentPage = model.get(ModelProperty.PAGE);
-		const newPage = Math.max(0, currentPage + direction);
-		if (newPage !== currentPage) {
-			model.set(ModelProperty.PAGE, newPage);
-			model.save_changes();
-		}
+		const current = model.get(ModelProperty.PAGE);
+		const next = current + direction;
+		model.set(ModelProperty.PAGE, next);
+		model.save_changes();
 	}
 
-	/** Handles the page_size in the model.
-	 * @param {number} size - new size to set
+	/**
+	 * Handles changes to the page size from the dropdown.
+	 * @param {number} size - The new page size.
 	 */
 	function handlePageSizeChange(size) {
 		const currentSize = model.get(ModelProperty.PAGE_SIZE);
@@ -114,14 +118,15 @@ function render({ model, el }) {
 		}
 	}
 
-	/** Updates the HTML in the table container **/
+	/** Updates the HTML in the table container and refreshes button states. */
 	function handleTableHTMLChange() {
-		// Note: Using innerHTML can be a security risk if the content is
-		// user-generated. Ensure 'table_html' is properly sanitized.
+		// Note: Using innerHTML is safe here because the content is generated
+		// by a trusted backend (DataFrame.to_html).
 		tableContainer.innerHTML = model.get(ModelProperty.TABLE_HTML);
 		updateButtonStates();
 	}
 
+	// Add event listeners
 	prevPage.addEventListener(Event.CLICK, () => handlePageChange(-1));
 	nextPage.addEventListener(Event.CLICK, () => handlePageChange(1));
 	pageSizeSelect.addEventListener(Event.CHANGE, (e) => {
@@ -132,18 +137,24 @@ function render({ model, el }) {
 	});
 	model.on(Event.CHANGE_TABLE_HTML, handleTableHTMLChange);
 
-	// Initial setup
+	// Assemble the DOM
 	paginationContainer.appendChild(prevPage);
 	paginationContainer.appendChild(paginationLabel);
 	paginationContainer.appendChild(nextPage);
+
 	pageSizeContainer.appendChild(pageSizeLabel);
 	pageSizeContainer.appendChild(pageSizeSelect);
+
 	footer.appendChild(rowCountLabel);
 	footer.appendChild(paginationContainer);
 	footer.appendChild(pageSizeContainer);
+
 	container.appendChild(tableContainer);
 	container.appendChild(footer);
+
 	el.appendChild(container);
+
+	// Initial render
 	handleTableHTMLChange();
 }
 
