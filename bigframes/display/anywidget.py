@@ -78,14 +78,11 @@ class TableWidget(WIDGET_BASE):
         # Initialize data fetching attributes.
         self._batches = dataframe.to_pandas_batches(page_size=initial_page_size)
 
-        # Access total_rows through type casting (internal use only)
-        from bigframes.core.blocks import PandasBatches
-
-        if isinstance(self._batches, PandasBatches):
-            self.row_count = self._batches.total_rows or 0
-        else:
-            # Fallback for compatibility
-            self.row_count = 0
+        # Get total rows efficiently by executing the query once
+        execute_result = dataframe._block.session._executor.execute(
+            dataframe._block.expr, ordered=True
+        )
+        self.row_count = execute_result.total_rows or 0
 
         # set traitlets properties that trigger observers
         self.page_size = initial_page_size
