@@ -15,15 +15,15 @@ import pathlib
 
 import benchmark.utils as utils
 
-import bigframes.session
+import bigframes.pandas
 
 PAGE_SIZE = utils.READ_GBQ_COLAB_PAGE_SIZE
 
 
-def last_page(*, project_id, dataset_id, table_id, session: bigframes.session.Session):
+def last_page(*, project_id, dataset_id, table_id):
     # TODO(tswast): Support alternative query if table_id is a local DataFrame,
     # e.g. "{local_inline}" or "{local_large}"
-    df = session._read_gbq_colab(
+    df = bigframes.pandas._read_gbq_colab(
         f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}"
     )
 
@@ -38,9 +38,8 @@ if __name__ == "__main__":
         project_id,
         dataset_id,
         table_id,
-        session,
         suffix,
-    ) = utils.get_configuration(include_table_id=True)
+    ) = utils.get_configuration(include_table_id=True, include_session=False)
     current_path = pathlib.Path(__file__).absolute()
 
     utils.get_execution_time(
@@ -50,5 +49,4 @@ if __name__ == "__main__":
         project_id=project_id,
         dataset_id=dataset_id,
         table_id=table_id,
-        session=session,
     )
