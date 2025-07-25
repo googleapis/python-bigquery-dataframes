@@ -112,6 +112,32 @@ def empty_bf_df(
     return session.read_pandas(empty_pandas_df)
 
 
+def mock_execute_total_rows_is_none(self, schema, *args, **kwargs):
+    """Mocks an execution result where the total row count is missing."""
+    from bigframes.session.executor import ExecuteResult
+
+    return ExecuteResult(
+        iter([]),  # arrow_batches
+        schema=schema,
+        query_job=None,
+        total_bytes=None,
+        total_rows=None,  # The specific failure condition for this case
+    )
+
+
+def mock_execute_batches_are_invalid(self, schema, *args, **kwargs):
+    """Mocks an execution result where the batch data is an invalid type."""
+    from bigframes.session.executor import ExecuteResult
+
+    return ExecuteResult(
+        None,  # Invalid type for arrow_batches, which should be an iterator
+        schema=schema,
+        query_job=None,
+        total_bytes=None,
+        total_rows=100,  # A valid row count, as the error is in the batch data
+    )
+
+
 def _assert_html_matches_pandas_slice(
     table_html: str,
     expected_pd_slice: pd.DataFrame,
@@ -461,46 +487,43 @@ def test_widget_row_count_should_be_immutable_after_creation(
     assert widget.row_count == initial_row_count
 
 
-def test_widget_should_fallback_to_zero_rows_when_total_rows_is_none(
-    paginated_bf_df: bf.dataframe.DataFrame, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "mock_function",
+    [
+        mock_execute_total_rows_is_none,
+        mock_execute_batches_are_invalid,
+    ],
+    # 'ids' provides descriptive names for each test run in the pytest report.
+    ids=[
+        "when_total_rows_is_None",
+        "when_arrow_batches_are_invalid",
+    ],
+)
+def test_widget_should_fallback_to_zero_rows_on_error(
+    paginated_bf_df: bf.dataframe.DataFrame,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_function,
 ):
     """
-    Given an internal component that fails to provide a total row count,
-    when the widget is created, the row_count should safely fall back to 0.
+    Given an internal component fails to return valid execution data,
+    when the TableWidget is created, its row_count should safely fall back to 0.
     """
-    from bigframes.core.blocks import PandasBatches
-
-    # Simulate an internal failure where total_rows returns None
-    monkeypatch.setattr(PandasBatches, "total_rows", property(lambda self: None))
-
-    with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes.display import TableWidget
-
-        widget = TableWidget(paginated_bf_df)
-
-    assert widget.row_count == 0
-
-
-def test_widget_should_fallback_to_zero_rows_when_batches_are_invalid_type(
-    paginated_bf_df: bf.dataframe.DataFrame, monkeypatch: pytest.MonkeyPatch
-):
-    """
-    Given an internal component that returns an unexpected data type,
-    when the widget is created, the row_count should safely fall back to 0.
-    """
-    # Simulate internal method returning an unexpected type (a simple iterator)
-    def mock_to_pandas_batches(self, **kwargs):
-        return iter([paginated_bf_df.to_pandas().iloc[:2]])
-
+    # The 'self' argument is automatically handled when monkeypatch calls the method.
+    # We use a lambda to pass the DataFrame's schema to our mock function.
     monkeypatch.setattr(
-        "bigframes.dataframe.DataFrame.to_pandas_batches", mock_to_pandas_batches
+        "bigframes.session.bq_caching_executor.BigQueryCachingExecutor.execute",
+        lambda self, *args, **kwargs: mock_function(
+            self, paginated_bf_df._block.expr.schema, *args, **kwargs
+        ),
     )
 
     with bf.option_context("display.repr_mode", "anywidget"):
         from bigframes.display import TableWidget
 
+        # The widget should handle the faulty data from the mock without crashing.
         widget = TableWidget(paginated_bf_df)
 
+    # The key assertion: The widget safely defaults to 0 rows.
     assert widget.row_count == 0
 
 
