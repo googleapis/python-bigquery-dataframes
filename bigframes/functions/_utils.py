@@ -22,9 +22,7 @@ from typing import cast, Optional, Set
 import cloudpickle
 import google.api_core.exceptions
 from google.cloud import bigquery, functions_v2
-import numpy
 import pandas
-import pyarrow
 
 import bigframes.formatting_helpers as bf_formatting
 from bigframes.functions import function_typing
@@ -69,12 +67,12 @@ def _get_updated_package_requirements(
 
     if is_row_processor:
         # bigframes function will send an entire row of data as json, which
-        # would be converted to a pandas series and processed Ensure numpy
-        # versions match to avoid unpickling problems. See internal issue
-        # b/347934471.
-        requirements.append(f"numpy=={numpy.__version__}")
+        # would be converted to a pandas series and processed. Ideally we should
+        # ensure numpy versions match to avoid unpickling problems. See internal
+        # issue b/347934471. However, the BigQuery managed Python UDF runtime
+        # currently requires NumPy < 2.0. Due to this constraint (b/410924784),
+        # we only specify the pandas version in the requirements for now.
         requirements.append(f"pandas=={pandas.__version__}")
-        requirements.append(f"pyarrow=={pyarrow.__version__}")
 
     if package_requirements:
         requirements.extend(package_requirements)
