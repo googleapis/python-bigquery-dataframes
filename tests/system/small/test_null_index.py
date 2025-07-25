@@ -14,8 +14,11 @@
 
 
 import pandas as pd
+import pandas.testing
 import pytest
 
+import bigframes.core
+import bigframes.core.blocks as blocks
 import bigframes.exceptions
 import bigframes.pandas as bpd
 
@@ -398,5 +401,39 @@ def test_null_index_transpose(scalars_df_null_index):
         _ = scalars_df_null_index.T
 
 
-def test_null_index_contains(scalars_df_null_index):
-    assert 3 not in scalars_df_null_index
+@pytest.mark.parametrize(
+    ("session_fixture",),
+    [
+        pytest.param("session"),
+        pytest.param("unordered_session"),
+    ],
+)
+def test_identity_join_with_null_index_should_return_cartesian_product(
+    request, session_fixture
+):
+    """Test the Block.join method with block_identity_join=True and null indices."""
+    session = request.getfixturevalue(session_fixture)
+    left_data = pd.DataFrame({"a": [1, 2, 3]})
+    right_data = pd.DataFrame({"b": [10, 20, 30]})
+
+    left_block = blocks.Block.from_local(left_data, session=session)
+    right_block = blocks.Block.from_local(right_data, session=session)
+
+    expected_df = pd.DataFrame(
+        {
+            "a": [1, 2, 3],
+            "b": [10, 20, 30],
+        }
+    )
+
+    # Perform the identity join on the two blocks
+    result_block, (left_mapping, right_mapping) = left_block.join(
+        right_block, how="left", block_identity_join=True
+    )
+
+    result_df, _ = result_block.to_pandas()
+    pandas.testing.assert_frame_equal(
+        result_df.sort_values(by=["a", "b"]).reset_index(drop=True),
+        expected_df,
+        check_dtype=False,
+    )

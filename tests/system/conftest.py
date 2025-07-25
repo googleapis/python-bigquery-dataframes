@@ -602,6 +602,27 @@ def scalars_df_2_index(
 
 
 @pytest.fixture(scope="session")
+def scalars_df_null_index_partial_ordering(
+    scalars_table_id: str, unordered_session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data with null index in partial ordering mode."""
+    return unordered_session.read_gbq(
+        scalars_table_id, index_col=bigframes.enums.DefaultIndexKind.NULL
+    ).sort_values("rowindex")
+
+
+@pytest.fixture(scope="session")
+def scalars_series_null_index_partial_ordering(
+    scalars_table_id: str, unordered_session: bigframes.Session
+) -> bigframes.series.Series:
+    """Series pointing at test data with null index in partial ordering mode."""
+    df = unordered_session.read_gbq(
+        scalars_table_id, index_col=bigframes.enums.DefaultIndexKind.NULL
+    ).sort_values("rowindex")
+    return df["int64_col"]
+
+
+@pytest.fixture(scope="session")
 def scalars_pandas_df_default_index() -> pd.DataFrame:
     """pd.DataFrame pointing at test data."""
 
@@ -1527,5 +1548,14 @@ def audio_mm_df(
     audio_gcs_path, session: bigframes.Session, bq_connection: str
 ) -> bpd.DataFrame:
     return session.from_glob_path(
+        audio_gcs_path, name="audio", connection=bq_connection
+    )
+
+
+@pytest.fixture(scope="session")
+def audio_mm_df_partial_ordering(
+    audio_gcs_path, unordered_session: bigframes.Session, bq_connection: str
+) -> bpd.DataFrame:
+    return unordered_session.from_glob_path(
         audio_gcs_path, name="audio", connection=bq_connection
     )
