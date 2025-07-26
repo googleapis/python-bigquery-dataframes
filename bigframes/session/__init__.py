@@ -394,6 +394,7 @@ class Session(
         use_cache: Optional[bool] = ...,
         col_order: Iterable[str] = ...,
         dry_run: Literal[False] = ...,
+        allow_large_results: bool = ...,
     ) -> dataframe.DataFrame:
         ...
 
@@ -410,6 +411,7 @@ class Session(
         use_cache: Optional[bool] = ...,
         col_order: Iterable[str] = ...,
         dry_run: Literal[True] = ...,
+        allow_large_results: bool = ...,
     ) -> pandas.Series:
         ...
 
@@ -424,8 +426,8 @@ class Session(
         filters: third_party_pandas_gbq.FiltersType = (),
         use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
-        dry_run: bool = False
-        # Add a verify index argument that fails if the index is not unique.
+        dry_run: bool = False,
+        allow_large_results: bool = True,
     ) -> dataframe.DataFrame | pandas.Series:
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
         if columns and col_order:
@@ -445,6 +447,7 @@ class Session(
                 use_cache=use_cache,
                 filters=filters,
                 dry_run=dry_run,
+                allow_large_results=allow_large_results,
             )
         else:
             if configuration is not None:
@@ -551,6 +554,7 @@ class Session(
         col_order: Iterable[str] = ...,
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[False] = ...,
+        allow_large_results: bool = ...,
     ) -> dataframe.DataFrame:
         ...
 
@@ -567,6 +571,7 @@ class Session(
         col_order: Iterable[str] = ...,
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[True] = ...,
+        allow_large_results: bool = ...,
     ) -> pandas.Series:
         ...
 
@@ -582,6 +587,7 @@ class Session(
         col_order: Iterable[str] = (),
         filters: third_party_pandas_gbq.FiltersType = (),
         dry_run: bool = False,
+        allow_large_results: bool = True,
     ) -> dataframe.DataFrame | pandas.Series:
         """Turn a SQL query into a DataFrame.
 
@@ -631,9 +637,48 @@ class Session(
 
         See also: :meth:`Session.read_gbq`.
 
+        Args:
+            query (str):
+                A SQL query to execute.
+            index_col (Iterable[str] or str, optional):
+                The column(s) to use as the index for the DataFrame. This can be
+                a single column name or a list of column names. If not provided,
+                a default index will be used.
+            columns (Iterable[str], optional):
+                The columns to read from the query result. If not
+                specified, all columns will be read.
+            configuration (dict, optional):
+                A dictionary of query job configuration options. See the
+                BigQuery REST API documentation for a list of available options:
+                https://cloud.google.com/bigquery/docs/reference/rest/v2/jobs#configuration.query
+            max_results (int, optional):
+                The maximum number of rows to retrieve from the query
+                result. If not specified, all rows will be loaded.
+            use_cache (bool, optional):
+                Whether to use cached results for the query. Defaults to ``True``.
+                Setting this to ``False`` will force a re-execution of the query.
+            col_order (Iterable[str], optional):
+                The desired order of columns in the resulting DataFrame. This
+                parameter is deprecated and will be removed in a future version.
+                Use ``columns`` instead.
+            filters (list[tuple], optional):
+                A list of filters to apply to the data. Filters are specified
+                as a list of tuples, where each tuple contains a column name,
+                an operator (e.g., '==', '!='), and a value.
+            dry_run (bool, optional):
+                If ``True``, the function will not actually execute the query but
+                will instead return statistics about the query. Defaults to
+                ``False``.
+            allow_large_results (bool, optional):
+                Whether to allow large query results. If ``True``, the query
+                results can be larger than the maximum response size.
+                Defaults to ``True``.
+
         Returns:
-            bigframes.pandas.DataFrame:
-                A DataFrame representing results of the query or table.
+            bigframes.pandas.DataFrame or pandas.Series:
+                A DataFrame representing the result of the query. If ``dry_run``
+                is ``True``, a ``pandas.Series`` containing query statistics is
+                returned.
 
         Raises:
             ValueError:
@@ -657,6 +702,7 @@ class Session(
             use_cache=use_cache,
             filters=filters,
             dry_run=dry_run,
+            allow_large_results=allow_large_results,
         )
 
     @overload
@@ -714,9 +760,40 @@ class Session(
 
         See also: :meth:`Session.read_gbq`.
 
+        Args:
+            table_id (str):
+                The identifier of the BigQuery table to read.
+            index_col (Iterable[str] or str, optional):
+                The column(s) to use as the index for the DataFrame. This can be
+                a single column name or a list of column names. If not provided,
+                a default index will be used.
+            columns (Iterable[str], optional):
+                The columns to read from the table. If not specified, all
+                columns will be read.
+            max_results (int, optional):
+                The maximum number of rows to retrieve from the table. If not
+                specified, all rows will be loaded.
+            filters (list[tuple], optional):
+                A list of filters to apply to the data. Filters are specified
+                as a list of tuples, where each tuple contains a column name,
+                an operator (e.g., '==', '!='), and a value.
+            use_cache (bool, optional):
+                Whether to use cached results for the query. Defaults to ``True``.
+                Setting this to ``False`` will force a re-execution of the query.
+            col_order (Iterable[str], optional):
+                The desired order of columns in the resulting DataFrame. This
+                parameter is deprecated and will be removed in a future version.
+                Use ``columns`` instead.
+            dry_run (bool, optional):
+                If ``True``, the function will not actually execute the query but
+                will instead return statistics about the table. Defaults to
+                ``False``.
+
         Returns:
-            bigframes.pandas.DataFrame:
-                A DataFrame representing results of the query or table.
+            bigframes.pandas.DataFrame or pandas.Series:
+                A DataFrame representing the contents of the table. If
+                ``dry_run`` is ``True``, a ``pandas.Series`` containing table
+                statistics is returned.
 
         Raises:
             ValueError:

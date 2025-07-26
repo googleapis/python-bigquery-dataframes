@@ -184,6 +184,7 @@ def read_gbq(  # type: ignore[overload-overlap]
     use_cache: Optional[bool] = ...,
     col_order: Iterable[str] = ...,
     dry_run: Literal[False] = ...,
+    allow_large_results: bool = ...,
 ) -> bigframes.dataframe.DataFrame:
     ...
 
@@ -200,6 +201,7 @@ def read_gbq(
     use_cache: Optional[bool] = ...,
     col_order: Iterable[str] = ...,
     dry_run: Literal[True] = ...,
+    allow_large_results: bool = ...,
 ) -> pandas.Series:
     ...
 
@@ -215,6 +217,7 @@ def read_gbq(
     use_cache: Optional[bool] = None,
     col_order: Iterable[str] = (),
     dry_run: bool = False,
+    allow_large_results: bool = True,
 ) -> bigframes.dataframe.DataFrame | pandas.Series:
     _set_default_session_location_if_possible(query_or_table)
     return global_session.with_default_session(
@@ -228,6 +231,7 @@ def read_gbq(
         use_cache=use_cache,
         col_order=col_order,
         dry_run=dry_run,
+        allow_large_results=allow_large_results,
     )
 
 
@@ -393,6 +397,7 @@ def read_gbq_query(  # type: ignore[overload-overlap]
     col_order: Iterable[str] = ...,
     filters: vendored_pandas_gbq.FiltersType = ...,
     dry_run: Literal[False] = ...,
+    allow_large_results: bool = ...,
 ) -> bigframes.dataframe.DataFrame:
     ...
 
@@ -409,6 +414,7 @@ def read_gbq_query(
     col_order: Iterable[str] = ...,
     filters: vendored_pandas_gbq.FiltersType = ...,
     dry_run: Literal[True] = ...,
+    allow_large_results: bool = ...,
 ) -> pandas.Series:
     ...
 
@@ -424,6 +430,7 @@ def read_gbq_query(
     col_order: Iterable[str] = (),
     filters: vendored_pandas_gbq.FiltersType = (),
     dry_run: bool = False,
+    allow_large_results: bool = True,
 ) -> bigframes.dataframe.DataFrame | pandas.Series:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
@@ -437,6 +444,7 @@ def read_gbq_query(
         col_order=col_order,
         filters=filters,
         dry_run=dry_run,
+        allow_large_results=allow_large_results,
     )
 
 
