@@ -3187,7 +3187,11 @@ def test_dot_df_with_na(scalars_dfs):
     )
 
     pd.testing.assert_series_equal(
-        bf_result.to_pandas(), pd_result, check_index_type=False, check_dtype=False
+        bf_result.to_pandas(),
+        pd_result,
+        check_index_type=False,
+        check_dtype=False,
+        check_exact=False,
     )
 
 

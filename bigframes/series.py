@@ -1193,7 +1193,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return (self.rfloordiv(other), self.rmod(other))
 
     def dot(self, other):
-        return (self * other).sum()
+        if isinstance(other, Series):
+            return (self * other).sum()
 
         # At this point other must be a DataFrame
         if len(other.columns.names) == 1:
@@ -1203,6 +1204,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 [(self * other[col]).sum() for col in other.columns],
                 index=other.columns,
                 name=self.name,
+                session=self._session,
             )
             result = mul_df.mask(na_df)
         else:
